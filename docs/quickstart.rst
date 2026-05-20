@@ -243,9 +243,8 @@ its source field at ``generated/tpch_sample_ingestion``.
 
 .. tip::
 
-   Re-run ``lhp generate --env dev`` whenever you change a FlowGroup. LHP only
-   regenerates files whose source YAML changed. Pass ``--force`` to rebuild
-   every file.
+   Re-run ``lhp generate --env dev`` whenever you change a FlowGroup to refresh
+   the generated Python.
 
 Next steps
 ----------

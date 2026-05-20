@@ -102,7 +102,7 @@ That's it. Edit YAML files under `pipelines/`, point your Databricks Asset Bundl
 
 > Optional: open the project in VS Code. `lhp init` wires `.vscode/settings.json` to seven JSON schemas, so you get IntelliSense, hover docs, and inline validation for every YAML file out of the box.
 
-## The three things LHP does that nothing else does
+## The two things LHP does that nothing else does
 
 ### 1. Blueprint fan-out: one pipeline shape, many sites
 
@@ -138,11 +138,7 @@ Under the hood, `lhp generate` emits:
 
 Plug those into an AI/BI dashboard and you have project-wide observability — pipeline activity, health by domain, freshness, daily reliability — without writing the aggregation logic yourself. dlt-meta gives you per-pipeline event logs; LHP gives you the cross-pipeline rollup. (Logic in `src/lhp/core/services/monitoring_pipeline_builder.py`.)
 
-### 3. Smart state: regenerate only what changed
-
-LHP keeps a `.lhp_state.json` file alongside your project — a content-addressed manifest of every generated Python file, its source YAML, its SHA-256 checksum, and its upstream dependencies. The orchestrator builds a NetworkX DAG, compares checksums, and only regenerates files whose YAML *or whose dependencies' YAML* changed.
-
-The practical consequence: in a large project, editing one bronze YAML re-generates that file plus its silver/gold descendants — not the whole project. Orphaned generated files (whose source YAML was deleted) are detected and cleaned up. CI/CD pipelines that re-emit unchanged files for unrelated edits stop doing so. (Logic in `src/lhp/utils/smart_file_writer.py` and `src/lhp/core/services/generation_planning_service.py`.)
+Every `lhp generate` regenerates all flowgroups; state-file caching has been removed in version 0.10.0.
 
 ## Core workflow
 

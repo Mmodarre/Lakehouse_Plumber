@@ -158,9 +158,8 @@ lhp validate --env <env>        # Validate all configurations
 # Code generation
 lhp generate --env <env>                    # Generate Python DLT files
 lhp generate --env <env> --include-tests    # Include test actions
-lhp generate --env <env> --force            # Force regeneration
 lhp generate --env <env> --dry-run --verbose  # Preview without writing
-lhp generate --env <env> --force --pipeline-config config/pipeline_config.yaml  # Regen bundle resources
+lhp generate --env <env> --pipeline-config config/pipeline_config.yaml  # Regen bundle resources
 
 # Dependency analysis
 lhp deps                                      # Full analysis (all formats)

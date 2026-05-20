@@ -16,7 +16,7 @@ import pickle
 
 import pytest
 
-from lhp.core.state_models import PipelineDelta
+from lhp.models.processing import PipelineDelta
 
 
 class TestPipelineDeltaSerialization:
@@ -24,7 +24,6 @@ class TestPipelineDeltaSerialization:
         original = PipelineDelta.success_(
             "bronze_ingest",
             files_written=5,
-            files_skipped=2,
             artifacts_count=1,
             generated_filenames=("a.py",),
         )
@@ -32,7 +31,6 @@ class TestPipelineDeltaSerialization:
         assert restored.pipeline_name == "bronze_ingest"
         assert restored.success is True
         assert restored.files_written == 5
-        assert restored.files_skipped == 2
         assert restored.artifacts_count == 1
         assert restored.generated_filenames == ("a.py",)
         assert restored.error_type is None
@@ -53,7 +51,6 @@ class TestPipelineDeltaSerialization:
         assert restored.error_traceback is not None
         assert "ValueError" in restored.error_traceback
         assert restored.files_written == 0
-        assert restored.files_skipped == 0
 
     @pytest.mark.parametrize(
         "exc",
@@ -75,13 +72,10 @@ class TestPipelineDeltaSerialization:
 
     def test_repeated_round_trips_are_stable(self):
         """Double round-trip keeps all fields equal — no aliasing on dataclass slots."""
-        delta = PipelineDelta.success_(
-            "p", files_written=3, files_skipped=1, artifacts_count=0
-        )
+        delta = PipelineDelta.success_("p", files_written=3, artifacts_count=0)
         once = pickle.loads(pickle.dumps(delta))
         twice = pickle.loads(pickle.dumps(once))
         assert delta.pipeline_name == twice.pipeline_name
         assert delta.files_written == twice.files_written
-        assert delta.files_skipped == twice.files_skipped
         assert delta.artifacts_count == twice.artifacts_count
         assert delta.generated_filenames == twice.generated_filenames

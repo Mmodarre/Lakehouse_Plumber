@@ -81,8 +81,7 @@ How Dependencies Are Resolved
 ------------------------------
 
 Transforms may reference earlier views (or tables) via the ``source`` field.
-LHP's resolver builds a DAG, checks for cycles, and ensures downstream
-FlowGroups regenerate when upstream definitions change.
+LHP's resolver builds a DAG and checks for cycles.
 
 **Dependency resolution process:**
 
@@ -90,7 +89,6 @@ FlowGroups regenerate when upstream definitions change.
 2. **Build dependency graph** — Create directed acyclic graph (DAG) of dependencies
 3. **Cycle detection** — Prevent circular dependencies that would cause runtime errors
 4. **Topological ordering** — Generate actions in correct execution order
-5. **Change propagation** — Mark downstream FlowGroups for regeneration when dependencies change
 
 **Example dependency chain:**
 

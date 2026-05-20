@@ -32,7 +32,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Literal, Mapping, TypedDict
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BASELINES_DIR = Path(__file__).resolve().parent / "baselines"
 
@@ -163,8 +162,8 @@ def _wipe_state(fixture_path: Path) -> None:
         path = fixture_path / sub
         if path.exists():
             shutil.rmtree(path, ignore_errors=True)
-    for f in (".lhp_state.json", ".lhp/logs/perf.log"):
-        (fixture_path / f).unlink(missing_ok=True)
+    perf_log = fixture_path / ".lhp/logs/perf.log"
+    perf_log.unlink(missing_ok=True)
 
 
 # Pre-compiled regexes for _parse_perf_log_text.
@@ -215,8 +214,9 @@ def _parse_perf_log_text(text: str) -> BenchmarkRun:
             section = "phases"
             last_phase = None
             continue
-        if stripped.startswith(("Per-category aggregate stats:",
-                                "Per-flowgroup aggregate stats:")):
+        if stripped.startswith(
+            ("Per-category aggregate stats:", "Per-flowgroup aggregate stats:")
+        ):
             section = "categories"
             continue
 
@@ -284,9 +284,7 @@ def _format_failure_message(
             c = _format_count(entry.candidate_median)
             delta = entry.candidate_median - entry.baseline_median
             sign = "+" if delta >= 0 else ""
-            lines.append(
-                f"    baseline median   {b:<8s} candidate median  {c}"
-            )
+            lines.append(f"    baseline median   {b:<8s} candidate median  {c}")
             lines.append(
                 f"    delta             {sign}{_format_count(delta)}   "
                 "(counts must match exactly; algorithmic regression)"
@@ -310,19 +308,25 @@ def _format_failure_message(
     lines.append(f"Skipped (sub-second baseline): {len(result.skipped)}")
     lines.append(f"Shape mismatches: {len(result.shape_mismatches)}")
     fp = machine_fingerprint()
-    note = "(mismatch — see warning)" if result.fingerprint_mismatch else "(matches baseline)"
+    note = (
+        "(mismatch — see warning)"
+        if result.fingerprint_mismatch
+        else "(matches baseline)"
+    )
     lines.append(f"Machine fingerprint: {fp} {note}")
-    lines.extend([
-        "",
-        "To investigate:",
-        f"  cd Example_Projects/{fixture}",
-        "  rm -rf generated/ resources/lhp/ .lhp_state.json",
-        "  lhp --perf generate --env dev --force",
-        "  cat .lhp/logs/perf.log",
-        "",
-        "To accept and reset (only if drift is intentional):",
-        f"  python -m tests.performance.benchmark capture --fixture {fixture}",
-    ])
+    lines.extend(
+        [
+            "",
+            "To investigate:",
+            f"  cd Example_Projects/{fixture}",
+            "  rm -rf generated/ resources/lhp/",
+            "  lhp --perf generate --env dev",
+            "  cat .lhp/logs/perf.log",
+            "",
+            "To accept and reset (only if drift is intentional):",
+            f"  python -m tests.performance.benchmark capture --fixture {fixture}",
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -340,7 +344,7 @@ def machine_fingerprint() -> str:
 
 
 def run_benchmark(fixture_path: Path, runs: int = 5) -> list[BenchmarkRun]:
-    """Run ``lhp --perf generate --env dev --force`` ``runs`` times.
+    """Run ``lhp --perf generate --env dev`` ``runs`` times.
 
     Wipes fixture state between iterations to ensure each run measures a full
     cold-start generation. Raises ``RuntimeError`` if any iteration exits
@@ -363,9 +367,7 @@ def run_benchmark(fixture_path: Path, runs: int = 5) -> list[BenchmarkRun]:
         try:
             os.chdir(fixture_path)
             t0 = time.perf_counter()
-            result = runner.invoke(
-                cli, ["--perf", "generate", "--env", "dev", "--force"]
-            )
+            result = runner.invoke(cli, ["--perf", "generate", "--env", "dev"])
             wall = time.perf_counter() - t0
         finally:
             os.chdir(saved_cwd)
@@ -386,8 +388,7 @@ def run_benchmark(fixture_path: Path, runs: int = 5) -> list[BenchmarkRun]:
             BenchmarkRun(
                 phases=dict(snap["phases"]),
                 sub_phases={
-                    k: tuple(tuple(t) for t in v)
-                    for k, v in snap["sub_phases"].items()
+                    k: tuple(tuple(t) for t in v) for k, v in snap["sub_phases"].items()
                 },
                 categories={k: dict(v) for k, v in snap["categories"].items()},
                 counts=dict(snap["counts"]),
@@ -428,9 +429,7 @@ def compare(
     skipped: list[ComparisonEntry] = []
     shape_mismatches: list[ComparisonEntry] = []
 
-    fingerprint_mismatch = (
-        baseline["machine_fingerprint"] != machine_fingerprint()
-    )
+    fingerprint_mismatch = baseline["machine_fingerprint"] != machine_fingerprint()
 
     shape_changed: set[str] = set()
     baseline_shape = baseline.get("project_shape", {})
@@ -449,8 +448,7 @@ def compare(
                     ),
                     delta_pct=0.0,
                     reason=(
-                        f"baseline={baseline_count}, "
-                        f"candidate={candidate_count}"
+                        f"baseline={baseline_count}, " f"candidate={candidate_count}"
                     ),
                     unit="count",
                 )
@@ -558,6 +556,7 @@ def _build_baseline_doc(
 def _default_lhp_version() -> str:
     try:
         from importlib.metadata import version as _v
+
         v = _v("lakehouse-plumber")
     except Exception:
         v = "0.0.0"
@@ -597,7 +596,7 @@ def capture_baseline(
         reset_perf_summary,
     )
 
-    cli_args = ["--perf", "generate", "--env", "dev", "--force"]
+    cli_args = ["--perf", "generate", "--env", "dev"]
     if max_workers is not None:
         cli_args.extend(["--max-workers", str(max_workers)])
 
@@ -629,8 +628,7 @@ def capture_baseline(
             BenchmarkRun(
                 phases=dict(snap["phases"]),
                 sub_phases={
-                    k: tuple(tuple(t) for t in v)
-                    for k, v in snap["sub_phases"].items()
+                    k: tuple(tuple(t) for t in v) for k, v in snap["sub_phases"].items()
                 },
                 categories={k: dict(v) for k, v in snap["categories"].items()},
                 counts=dict(snap["counts"]),
@@ -664,9 +662,7 @@ def load_latest_baseline(baselines_dir: Path) -> BaselineDoc:
             continue
         candidates.append((key, p))
     if not candidates:
-        raise FileNotFoundError(
-            f"No vX.Y.Z.json baseline found under {baselines_dir}"
-        )
+        raise FileNotFoundError(f"No vX.Y.Z.json baseline found under {baselines_dir}")
     candidates.sort(reverse=True)
     chosen = candidates[0][1]
     data = json.loads(chosen.read_text(encoding="utf-8"))
@@ -717,9 +713,7 @@ def _cmd_capture(args: argparse.Namespace) -> int:
     version = args.version or _default_lhp_version()
     output_dir = BASELINES_DIR / args.fixture
     archive_dir = REPO_ROOT / ".perf_runs" / version / args.fixture
-    workers_note = (
-        f" max_workers={args.max_workers}" if args.max_workers else ""
-    )
+    workers_note = f" max_workers={args.max_workers}" if args.max_workers else ""
     print(
         f"Capturing baseline: fixture={args.fixture} version={version} "
         f"runs={args.runs}{workers_note}"
@@ -776,7 +770,9 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    capture = sub.add_parser("capture", help="Run N iterations and write a baseline JSON")
+    capture = sub.add_parser(
+        "capture", help="Run N iterations and write a baseline JSON"
+    )
     capture.add_argument("--fixture", required=True)
     capture.add_argument("--runs", type=int, default=5)
     capture.add_argument(

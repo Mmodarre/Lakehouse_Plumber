@@ -8,15 +8,15 @@ These tests verify that:
 5. Orchestrator discovers flowgroups by pipeline field
 """
 
-import pytest
 import tempfile
-import yaml
 from pathlib import Path
+
+import pytest
+import yaml
 from click.testing import CliRunner
 
 from lhp.cli.main import cli
 from lhp.core.orchestrator import ActionOrchestrator
-from lhp.core.state_manager import ProjectStateManager
 
 
 class TestPipelineFieldOutputStructure:
@@ -424,76 +424,7 @@ dev:
             assert "Pipeline 'raw_ingestions' is valid" in result.output
             assert "Total errors: 0" in result.output
 
-    def test_state_manager_tracks_by_pipeline_field(
-        self, project_with_pipeline_field_structure
-    ):
-        """Test that state manager tracks files by pipeline field, not directory name."""
-        project_root = project_with_pipeline_field_structure
-
-        # Generate files with state tracking
-        orchestrator = ActionOrchestrator(project_root)
-        state_manager = ProjectStateManager(project_root)
-
-        # Generate pipeline by field
-        output_dir = project_root / "generated"
-        generated_files = orchestrator.generate_pipeline_by_field(
-            "raw_ingestions", "dev", output_dir, state_manager, force_all=True
-        )
-
-        # Check that files are tracked with correct pipeline field
-        tracked_files = state_manager.get_generated_files("dev")
-
-        # Should have 3 tracked files
-        assert len(tracked_files) >= 3
-
-        # All should have pipeline: raw_ingestions (not directory names)
-        pipeline_fields = set()
-        for file_state in tracked_files.values():
-            pipeline_fields.add(file_state.pipeline)
-
-        assert "raw_ingestions" in pipeline_fields
-        assert (
-            "01_raw_ingestion" not in pipeline_fields
-        )  # Should not use directory name
-        assert (
-            "different_folder_name" not in pipeline_fields
-        )  # Should not use directory name
-
-    def test_state_manager_get_files_by_pipeline_field(
-        self, project_with_pipeline_field_structure
-    ):
-        """Test that state manager can filter files by pipeline field."""
-        project_root = project_with_pipeline_field_structure
-
-        # Generate both pipelines with state tracking
-        orchestrator = ActionOrchestrator(project_root)
-        state_manager = ProjectStateManager(project_root)
-
-        output_dir = project_root / "generated"
-        orchestrator.generate_pipeline_by_field(
-            "raw_ingestions", "dev", output_dir, state_manager, force_all=True
-        )
-        orchestrator.generate_pipeline_by_field(
-            "silver_transforms", "dev", output_dir, state_manager, force_all=True
-        )
-
-        # Test state manager filtering by pipeline field
-        raw_generation_info = state_manager.get_files_needing_generation(
-            "dev", "raw_ingestions"
-        )
-        silver_generation_info = state_manager.get_files_needing_generation(
-            "dev", "silver_transforms"
-        )
-
-        # raw_ingestions should have 3 up-to-date files
-        assert len(raw_generation_info["up_to_date"]) == 3
-        for file_state in raw_generation_info["up_to_date"]:
-            assert file_state.pipeline == "raw_ingestions"
-
-        # silver_transforms should have 1 up-to-date file
-        assert len(silver_generation_info["up_to_date"]) == 1
-        for file_state in silver_generation_info["up_to_date"]:
-            assert file_state.pipeline == "silver_transforms"
+    # Should not use directory name
 
     def test_orchestrator_discover_flowgroups_by_pipeline_field(
         self, project_with_pipeline_field_structure

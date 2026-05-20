@@ -68,12 +68,10 @@ DEFAULT BEHAVIOR (NO OPTIONS):
   - Empty resources directory
   - Empty generated directory
   - Delete .lhp directory
-  - Delete .lhp_state.json file
   - Git discard changes in databricks.yml
 
 ALWAYS EXECUTED OPERATIONS:
   - Delete .lhp directory
-  - Delete .lhp_state.json file
   - Git discard changes in databricks.yml
 
 OPTIONAL OPERATIONS:
@@ -167,20 +165,6 @@ delete_lhp_dir() {
         fi
     else
         print_info ".lhp directory does not exist (skipping)"
-    fi
-}
-
-# Delete .lhp_state.json file
-delete_state_file() {
-    local state_file="${TESTING_PROJECT_DIR}/.lhp_state.json"
-    
-    if [[ -f "$state_file" ]]; then
-        execute_cmd "Deleting .lhp_state.json" "rm -f '$state_file'"
-        if [[ "$DRY_RUN" == false ]]; then
-            print_success "Deleted .lhp_state.json"
-        fi
-    else
-        print_info ".lhp_state.json does not exist (skipping)"
     fi
 }
 
@@ -402,7 +386,6 @@ main() {
     # Always-run operations
     print_info "Running always-executed operations..."
     delete_lhp_dir
-    delete_state_file
     git_discard_databricks
     echo ""
     

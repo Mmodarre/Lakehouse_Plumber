@@ -339,8 +339,8 @@ generated file will:
   ``dp.create_auto_cdc_flow(...)``.
 
 Run ``lhp validate --env dev`` first to catch YAML schema errors before
-generation. For incremental work, ``lhp generate --env dev --dry-run`` shows
-what would change without writing files.
+generation. ``lhp generate --env dev --dry-run`` previews the output without
+writing files.
 
 .. tip::
 

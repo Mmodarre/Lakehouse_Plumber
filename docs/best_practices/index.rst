@@ -34,11 +34,10 @@ decision in front of you.
     ``substitutions/``.
 
 :doc:`performance`
-    Why the smart state file regenerates only what changed, when streaming
-    tables are the right shape and when materialized views are, and how
-    dependency resolution turns FlowGroup ordering into a non-decision.
-    Covers the cost models behind common write-target choices and the
-    levers LHP exposes for tuning generation and runtime.
+    When streaming tables are the right shape and when materialized views
+    are, and how dependency resolution turns FlowGroup ordering into a
+    non-decision. Covers the cost models behind common write-target
+    choices and the levers LHP exposes for tuning generation and runtime.
 
 :doc:`governance`
     How LHP's outputs map onto Unity Catalog and Databricks Asset Bundles —

@@ -42,7 +42,6 @@ Companion documents:
 | `test_BM3_create_new_resource_file_when_missing` | No resource file → new LHP file created |
 | `test_BM4_delete_orphaned_resource_file` | Resource file exists but no Python output → orphan deleted |
 | `test_BM5_error_on_multiple_resource_files` | Multiple resource files for same pipeline → error issued |
-| `test_BM6_header_based_lhp_detection` | Mixed headers → correct LHP vs user-managed detection |
 | `test_BM7_output_directory_missing` | `generated/` directory missing → auto-created |
 
 ### Bundle Manager BM-8..BM-15 — Python function dependency tracking

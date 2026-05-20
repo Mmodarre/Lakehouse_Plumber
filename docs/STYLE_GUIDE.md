@@ -241,10 +241,8 @@ From `quickstart.rst`:
 
 From `architecture.rst`:
 
-> "Lakehouse Plumber keeps a small **state file** under `.lhp_state.json` that
-> maps generated Python files to their source YAML. It records checksums and
-> dependency links so that future `lhp generate` runs can re-process only new
-> or stale FlowGroups."
+> "LHP resolves four substitution syntaxes in a fixed order. The order matters
+> because each layer may emit text that the next layer then sees and resolves."
 
 From `configure_bundles.rst`:
 

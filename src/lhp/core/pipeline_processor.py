@@ -3,18 +3,8 @@
 One :class:`PipelineProcessor` runs inside one worker process and owns
 the full generation flow for one pipeline: Phase A (parse, codegen,
 format) and the intra-pipeline Phase B work (cross-flowgroup
-validation, ``.py`` writes, copied-module application, state tracking
-via a worker-local :class:`PipelineStateManager`, test-reporting hook
-generation, and the final shard save).
-
-Atomicity: ``.py`` files are written first, state mutations happen
-next in-memory, and the shard is saved last via ``os.replace``. A
-crash before save leaves orphan ``.py`` files but no shard, so the
-next ``lhp generate`` regenerates cleanly.
-
-The processor never receives a :class:`ProjectStateManager`; it
-constructs its own :class:`PipelineStateManager` scoped to one
-pipeline + one environment from ``state_dir`` + ``build_state``.
+validation, ``.py`` writes, copied-module application, and
+test-reporting hook generation).
 """
 
 from __future__ import annotations
@@ -22,15 +12,14 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, List, Optional, Sequence, Tuple
 
 from ..generators.python_file_copier import CopiedModuleRecord, PythonFileCopier
+from ..models.processing import PipelineDelta
 from ..utils.error_formatter import ErrorCategory, LHPValidationError
+from ..utils.file_header import write_normalized
 from ..utils.performance_timer import perf_timer
-from ..utils.smart_file_writer import SmartFileWriter
 from .services.test_reporting import generate_test_reporting_hook
-from .state.pipeline_state_manager import PipelineStateManager
-from .state_models import PipelineDelta
 from .validators.cdc_fanin_compatibility_validator import (
     CdcFanInCompatibilityValidator,
 )
@@ -40,7 +29,6 @@ if TYPE_CHECKING:
     from ..models.config import FlowGroup, FlowGroupContext, ProjectConfig
     from ..utils.formatter import CodeFormatter
     from ..utils.substitution import EnhancedSubstitutionManager
-    from .services.blueprint_expander import BlueprintProvenance
     from .services.code_generator import CodeGenerator
     from .services.flowgroup_processor import FlowgroupProcessor
 
@@ -84,14 +72,12 @@ class PipelineProcessor:
     """Per-worker processor that owns one pipeline's full generation flow.
 
     Construct one inside a worker, then call :meth:`run` with the
-    pipeline's flowgroups. The processor never receives a project-wide
-    state manager; it constructs its own :class:`PipelineStateManager`
-    from ``state_dir`` + ``build_state``.
+    pipeline's flowgroups.
 
     :meth:`run` lifecycle: Phase A per flowgroup (parse, codegen,
     format) → cross-flowgroup validation → apply copy records → write
-    ``.py`` files → emit test-reporting hook → save shard. Any
-    exception is caught at the :meth:`run` boundary and packed into a
+    ``.py`` files → emit test-reporting hook. Any exception is caught
+    at the :meth:`run` boundary and packed into a
     :class:`PipelineDelta` failure.
     """
 
@@ -101,42 +87,27 @@ class PipelineProcessor:
         pipeline_name: str,
         environment: str,
         output_dir: Optional[Path],
-        state_dir: Optional[Path],
         project_root: Path,
         project_config: Optional["ProjectConfig"],
         context: ProcessingContext,
-        build_state: bool,
-        blueprint_provenance: Optional[
-            Dict[Tuple[str, str], "BlueprintProvenance"]
-        ] = None,
     ):
         """Initialise per-pipeline worker state.
 
         Args:
             pipeline_name: Identifier for the pipeline being generated.
-                Used as the shard's filename stem when ``build_state``.
             environment: Environment being generated for (e.g. ``"dev"``).
-                Mutations on the shard are restricted to this env's slice.
             output_dir: Pipeline output directory. ``None`` for dry-run
                 (no ``.py`` writes, no hook generation).
-            state_dir: ``<project_root>/.lhp_state`` directory. May be
-                ``None`` only when ``build_state`` is False; otherwise
-                required.
-            project_root: Project root, forwarded to
-                :class:`PipelineStateManager` for relative-path resolution.
+            project_root: Project root for relative-path resolution.
             project_config: Project config. Read for ``test_reporting``;
                 otherwise opaque to the processor.
             context: :class:`ProcessingContext` bundling the per-pipeline
                 collaborators (processor, code generator, formatter,
                 substitution manager) and the ``include_tests`` flag.
-            build_state: When False, the processor skips constructing a
-                state manager and writes no shard. Equivalent to the
-                ``--no-state`` CLI flag.
         """
         self.pipeline_name = pipeline_name
         self.environment = environment
         self.output_dir = output_dir
-        self.state_dir = state_dir
         self.project_root = project_root
         self.project_config = project_config
         self.processor = context.processor
@@ -144,29 +115,11 @@ class PipelineProcessor:
         self.formatter = context.formatter
         self.substitution_mgr = context.substitution_mgr
         self.include_tests = context.include_tests
-        self.build_state = build_state
 
         self.copier = PythonFileCopier()
-        self.smart_writer = SmartFileWriter()
 
         self._table_creation_validator = TableCreationValidator()
         self._cdc_fanin_validator = CdcFanInCompatibilityValidator()
-
-        self.state_manager: Optional[PipelineStateManager] = None
-        if self.build_state:
-            if state_dir is None:
-                raise ValueError(
-                    "PipelineProcessor requires state_dir when build_state=True"
-                )
-            self.state_manager = PipelineStateManager(
-                state_dir=state_dir,
-                pipeline_name=pipeline_name,
-                environment=environment,
-                project_root=project_root,
-            )
-            # Provenance does not cross the process boundary; re-inject here.
-            if blueprint_provenance:
-                self.state_manager.set_blueprint_provenance(blueprint_provenance)
 
         self._artifacts_count = 0
 
@@ -175,9 +128,9 @@ class PipelineProcessor:
     def run(self, contexts: Sequence["FlowGroupContext"]) -> PipelineDelta:
         """Run Phase A + intra-pipeline Phase B for the given flowgroups.
 
-        Any exception — validation error, file write failure, state save
-        failure — is caught here and serialised into the returned
-        :class:`PipelineDelta` so the worker can never crash the pool.
+        Any exception — validation error, file write failure — is caught
+        here and serialised into the returned :class:`PipelineDelta` so
+        the worker can never crash the pool.
 
         Args:
             contexts: FlowGroupContext envelopes belonging to this pipeline.
@@ -209,16 +162,11 @@ class PipelineProcessor:
                 self._write_python_files(phase_a_results)
                 self._generate_test_hook(processed_flowgroups)
 
-                if self.state_manager is not None:
-                    with perf_timer(f"state_save [{self.pipeline_name}]"):
-                        self.state_manager.save()
-
-            files_written, files_skipped = self.smart_writer.get_stats()
             generated_filenames = self._collect_generated_filenames(phase_a_results)
+            files_written = len(generated_filenames)
             return PipelineDelta.success_(
                 self.pipeline_name,
                 files_written=files_written,
-                files_skipped=files_skipped,
                 artifacts_count=self._artifacts_count,
                 generated_filenames=generated_filenames,
             )
@@ -254,9 +202,7 @@ class PipelineProcessor:
         """Process + codegen + format one flowgroup.
 
         Captures user-module ``CopiedModuleRecord`` instances for
-        replay by :meth:`_apply_copy_records`. State tracking happens
-        in Phase B after files are on disk, so the code generator is
-        invoked with ``state_manager=None`` here.
+        replay by :meth:`_apply_copy_records`.
         """
         fg = ctx_in.flowgroup
         records: List[CopiedModuleRecord] = []
@@ -280,7 +226,6 @@ class PipelineProcessor:
                     processed,
                     self.substitution_mgr,
                     self.output_dir,
-                    None,
                     source_yaml,
                     self.environment,
                     self.include_tests,
@@ -394,7 +339,7 @@ class PipelineProcessor:
         )
 
     def _apply_copy_records(self, results: List[FlowgroupResult]) -> None:
-        """Replay Phase-A copy records and track each copied file.
+        """Replay Phase-A copy records.
 
         The lock inside ``copier`` deduplicates intra-pipeline copies
         within this worker process.
@@ -403,31 +348,13 @@ class PipelineProcessor:
             if result.processed_flowgroup is None or not result.copied_modules:
                 continue
             for record in result.copied_modules:
-                entries = self.copier.apply_copy_record(
-                    record,
-                    source_yaml=result.source_yaml,
-                    flowgroup=result.processed_flowgroup,
-                )
-                if self.state_manager is None:
-                    continue
-                for entry in entries:
-                    # Auto-generated pipelines (e.g. event-log monitoring)
-                    # emit copies with no source YAML / flowgroup; skip
-                    # tracking for those — there is no shard entry to write.
-                    if entry.source_yaml is None or entry.flowgroup is None:
-                        continue
-                    self.state_manager.track_generated_file(
-                        generated_path=entry.dest_path,
-                        source_yaml=entry.source_yaml,
-                        flowgroup=entry.flowgroup,
-                    )
+                self.copier.apply_copy_record(record)
 
     def _write_python_files(self, results: List[FlowgroupResult]) -> None:
         """Write the per-flowgroup ``.py`` files and any auxiliary files.
 
-        Empty flowgroups have their output file removed and dropped
-        from the shard. Dry-run (``output_dir is None``) skips disk
-        writes and state tracking.
+        Empty flowgroups have their output file removed. Dry-run
+        (``output_dir is None``) skips disk writes.
         """
         if self.output_dir is None:
             for result in results:
@@ -447,9 +374,6 @@ class PipelineProcessor:
                         f"Failed to delete empty flowgroup file {output_file}: {exc}"
                     )
                     raise
-                # Drop the shard entry so the next run does not see drift.
-                if self.state_manager is not None:
-                    self.state_manager.untrack_generated_file(output_file)
                 if fg is not None:
                     logger.info(
                         f"Skipping empty flowgroup: {fg.flowgroup} (no content)"
@@ -459,23 +383,12 @@ class PipelineProcessor:
             with perf_timer(
                 f"write_file [{result.flowgroup_name}]", category="write_file"
             ):
-                self.smart_writer.write_if_changed(output_file, result.formatted_code)
-
-            if (
-                self.state_manager is not None
-                and result.source_yaml is not None
-                and fg is not None
-            ):
-                self.state_manager.track_generated_file(
-                    generated_path=output_file,
-                    source_yaml=result.source_yaml,
-                    flowgroup=fg.flowgroup,
-                )
+                write_normalized(output_file, result.formatted_code)
 
             if result.auxiliary_files:
                 for aux_name, aux_content in result.auxiliary_files:
                     aux_file = self.output_dir / aux_name
-                    self.smart_writer.write_if_changed(aux_file, aux_content)
+                    write_normalized(aux_file, aux_content)
                     logger.info(f"Generated auxiliary: {aux_file}")
 
     def _generate_test_hook(self, flowgroups: List["FlowGroup"]) -> None:
@@ -489,8 +402,6 @@ class PipelineProcessor:
             output_dir=self.output_dir,
             project_config=self.project_config,
             project_root=self.project_root,
-            state_manager=self.state_manager,
-            smart_writer=self.smart_writer,
             include_tests=self.include_tests,
             substitution_mgr=self.substitution_mgr,
         )

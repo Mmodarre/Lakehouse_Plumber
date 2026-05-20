@@ -185,13 +185,7 @@ class TestApplyCopyRecord:
         assert (custom_dir / "user_module.py").read_text() == "# header\nX = 1\n"
 
     def test_apply_emits_entries_for_init_and_module(self, temp_dir, flowgroup):
-        """``apply_copy_record`` reports the two files it wrote via entries.
-
-        After Plan 2 the file copier is state-manager-agnostic: it returns
-        a list of :class:`CopiedFileEntry` records describing what was
-        actually written. The caller (PipelineProcessor or legacy main-
-        thread Phase B) walks those entries to drive its own state tracking.
-        """
+        """``apply_copy_record`` reports both files it wrote via entries."""
         custom_dir = temp_dir / "custom_python_functions"
         record = CopiedModuleRecord(
             source_path="user_module.py",
@@ -201,23 +195,12 @@ class TestApplyCopyRecord:
             custom_functions_dir=custom_dir,
         )
 
-        source_yaml = temp_dir / "fg.yaml"
-        source_yaml.write_text("# yaml")
-
-        entries = PythonFileCopier().apply_copy_record(
-            record,
-            source_yaml=source_yaml,
-            flowgroup=flowgroup,
-        )
+        entries = PythonFileCopier().apply_copy_record(record)
 
         assert sorted(e.dest_path.name for e in entries) == [
             "__init__.py",
             "user_module.py",
         ]
-        # Every entry carries the caller-supplied context unchanged.
-        for entry in entries:
-            assert entry.source_yaml == source_yaml
-            assert entry.flowgroup == flowgroup.flowgroup
 
     def test_dedup_returns_empty_on_second_apply(self, temp_dir, flowgroup):
         """Same record applied twice: second call dedupes, returns ``[]``.
@@ -242,14 +225,8 @@ class TestApplyCopyRecord:
         assert len(first) == 2
         assert second == []
 
-    def test_apply_writes_file_even_without_caller_context(self, temp_dir, flowgroup):
-        """File is still copied even when caller supplies no source/flowgroup.
-
-        The entries returned have ``None`` for source_yaml/flowgroup in
-        that case — callers that don't need state tracking (e.g.
-        single-flowgroup CLI tools that pre-Plan-2 passed
-        ``state_manager=None``) can simply ignore the entries.
-        """
+    def test_apply_writes_file(self, temp_dir, flowgroup):
+        """File is copied and both entries are reported."""
         custom_dir = temp_dir / "custom_python_functions"
         record = CopiedModuleRecord(
             source_path="user_module.py",
@@ -262,8 +239,5 @@ class TestApplyCopyRecord:
         copier = PythonFileCopier()
         entries = copier.apply_copy_record(record)
         assert len(entries) == 2
-        for entry in entries:
-            assert entry.source_yaml is None
-            assert entry.flowgroup is None
         assert (custom_dir / "user_module.py").exists()
 

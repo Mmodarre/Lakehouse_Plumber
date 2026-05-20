@@ -1117,7 +1117,7 @@ resources:
         assert lhp_file.exists()
 
     def test_sync_pipeline_resource_scenario_1a_override(self):
-        """Test Scenario 1a override: Python exists + LHP file + force + pipeline config → REGENERATE."""
+        """Test Scenario 1a override: Python exists + LHP file + pipeline config → REGENERATE."""
         output_dir = self.project_root / "generated"
         output_dir.mkdir()
         pipeline_dir = output_dir / "test_pipeline"
@@ -1136,7 +1136,7 @@ resources:
 """)
 
         result = self.manager._sync_pipeline_resource(
-            "test_pipeline", pipeline_dir, "dev", force=True, has_pipeline_config=True
+            "test_pipeline", pipeline_dir, "dev", has_pipeline_config=True
         )
         assert result is True  # File was regenerated
 

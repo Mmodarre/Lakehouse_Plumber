@@ -642,7 +642,6 @@ class TestEnvironmentDependenciesE2E:
                 "dev",
                 "--pipeline-config",
                 "config/pipeline_config.yaml",
-                "--force",
             ],
         )
         assert result.exit_code == 0, f"Generation should succeed:\n{result.output}"
@@ -869,7 +868,6 @@ class TestConfigurationBlockE2E:
                 "dev",
                 "--pipeline-config",
                 "config/pipeline_config.yaml",
-                "--force",
             ],
         )
         assert result.exit_code == 0, f"Generation should succeed:\n{result.output}"
@@ -1327,9 +1325,7 @@ class TestMonitoringPipelineE2E:
     def _run_generate(self):
         """Run lhp generate --env dev --force via CLI."""
         runner = CliRunner()
-        result = runner.invoke(
-            cli, ["--verbose", "generate", "--env", "dev", "--force"]
-        )
+        result = runner.invoke(cli, ["--verbose", "generate", "--env", "dev"])
         return result.exit_code, result.output
 
     @staticmethod
@@ -1764,9 +1760,7 @@ class TestMonitoringPipelineE2E:
         self._assert_monitoring_notebook_baseline("default")
 
         # Job YAML must reflect the rich overrides + substituted tokens.
-        job_yml = (
-            self.resources_root / "acme_edw_event_log_monitoring.job.yml"
-        )
+        job_yml = self.resources_root / "acme_edw_event_log_monitoring.job.yml"
         assert job_yml.exists(), f"Monitoring job YAML not generated: {job_yml}"
         parsed = yaml.safe_load(job_yml.read_text())
         job = parsed["resources"]["jobs"]["acme_edw_event_log_monitoring_job"]
@@ -1806,8 +1800,7 @@ class TestMonitoringPipelineE2E:
         self._enable_event_log()
         # Hand-roll a monitoring block that references a file we do NOT create
         self.lhp_yaml.write_text(
-            self.lhp_yaml.read_text()
-            + "\nmonitoring:\n"
+            self.lhp_yaml.read_text() + "\nmonitoring:\n"
             '  checkpoint_path: "/Volumes/cat/_meta/checkpoints/event_logs"\n'
             '  job_config_path: "config/does_not_exist.yaml"\n'
         )
@@ -1870,7 +1863,6 @@ tags:
                 "generate",
                 "--env",
                 "dev",
-                "--force",
                 "--pipeline-config",
                 "config/pipeline_config.yaml",
             ],
@@ -1975,7 +1967,6 @@ tags:
                 "generate",
                 "--env",
                 "dev",
-                "--force",
                 "--pipeline-config",
                 "config/pipeline_config.yaml",
             ],
@@ -2050,7 +2041,6 @@ tags:
                 "generate",
                 "--env",
                 "dev",
-                "--force",
                 "--pipeline-config",
                 "config/pipeline_config.yaml",
             ],

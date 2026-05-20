@@ -22,8 +22,6 @@ from lhp.models.config import (
     TestReportingConfig,
 )
 from lhp.utils.error_formatter import LHPError
-from lhp.utils.smart_file_writer import SmartFileWriter
-
 
 # ============================================================================
 # Helpers (same pattern as existing test_test_reporting_hook_generator.py)
@@ -247,12 +245,10 @@ class TestTC10MixedTestIdMap:
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        writer = SmartFileWriter()
         content = gen.generate(
             processed_flowgroups=[fg],
             pipeline_name="p1",
             output_dir=output_dir,
-            smart_writer=writer,
         )
 
         assert content is not None
@@ -294,14 +290,12 @@ class TestTC11DuplicateTestTarget:
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        writer = SmartFileWriter()
 
         with pytest.raises(LHPError, match="Duplicate"):
             gen.generate(
                 processed_flowgroups=[fg],
                 pipeline_name="p1",
                 output_dir=output_dir,
-                smart_writer=writer,
             )
 
     def test_raises_on_duplicate_default_target(self, tmp_path):
@@ -326,14 +320,12 @@ class TestTC11DuplicateTestTarget:
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        writer = SmartFileWriter()
 
         with pytest.raises(LHPError, match="Duplicate"):
             gen.generate(
                 processed_flowgroups=[fg1, fg2],
                 pipeline_name="p1",
                 output_dir=output_dir,
-                smart_writer=writer,
             )
 
 
@@ -365,18 +357,14 @@ class TestTC12ConfigFileEmbedding:
         config = _make_project_config(test_reporting=tr)
         gen = TestReportingHookGenerator(config, tmp_path)
 
-        fg = _make_flowgroup(
-            actions=[_make_test_action("tst_1", test_id="T-1")]
-        )
+        fg = _make_flowgroup(actions=[_make_test_action("tst_1", test_id="T-1")])
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        writer = SmartFileWriter()
         content = gen.generate(
             processed_flowgroups=[fg],
             pipeline_name="p1",
             output_dir=output_dir,
-            smart_writer=writer,
         )
 
         assert content is not None
@@ -411,18 +399,14 @@ class TestTC13EmptyConfigDict:
         config = _make_project_config(test_reporting=tr)
         gen = TestReportingHookGenerator(config, tmp_path)
 
-        fg = _make_flowgroup(
-            actions=[_make_test_action("tst_1", test_id="T-1")]
-        )
+        fg = _make_flowgroup(actions=[_make_test_action("tst_1", test_id="T-1")])
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        writer = SmartFileWriter()
         content = gen.generate(
             processed_flowgroups=[fg],
             pipeline_name="p1",
             output_dir=output_dir,
-            smart_writer=writer,
         )
 
         assert content is not None
@@ -462,10 +446,7 @@ class TestTC24PythonIncompatibleLiterals:
         config_file = tmp_path / "config" / "special.yaml"
         config_file.parent.mkdir(parents=True)
         config_file.write_text(
-            "enabled: true\n"
-            "disabled: false\n"
-            "empty_value: null\n"
-            "count: 42\n"
+            "enabled: true\n" "disabled: false\n" "empty_value: null\n" "count: 42\n"
         )
 
         tr = TestReportingConfig(
@@ -476,18 +457,14 @@ class TestTC24PythonIncompatibleLiterals:
         config = _make_project_config(test_reporting=tr)
         gen = TestReportingHookGenerator(config, tmp_path)
 
-        fg = _make_flowgroup(
-            actions=[_make_test_action("tst_1", test_id="T-1")]
-        )
+        fg = _make_flowgroup(actions=[_make_test_action("tst_1", test_id="T-1")])
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        writer = SmartFileWriter()
         content = gen.generate(
             processed_flowgroups=[fg],
             pipeline_name="p1",
             output_dir=output_dir,
-            smart_writer=writer,
         )
 
         assert content is not None

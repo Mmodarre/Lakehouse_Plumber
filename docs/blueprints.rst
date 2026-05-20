@@ -253,8 +253,8 @@ The expander rejects any ``${...}`` token inside ``pipeline:`` or
 ``flowgroup:`` template strings with ``LHP-VAL-044``. The match regex is
 ``\$\{[^}]+\}``, so environment tokens and secret references are both
 rejected. The resolved ``(pipeline, flowgroup)`` tuple is used as the
-source-path index and state-tracking key before Step 3 runs; allowing
-``${...}`` would make those keys unstable across environments.
+source-path index before Step 3 runs; allowing ``${...}`` would make those
+keys unstable across environments.
 
 Unresolved ``%{var}`` in ``pipeline:`` or ``flowgroup:`` raises
 ``LHP-VAL-055``.
@@ -317,29 +317,6 @@ pipeline. The expansion step is the only step exclusive to blueprints.
 6. **Steps 3.5–5 — Validation.** Unresolved tokens, FlowGroup shape, secret
    references.
 7. **Code generation.** Python files written under ``generated/<env>/``.
-
-Incremental regeneration
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-The state tracker injects a ``type='instance'`` dependency on each
-synthetic FlowGroup pointing at its originating instance file.
-
-.. list-table::
-   :header-rows: 1
-   :widths: 40 60
-
-   * - Change
-     - ``lhp generate --env <env>`` behavior
-   * - Edit an instance file
-     - Regenerates only that instance's FlowGroups.
-   * - Edit a blueprint file
-     - Regenerates all instances that reference that blueprint.
-   * - Add a new instance file
-     - Generates the new instance's FlowGroups (novelty detection).
-   * - Delete an instance file
-     - Cleans up that instance's generated files via orphan detection.
-   * - Edit a preset or template referenced by the blueprint
-     - Regular preset/template dependency tracking applies.
 
 CLI commands
 ------------
@@ -470,6 +447,5 @@ See also
 * :doc:`substitutions` — environment tokens, local variables, secret
   references.
 * :doc:`dependency_analysis` — full ``lhp deps`` reference.
-* :doc:`architecture` — why expansion runs before the rest of the pipeline
-  and how state tracking distinguishes synthetic FlowGroups.
+* :doc:`architecture` — why expansion runs before the rest of the pipeline.
 * :doc:`errors_reference` — project-wide error code catalog.

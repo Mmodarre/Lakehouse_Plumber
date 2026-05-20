@@ -5,7 +5,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import (
-    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -17,11 +16,6 @@ from typing import (
 )
 
 from ..utils.performance_timer import perf_timer
-
-if TYPE_CHECKING:
-    from .services.generation_planning_service import GenerationPlan
-    from .state_manager import ProjectStateManager
-
 
 # ============================================================================
 # DATA TRANSFER OBJECTS (DTOs) - Cross-layer communication
@@ -35,7 +29,6 @@ class PipelineGenerationRequest:
     pipeline_identifier: str
     environment: str
     include_tests: bool = False
-    force_all: bool = False
     specific_flowgroups: Optional[List[str]] = None
     output_directory: Optional[Path] = None
     dry_run: bool = False
@@ -51,16 +44,6 @@ class PipelineValidationRequest:
     environment: str
     verbose: bool = False
     include_tests: bool = True
-
-
-@dataclass
-class StalenessAnalysisRequest:
-    """DTO for staleness analysis requests."""
-
-    pipeline_names: List[str]
-    environment: str
-    include_tests: bool = False
-    force: bool = False
 
 
 @dataclass
@@ -146,31 +129,6 @@ class BatchValidationResponse:
         return self.success
 
 
-@dataclass
-class AnalysisResponse:
-    """DTO for staleness analysis responses."""
-
-    success: bool
-    pipelines_needing_generation: Dict[str, Dict]
-    pipelines_up_to_date: Dict[str, int]
-    has_global_changes: bool
-    global_changes: List[str]
-    include_tests_context_applied: bool
-    total_new_files: int
-    total_stale_files: int
-    total_up_to_date_files: int
-    error_message: Optional[str] = None
-
-    # Env-wide generation-context change flag + human-readable diff (e.g.
-    # "include_tests: False -> True"). When True, all pipelines regenerate.
-    context_changed: bool = False
-    context_changes: List[str] = field(default_factory=list)
-
-    def has_work_to_do(self) -> bool:
-        """Check if any generation work needs to be done."""
-        return len(self.pipelines_needing_generation) > 0
-
-
 # ============================================================================
 # LAYER INTERFACES - Define contracts between layers
 # ============================================================================
@@ -193,26 +151,9 @@ class ApplicationLayer(ABC):
         """Coordinate pipeline validation use case."""
         pass
 
-    @abstractmethod
-    def analyze_staleness(self, request: StalenessAnalysisRequest) -> AnalysisResponse:
-        """Coordinate staleness analysis use case."""
-        pass
-
 
 class BusinessLayer(ABC):
     """Interface for the business layer - contains business rules."""
-
-    @abstractmethod
-    def create_generation_plan(
-        self, env: str, pipeline_identifier: str, include_tests: bool, **kwargs
-    ) -> "GenerationPlan":
-        """Create generation plan based on business rules."""
-        pass
-
-    @abstractmethod
-    def execute_generation_strategy(self, strategy_type: str, context: Any) -> Any:
-        """Execute generation strategy based on business logic."""
-        pass
 
     @abstractmethod
     def validate_configuration(self, pipeline_identifier: str, env: str) -> tuple:
@@ -258,11 +199,6 @@ class PresentationLayer(ABC):
         pass
 
     @abstractmethod
-    def display_analysis_results(self, response: AnalysisResponse) -> None:
-        """Display analysis results to user."""
-        pass
-
-    @abstractmethod
     def get_user_input(self, prompt: str) -> str:
         """Get input from user."""
         pass
@@ -281,16 +217,14 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
     a clean, testable interface for the CLI layer.
     """
 
-    def __init__(self, orchestrator, state_manager: Optional["ProjectStateManager"] = None):
+    def __init__(self, orchestrator):
         """
         Initialize application facade.
 
         Args:
             orchestrator: Business layer orchestrator
-            state_manager: Optional state manager for data layer
         """
         self.orchestrator = orchestrator
-        self.state_manager = state_manager
         self.logger = logging.getLogger(__name__)
 
     def generate_pipeline(
@@ -315,10 +249,6 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
                     output_dir=(
                         request.output_directory if not request.dry_run else None
                     ),
-                    state_manager=(
-                        self.state_manager if not request.no_cleanup else None
-                    ),
-                    force_all=request.force_all,
                     specific_flowgroups=request.specific_flowgroups,
                     include_tests=request.include_tests,
                     pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
@@ -332,7 +262,6 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
                 output_location=request.output_directory,
                 performance_info={
                     "dry_run": request.dry_run,
-                    "force_all": request.force_all,
                     "include_tests": request.include_tests,
                 },
             )
@@ -371,10 +300,8 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
         pipeline_fields: Sequence[str],
         env: str,
         output_dir: Optional[Path],
-        force_all: bool = False,
         specific_flowgroups: Optional[List[str]] = None,
         include_tests: bool = False,
-        no_cleanup: bool = False,
         pre_discovered_all_flowgroups=None,
         max_workers: Optional[int] = None,
         on_pipeline_complete: Optional[
@@ -399,10 +326,8 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
             pipeline_fields: Pipeline names to generate.
             env: Environment name.
             output_dir: Output root (``None`` for dry-run).
-            force_all: Bypass smart staleness filtering.
             specific_flowgroups: Optional whitelist.
             include_tests: Include test actions.
-            no_cleanup: When True, state_manager is not used (no state tracking).
             pre_discovered_all_flowgroups: Re-use caller's one-shot discovery.
             max_workers: Override pool size; ``None`` falls back to the
                 orchestrator's constructor value.
@@ -416,17 +341,11 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
             aggregate totals, and (on failure) the underlying aggregate
             exception preserved for re-raise at the CLI fail-fast boundary.
         """
-        from .state_models import PipelineDelta
+        from ..models.processing import PipelineDelta
 
         pipeline_responses: Dict[str, "GenerationResponse"] = {}
 
         def _on_delta(delta: "PipelineDelta") -> None:
-            # Build per-pipeline GenerationResponse from the worker's
-            # PipelineDelta. Worker exceptions are surfaced as strings
-            # (error_type/message/traceback) because live BaseExceptions
-            # can't safely cross the spawn boundary; we reconstruct an
-            # LHPError on the response so display code has a real
-            # exception object to format.
             from ..utils.error_formatter import LHPError
 
             original_error: Optional[BaseException] = None
@@ -448,17 +367,11 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
                 success=delta.success,
                 generated_filenames=delta.generated_filenames,
                 files_written=delta.files_written,
-                # Match the legacy `generate_pipeline` semantics: this field
-                # is displayed as "Would generate N file(s)" in dry-run, so
-                # it is the count of generated FILES (not the count of
-                # flowgroups processed). Empty flowgroups produce 0 files.
                 total_flowgroups=len(delta.generated_filenames),
                 output_location=output_dir,
                 performance_info={
                     "dry_run": output_dir is None,
-                    "force_all": force_all,
                     "include_tests": include_tests,
-                    "files_skipped": delta.files_skipped,
                     "artifacts_count": delta.artifacts_count,
                 },
                 error_message=error_message,
@@ -469,9 +382,6 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
                 try:
                     on_pipeline_complete(delta.pipeline_name, response)
                 except BaseException as cb_exc:
-                    # The orchestrator already logs callback exceptions; we
-                    # add a facade-level safety net so a buggy CLI display
-                    # never tears down the batch.
                     self.logger.warning(
                         f"on_pipeline_complete callback raised "
                         f"for {delta.pipeline_name}: {cb_exc}"
@@ -483,8 +393,6 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
                     pipeline_fields=list(pipeline_fields),
                     env=env,
                     output_dir=output_dir,
-                    state_manager=self.state_manager if not no_cleanup else None,
-                    force_all=force_all,
                     specific_flowgroups=specific_flowgroups,
                     include_tests=include_tests,
                     pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
@@ -507,8 +415,6 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
             )
 
         except Exception as exc:
-            # Aggregate error path: the orchestrator raised after some
-            # pipelines may already have succeeded. Surface what completed.
             from ..utils.error_formatter import LHPError
 
             if isinstance(exc, LHPError):
@@ -678,51 +584,5 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
                 errors=[str(e)],
                 warnings=[],
                 validated_pipelines=[],
-                error_message=str(e),
-            )
-
-    def analyze_staleness(
-        self,
-        request: StalenessAnalysisRequest,
-        pre_discovered_all_flowgroups=None,
-    ) -> AnalysisResponse:
-        """Coordinate staleness analysis use case."""
-        try:
-            with perf_timer("facade.analyze_staleness"):
-                analysis = self.orchestrator.analyze_generation_requirements(
-                    env=request.environment,
-                    pipeline_names=request.pipeline_names,
-                    include_tests=request.include_tests,
-                    force=request.force,
-                    state_manager=self.state_manager,
-                    pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
-                )
-
-            return AnalysisResponse(
-                success=True,
-                pipelines_needing_generation=analysis.pipelines_needing_generation,
-                pipelines_up_to_date=analysis.pipelines_up_to_date,
-                has_global_changes=analysis.has_global_changes,
-                global_changes=analysis.global_changes,
-                include_tests_context_applied=analysis.include_tests_context_applied,
-                total_new_files=analysis.total_new_files,
-                total_stale_files=analysis.total_stale_files,
-                total_up_to_date_files=analysis.total_up_to_date_files,
-                context_changed=analysis.context_changed,
-                context_changes=list(analysis.context_changes),
-            )
-
-        except Exception as e:
-            self.logger.error(f"Staleness analysis failed: {e}")
-            return AnalysisResponse(
-                success=False,
-                pipelines_needing_generation={},
-                pipelines_up_to_date={},
-                has_global_changes=False,
-                global_changes=[],
-                include_tests_context_applied=False,
-                total_new_files=0,
-                total_stale_files=0,
-                total_up_to_date_files=0,
                 error_message=str(e),
             )

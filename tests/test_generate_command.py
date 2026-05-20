@@ -12,7 +12,6 @@ from click.testing import CliRunner
 from lhp.bundle.exceptions import BundleResourceError
 from lhp.cli.commands.generate_command import GenerateCommand
 from lhp.core.layers import (
-    AnalysisResponse,
     GenerationResponse,
     LakehousePlumberApplicationFacade,
     ValidationResponse,
@@ -179,91 +178,6 @@ class TestGenerateCommandDisplayMethods:
             assert any("Validation failed" in str(call) for call in calls)
             assert any("Error 1" in str(call) for call in calls)
 
-    def test_display_analysis_results_success_with_work(self, generate_command):
-        """Test displaying analysis with work to do."""
-        response = AnalysisResponse(
-            success=True,
-            pipelines_needing_generation={"pipeline1": {}, "pipeline2": {}},
-            pipelines_up_to_date={},
-            has_global_changes=False,
-            global_changes=[],
-            include_tests_context_applied=False,
-            total_new_files=2,
-            total_stale_files=0,
-            total_up_to_date_files=0,
-        )
-
-        with patch("click.echo") as mock_echo:
-            generate_command.display_analysis_results(response)
-
-            assert mock_echo.called
-            calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("need generation" in str(call).lower() for call in calls)
-
-    def test_display_analysis_results_success_no_work(self, generate_command):
-        """Test displaying analysis with no work to do."""
-        response = AnalysisResponse(
-            success=True,
-            pipelines_needing_generation={},
-            pipelines_up_to_date={"pipeline1": 1},
-            has_global_changes=False,
-            global_changes=[],
-            include_tests_context_applied=False,
-            total_new_files=0,
-            total_stale_files=0,
-            total_up_to_date_files=1,
-        )
-
-        with patch("click.echo") as mock_echo:
-            generate_command.display_analysis_results(response)
-
-            assert mock_echo.called
-            calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("up-to-date" in str(call).lower() for call in calls)
-
-    def test_display_analysis_results_with_context_changes(self, generate_command):
-        """Test displaying analysis with context changes."""
-        response = AnalysisResponse(
-            success=True,
-            pipelines_needing_generation={},
-            pipelines_up_to_date={},
-            has_global_changes=False,
-            global_changes=[],
-            include_tests_context_applied=True,
-            total_new_files=0,
-            total_stale_files=0,
-            total_up_to_date_files=0,
-        )
-
-        with patch("click.echo") as mock_echo:
-            generate_command.display_analysis_results(response)
-
-            assert mock_echo.called
-            calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("include_tests" in str(call).lower() for call in calls)
-
-    def test_display_analysis_results_failure(self, generate_command):
-        """Test displaying failed analysis."""
-        response = AnalysisResponse(
-            success=False,
-            pipelines_needing_generation={},
-            pipelines_up_to_date={},
-            has_global_changes=False,
-            global_changes=[],
-            include_tests_context_applied=False,
-            total_new_files=0,
-            total_stale_files=0,
-            total_up_to_date_files=0,
-            error_message="Analysis error",
-        )
-
-        with patch("click.echo") as mock_echo:
-            generate_command.display_analysis_results(response)
-
-            assert mock_echo.called
-            calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("Analysis failed" in str(call) for call in calls)
-
     def test_display_startup_message(self, generate_command):
         """Test displaying startup message."""
         with (
@@ -394,21 +308,12 @@ class TestGenerateCommandHelperMethods:
     def test_create_application_facade(self, generate_command, temp_project):
         """Test creating application facade."""
         facade = generate_command._create_application_facade(
-            temp_project, no_cleanup=False, pipeline_config_path=None
+            temp_project, pipeline_config_path=None
         )
 
         assert isinstance(facade, LakehousePlumberApplicationFacade)
         assert facade.orchestrator is not None
-        assert facade.state_manager is not None
-
-    def test_create_application_facade_no_cleanup(self, generate_command, temp_project):
-        """Test creating application facade with no cleanup."""
-        facade = generate_command._create_application_facade(
-            temp_project, no_cleanup=True, pipeline_config_path=None
-        )
-
-        assert isinstance(facade, LakehousePlumberApplicationFacade)
-        assert facade.state_manager is None
+        assert not hasattr(facade, "state_manager")
 
     def test_create_application_facade_with_pipeline_config(
         self, generate_command, temp_project
@@ -418,7 +323,7 @@ class TestGenerateCommandHelperMethods:
         config_file.write_text("project_defaults:\n  serverless: false")
 
         facade = generate_command._create_application_facade(
-            temp_project, no_cleanup=False, pipeline_config_path=str(config_file)
+            temp_project, pipeline_config_path=str(config_file)
         )
 
         assert isinstance(facade, LakehousePlumberApplicationFacade)
@@ -458,105 +363,6 @@ class TestGenerateCommandHelperMethods:
 
         assert result == []
 
-    def test_display_generation_analysis_force_mode(self, generate_command):
-        """Test displaying generation analysis with force mode."""
-        mock_facade = Mock()
-        mock_response = AnalysisResponse(
-            success=True,
-            pipelines_needing_generation={},
-            pipelines_up_to_date={},
-            has_global_changes=False,
-            global_changes=[],
-            include_tests_context_applied=False,
-            total_new_files=0,
-            total_stale_files=0,
-            total_up_to_date_files=0,
-        )
-        mock_facade.analyze_staleness.return_value = mock_response
-
-        with patch("click.echo") as mock_echo:
-            generate_command._display_generation_analysis(
-                mock_facade,
-                ["test_pipeline"],
-                "dev",
-                include_tests=False,
-                force=True,
-                no_cleanup=False,
-            )
-
-            assert mock_echo.called
-            calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("Force mode" in str(call) for call in calls)
-
-    def test_handle_cleanup_operations_with_orphaned_files(self, generate_command):
-        """Test handling cleanup operations with orphaned files."""
-        mock_facade = Mock()
-        mock_facade.state_manager.find_orphaned_files.return_value = [
-            "file1.py",
-            "file2.py",
-        ]
-        mock_facade.state_manager.cleanup_orphaned_files.return_value = [
-            "file1.py",
-            "file2.py",
-        ]
-
-        output_dir = Path("/output")
-
-        with patch("click.echo") as mock_echo:
-            generate_command._handle_cleanup_operations(
-                mock_facade, "dev", output_dir, dry_run=False
-            )
-
-            assert mock_echo.called
-            calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("Cleaning up" in str(call) for call in calls)
-            assert any("file1.py" in str(call) for call in calls)
-
-    def test_handle_cleanup_operations_dry_run(self, generate_command):
-        """Test handling cleanup operations in dry-run mode."""
-        mock_facade = Mock()
-        mock_facade.state_manager.find_orphaned_files.return_value = ["file1.py"]
-
-        output_dir = Path("/output")
-
-        with patch("click.echo") as mock_echo:
-            generate_command._handle_cleanup_operations(
-                mock_facade, "dev", output_dir, dry_run=True
-            )
-
-            assert mock_echo.called
-            calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("Would clean up" in str(call) for call in calls)
-            mock_facade.state_manager.cleanup_orphaned_files.assert_not_called()
-
-    def test_handle_cleanup_operations_no_orphaned_files(self, generate_command):
-        """Test handling cleanup operations with no orphaned files."""
-        mock_facade = Mock()
-        mock_facade.state_manager.find_orphaned_files.return_value = []
-
-        output_dir = Path("/output")
-
-        with patch("click.echo") as mock_echo:
-            generate_command._handle_cleanup_operations(
-                mock_facade, "dev", output_dir, dry_run=False
-            )
-
-            assert mock_echo.called
-            calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("No orphaned files" in str(call) for call in calls)
-
-    def test_handle_cleanup_operations_no_state_manager(self, generate_command):
-        """Test handling cleanup operations without state manager."""
-        mock_facade = Mock()
-        mock_facade.state_manager = None
-
-        output_dir = Path("/output")
-
-        # Should not raise error
-        generate_command._handle_cleanup_operations(
-            mock_facade, "dev", output_dir, dry_run=False
-        )
-
     def test_handle_bundle_operations_enabled(self, generate_command, temp_project):
         """Test handling bundle operations when enabled."""
         output_dir = temp_project / "generated" / "dev"
@@ -580,7 +386,6 @@ class TestGenerateCommandHelperMethods:
                 "dev",
                 no_bundle=False,
                 dry_run=False,
-                force=False,
                 pipeline_config_path=None,
             )
 
@@ -608,7 +413,6 @@ class TestGenerateCommandHelperMethods:
                 "dev",
                 no_bundle=False,
                 dry_run=True,
-                force=False,
                 pipeline_config_path=None,
             )
 
@@ -641,13 +445,15 @@ class TestGenerateCommandHelperMethods:
                 "dev",
                 no_bundle=False,
                 dry_run=False,
-                force=True,
                 pipeline_config_path="pipeline_config.yaml",
             )
 
             assert mock_echo.called
             calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("Force regenerating" in str(call) for call in calls)
+            assert any(
+                "Regenerating" in str(call) and "pipeline-config override" in str(call)
+                for call in calls
+            )
 
     def test_handle_bundle_operations_bundle_error(
         self, generate_command, temp_project
@@ -674,7 +480,6 @@ class TestGenerateCommandHelperMethods:
                     "dev",
                     no_bundle=False,
                     dry_run=False,
-                    force=False,
                     pipeline_config_path=None,
                 )
 
@@ -699,7 +504,6 @@ class TestGenerateCommandHelperMethods:
                     "dev",
                     no_bundle=False,
                     dry_run=False,
-                    force=False,
                     pipeline_config_path=None,
                 )
 
@@ -792,8 +596,6 @@ class TestGenerateCommandExecute:
                 "_create_application_facade",
                 return_value=mock_facade_instance,
             ),
-            patch.object(generate_command, "_handle_cleanup_operations"),
-            patch.object(generate_command, "_display_generation_analysis"),
             patch.object(generate_command, "_display_generation_response"),
             patch.object(generate_command, "_handle_bundle_operations"),
             patch.object(generate_command, "_display_completion_message"),
@@ -849,8 +651,6 @@ class TestGenerateCommandExecute:
                 "_create_application_facade",
                 return_value=mock_facade_instance,
             ),
-            patch.object(generate_command, "_handle_cleanup_operations"),
-            patch.object(generate_command, "_display_generation_analysis"),
             patch.object(generate_command, "_display_generation_response"),
             patch.object(generate_command, "_handle_bundle_operations"),
             patch.object(generate_command, "_display_completion_message"),
@@ -863,125 +663,6 @@ class TestGenerateCommandExecute:
             # batch facade (the facade method is the new single entry point).
             call_kwargs = mock_facade_instance.generate_pipelines.call_args.kwargs
             assert call_kwargs["output_dir"] is None
-
-    def test_execute_with_force(self, generate_command, temp_project):
-        """Test execute with force flag."""
-        from lhp.core.layers import BatchGenerationResponse
-        from lhp.models.config import FlowGroup
-
-        mock_facade_instance = Mock()
-        mock_facade_instance.orchestrator.discover_all_flowgroups.return_value = [
-            FlowGroup(pipeline="test_pipeline", flowgroup="fg1", actions=[])
-        ]
-        mock_facade_instance.state_manager = Mock()
-        mock_facade_instance.generate_pipelines.return_value = BatchGenerationResponse(
-            success=True,
-            pipeline_responses={},
-            total_files_written=0,
-            aggregate_generated_filenames=(),
-            output_location=temp_project / "generated" / "dev",
-        )
-
-        with (
-            patch.object(generate_command, "setup_from_context"),
-            patch.object(
-                generate_command, "ensure_project_root", return_value=temp_project
-            ),
-            patch.object(generate_command, "_display_startup_message"),
-            patch.object(
-                generate_command,
-                "check_substitution_file",
-                return_value=temp_project / "substitutions" / "dev.yaml",
-            ),
-            patch.object(
-                generate_command,
-                "_create_application_facade",
-                return_value=mock_facade_instance,
-            ),
-            patch.object(generate_command, "_wipe_generated_directory") as mock_wipe,
-            patch.object(
-                generate_command, "_handle_cleanup_operations"
-            ) as mock_cleanup,
-            patch.object(
-                generate_command, "_display_generation_analysis"
-            ) as mock_analysis,
-            patch.object(generate_command, "_display_generation_response"),
-            patch.object(generate_command, "_handle_bundle_operations"),
-            patch.object(generate_command, "_display_completion_message"),
-            patch("click.echo"),
-        ):
-
-            generate_command.execute("dev", force=True)
-
-            # Force mode calls _wipe_generated_directory, not _handle_cleanup_operations
-            mock_wipe.assert_called_once()
-            mock_cleanup.assert_not_called()
-            # Verify force was passed to analysis (5th positional arg, idx 4)
-            call_args = mock_analysis.call_args
-            assert len(call_args.args) > 4 and call_args.args[4] is True
-            # And to the batch facade method
-            assert (
-                mock_facade_instance.generate_pipelines.call_args.kwargs["force_all"]
-                is True
-            )
-
-    def test_execute_with_no_cleanup(self, generate_command, temp_project):
-        """Test execute with no_cleanup flag."""
-        from lhp.core.layers import BatchGenerationResponse
-        from lhp.models.config import FlowGroup
-
-        mock_facade_instance = Mock()
-        mock_facade_instance.orchestrator.discover_all_flowgroups.return_value = [
-            FlowGroup(pipeline="test_pipeline", flowgroup="fg1", actions=[])
-        ]
-        # no_cleanup=True means state_manager is None in real code,
-        # but since _create_application_facade is mocked, we set it explicitly
-        mock_facade_instance.state_manager = None
-        mock_facade_instance.generate_pipelines.return_value = BatchGenerationResponse(
-            success=True,
-            pipeline_responses={},
-            total_files_written=0,
-            aggregate_generated_filenames=(),
-            output_location=temp_project / "generated" / "dev",
-        )
-
-        with (
-            patch.object(generate_command, "setup_from_context"),
-            patch.object(
-                generate_command, "ensure_project_root", return_value=temp_project
-            ),
-            patch.object(generate_command, "_display_startup_message"),
-            patch.object(
-                generate_command,
-                "check_substitution_file",
-                return_value=temp_project / "substitutions" / "dev.yaml",
-            ),
-            patch.object(
-                generate_command,
-                "_create_application_facade",
-                return_value=mock_facade_instance,
-            ),
-            patch.object(
-                generate_command, "_handle_cleanup_operations"
-            ) as mock_cleanup,
-            patch.object(generate_command, "_wipe_generated_directory") as mock_wipe,
-            patch.object(generate_command, "_display_generation_analysis"),
-            patch.object(generate_command, "_display_generation_response"),
-            patch.object(generate_command, "_handle_bundle_operations"),
-            patch.object(generate_command, "_display_completion_message"),
-            patch("click.echo"),
-        ):
-
-            generate_command.execute("dev", no_cleanup=True)
-
-            # Verify neither cleanup nor wipe was called
-            mock_cleanup.assert_not_called()
-            mock_wipe.assert_not_called()
-            # And no_cleanup propagated to the batch facade method
-            assert (
-                mock_facade_instance.generate_pipelines.call_args.kwargs["no_cleanup"]
-                is True
-            )
 
     def test_execute_with_no_bundle(self, generate_command, temp_project):
         """Test execute with no_bundle flag."""
@@ -1017,8 +698,6 @@ class TestGenerateCommandExecute:
                 "_create_application_facade",
                 return_value=mock_facade_instance,
             ),
-            patch.object(generate_command, "_handle_cleanup_operations"),
-            patch.object(generate_command, "_display_generation_analysis"),
             patch.object(generate_command, "_display_generation_response"),
             patch.object(generate_command, "_handle_bundle_operations") as mock_bundle,
             patch.object(generate_command, "_display_completion_message"),
@@ -1066,8 +745,6 @@ class TestGenerateCommandExecute:
                 "_create_application_facade",
                 return_value=mock_facade_instance,
             ),
-            patch.object(generate_command, "_handle_cleanup_operations"),
-            patch.object(generate_command, "_display_generation_analysis"),
             patch.object(generate_command, "_display_generation_response"),
             patch.object(generate_command, "_handle_bundle_operations"),
             patch.object(generate_command, "_display_completion_message"),

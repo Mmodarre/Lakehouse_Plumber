@@ -31,7 +31,6 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | **CFG-009** | YAML parsing error (bad indent, unquoted special chars) | Quote strings with `:` `{` `}` `[` `]`; use YAML linter |
 | **CFG-010** | Deprecated field name | Replace with the field name shown in error message |
 | **CFG-012** | Missing required template parameters | Add `template_parameters:` with all required params |
-| **CFG-020** | Bundle resource generation error | Check `resources/lhp/` for valid YAML; run `--force` to regenerate |
 | **CFG-021** | Bundle YAML processing error | Validate `databricks.yml` syntax; check UTF-8 encoding |
 | **CFG-022** | Missing `databricks.yml` | Run `lhp init` or use `--no-bundle` |
 | **CFG-023** | Substitution env without matching bundle target | Add missing target to `databricks.yml` |
@@ -153,7 +152,6 @@ lhp list_presets                          # List available presets
 lhp deps --format dot --env <env>         # Visualize dependencies (spot cycles)
 lhp show <flowgroup> --env <env>          # Show resolved config
 lhp substitutions --env <env>             # List substitution tokens for env
-lhp state --env <env>                     # Inspect state file (checksums, stale)
 ```
 
 ---
@@ -186,9 +184,8 @@ see the resolved config (after preset merge + template expansion).
 1. Run `lhp generate --env <env>` before `databricks bundle deploy --target <env>`.
 2. `--env` and `--target` must match.
 3. Check `resources/lhp/` contains the pipeline resource file.
-4. Force regen: `lhp generate --env <env> --force`.
-5. If missing `databricks.yml` (`LHP-CFG-022`): run `lhp init` or use `--no-bundle`.
-6. If env has no matching bundle target (`LHP-CFG-023`): add target to `databricks.yml`.
+4. If missing `databricks.yml` (`LHP-CFG-022`): run `lhp init` or use `--no-bundle`.
+5. If env has no matching bundle target (`LHP-CFG-023`): add target to `databricks.yml`.
 
 ### YAML completion / IntelliSense not working
 
@@ -209,42 +206,23 @@ Substitution order: `%{local_var}` → `{{ template_param }}` → `${env_token}`
 
 ### Preset/template/blueprint edits not picked up
 
-LHP regenerates FlowGroups by content checksum. Most edits trigger regen on
-next `lhp generate`. If state is out of sync:
-
-```bash
-lhp generate --env <env> --force      # Force regen, keep state
-rm -rf .lhp_state                     # Nuclear: drop state, regen all (0.9+; pre-0.9 use `rm .lhp_state.json`)
-lhp generate --env <env>
-```
-
-Confirm the preset/template is actually referenced via `lhp show <flowgroup>`.
-
-### `lhp generate` says nothing to do after editing
-
-LHP does not checksum every indirectly-referenced file (e.g., external `.sql`
-loaded via `sql_file`). Use `--force` after editing such files.
-
-```bash
-lhp generate --env <env> --dry-run --verbose   # Show what would happen + why
-lhp state --env <env>                          # Tracked files, checksums, stale
-lhp generate --env <env> --force               # Bypass state check
-```
+Every `lhp generate` regenerates all FlowGroups from current YAML. Confirm the
+preset/template is actually referenced via `lhp show <flowgroup>`.
 
 ### CLI flags reference
 
 Only these flags exist on `lhp generate`:
 
 - `--env <name>` — required
-- `--force` — bypass state check, regenerate all
 - `--dry-run` — preview without writing
 - `--no-bundle` — skip bundle resource generation
 - `--include-tests` — include test actions in output
 - `--pipeline <name>` — target a single pipeline
 - `--verbose` / `-v` — extra logging
 
-Do **not** use `--force-all`, `--show-dependencies`, or `--check-cycles` — those
-flags do not exist (despite appearing in some older docs).
+Do **not** use `--force`, `--force-all`, `--show-dependencies`, or
+`--check-cycles` — those flags do not exist (despite appearing in some older
+docs).
 
 ### POSIX exit codes (from `src/lhp/utils/exit_codes.py`)
 

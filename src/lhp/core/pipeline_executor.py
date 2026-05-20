@@ -39,13 +39,12 @@ from ..utils.performance_timer import perf_timer
 
 if TYPE_CHECKING:
     from ..models.config import FlowGroupContext, ProjectConfig
+    from ..models.processing import PipelineDelta
     from ..utils.formatter import CodeFormatter
     from ..utils.substitution import EnhancedSubstitutionManager
     from .pipeline_processor import ProcessingContext
-    from .services.blueprint_expander import BlueprintProvenance
     from .services.code_generator import CodeGenerator
     from .services.flowgroup_processor import FlowgroupProcessor
-    from .state_models import PipelineDelta
 
 
 logger = logging.getLogger(__name__)
@@ -97,14 +96,9 @@ class _GenerateWorkerState:
     substitution_managers: Mapping[str, "EnhancedSubstitutionManager"]
     pipeline_output_dirs: Mapping[str, Optional[Path]]
     project_config: Optional["ProjectConfig"]
-    blueprint_provenance: Optional[
-        Dict[Tuple[str, str], "BlueprintProvenance"]
-    ]
     environment: str
-    state_dir: Optional[Path]
     project_root: Path
     include_tests: bool
-    build_state: bool
 
 
 # Module-level worker state. Populated by the pool initializer; read by the
@@ -165,12 +159,9 @@ def _generate_one_pipeline(
         substitution_managers=state.substitution_managers,
         pipeline_output_dirs=state.pipeline_output_dirs,
         environment=state.environment,
-        state_dir=state.state_dir,
         project_root=state.project_root,
         project_config=state.project_config,
         include_tests=state.include_tests,
-        build_state=state.build_state,
-        blueprint_provenance=state.blueprint_provenance,
     )
 
 
@@ -190,21 +181,14 @@ def _process_pipeline_for_generate(
     *,
     environment: str,
     output_dir: Optional[Path],
-    state_dir: Optional[Path],
     project_root: Path,
     project_config: Optional["ProjectConfig"],
     context: "ProcessingContext",
-    build_state: bool,
-    blueprint_provenance: Optional[
-        Dict[Tuple[str, str], "BlueprintProvenance"]
-    ] = None,
 ) -> "PipelineDelta":
     """Worker entry: process one whole pipeline and return a delta.
 
     Picklable, top-level callable suitable for submission to a
-    :class:`ProcessPoolExecutor`. State is constructed inside the
-    worker via :class:`PipelineStateManager`; ``ProjectStateManager``
-    instances never cross the process boundary.
+    :class:`ProcessPoolExecutor`.
 
     Args:
         pipeline_name: Pipeline being generated.
@@ -213,16 +197,10 @@ def _process_pipeline_for_generate(
             source_yaml, synthetic flag, and auxiliary_files.
         environment: Environment name (e.g. ``"dev"``).
         output_dir: Pipeline output directory; ``None`` for dry-run.
-        state_dir: ``<project_root>/.lhp_state`` directory. May be
-            ``None`` when ``build_state=False``.
         project_root: Project root.
         project_config: Project config (read for ``test_reporting``).
         context: :class:`ProcessingContext` bundling per-pipeline
             collaborators and the ``include_tests`` flag.
-        build_state: When False, skips state manager and shard.
-            Equivalent to ``--no-state``.
-        blueprint_provenance: ``Dict`` of synthetic flowgroup keys to
-            provenance, forwarded as-is to :class:`PipelineProcessor`.
 
     Returns:
         :class:`PipelineDelta` reporting success/failure with file-count
@@ -234,15 +212,11 @@ def _process_pipeline_for_generate(
         pipeline_name=pipeline_name,
         environment=environment,
         output_dir=output_dir,
-        state_dir=state_dir,
         project_root=project_root,
         project_config=project_config,
         context=context,
-        build_state=build_state,
-        blueprint_provenance=blueprint_provenance,
     )
     return pp.run(contexts)
-
 
 
 def _dispatch_pipeline_for_generate(
@@ -255,14 +229,9 @@ def _dispatch_pipeline_for_generate(
     substitution_managers: Mapping[str, "EnhancedSubstitutionManager"],
     pipeline_output_dirs: Mapping[str, Optional[Path]],
     environment: str,
-    state_dir: Optional[Path],
     project_root: Path,
     project_config: Optional["ProjectConfig"],
     include_tests: bool,
-    build_state: bool,
-    blueprint_provenance: Optional[
-        Dict[Tuple[str, str], "BlueprintProvenance"]
-    ] = None,
 ) -> "PipelineDelta":
     """Top-level per-pipeline dispatch entry called from the worker.
 
@@ -276,8 +245,8 @@ def _dispatch_pipeline_for_generate(
     Pipelines absent from ``substitution_managers`` (empty flowgroup
     sets) short-circuit to a no-op success delta.
     """
+    from ..models.processing import PipelineDelta
     from .pipeline_processor import ProcessingContext
-    from .state_models import PipelineDelta
 
     if pipeline_name not in substitution_managers:
         return PipelineDelta.success_(pipeline_name)
@@ -294,12 +263,9 @@ def _dispatch_pipeline_for_generate(
         contexts=contexts,
         environment=environment,
         output_dir=pipeline_output_dirs.get(pipeline_name),
-        state_dir=state_dir,
         project_root=project_root,
         project_config=project_config,
         context=context,
-        build_state=build_state,
-        blueprint_provenance=blueprint_provenance,
     )
 
 
@@ -384,7 +350,7 @@ def run_generate_pool(
     Returns ``(successful_deltas, failed_deltas)``. Order matches
     pipeline completion order (empty-pipeline deltas first).
     """
-    from .state_models import PipelineDelta
+    from ..models.processing import PipelineDelta
 
     if worker_state is None and process_one is None:
         raise ValueError(
@@ -532,9 +498,6 @@ def _process_flowgroup_for_validate(
             flowgroup_name=fg.flowgroup,
             errors=(f"Flowgroup '{fg.flowgroup}': {exc}",),
         )
-
-
-
 
 
 OnValidationComplete: TypeAlias = Callable[[PipelineValidationOutcome], None]

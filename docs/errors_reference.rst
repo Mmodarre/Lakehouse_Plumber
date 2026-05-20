@@ -432,7 +432,7 @@ resource files during ``lhp generate``.
 
 1. Run ``lhp validate --env <env>`` to check your configuration
 2. Check that files under ``resources/lhp/`` are valid YAML
-3. If files are corrupted, delete them and re-run ``lhp generate --env <env> --force``
+3. If files are corrupted, delete them and re-run ``lhp generate --env <env>``
 
 .. seealso::
 
@@ -1122,22 +1122,6 @@ you identify which dependency to remove or redirect.
 General Troubleshooting
 -----------------------
 
-State Management
-~~~~~~~~~~~~~~~~
-
-.. code-block:: bash
-   :caption: Debugging state issues
-
-   # Force regeneration of all files
-   lhp generate --force-all --env dev
-
-   # Clear state and regenerate everything (0.9+; pre-0.9 use `rm .lhp_state.json`)
-   rm -rf .lhp_state
-   lhp generate --env dev
-
-   # Check what files would be regenerated
-   lhp generate --dry-run --env dev --verbose
-
 Dependency Debugging
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -1155,7 +1139,6 @@ Performance Optimization
 
 - Use **include patterns** to limit file scanning scope
 - Keep **FlowGroups focused** — avoid overly large YAML files
-- Leverage **state management** — don't force regeneration unless needed
 - Use **specific targets** when possible instead of full pipeline generation
 
 Getting Help

@@ -38,7 +38,7 @@ CLI flags
      - Path to pipeline config YAML (relative to project root).
    * - ``--force``, ``-f``
      - ``lhp generate``
-     - Regenerate LHP-owned resource files. With ``--pipeline-config``, also rewrites existing LHP-owned bundle YAML.
+     - With ``--pipeline-config``, rewrites existing LHP-owned bundle YAML resource files. Without ``-pc`` the flag has no effect (Python is always regenerated).
    * - ``--job-config FILE``, ``-jc FILE``
      - ``lhp deps``
      - Path to job config YAML.
@@ -557,7 +557,7 @@ See also
 
 - :doc:`configure_bundles` — Bundle setup walk-through.
 - :doc:`cicd` — CI/CD patterns and deployment workflows.
-- :doc:`architecture` — How LHP's state, generation, and sync layers fit together.
+- :doc:`architecture` — How LHP's generation and sync layers fit together.
 - :doc:`dependency_analysis` — Pipeline dependency graph and orchestration job generation.
 - :doc:`monitoring_reference` — Event log and monitoring pipeline schema.
 - :doc:`errors_reference` — Full error code catalog.

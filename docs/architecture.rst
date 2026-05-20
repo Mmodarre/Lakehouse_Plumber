@@ -2,7 +2,7 @@ Architecture
 ============
 
 .. meta::
-   :description: How Lakehouse Plumber is built — the Pipeline/FlowGroup/Action model, the substitution layer cake, state tracking, and the four-phase generation workflow.
+   :description: How Lakehouse Plumber is built — the Pipeline/FlowGroup/Action model, the substitution layer cake, and the generation workflow.
 
 Lakehouse Plumber (LHP) is a code generator. You write declarative YAML; LHP produces
 Databricks Lakeflow Declarative Pipelines Python code. This page explains the model that
@@ -11,8 +11,7 @@ resolve and in what order, and how the generation engine turns YAML into Python.
 
 If you want to do something — build a pipeline, configure CI/CD, troubleshoot a failure —
 see :doc:`how_to_index`. If you are choosing between two ways of doing something (preset
-versus template, streaming versus batch, where to enable state tracking), see
-:doc:`decisions`.
+versus template, streaming versus batch), see :doc:`decisions`.
 
 The composition model
 ---------------------
@@ -135,7 +134,7 @@ including file substitutions and Databricks Connect compatibility shims, see
 The generation workflow
 -----------------------
 
-``lhp generate --env <env>`` runs four phases over every FlowGroup it discovers. The
+``lhp generate --env <env>`` runs three phases over every FlowGroup it discovers. The
 phase names map to services in ``src/lhp/core/services/``.
 
 .. mermaid::
@@ -154,18 +153,10 @@ phase names map to services in ``src/lhp/core/services/``.
            G --> H[Validate FlowGroup]
            H --> I[Validate secret references]
        end
-       subgraph Planning
-           I --> J[Build dependency DAG]
-           J --> K[Compare against .lhp_state/ shards]
-           K --> L{Changed?}
-       end
        subgraph Code generation
-           L -->|yes| M[Run action generators]
-           L -->|no| N[Skip]
+           I --> M[Run action generators]
            M --> O[Inject secret calls]
            O --> P[Write Python file]
-           P --> Q[Update state]
-           N --> Q
        end
 
 **Discovery** is driven by ``FlowgroupDiscoverer`` and the project-level ``include``
@@ -177,77 +168,19 @@ substitution layer cake described above, deep-merging preset defaults, and runni
 Pydantic validation. Unresolved tokens raise ``LHP-CFG-010`` with the unresolved
 names listed.
 
-**Planning** builds the dependency DAG (``DependencyAnalyzer``) and compares each
-FlowGroup's source-YAML checksum against the per-pipeline state shards in
-``.lhp_state/``. Only changed FlowGroups — and their downstream dependents —
-re-enter code generation. ``lhp deps`` exposes the DAG for inspection (see
-:doc:`dependency_analysis`).
-
 **Code generation** dispatches each action to a generator looked up in
 ``ActionRegistry`` (one of 7 load, 5 transform, 3 write, or 9 test generators). The
 generators emit Jinja2-rendered Python; ``CodeGenerator`` injects
 ``dbutils.secrets.get`` calls last so secret references never leak into source files.
 The final Python is written via ``SmartFileWriter``, which only touches disk when
-content actually changes.
-
-State tracking
---------------
-
-As of 0.9.0, LHP writes state into a ``.lhp_state/`` directory containing one
-shard per pipeline (``<pipeline>.json``) plus a project-wide ``_global.json``.
-The pipeline shard is written atomically by the worker via ``os.replace``
-after Phase B completes; ``_global.json`` is written once by the main thread
-at end of batch. Each generated Python file maps to the source YAML,
-environment, checksum, and the auxiliary files (presets, templates, schemas)
-the FlowGroup depended on.
-
-.. code-block:: text
-
-   .lhp_state/
-     _global.json                # project-wide: version, last_updated, global_deps
-     bronze_layer.json           # one shard per pipeline
-     silver_layer.json
-     gold_layer.json
-
-.. code-block:: json
-   :caption: .lhp_state/<pipeline>.json (excerpt)
-
-   {
-     "pipeline": "bronze_layer",
-     "schema_version": "2",
-     "environments": {
-       "dev": {
-         "generated/dev/bronze_layer/customer_ingestion.py": {
-           "source_yaml": "pipelines/bronze/customer_ingestion.yaml",
-           "checksum": "a1b2c3d4e5f6",
-           "environment": "dev",
-           "pipeline": "bronze_layer",
-           "flowgroup": "customer_ingestion",
-           "file_dependencies": {"presets/bronze_layer.yaml": "checksum"}
-         }
-       }
-     }
-   }
-
-Pre-0.9 projects with a monolithic ``.lhp_state.json`` are auto-migrated on
-the first fully-successful run: the orchestrator removes the legacy file
-only after every pipeline in the batch has committed its shard. Partial
-failures preserve the legacy file untouched so re-runs can recover.
-
-State serves three purposes. It enables **incremental regeneration**: when only one
-FlowGroup changes, only one Python file regenerates. It enables **orphan detection**:
-when you delete a YAML file, ``lhp state`` can find and remove the now-stale
-generated Python. And it enables **CI/CD short-circuits**: pipelines that have not
-changed since the last commit skip generation entirely.
+content actually changes. ``lhp deps`` exposes the cross-pipeline dependency DAG for
+inspection (see :doc:`dependency_analysis`).
 
 Multi-environment generation
 ----------------------------
 
 LHP is environment-aware. The same FlowGroup YAML generates different Python files
 per environment because ``${env_token}`` resolves against ``substitutions/<env>.yaml``.
-State is per-environment too — each pipeline shard's ``environments`` map keys
-file entries by ``environment``, so a ``dev`` and ``prod`` build maintain
-separate incremental state inside the same shard.
 ``substitutions/lhp.yaml`` provides shared defaults that environment files override.
 
 Multi-job orchestration

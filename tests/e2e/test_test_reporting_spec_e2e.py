@@ -184,21 +184,6 @@ class TestTestReportingSpecE2E:
             not hook_file.exists()
         ), "Hook file should NOT exist without test_reporting config"
 
-    # TC-19: Generated hook tracked in state file after generation
-    def test_tc19_hook_tracked_in_state_file(self):
-        """TC-19: After --include-tests generation, hook file appears in state."""
-        exit_code, output = self.run_generate_with_tests()
-        assert exit_code == 0, f"Generation failed: {output}"
-
-        state = self._load_state_file()
-        assert state, "State file should exist and be non-empty after generation"
-
-        # The state file should track the generated hook file
-        state_str = json.dumps(state)
-        assert (
-            "_test_reporting_hook" in state_str
-        ), f"Hook file should be tracked in state. State keys: {list(state.keys())}"
-
     # TC-20: lhp validate --env dev --include-tests validates successfully
     def test_tc20_validate_with_include_tests_succeeds(self):
         """TC-20: lhp validate --env dev --include-tests succeeds with valid config."""
@@ -312,27 +297,3 @@ class TestTestReportingSpecE2E:
 
             diff = self._compare_file_hashes(generated_file, baseline_file)
             assert diff == "", f"Standard baseline mismatch for {relative}: {diff}"
-
-    # TC-25: Hook generation ordering — state includes hook file
-    def test_tc25_hook_in_state_proves_ordering(self):
-        """TC-25: Hook file tracked in state proves it ran before state save.
-
-        Per the plan, hook generation is inserted BEFORE state_manager.save()
-        in the orchestrator finalize block. If the hook file appears in the
-        state file, it was generated before the state was persisted.
-        """
-        exit_code, output = self.run_generate_with_tests()
-        assert exit_code == 0, f"Generation failed: {output}"
-
-        # Verify hook file exists
-        hook_file = self.generated_dir / "acmi_edw_bronze" / "_test_reporting_hook.py"
-        assert hook_file.exists(), "Hook file should be generated"
-
-        # Verify state file includes the hook
-        state = self._load_state_file()
-        assert state, "State file should exist after generation"
-
-        state_str = json.dumps(state)
-        assert (
-            "_test_reporting_hook" in state_str
-        ), "Hook must appear in state file (proves generation before state save)"

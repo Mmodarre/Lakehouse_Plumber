@@ -455,16 +455,6 @@ Show
    
    # Finds flowgroup even in multi-flowgroup files
 
-State Tracking
---------------
-
-State tracking works identically with multi-flowgroup files:
-
-* Each flowgroup tracked individually by ``(pipeline, flowgroup)`` tuple
-* Source YAML file path tracked for each flowgroup
-* Multiple flowgroups from same file tracked with same source path
-* Smart regeneration based on individual flowgroup changes
-
 Best Practices
 --------------
 

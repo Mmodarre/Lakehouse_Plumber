@@ -32,8 +32,8 @@ from typing import Dict, Sequence
 import pytest
 
 from lhp.core.pipeline_executor import group_by_pipeline, run_generate_pool
-from lhp.core.state_models import PipelineDelta
 from lhp.models.config import FlowGroupContext
+from lhp.models.processing import PipelineDelta
 
 
 class _FakeFlowGroup:
@@ -145,8 +145,7 @@ class TestRunGeneratePoolBasics:
 
     def test_single_pipeline_multiple_flowgroups(self):
         fgs = [
-            _ctx(_FakeFlowGroup("p1", f"fg_{i}", mode="format_name"))
-            for i in range(5)
+            _ctx(_FakeFlowGroup("p1", f"fg_{i}", mode="format_name")) for i in range(5)
         ]
         succ, fail = run_generate_pool(
             flowgroups_by_pipeline={"p1": fgs},
@@ -302,9 +301,7 @@ class TestRunGeneratePoolDeterminism:
                 process_one=_fake_process_one_pipeline,
                 max_workers=4,
             )
-            run_content = {
-                d.pipeline_name: d.generated_filenames for d in succ
-            }
+            run_content = {d.pipeline_name: d.generated_filenames for d in succ}
             if baseline is None:
                 baseline = run_content
             else:

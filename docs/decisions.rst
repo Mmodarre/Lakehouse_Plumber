@@ -2,7 +2,7 @@ Decisions
 =========
 
 .. meta::
-   :description: Decision matrices for common Lakehouse Plumber design choices: which reuse primitive to pick, streaming vs batch, load source, write target, write mode, single vs multi-job orchestration, and when to force regeneration.
+   :description: Decision matrices for common Lakehouse Plumber design choices: which reuse primitive to pick, streaming vs batch, load source, write target, write mode, and single vs multi-job orchestration.
 
 Most LHP design choices reduce to a handful of decisions. Each section gives
 a one-screen matrix and a pointer to the relevant reference page. For
@@ -243,41 +243,11 @@ FlowGroup — the validator rejects mixed configurations. LHP emits a
 master orchestration job that triggers the per-system jobs in dependency
 order. For the full reference see :doc:`bundle_config_reference`.
 
-When to force regeneration
---------------------------
-
-LHP tracks per-file checksums in the per-pipeline shards under
-``.lhp_state/`` (as of 0.9.0) and regenerates only stale outputs.
-``lhp generate`` is incremental by default; ``--force`` wipes generated
-output and rebuilds every FlowGroup.
-
-.. list-table::
-   :header-rows: 1
-   :widths: 35 65
-
-   * - Pick…
-     - When…
-   * - **Incremental** (default)
-     - Day-to-day edits. You changed a handful of FlowGroups or
-       substitutions and want matching outputs refreshed.
-   * - **Force** (``--force``)
-     - You upgraded LHP and want every file regenerated against the new
-       code generator; Continuous Integration / Continuous Deployment
-       (CI/CD) builds where determinism beats speed; recovery from a
-       corrupt or out-of-sync state file.
-   * - **Dry-run** (``--dry-run``)
-     - You want to see which files *would* regenerate without writing to
-       disk — useful before a force-rebuild in a shared repo.
-
-.. tip::
-   In CI/CD, run ``lhp generate --env <env> --force --dry-run`` to
-   confirm the change set, then drop ``--dry-run`` for the real build.
-
 See also
 --------
 
 - :doc:`architecture` — definitions for FlowGroups, Actions, Presets,
-  Templates, Blueprints, and the state file.
+  Templates, and Blueprints.
 - :doc:`presets_reference` — preset schema and deep-merge semantics.
 - :doc:`templates_reference` — Jinja2 parameter syntax and template
   composition.

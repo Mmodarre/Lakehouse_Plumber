@@ -2,7 +2,7 @@ Performance
 ===========
 
 .. meta::
-   :description: Reasoning behind LHP performance choices — smart state regeneration, streaming versus materialized view trade-offs, dependency resolution, and runtime tuning levers.
+   :description: Reasoning behind LHP performance choices — streaming versus materialized view trade-offs, dependency resolution, and runtime tuning levers.
 
 For the decision frameworks behind individual generator choices, see
 :doc:`../decisions`. This page explains the performance properties LHP
@@ -17,90 +17,13 @@ performance* is how long ``lhp generate`` takes. *Runtime performance*
 is how long the Databricks pipeline takes once deployed. They are
 governed by different mechanisms and tuned with different levers.
 
-Generation is bounded by file I/O and YAML parsing. A project with one
-thousand :term:`FlowGroups <FlowGroup>` generates in seconds because LHP rarely regenerates
-all of them — the :term:`smart state <Smart state>` file makes regeneration incremental.
+Generation is bounded by file I/O and YAML parsing; a project with one
+thousand :term:`FlowGroups <FlowGroup>` generates in seconds.
 Runtime is bounded by data volume, shuffle costs, and the cost of
 joins; LHP does not control these directly, but the choice of write
 target (:term:`streaming table <Streaming table>` versus :term:`materialized view <Materialized view>`) and the use of
 ``cluster_columns`` versus ``partition_columns`` affect them
 significantly.
-
-Smart state and incremental regeneration
-----------------------------------------
-
-LHP writes a :term:`state file <State file>` directory ``.lhp_state/``
-after every successful generate run. The directory contains one JSON
-shard per pipeline (``<pipeline>.json``) plus a project-wide
-``_global.json``. Each shard maps generated Python files to their source
-YAML, records checksums for each source, and tracks the dependencies
-LHP encountered during generation. The next ``lhp generate`` reads
-this state, computes which sources have changed (by checksum, not
-mtime), and regenerates only the FlowGroups whose source or
-transitive dependencies changed. Pre-0.9 monolithic ``.lhp_state.json``
-files auto-remove on the first successful 0.9 run.
-
-In practice this means a typical iteration — editing one FlowGroup
-file and regenerating — touches a handful of Python files, not the
-whole ``generated/`` tree. For a five-hundred-FlowGroup project, the
-difference between smart and full regeneration is the difference
-between a one-second loop and a forty-second loop.
-
-The state file does not belong in version control. Several reasons:
-checksums are derived from absolute file paths, so the state file
-written by Alice does not apply to Bob's clone; the state file changes
-on every generate run, producing constant diff noise; and committing
-it would defeat the cache invalidation, because Git would deliver a
-state file that matches the YAML at commit time but not the YAML now.
-Treat ``.lhp_state/`` as a build artefact — gitignored, local
-only.
-
-Use ``lhp state --env <env>`` to audit what state tracks. The flags
-expose useful slices:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 20 50
-
-   * - Flag
-     - What it surfaces
-   * - ``--orphaned``
-     - Generated files whose source YAML no longer exists
-   * - ``--stale``
-     - Files where the source has changed since last generation
-   * - ``--new``
-     - Source YAML files that have never been generated
-   * - ``--cleanup``
-     - Remove orphaned files (combine with ``--dry-run``)
-   * - ``--regen``
-     - Regenerate stale files (combine with ``--dry-run``)
-
-Combining filters is the normal usage:
-``lhp state --env dev --orphaned --cleanup --dry-run`` previews the
-deletions that a real cleanup would perform. After a refactor that
-renames or deletes FlowGroups, this is the canonical cleanup
-sequence.
-
-When to override smart state
-----------------------------
-
-The ``--force`` flag regenerates everything, bypassing the state file.
-The fast-iteration case is the wrong place for it; you give up the
-incremental loop for no reason. The right cases are:
-
-- After upgrading LHP. The new version may emit different code for the
-  same input, and the state file does not see that change. Force once
-  to regenerate everything against the new framework.
-- After modifying a preset that other FlowGroups depend on transitively.
-  The dependency tracker catches direct preset use, but if a preset
-  changes Python imports for code paths LHP did not exercise during the
-  last generate run, force regeneration to be safe.
-- Before deploying to prod. The cost of a redundant regeneration is
-  seconds; the cost of shipping a stale ``generated/`` tree is more.
-
-Outside these cases, ``--force`` is a sign that something else is wrong
-(a misconfigured ignore, a missing checksum) and should be diagnosed
-rather than worked around.
 
 Streaming tables versus materialized views
 ------------------------------------------
@@ -211,14 +134,6 @@ pipeline only runs after its upstream completes.
 
 Anti-patterns
 -------------
-
-**Committing ``.lhp_state/``.** The state directory is per-developer,
-checksum-based, and changes constantly. Committing it defeats the
-caching and creates merge conflicts on every PR.
-
-**Using ``--force`` as the default.** Smart state is the optimisation
-you bought into when you adopted LHP; ``--force`` opts out of it. Use
-it for the specific cases listed above, not routinely.
 
 **Streaming tables for join-based enrichment.** Stale dimension data
 is the predictable outcome. Materialized views are correct here.

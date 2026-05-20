@@ -89,11 +89,6 @@ These symbols are the recommended entry points for programmatic use.
        parsing the same files repeatedly within one process.
    * - ``lhp.presets.preset_manager.PresetManager``
      - Loads presets from a directory and resolves inheritance chains.
-   * - ``lhp.core.state_manager.ProjectStateManager``
-     - Reads and writes the ``.lhp_state/`` state directory (per-pipeline
-       JSON shards plus ``_global.json``) tracking generated Python output
-       and source dependencies. ``StateManager`` is retained as a
-       :class:`DeprecationWarning`-emitting alias for one release.
    * - ``lhp.bundle.manager.BundleManager``
      - Synchronizes Databricks Asset Bundle (DAB) resource files with
        generated pipeline code.
@@ -140,7 +135,6 @@ Everything else under ``lhp.*`` is Internal. The following namespaces are
 explicitly off-limits to external code:
 
 - ``lhp.core.services.*`` — service decomposition used by the orchestrator.
-- ``lhp.core.state.*`` — state persistence and analysis services.
 - ``lhp.core.commands.*`` — internal command pattern dispatch.
 - ``lhp.core.factories``, ``lhp.core.layers``, ``lhp.core.dependency_resolver``,
   ``lhp.core.parallel_processor`` — wiring and execution helpers.
@@ -213,17 +207,6 @@ Presets: ``lhp.presets.preset_manager``
    :no-members:
 
 .. autoclass:: lhp.presets.preset_manager.PresetManager
-   :members:
-   :show-inheritance:
-   :member-order: bysource
-
-State management: ``lhp.core.state_manager``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. automodule:: lhp.core.state_manager
-   :no-members:
-
-.. autoclass:: lhp.core.state_manager.StateManager
    :members:
    :show-inheritance:
    :member-order: bysource

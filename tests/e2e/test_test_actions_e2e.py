@@ -72,9 +72,7 @@ class TestTestActionsE2E:
     def run_generate_with_tests(self) -> tuple:
         """Run 'lhp generate --env dev --force --include-tests'."""
         runner = CliRunner()
-        result = runner.invoke(
-            cli, ["generate", "--env", "dev", "--force", "--include-tests"]
-        )
+        result = runner.invoke(cli, ["generate", "--env", "dev", "--include-tests"])
         return result.exit_code, result.output
 
     def _compare_file_hashes(self, file1: Path, file2: Path) -> str:
@@ -97,7 +95,9 @@ class TestTestActionsE2E:
 
         generated = self.test_actions_dir / filename
         baseline = self.test_actions_baseline_dir / filename
-        assert generated.exists(), f"{filename} should be generated under 12_test_actions/"
+        assert (
+            generated.exists()
+        ), f"{filename} should be generated under 12_test_actions/"
         assert baseline.exists(), f"Baseline {filename} should exist"
 
         diff = self._compare_file_hashes(generated, baseline)

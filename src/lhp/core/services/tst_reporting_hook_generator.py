@@ -13,8 +13,8 @@ from jinja2 import Environment
 
 from ...models.config import ActionType, FlowGroup, ProjectConfig
 from ...utils.error_formatter import ErrorCategory, LHPError
+from ...utils.file_header import build_lhp_source_header, write_normalized
 from ...utils.formatter import CodeFormatter
-from ...utils.smart_file_writer import SmartFileWriter, build_lhp_source_header
 from ...utils.substitution import EnhancedSubstitutionManager
 from ...utils.template_renderer import get_lhp_template_loader
 
@@ -52,7 +52,6 @@ class TestReportingHookGenerator:
         processed_flowgroups: List[FlowGroup],
         pipeline_name: str,
         output_dir: Path,
-        smart_writer: SmartFileWriter,
         substitution_mgr: Optional[EnhancedSubstitutionManager] = None,
     ) -> Optional[str]:
         """Generate the test reporting hook file for a pipeline.
@@ -61,7 +60,6 @@ class TestReportingHookGenerator:
             processed_flowgroups: Flowgroups already processed for this pipeline
             pipeline_name: Pipeline name (used in hook header and context)
             output_dir: Pipeline output directory
-            smart_writer: SmartFileWriter instance
             substitution_mgr: Optional substitution manager for token resolution
 
         Returns:
@@ -80,7 +78,7 @@ class TestReportingHookGenerator:
             return None
 
         provider_config = self._load_provider_config()
-        self._copy_provider_module(output_dir, smart_writer, substitution_mgr)
+        self._copy_provider_module(output_dir, substitution_mgr)
 
         config = self.test_reporting_config
         provider_stem = Path(config.module_path).stem
@@ -99,7 +97,7 @@ class TestReportingHookGenerator:
             logger.warning(f"Black formatting failed for hook file: {e}")
 
         hook_path = output_dir / HOOK_FILENAME
-        smart_writer.write_if_changed(hook_path, content)
+        write_normalized(hook_path, content)
         logger.info(f"Generated test reporting hook: {hook_path}")
 
         return content
@@ -214,7 +212,6 @@ class TestReportingHookGenerator:
     def _copy_provider_module(
         self,
         output_dir: Path,
-        smart_writer: SmartFileWriter,
         substitution_mgr: Optional[EnhancedSubstitutionManager] = None,
     ) -> None:
         """Copy provider Python module to test_reporting_providers/ directory."""
@@ -247,10 +244,9 @@ class TestReportingHookGenerator:
             original_content = substitution_mgr._process_string(original_content)
 
         full_content = build_lhp_source_header(config.module_path) + original_content
-        smart_writer.write_if_changed(dest_file, full_content)
+        write_normalized(dest_file, full_content)
 
-        # SmartFileWriter handles no-op if content matches
         init_file = providers_dir / "__init__.py"
-        smart_writer.write_if_changed(init_file, "")
+        write_normalized(init_file, "")
 
         logger.debug(f"Copied provider module: {config.module_path} → {dest_file}")

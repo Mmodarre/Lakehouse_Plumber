@@ -66,7 +66,7 @@ class TestBuiltinSinksE2E:
     def run_generate(self) -> tuple:
         """Run 'lhp generate --env dev --force' (no --include-tests)."""
         runner = CliRunner()
-        result = runner.invoke(cli, ["generate", "--env", "dev", "--force"])
+        result = runner.invoke(cli, ["generate", "--env", "dev"])
         return result.exit_code, result.output
 
     def _compare_file_hashes(self, file1: Path, file2: Path) -> str:

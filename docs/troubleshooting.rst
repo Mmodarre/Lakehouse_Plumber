@@ -34,8 +34,7 @@ Do this:
 3. If the cause is still unclear, look up the code in :doc:`errors_reference`
    for the same fix written as documentation, plus extra context and common
    causes.
-4. Re-run ``lhp generate --env <env>``. Generation is incremental; only the
-   affected FlowGroup is rebuilt.
+4. Re-run ``lhp generate --env <env>``.
 
 Common high-impact errors:
 
@@ -84,12 +83,7 @@ Do this:
    Run ``lhp generate --env <env>`` before ``databricks bundle deploy
    --target <env>``. The ``--env`` and ``--target`` values must match.
 2. Check ``resources/lhp/`` for the pipeline resource file. If it is missing,
-   the FlowGroup was not regenerated. Force a rebuild:
-
-   .. code-block:: bash
-
-      lhp generate --env dev --force
-
+   re-run ``lhp generate --env <env>``.
 3. If you see ``LHP-CFG-022`` (missing ``databricks.yml``) or ``LHP-CFG-023``
    (substitution file has no matching target), the bundle is not wired to
    your substitutions. Add the missing target to ``databricks.yml`` or pass
@@ -164,81 +158,19 @@ not include the change in the generated Python.
 
 Do this:
 
-1. LHP tracks generated files in ``.lhp_state/`` (per-pipeline JSON shards
-   as of 0.9.0; pre-0.9 projects had a monolithic ``.lhp_state.json`` that
-   auto-removes after the first 0.9 successful run). LHP only regenerates
-   FlowGroups whose **content checksum** has changed. Edits to presets or
-   templates referenced by a FlowGroup do trigger regeneration of dependent
-   FlowGroups — but only on the next ``lhp generate`` run.
-2. If state tracking is out of sync (you deleted generated files manually,
-   for example), force a full rebuild:
-
-   .. code-block:: bash
-
-      lhp generate --env dev --force
-
-3. To rebuild from a clean slate, delete the state directory:
-
-   .. code-block:: bash
-
-      rm -rf .lhp_state    # (0.9+; pre-0.9 use `rm .lhp_state.json`)
-      lhp generate --env dev
-
-   This regenerates every FlowGroup. Use it when state file corruption is
-   suspected.
-
-4. Confirm the preset or template is actually referenced. ``lhp show
+1. Confirm the preset or template is actually referenced. ``lhp show
    <flowgroup> --env <env>`` prints the resolved configuration after preset
    merge and template expansion — your changes should appear there.
-
-I changed code but ``lhp generate`` says nothing to do
-------------------------------------------------------
-
-Symptom: You edited a FlowGroup YAML, a SQL file, or a schema file, but
-``lhp generate --env <env>`` reports no work and skips the file.
-
-Do this:
-
-1. Confirm the file is **included** by your project's include patterns. The
-   ``include`` field in ``lhp.yaml`` filters which FlowGroups LHP discovers.
-   Run ``lhp validate --env <env>`` — it lists every FlowGroup it found.
-2. If the file is included but unchanged on disk (for example, you saved
-   without modifying content, or the change is in a referenced ``.sql``
-   file LHP does not checksum), use ``--force`` to bypass the state check:
-
-   .. code-block:: bash
-
-      lhp generate --env dev --force
-
-3. Use a dry run to see exactly what LHP would generate and why:
-
-   .. code-block:: bash
-
-      lhp generate --env dev --dry-run --verbose
-
-   The verbose output shows which FlowGroups are skipped and the reason.
-
-4. If you suspect a stale state file, inspect it directly:
-
-   .. code-block:: bash
-
-      lhp state --env dev
-
-   The output lists tracked files, their checksums, and any orphaned or
-   stale entries.
-
-.. note::
-
-   ``lhp generate`` does not detect changes to files referenced **indirectly**
-   in every case — for example, an external SQL file loaded via ``sql_file``.
-   Use ``--force`` after editing such files.
+2. Re-run ``lhp generate --env <env>``. Every run regenerates all
+   FlowGroups; if a change is not appearing, the input file is likely not
+   the one LHP is reading.
 
 See also
 --------
 
 - :doc:`errors_reference` — exhaustive catalog of every LHP error code with
   cause, fix, and example.
-- :doc:`architecture` — how generation, state tracking, and substitution
-  resolution work internally.
+- :doc:`architecture` — how generation and substitution resolution work
+  internally.
 - :doc:`editor_setup` — JSON schema wiring for YAML completion and
   validation in your editor.

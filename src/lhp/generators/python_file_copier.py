@@ -4,13 +4,10 @@ import logging
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from ..utils.error_formatter import ErrorCategory, LHPValidationError
 from ..utils.external_file_loader import resolve_external_file_path
-
-if TYPE_CHECKING:
-    from ..models.config import FlowGroup
 
 logger = logging.getLogger(__name__)
 
@@ -32,23 +29,16 @@ class CopiedModuleRecord:
     custom_functions_dir: Path
 
 
-
 @dataclass(frozen=True, slots=True)
 class CopiedFileEntry:
     """A single file that :meth:`PythonFileCopier.apply_copy_record` actually wrote.
 
-    Zero or more entries are emitted per call. Bundles ``dest_path``,
-    ``source_yaml``, and ``flowgroup`` together because all three are
-    needed to call :meth:`PipelineStateManager.track_generated_file`.
-
-    A dedup hit (the same destination already written by another
-    flowgroup in this worker) returns an empty list, signalling
-    callers not to track the file twice.
+    Zero or more entries are emitted per call. A dedup hit (the same
+    destination already written by another flowgroup in this worker)
+    returns an empty list.
     """
 
     dest_path: Path
-    source_yaml: Optional[Path]
-    flowgroup: Optional[str]
 
 
 class PythonFunctionConflictError(LHPValidationError):
@@ -181,9 +171,6 @@ class PythonFileCopier:
     def apply_copy_record(
         self,
         record: "CopiedModuleRecord",
-        *,
-        source_yaml: Optional[Path] = None,
-        flowgroup: Optional["FlowGroup"] = None,
     ) -> List[CopiedFileEntry]:
         """Replay a Phase-A-captured copy: ensure init, copy, return entries.
 
@@ -193,22 +180,14 @@ class PythonFileCopier:
         files that were actually written this call — empty when dedup
         suppressed the write.
 
-        State tracking is the caller's responsibility: walk the returned
-        entries and call ``track_generated_file`` on the appropriate
-        state manager. The file copier itself stays state-manager-agnostic.
-
         Args:
             record: Result of :func:`compute_copy_record`.
-            source_yaml: Path to the YAML that referenced this module.
-                Forwarded into each emitted :class:`CopiedFileEntry`.
-            flowgroup: Flowgroup that referenced this module. Only the
-                ``flowgroup.flowgroup`` name is forwarded into the entries.
 
         Returns:
             ``[]`` when dedup suppressed the write. Otherwise a list with
             two entries (the package ``__init__.py`` and the module file
-            itself), suitable for driving state tracking. The same record
-            re-applied returns ``[]`` on the second call.
+            itself). The same record re-applied returns ``[]`` on the
+            second call.
         """
         self.ensure_init_file(record.custom_functions_dir)
         file_copied = self.copy_python_file(
@@ -218,21 +197,10 @@ class PythonFileCopier:
         if not file_copied:
             return []
 
-        fg_name: Optional[str] = (
-            flowgroup.flowgroup if flowgroup is not None else None
-        )
         init_file = record.custom_functions_dir / "__init__.py"
         return [
-            CopiedFileEntry(
-                dest_path=init_file,
-                source_yaml=source_yaml,
-                flowgroup=fg_name,
-            ),
-            CopiedFileEntry(
-                dest_path=record.dest_path,
-                source_yaml=source_yaml,
-                flowgroup=fg_name,
-            ),
+            CopiedFileEntry(dest_path=init_file),
+            CopiedFileEntry(dest_path=record.dest_path),
         ]
 
 
@@ -274,7 +242,7 @@ def compute_copy_record(
         A :class:`CopiedModuleRecord` describing the planned copy. The
         record's ``dest_path`` is ``custom_functions_dir / f"{stem}.py"``.
     """
-    from ..utils.smart_file_writer import build_lhp_source_header
+    from ..utils.file_header import build_lhp_source_header
 
     module_name = Path(module_path).stem
     dest_file = custom_functions_dir / f"{module_name}.py"
@@ -411,9 +379,5 @@ def copy_user_module_for_pipeline(
         return Path(module_path).stem
 
     python_copier = context.get("python_file_copier") or PythonFileCopier()
-    python_copier.apply_copy_record(
-        record,
-        source_yaml=context.get("source_yaml"),
-        flowgroup=context.get("flowgroup"),
-    )
+    python_copier.apply_copy_record(record)
     return Path(module_path).stem

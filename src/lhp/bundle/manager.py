@@ -138,7 +138,6 @@ class BundleManager:
         self,
         output_dir: Path,
         env: str,
-        force: bool = False,
         has_pipeline_config: bool = False,
     ) -> int:
         """
@@ -146,26 +145,14 @@ class BundleManager:
 
         Conservative approach - preserves existing LHP files:
         - Creates resource files for new pipeline directories
-        - Preserves existing LHP-generated files (no modifications)
+        - Preserves existing LHP-generated files (unless a pipeline-config override applies)
         - Backs up and replaces user-created files with LHP versions
         - Deletes resource files for pipeline directories that no longer exist
         - Errors on multiple resource files for same pipeline
 
-        Decision Matrix::
-
-            | Python Dir | Bundle File Type      | Action                              |
-            |------------|-----------------------|-------------------------------------|
-            | Exists     | LHP file              | DON'T TOUCH (Scenario 1a)           |
-            | Exists     | LHP file + force + pc | REGENERATE (Scenario 1a override)   |
-            | Exists     | User file             | BACKUP + REPLACE (Scenario 1b)      |
-            | Exists     | No file               | CREATE (Scenario 2)                 |
-            | Missing    | Any file              | DELETE (Scenario 3)                 |
-            | Any        | Multiple              | ERROR (Scenario 4)                  |
-
         Args:
             output_dir: Directory containing generated Python files
             env: Environment name for template processing
-            force: Force regeneration even for LHP-generated files
             has_pipeline_config: Whether a custom pipeline config was provided
 
         Returns:
@@ -183,9 +170,11 @@ class BundleManager:
         try:
             with perf_timer("bundle_sync_resources"):
                 # Setup: Prepare environment and gather current state
-                current_pipeline_dirs, current_pipeline_names, existing_resource_files = (
-                    self._setup_sync_environment(env, output_dir)
-                )
+                (
+                    current_pipeline_dirs,
+                    current_pipeline_names,
+                    existing_resource_files,
+                ) = self._setup_sync_environment(env, output_dir)
 
                 # Record project shape for perf summary header
                 record_count("pipelines_synced", len(current_pipeline_names))
@@ -193,7 +182,7 @@ class BundleManager:
 
                 # Step 1: Process current pipelines using Conservative Approach
                 updated_count = self._process_current_pipelines(
-                    current_pipeline_dirs, env, force, has_pipeline_config
+                    current_pipeline_dirs, env, has_pipeline_config
                 )
 
                 # Step 2: Clean up orphaned resources
@@ -213,15 +202,14 @@ class BundleManager:
         pipeline_name: str,
         pipeline_dir: Path,
         env: str,
-        force: bool = False,
         has_pipeline_config: bool = False,
     ) -> bool:
         """
         Sync a single pipeline resource file using conservative approach.
 
         Decision Logic:
-        - Scenario 1a: Python exists + LHP file exists → DON'T TOUCH (preserve existing)
-        - Scenario 1a override: Python exists + LHP file + force + pipeline config → REGENERATE
+        - Scenario 1a: Python exists + LHP file exists + pipeline config → REGENERATE
+        - Scenario 1a (no pipeline config): preserve existing LHP file
         - Scenario 1b: Python exists + User file exists → BACKUP + REPLACE
         - Scenario 2:  Python exists + No file exists → CREATE
         - Scenario 4:  Multiple files exist → ERROR (configuration error)
@@ -230,7 +218,6 @@ class BundleManager:
             pipeline_name: Name of the pipeline
             pipeline_dir: Directory containing pipeline Python files
             env: Environment name
-            force: Force regeneration even for LHP-generated files
             has_pipeline_config: Whether a custom pipeline config was provided
 
         Returns:
@@ -256,9 +243,9 @@ class BundleManager:
         if related_files:
             existing_file = related_files[0]
 
-            # Scenario 1a: LHP file exists - regenerate only with force + pipeline-config
+            # Scenario 1a: LHP file exists - regenerate only when a pipeline-config is in play
             if self._is_lhp_generated_file(existing_file):
-                if force and has_pipeline_config:
+                if has_pipeline_config:
                     self.logger.info(
                         f"Scenario 1a override: Force regenerating {existing_file.name} with pipeline config"
                     )
@@ -266,28 +253,25 @@ class BundleManager:
                         pipeline_name, pipeline_dir.parent, env
                     )
                     return True
-                else:
-                    self.logger.debug(
-                        f"Scenario 1a: Skipping {existing_file.name} (LHP file preserved)"
-                    )
-                    return False
+                self.logger.debug(
+                    f"Scenario 1a: Skipping {existing_file.name} (LHP file preserved)"
+                )
+                return False
 
             # Scenario 1b: User file exists - BACKUP + REPLACE
-            else:
-                self.logger.info(
-                    f"Scenario 1b: Backing up user file {existing_file.name} and replacing with LHP version"
-                )
-                self._backup_single_file(existing_file, pipeline_name)
-                self._create_new_resource_file(pipeline_name, pipeline_dir.parent, env)
-                return True
-
-        # Step 4: Scenario 2 - No file exists, CREATE new
-        else:
             self.logger.info(
-                f"Scenario 2: Creating new resource file for pipeline '{pipeline_name}'"
+                f"Scenario 1b: Backing up user file {existing_file.name} and replacing with LHP version"
             )
+            self._backup_single_file(existing_file, pipeline_name)
             self._create_new_resource_file(pipeline_name, pipeline_dir.parent, env)
             return True
+
+        # Step 4: Scenario 2 - No file exists, CREATE new
+        self.logger.info(
+            f"Scenario 2: Creating new resource file for pipeline '{pipeline_name}'"
+        )
+        self._create_new_resource_file(pipeline_name, pipeline_dir.parent, env)
+        return True
 
     def ensure_resources_directory(self):
         """Create resources/lhp directory if it doesn't exist."""
@@ -886,7 +870,9 @@ class BundleManager:
                 )
                 return
 
-            self.logger.info(f"Found global catalog.schema: {catalog_value}.{schema_value}")
+            self.logger.info(
+                f"Found global catalog.schema: {catalog_value}.{schema_value}"
+            )
 
             # Step 2: Get all substitution environments
             all_environments = self._get_all_substitution_environments()
@@ -909,7 +895,9 @@ class BundleManager:
 
                 try:
                     # Check if pipeline config defines catalog/schema
-                    pipeline_config = self.config_loader.get_pipeline_config(pipeline_name)
+                    pipeline_config = self.config_loader.get_pipeline_config(
+                        pipeline_name
+                    )
                     if pipeline_config.get("catalog") or pipeline_config.get("schema"):
                         pipelines_with_config.add(pipeline_name)
                         self.logger.debug(
@@ -939,7 +927,9 @@ class BundleManager:
             # DEPRECATED(v1.0.0): Auto-detect catalog/schema will be removed.
             import click
 
-            pipelines_needing_config = sorted(all_pipeline_names - pipelines_with_config)
+            pipelines_needing_config = sorted(
+                all_pipeline_names - pipelines_with_config
+            )
             click.echo(
                 "\n"
                 "  ⚠️  DEPRECATION WARNING: Auto-detection of catalog/schema from generated files\n"
@@ -1340,7 +1330,6 @@ class BundleManager:
         self,
         current_pipeline_dirs: List[Path],
         env: str,
-        force: bool = False,
         has_pipeline_config: bool = False,
     ) -> int:
         """
@@ -1349,7 +1338,6 @@ class BundleManager:
         Args:
             current_pipeline_dirs: List of pipeline directories to process
             env: Environment name for template processing
-            force: Force regeneration even for LHP-generated files
             has_pipeline_config: Whether a custom pipeline config was provided
 
         Returns:
@@ -1366,7 +1354,7 @@ class BundleManager:
 
             try:
                 if self._sync_pipeline_resource(
-                    pipeline_name, pipeline_dir, env, force, has_pipeline_config
+                    pipeline_name, pipeline_dir, env, has_pipeline_config
                 ):
                     updated_count += 1
                     self.logger.debug("Successfully synced pipeline: %s", pipeline_name)
@@ -1390,7 +1378,9 @@ class BundleManager:
         Returns:
             Number of resource files that were removed
         """
-        with perf_timer("_cleanup_orphaned_resources", category="bundle_cleanup_orphans"):
+        with perf_timer(
+            "_cleanup_orphaned_resources", category="bundle_cleanup_orphans"
+        ):
             removed_count = 0
 
             # Step 2: Backup resource files for pipeline directories that no longer exist
@@ -1480,7 +1470,9 @@ class BundleManager:
             resource_file = self.get_resource_file_path(pipeline_name)
 
             # Generate resource file content from Python files
-            content = self.generate_resource_file_content(pipeline_name, output_dir, env)
+            content = self.generate_resource_file_content(
+                pipeline_name, output_dir, env
+            )
 
             try:
                 resource_file.write_text(content, encoding="utf-8")
@@ -1737,9 +1729,7 @@ class BundleManager:
                 # Re-raise BundleResourceError as-is (already formatted)
                 raise
             except (OSError, PermissionError) as e:
-                error_msg = (
-                    f"Error accessing resource files for pipeline '{pipeline_name}': {e}"
-                )
+                error_msg = f"Error accessing resource files for pipeline '{pipeline_name}': {e}"
                 self.logger.error(error_msg)
                 raise BundleResourceError(error_msg, e)
 

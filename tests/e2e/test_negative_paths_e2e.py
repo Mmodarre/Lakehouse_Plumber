@@ -110,31 +110,25 @@ class TestNegativePathsE2E:
         assert exit_code != 0, "Validate should fail on malformed YAML"
         lower = output.lower()
         assert (
-            "yaml" in lower
-            or "parse" in lower
-            or "broken_yaml" in output
+            "yaml" in lower or "parse" in lower or "broken_yaml" in output
         ), f"Expected YAML/parse error, got:\n{output[-2000:]}"
 
     def test_unknown_environment_fails(self):
         """An unknown --env value must fail (no substitution file)."""
-        exit_code, output = self.run_generate("--env", "xyz", "--force")
+        exit_code, output = self.run_generate("--env", "xyz")
         assert exit_code != 0, "Generate should fail on unknown environment"
         lower = output.lower()
         assert (
-            "xyz" in output
-            or "environment" in lower
-            or "substitution" in lower
+            "xyz" in output or "environment" in lower or "substitution" in lower
         ), f"Expected env/substitution error, got:\n{output[-2000:]}"
 
     def test_missing_environment_flag_fails(self):
         """Generate requires --env; running without it must fail with a Click usage error."""
-        exit_code, output = self.run_generate("--force")
+        exit_code, output = self.run_generate()
         assert exit_code != 0, "Generate should fail when --env is missing"
         lower = output.lower()
         assert (
-            "--env" in output
-            or "missing option" in lower
-            or "required" in lower
+            "--env" in output or "missing option" in lower or "required" in lower
         ), f"Expected required-flag error, got:\n{output[-2000:]}"
 
     def test_undefined_token_reference_fails(self):
@@ -157,7 +151,7 @@ class TestNegativePathsE2E:
             "    readMode: stream\n"
             "    source:\n"
             "      type: delta\n"
-            "      database: \"${nonexistent_token}\"\n"
+            '      database: "${nonexistent_token}"\n'
             "      table: customer_raw\n"
             "    target: v_undefined_token\n"
             "  - name: write_undefined_token\n"
@@ -165,16 +159,13 @@ class TestNegativePathsE2E:
             "    source: v_undefined_token\n"
             "    write_target:\n"
             "      type: streaming_table\n"
-            "      database: \"${catalog}.${raw_schema}\"\n"
+            '      database: "${catalog}.${raw_schema}"\n'
             "      table: undefined_token_raw\n"
         )
 
         exit_code, output = self.run_validate("--env", "dev")
         assert exit_code != 0, "Validate should fail on undefined token"
-        assert (
-            "LHP-CFG-010" in output
-            or "nonexistent_token" in output
-        ), (
+        assert "LHP-CFG-010" in output or "nonexistent_token" in output, (
             "Without --verbose, validate should still surface the "
             f"unresolved-token error code or token name. Got:\n{output[-2000:]}"
         )
@@ -202,17 +193,17 @@ class TestNegativePathsE2E:
             "    readMode: stream\n"
             "    source:\n"
             "      type: delta\n"
-            "      database: \"${catalog}.${raw_schema}\"\n"
+            '      database: "${catalog}.${raw_schema}"\n'
             "      table: customer_raw\n"
             "      options:\n"
-            "        password: \"${secret:bad scope!/key}\"\n"
+            '        password: "${secret:bad scope!/key}"\n'
             "    target: v_undefined_secret\n"
             "  - name: write_undefined_secret\n"
             "    type: write\n"
             "    source: v_undefined_secret\n"
             "    write_target:\n"
             "      type: streaming_table\n"
-            "      database: \"${catalog}.${raw_schema}\"\n"
+            '      database: "${catalog}.${raw_schema}"\n'
             "      table: undefined_secret_raw\n"
         )
 
@@ -220,9 +211,7 @@ class TestNegativePathsE2E:
         assert exit_code != 0, "Validate should fail on invalid secret scope syntax"
         lower = output.lower()
         assert (
-            "bad scope" in output
-            or "secret" in lower
-            or "scope" in lower
+            "bad scope" in output or "secret" in lower or "scope" in lower
         ), f"Expected secret-scope error, got:\n{output[-2000:]}"
 
     def test_unknown_action_type_fails(self):
@@ -243,7 +232,7 @@ class TestNegativePathsE2E:
             "    type: bogus_type\n"
             "    source:\n"
             "      type: delta\n"
-            "      database: \"${catalog}.${raw_schema}\"\n"
+            '      database: "${catalog}.${raw_schema}"\n'
             "      table: customer_raw\n"
             "    target: v_bogus\n"
         )
@@ -251,9 +240,7 @@ class TestNegativePathsE2E:
         exit_code, output = self.run_validate("--env", "dev")
         assert exit_code != 0, "Validate should fail on unknown action type"
         assert (
-            "LHP-ACT-001" in output
-            or "bogus_type" in output
-            or "Unknown" in output
+            "LHP-ACT-001" in output or "bogus_type" in output or "Unknown" in output
         ), f"Expected unknown-type error, got:\n{output[-2000:]}"
 
     def test_duplicate_flowgroup_id_fails(self):
@@ -281,7 +268,7 @@ class TestNegativePathsE2E:
             "    readMode: stream\n"
             "    source:\n"
             "      type: delta\n"
-            "      database: \"${catalog}.${raw_schema}\"\n"
+            '      database: "${catalog}.${raw_schema}"\n'
             "      table: customer_raw\n"
             "    target: v_dup\n"
             "  - name: dup_write\n"
@@ -289,16 +276,15 @@ class TestNegativePathsE2E:
             "    source: v_dup\n"
             "    write_target:\n"
             "      type: streaming_table\n"
-            "      database: \"${catalog}.${raw_schema}\"\n"
+            '      database: "${catalog}.${raw_schema}"\n'
             "      table: dup_table\n"
         )
 
-        exit_code, output = self.run_generate("--env", "dev", "--force")
+        exit_code, output = self.run_generate("--env", "dev")
         assert exit_code != 0, "Generate should fail on duplicate (pipeline, flowgroup)"
         lower = output.lower()
         assert (
-            "VAL-009" in output
-            or "duplicate" in lower
+            "VAL-009" in output or "duplicate" in lower
         ), f"Expected duplicate-flowgroup error, got:\n{output[-2000:]}"
 
     def test_python_import_collision_fails(self):
@@ -327,10 +313,7 @@ class TestNegativePathsE2E:
         )
 
         flowgroup_a = (
-            self.project_root
-            / "pipelines"
-            / "09_test_python"
-            / "collision_a.yaml"
+            self.project_root / "pipelines" / "09_test_python" / "collision_a.yaml"
         )
         flowgroup_a.write_text(
             "pipeline: sample_python_func_pipeline\n"
@@ -341,15 +324,15 @@ class TestNegativePathsE2E:
             "    readMode: stream\n"
             "    source:\n"
             "      type: delta\n"
-            "      database: \"${catalog}.${raw_schema}\"\n"
+            '      database: "${catalog}.${raw_schema}"\n'
             "      table: customer_raw\n"
             "    target: v_collision_a_raw\n"
             "  - name: transform_collision_a\n"
             "    type: transform\n"
             "    transform_type: python\n"
             "    source: v_collision_a_raw\n"
-            "    module_path: \"py_functions/collision_a/shared_util.py\"\n"
-            "    function_name: \"transform_passthrough\"\n"
+            '    module_path: "py_functions/collision_a/shared_util.py"\n'
+            '    function_name: "transform_passthrough"\n'
             "    parameters:\n"
             "      spark: spark\n"
             "      parameters: {}\n"
@@ -359,14 +342,11 @@ class TestNegativePathsE2E:
             "    source: v_collision_a_out\n"
             "    write_target:\n"
             "      type: streaming_table\n"
-            "      database: \"${catalog}.${bronze_schema}\"\n"
+            '      database: "${catalog}.${bronze_schema}"\n'
             "      table: collision_a_out\n"
         )
         flowgroup_b = (
-            self.project_root
-            / "pipelines"
-            / "09_test_python"
-            / "collision_b.yaml"
+            self.project_root / "pipelines" / "09_test_python" / "collision_b.yaml"
         )
         flowgroup_b.write_text(
             "pipeline: sample_python_func_pipeline\n"
@@ -377,15 +357,15 @@ class TestNegativePathsE2E:
             "    readMode: stream\n"
             "    source:\n"
             "      type: delta\n"
-            "      database: \"${catalog}.${raw_schema}\"\n"
+            '      database: "${catalog}.${raw_schema}"\n'
             "      table: customer_raw\n"
             "    target: v_collision_b_raw\n"
             "  - name: transform_collision_b\n"
             "    type: transform\n"
             "    transform_type: python\n"
             "    source: v_collision_b_raw\n"
-            "    module_path: \"py_functions/collision_b/shared_util.py\"\n"
-            "    function_name: \"transform_passthrough\"\n"
+            '    module_path: "py_functions/collision_b/shared_util.py"\n'
+            '    function_name: "transform_passthrough"\n'
             "    parameters:\n"
             "      spark: spark\n"
             "      parameters: {}\n"
@@ -395,14 +375,13 @@ class TestNegativePathsE2E:
             "    source: v_collision_b_out\n"
             "    write_target:\n"
             "      type: streaming_table\n"
-            "      database: \"${catalog}.${bronze_schema}\"\n"
+            '      database: "${catalog}.${bronze_schema}"\n'
             "      table: collision_b_out\n"
         )
 
-        exit_code, output = self.run_generate("--env", "dev", "--force")
+        exit_code, output = self.run_generate("--env", "dev")
         assert exit_code != 0, "Generate should fail on Python module collision"
         lower = output.lower()
         assert (
-            "VAL-019" in output
-            or "naming conflict" in lower
+            "VAL-019" in output or "naming conflict" in lower
         ), f"Expected Python collision error, got:\n{output[-2000:]}"

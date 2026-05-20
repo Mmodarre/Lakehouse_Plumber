@@ -5,7 +5,40 @@ All notable changes to Lakehouse Plumber are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [Unreleased] — Smart generation removal
+
+### Removed
+
+- Smart generation subsystem entirely. Every `lhp generate` now
+  regenerates all flowgroups (equivalent to old `--force --no-state`
+  behavior).
+- `lhp state` subcommand.
+- `--no-cleanup` flag.
+- `.lhp_state.json` / `.lhp_state/` state files — auto-deleted on
+  first run of new version.
+- Internal modules: `lhp.core.state_manager`,
+  `lhp.core.state_dependency_resolver`, `lhp.core.state.*`,
+  `lhp.utils.smart_file_writer`, `lhp.services.state_display_*`,
+  `lhp.core.strategies`,
+  `lhp.core.services.generation_planning_service`,
+  `lhp.cli.commands.state_command`.
+
+### Deprecated
+
+- `--force` and `--no-state` flags on `lhp generate`: accepted with a
+  deprecation warning; will be removed in a future release. Both are
+  no-ops since their previous behavior is now the default.
+
+### Changed
+
+- Bundle YAML files under `resources/lhp/` are now regenerated on
+  every `lhp generate`. Users with hand-edited bundle files should
+  not edit them in place (LHP overwrites them).
+- `PipelineDelta` moved from `lhp.core.state_models` to
+  `lhp.models.processing` (and lost its `files_skipped` field).
+- `build_lhp_source_header` moved from `lhp.utils.smart_file_writer`
+  to `lhp.utils.file_header` (plus a new `normalize_content` helper
+  there).
 
 ## [0.9.0] — 2026-05-19
 

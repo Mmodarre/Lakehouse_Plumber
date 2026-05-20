@@ -2,12 +2,12 @@ CLI Reference
 =============
 
 .. meta::
-   :description: Command-line reference for lhp: generate, validate, deps, state, show, stats, and all available options.
+   :description: Command-line reference for lhp: generate, validate, deps, show, stats, and all available options.
 
 The **Lakehouse Plumber** command-line interface provides project creation,
-validation, code generation, state inspection and more.  All commands are
-implemented with `click <https://click.palletsprojects.com>`_ so you can use the
-usual ``--help`` flags.
+validation, code generation and more.  All commands are implemented with
+`click <https://click.palletsprojects.com>`_ so you can use the usual
+``--help`` flags.
 
 .. click:: lhp.cli.main:cli
    :prog: lhp
@@ -113,17 +113,27 @@ See :doc:`bundle_config_reference` for detailed pipeline configuration options.
 Force Regeneration of Pipeline Resources
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The ``--force`` flag combined with ``--pipeline-config`` allows you to regenerate bundle pipeline resource YAML files even when they haven't changed.
+.. deprecated::
+   The ``--force`` flag (on ``lhp generate``) and ``--no-state`` are retained
+   for backwards compatibility but no longer change generation behaviour.
+   Every ``lhp generate`` run now regenerates Python output unconditionally.
+   ``--force`` is still honoured for one bundle-specific case: combined with
+   ``--pipeline-config``, it also rewrites LHP-owned bundle YAML resource
+   files.
 
 **Behavior:**
 
-- ``--force`` alone: Regenerates Python code but preserves LHP-generated bundle YAML files
-- ``--force`` with ``-pc``: Regenerates both Python code AND LHP-generated bundle YAML files
-- User-created bundle YAML files are always backed up and replaced (regardless of flags)
+- Bare ``lhp generate -e <env>``: Regenerates all Python code; preserves
+  LHP-generated bundle YAML files.
+- ``--force`` with ``-pc``: Regenerates Python code AND rewrites
+  LHP-generated bundle YAML files.
+- User-created bundle YAML files are always backed up and replaced
+  (regardless of flags).
 
 **When to Use:**
 
-Use this when you've modified your pipeline configuration and need to update the Databricks Asset Bundle resource files:
+Use this when you've modified your pipeline configuration and need to update
+the Databricks Asset Bundle resource files:
 
 .. code-block:: bash
 
@@ -134,8 +144,13 @@ Use this when you've modified your pipeline configuration and need to update the
    lhp generate -e dev -f -pc config/my_pipeline_config.yaml
 
 .. note::
-   LHP-generated files are overwritten directly without backup when using ``--force`` with ``-pc``.
-   This is safe because LHP can always regenerate them. User-created files are backed up for safety.
+   LHP-generated files are overwritten directly without backup when using
+   ``--force`` with ``-pc``. This is safe because LHP can always regenerate
+   them. User-created files are backed up for safety.
+
+.. note::
+   The ``lhp skill install --force`` flag is unrelated to ``lhp generate
+   --force`` and remains active — it overwrites an existing skill install.
 
 Skill Management
 ----------------
@@ -222,10 +237,10 @@ Both commands respect ``--include-tests`` for per-flowgroup processing.
 .. code-block:: bash
 
    # Skip tests for faster CI/CD builds
-   lhp generate -e prod --force --dry-run
+   lhp generate -e prod --dry-run
 
    # Include tests for comprehensive validation
-   lhp generate -e dev --include-tests --force
+   lhp generate -e dev --include-tests
 
    # Preview test generation without writing files
    lhp generate -e dev --include-tests --dry-run

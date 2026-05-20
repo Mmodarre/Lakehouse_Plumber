@@ -53,7 +53,6 @@ class CodeGenerator:
         flowgroup: FlowGroup,
         substitution_mgr: EnhancedSubstitutionManager,
         output_dir: Optional[Path] = None,
-        state_manager=None,
         source_yaml: Optional[Path] = None,
         env: Optional[str] = None,
         include_tests: bool = False,
@@ -68,7 +67,6 @@ class CodeGenerator:
             flowgroup: FlowGroup to generate code for
             substitution_mgr: Substitution manager for the environment
             output_dir: Output directory for generated files
-            state_manager: State manager for file tracking
             source_yaml: Source YAML path for file tracking
             env: Environment name for file tracking
             include_tests: Whether to include test actions
@@ -131,7 +129,6 @@ class CodeGenerator:
                 substitution_mgr,
                 preset_config,
                 output_dir,
-                state_manager,
                 source_yaml,
                 env,
                 include_tests,
@@ -164,7 +161,6 @@ class CodeGenerator:
         substitution_mgr: EnhancedSubstitutionManager,
         preset_config: Dict[str, Any],
         output_dir: Optional[Path],
-        state_manager,
         source_yaml: Optional[Path],
         env: Optional[str],
         include_tests: bool,
@@ -207,7 +203,6 @@ class CodeGenerator:
             substitution_mgr=substitution_mgr,
             preset_config=preset_config,
             output_dir=output_dir,
-            state_manager=state_manager,
             source_yaml=source_yaml,
             env=env,
             python_file_copier=python_file_copier,
@@ -292,7 +287,6 @@ class CodeGenerator:
         substitution_mgr: EnhancedSubstitutionManager,
         preset_config: Dict[str, Any],
         output_dir: Optional[Path],
-        state_manager,
         source_yaml: Optional[Path],
         env: Optional[str],
         python_file_copier=None,
@@ -330,7 +324,6 @@ class CodeGenerator:
                     substitution_mgr,
                     preset_config,
                     output_dir,
-                    state_manager,
                     source_yaml,
                     env,
                     python_file_copier,
@@ -379,7 +372,6 @@ class CodeGenerator:
         substitution_mgr: EnhancedSubstitutionManager,
         preset_config: Dict[str, Any],
         output_dir: Optional[Path],
-        state_manager,
         source_yaml: Optional[Path],
         env: Optional[str],
         python_file_copier=None,
@@ -405,7 +397,6 @@ class CodeGenerator:
                     substitution_mgr,
                     preset_config,
                     output_dir,
-                    state_manager,
                     source_yaml,
                     env,
                     python_file_copier,
@@ -450,7 +441,6 @@ class CodeGenerator:
         substitution_mgr: EnhancedSubstitutionManager,
         preset_config: Dict[str, Any],
         output_dir: Optional[Path],
-        state_manager,
         source_yaml: Optional[Path],
         env: Optional[str],
         python_file_copier=None,
@@ -489,7 +479,6 @@ class CodeGenerator:
                     substitution_mgr,
                     preset_config,
                     output_dir,
-                    state_manager,
                     source_yaml,
                     env,
                     python_file_copier,
@@ -533,7 +522,6 @@ class CodeGenerator:
         substitution_mgr: EnhancedSubstitutionManager,
         preset_config: Dict[str, Any],
         output_dir: Optional[Path],
-        state_manager,
         source_yaml: Optional[Path],
         env: Optional[str],
         python_file_copier=None,
@@ -550,7 +538,6 @@ class CodeGenerator:
             "preset_config": preset_config,
             "project_config": self.project_config,
             "output_dir": output_dir,
-            "state_manager": state_manager,
             "source_yaml": source_yaml,
             "environment": env,
             # Per-flowgroup accumulator for secret references collected by

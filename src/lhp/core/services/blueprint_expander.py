@@ -54,9 +54,6 @@ class BlueprintProvenance:
     """Where an expanded synthetic flowgroup came from.
 
     Attached by the expander, queried by:
-      - StateDependencyResolver to fingerprint the instance file as
-        type='instance' and resolve deps without re-parsing the blueprint
-        (which would trip the schema discriminator on flowgroup files).
       - DependencyTracker to set FileState.synthetic=True.
       - FlowgroupDiscoverer.find_source_yaml_for_flowgroup to point at the
         blueprint, not a non-existent flowgroup file.
@@ -333,8 +330,7 @@ class BlueprintExpander:
           patterns to be resolved at Step 0.5 alongside other flowgroup-scoped
           local variables
         - Synthetic status is recorded on the enclosing FlowGroupContext
-          (used by smart generation novelty check, source-path index, dependency
-          tracker)
+          (used by source-path index, dependency tracker)
         """
         # Build a dict so we can use FlowGroup(**dict) — symmetric with the
         # disk-sourced parser path. dict spread preserves Pydantic validation.

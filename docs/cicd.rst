@@ -174,37 +174,6 @@ Configure GitHub environments (``Settings → Environments``) for ``development`
 rules to ``production``. The same federation policy subject must match the
 environment name set in each job's ``environment:`` field.
 
-State management in CI
-----------------------
-
-LHP tracks generated files inside the ``.lhp_state/`` directory (per-pipeline
-JSON shards plus ``_global.json``, as of 0.9.0) to enable incremental
-regeneration locally. The 0.9.0 release also added ``lhp generate
---no-state``, which skips writing the state entirely — useful for CI runs
-that always force-regenerate. In CI, you have three choices:
-
-- **``--no-state`` (recommended for force-regen CI).** Pass
-  ``--no-state`` so the runner writes no shards at all. Combined with
-  ``--force`` it's the cleanest fit for runners that don't reuse state
-  between runs.
-- **Stateless (clean checkout).** Each runner starts with a clean checkout
-  and no state directory. ``lhp generate`` regenerates every file
-  deterministically. Same end behaviour as ``--no-state`` but writes
-  shards locally as a side-effect.
-- **Cached state.** Cache the ``.lhp_state/`` directory between runs to
-  skip regeneration for unchanged FlowGroups. This shortens builds on
-  large projects but introduces a cache-invalidation surface — a stale or
-  partial state directory can cause deploys to omit files. Only cache
-  state if generation time is a measurable bottleneck.
-
-If a deploy aborts mid-bundle, run with ``--force`` on the next attempt to
-regenerate every file regardless of state:
-
-.. code-block:: bash
-
-   lhp generate --env prod --force
-   databricks bundle deploy --target prod --mode production
-
 Recover from a failed deploy
 ----------------------------
 
@@ -217,16 +186,10 @@ handling:
    and re-tag (or re-trigger the job). Exit codes from
    :doc:`errors_reference` identify the failure category.
 2. ``databricks bundle deploy`` failed mid-run. Some resources may have been
-   updated. Re-run the same workflow with ``lhp generate --force`` to
-   guarantee a complete regeneration, then redeploy. If you need to roll back
-   to a previous version, tag the older commit with a new ``-prod`` tag
-   (for example ``v1.2.2-prod-hotfix``); the deploy job regenerates from that
-   commit's YAML and replaces the bad deployment.
-
-Do not delete ``.lhp_state/`` from a long-running runner without also
-clearing ``generated/`` and ``resources/lhp/`` — a missing state directory
-with existing artifacts leaves LHP unable to detect which Python files are
-still current.
+   updated. Re-run the same workflow to regenerate and redeploy. If you need
+   to roll back to a previous version, tag the older commit with a new
+   ``-prod`` tag (for example ``v1.2.2-prod-hotfix``); the deploy job
+   regenerates from that commit's YAML and replaces the bad deployment.
 
 Other CI platforms
 ------------------
@@ -249,8 +212,7 @@ are identical across platforms.
 See also
 --------
 
-- :doc:`architecture` — why LHP separates source YAML from generated artifacts
-  and how the state file works.
+- :doc:`architecture` — why LHP separates source YAML from generated artifacts.
 - :doc:`configure_bundles` — enable DAB integration in an LHP project.
 - :doc:`bundle_config_reference` — bundle and pipeline configuration fields.
 - :doc:`errors_reference` — exit codes and error categories returned by

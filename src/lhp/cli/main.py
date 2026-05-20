@@ -325,11 +325,6 @@ def skill_uninstall(user: bool, force: bool) -> None:
 @click.option("--output", "-o", help="Output directory (defaults to generated/{env})")
 @click.option("--dry-run", is_flag=True, help="Preview without generating files")
 @click.option(
-    "--no-cleanup",
-    is_flag=True,
-    help="Disable cleanup of generated files when source YAML files are removed.",
-)
-@click.option(
     "--force",
     "-f",
     is_flag=True,
@@ -366,11 +361,7 @@ def skill_uninstall(user: bool, force: bool) -> None:
     "no_state",
     is_flag=True,
     default=False,
-    help=(
-        "Skip state-file generation. Workers do not compute checksums; "
-        ".lhp_state/ is not written. Equivalent to --force on the next run "
-        "(everything regenerates)."
-    ),
+    help="Deprecated no-op; retained for backwards compatibility.",
 )
 @cli_error_boundary("Code generation")
 def generate(
@@ -378,7 +369,6 @@ def generate(
     pipeline,
     output,
     dry_run,
-    no_cleanup,
     force,
     no_bundle,
     include_tests,
@@ -387,6 +377,11 @@ def generate(
     no_state,
 ):
     """Generate DLT pipeline code"""
+    if force or no_state:
+        click.echo(
+            "warning: --force and --no-state are deprecated and will be removed in a future release; their previous behavior is now the default.",
+            err=True,
+        )
     from .commands.generate_command import GenerateCommand
 
     GenerateCommand().execute(
@@ -394,13 +389,10 @@ def generate(
         pipeline,
         output,
         dry_run,
-        no_cleanup,
-        force,
         no_bundle,
         include_tests,
         pipeline_config,
         max_workers=max_workers,
-        no_state=no_state,
     )
 
 
@@ -432,25 +424,6 @@ def validate(env, pipeline, verbose, include_tests, max_workers):
     ValidateCommand().execute(
         env, pipeline, verbose, include_tests, max_workers=max_workers
     )
-
-
-@cli.command()
-@click.option("--env", "-e", help="Environment to show state for")
-@click.option("--pipeline", "-p", help="Specific pipeline to show state for")
-@click.option("--orphaned", is_flag=True, help="Show only orphaned files")
-@click.option("--stale", is_flag=True, help="Show only stale files (YAML changed)")
-@click.option("--new", is_flag=True, help="Show only new/untracked YAML files")
-@click.option(
-    "--dry-run", is_flag=True, help="Preview cleanup without actually deleting files"
-)
-@click.option("--cleanup", is_flag=True, help="Clean up orphaned files")
-@click.option("--regen", is_flag=True, help="Regenerate stale files")
-@cli_error_boundary("State management")
-def state(env, pipeline, orphaned, stale, new, dry_run, cleanup, regen):
-    """Show or manage the current state of generated files."""
-    from .commands.state_command import StateCommand
-
-    StateCommand().execute(env, pipeline, orphaned, stale, new, dry_run, cleanup, regen)
 
 
 @cli.command()

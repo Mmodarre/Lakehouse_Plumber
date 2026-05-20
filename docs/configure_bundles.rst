@@ -207,8 +207,7 @@ Command                                      Purpose
 ``lhp init <name>``                          New project, bundle scaffolding included.
 ``lhp init <name> --no-bundle``              New project, no bundle scaffolding.
 ``lhp generate --env <env>``                 Generate Python and sync ``resources/lhp/``.
-``lhp generate --env <env> --force``         Regenerate Python; preserves LHP bundle files.
-``lhp generate --env <env> --force -pc <f>`` Regenerate Python AND LHP bundle files.
+``lhp generate --env <env> --force -pc <f>`` Regenerate Python AND rewrite LHP bundle YAML.
 ``lhp generate --env <env> --no-bundle``     Generate Python only; skip bundle sync.
 ``lhp deps --format job --bundle-output``    Generate an orchestration job under ``resources/lhp/``.
 ``databricks bundle deploy --target <env>``  Deploy bundle.

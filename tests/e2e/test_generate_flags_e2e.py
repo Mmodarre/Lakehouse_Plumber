@@ -80,15 +80,11 @@ class TestGenerateFlagsE2E:
 
     def test_dry_run_emits_no_python_files(self):
         """``--dry-run`` previews generation without writing .py files."""
-        exit_code, output = self.run_generate(
-            "--env", "dev", "--force", "--dry-run"
-        )
+        exit_code, output = self.run_generate("--env", "dev", "--dry-run")
         assert exit_code == 0, f"Dry-run should succeed, got:\n{output[-2000:]}"
 
         py_files = list(self.generated_dir.rglob("*.py"))
-        assert py_files == [], (
-            f"Dry-run must not write .py files, found:\n{py_files}"
-        )
+        assert py_files == [], f"Dry-run must not write .py files, found:\n{py_files}"
 
         # Output should describe what would be generated and confirm dry-run
         assert (
@@ -100,19 +96,22 @@ class TestGenerateFlagsE2E:
     def test_pipeline_filter_generates_only_matching_pipelines(self):
         """``--pipeline <name>`` restricts generation to one pipeline only."""
         exit_code, output = self.run_generate(
-            "--env", "dev", "--force", "--pipeline", "acmi_edw_bronze"
+            "--env", "dev", "--pipeline", "acmi_edw_bronze"
         )
-        assert exit_code == 0, f"Filtered generate should succeed, got:\n{output[-2000:]}"
+        assert (
+            exit_code == 0
+        ), f"Filtered generate should succeed, got:\n{output[-2000:]}"
 
         bronze_dir = self.generated_dir / "acmi_edw_bronze"
         assert bronze_dir.exists(), "acmi_edw_bronze/ must be populated"
-        assert any(bronze_dir.glob("*.py")), (
-            "acmi_edw_bronze/ must contain at least one .py file"
-        )
+        assert any(
+            bronze_dir.glob("*.py")
+        ), "acmi_edw_bronze/ must contain at least one .py file"
 
         # Other pipeline dirs must NOT have .py files
         other_pipeline_pys = [
-            p for p in self.generated_dir.rglob("*.py")
+            p
+            for p in self.generated_dir.rglob("*.py")
             if "acmi_edw_bronze" not in str(p.relative_to(self.generated_dir))
         ]
         assert other_pipeline_pys == [], (
@@ -123,59 +122,28 @@ class TestGenerateFlagsE2E:
     def test_no_bundle_skips_resources_dir(self):
         """``--no-bundle`` keeps ``generated/dev/`` populated but leaves
         ``resources/lhp/`` empty (no pipeline.yml files)."""
-        exit_code, output = self.run_generate(
-            "--env", "dev", "--force", "--no-bundle"
-        )
-        assert exit_code == 0, f"--no-bundle generate should succeed, got:\n{output[-2000:]}"
+        exit_code, output = self.run_generate("--env", "dev", "--no-bundle")
+        assert (
+            exit_code == 0
+        ), f"--no-bundle generate should succeed, got:\n{output[-2000:]}"
 
         py_files = list(self.generated_dir.rglob("*.py"))
         assert py_files, "Python output must still be generated under generated/dev/"
 
         bundle_yamls = list(self.resources_dir.glob("*.pipeline.yml"))
-        assert bundle_yamls == [], (
-            f"--no-bundle must skip resources/lhp/, found:\n{bundle_yamls}"
-        )
-
-    def test_no_cleanup_preserves_orphaned_files(self):
-        """After a successful generate, deleting a flowgroup YAML and
-        re-running with ``--no-cleanup`` must preserve the orphan .py."""
-        # First run: full generate
-        exit_code1, output1 = self.run_generate("--env", "dev", "--force")
-        assert exit_code1 == 0, f"Initial generate failed:\n{output1[-2000:]}"
-
-        orphan_yaml = (
-            self.project_root
-            / "pipelines"
-            / "02_bronze"
-            / "orders"
-            / "orders_bronze.yaml"
-        )
-        orphan_py = self.generated_dir / "acmi_edw_bronze" / "orders_bronze.py"
-        assert orphan_yaml.exists(), "Setup precondition: orphan YAML must exist"
-        assert orphan_py.exists(), "Setup precondition: orphan .py must exist after first run"
-
-        # Delete the flowgroup yaml in the deep copy
-        orphan_yaml.unlink()
-
-        # Re-run with --no-cleanup
-        exit_code2, output2 = self.run_generate(
-            "--env", "dev", "--force", "--no-cleanup"
-        )
-        assert exit_code2 == 0, f"--no-cleanup regen failed:\n{output2[-2000:]}"
-
-        assert orphan_py.exists(), (
-            "--no-cleanup must preserve the orphaned .py file even after "
-            f"its source YAML was deleted: {orphan_py}"
-        )
+        assert (
+            bundle_yamls == []
+        ), f"--no-bundle must skip resources/lhp/, found:\n{bundle_yamls}"
 
     def test_pipeline_config_explicit_path(self):
         """``--pipeline-config config/pipeline_config.yaml`` applies the
         fixture's classic-cluster overrides (serverless: false, explicit
         node_type_id) to the generated ``acmi_edw_raw.pipeline.yml``."""
         exit_code, output = self.run_generate(
-            "--env", "dev",
-            "--force",
-            "--pipeline-config", "config/pipeline_config.yaml",
+            "--env",
+            "dev",
+            "--pipeline-config",
+            "config/pipeline_config.yaml",
         )
         assert exit_code == 0, f"--pipeline-config generate failed:\n{output[-2000:]}"
 
@@ -201,16 +169,17 @@ class TestGenerateFlagsE2E:
         instead of ``generated/dev/``."""
         with tempfile.TemporaryDirectory() as redirected:
             exit_code, output = self.run_generate(
-                "--env", "dev",
-                "--force",
-                "--output", redirected,
+                "--env",
+                "dev",
+                "--output",
+                redirected,
             )
             assert exit_code == 0, f"--output generate failed:\n{output[-2000:]}"
 
             redirected_pys = list(Path(redirected).rglob("*.py"))
-            assert redirected_pys, (
-                f"--output target must contain generated .py files: {redirected}"
-            )
+            assert (
+                redirected_pys
+            ), f"--output target must contain generated .py files: {redirected}"
 
             default_pys = list(self.generated_dir.rglob("*.py"))
             assert default_pys == [], (

@@ -289,19 +289,6 @@ class TestCommandRouting:
         """Context manager that patches the cli group callback to be a no-op."""
         return patch("lhp.cli.main.configure_logging", return_value=None)
 
-    def test_state_command_routing(self, runner):
-        """Lines 338-340: state command instantiates StateCommand and calls execute."""
-        with self._patch_cli_group():
-            with patch("lhp.cli.main._find_project_root", return_value=Path("/fake")):
-                with patch(
-                    "lhp.cli.commands.state_command.StateCommand.execute"
-                ) as mock_exec:
-                    result = runner.invoke(cli, ["state", "--env", "dev"])
-                    mock_exec.assert_called_once_with(
-                        "dev", None, False, False, False, False, False, False
-                    )
-                    assert result.exit_code == 0
-
     def test_substitutions_command_routing(self, runner):
         """Lines 387-389: substitutions command routes to ShowCommand.show_substitutions."""
         with self._patch_cli_group():
@@ -324,8 +311,15 @@ class TestCommandRouting:
                         cli, ["deps", "--format", "json", "--pipeline", "p1"]
                     )
                     mock_exec.assert_called_once_with(
-                        "json", None, "p1", None, None, False, False,
-                        expand_blueprints=False, blueprint_filter=None,
+                        "json",
+                        None,
+                        "p1",
+                        None,
+                        None,
+                        False,
+                        False,
+                        expand_blueprints=False,
+                        blueprint_filter=None,
                     )
                     assert result.exit_code == 0
 
@@ -366,33 +360,6 @@ class TestCommandRouting:
                         blueprint_filter=None,
                     )
                     assert result.exit_code == 0
-
-    def test_state_command_all_flags(self, runner):
-        """State command with all boolean flags set."""
-        with self._patch_cli_group():
-            with patch("lhp.cli.main._find_project_root", return_value=Path("/fake")):
-                with patch(
-                    "lhp.cli.commands.state_command.StateCommand.execute"
-                ) as mock_exec:
-                    runner.invoke(
-                        cli,
-                        [
-                            "state",
-                            "--env",
-                            "prod",
-                            "--pipeline",
-                            "p1",
-                            "--orphaned",
-                            "--stale",
-                            "--new",
-                            "--dry-run",
-                            "--cleanup",
-                            "--regen",
-                        ],
-                    )
-                    mock_exec.assert_called_once_with(
-                        "prod", "p1", True, True, True, True, True, True
-                    )
 
 
 # ============================================================================

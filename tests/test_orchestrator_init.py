@@ -636,97 +636,7 @@ class TestActionOrchestratorFlowgroupDiscovery:
             mock_flowgroups
         )
 
-    def test_yaml_parsing_fails_continue_with_warnings(self, orchestrator_basic):
-        """Test YAML parsing fails for some files but continues with warnings."""
-        # This tests the behavior in generate_pipeline_by_field when parsing new files
-        # Arrange
-        pipeline_field = "test_pipeline"
-
-        # Mock discoverer to return flowgroups
-        from lhp.models.config import FlowGroup
-
-        mock_flowgroup = Mock(
-            spec=FlowGroup, pipeline=pipeline_field, flowgroup="test_flowgroup"
-        )
-        mock_flowgroup.actions = []  # Strategy code expects actions attribute
-        # Synthetic-ness now lives on FlowGroupContext via the orchestrator's
-        # `_synthetic_contexts` sidecar map. Disk-sourced mocks like this
-        # one are absent from the map and treated as non-synthetic by default.
-        orchestrator_basic.mock_discoverer.discover_all_flowgroups.return_value = [
-            mock_flowgroup
-        ]
-        orchestrator_basic.config_validator.validate_duplicate_pipeline_flowgroup.return_value = (
-            []
-        )
-
-        # Mock state manager with new files that cause parsing errors.
-        # _apply_smart_generation_filtering now pulls per-pipeline info via the
-        # env-wide get_all_files_needing_generation (reused through StalenessCache).
-        mock_state_manager = Mock()
-        # Stored context matches current run so the context gate does NOT fire —
-        # this test is exercising YAML parse-error recovery, not context handling.
-        # ``orchestrator._apply_smart_generation_filtering`` reads
-        # ``state_manager.last_generation_context`` directly (not via ``.state``),
-        # so the mock must expose it at the same path.
-        mock_state_manager.last_generation_context = {
-            "dev": {"include_tests": "False"}
-        }
-        mock_state_manager.state.last_generation_context = {
-            "dev": {"include_tests": "False"}
-        }
-        generation_info = {
-            "new": [Path("/path/to/invalid.yaml"), Path("/path/to/valid.yaml")],
-            "stale": [],
-            "up_to_date": [],
-        }
-        mock_state_manager.get_files_needing_generation.return_value = generation_info
-        mock_state_manager.get_all_files_needing_generation.return_value = {
-            pipeline_field: generation_info
-        }
-
-        # Mock YAML parser to fail on first file, succeed on second
-        # Note: parse_flowgroups_from_file returns a LIST of flowgroups
-        def parse_side_effect(yaml_path):
-            if "invalid.yaml" in str(yaml_path):
-                raise Exception("YAML parsing failed")
-            else:
-                mock_fg = Mock(spec=FlowGroup)
-                mock_fg.flowgroup = "valid_flowgroup"
-                mock_fg.actions = []  # Strategy code expects actions attribute
-                return [mock_fg]  # Return list of flowgroups
-
-        orchestrator_basic.yaml_parser.parse_flowgroups_from_file.side_effect = (
-            parse_side_effect
-        )
-
-        # Stub run_generate_pool at the orchestrator module to avoid the
-        # spawn worker pool. The orchestrator's collaborators are all Mock
-        # instances here, which can't be pickled across the spawn boundary,
-        # and this test's invariant (warn-and-continue on parse error)
-        # fires before dispatch — the pool call itself is incidental.
-        from lhp.core import orchestrator as _orch_mod
-
-        with patch.object(orchestrator_basic, "logger") as mock_logger, patch.object(
-            _orch_mod, "run_generate_pool", return_value=([], [])
-        ):
-            # Act
-            result = orchestrator_basic.generate_pipeline_by_field(
-                pipeline_field=pipeline_field,
-                env="dev",
-                output_dir=None,  # Dry run to avoid file operations
-                state_manager=mock_state_manager,
-                force_all=False,
-            )
-
-            # Assert - should complete successfully despite parsing error
-            assert isinstance(result, tuple)
-            # Should log warning about parsing failure
-            warning_calls = [
-                call
-                for call in mock_logger.warning.call_args_list
-                if "Could not parse new flowgroup" in str(call)
-            ]
-            assert len(warning_calls) > 0  # At least one warning should be logged
+    # At least one warning should be logged
 
     def test_pipeline_field_multiple_matches_returns_all(self, orchestrator_basic):
         """Test pipeline field matches multiple flowgroups returns all matches."""
@@ -1741,9 +1651,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
 
         # Should delegate to processor service. The shim wraps the FlowGroup
         # in a FlowGroupContext envelope at the call site.
-        call_args = (
-            orchestrator_processing.mock_processor.process_flowgroup.call_args
-        )
+        call_args = orchestrator_processing.mock_processor.process_flowgroup.call_args
         passed_ctx = call_args.args[0]
         assert isinstance(passed_ctx, FlowGroupContext)
         assert passed_ctx.flowgroup is mock_flowgroup
@@ -1773,9 +1681,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             )
 
         # Should still call processor service with a FlowGroupContext envelope.
-        call_args = (
-            orchestrator_processing.mock_processor.process_flowgroup.call_args
-        )
+        call_args = orchestrator_processing.mock_processor.process_flowgroup.call_args
         passed_ctx = call_args.args[0]
         assert isinstance(passed_ctx, FlowGroupContext)
         assert passed_ctx.flowgroup is mock_flowgroup
@@ -1787,7 +1693,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
         # Arrange
         expected_code = "# Generated Python code\nimport pandas as pd\n# ...\n"
         output_dir = Path("/output")
-        state_manager = Mock()
         source_yaml = Path("/source/flowgroup.yaml")
         env = "dev"
         include_tests = False
@@ -1801,7 +1706,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             mock_flowgroup,
             mock_substitution_mgr,
             output_dir,
-            state_manager,
             source_yaml,
             env,
             include_tests,
@@ -1815,7 +1719,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             mock_flowgroup,
             mock_substitution_mgr,
             output_dir,
-            state_manager,
             source_yaml,
             env,
             include_tests,
@@ -1834,7 +1737,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
         )
 
         output_dir = Path("/output")
-        state_manager = Mock()
         source_yaml = Path("/source/flowgroup.yaml")
         env = "dev"
         include_tests = False
@@ -1847,7 +1749,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
                 mock_flowgroup,
                 mock_substitution_mgr,
                 output_dir,
-                state_manager,
                 source_yaml,
                 env,
                 include_tests,
@@ -1858,7 +1759,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             mock_flowgroup,
             mock_substitution_mgr,
             output_dir,
-            state_manager,
             source_yaml,
             env,
             include_tests,
@@ -1898,9 +1798,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
         assert result2 == generated_code
 
         # Should still delegate to services. The shim wraps in FlowGroupContext.
-        call_args = (
-            orchestrator_processing.mock_processor.process_flowgroup.call_args
-        )
+        call_args = orchestrator_processing.mock_processor.process_flowgroup.call_args
         passed_ctx = call_args.args[0]
         assert isinstance(passed_ctx, FlowGroupContext)
         assert passed_ctx.flowgroup is mock_flowgroup
@@ -1908,7 +1806,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
         assert call_args.kwargs.get("include_tests") is True
         orchestrator_processing.mock_generator.generate_flowgroup_code.assert_called_once_with(
             mock_flowgroup,
-            None,
             None,
             None,
             None,
@@ -1929,7 +1826,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
         )
 
         output_dir = Path("/output")
-        state_manager = Mock()
         source_yaml = Path("/source/flowgroup.yaml")
         env = "dev"
         include_tests = True  # Key parameter being tested
@@ -1939,7 +1835,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             mock_flowgroup,
             mock_substitution_mgr,
             output_dir,
-            state_manager,
             source_yaml,
             env,
             include_tests,
@@ -1953,7 +1848,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             mock_flowgroup,
             mock_substitution_mgr,
             output_dir,
-            state_manager,
             source_yaml,
             env,
             True,
@@ -1972,7 +1866,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
         )
 
         output_dir = Path("/output")
-        state_manager = Mock()
         source_yaml = Path("/source/flowgroup.yaml")
         env = "dev"
         include_tests = False  # Key parameter being tested
@@ -1982,7 +1875,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             mock_flowgroup,
             mock_substitution_mgr,
             output_dir,
-            state_manager,
             source_yaml,
             env,
             include_tests,
@@ -1996,7 +1888,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             mock_flowgroup,
             mock_substitution_mgr,
             output_dir,
-            state_manager,
             source_yaml,
             env,
             False,
@@ -2114,7 +2005,6 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
             None,
             None,
             None,
-            None,
             False,
             None,
             phase_a_records=None,
@@ -2168,7 +2058,6 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
             orchestrator_error_handling.mock_generator.generate_flowgroup_code.assert_called_once_with(
                 mock_flowgroup,
                 mock_substitution_mgr,
-                None,
                 None,
                 None,
                 None,
@@ -2416,9 +2305,7 @@ class TestActionOrchestratorIntegrationScenarios:
 
         # But generator fails due to dependency conflict.
         # The shim wraps the FlowGroup in a FlowGroupContext envelope.
-        call_args = (
-            orchestrator_integration.mock_processor.process_flowgroup.call_args
-        )
+        call_args = orchestrator_integration.mock_processor.process_flowgroup.call_args
         passed_ctx = call_args.args[0]
         assert isinstance(passed_ctx, FlowGroupContext)
         assert passed_ctx.flowgroup is mock_flowgroup
@@ -2427,7 +2314,6 @@ class TestActionOrchestratorIntegrationScenarios:
         orchestrator_integration.mock_generator.generate_flowgroup_code.assert_called_once_with(
             processed_flowgroup,
             mock_substitution_mgr,
-            None,
             None,
             None,
             None,
@@ -2494,9 +2380,7 @@ class TestActionOrchestratorIntegrationScenarios:
 
         # Verify proper data flow: original -> processor -> generator.
         # The shim wraps the FlowGroup in a FlowGroupContext envelope.
-        call_args = (
-            orchestrator_integration.mock_processor.process_flowgroup.call_args
-        )
+        call_args = orchestrator_integration.mock_processor.process_flowgroup.call_args
         passed_ctx = call_args.args[0]
         assert isinstance(passed_ctx, FlowGroupContext)
         assert passed_ctx.flowgroup is original_flowgroup
@@ -2505,7 +2389,6 @@ class TestActionOrchestratorIntegrationScenarios:
         orchestrator_integration.mock_generator.generate_flowgroup_code.assert_called_once_with(
             transformed_flowgroup,
             mock_substitution_mgr,
-            None,
             None,
             None,
             None,
@@ -2588,7 +2471,6 @@ class TestActionOrchestratorIntegrationScenarios:
 
         # Test parameters are passed correctly through service chain
         output_dir = Path("/output")
-        state_manager = Mock()
         source_yaml = Path("/source.yaml")
         env = "test"
         include_tests = True
@@ -2601,7 +2483,6 @@ class TestActionOrchestratorIntegrationScenarios:
             result1,
             mock_substitution_mgr,
             output_dir,
-            state_manager,
             source_yaml,
             env,
             include_tests,
@@ -2613,9 +2494,7 @@ class TestActionOrchestratorIntegrationScenarios:
 
         # Verify parameter passing. The shim wraps the FlowGroup in a
         # FlowGroupContext envelope.
-        call_args = (
-            orchestrator_integration.mock_processor.process_flowgroup.call_args
-        )
+        call_args = orchestrator_integration.mock_processor.process_flowgroup.call_args
         passed_ctx = call_args.args[0]
         assert isinstance(passed_ctx, FlowGroupContext)
         assert passed_ctx.flowgroup is mock_flowgroup
@@ -2625,7 +2504,6 @@ class TestActionOrchestratorIntegrationScenarios:
             mock_flowgroup,
             mock_substitution_mgr,
             output_dir,
-            state_manager,
             source_yaml,
             env,
             include_tests,

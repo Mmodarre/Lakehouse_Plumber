@@ -346,8 +346,7 @@ For detailed before/after examples for each code, see :doc:`errors_reference`.
 See also
 --------
 
-* :doc:`architecture` — why monitoring uses a notebook plus an MVs-only pipeline, and
-  how the state file tracks the generated artifacts.
+* :doc:`architecture` — why monitoring uses a notebook plus an MVs-only pipeline.
 * :doc:`monitoring_reference` — exhaustive schema: every option, every default, the
   ``jobs_stats`` MV reference, and the reserved-alias rules.
 * :doc:`operational_metadata` — related: inject row-level lineage columns into your

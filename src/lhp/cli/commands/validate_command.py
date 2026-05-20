@@ -256,9 +256,7 @@ class ValidateCommand(BaseCommand):
             ValidationResponse,
         )
 
-        # Wrap the orchestrator in a facade. Validation never touches state,
-        # so state_manager=None is correct here.
-        application_facade = LakehousePlumberApplicationFacade(orchestrator, None)
+        application_facade = LakehousePlumberApplicationFacade(orchestrator)
 
         total_errors = 0
         total_warnings = 0

@@ -75,7 +75,7 @@ class TestLoadJDBCE2E:
     def run_generate(self) -> tuple:
         """Run 'lhp generate --env dev --force' (no --include-tests)."""
         runner = CliRunner()
-        result = runner.invoke(cli, ["generate", "--env", "dev", "--force"])
+        result = runner.invoke(cli, ["generate", "--env", "dev"])
         return result.exit_code, result.output
 
     def _compare_file_hashes(self, file1: Path, file2: Path) -> str:
@@ -109,18 +109,18 @@ class TestLoadJDBCE2E:
 
         # Verify the pipeline resource YAML also matches its baseline.
         generated_resource = self.resources_dir / "14_jdbc_load.pipeline.yml"
-        assert generated_resource.exists(), (
-            "14_jdbc_load.pipeline.yml should be generated under resources/lhp/"
-        )
-        assert self.resource_baseline.exists(), (
-            "Resource baseline 14_jdbc_load.pipeline.yml should exist"
-        )
+        assert (
+            generated_resource.exists()
+        ), "14_jdbc_load.pipeline.yml should be generated under resources/lhp/"
+        assert (
+            self.resource_baseline.exists()
+        ), "Resource baseline 14_jdbc_load.pipeline.yml should exist"
         resource_diff = self._compare_file_hashes(
             generated_resource, self.resource_baseline
         )
-        assert resource_diff == "", (
-            f"Resource baseline mismatch for 14_jdbc_load.pipeline.yml: {resource_diff}"
-        )
+        assert (
+            resource_diff == ""
+        ), f"Resource baseline mismatch for 14_jdbc_load.pipeline.yml: {resource_diff}"
 
     # ------------------------------------------------------------------
     # 2 JDBC reader modes — one method per (table-mode, query-mode).

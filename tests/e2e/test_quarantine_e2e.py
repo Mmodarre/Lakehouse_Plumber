@@ -57,7 +57,7 @@ class TestQuarantineE2E:
     def run_generate(self) -> tuple:
         """Run 'lhp generate --env dev --force'. Returns (exit_code, output)."""
         runner = CliRunner()
-        result = runner.invoke(cli, ["generate", "--env", "dev", "--force"])
+        result = runner.invoke(cli, ["generate", "--env", "dev"])
         return result.exit_code, result.output
 
     def run_validate(self) -> tuple:
@@ -89,9 +89,7 @@ class TestQuarantineE2E:
         assert exit_code == 0, f"Generation failed: {output}"
 
         # Verify the quarantine file was generated
-        generated_file = (
-            self.generated_dir / "acmi_edw_bronze" / "quarantine_flow.py"
-        )
+        generated_file = self.generated_dir / "acmi_edw_bronze" / "quarantine_flow.py"
         assert generated_file.exists(), "quarantine_flow.py should be generated"
 
         # Compare with baseline
@@ -112,9 +110,7 @@ class TestQuarantineE2E:
         exit_code, output = self.run_generate()
         assert exit_code == 0, f"Generation failed: {output}"
 
-        generated_file = (
-            self.generated_dir / "acmi_edw_bronze" / "quarantine_flow.py"
-        )
+        generated_file = self.generated_dir / "acmi_edw_bronze" / "quarantine_flow.py"
         code = generated_file.read_text()
 
         # Verify quarantine constants
@@ -193,10 +189,7 @@ class TestQuarantineE2E:
         """Verify validation fails when mode=quarantine but quarantine block missing."""
         # Modify the quarantine flowgroup to remove the quarantine block
         flowgroup_file = (
-            self.project_root
-            / "pipelines"
-            / "02_bronze"
-            / "quarantine_flow.yaml"
+            self.project_root / "pipelines" / "02_bronze" / "quarantine_flow.yaml"
         )
         content = yaml.safe_load(flowgroup_file.read_text())
 
@@ -210,18 +203,16 @@ class TestQuarantineE2E:
 
         exit_code, output = self.run_validate()
         assert exit_code != 0, "Validation should fail without quarantine block"
-        assert "quarantine" in output.lower(), (
-            f"Error should mention quarantine: {output}"
-        )
+        assert (
+            "quarantine" in output.lower()
+        ), f"Error should mention quarantine: {output}"
 
     def test_quarantine_runtime_rescued_data_detection(self):
         """Verify quarantine generates runtime _rescued_data detection (both branches)."""
         exit_code, output = self.run_generate()
         assert exit_code == 0, f"Generation failed: {output}"
 
-        generated_file = (
-            self.generated_dir / "acmi_edw_bronze" / "quarantine_flow.py"
-        )
+        generated_file = self.generated_dir / "acmi_edw_bronze" / "quarantine_flow.py"
         code = generated_file.read_text()
 
         # Runtime if/else for _rescued_data with native Spark functions

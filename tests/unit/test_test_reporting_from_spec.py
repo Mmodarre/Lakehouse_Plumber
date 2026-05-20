@@ -18,7 +18,6 @@ from lhp.models.config import (
     TestReportingConfig,
 )
 from lhp.utils.error_formatter import LHPError
-from lhp.utils.smart_file_writer import SmartFileWriter
 
 
 @pytest.mark.unit
@@ -253,13 +252,11 @@ class TestSpecHookGeneration:
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        smart_writer = MagicMock()
 
         result = generator.generate(
             processed_flowgroups=flowgroups,
             pipeline_name="test_pipeline",
             output_dir=output_dir,
-            smart_writer=smart_writer,
         )
         assert result is None
 
@@ -283,13 +280,11 @@ class TestSpecHookGeneration:
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        smart_writer = MagicMock()
 
         result = generator.generate(
             processed_flowgroups=flowgroups,
             pipeline_name="test_pipeline",
             output_dir=output_dir,
-            smart_writer=smart_writer,
         )
         assert result is None
 
@@ -313,13 +308,11 @@ class TestSpecHookGeneration:
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        smart_writer = MagicMock()
 
         result = generator.generate(
             processed_flowgroups=flowgroups,
             pipeline_name="test_pipeline",
             output_dir=output_dir,
-            smart_writer=smart_writer,
         )
 
         assert result is not None
@@ -353,14 +346,12 @@ class TestSpecHookGeneration:
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        smart_writer = MagicMock()
 
         with pytest.raises(LHPError):
             generator.generate(
                 processed_flowgroups=flowgroups,
                 pipeline_name="test_pipeline",
                 output_dir=output_dir,
-                smart_writer=smart_writer,
             )
 
     # TC-12: config_file YAML embedded as Python dict literal (repr() format)
@@ -390,13 +381,11 @@ class TestSpecHookGeneration:
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        smart_writer = MagicMock()
 
         result = generator.generate(
             processed_flowgroups=flowgroups,
             pipeline_name="test_pipeline",
             output_dir=output_dir,
-            smart_writer=smart_writer,
         )
 
         assert result is not None
@@ -426,13 +415,11 @@ class TestSpecHookGeneration:
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        smart_writer = MagicMock()
 
         result = generator.generate(
             processed_flowgroups=flowgroups,
             pipeline_name="test_pipeline",
             output_dir=output_dir,
-            smart_writer=smart_writer,
         )
 
         assert result is not None
@@ -454,14 +441,12 @@ class TestSpecHookGeneration:
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        smart_writer = MagicMock()
 
         with pytest.raises((LHPError, FileNotFoundError, Exception)):
             generator.generate(
                 processed_flowgroups=flowgroups,
                 pipeline_name="test_pipeline",
                 output_dir=output_dir,
-                smart_writer=smart_writer,
             )
 
     # TC-15: Provider module copied with __init__.py and LHP-SOURCE header
@@ -480,13 +465,11 @@ class TestSpecHookGeneration:
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        smart_writer = SmartFileWriter()
 
         generator.generate(
             processed_flowgroups=flowgroups,
             pipeline_name="test_pipeline",
             output_dir=output_dir,
-            smart_writer=smart_writer,
         )
 
         providers_dir = output_dir / "test_reporting_providers"
@@ -517,13 +500,11 @@ class TestSpecHookGeneration:
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        smart_writer = MagicMock()
 
         result = generator.generate(
             processed_flowgroups=flowgroups,
             pipeline_name="test_pipeline",
             output_dir=output_dir,
-            smart_writer=smart_writer,
         )
 
         assert result is not None
@@ -558,13 +539,11 @@ class TestSpecHookGeneration:
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        smart_writer = MagicMock()
 
         result = generator.generate(
             processed_flowgroups=flowgroups,
             pipeline_name="test_pipeline",
             output_dir=output_dir,
-            smart_writer=smart_writer,
         )
 
         assert result is not None

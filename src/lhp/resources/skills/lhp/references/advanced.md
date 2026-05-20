@@ -6,7 +6,6 @@
 - [Dependency Analysis](#dependency-analysis)
 - [Multi-Job Orchestration](#multi-job-orchestration)
 - [CI/CD Patterns](#cicd-patterns)
-- [State Management](#state-management)
 
 ---
 
@@ -31,7 +30,6 @@ databricks bundle deploy --target dev
 - `lhp init` (default) scaffolds `databricks.yml` (targets: dev/tst/prod) and `resources/lhp/`
 - Generates `resources/lhp/*.pipeline.yml` using glob libraries
 - Conservative sync: creates missing files, leaves LHP-owned files untouched, backs up user-edited files to `.bkup`, deletes orphans when a pipeline directory is removed
-- Force-regen LHP-owned bundle files only with `--force --pipeline-config <file>`
 - Never modifies `databricks.yml` (except DEPRECATED auto-detect variable update, removed in v1.0.0) or files outside `resources/lhp/`
 - Target names in `databricks.yml` must match substitution filenames under `substitutions/`
 
@@ -210,7 +208,6 @@ Each unique `job_name` generates a separate job file + a master orchestration jo
 1. YAML is single source of truth; generated Python is ephemeral
 2. Same commit SHA deployed to all environments
 3. Environment isolation via separate substitution files
-4. `.lhp_state/` not in git (regenerates in CI). Pre-0.9 single-file `.lhp_state.json` auto-removes on first 0.9 run.
 
 **Version pinning (lhp.yaml):**
 ```yaml
@@ -229,18 +226,7 @@ required_lhp_version: ">=0.7.0,<1.0.0"
 # In CI/CD
 pip install lakehouse-plumber
 lhp validate --env $ENV
-lhp generate --env $ENV --force
+lhp generate --env $ENV
 lhp deps --format job --job-config config/job_config.yaml --bundle-output
 databricks bundle deploy --target $ENV
 ```
-
----
-
-## State Management
-
-`.lhp_state/` tracks generated files, checksums, and dependencies. One JSON shard per pipeline (`<pipeline>.json`) plus a project-wide `_global.json`. Workers write their own shards atomically (`os.replace`); the main thread writes `_global.json` once at end of batch.
-
-- Only changed files regenerated on subsequent runs
-- Upstream changes trigger downstream regeneration
-- `--force` flag skips state checking
-- Not committed to git (regenerates in CI)

@@ -27,11 +27,10 @@ Load this file when:
 - [Operational Metadata](#13-operational-metadata)
 - [Schema Management](#14-schema-management)
 - [Validation & CI](#15-validation--ci)
-- [State Management](#16-state-management)
-- [Bundle Integration](#17-bundle-integration)
-- [Medallion Pattern](#18-medallion-pattern)
-- [Documentation](#19-documentation)
-- [Anti-Patterns](#20-anti-patterns)
+- [Bundle Integration](#16-bundle-integration)
+- [Medallion Pattern](#17-medallion-pattern)
+- [Documentation](#18-documentation)
+- [Anti-Patterns](#19-anti-patterns)
 
 ---
 
@@ -175,19 +174,13 @@ Load this file when:
 - **BP-15.3** Maintain dry-run baselines in version control; diff against them to detect preset-change regressions.
 - **BP-15.4** **Layered CI:** yamllint → JSON Schema → `lhp validate` → `lhp generate --dry-run` → baseline diff → pytest `--include-tests`.
 
-## 16. State Management
+## 16. Bundle Integration
 
-- **BP-16.1** **Do not commit `.lhp_state/`** — local only. As of 0.9.0 state lives as per-pipeline JSON shards (`<pipeline>.json`) plus `_global.json` inside `.lhp_state/`. Pre-0.9 monolithic `.lhp_state.json` is auto-removed on the first 0.9 successful run.
-- **BP-16.2** Audit with `lhp state`: `--orphaned`, `--stale`, `--new`. Combine with `--cleanup` or `--regen`.
-- **BP-16.3** `--force` only after framework upgrades or global preset changes requiring full regeneration.
+- **BP-16.1** `lhp deps --format job` generates DAB job resource definitions from dependency analysis.
+- **BP-16.2** Bundle scaffolding is default in `lhp init`; use `--no-bundle` if managed separately.
+- **BP-16.3** Store generated bundle resources in a dedicated directory (e.g., `bundle/generated/`) separate from hand-written configs.
 
-## 17. Bundle Integration
-
-- **BP-17.1** `lhp deps --format job` generates DAB job resource definitions from dependency analysis.
-- **BP-17.2** Bundle scaffolding is default in `lhp init`; use `--no-bundle` if managed separately.
-- **BP-17.3** Store generated bundle resources in a dedicated directory (e.g., `bundle/generated/`) separate from hand-written configs.
-
-## 18. Medallion Pattern
+## 17. Medallion Pattern
 
 | Layer | Target | Expectations | Metadata |
 |-------|--------|--------------|----------|
@@ -199,14 +192,14 @@ Load this file when:
 - Multi-pipeline orchestration: `job_name` + `lhp deps`.
 - Multi-source ingestion: multiple load/write actions to the same table → auto-consolidated `append_flow`s.
 
-## 19. Documentation
+## 18. Documentation
 
-- **BP-19.1** Include `description` on every action and write target (becomes generated-code comments).
-- **BP-19.2** Include `comment` on write targets (UC descriptions, queryable in Data Explorer).
-- **BP-19.3** YAML comments explain **why**, not **what**.
-- **BP-19.4** Use `lhp info` and `lhp stats` for project summaries.
+- **BP-18.1** Include `description` on every action and write target (becomes generated-code comments).
+- **BP-18.2** Include `comment` on write targets (UC descriptions, queryable in Data Explorer).
+- **BP-18.3** YAML comments explain **why**, not **what**.
+- **BP-18.4** Use `lhp info` and `lhp stats` for project summaries.
 
-## 20. Anti-Patterns (Never)
+## 19. Anti-Patterns (Never)
 
 | Anti-Pattern | Harm | Fix |
 |--------------|------|-----|

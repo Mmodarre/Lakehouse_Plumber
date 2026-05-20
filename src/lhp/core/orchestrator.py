@@ -21,6 +21,8 @@ from ..models.config import Action, FlowGroup, FlowGroupContext
 
 if TYPE_CHECKING:
     from ..generators.python_file_copier import CopiedModuleRecord
+    from ..models.processing import PipelineDelta
+
 from ..parsers.blueprint_parser import BlueprintParser
 
 # Component imports (for service initialization)
@@ -34,9 +36,9 @@ from ..utils.error_formatter import (
     LHPValidationError,
     lhp_error_from_worker_failure,
 )
+from ..utils.file_header import write_normalized
 from ..utils.formatter import CodeFormatter
 from ..utils.performance_timer import perf_timer
-from ..utils.smart_file_writer import SmartFileWriter
 from ..utils.source_extractor import (
     extract_single_source_view,
     extract_source_views_from_action,
@@ -44,7 +46,6 @@ from ..utils.source_extractor import (
 from ..utils.substitution import EnhancedSubstitutionManager
 from ..utils.version import get_version
 from .action_registry import ActionRegistry
-from .commands import CommandContext, CommandRegistry, CommandResult
 from .dependency_resolver import DependencyResolver
 from .factories import OrchestrationDependencies
 from .pipeline_executor import (
@@ -56,8 +57,6 @@ from .pipeline_executor import (
     run_generate_pool,
     run_validate_pool,
 )
-from .state.state_persistence import StatePersistence
-from .state_models import PipelineDelta
 from .project_config_loader import ProjectConfigLoader
 from .secret_validator import SecretValidator
 from .services.blueprint_discoverer import BlueprintDiscoverer
@@ -67,58 +66,9 @@ from .services.code_generator import CodeGenerator
 # Service imports
 from .services.flowgroup_discoverer import FlowgroupDiscoverer
 from .services.flowgroup_processor import FlowgroupProcessor
-from .services.generation_planning_service import GenerationPlanningService
 from .services.pipeline_validator import PipelineValidator
-from .state_manager import ProjectStateManager
 from .template_engine import TemplateEngine
 from .validator import ConfigValidator
-
-
-@dataclass
-class GenerationAnalysis:
-    """Rich result object containing all generation analysis information."""
-
-    # Core results
-    pipelines_needing_generation: Dict[str, Dict]  # What CLI currently needs
-    pipelines_up_to_date: Dict[str, int]  # pipeline_name -> file_count
-
-    # Context information
-    has_global_changes: bool
-    global_changes: List[str]
-    include_tests_context_applied: bool
-
-    # Summary statistics
-    total_new_files: int
-    total_stale_files: int
-    total_up_to_date_files: int
-
-    # Detailed information (for verbose mode)
-    detailed_staleness_info: Dict[str, Any]
-
-    # Env-wide generation-context change (e.g. include_tests flip).
-    # When True, all pipelines are flagged for regeneration and the
-    # display layer surfaces the specific change(s) in `context_changes`.
-    context_changed: bool = False
-    context_changes: List[str] = field(default_factory=list)
-
-    def has_work_to_do(self) -> bool:
-        """Check if any generation work needs to be done."""
-        return len(self.pipelines_needing_generation) > 0
-
-    def get_generation_reason(self, pipeline_name: str) -> str:
-        """Get the reason why a pipeline needs generation."""
-        if pipeline_name in self.pipelines_needing_generation:
-            info = self.pipelines_needing_generation[pipeline_name]
-            if info.get("reason"):
-                return info["reason"]
-
-            reasons = []
-            if "new" in info and len(info["new"]) > 0:
-                reasons.append(f"{len(info['new'])} new")
-            if "stale" in info and len(info["stale"]) > 0:
-                reasons.append(f"{len(info['stale'])} stale")
-            return ", ".join(reasons) if reasons else "unknown"
-        return "up-to-date"
 
 
 def _auto_max_workers() -> int:
@@ -161,7 +111,6 @@ class ActionOrchestrator:
         dependencies: OrchestrationDependencies = None,
         pipeline_config_path: Optional[str] = None,
         max_workers: Optional[int] = None,
-        build_state: bool = True,
     ):
         """
         Initialize orchestrator with service composition and dependency injection.
@@ -177,17 +126,11 @@ class ActionOrchestrator:
                 var, else :func:`_auto_max_workers` (~80% of OS-visible CPU
                 count, honoring cgroup CPU limits on Linux). ``1`` is
                 sequential.
-            build_state: When False, workers skip checksum computation and
-                shard writes (``.lhp_state/`` is not created/updated).
-                Surfaced as the CLI ``--no-state`` flag; equivalent to
-                ``--force`` on the next run because everything will
-                regenerate. ``True`` preserves the legacy behavior.
         """
         self.project_root = project_root
         self.enforce_version = enforce_version
         self.dependencies = dependencies or OrchestrationDependencies()
         self.pipeline_config_path = pipeline_config_path
-        self.build_state = build_state
         self.logger = logging.getLogger(__name__)
 
         # Initialize core components (still needed for services)
@@ -222,18 +165,7 @@ class ActionOrchestrator:
             caching_yaml_parser=self._cached_yaml_parser,
         )
         self.blueprint_expander = BlueprintExpander()
-        # Provenance map keyed by resolved (pipeline, flowgroup) tuple.
-        # Populated by `_expand_blueprints` and consumed by:
-        #   - StateDependencyResolver for instance-file fingerprints
-        #   - DependencyTracker for FileState.synthetic flag
-        #   - FlowgroupDiscoverer (Phase 7) for source-path index
         self._blueprint_provenance: Dict[Tuple[str, str], BlueprintProvenance] = {}
-        # Sidecar map of FlowGroupContext envelopes for synthetic flowgroups
-        # (blueprint-expanded + monitoring). Disk-discovered flowgroups are
-        # absent from this map and treated as default (synthetic=False,
-        # auxiliary_files={}). Populated alongside `_blueprint_provenance`
-        # in `discover_all_flowgroups`; consumed by submission paths to
-        # wrap each FlowGroup in its FlowGroupContext for the worker boundary.
         self._synthetic_contexts: Dict[Tuple[str, str], FlowGroupContext] = {}
         self.processor = FlowgroupProcessor(
             self.template_engine,
@@ -251,13 +183,6 @@ class ActionOrchestrator:
         self.validator = PipelineValidator(
             project_root, self.config_validator, self.secret_validator
         )
-        self.planning_service = GenerationPlanningService(project_root, self.discoverer)
-        self.command_registry = CommandRegistry()
-        # Resolve max_workers at construction time.
-        # Priority: explicit arg > LHP_MAX_WORKERS env var > auto-detect.
-        # Auto-detect uses ~80% of the OS-visible CPU count (honors cgroup
-        # CPU limits on Linux via affinity); workload caps are applied
-        # per-call at the submission site in pipeline_executor.
         if max_workers is not None:
             self.max_workers: int = max(1, max_workers)
         else:
@@ -275,23 +200,11 @@ class ActionOrchestrator:
                 self.max_workers = _auto_max_workers()
         self._formatter = CodeFormatter()
 
-        # Monitoring build result (set during discover_all_flowgroups if monitoring is configured)
         self._monitoring_result = None
 
-        # Pipeline-slice memoization keyed by id(all_flowgroups). Valid only
-        # while the same all_flowgroups list object is alive; rebuilt on
-        # identity mismatch. The caller (orchestrator) holds that list across
-        # the entire generate run, so id() recycling cannot occur in practice.
         self._pipeline_slice_cache: Dict[str, List[FlowGroup]] = {}
         self._pipeline_slice_cache_id: Optional[int] = None
 
-        # tracked_keys memoization for synthetic-novelty check. Key:
-        # (id(state_manager), env). The set is identical for every pipeline
-        # within one generate run; building it once amortizes the full
-        # env-state scan across all pipelines.
-        self._tracked_keys_cache: Dict[Tuple[int, str], Set[Tuple[str, str]]] = {}
-
-        # Enforce version requirements if specified and enabled
         if self.enforce_version:
             self._enforce_version_requirements()
 
@@ -388,257 +301,12 @@ class ActionOrchestrator:
         return self.discoverer.get_include_patterns()
 
     # ============================================================================
-    # COMMAND PATTERN API - Alternative, highly testable interface
-    # ============================================================================
-
-    def execute_command(self, command_type: str, env: str, **kwargs) -> CommandResult:
-        """
-        Execute orchestration command using command pattern.
-
-        This provides an alternative, more testable interface to the existing methods.
-        Commands abstract the orchestration operations and can be easily mocked.
-
-        Args:
-            command_type: Type of command to execute ("generate", "validate", "analyze")
-            env: Environment name
-            **kwargs: Additional parameters for the command
-
-        Returns:
-            CommandResult with execution results
-
-        Example::
-
-            # Generate pipeline
-            result = orchestrator.execute_command(
-                "generate", "dev",
-                pipeline_identifier="my_pipeline",
-                include_tests=True,
-                output_dir=Path("generated/dev")
-            )
-
-            # Validate pipeline
-            result = orchestrator.execute_command(
-                "validate", "dev",
-                pipeline_identifier="my_pipeline"
-            )
-
-            # Analyze staleness
-            result = orchestrator.execute_command(
-                "analyze", "dev",
-                pipeline_names=["pipeline1", "pipeline2"],
-                include_tests=False
-            )
-        """
-        # Create command context
-        context = CommandContext(
-            project_root=self.project_root,
-            env=env,
-            orchestrator=self,
-            state_manager=kwargs.get("state_manager"),
-            **kwargs,
-        )
-
-        # Execute command through registry
-        return self.command_registry.execute_command(command_type, context)
-
-    def list_available_commands(self) -> List[str]:
-        """List all available command types."""
-        return self.command_registry.list_commands()
-
-    def get_command_info(self, command_type: str) -> Optional[Dict[str, Any]]:
-        """Get information about a specific command."""
-        command = self.command_registry.get_command(command_type)
-        if command:
-            return {
-                "name": command.name,
-                "type": command_type,
-                "class": command.__class__.__name__,
-            }
-        return None
-
-    # ============================================================================
     # BUSINESS LAYER INTERFACE IMPLEMENTATION
     # ============================================================================
-
-    def create_generation_plan(
-        self, env: str, pipeline_identifier: str, include_tests: bool, **kwargs
-    ):
-        """Create generation plan based on business rules."""
-        return self.planning_service.create_generation_plan(
-            env=env,
-            pipeline_identifier=pipeline_identifier,
-            include_tests=include_tests,
-            force=kwargs.get("force", False),
-            specific_flowgroups=kwargs.get("specific_flowgroups"),
-            state_manager=kwargs.get("state_manager"),
-        )
-
-    def execute_generation_strategy(self, strategy_type: str, context: Any) -> Any:
-        """Execute generation strategy based on business logic."""
-        # Delegate to strategy factory and execution
-        from .strategies import GenerationStrategyFactory
-
-        strategy = GenerationStrategyFactory.create_strategy(
-            force=(strategy_type == "force"),
-            specific_flowgroups=getattr(context, "specific_flowgroups", None),
-            has_state_manager=bool(getattr(context, "state_manager", None)),
-        )
-
-        # Create flowgroups list from context
-        all_flowgroups = self.discover_all_flowgroups()
-
-        return strategy.filter_flowgroups(all_flowgroups, context)
 
     def validate_configuration(self, pipeline_identifier: str, env: str) -> tuple:
         """Validate configuration based on business rules."""
         return self.validate_pipeline_by_field(pipeline_identifier, env)
-
-    def analyze_generation_requirements(
-        self,
-        env: str,
-        pipeline_names: List[str],
-        include_tests: bool,
-        force: bool = False,
-        state_manager: Optional[ProjectStateManager] = None,
-        pre_discovered_all_flowgroups: Optional[List[FlowGroup]] = None,
-    ) -> GenerationAnalysis:
-        """
-        Analyze generation requirements including generation context awareness.
-
-        This method centralizes all generation decision logic including:
-        - Basic staleness detection (YAML, dependencies)
-        - Generation context staleness (include_tests parameter changes)
-        - Force mode handling
-        - Rich result data for CLI presentation
-
-        Args:
-            env: Environment to analyze
-            pipeline_names: List of pipeline names to check
-            include_tests: Current include_tests parameter
-            force: Force regeneration flag
-            state_manager: Optional state manager for staleness detection
-
-        Returns:
-            GenerationAnalysis object with structured results
-        """
-        # Initialize result structure
-        pipelines_needing_generation = {}
-        pipelines_up_to_date = {}
-        total_new = 0
-        total_stale = 0
-        total_up_to_date = 0
-
-        # Handle force mode or no state tracking
-        if force or not state_manager:
-            for pipeline_name in pipeline_names:
-                reason = "force" if force else "no_state_tracking"
-                pipelines_needing_generation[pipeline_name] = {"reason": reason}
-
-            return GenerationAnalysis(
-                pipelines_needing_generation=pipelines_needing_generation,
-                pipelines_up_to_date={},
-                has_global_changes=False,
-                global_changes=[],
-                include_tests_context_applied=False,
-                total_new_files=0,
-                total_stale_files=0,
-                total_up_to_date_files=0,
-                detailed_staleness_info={},
-            )
-
-        # Synthetic flowgroups carry a blueprint path as source_yaml; without
-        # this provenance map, the staleness resolver would parse the blueprint
-        # as a flowgroup and fail the schema discriminator.
-        state_manager.set_blueprint_provenance(self._blueprint_provenance)
-
-        # Env-wide generation-context gate. When include_tests flips between
-        # runs, every pipeline needs regeneration because test actions may be
-        # added/removed. Record the comparison once per run — no per-flowgroup
-        # composite checksums required.
-        stored_ctx = state_manager.last_generation_context.get(env, {})
-        current_ctx = {"include_tests": str(include_tests)}
-        if stored_ctx != current_ctx:
-            context_changes = [
-                f"include_tests: {stored_ctx.get('include_tests', '<unset>')} "
-                f"-> {current_ctx['include_tests']}"
-            ]
-            pipelines_needing_generation = {
-                p: {"reason": "context_change"} for p in pipeline_names
-            }
-            return GenerationAnalysis(
-                pipelines_needing_generation=pipelines_needing_generation,
-                pipelines_up_to_date={},
-                has_global_changes=False,
-                global_changes=[],
-                include_tests_context_applied=False,
-                total_new_files=0,
-                total_stale_files=0,
-                total_up_to_date_files=0,
-                detailed_staleness_info={},
-                context_changed=True,
-                context_changes=context_changes,
-            )
-
-        # Get global staleness information
-        staleness_info = state_manager.get_detailed_staleness_info(env)
-        has_global_changes = bool(staleness_info.get("global_changes"))
-        global_changes = staleness_info.get("global_changes", [])
-
-        # If global changes detected, all pipelines need regeneration
-        if has_global_changes:
-            for pipeline_name in pipeline_names:
-                pipelines_needing_generation[pipeline_name] = {
-                    "reason": "global_changes"
-                }
-
-            return GenerationAnalysis(
-                pipelines_needing_generation=pipelines_needing_generation,
-                pipelines_up_to_date={},
-                has_global_changes=True,
-                global_changes=global_changes,
-                include_tests_context_applied=False,
-                total_new_files=0,
-                total_stale_files=0,
-                total_up_to_date_files=0,
-                detailed_staleness_info=staleness_info,
-            )
-
-        # Analyze all pipelines for staleness in a SINGLE pass
-        # (shared with _apply_smart_generation_filtering via StalenessCache,
-        # so we scan the env only once per run instead of O(P+1) times)
-        all_generation_info = self.dependencies.staleness_cache.get(
-            env, state_manager.get_all_files_needing_generation
-        )
-
-        for pipeline_name in pipeline_names:
-            generation_info = all_generation_info.get(
-                pipeline_name, {"new": [], "stale": [], "up_to_date": []}
-            )
-
-            new_count = len(generation_info["new"])
-            stale_count = len(generation_info["stale"])
-            up_to_date_count = len(generation_info["up_to_date"])
-
-            total_new += new_count
-            total_stale += stale_count
-            total_up_to_date += up_to_date_count
-
-            if new_count > 0 or stale_count > 0:
-                pipelines_needing_generation[pipeline_name] = generation_info
-            else:
-                pipelines_up_to_date[pipeline_name] = up_to_date_count
-
-        return GenerationAnalysis(
-            pipelines_needing_generation=pipelines_needing_generation,
-            pipelines_up_to_date=pipelines_up_to_date,
-            has_global_changes=False,
-            global_changes=[],
-            include_tests_context_applied=False,
-            total_new_files=total_new,
-            total_stale_files=total_stale,
-            total_up_to_date_files=total_up_to_date,
-            detailed_staleness_info=staleness_info,
-        )
 
     def discover_flowgroups(self, pipeline_dir: Path) -> List[FlowGroup]:
         """
@@ -706,7 +374,10 @@ class ActionOrchestrator:
         if self._monitoring_result and self._monitoring_result.context is not None:
             monitoring_ctx = self._monitoring_result.context
             flowgroups.append(monitoring_ctx.flowgroup)
-            key = (monitoring_ctx.flowgroup.pipeline, monitoring_ctx.flowgroup.flowgroup)
+            key = (
+                monitoring_ctx.flowgroup.pipeline,
+                monitoring_ctx.flowgroup.flowgroup,
+            )
             self._synthetic_contexts[key] = monitoring_ctx
 
         return flowgroups
@@ -820,12 +491,11 @@ class ActionOrchestrator:
 
         # 5. Write notebook to monitoring/{env}/
         monitoring_pipeline_name = self._monitoring_result.pipeline_name
-        smart_writer = self.dependencies.create_file_writer()
 
         monitoring_dir = self.project_root / "monitoring" / env
         monitoring_dir.mkdir(parents=True, exist_ok=True)
         notebook_path = monitoring_dir / "union_event_logs.py"
-        smart_writer.write_if_changed(notebook_path, notebook_content)
+        write_normalized(notebook_path, notebook_content)
         self.logger.info(f"Generated monitoring notebook: {notebook_path}")
 
         # 6. Load + substitute + merge monitoring job config from the dedicated file
@@ -930,7 +600,7 @@ class ActionOrchestrator:
         resources_dir = self.project_root / "resources"
         resources_dir.mkdir(parents=True, exist_ok=True)
         job_resource_path = resources_dir / f"{monitoring_pipeline_name}.job.yml"
-        smart_writer.write_if_changed(job_resource_path, job_resource_content)
+        write_normalized(job_resource_path, job_resource_content)
         self.logger.info(f"Generated monitoring job resource: {job_resource_path}")
 
     _MONITORING_JOB_HEADER = "# Generated by LakehousePlumber - Monitoring Job"
@@ -1091,17 +761,11 @@ class ActionOrchestrator:
         pipeline_field: str,
         env: str,
         output_dir: Path = None,
-        state_manager=None,
-        force_all: bool = False,
         specific_flowgroups: List[str] = None,
         include_tests: bool = False,
         pre_discovered_all_flowgroups: Optional[List[FlowGroup]] = None,
     ) -> tuple[str, ...]:
         """Thin shim — delegate to the plural :meth:`generate_pipelines_by_fields`.
-
-        Preserves the existing signature (including the
-        ``pre_discovered_all_flowgroups`` fallback: per-call discovery when
-        ``None``) so the 9+ existing callers see no behavior change.
 
         On failure the plural method re-raises the original exception
         unchanged for the single-pipeline case, so callers that catch
@@ -1111,8 +775,6 @@ class ActionOrchestrator:
             pipeline_fields=[pipeline_field],
             env=env,
             output_dir=output_dir,
-            state_manager=state_manager,
-            force_all=force_all,
             specific_flowgroups=specific_flowgroups,
             include_tests=include_tests,
             pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
@@ -1126,8 +788,6 @@ class ActionOrchestrator:
         pipeline_fields: Sequence[str],
         env: str,
         output_dir: Optional[Path],
-        state_manager: Optional[ProjectStateManager],
-        force_all: bool = False,
         specific_flowgroups: Optional[List[str]] = None,
         include_tests: bool = False,
         pre_discovered_all_flowgroups: Optional[List[FlowGroup]] = None,
@@ -1137,14 +797,7 @@ class ActionOrchestrator:
         """Run one worker per pipeline; aggregate results on the main thread.
 
         Each worker owns the full pipeline pass (Phase A discovery + Phase B
-        validation/file writes + shard save). The main thread is a pure
-        aggregator — Phase B no longer runs here, which removes the GIL
-        contention that throttled the legacy ``as_completed`` consumer.
-
-        Sequencing invariant (M9):
-            workers write per-pipeline shards → main thread writes
-            ``_global.json`` → legacy ``.lhp_state.json`` auto-delete
-            (success-only) → bundle sync → monitoring.
+        validation/file writes). The main thread is a pure aggregator.
 
         Args:
             pipeline_fields: Pipeline names to generate. Order is preserved
@@ -1153,11 +806,6 @@ class ActionOrchestrator:
             env: Environment name (e.g. ``"dev"``).
             output_dir: Root output directory (``output_dir / <pipeline>``)
                 or ``None`` for dry-run.
-            state_manager: State manager for tracking generated files.
-                ``None`` disables state tracking (used by ``--no-cleanup``
-                callers).
-            force_all: Bypass smart staleness filtering — regenerate
-                everything.
             specific_flowgroups: Optional whitelist of flowgroup names.
             include_tests: Include test actions in the generated code.
             pre_discovered_all_flowgroups: Re-use the caller's one-shot
@@ -1181,7 +829,6 @@ class ActionOrchestrator:
             LHPValidationError: When multiple pipelines failed; one
                 aggregate error listing every failure.
         """
-        # Invalidate the id()-keyed pipeline-slice cache from any prior run.
         self._invalidate_pipeline_slice_cache()
 
         self.logger.info(
@@ -1189,9 +836,6 @@ class ActionOrchestrator:
             f"for env: {env}"
         )
 
-        # Resolve all_flowgroups FIRST; discovery populates
-        # self._blueprint_provenance as a side effect that the next block
-        # depends on.
         if pre_discovered_all_flowgroups is not None:
             all_flowgroups = pre_discovered_all_flowgroups
         else:
@@ -1200,16 +844,6 @@ class ActionOrchestrator:
             with perf_timer("validate_duplicates"):
                 self.validate_duplicate_pipeline_flowgroup_combinations(all_flowgroups)
 
-        # Provenance must be set AFTER discovery; otherwise the state
-        # manager receives an empty/stale provenance map and
-        # synthetic-flowgroup dependency-tracking fingerprints get keyed
-        # wrong, so staleness checks miss the right files on regen.
-        if state_manager is not None:
-            state_manager.set_blueprint_provenance(self._blueprint_provenance)
-
-        # Each pipeline gets its own substitution_mgr / output_dir so the
-        # worker can attribute state-tracking and file-write stats to the
-        # right pipeline without cross-talk between workers.
         contexts_by_pipeline: Dict[str, List[FlowGroupContext]] = {}
         substitution_managers: Dict[str, EnhancedSubstitutionManager] = {}
         pipeline_output_dirs: Dict[str, Optional[Path]] = {}
@@ -1228,25 +862,15 @@ class ActionOrchestrator:
                     env=env,
                     pipeline_identifier=pipeline_field,
                     include_tests=include_tests,
-                    force_all=force_all,
                     specific_flowgroups=specific_flowgroups,
-                    state_manager=state_manager,
                     use_directory_discovery=False,
                     pre_discovered_flowgroups=slice_for_pipeline,
                 )
-            # Pre-build FlowGroupContext envelopes on the main thread. The
-            # FlowgroupDiscoverer's source-path index holds a threading.Lock,
-            # so the lookup cannot cross the process boundary. Synthetic
-            # provenance (auxiliary_files, synthetic flag) is pulled from
-            # `self._synthetic_contexts`, populated during discovery.
             contexts_by_pipeline[pipeline_field] = [
                 self._make_context(fg) for fg in flowgroups
             ]
             pipeline_output_dirs[pipeline_field] = None
 
-            # Empty pipelines (smart filtering left no work): skip output-dir
-            # and substitution_mgr setup so we don't touch substitutions/<env>.yaml
-            # unnecessarily.
             if not flowgroups:
                 continue
 
@@ -1265,10 +889,6 @@ class ActionOrchestrator:
                     )
                 )
 
-        # Effective build_state: needs both a real state_manager AND --no-state not set.
-        effective_build_state = bool(state_manager) and self.build_state
-        state_dir = state_manager.state_dir if state_manager is not None else None
-
         worker_state = _GenerateWorkerState(
             processor=self.processor,
             code_generator=self.generator,
@@ -1276,16 +896,11 @@ class ActionOrchestrator:
             substitution_managers=substitution_managers,
             pipeline_output_dirs=pipeline_output_dirs,
             environment=env,
-            state_dir=state_dir,
             project_root=self.project_root,
             project_config=self.project_config,
             include_tests=include_tests,
-            build_state=effective_build_state,
-            blueprint_provenance=self._blueprint_provenance,
         )
 
-        # The constructor already resolved self.max_workers. A method-level
-        # override (max_workers kwarg) takes precedence.
         resolved_workers = max(
             1, max_workers if max_workers is not None else self.max_workers
         )
@@ -1297,34 +912,6 @@ class ActionOrchestrator:
             on_pipeline_complete=on_pipeline_complete,
         )
 
-        # Workers have already written their per-pipeline shards atomically;
-        # the main thread now persists only _global.json plus legacy cleanup.
-        if state_manager is not None and effective_build_state:
-            last_gen_ctx = {
-                env: {
-                    "include_tests": str(include_tests),
-                    "force_all": str(force_all),
-                }
-            }
-            with perf_timer("save_global"):
-                state_manager.save_global(last_generation_context=last_gen_ctx)
-
-            # Legacy auto-delete ONLY on full success. Retain on partial
-            # failure as a safety net so the user has a fallback to inspect.
-            if not failed:
-                StatePersistence.maybe_remove_legacy_state(
-                    project_root=self.project_root,
-                    batch_succeeded=True,
-                    logger=self.logger,
-                )
-            else:
-                self.logger.warning(
-                    "Legacy .lhp_state.json retained due to partial-batch "
-                    "failure; delete manually after a clean run."
-                )
-
-        # Aggregate-raise on failure. Successful pipelines keep their
-        # per-pipeline shards on disk regardless.
         if failed:
             if len(failed) == 1:
                 d = failed[0]
@@ -1341,14 +928,8 @@ class ActionOrchestrator:
             raise LHPValidationError(
                 category=ErrorCategory.VALIDATION,
                 code_number="011",
-                title=(
-                    f"{len(failed)} pipeline(s) failed during batch generation"
-                ),
-                details=(
-                    "Multiple pipelines failed; state for successful "
-                    "pipelines has already been persisted:\n"
-                    + "\n".join(failure_lines)
-                ),
+                title=(f"{len(failed)} pipeline(s) failed during batch generation"),
+                details=("Multiple pipelines failed:\n" + "\n".join(failure_lines)),
                 suggestions=[
                     "Inspect each failing pipeline's error individually",
                     "Run with --pipeline <name> to isolate failures",
@@ -1361,10 +942,7 @@ class ActionOrchestrator:
                 },
             )
 
-        return {
-            delta.pipeline_name: delta.generated_filenames
-            for delta in successful
-        }
+        return {delta.pipeline_name: delta.generated_filenames for delta in successful}
 
     def _find_source_yaml_for_flowgroup(self, flowgroup: FlowGroup) -> Optional[Path]:
         """Find the source YAML file for a given flowgroup.
@@ -1380,7 +958,6 @@ class ActionOrchestrator:
             Path to the source YAML file, or None if not found
         """
         return self.discoverer.find_source_yaml_for_flowgroup(flowgroup)
-
 
     def _make_context(self, fg: FlowGroup) -> FlowGroupContext:
         """Wrap a FlowGroup in its FlowGroupContext for the worker boundary.
@@ -1439,7 +1016,6 @@ class ActionOrchestrator:
         flowgroup: FlowGroup,
         substitution_mgr: EnhancedSubstitutionManager,
         output_dir: Optional[Path] = None,
-        state_manager=None,
         source_yaml: Optional[Path] = None,
         env: Optional[str] = None,
         include_tests: bool = False,
@@ -1453,7 +1029,6 @@ class ActionOrchestrator:
             flowgroup: FlowGroup to generate code for
             substitution_mgr: Substitution manager for the environment
             output_dir: Output directory for generated files
-            state_manager: State manager for file tracking
             source_yaml: Source YAML path for file tracking
             env: Environment name for file tracking
             include_tests: Whether to include test actions
@@ -1470,7 +1045,6 @@ class ActionOrchestrator:
             flowgroup,
             substitution_mgr,
             output_dir,
-            state_manager,
             source_yaml,
             env,
             include_tests,
@@ -1495,34 +1069,23 @@ class ActionOrchestrator:
         env: str,
         pipeline_identifier: str,
         include_tests: bool,
-        force_all: bool = False,
         specific_flowgroups: List[str] = None,
-        state_manager=None,
         use_directory_discovery: bool = False,
         pre_discovered_flowgroups: Optional[List[FlowGroup]] = None,
     ) -> List[FlowGroup]:
         """
         Discover and filter flowgroups based on generation requirements.
 
-        Centralizes the duplicate logic from both generation methods including:
-        - Flowgroup discovery (by field or directory)
-        - Smart generation filtering based on staleness
-        - Generation context awareness
-        - Specific flowgroup filtering
-
         Args:
             env: Environment name
             pipeline_identifier: Pipeline name or field value
             include_tests: Include test actions parameter
-            force_all: Force all flowgroups flag
             specific_flowgroups: Optional list of specific flowgroups
-            state_manager: Optional state manager for staleness detection
             use_directory_discovery: Use directory-based discovery vs field-based
 
         Returns:
             List of flowgroups that should be generated
         """
-        # 1. Discover flowgroups
         if use_directory_discovery:
             pipeline_dir = self.project_root / "pipelines" / pipeline_identifier
             if not pipeline_dir.exists():
@@ -1563,7 +1126,6 @@ class ActionOrchestrator:
                     pipeline_identifier
                 )
 
-        # Check if discovery truly failed (no flowgroups exist for this pipeline)
         if not all_flowgroups:
             if use_directory_discovery:
                 raise LHPConfigError(
@@ -1579,13 +1141,11 @@ class ActionOrchestrator:
                     context={"Pipeline": pipeline_identifier},
                 )
             else:
-                # This is a real discovery failure - no YAML files match this pipeline field
                 self.logger.warning(
                     f"No flowgroups found for pipeline field: {pipeline_identifier}"
                 )
                 return []
 
-        # 2. Handle specific flowgroups filtering
         if specific_flowgroups:
             filtered_flowgroups = [
                 fg for fg in all_flowgroups if fg.flowgroup in specific_flowgroups
@@ -1595,122 +1155,7 @@ class ActionOrchestrator:
             )
             return filtered_flowgroups
 
-        # 3. Handle force mode
-        if force_all:
-            return all_flowgroups
-
-        # 4. Handle smart generation with staleness detection
-        if state_manager:
-            return self._apply_smart_generation_filtering(
-                all_flowgroups, env, pipeline_identifier, include_tests, state_manager
-            )
-
-        # 5. Fallback - generate all (no state management)
         return all_flowgroups
-
-    def _apply_smart_generation_filtering(
-        self,
-        all_flowgroups: List[FlowGroup],
-        env: str,
-        pipeline_identifier: str,
-        include_tests: bool,
-        state_manager,
-    ) -> List[FlowGroup]:
-        """Apply smart generation filtering based on staleness detection."""
-        # Env-wide generation-context gate: if include_tests flipped since
-        # the last successful save, every flowgroup in this pipeline must
-        # regenerate. The display phase already reports this; this check
-        # guarantees the filter agrees during generation.
-        stored_ctx = state_manager.last_generation_context.get(env, {})
-        current_ctx = {"include_tests": str(include_tests)}
-        if stored_ctx != current_ctx:
-            self.logger.info(
-                f"Smart generation: include_tests context changed for env={env} "
-                f"(stored={stored_ctx}, current={current_ctx}); regenerating all "
-                f"flowgroups in pipeline={pipeline_identifier}"
-            )
-            return all_flowgroups
-
-        # Reuse the env-wide staleness scan from the display phase so we do
-        # not re-hash the whole tree once per pipeline.
-        all_info = self.dependencies.staleness_cache.get(
-            env, state_manager.get_all_files_needing_generation
-        )
-        generation_info = all_info.get(
-            pipeline_identifier, {"new": [], "stale": [], "up_to_date": []}
-        )
-
-        # Get flowgroups for new YAML files
-        new_flowgroups = set()
-        for yaml_path in generation_info["new"]:
-            try:
-                # Parse all flowgroups from file (supports multi-document and array syntax)
-                flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_path)
-                for fg in flowgroups:
-                    new_flowgroups.add(fg.flowgroup)
-            except Exception as e:
-                self.logger.warning(f"Could not parse new flowgroup {yaml_path}: {e}")
-
-        # Get flowgroups for stale files. Env-wide context changes (e.g.
-        # include_tests flip) are handled by the display-phase gate, which
-        # forces force_all=True for this path — so no per-flowgroup composite
-        # checksum recomputation is required here.
-        stale_flowgroups = {fs.flowgroup for fs in generation_info["stale"]}
-
-        # Synthetic-flowgroup novelty check. Blueprint-expanded
-        # flowgroups whose output path doesn't exist in state are "new" even
-        # though no new YAML file appears on disk for them. This handles the
-        # "new instance added" case (e.g. instances/erp_sites/latam_br.yaml
-        # added => 400 new latam_br_* flowgroups expand from the existing
-        # blueprint, none tracked in state yet). Must be added to the union
-        # BEFORE the empty-set early return, otherwise the new-instance case
-        # becomes dead code. Skipped when no synthetic flowgroups are present
-        # (no blueprints in the project) so projects without blueprints don't
-        # need state_manager.state.environments to be a real dict.
-        new_synthetic: Set[str] = set()
-        synthetic_in_pipeline = [
-            fg
-            for fg in all_flowgroups
-            if fg.pipeline == pipeline_identifier
-            and (ctx := self._synthetic_contexts.get((fg.pipeline, fg.flowgroup)))
-            is not None
-            and ctx.synthetic
-        ]
-        if synthetic_in_pipeline:
-            cache_key = (id(state_manager), env)
-            tracked_keys = self._tracked_keys_cache.get(cache_key)
-            if tracked_keys is None:
-                env_state = state_manager.load_all_pipeline_shards(env)
-                if isinstance(env_state, dict):
-                    tracked_keys = {
-                        (fs.pipeline, fs.flowgroup) for fs in env_state.values()
-                    }
-                    self._tracked_keys_cache[cache_key] = tracked_keys
-            if tracked_keys is not None:
-                new_synthetic = {
-                    fg.flowgroup
-                    for fg in synthetic_in_pipeline
-                    if (fg.pipeline, fg.flowgroup) not in tracked_keys
-                }
-
-        flowgroups_to_generate = new_flowgroups | stale_flowgroups | new_synthetic
-
-        if flowgroups_to_generate:
-            # Filter to only include flowgroups that need generation
-            filtered_flowgroups = [
-                fg for fg in all_flowgroups if fg.flowgroup in flowgroups_to_generate
-            ]
-            self.logger.info(
-                f"Smart generation: processing {len(filtered_flowgroups)}/"
-                f"{len(all_flowgroups)} flowgroups (new={len(new_flowgroups)}, "
-                f"stale={len(stale_flowgroups)}, "
-                f"new_synthetic={len(new_synthetic)})"
-            )
-            return filtered_flowgroups
-        else:
-            # Nothing to generate
-            self.logger.info("Smart generation: no flowgroups need processing")
-            return []
 
     def _process_flowgroups_batch(
         self,

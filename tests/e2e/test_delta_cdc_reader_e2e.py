@@ -77,7 +77,7 @@ class TestDeltaCDCReaderE2E:
     def run_generate(self) -> tuple:
         """Run 'lhp generate --env dev --force' (no --include-tests)."""
         runner = CliRunner()
-        result = runner.invoke(cli, ["generate", "--env", "dev", "--force"])
+        result = runner.invoke(cli, ["generate", "--env", "dev"])
         return result.exit_code, result.output
 
     def _compare_file_hashes(self, file1: Path, file2: Path) -> str:
@@ -111,18 +111,18 @@ class TestDeltaCDCReaderE2E:
 
         # Verify the pipeline resource YAML also matches its baseline.
         generated_resource = self.resources_dir / "17_delta_cdc.pipeline.yml"
-        assert generated_resource.exists(), (
-            "17_delta_cdc.pipeline.yml should be generated under resources/lhp/"
-        )
-        assert self.resource_baseline.exists(), (
-            "Resource baseline 17_delta_cdc.pipeline.yml should exist"
-        )
+        assert (
+            generated_resource.exists()
+        ), "17_delta_cdc.pipeline.yml should be generated under resources/lhp/"
+        assert (
+            self.resource_baseline.exists()
+        ), "Resource baseline 17_delta_cdc.pipeline.yml should exist"
         resource_diff = self._compare_file_hashes(
             generated_resource, self.resource_baseline
         )
-        assert resource_diff == "", (
-            f"Resource baseline mismatch for 17_delta_cdc.pipeline.yml: {resource_diff}"
-        )
+        assert (
+            resource_diff == ""
+        ), f"Resource baseline mismatch for 17_delta_cdc.pipeline.yml: {resource_diff}"
 
     # ------------------------------------------------------------------
     # 4 CDC / time-travel variants — one method per option combination.

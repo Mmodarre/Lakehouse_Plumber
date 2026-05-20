@@ -133,19 +133,16 @@ These defaults reflect LHP's published enterprise best practices. Load [best-pra
 7. **Extract a template only after 3+ flowgroups share the pattern.** Write concrete flowgroups first.
 8. **Cap presets at ~15–20 files.** Use `extends` for hierarchy (`global_defaults` → `<layer>_standard` → domain-specific).
 9. **`%{var}` is flowgroup-local; `${TOKEN}` is environment.** Never put environment values in `variables:`.
-10. **Never commit `.lhp_state.json`.** It is local state.
-11. **Treat preset edits as high-blast-radius.** Run full-project `lhp validate` before merging preset changes.
-12. **Templates/presets are flat** — no subdirectory discovery. Use prefix naming (`TMPLxxx_<layer>_<action>_<type>`, `<scope>_<layer>_<purpose>`).
+10. **Treat preset edits as high-blast-radius.** Run full-project `lhp validate` before merging preset changes.
+11. **Templates/presets are flat** — no subdirectory discovery. Use prefix naming (`TMPLxxx_<layer>_<action>_<type>`, `<scope>_<layer>_<purpose>`).
 
 ## CLI Quick Reference
 
 ```bash
 lhp init <project> [--bundle]           # Scaffold project
 lhp validate --env <env>                # Validate configs
-lhp generate --env <env>                # Generate Python code if config change detected
-lhp generate --env <env> --force        # Force regeneration of all flowgroups
-lhp generate --env <env> --include-tests --force  # With tests, forced
-lhp state --env <env>                  # Show current state of the project
+lhp generate --env <env>                # Generate Python code for all flowgroups
+lhp generate --env <env> --include-tests  # With test actions included
 lhp deps --format job --job-name <name> --bundle-output  # Orchestration job
 ```
 
@@ -163,7 +160,7 @@ Load these based on the user's task:
 - **[advanced.md](references/advanced.md)** — Databricks bundles, pipeline/job configuration, dependency analysis, multi-job orchestration, CI/CD patterns. Load for deployment or orchestration tasks.
 - **[monitoring.md](references/monitoring.md)** — Event log injection, monitoring pipeline, materialized views, `__eventlog_monitoring` alias. Load when configuring event_log or monitoring in lhp.yaml.
 - **[errors.md](references/errors.md)** — All LHP error codes (LHP-CFG/VAL/IO/ACT/DEP) with causes and fixes. Load when troubleshooting any LHP error.
-- **[best-practices.md](references/best-practices.md)** — Enterprise best practices (BP-1 through BP-20, anti-patterns). Load when setting up a new project, reviewing/refactoring configs, designing templates/presets/substitutions, tiering data quality, choosing between streaming_table vs materialized_view, or answering "what's the right way to..." questions.
+- **[best-practices.md](references/best-practices.md)** — Enterprise best practices (BP-1 through BP-19, anti-patterns). Load when setting up a new project, reviewing/refactoring configs, designing templates/presets/substitutions, tiering data quality, choosing between streaming_table vs materialized_view, or answering "what's the right way to..." questions.
 
 ## Instructions
 
