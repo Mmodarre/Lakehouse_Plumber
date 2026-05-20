@@ -5,57 +5,16 @@ All notable changes to Lakehouse Plumber are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — Smart generation removal
+## [0.8.7] — 2026-05-21
 
-### Removed
+### Breaking changes
 
-- Smart generation subsystem entirely. Every `lhp generate` now
-  regenerates all flowgroups (equivalent to old `--force --no-state`
-  behavior).
-- `lhp state` subcommand.
-- `--no-cleanup` flag.
-- `.lhp_state.json` / `.lhp_state/` state files — auto-deleted on
-  first run of new version.
-- Internal modules: `lhp.core.state_manager`,
-  `lhp.core.state_dependency_resolver`, `lhp.core.state.*`,
-  `lhp.utils.smart_file_writer`, `lhp.services.state_display_*`,
-  `lhp.core.strategies`,
-  `lhp.core.services.generation_planning_service`,
-  `lhp.cli.commands.state_command`.
-- `DatabricksYAMLManager` module (and the runtime dependency on
-  ruamel.yaml that it was the sole consumer of, where applicable).
-- `_update_databricks_variables` method on `BundleManager`.
-- Auto-population of `default_pipeline_catalog` /
-  `default_pipeline_schema` in `databricks.yml` `targets.<env>.variables`.
-- Orphan cleanup of `resources/lhp/` (replaced by full directory
-  wipe — see Changed (breaking) below).
-- Scenarios 1a / 1b / 2 / 4 in `BundleManager._sync_pipeline_resource`
-  (the Conservative Approach for LHP-vs-user file preservation).
-- Deprecated `${var.default_pipeline_catalog}` /
-  `${var.default_pipeline_schema}` fallback in
-  `pipeline_resource.yml.j2`.
-- `variables:` block in the init template's `databricks.yml.j2`
-  (default_pipeline_catalog / default_pipeline_schema were the only
-  entries).
-- `ActionOrchestrator._sync_bundle_resources` (orphan method with no
-  production caller).
-
-### Deprecated
-
-- `--force` and `--no-state` flags on `lhp generate`: accepted with a
-  deprecation warning; will be removed in a future release. Both are
-  no-ops since their previous behavior is now the default.
-
-### Changed
-
-- `PipelineDelta` moved from `lhp.core.state_models` to
-  `lhp.models.processing` (and lost its `files_skipped` field).
-- `build_lhp_source_header` moved from `lhp.utils.smart_file_writer`
-  to `lhp.utils.file_header` (plus a new `normalize_content` helper
-  there).
-
-### Changed (breaking)
-
+- **`lhp generate` now requires `--pipeline-config` / `-pc`** when bundle
+  support is enabled (`databricks.yml` present, `--no-bundle` not set).
+  Previously, generation would proceed and fail late during bundle sync.
+  New error code: `LHP-CFG-023`. Users who relied on a default-empty
+  pipeline_config must now supply a path explicitly. See
+  `docs/configure_catalog_schema.rst`.
 - **`resources/lhp/` is now wiped and regenerated on every
   `lhp generate`.** The directory is exclusively LHP-managed. Users
   who placed custom resource YAMLs (hand-written jobs, dashboards,
@@ -69,155 +28,173 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on each run.
 - **`catalog` and `schema` are now REQUIRED in
   `pipeline_config.yaml`** — set them per-pipeline or via the
-  top-level `project_defaults` block. Missing catalog/schema causes
-  `lhp generate` to fail fast with `BundleResourceError`. Previously
-  LHP auto-populated `default_pipeline_catalog` /
-  `default_pipeline_schema` in `databricks.yml` and the
-  pipeline-resource template fell back to
+  top-level `project_defaults` block. Missing or incomplete
+  catalog/schema causes `lhp generate` to fail fast with
+  `LHPConfigError` (`LHP-CFG-026`), aggregated across all pipelines
+  plus the synthetic monitoring pipeline (when monitoring is
+  enabled). Programmatic consumers read
+  `LHPConfigError.context["failures"]` (grouped by `both_missing`,
+  `incomplete`, `empty_after_substitution`) instead of parsing
+  message text. Previously LHP auto-populated
+  `default_pipeline_catalog` / `default_pipeline_schema` in
+  `databricks.yml` and the pipeline-resource template fell back to
   `${var.default_pipeline_*}`. Both halves of that pathway are
   removed. See `docs/configure_catalog_schema.rst` for the migration
   guide.
-- **All catalog/schema validation errors in
-  `generate_resource_file_content` now raise `BundleResourceError`**
-  (previously some raised `LHPConfigError`). The catch type is
-  unified. Every `BundleResourceError` raised here carries
-  `docs_reference="docs/configure_catalog_schema.rst"` for
-  programmatic routing.
-
-### Known limitation
-
-- `lhp generate` is **non-atomic**: if the process is interrupted
-  between the `resources/lhp/` wipe and the end of bundle sync, the
-  directory may be left empty. A subsequent
-  `databricks bundle deploy` against that state could silently drop
-  pipelines from the workspace. Re-running `lhp generate` to
-  completion restores the directory.
-
-## [0.9.0] — 2026-05-19
-
-### Breaking changes
-
-- **State file format**: replaced the monolithic `.lhp_state.json` with
-  per-pipeline shards under a `.lhp_state/` directory
-  (`<pipeline>.json` per pipeline plus a project-wide `_global.json`).
-  Existing `.lhp_state.json` files are auto-removed by the orchestrator
-  only after the first fully-successful run on the new format
-  (`StatePersistence.maybe_remove_legacy_state`); partial-failure runs
-  preserve the legacy file untouched so re-runs can recover.
-- `StateManager` renamed to `ProjectStateManager`. A `StateManager`
-  alias is retained via the module's `__getattr__` hook with a
-  `DeprecationWarning` for one minor release; removed in 0.10.0.
-  Update imports to `from lhp.core.state_manager import
-  ProjectStateManager`.
-- Direct access to `state.environments` via
-  `ProjectStateManager.state` now raises `AttributeError`. Callers
-  must use `ProjectStateManager.load_all_pipeline_shards(env)`, which
-  returns the same `Dict[str, FileState]` shape — iteration logic is
-  unchanged. Property-style lazy deprecation was not viable because
-  the new aggregate read requires an `env` argument the attribute
-  could not pass.
-- `PythonFileCopier.apply_copy_record` no longer mutates state. It
+- **Smart generation removed.** Every `lhp generate` now
+  full-regenerates all flowgroups (equivalent to the old
+  `--force --no-state` behaviour); there is no incremental mode. The
+  `lhp state` subcommand, the `--no-cleanup` flag, and the
+  `.lhp_state.json` / `.lhp_state/` files are all removed. Any
+  leftover state files are auto-cleaned on the first run of this
+  version.
+- **`PythonFileCopier.apply_copy_record` no longer mutates state.** It
   returns a list of `CopiedFileEntry` records and the caller invokes
   `track_generated_file` separately. In-tree callers route through
   `PipelineProcessor._apply_copy_records` automatically.
 
 ### Added
 
-- `--no-state` flag for `lhp generate`: skip state-file generation
-  entirely. Useful for CI runs that always use `--force` and don't
-  rely on incremental regeneration.
-- Per-pipeline state shards (`.lhp_state/<pipeline>.json`) — atomic
-  per-pipeline commits via `os.replace`. Failed pipelines do not
-  write a shard; sibling pipelines' shards are unaffected.
-- `PipelineStateManager.untrack_generated_file` — removes a previously
-  tracked file entry from this pipeline's shard. Called from the
-  worker's empty-content cleanup path so state stays in sync when a
-  flowgroup's actions collapse to no code (e.g. a test-only flowgroup
-  regenerated without `--include-tests`).
-- `LHPError.from_worker_exception` + `lhp_error_from_worker_failure`
-  factory — reconstructs worker-side exceptions on the main thread
-  while preserving the worker's original exception type via
+- **Pre-flight catalog/schema validation** (`lhp.bundle.preflight`):
+  every pipeline (plus the synthetic monitoring pipeline if
+  monitoring is enabled) is validated for `catalog` and `schema`
+  resolution BEFORE any side effects. Failures are aggregated across
+  all pipelines and grouped by failure type
+  (`both_missing` / `incomplete` / `empty_after_substitution`),
+  surfaced via `LHP-CFG-026` with structured `context["failures"]`.
+  Preflight runs identically under `--dry-run`. Typical fail-fast
+  time is under 1 second with zero filesystem changes — the most
+  common cause of an empty `resources/lhp/` (catalog/schema
+  misconfig) can no longer happen.
+- **Per-pipeline parallel generation.** One worker process per
+  pipeline via `ProcessPoolExecutor` (spawn start method). Phase A
+  (parse, codegen, format) and the intra-pipeline portion of Phase B
+  (cross-flowgroup validation, `.py` writes, copied-module
+  application, test-reporting hook) all run inside the worker —
+  eliminating the main-thread GIL-starvation hot path that
+  bottlenecked large projects.
+- **Worker count auto-detection** at ~80% of OS-visible CPU, capped
+  to the workload size. Override with the `LHP_MAX_WORKERS` env var
+  or the `--max-workers` CLI flag on `lhp generate` / `lhp validate`.
+  Use `--max-workers 1` for sequential execution.
+- **`LHPError.from_worker_exception` + `lhp_error_from_worker_failure`
+  factories** — reconstruct worker-side exceptions on the main
+  thread while preserving the original exception type via
   dual-inheritance subclasses (`LHPValidationError(LHPError,
-  ValueError)`, `LHPFileError(LHPError, FileNotFoundError)`). Existing
-  `except ValueError` / `except FileNotFoundError` handlers continue
-  to catch worker failures.
+  ValueError)`, `LHPFileError(LHPError, FileNotFoundError)`).
+  Existing `except ValueError` / `except FileNotFoundError` handlers
+  continue to catch worker failures.
+- **`docs/configure_catalog_schema.rst`** — migration guide for the
+  new mandatory catalog/schema rule, with worked examples for
+  per-pipeline config, `project_defaults`, resolution order, the
+  migration from the removed `databricks.yml` variables, and an
+  error reference covering `LHP-CFG-023` and `LHP-CFG-026`.
+- **Release-time performance gate** (`pytest tests/performance/ -m
+  performance`) — opt-in via `LHP_RUN_PERFORMANCE_GATE=1`. Captures
+  baselines per release; excluded from default CI to keep PR
+  pipelines fast. Comprehensive unit tests for `PerformanceTimer`
+  and its snapshot accessor.
+- **Picklable test fakes** (`tests/fakes/`,
+  `tests/test_fakes_picklable.py`) for worker-boundary tests that
+  need to cross the spawn boundary.
+- **E2E coverage expansion**: state CLI semantics, test actions,
+  temp-table transformations, JDBC load, Python load, built-in
+  sinks, Delta CDC reader, generate flags, negative paths.
 
 ### Changed
 
-- Pipeline generation parallelises **per-pipeline** (one worker per
-  pipeline) instead of per-flowgroup. Phase A (parse, codegen,
-  format) and the intra-pipeline portion of Phase B (cross-flowgroup
-  validation, `.py` writes, copied-module application, state
-  tracking, test-reporting hook, atomic shard save) all run inside
-  the worker — eliminating the main-thread GIL-starvation hot path.
-- `_assemble_pipeline_outputs` and the associated main-thread Phase B
-  machinery removed; the orchestrator's `generate_pipelines_by_fields`
-  now dispatches pipelines, reconstructs aggregate failure errors,
-  and finalises `_global.json` at end of batch.
+- Catalog/schema validation moved from the bundle-write phase to a
+  dedicated preflight stage. Late-bound validation inside
+  `BundleManager.generate_resource_file_content` is replaced by a
+  single internal-error guard (`LHP-GEN-001`) that fires only when
+  preflight is bypassed by a non-CLI caller (programming bug). The
+  three separate raises that this method used to emit are gone.
+- `LHP-CFG-026` is now the **aggregated** form: a single error with
+  all failures grouped by category. Programmatic consumers should
+  read `LHPConfigError.context["failures"]` instead of parsing
+  message text.
+- `PipelineDelta` moved from `lhp.core.state_models` to
+  `lhp.models.processing` (lost its `files_skipped` field).
+- `build_lhp_source_header` moved from `lhp.utils.smart_file_writer`
+  to `lhp.utils.file_header`; adds a `normalize_content` helper used
+  by every bundle/pipeline write site.
 - `ChecksumCache` no longer holds a `threading.Lock` (main-thread-only
-  usage post-refactor).
-- `cleanup_orphaned_files` now persists removals back to the affected
-  per-pipeline shards via `StatePersistence.save_pipeline_shard`
-  (previously a no-op TODO from Plan 1).
-- `DependencyTracker.update_global_dependencies` is now skipped in
-  pipeline-scope trackers (`for_pipeline`). The main thread's
-  `ProjectStateManager.save_global` performs the per-env
-  global-dependency refresh once at end of batch — `PipelineState`
-  has no `global_dependencies` field.
+  usage now that workers are process-isolated).
+- The blueprint provenance map
+  (`Dict[Tuple[str, str], BlueprintProvenance]`) now crosses the
+  spawn boundary into workers; synthetic-flowgroup detection and
+  blueprint-aware dependency resolution work the same in the worker
+  as on the main thread.
 
-### Removed
+### Deprecated
 
-- `_PipelineProgress`, `_assemble_pipeline`, `_assemble_pipeline_outputs`
-  machinery in the orchestrator (worker-internal now).
-- `set_checksum_cache` method on `DependencyTracker` (cache is
-  provided at factory-construction time via
-  `DependencyTracker.for_project(..., checksum_cache=...)`).
-
-### Internal
-
-- Workers receive a `PipelineStateManager` scoped to **one** pipeline,
-  never a `ProjectStateManager`. The worker entry
-  `_process_pipeline_for_generate` accepts only `state_dir: Path` and
-  `build_state: bool`; no cross-pipeline state object is reachable
-  from the worker. The contract is statically enforceable via
-  `__annotations__` introspection.
-- Blueprint provenance map (`Dict[Tuple[str, str], BlueprintProvenance]`)
-  now crosses the spawn boundary into workers; synthetic-flowgroup
-  detection and blueprint-aware dependency resolution work the same
-  in the worker as on the main thread.
-
-## [0.8.7] — 2026-05-12
-
-### Added
-
-- **Bundle sync sub-phase instrumentation**: new `--perf` aggregate-stat
-  categories expose the cost breakdown of `lhp generate`'s Bundle sync phase
-  — `bundle_extract_keys`, `bundle_find_resource_files`,
-  `bundle_existing_files`, `bundle_extract_catalog`,
-  `bundle_update_databricks_yaml`, `bundle_create_resource`,
-  `bundle_cleanup_orphans` — plus a restored `find_source_yaml` per-flowgroup
-  timer in `core/orchestrator.py` (deleted between v0.8.0 and v0.8.6, causing
-  measurement artifacts in `process_flowgroup` aggregates). The perf summary
-  header also reports `pipelines_synced` and `resource_files_scanned` counts
-  so timings can be normalised across runs of different project sizes. Zero
-  overhead when `--perf` is not set.
+- `--force` and `--no-state` flags on `lhp generate`: accepted with
+  a deprecation warning; will be removed in a future release. Both
+  are no-ops since full regeneration is the default. Remove them
+  from CI invocations.
 
 ### Fixed
 
-- **Bundle sync O(P²) YAML re-parse**: `_find_all_resource_files_for_pipeline`
-  previously re-parsed every `*.pipeline.yml` in `resources/lhp/` once per
-  pipeline, so a project with 100 pipelines triggered ~10,000
-  `yaml.safe_load` calls per sync. Added a per-sync memoisation cache
-  (`BundleManager._pipeline_keys_cache`, initialised in
-  `sync_resources_with_generated_files` and cleared in a `finally` block) so
-  each unique resource file is parsed at most once per sync. On the
-  `performance_testing` fixture (100 pipelines × ~101 files, 4,001 generated
-  files), median Bundle sync drops from **13.46s** (v0.8.0) / **13.62s**
-  (v0.8.6) to **0.25s** — a ~55× speedup. End-to-end `lhp generate --env dev
-  --force` median wall time drops by ~10s. Behaviour is unchanged; the cache
-  is opt-in (`None` outside of sync) so callers invoking
-  `_extract_pipeline_keys_from_file` outside the sync path see the original
-  uncached read.
+- Generating without `--pipeline-config` no longer wipes
+  `resources/lhp/` and `generated/<env>/` before failing. A
+  subsequent `databricks bundle deploy` will no longer find an empty
+  `resources/lhp/` from a misconfigured run.
+- Init template (`pipeline_config_env.yaml.tmpl`) no longer claims
+  LHP auto-loads `templates/bundle/pipeline_config.yaml` — that
+  pathway was removed in this release. The comment now correctly
+  documents the `--pipeline-config` requirement.
+
+### Removed
+
+- **Smart-generation subsystem entirely**: `lhp state` CLI
+  subcommand, `--no-cleanup` flag, `.lhp_state.json` / `.lhp_state/`
+  files (auto-deleted on first run of new version), and the modules
+  `lhp.core.state_manager`,
+  `lhp.core.state_dependency_resolver`, `lhp.core.state.*`,
+  `lhp.utils.smart_file_writer`, `lhp.services.state_display_*`,
+  `lhp.core.strategies`,
+  `lhp.core.services.generation_planning_service`,
+  `lhp.cli.commands.state_command`.
+- `DatabricksYAMLManager` module (and the runtime dependency on
+  ruamel.yaml that it was the sole consumer of, where applicable).
+- `BundleManager._update_databricks_variables` method, plus the
+  auto-population of `default_pipeline_catalog` /
+  `default_pipeline_schema` in `databricks.yml`
+  `targets.<env>.variables`.
+- Bundle-resource preservation decision tree (Scenarios 1a / 1b /
+  2 / 4 in `BundleManager._sync_pipeline_resource` — the
+  Conservative Approach for LHP-vs-user file preservation); orphan
+  cleanup of `resources/lhp/`; LHP-vs-user header sentinel inside
+  `resources/lhp/`.
+- Deprecated `${var.default_pipeline_catalog}` /
+  `${var.default_pipeline_schema}` fallback in
+  `pipeline_resource.yml.j2`.
+- `variables:` block in the init template's `databricks.yml.j2`
+  (`default_pipeline_catalog` / `default_pipeline_schema` were the
+  only entries).
+- `ActionOrchestrator._sync_bundle_resources` (orphan method with no
+  production caller) and its 8 test references.
+- Orchestrator main-thread machinery: `_PipelineProgress`,
+  `_assemble_pipeline`, `_assemble_pipeline_outputs` (worker-internal
+  now).
+- `DependencyTracker.set_checksum_cache` (the cache is now provided
+  at factory-construction time via
+  `DependencyTracker.for_project(..., checksum_cache=...)`).
+- Outdated benchmark scripts and results (replaced by the
+  structured release-time performance gate above).
+
+### Known limitation
+
+- `lhp generate` is **non-atomic** between the `resources/lhp/` wipe
+  and the end of bundle sync: if the process is interrupted (OS
+  kill, power loss) **after** preflight passes but **before** bundle
+  sync completes, `resources/lhp/` may be left partially populated
+  or empty. A subsequent `databricks bundle deploy` against that
+  state could silently drop pipelines from the workspace.
+  Catalog/schema misconfigs — the most common trigger in
+  pre-preflight versions — can no longer cause this; preflight
+  rejects them before any wipe. Re-running `lhp generate` to
+  completion restores the directory.
 
 ## [0.8.6] — 2026-05-11
 

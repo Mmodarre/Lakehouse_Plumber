@@ -78,9 +78,6 @@ These symbols are the recommended entry points for programmatic use.
    * - ``lhp.core.orchestrator.ActionOrchestrator``
      - Drives end-to-end pipeline generation: discovery, expansion,
        validation, code generation, and bundle synchronization.
-   * - ``lhp.core.orchestrator.GenerationAnalysis``
-     - Result object returned by orchestrator analysis methods. Reports which
-       pipelines need regeneration and why.
    * - ``lhp.parsers.yaml_parser.YAMLParser``
      - Parses and validates LHP YAML files into Pydantic models. Use to load
        FlowGroups, Presets, and Templates without invoking the full pipeline.
@@ -179,10 +176,6 @@ Orchestrator: ``lhp.core.orchestrator``
    :members:
    :show-inheritance:
    :member-order: bysource
-
-.. autoclass:: lhp.core.orchestrator.GenerationAnalysis
-   :members:
-   :show-inheritance:
 
 YAML parsing: ``lhp.parsers.yaml_parser``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
