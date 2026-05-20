@@ -304,6 +304,8 @@ continuous: true
     
     def test_partial_catalog_schema_definition_raises_error(self, temp_project):
         """Test that defining only catalog OR schema raises an error"""
+        from lhp.bundle.exceptions import BundleResourceError
+
         # Create config with only catalog
         config_content = """
 ---
@@ -314,19 +316,22 @@ serverless: true
         config_path = temp_project / "config" / "pipeline_config.yaml"
         with open(config_path, "w") as f:
             f.write(config_content)
-        
+
         manager = BundleManager(
             project_root=temp_project,
             pipeline_config_path=str(config_path)
         )
-        
+
         output_dir = temp_project / "generated"
-        
-        # Should raise ValueError for partial definition
-        with pytest.raises(ValueError) as exc_info:
+
+        from lhp.utils.error_formatter import LHPConfigError
+
+        with pytest.raises(LHPConfigError) as exc_info:
             manager.generate_resource_file_content("invalid_pipeline", output_dir, "dev")
-        
-        assert "BOTH catalog AND schema" in str(exc_info.value)
+
+        assert exc_info.value.code == "LHP-CFG-026"
+        assert "Incomplete catalog/schema" in str(exc_info.value)
+        assert "configure_catalog_schema" in exc_info.value.doc_link
     
     def test_empty_catalog_after_substitution_raises_error(self, temp_project):
         """Test that empty catalog after substitution raises an error"""
@@ -358,13 +363,17 @@ serverless: true
         
         output_dir = temp_project / "generated"
         
-        # Should raise ValueError - empty strings are treated as missing
-        # due to falsy evaluation in Python
-        with pytest.raises(ValueError) as exc_info:
+        # Empty strings are treated as missing due to falsy evaluation in
+        # Python, triggering the "Incomplete catalog/schema" check (one
+        # missing, one defined).
+        from lhp.utils.error_formatter import LHPConfigError
+
+        with pytest.raises(LHPConfigError) as exc_info:
             manager.generate_resource_file_content("empty_catalog_pipeline", output_dir, "dev")
-        
-        # Empty strings are treated as missing, not as empty
-        assert "BOTH catalog AND schema" in str(exc_info.value)
+
+        assert exc_info.value.code == "LHP-CFG-026"
+        assert "Incomplete catalog/schema" in str(exc_info.value)
+        assert "configure_catalog_schema" in exc_info.value.doc_link
     
     def test_unresolved_tokens_pass_through(self, temp_project):
         """Test that unresolved tokens pass through (EnhancedSubstitutionManager behavior)"""

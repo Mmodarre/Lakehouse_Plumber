@@ -96,7 +96,12 @@ class TestGenerateFlagsE2E:
     def test_pipeline_filter_generates_only_matching_pipelines(self):
         """``--pipeline <name>`` restricts generation to one pipeline only."""
         exit_code, output = self.run_generate(
-            "--env", "dev", "--pipeline", "acmi_edw_bronze"
+            "--env",
+            "dev",
+            "--pipeline",
+            "acmi_edw_bronze",
+            "--pipeline-config",
+            "config/pipeline_config.yaml",
         )
         assert (
             exit_code == 0
@@ -173,6 +178,8 @@ class TestGenerateFlagsE2E:
                 "dev",
                 "--output",
                 redirected,
+                "--pipeline-config",
+                "config/pipeline_config.yaml",
             )
             assert exit_code == 0, f"--output generate failed:\n{output[-2000:]}"
 

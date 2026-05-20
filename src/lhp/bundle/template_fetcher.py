@@ -7,7 +7,8 @@ for variable substitution and creating bundle configuration files locally.
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
+
 from jinja2 import Template
 
 from .exceptions import TemplateError

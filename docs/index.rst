@@ -112,6 +112,7 @@ want to understand the execution model first, read :doc:`architecture`.
    multi_flowgroup_guide
    dynamic_templates_guide
    configure_bundles
+   configure_catalog_schema
    enable_monitoring
    quarantine_records
    migrate_from_dlt

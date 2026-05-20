@@ -43,6 +43,17 @@ class TestEventLogIntegration:
         with open(project_root / "substitutions" / "dev.yaml", "w") as f:
             yaml.dump(sub_content, f)
 
+        # Default pipeline_config.yaml with catalog/schema (required after refactor).
+        # Tests that need a different config simply call _create_pipeline_config()
+        # which overwrites this file.
+        default_config_path = project_root / "config" / "pipeline_config.yaml"
+        default_config_path.write_text(
+            "project_defaults:\n"
+            "  catalog: test_catalog\n"
+            "  schema: test_schema\n"
+            "  serverless: true\n"
+        )
+
         yield project_root
 
         shutil.rmtree(temp_dir)
@@ -65,6 +76,7 @@ class TestEventLogIntegration:
 
         manager = BundleManager(
             project_root=temp_project,
+            pipeline_config_path=str(temp_project / "config" / "pipeline_config.yaml"),
             project_config=project_config,
         )
 
@@ -98,6 +110,7 @@ class TestEventLogIntegration:
 
         manager = BundleManager(
             project_root=temp_project,
+            pipeline_config_path=str(temp_project / "config" / "pipeline_config.yaml"),
             project_config=project_config,
         )
 
@@ -134,6 +147,8 @@ class TestEventLogIntegration:
             """
 ---
 project_defaults:
+  catalog: test_catalog
+  schema: test_schema
   serverless: true
 
 ---
@@ -184,6 +199,8 @@ event_log:
             """
 ---
 project_defaults:
+  catalog: test_catalog
+  schema: test_schema
   serverless: true
 
 ---
@@ -224,6 +241,8 @@ event_log: false
             """
 ---
 project_defaults:
+  catalog: test_catalog
+  schema: test_schema
   serverless: true
 
 ---
@@ -263,6 +282,7 @@ event_log:
         """Test no event_log when neither project nor pipeline config defines it."""
         manager = BundleManager(
             project_root=temp_project,
+            pipeline_config_path=str(temp_project / "config" / "pipeline_config.yaml"),
             project_config=None,
         )
 
@@ -297,6 +317,8 @@ event_log:
             """
 ---
 project_defaults:
+  catalog: test_catalog
+  schema: test_schema
   serverless: true
 """,
         )

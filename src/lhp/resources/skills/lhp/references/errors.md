@@ -32,8 +32,6 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | **CFG-010** | Deprecated field name | Replace with the field name shown in error message |
 | **CFG-012** | Missing required template parameters | Add `template_parameters:` with all required params |
 | **CFG-021** | Bundle YAML processing error | Validate `databricks.yml` syntax; check UTF-8 encoding |
-| **CFG-022** | Missing `databricks.yml` | Run `lhp init` or use `--no-bundle` |
-| **CFG-023** | Substitution env without matching bundle target | Add missing target to `databricks.yml` |
 | **CFG-024** | Bundle template fetch error | Check network; verify template path/URL |
 | **CFG-025** | Bundle configuration structural error | Review `databricks.yml` against DAB docs |
 | **CFG-027** | Template not found | Check spelling; run `lhp list_templates` |
@@ -70,6 +68,50 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | Code | Trigger | Fix |
 |------|---------|-----|
 | **DEP-001** | Circular dependency (A → B → C → A) | Break the cycle; error shows full path. Use `lhp deps --format dot` to visualize |
+
+## LHP-CFG-026 — catalog/schema (fail-fast at bundle resource generation)
+
+All three errors below are raised by `generate_resource_file_content` as
+`LHPConfigError` with code `LHP-CFG-026`. The structured `doc_link` points to
+the Configure catalog/schema docs page so programmatic catchers (CI tooling,
+editor integrations) can route users back to it.
+
+### Both `catalog` and `schema` missing
+
+**Message:** `catalog and schema must be defined in pipeline_config.yaml for pipeline '<name>'…`
+
+**Cause:** Neither the per-pipeline entry nor the top-level `project_defaults` block
+in `pipeline_config.yaml` sets `catalog` and `schema`. Common root cause:
+`--pipeline-config` was not passed to `lhp generate`, or the file has no
+`project_defaults` block.
+
+**Fix:** Add `catalog` and `schema` to `project_defaults` (project-wide) or to the
+pipeline's own entry (per-pipeline), then re-run with
+`lhp generate --env <env> --pipeline-config config/pipeline_config.yaml`.
+
+### Incomplete pairing (one of catalog/schema set, the other missing)
+
+**Message:** `Incomplete catalog/schema for pipeline '<name>': catalog=…, schema=…`
+
+**Cause:** Exactly one of `catalog` or `schema` is defined; the other is missing.
+LHP requires both or neither — partial configuration is treated as a typo, not as
+a fallback request to fill in the missing half from somewhere else.
+
+**Fix:** Add the missing key. If the intent was to inherit one half from
+`project_defaults`, remove the other half from the per-pipeline entry so both
+values resolve from the same layer.
+
+### Empty after substitution
+
+**Message:** `Empty catalog/schema after substitution in pipeline '<name>'. catalog=…, schema=…`
+
+**Cause:** `catalog` or `schema` references a substitution token whose value is the
+empty string after `substitutions/<env>.yaml` resolves. The keys exist, but
+evaluate to nothing.
+
+**Fix:** Inspect the substitution file for the failing environment. Run
+`lhp substitutions --env <env>` to print resolved values. Add or correct entries
+that resolve to empty strings.
 
 ---
 
@@ -184,8 +226,6 @@ see the resolved config (after preset merge + template expansion).
 1. Run `lhp generate --env <env>` before `databricks bundle deploy --target <env>`.
 2. `--env` and `--target` must match.
 3. Check `resources/lhp/` contains the pipeline resource file.
-4. If missing `databricks.yml` (`LHP-CFG-022`): run `lhp init` or use `--no-bundle`.
-5. If env has no matching bundle target (`LHP-CFG-023`): add target to `databricks.yml`.
 
 ### YAML completion / IntelliSense not working
 

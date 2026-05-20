@@ -29,7 +29,18 @@ class TestBundleJinja2Templates:
         self.generated_dir.mkdir()
         self.resources_dir = self.project_root / "resources" / "lhp"
 
-        self.manager = BundleManager(self.project_root)
+        # Pipeline config with catalog/schema (required after refactor)
+        config_file = self.project_root / "pipeline_config.yaml"
+        config_file.write_text(
+            "project_defaults:\n"
+            "  catalog: test_catalog\n"
+            "  schema: test_schema\n"
+            "  serverless: true\n"
+        )
+
+        self.manager = BundleManager(
+            self.project_root, pipeline_config_path=str(config_file)
+        )
 
     def teardown_method(self):
         """Clean up test environment after each test."""
@@ -333,8 +344,8 @@ class TestBundleJinja2Templates:
 
         # Verify field values are properly set
         assert pipeline_config["name"] == f"{pipeline_name}_pipeline"
-        assert pipeline_config["catalog"] == "${var.default_pipeline_catalog}"
-        assert pipeline_config["schema"] == "${var.default_pipeline_schema}"
+        assert pipeline_config["catalog"] == "test_catalog"
+        assert pipeline_config["schema"] == "test_schema"
 
         # Verify libraries structure
         libraries = pipeline_config["libraries"]
@@ -971,6 +982,8 @@ dev:
         config_file.parent.mkdir(parents=True, exist_ok=True)
         config_file.write_text("""
 project_defaults:
+  catalog: test_catalog
+  schema: test_schema
   serverless: false
   edition: ADVANCED
 
@@ -1008,6 +1021,8 @@ clusters:
         config_file.parent.mkdir(parents=True, exist_ok=True)
         config_file.write_text("""
 project_defaults:
+  catalog: test_catalog
+  schema: test_schema
   serverless: false
   edition: ADVANCED
 
@@ -1040,6 +1055,8 @@ clusters:
         config_file.parent.mkdir(parents=True, exist_ok=True)
         config_file.write_text("""
 project_defaults:
+  catalog: test_catalog
+  schema: test_schema
   serverless: false
   edition: ADVANCED
 
@@ -1074,6 +1091,8 @@ clusters:
         config_file.write_text("""
 ---
 pipeline: token_pool_test
+catalog: test_catalog
+schema: test_schema
 serverless: false
 clusters:
   - label: default

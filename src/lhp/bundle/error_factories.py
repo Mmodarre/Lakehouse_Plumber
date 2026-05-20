@@ -3,7 +3,7 @@
 import logging
 from typing import List, Optional
 
-from ..utils.error_formatter import ErrorCategory, LHPError, LHPFileError
+from ..utils.error_formatter import ErrorCategory, LHPError
 
 logger = logging.getLogger(__name__)
 
@@ -63,67 +63,6 @@ def create_yaml_processing_error(
             "Ensure the file is not corrupted or truncated",
         ],
         context=error_context,
-    )
-
-
-def create_missing_databricks_file_error(file_path: str) -> LHPFileError:
-    """Create an LHPFileError for missing databricks.yml.
-
-    Returns LHPFileError (which inherits from both LHPError and
-    FileNotFoundError) so that existing ``except FileNotFoundError``
-    handlers continue to catch it.
-    """
-    return LHPFileError(
-        category=ErrorCategory.CONFIG,
-        code_number="022",
-        title="Missing databricks.yml",
-        details=(
-            f"Expected Databricks bundle configuration at '{file_path}' "
-            f"but the file does not exist."
-        ),
-        suggestions=[
-            "Run 'lhp init <project_name>' to create a new project "
-            "with bundle support",
-            "Create a databricks.yml file manually in your project root",
-            "Use --no-bundle flag to skip bundle operations",
-        ],
-        context={"Expected Path": file_path},
-    )
-
-
-def create_missing_target_error(
-    missing_targets: List[str],
-    available_targets: List[str],
-    file_path: str,
-) -> LHPError:
-    """Create an LHPError for missing Databricks targets."""
-    missing_list = ", ".join(f"'{t}'" for t in missing_targets)
-    available_list = (
-        ", ".join(f"'{t}'" for t in available_targets)
-        if available_targets
-        else "none found"
-    )
-
-    return LHPError(
-        category=ErrorCategory.CONFIG,
-        code_number="023",
-        title="Missing Databricks bundle targets",
-        details=(
-            f"Substitution files exist for targets {missing_list}, "
-            f"but these targets are not defined in '{file_path}'.\n"
-            f"Available targets: {available_list}"
-        ),
-        suggestions=[
-            "Add the missing targets to your databricks.yml file",
-            "Ensure target names match your substitution file names "
-            "(e.g., substitutions/dev.yaml -> targets.dev)",
-            "Remove unused substitution files if they are not needed",
-        ],
-        context={
-            "Missing Targets": missing_list,
-            "Available Targets": available_list,
-            "File": file_path,
-        },
     )
 
 
@@ -187,24 +126,11 @@ def convert_bundle_error(
     from ..bundle.exceptions import (
         BundleConfigurationError,
         BundleResourceError,
-        MissingDatabricksTargetError,
         TemplateError,
         YAMLProcessingError,
     )
 
     error_message = str(error)
-
-    if isinstance(error, MissingDatabricksTargetError):
-        return create_bundle_resource_error(
-            operation="target resolution",
-            details=error_message,
-            suggestions=[
-                "Add the missing targets to your databricks.yml",
-                "Ensure target names match substitution file names",
-                "Use --no-bundle to skip bundle operations",
-            ],
-            original_error=error,
-        )
 
     if isinstance(error, YAMLProcessingError):
         return create_yaml_processing_error(

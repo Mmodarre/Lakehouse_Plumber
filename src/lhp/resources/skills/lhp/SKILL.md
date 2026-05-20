@@ -116,6 +116,8 @@ When creating reusable templates:
 6. **Validate before generating**: `lhp validate --env <env>`
 7. **`readMode: stream`** -> `spark.readStream`, **`batch`** -> `spark.read`
 8. **Monitoring requires event_log** — `monitoring: {}` won't work without `event_log` section
+9. **`catalog` and `schema` are REQUIRED in `pipeline_config.yaml`** — set them per-pipeline or in a top-level `project_defaults` block. Missing either fails `lhp generate` with `BundleResourceError`. See [project-config.md](references/project-config.md) and `docs/configure_catalog_schema.rst`.
+10. **`resources/lhp/` is exclusively managed by LHP** — every `lhp generate` wipes it and rewrites it. Place custom resource YAMLs (hand-written jobs, dashboards, secret scopes) under `resources/` at the top level or any non-`lhp` subdirectory.
 
 ## Best Practice Defaults (apply unless the user overrides)
 

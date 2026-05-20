@@ -22,8 +22,10 @@ decision in front of you.
     Where files go, what gets named what, and why mono-repos with hundreds of
     FlowGroups still stay readable. Covers directory layout, subdirectory
     support per file type, prefix-based naming for the flat directories
-    (templates, presets, substitutions), and the FlowGroup-Pipeline-Action
-    organisational model.
+    (templates, presets, substitutions), the rule that ``resources/lhp/`` is
+    wholly LHP-managed (wiped on every ``lhp generate``) while hand-written
+    resources belong elsewhere under ``resources/``, and the
+    FlowGroup-Pipeline-Action organisational model.
 
 :doc:`environments`
     Why LHP separates configuration that varies per environment from

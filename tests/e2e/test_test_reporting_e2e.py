@@ -56,17 +56,34 @@ class TestTestReportingE2E:
     # ========================================================================
 
     def run_generate_with_tests(self) -> tuple:
-        """Run 'lhp generate --env dev --force --include-tests'. Returns (exit_code, output)."""
+        """Run 'lhp generate --env dev --include-tests'. Returns (exit_code, output)."""
         runner = CliRunner()
         result = runner.invoke(
-            cli, ["generate", "--env", "dev", "--force", "--include-tests"]
+            cli,
+            [
+                "generate",
+                "--env",
+                "dev",
+                "--include-tests",
+                "--pipeline-config",
+                "config/pipeline_config.yaml",
+            ],
         )
         return result.exit_code, result.output
 
     def run_generate(self) -> tuple:
-        """Run 'lhp generate --env dev --force'. Returns (exit_code, output)."""
+        """Run 'lhp generate --env dev'. Returns (exit_code, output)."""
         runner = CliRunner()
-        result = runner.invoke(cli, ["generate", "--env", "dev", "--force"])
+        result = runner.invoke(
+            cli,
+            [
+                "generate",
+                "--env",
+                "dev",
+                "--pipeline-config",
+                "config/pipeline_config.yaml",
+            ],
+        )
         return result.exit_code, result.output
 
     def run_validate_with_tests(self) -> tuple:

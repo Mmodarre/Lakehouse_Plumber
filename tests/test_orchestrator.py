@@ -598,43 +598,6 @@ class TestOrchestratorWithPipelineConfig:
             assert hasattr(orchestrator, "pipeline_config_path")
             assert orchestrator.pipeline_config_path == config_path
 
-    def test_sync_bundle_resources_uses_config(self):
-        """_sync_bundle_resources passes config to BundleManager."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-
-            # Create full project structure for bundle support
-            (project_root / "lhp.yaml").write_text("name: test\nversion: '1.0'")
-            (project_root / "pipelines").mkdir()
-            (project_root / "databricks.yml").write_text(
-                "workspace:\n  host: https://test"
-            )
-
-            output_dir = project_root / "generated"
-            output_dir.mkdir()
-
-            config_path = "test_config.yaml"
-            orchestrator = ActionOrchestrator(
-                project_root, enforce_version=False, pipeline_config_path=config_path
-            )
-
-            # Mock the BundleManager to verify config is passed
-            from unittest.mock import MagicMock, patch
-
-            with patch("lhp.bundle.manager.BundleManager") as mock_bundle_manager_class:
-                mock_manager_instance = MagicMock()
-                mock_bundle_manager_class.return_value = mock_manager_instance
-
-                # Call sync method
-                orchestrator._sync_bundle_resources(output_dir, "dev")
-
-                # Verify BundleManager was created with config path and project_config
-                mock_bundle_manager_class.assert_called_once_with(
-                    project_root,
-                    config_path,
-                    project_config=orchestrator.project_config,
-                )
-
 
 class TestGeneratePipelinesByFields:
     """Tests for the flat-pool plural method ``generate_pipelines_by_fields``.

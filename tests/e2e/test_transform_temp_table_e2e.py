@@ -75,7 +75,16 @@ class TestTransformTempTableE2E:
     def run_generate(self) -> tuple:
         """Run 'lhp generate --env dev --force' (no --include-tests)."""
         runner = CliRunner()
-        result = runner.invoke(cli, ["generate", "--env", "dev"])
+        result = runner.invoke(
+            cli,
+            [
+                "generate",
+                "--env",
+                "dev",
+                "--pipeline-config",
+                "config/pipeline_config.yaml",
+            ],
+        )
         return result.exit_code, result.output
 
     def _compare_file_hashes(self, file1: Path, file2: Path) -> str:

@@ -94,10 +94,11 @@ project_defaults:
 # ==============================================================================
 # Uncomment and customize for pipelines requiring dedicated compute
 # pipeline: raw_customer_ingestions
-# 
-# # Catalog/Schema Configuration (optional - uses LHP substitution tokens)
-# # When defined: Values are directly embedded in bundle resource file
-# # When omitted: Uses databricks.yml variables (extracted from Python files)
+#
+# # Catalog/Schema Configuration (REQUIRED — set here per-pipeline, or
+# # inherit from the project_defaults block above. Both keys must be set
+# # together; missing or partial values cause lhp generate to fail fast
+# # with BundleResourceError. See docs/configure_catalog_schema.rst.)
 # # Supports: LHP tokens like "${catalog}" or literal values like "my_catalog"
 # catalog: "${catalog}"                # From substitutions/{env}.yaml
 # schema: "${raw_schema}"              # Environment-specific schema
@@ -162,7 +163,7 @@ project_defaults:
 # event_log:
 #   name: raw_ingestion_event_log
 #   schema: _meta
-#   catalog: ${var.default_pipeline_catalog}
+#   catalog: "${catalog}"                  # From substitutions/{env}.yaml
 #
 # # Pipeline-level permissions
 # permissions:
@@ -242,7 +243,7 @@ project_defaults:
 # event_log:
 #   name: silver_event_log
 #   schema: _meta
-#   catalog: ${var.default_pipeline_catalog}
+#   catalog: "${catalog}"                  # From substitutions/{env}.yaml
 
 ---
 # ==============================================================================
@@ -283,7 +284,7 @@ project_defaults:
 # event_log:
 #   name: gold_event_log
 #   schema: _meta
-#   catalog: ${var.default_pipeline_catalog}
+#   catalog: "${catalog}"                  # From substitutions/{env}.yaml
 
 ---
 # ==============================================================================
@@ -394,14 +395,18 @@ project_defaults:
 #   - Unresolved tokens pass through unchanged (not an error)
 #   - Missing substitution file: uses raw config without substitution
 #
-# Catalog/Schema Configuration:
-#   - Define catalog and schema at pipeline level to override default behavior
-#   - Must define BOTH catalog AND schema (defining only one raises an error)
+# Catalog/Schema Configuration (REQUIRED):
+#   - catalog and schema MUST come from pipeline_config.yaml — either via the
+#     top-level project_defaults block, or via per-pipeline entries (or a mix:
+#     project_defaults sets the shared value, per-pipeline overrides where needed)
+#   - Must define BOTH catalog AND schema (defining only one raises BundleResourceError)
 #   - Supports LHP substitution tokens: "${catalog}", "${schema}", etc.
 #   - Supports literal values: "my_catalog", "my_schema"
-#   - Values are resolved from substitutions/{env}.yaml files
-#   - When defined: Values embedded directly in bundle resource file
-#   - When omitted: Uses ${var.default_pipeline_catalog} from databricks.yml
+#   - Values are resolved from substitutions/{env}.yaml files after deep merge
+#   - Values are embedded directly in the generated bundle resource file
+#   - Empty values after substitution raise BundleResourceError
+#   - There is no auto-detection and no fallback to databricks.yml variables —
+#     see docs/configure_catalog_schema.rst for the full contract
 #
 # Key Constraints:
 #   - edition parameter only works when serverless: false
@@ -411,7 +416,7 @@ project_defaults:
 #   - instance_pool_id / driver_instance_pool_id: use instead of node_type_id when
 #     using Databricks instance pools for faster cluster startup and cost savings
 #   - tags only work for non-serverless pipelines (serverless uses compute policy)
-#   - catalog and schema: Must define both or neither (not just one)
+#   - catalog and schema: BOTH required; setting only one raises BundleResourceError
 #
 # Validation Rules:
 #   - edition: Must be CORE, PRO, or ADVANCED

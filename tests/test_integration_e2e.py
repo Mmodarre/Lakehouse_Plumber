@@ -119,7 +119,7 @@ class TestEndToEndBundleWorkflow:
         """Test bundle sync with real YAML resource files."""
         self._setup_bundle_project()
 
-        # Create user's custom resource file (should be preserved)
+        # Create user's custom resource file (should be preserved - outside resources/lhp/)
         resources_dir = self.project_root / "resources"
         resources_dir.mkdir(exist_ok=True)
 
@@ -145,8 +145,18 @@ resources:
         (pipeline_dir / "new_notebook.py").write_text("# New test notebook")
         (pipeline_dir / "existing_notebook.py").write_text("# Existing notebook")
 
+        # Pipeline config with catalog/schema (required after refactor)
+        config_file = self.project_root / "pipeline_config.yaml"
+        config_file.write_text(
+            "project_defaults:\n"
+            "  catalog: test_catalog\n"
+            "  schema: test_schema\n"
+        )
+
         # Test sync
-        bundle_manager = BundleManager(self.project_root)
+        bundle_manager = BundleManager(
+            self.project_root, pipeline_config_path=str(config_file)
+        )
         updated_count = bundle_manager.sync_resources_with_generated_files(
             generated_dir, "dev"
         )
@@ -265,10 +275,13 @@ resources:
             # Should return some count (possibly 0 due to errors, but not crash)
             assert isinstance(updated_count, int)
         except Exception as e:
-            # If it raises an exception, it should be a controlled bundle exception
+            # If it raises an exception, it should be a controlled LHP exception:
+            # BundleResourceError for bundle-internal failures, or LHPConfigError
+            # for catalog/schema misconfiguration (LHP-CFG-026).
             from lhp.bundle.exceptions import BundleResourceError
+            from lhp.utils.error_formatter import LHPConfigError
 
-            assert isinstance(e, BundleResourceError)
+            assert isinstance(e, (BundleResourceError, LHPConfigError))
 
     def test_mixed_bundle_and_non_bundle_projects(self):
         """Test that bundle and non-bundle projects can coexist."""

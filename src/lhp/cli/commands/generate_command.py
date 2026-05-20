@@ -108,11 +108,17 @@ class GenerateCommand(BaseCommand):
 
         logger.debug(f"Pipelines discovered for generation: {pipelines_to_generate}")
 
+        bundle_enabled = should_enable_bundle_support(project_root, no_bundle)
+
         # Always wipe the env-specific generated directory: every run is a
-        # full regenerate after the V0.8.7 state-tracking removal.
+        # full regenerate after the V0.8.7 state-tracking removal. The
+        # resources/lhp/ wipe is gated on bundle support so non-bundle projects
+        # don't materialize the directory just to delete it.
         if not dry_run:
             with perf_timer("Cleanup operations", phase=True):
                 self._wipe_generated_directory(output_dir.parent, env)
+                if bundle_enabled:
+                    _wipe_resources_lhp_directory(project_root)
 
         # Per-pipeline ✅ / ❌ display happens in real time via the
         # on_pipeline_complete callback (fired on the main thread).
@@ -327,13 +333,10 @@ class GenerateCommand(BaseCommand):
         bundle_manager.sync_resources_with_generated_files(
             output_dir,
             env,
-            has_pipeline_config=(pipeline_config_path is not None),
         )
         click.echo("📦 Bundle resource files synchronized")
         if self.verbose:
             click.echo("✅ Bundle resource files synchronized")
-
-  # Let cli_error_boundary handle unexpected errors
 
 
 def _remove_legacy_state_artifacts(project_root: Path) -> None:
@@ -343,3 +346,15 @@ def _remove_legacy_state_artifacts(project_root: Path) -> None:
         legacy_file.unlink()
     if legacy_dir.is_dir():
         shutil.rmtree(legacy_dir)
+
+
+def _wipe_resources_lhp_directory(project_root: Path) -> None:
+    resources_lhp = project_root / "resources" / "lhp"
+    if resources_lhp.is_symlink():
+        raise BundleResourceError(
+            f"resources/lhp is a symlink; refusing to delete: {resources_lhp}. "
+            f"Remove the symlink and let LHP manage this directory directly."
+        )
+    if resources_lhp.exists():
+        shutil.rmtree(resources_lhp)
+    resources_lhp.mkdir(parents=True, exist_ok=True)

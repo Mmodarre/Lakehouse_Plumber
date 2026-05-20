@@ -456,64 +456,6 @@ file) could not be processed.
 2. Check for syntax errors at the line number shown in the error details
 3. Ensure all YAML files use UTF-8 encoding
 
-LHP-CFG-022: Missing databricks.yml
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**When it occurs:** Bundle operations require a ``databricks.yml`` file, but it was
-not found in the project root.
-
-**Common causes:**
-
-- Running bundle commands in a project that was not initialized with bundle support
-- Running commands from the wrong directory
-
-.. code-block:: bash
-   :caption: Resolution options
-
-   # Option 1: Initialize a new project with bundle support
-   lhp init my_project
-
-   # Option 2: Skip bundle operations
-   lhp generate --env dev --no-bundle
-
-LHP-CFG-023: Missing Databricks Bundle Targets
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-**When it occurs:** Substitution files exist for environments (e.g., ``substitutions/dev.yaml``)
-but the corresponding targets are not defined in ``databricks.yml``.
-
-**Common causes:**
-
-- Adding a new substitution file without updating ``databricks.yml``
-- Renaming a target in ``databricks.yml`` without updating the substitution file name
-
-.. code-block:: yaml
-   :caption: Before (triggers LHP-CFG-023) — substitutions/staging.yaml exists but...
-
-   # databricks.yml
-   targets:
-     dev:
-       default: true
-     prod:
-       mode: production
-     # Missing: staging target!
-
-.. code-block:: yaml
-   :caption: After (fixed)
-
-   # databricks.yml
-   targets:
-     dev:
-       default: true
-     staging:                    # Added to match substitutions/staging.yaml
-       mode: development
-     prod:
-       mode: production
-
-.. seealso::
-
-   :doc:`bundle_config_reference` for target configuration details.
-
 LHP-CFG-024: Bundle Template Error
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

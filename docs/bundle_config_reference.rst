@@ -11,8 +11,9 @@ Scope
 -----
 
 LHP generates DAB pipeline and job resource YAML under ``resources/lhp/``. It
-does not replace the Databricks CLI or modify ``databricks.yml`` (except the
-deprecated auto-detect path described below).
+does not replace the Databricks CLI and never modifies ``databricks.yml``.
+Catalog and schema must come from ``pipeline_config.yaml`` — see
+:doc:`configure_catalog_schema` for the resolution rules.
 
 Bundle activation
 -----------------
@@ -296,16 +297,11 @@ Catalog/schema validation
 
 - Both ``catalog`` and ``schema`` must be set, or neither.
 - Both must be non-empty after substitution.
-- Partial definition raises ``LHPConfigError`` code 026.
+- Missing or partial definition raises ``BundleResourceError`` with
+  ``docs_reference="docs/configure_catalog_schema.rst"``.
 
-.. deprecated:: 0.7.8
-   Auto-detection of catalog/schema from generated Python files and the
-   resulting writes to ``databricks.yml`` variables
-   (``default_pipeline_catalog``, ``default_pipeline_schema``) are deprecated.
-   The fallback template emits ``${var.default_pipeline_catalog}`` and
-   ``${var.default_pipeline_schema}`` only when ``catalog`` and ``schema`` are
-   missing from pipeline config. Removal is scheduled for v1.0.0; from then on
-   ``--pipeline-config`` becomes required for bundle projects.
+See :doc:`configure_catalog_schema` for per-pipeline and ``project_defaults``
+configuration, resolution order, and the full error reference.
 
 Job configuration
 -----------------
@@ -542,20 +538,20 @@ Install the LHP version matching the project requirement before running
 Error codes
 -----------
 
-- ``LHPConfigError 026`` — Incomplete or empty ``catalog``/``schema`` after
-  substitution. See :doc:`errors_reference` for the full list.
+- ``BundleResourceError`` — Missing, incomplete, or empty ``catalog``/``schema``
+  after substitution (carries ``docs_reference="docs/configure_catalog_schema.rst"``).
+  Also raised on multiple files defining the same pipeline, malformed YAML in
+  ``resources/lhp/``, or filesystem failure. See
+  :doc:`configure_catalog_schema` for catalog/schema cases.
 - ``LHPConfigError 028`` — ``BundleManager`` initialized with no
   ``project_root``.
-- ``BundleResourceError`` — Multiple files define the same pipeline, malformed
-  YAML in ``resources/lhp/``, or filesystem failure.
-- ``MissingDatabricksTargetError`` — ``databricks.yml`` is missing or its
-  ``targets`` section omits a substitution environment. Emitted only by the
-  deprecated auto-detect path.
 
 See also
 --------
 
 - :doc:`configure_bundles` — Bundle setup walk-through.
+- :doc:`configure_catalog_schema` — Catalog and schema configuration via
+  ``pipeline_config.yaml``.
 - :doc:`cicd` — CI/CD patterns and deployment workflows.
 - :doc:`architecture` — How LHP's generation and sync layers fit together.
 - :doc:`dependency_analysis` — Pipeline dependency graph and orchestration job generation.

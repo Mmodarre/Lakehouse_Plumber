@@ -57,7 +57,16 @@ class TestQuarantineE2E:
     def run_generate(self) -> tuple:
         """Run 'lhp generate --env dev --force'. Returns (exit_code, output)."""
         runner = CliRunner()
-        result = runner.invoke(cli, ["generate", "--env", "dev"])
+        result = runner.invoke(
+            cli,
+            [
+                "generate",
+                "--env",
+                "dev",
+                "--pipeline-config",
+                "config/pipeline_config.yaml",
+            ],
+        )
         return result.exit_code, result.output
 
     def run_validate(self) -> tuple:

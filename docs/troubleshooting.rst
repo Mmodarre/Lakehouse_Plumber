@@ -84,11 +84,7 @@ Do this:
    --target <env>``. The ``--env`` and ``--target`` values must match.
 2. Check ``resources/lhp/`` for the pipeline resource file. If it is missing,
    re-run ``lhp generate --env <env>``.
-3. If you see ``LHP-CFG-022`` (missing ``databricks.yml``) or ``LHP-CFG-023``
-   (substitution file has no matching target), the bundle is not wired to
-   your substitutions. Add the missing target to ``databricks.yml`` or pass
-   ``--no-bundle`` to suppress bundle generation entirely.
-4. Confirm the deployed Python file matches your source. Open the pipeline
+3. Confirm the deployed Python file matches your source. Open the pipeline
    in Databricks and compare the notebook content against ``generated/``
    in your repo.
 

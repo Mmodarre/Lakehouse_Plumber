@@ -35,6 +35,8 @@ class TestPipelineConfigE2E:
 
         pipeline_config_content = """
 project_defaults:
+  catalog: acme_edw_dev
+  schema: edw_raw
   serverless: false
   edition: ADVANCED
   channel: CURRENT
@@ -131,6 +133,8 @@ clusters:
 
         pipeline_config_content = """
 project_defaults:
+  catalog: acme_edw_dev
+  schema: edw_raw
   serverless: false
   edition: PRO
 
@@ -320,6 +324,8 @@ clusters:
 
         pipeline_config_content = """
 project_defaults:
+  catalog: acme_edw_dev
+  schema: edw_raw
   serverless: false
   edition: ADVANCED
 
@@ -383,6 +389,8 @@ clusters:
 
         pipeline_config_content = """
 project_defaults:
+  catalog: acme_edw_dev
+  schema: edw_raw
   serverless: false
   edition: ADVANCED
 
@@ -1325,7 +1333,17 @@ class TestMonitoringPipelineE2E:
     def _run_generate(self):
         """Run lhp generate --env dev --force via CLI."""
         runner = CliRunner()
-        result = runner.invoke(cli, ["--verbose", "generate", "--env", "dev"])
+        result = runner.invoke(
+            cli,
+            [
+                "--verbose",
+                "generate",
+                "--env",
+                "dev",
+                "--pipeline-config",
+                "config/pipeline_config.yaml",
+            ],
+        )
         return result.exit_code, result.output
 
     @staticmethod
@@ -1953,6 +1971,8 @@ tags:
         config_file = self.project_root / "config" / "pipeline_config.yaml"
         config_file.write_text(
             "project_defaults:\n"
+            "  catalog: acme_edw_dev\n"
+            "  schema: edw_raw\n"
             "  serverless: false\n"
             "  edition: PRO\n"
             "  photon: true\n"
@@ -2014,6 +2034,8 @@ tags:
         config_file = self.project_root / "config" / "pipeline_config.yaml"
         config_file.write_text(
             "project_defaults:\n"
+            "  catalog: acme_edw_dev\n"
+            "  schema: edw_raw\n"
             "  serverless: true\n"
             "\n"
             "---\n"

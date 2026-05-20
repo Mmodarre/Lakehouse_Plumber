@@ -9,6 +9,7 @@ import difflib
 import hashlib
 import os
 import shutil
+import time
 from pathlib import Path
 
 import pytest
@@ -141,30 +142,8 @@ resources:
                     "generate",
                     "--env",
                     "dev",
-                    # '--pipeline-config', 'config/pipeline_config.yaml',
-                    "--force",
-                ],
-            )
-        else:
-            result = runner.invoke(cli, ["--verbose", "generate", "--env", "dev"])
-        return result.exit_code, result.output
-
-    def run_bundle_sync_with_pipeline_config(self) -> tuple:
-        """Run bundle sync via lhp generate and return (exit_code, output)."""
-        runner = CliRunner()
-        # Use pipeline config if it exists
-        pipeline_config = self.project_root / "config" / "pipeline_config.yaml"
-        if pipeline_config.exists():
-            result = runner.invoke(
-                cli,
-                [
-                    "--verbose",
-                    "generate",
-                    "--env",
-                    "dev",
                     "--pipeline-config",
                     "config/pipeline_config.yaml",
-                    "--force",
                 ],
             )
         else:
@@ -230,62 +209,18 @@ resources:
     # BM TEST SCENARIOS
     # ========================================================================
 
-    def test_BM1_preserve_existing_lhp_managed_file(self):
-        """BM-1: Preserve existing LHP-managed file (no changes)."""
-        pipeline_name = "acmi_edw_bronze"
-
-        # Setup: Run initial generation to create the pipeline directory and resource file
-        exit_code, output = self.run_bundle_sync()
-        assert exit_code == 0, f"Initial generation should succeed: {output}"
-
-        # Preconditions: Pipeline directory exists, LHP resource file exists with header
-        assert (
-            self.generated_dir / pipeline_name
-        ).exists(), "Pipeline directory should exist"
-        resource_file = self.resources_dir / f"{pipeline_name}.pipeline.yml"
-        assert resource_file.exists(), "Resource file should exist"
-        assert self.has_lhp_header(
-            resource_file
-        ), "Resource file should have LHP header"
-
-        # Store original content
-        original_content = resource_file.read_text()
-        original_mtime = resource_file.stat().st_mtime
-
-        # Action: Run bundle sync
-        exit_code, output = self.run_bundle_sync()
-
-        # Expected: No edits to resource file; successful sync
-        assert exit_code == 0, f"Generate should succeed: {output}"
-        assert (
-            resource_file.read_text() == original_content
-        ), "Resource file content should be unchanged"
-
-        # File should not be modified (allowing small time difference for filesystem precision)
-        new_mtime = resource_file.stat().st_mtime
-        assert (
-            abs(new_mtime - original_mtime) < 1
-        ), "Resource file should not be modified"
-
-        print(" BM-1: LHP-managed file preserved successfully")
-
-    def test_BM1_1_regenerate_existing_lhp_managed_file_with_pipeline_config(self):
+    def test_BM1_1_regenerate_existing_lhp_managed_file(self):
         """
-        BM-1_1: Test force regeneration when adding pipeline config.
+        BM-1_1: Regenerate existing LHP-managed file on every run.
 
-        Tests Decision Matrix: "Python exists + LHP file + force + pipeline_config → REGENERATE"
-
-        Flow:
-        1. First run: Generate WITHOUT --pipeline-config (creates default LHP file)
-        2. Second run: Generate WITH --pipeline-config and --force (should regenerate)
-
-        This verifies that --force correctly overwrites existing LHP files when
-        pipeline config is added/changed.
+        Wave-2 contract: `lhp generate --env dev` wipes `resources/lhp/` and
+        regenerates every LHP-managed `*.pipeline.yml` from current state.
+        An existing LHP file is rewritten (mtime advances) and the new
+        content matches the curated baseline.
         """
         pipeline_name = "acmi_edw_bronze"
 
-        # Step 1: Initial generation WITHOUT pipeline config (default behavior)
-        # This uses --force but NOT --pipeline-config flag
+        # Step 1: Initial generation (plain `lhp generate --env dev`).
         exit_code, output = self.run_bundle_sync()
         assert exit_code == 0, f"Initial generation should succeed: {output}"
 
@@ -299,22 +234,23 @@ resources:
             resource_file
         ), "Resource file should have LHP header"
 
-        # # Store original content (generated WITHOUT pipeline config)
-        original_content = resource_file.read_text()
         original_mtime = resource_file.stat().st_mtime
 
-        # Step 2: Regenerate WITH pipeline config and force flag
-        # This uses BOTH --force and --pipeline-config flags
-        exit_code, output = self.run_bundle_sync_with_pipeline_config()
+        # Bump past filesystem mtime resolution (1s on common POSIX FSes).
+        time.sleep(1.1)
 
-        # Expected: Resource file should be regenerated with pipeline config values
-        assert exit_code == 0, f"Generate with pipeline config should succeed: {output}"
-        new_content = resource_file.read_text()
+        # Step 2: Re-run plain `lhp generate --env dev` — the file is wiped
+        # and regenerated on every run.
+        exit_code, output = self.run_bundle_sync()
+
+        # Expected: Resource file is regenerated (newer mtime).
+        assert exit_code == 0, f"Second generate should succeed: {output}"
+        new_mtime = resource_file.stat().st_mtime
         assert (
-            new_content != original_content
-        ), "Resource file content should be changed after adding pipeline config"
+            new_mtime > original_mtime
+        ), "Resource file should be regenerated on every run (mtime should advance)"
 
-        # Verify regenerated file matches baseline (with pipeline config applied)
+        # Verify regenerated file matches baseline.
         baseline_resource = (
             self.project_root
             / "resources_baseline"
@@ -324,52 +260,9 @@ resources:
         hash_result = self._compare_file_hashes(resource_file, baseline_resource)
         assert (
             hash_result == ""
-        ), f"Generated file should match baseline with pipeline config: {hash_result}"
+        ), f"Generated file should match baseline: {hash_result}"
 
-        print("✓ BM-1_1: Force regeneration with pipeline config successful")
-
-    def test_BM2_backup_and_replace_user_managed_file(self):
-        """BM-2: Backup and replace user-managed file."""
-        pipeline_name = "acmi_edw_bronze"
-
-        # Setup: Run initial generation to create the pipeline directory
-        exit_code, output = self.run_bundle_sync()
-        assert exit_code == 0, f"Initial generation should succeed: {output}"
-
-        # Preconditions: Pipeline directory exists, user resource file exists without LHP header
-        assert (
-            self.generated_dir / pipeline_name
-        ).exists(), "Pipeline directory should exist"
-
-        # Create user-managed file (without LHP header) using helper
-        resource_file = self.create_user_resource_file(pipeline_name)
-        user_content = resource_file.read_text()
-        assert not self.has_lhp_header(
-            resource_file
-        ), "Should not have LHP header initially"
-
-        # Action: Run bundle sync
-        exit_code, output = self.run_bundle_sync()
-
-        # Expected: Original file backed up, new LHP file created
-        assert exit_code == 0, f"Generate should succeed: {output}"
-
-        # Check backup was created
-        backup_files = self.get_backup_files(pipeline_name)
-        assert len(backup_files) > 0, "Backup file should be created"
-        assert (
-            user_content in backup_files[0].read_text()
-        ), "Backup should contain original content"
-
-        # Check new file has LHP header
-        assert self.has_lhp_header(
-            resource_file
-        ), "New resource file should have LHP header"
-        assert (
-            "catalog: ${var.default_pipeline_catalog}" in resource_file.read_text()
-        ), "Should have LHP template content"
-
-        print(" BM-2: User file backed up and replaced with LHP-managed file")
+        print("✓ BM-1_1: LHP-managed file regenerated successfully")
 
     def test_BM3_create_new_resource_file_when_missing(self):
         """BM-3: Create new resource file when missing."""
@@ -398,14 +291,16 @@ resources:
             resource_file
         ), "New resource file should have LHP header"
 
-        # Check template content
+        # Check rendered content (catalog/schema come from pipeline_config.yaml
+        # project_defaults; the legacy ${var.default_pipeline_*} template
+        # variables were removed in v0.8.7 — see docs/configure_catalog_schema.rst).
         content = resource_file.read_text()
         assert (
-            "catalog: ${var.default_pipeline_catalog}" in content
-        ), "Should have template catalog"
+            "catalog: acme_edw_dev" in content
+        ), "Should have resolved catalog from pipeline_config.yaml project_defaults"
         assert (
-            "schema: ${var.default_pipeline_schema}" in content
-        ), "Should have template schema"
+            "schema: edw_bronze" in content
+        ), "Should have resolved schema from per-pipeline entry in pipeline_config.yaml"
         assert (
             f"generated/${{bundle.target}}/{pipeline_name}" in content
         ), "Should have correct path"
@@ -444,47 +339,6 @@ resources:
             )
             self.assert_log_contains(output, "Bundle resource files synchronized")
 
-    def test_BM5_error_on_multiple_resource_files(self):
-        """BM-5: Error on multiple resource files for same pipeline."""
-        pipeline_name = "acmi_edw_bronze"
-
-        # Setup: Run initial generation to create the pipeline directory
-        exit_code, output = self.run_bundle_sync()
-        assert exit_code == 0, f"Initial generation should succeed: {output}"
-
-        # Preconditions: Pipeline directory exists, multiple resource files exist
-        assert (
-            self.generated_dir / pipeline_name
-        ).exists(), "Pipeline directory should exist"
-
-        # Create multiple resource files for the same pipeline
-        file1 = self.resources_dir / f"{pipeline_name}.pipeline.yml"
-        file2 = self.resources_dir / f"{pipeline_name}_extra.yml"
-        file3 = self.resources_dir / f"{pipeline_name}_backup.yml"
-
-        # Ensure first file exists (from baseline)
-        assert file1.exists(), "Primary resource file should exist"
-
-        # Create additional conflicting files
-        file2.write_text("# Extra file\nresources: {}")
-        file3.write_text("# Backup file\nresources: {}")
-
-        assert (
-            self.count_resource_files(pipeline_name) >= 2
-        ), "Should have multiple resource files"
-
-        # Action: Run bundle sync
-        exit_code, output = self.run_bundle_sync()
-
-        # Expected: Error raised due to ambiguous configuration
-        # The actual behavior: Warning issued but command succeeds (better UX)
-        if "Multiple bundle resource files found" in output:
-            print(" BM-5: Multiple files correctly detected and reported")
-            self.assert_log_contains(output, "Multiple bundle resource files")
-            self.assert_log_contains(output, "Bundle sync warning")
-        else:
-            print(" BM-5: Multiple files not detected in bundle sync")
-
     def test_BM7_output_directory_missing(self):
         """BM-7: Error when output directory missing."""
         # Preconditions: Remove generated/{env} directory
@@ -502,6 +356,302 @@ resources:
             self.assert_log_contains(output, "Bundle resource files synchronized")
         else:
             print(" BM-7: Unexpected behavior with missing directories")
+
+    # ========================================================================
+    # WAVE 1 TDD TESTS - POST-REFACTOR BUNDLE GENERATION BEHAVIOR
+    # ========================================================================
+    #
+    # These tests articulate the DESIRED post-refactor behavior of bundle
+    # generation. They are expected to FAIL against the current Smart-Generation
+    # logic and are intended to drive the Wave 2 implementation.
+    #
+    # Desired behavior under test:
+    #   - `resources/lhp/` is wiped on every `lhp generate` run
+    #   - User-managed resource files outside `resources/lhp/` are preserved
+    #   - `databricks.yml` is never mutated by generation
+    #   - Catalog/schema must come from pipeline_config.yaml; missing config
+    #     raises BundleResourceError and the CLI exits non-zero with stderr
+    #     referencing docs/configure_catalog_schema.rst
+    #   - Every current pipeline gets its resource YAML regenerated on every
+    #     run (mtime moves forward)
+    # ========================================================================
+
+    def test_resources_lhp_wiped_on_every_run(self):
+        """`resources/lhp/` is wiped on every generate; leftover files are removed.
+
+        Wave-1 TDD: expected to FAIL against current Smart-Generation logic,
+        which preserves files it does not recognise.
+        """
+        # Pre-place a leftover user file directly inside `resources/lhp/`.
+        # Under the new behavior, the entire `resources/lhp/` tree is wiped
+        # before regeneration, so this file MUST disappear.
+        self.resources_dir.mkdir(parents=True, exist_ok=True)
+        leftover = self.resources_dir / "leftover_user_file.yml"
+        leftover_content = (
+            "# Leftover user-managed file inside resources/lhp/.\n"
+            "# Wave-2 behavior: this file is wiped on every `lhp generate`.\n"
+            "resources:\n"
+            "  pipelines: {}\n"
+        )
+        leftover.write_text(leftover_content)
+        assert leftover.exists(), "Precondition: leftover file should exist"
+
+        # Action: run generation
+        exit_code, output = self.run_bundle_sync()
+
+        # Expected: clean exit and leftover file is gone
+        assert exit_code == 0, f"Generate should succeed: {output}"
+        assert (
+            not leftover.exists()
+        ), "resources/lhp/leftover_user_file.yml should be wiped by generation"
+
+        # Bare `lhp generate` produces a non-trivial set of pipelines; we just verify the wipe didn't
+        # prevent generation. Per-test baselines for tests that alter the fixture are out of scope here.
+        generated_files = list(self.resources_dir.glob("*.pipeline.yml"))
+        assert len(generated_files) >= 10, (
+            f"Expected bare generate to produce >=10 pipeline YAMLs; "
+            f"got {len(generated_files)}: {[f.name for f in generated_files]}"
+        )
+
+    def test_user_resources_outside_lhp_preserved(self):
+        """User resource files outside `resources/lhp/` survive; files inside it do not.
+
+        Wave-1 TDD: expected to FAIL against current behavior, which does not
+        wipe `resources/lhp/` wholesale.
+        """
+        resources_root = self.project_root / "resources"
+        resources_root.mkdir(parents=True, exist_ok=True)
+
+        # Pre-place two user-managed files OUTSIDE resources/lhp/.
+        # These must survive `lhp generate` byte-for-byte.
+        jobs_dir = resources_root / "jobs"
+        jobs_dir.mkdir(parents=True, exist_ok=True)
+        user_job_file = jobs_dir / "my_job.yml"
+        user_job_content = (
+            "# User-managed Databricks Asset Bundle job definition.\n"
+            "# Wave-2 behavior: files outside resources/lhp/ are preserved as-is.\n"
+            "resources:\n"
+            "  jobs:\n"
+            "    my_job:\n"
+            "      name: my_job\n"
+        )
+        user_job_file.write_text(user_job_content)
+
+        user_custom_file = resources_root / "custom_thing.yml"
+        user_custom_content = (
+            "# Arbitrary user-managed bundle resource (not a job, not a pipeline).\n"
+            "# Wave-2 behavior: files outside resources/lhp/ are preserved as-is.\n"
+            "resources:\n"
+            "  experiments: {}\n"
+        )
+        user_custom_file.write_text(user_custom_content)
+
+        # Pre-place a subdirectory file INSIDE resources/lhp/.
+        # Wave-2 behavior is explicit: the entire resources/lhp/ tree is wiped,
+        # including nested subdirectories created by users.
+        self.resources_dir.mkdir(parents=True, exist_ok=True)
+        lhp_jobs_subdir = self.resources_dir / "jobs"
+        lhp_jobs_subdir.mkdir(parents=True, exist_ok=True)
+        nested_note = lhp_jobs_subdir / "note.txt"
+        nested_note.write_text("user note placed inside resources/lhp/jobs/\n")
+
+        # Capture SHA-256 of the survivors prior to the run.
+        user_job_hash_before = hashlib.sha256(user_job_file.read_bytes()).hexdigest()
+        user_custom_hash_before = hashlib.sha256(
+            user_custom_file.read_bytes()
+        ).hexdigest()
+
+        # Action
+        exit_code, output = self.run_bundle_sync()
+
+        # Expected: clean exit
+        assert exit_code == 0, f"Generate should succeed: {output}"
+
+        # Survivors: user-managed files outside resources/lhp/ are byte-identical.
+        assert (
+            user_job_file.exists()
+        ), "resources/jobs/my_job.yml must survive the generate run"
+        assert (
+            user_custom_file.exists()
+        ), "resources/custom_thing.yml must survive the generate run"
+
+        user_job_hash_after = hashlib.sha256(user_job_file.read_bytes()).hexdigest()
+        user_custom_hash_after = hashlib.sha256(
+            user_custom_file.read_bytes()
+        ).hexdigest()
+        assert (
+            user_job_hash_before == user_job_hash_after
+        ), "resources/jobs/my_job.yml content must be unchanged"
+        assert (
+            user_custom_hash_before == user_custom_hash_after
+        ), "resources/custom_thing.yml content must be unchanged"
+
+        # Casualty: anything inside resources/lhp/, including subdirs, is gone.
+        assert (
+            not nested_note.exists()
+        ), "resources/lhp/jobs/note.txt must be wiped by the generate run"
+
+    def test_databricks_yml_not_mutated(self):
+        """`databricks.yml` is byte-identical before and after `lhp generate`.
+
+        Wave-1 TDD: expected to FAIL against current behavior, which mutates
+        `databricks.yml` to synchronize target variables.
+        """
+        databricks_yml = self.project_root / "databricks.yml"
+        assert (
+            databricks_yml.exists()
+        ), f"Precondition: databricks.yml must exist in fixture: {databricks_yml}"
+
+        # Capture pre-run SHA-256
+        hash_before = hashlib.sha256(databricks_yml.read_bytes()).hexdigest()
+
+        # Action
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, f"Generate should succeed: {output}"
+
+        # Expected: file is byte-identical
+        hash_after = hashlib.sha256(databricks_yml.read_bytes()).hexdigest()
+        assert hash_before == hash_after, (
+            "databricks.yml must not be mutated by `lhp generate`.\n"
+            f"  pre-run sha256:  {hash_before}\n"
+            f"  post-run sha256: {hash_after}"
+        )
+
+    def test_missing_catalog_schema_fails_fast(self):
+        """Missing catalog/schema in pipeline_config.yaml fails fast with doc reference.
+
+        Wave-1 TDD: expected to FAIL against current behavior, which falls back
+        to extracting defaults from substitution files. The new behavior is to
+        raise BundleResourceError and exit non-zero with stderr containing
+        `configure_catalog_schema.rst`.
+
+        Uses the dedicated `testing_project_no_catalog_schema` fixture variant.
+        """
+        # Swap the fixture for this test: the autouse setup_test_project copied
+        # the shared `testing_project` fixture. Replace it with the variant that
+        # has pipeline_config.yaml WITHOUT catalog/schema (neither per-pipeline
+        # nor `project_defaults`).
+        variant_fixture = (
+            Path(__file__).parent
+            / "fixtures"
+            / "testing_project_no_catalog_schema"
+        )
+        assert (
+            variant_fixture.exists()
+        ), f"Fixture variant must exist: {variant_fixture}"
+
+        # Wipe the autouse-copied project and replace with the variant
+        os.chdir(self.original_cwd)
+        shutil.rmtree(self.project_root)
+        shutil.copytree(variant_fixture, self.project_root)
+        os.chdir(self.project_root)
+
+        # Reset working dirs as setup would have
+        self.generated_dir = self.project_root / "generated" / "dev"
+        self.resources_dir = self.project_root / "resources" / "lhp"
+        self.generated_dir.mkdir(parents=True, exist_ok=True)
+        self.resources_dir.mkdir(parents=True, exist_ok=True)
+
+        # Action: invoke with --pipeline-config explicitly to mirror Wave-2
+        # contract that catalog/schema must come from pipeline_config.yaml.
+        # Try to separate stderr from stdout when supported by the installed
+        # Click version; older versions only support `mix_stderr=False` while
+        # newer ones combine streams unless an alternate API is used.
+        try:
+            runner = CliRunner(mix_stderr=False)
+            separate_streams = True
+        except TypeError:
+            runner = CliRunner()
+            separate_streams = False
+
+        result = runner.invoke(
+            cli,
+            [
+                "--verbose",
+                "generate",
+                "--env",
+                "dev",
+                "--pipeline-config",
+                "config/pipeline_config.yaml",
+            ],
+        )
+
+        # Expected: non-zero exit code
+        stderr_text = (
+            getattr(result, "stderr", "") if separate_streams else ""
+        ) or ""
+        stdout_text = result.output or ""
+        assert result.exit_code != 0, (
+            "Generate must fail fast when catalog/schema are missing from "
+            f"pipeline_config.yaml. Got exit_code={result.exit_code}, "
+            f"stdout={stdout_text!r}, stderr={stderr_text!r}"
+        )
+
+        # Expected: error output references the configure_catalog_schema doc
+        # via the LHPError-formatted "More info" link. The structured signal
+        # `configure_catalog_schema` (page slug) must appear and the error
+        # code `LHP-CFG-026` must be present; full wording is not asserted to
+        # keep the test resilient to copy edits. When stderr cannot be
+        # separated from stdout on the installed Click, accept the union.
+        combined = stderr_text + stdout_text
+        assert "configure_catalog_schema" in combined, (
+            "Error output must reference the configure_catalog_schema doc page.\n"
+            f"  stderr: {stderr_text!r}\n"
+            f"  stdout: {stdout_text!r}"
+        )
+        assert "LHP-CFG-026" in combined, (
+            "Error output must include the structured code LHP-CFG-026.\n"
+            f"  stderr: {stderr_text!r}\n"
+            f"  stdout: {stdout_text!r}"
+        )
+
+    def test_bundle_yaml_regenerated_every_run(self):
+        """Every `*.pipeline.yml` in `resources/lhp/` is regenerated on every run.
+
+        Wave-1 TDD: expected to FAIL against current Smart-Generation logic,
+        which preserves LHP-managed files unchanged on repeat runs.
+        """
+        # Run 1: produce baseline state
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, f"Initial generate should succeed: {output}"
+
+        pipeline_files = sorted(self.resources_dir.glob("*.pipeline.yml"))
+        assert (
+            pipeline_files
+        ), f"At least one *.pipeline.yml must exist after run 1 in {self.resources_dir}"
+
+        mtimes_run1 = {f.name: f.stat().st_mtime for f in pipeline_files}
+
+        # Bump past filesystem mtime resolution (1s on common POSIX FSes).
+        time.sleep(1.1)
+
+        # Run 2: should regenerate every file
+        exit_code, output = self.run_bundle_sync()
+        assert exit_code == 0, f"Second generate should succeed: {output}"
+
+        pipeline_files_after = sorted(self.resources_dir.glob("*.pipeline.yml"))
+        names_after = {f.name for f in pipeline_files_after}
+        names_before = set(mtimes_run1.keys())
+        assert names_after == names_before, (
+            "Set of *.pipeline.yml files should be identical across runs.\n"
+            f"  before: {sorted(names_before)}\n"
+            f"  after:  {sorted(names_after)}"
+        )
+
+        not_regenerated = []
+        for f in pipeline_files_after:
+            new_mtime = f.stat().st_mtime
+            old_mtime = mtimes_run1[f.name]
+            if new_mtime <= old_mtime:
+                not_regenerated.append(
+                    f"{f.name}: run1_mtime={old_mtime}, run2_mtime={new_mtime}"
+                )
+
+        assert not not_regenerated, (
+            "Every *.pipeline.yml must be regenerated (strictly newer mtime) on "
+            f"each run. Files that were not regenerated:\n  "
+            + "\n  ".join(not_regenerated)
+        )
 
     # ========================================================================
     # NEW E2E TESTS - BASELINE AND STATE MANAGEMENT
@@ -564,8 +714,7 @@ resources:
                         "dev",
                         "--pipeline-config",
                         "config/pipeline_config.yaml",
-                        "--force",
-                    ],
+                        ],
                     catch_exceptions=False,
                 )
             else:
@@ -899,7 +1048,21 @@ resources:
 
         # Run generation for specified environment
         runner = CliRunner()
-        result = runner.invoke(cli, ["--verbose", "generate", "--env", env])
+        pipeline_config = self.project_root / "config" / "pipeline_config.yaml"
+        if pipeline_config.exists():
+            result = runner.invoke(
+                cli,
+                [
+                    "--verbose",
+                    "generate",
+                    "--env",
+                    env,
+                    "--pipeline-config",
+                    "config/pipeline_config.yaml",
+                ],
+            )
+        else:
+            result = runner.invoke(cli, ["--verbose", "generate", "--env", env])
         assert result.exit_code == 0, f"Generation failed for {env}: {result.output}"
 
         return env_generated_dir
@@ -999,87 +1162,6 @@ resources:
 
         except (OSError, IOError, UnicodeDecodeError) as e:
             return f"Error comparing files: {e}"
-
-    def test_databricks_yml_variables_synchronization(self):
-        """Test that generate -e dev adds environment-specific variables to dev/tst targets in databricks.yml."""
-        # Step 1: Verify initial state of databricks.yml
-        databricks_yml_path = self.project_root / "databricks.yml"
-        assert (
-            databricks_yml_path.exists()
-        ), "databricks.yml should exist in test fixture"
-
-        # Read and parse initial YAML
-        with open(databricks_yml_path, "r") as f:
-            initial_config = yaml.safe_load(f)
-
-        # Verify initial conditions
-        targets = initial_config.get("targets", {})
-
-        # Prod should have variables
-        prod_target = targets.get("prod", {})
-        assert (
-            "variables" in prod_target
-        ), "prod target should have variables section initially"
-        initial_prod_variables = prod_target["variables"]
-
-        # Verify specific variables exist in prod
-        assert (
-            "default_pipeline_catalog" in initial_prod_variables
-        ), "prod should have default_pipeline_catalog"
-        assert (
-            "default_pipeline_schema" in initial_prod_variables
-        ), "prod should have default_pipeline_schema"
-        assert (
-            initial_prod_variables["default_pipeline_catalog"] == "acme_edw_prod"
-        ), "prod catalog should be acme_edw_prod"
-        assert (
-            initial_prod_variables["default_pipeline_schema"] == "edw_bronze"
-        ), "prod schema should be edw_bronze"
-
-        # Dev and tst should NOT have variables
-        dev_target = targets.get("dev", {})
-        tst_target = targets.get("tst", {})
-        assert (
-            "variables" not in dev_target
-        ), "dev target should NOT have variables section initially"
-        assert (
-            "variables" not in tst_target
-        ), "tst target should NOT have variables section initially"
-
-        print(" Initial state verified: prod has variables, dev/tst don't")
-
-        # Step 2: Run generate -e dev command
-        exit_code, output = self.run_bundle_sync()
-        assert exit_code == 0, f"Generate command should succeed: {output}"
-        print("Generate command executed successfully")
-
-        # Step 3: Compare generated databricks.yml with expected baseline
-        baseline_path = (
-            Path(__file__).parent
-            / "fixtures"
-            / "testing_project"
-            / "databricks_baseline.yml"
-        )
-        assert baseline_path.exists(), f"Baseline file should exist: {baseline_path}"
-
-        # Normalize content for cross-platform comparison
-        actual_content = (
-            databricks_yml_path.read_text().replace("\r\n", "\n").replace("\r", "\n")
-        )
-        expected_content = (
-            baseline_path.read_text().replace("\r\n", "\n").replace("\r", "\n")
-        )
-
-        # Compare normalized content instead of file hashes
-        files_match = actual_content == expected_content
-        file_diff = "" if files_match else "Content differs after normalization"
-
-        if file_diff:
-            assert False, f"Generated databricks.yml differs from baseline: {file_diff}"
-
-        print(" TEST COMPLETE: databricks.yml variables synchronization successful!")
-
-        # Test cleanup is handled by the setup_test_project fixture automatically
 
     def test_BM14_python_function_overwrite_behavior(self):
         """BM-14: Test that same source file changes overwrite existing copied file correctly."""

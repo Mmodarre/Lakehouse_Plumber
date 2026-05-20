@@ -1,0 +1,3 @@
+# Minimal substitutions for fail-fast fixture variant.
+dev:
+  env: dev

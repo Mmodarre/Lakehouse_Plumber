@@ -127,8 +127,11 @@ actions:
     def test_generate_command_with_local_variables(self):
         """Test that lhp generate command works with local variables."""
         runner = CliRunner()
-        result = runner.invoke(cli, ['generate', '-e', 'dev'])
-        
+        result = runner.invoke(
+            cli,
+            ['generate', '-e', 'dev', '--pipeline-config', 'config/pipeline_config.yaml'],
+        )
+
         # Should succeed without errors
         assert result.exit_code == 0, f"Generate command failed: {result.output}"
         

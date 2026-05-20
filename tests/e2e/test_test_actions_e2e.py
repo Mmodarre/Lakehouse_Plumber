@@ -72,7 +72,17 @@ class TestTestActionsE2E:
     def run_generate_with_tests(self) -> tuple:
         """Run 'lhp generate --env dev --force --include-tests'."""
         runner = CliRunner()
-        result = runner.invoke(cli, ["generate", "--env", "dev", "--include-tests"])
+        result = runner.invoke(
+            cli,
+            [
+                "generate",
+                "--env",
+                "dev",
+                "--include-tests",
+                "--pipeline-config",
+                "config/pipeline_config.yaml",
+            ],
+        )
         return result.exit_code, result.output
 
     def _compare_file_hashes(self, file1: Path, file2: Path) -> str:

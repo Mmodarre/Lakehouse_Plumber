@@ -4,7 +4,6 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock, patch
 
 import pytest
 import yaml
@@ -47,8 +46,16 @@ def test_table():
     pass
 """)
 
+        # Pipeline config with catalog/schema (required after refactor)
+        config_file = project_root / "pipeline_config.yaml"
+        config_file.write_text(
+            "project_defaults:\n"
+            "  catalog: test_catalog\n"
+            "  schema: test_schema\n"
+        )
+
         # Run bundle sync
-        manager = BundleManager(project_root)
+        manager = BundleManager(project_root, pipeline_config_path=str(config_file))
         manager.sync_resources_with_generated_files(generated_dir, "dev")
 
         # Verify resource file created in root-level directory (new behavior)
@@ -81,8 +88,16 @@ from pyspark import pipelines as dp
 dp.create_streaming_table(name="staging_catalog.staging_schema.staging_table")
 """)
 
+        # Pipeline config with catalog/schema (required after refactor)
+        config_file = project_root / "pipeline_config.yaml"
+        config_file.write_text(
+            "project_defaults:\n"
+            "  catalog: staging_catalog\n"
+            "  schema: staging_schema\n"
+        )
+
         # Generate resource file
-        manager = BundleManager(project_root)
+        manager = BundleManager(project_root, pipeline_config_path=str(config_file))
         content = manager.generate_resource_file_content(
             "data_pipeline", generated_dir, "staging"
         )
@@ -111,68 +126,6 @@ dp.create_streaming_table(name="staging_catalog.staging_schema.staging_table")
         source_path = pipeline_config["configuration"]["bundle.sourcePath"]
         assert source_path == "${workspace.file_path}/generated/${bundle.target}"
 
-    # Test 7: Bundle Sync with Environment
-    def test_bundle_sync_uses_correct_environment_directory(self):
-        """Verify BundleManager syncs to correct env directory."""
-        project_root = self.temp_dir / "sync_test"
-        project_root.mkdir()
-
-        # Enable bundle support
-        (project_root / "databricks.yml").write_text("bundle:\n  name: sync_test")
-
-        # Create files in generated/dev/
-        dev_dir = project_root / "generated" / "dev"
-        pipeline1_dir = dev_dir / "pipeline1"
-        pipeline1_dir.mkdir(parents=True)
-        (pipeline1_dir / "flow1.py").write_text("""
-from pyspark import pipelines as dp
-dp.create_streaming_table(name="dev_catalog.dev_schema.table1")
-""")
-
-        pipeline2_dir = dev_dir / "pipeline2"
-        pipeline2_dir.mkdir(parents=True)
-        (pipeline2_dir / "flow2.py").write_text("""
-from pyspark import pipelines as dp
-@dp.materialized_view(name="dev_catalog.dev_schema.table2")
-def table2():
-    pass
-""")
-
-        # Create files in generated/prod/
-        prod_dir = project_root / "generated" / "prod"
-        pipeline3_dir = prod_dir / "pipeline3"
-        pipeline3_dir.mkdir(parents=True)
-        (pipeline3_dir / "flow3.py").write_text("""
-from pyspark import pipelines as dp
-dp.create_streaming_table(name="prod_catalog.prod_schema.table3")
-""")
-
-        # Run sync for dev
-        manager = BundleManager(project_root)
-        manager.sync_resources_with_generated_files(dev_dir, "dev")
-
-        # Verify dev resources created at root level (new behavior)
-        root_resources = project_root / "resources" / "lhp"
-        assert (root_resources / "pipeline1.pipeline.yml").exists()
-        assert (root_resources / "pipeline2.pipeline.yml").exists()
-        # Note: pipeline3 doesn't exist yet since prod hasn't been generated
-
-        # Run sync for prod
-        manager.sync_resources_with_generated_files(prod_dir, "prod")
-
-        # Verify prod sync behavior (new behavior: orphaned files deleted)
-        # pipeline1 and pipeline2 don't exist in prod Python files, so they get deleted (Scenario 3)
-        # Only pipeline3 exists in prod, so only it gets created
-        assert (
-            root_resources / "pipeline3.pipeline.yml"
-        ).exists()  # New pipeline created
-        assert not (
-            root_resources / "pipeline1.pipeline.yml"
-        ).exists()  # Deleted (orphaned)
-        assert not (
-            root_resources / "pipeline2.pipeline.yml"
-        ).exists()  # Deleted (orphaned)
-
     # Test 8: State Management with New Paths
 
     # Test 9: Template Requires Env Parameter
@@ -184,7 +137,14 @@ dp.create_streaming_table(name="prod_catalog.prod_schema.table3")
         generated_dir = project_root / "generated"
         generated_dir.mkdir()
 
-        manager = BundleManager(project_root)
+        # Pipeline config with catalog/schema (required after refactor)
+        config_file = project_root / "pipeline_config.yaml"
+        config_file.write_text(
+            "project_defaults:\n"
+            "  catalog: test_catalog\n"
+            "  schema: test_schema\n"
+        )
+        manager = BundleManager(project_root, pipeline_config_path=str(config_file))
 
         # Test that env is required (should raise TypeError if missing)
         import pytest
@@ -210,54 +170,3 @@ dp.create_streaming_table(name="prod_catalog.prod_schema.table3")
         assert "(None)" not in header
         assert "Generated by LakehousePlumber" in header
 
-    # Test 10: Resource Directory Migration
-    def test_clean_slate_no_migration_required(self):
-        """Verify no automatic migration of old structure."""
-        project_root = self.temp_dir / "migration_test"
-        project_root.mkdir()
-
-        # Create old structure
-        old_generated = project_root / "generated" / "pipeline1"
-        old_generated.mkdir(parents=True)
-        (old_generated / "flow.py").write_text("# old generated file")
-
-        old_resources = project_root / "resources" / "lhp"
-        old_resources.mkdir(parents=True)
-        old_resource_file = old_resources / "pipeline1.pipeline.yml"
-        old_resource_file.write_text("""
-# Generated by LakehousePlumber - Bundle Resource for pipeline1
-resources:
-  pipelines:
-    pipeline1_pipeline:
-      catalog: old_catalog
-""")
-
-        # Create new environment-specific files
-        new_generated = project_root / "generated" / "dev" / "pipeline1"
-        new_generated.mkdir(parents=True)
-        (new_generated / "flow.py").write_text("# new generated file")
-
-        # Run bundle sync
-        manager = BundleManager(project_root)
-        manager.sync_resources_with_generated_files(
-            project_root / "generated" / "dev", "dev"
-        )
-
-        # Verify old files remain untouched (no automatic migration)
-        assert old_resource_file.exists(), "Old resource file should remain"
-        assert (
-            "old_catalog" in old_resource_file.read_text()
-        ), "Old content should be unchanged"
-
-        # Verify existing root-level file is preserved (Scenario 1a: DON'T TOUCH)
-        # Since old_resource_file has LHP header, it should be preserved unchanged
-        assert (
-            old_resource_file.exists()
-        ), "Root-level resource file should be preserved"
-        assert (
-            "old_catalog" in old_resource_file.read_text()
-        ), "Existing file should remain unchanged"
-
-        # Verify no automatic cleanup of old structure
-        assert old_generated.exists(), "Old generated directory should remain"
-        assert (old_generated / "flow.py").exists(), "Old generated file should remain"
