@@ -7,7 +7,6 @@ from pathlib import Path
 from lhp.utils.yaml_loader import (
     load_yaml_file,
     load_yaml_documents_all,
-    load_yaml_if_exists,
     safe_load_yaml_with_fallback,
 )
 from lhp.utils.error_formatter import MultiDocumentError, LHPError, ErrorCategory
@@ -271,56 +270,6 @@ class TestLoadYAMLFileValidation:
             load_yaml_file(multi_doc)
         
         assert exc_info.value.code == "LHP-IO-003"
-
-
-class TestLoadYAMLIfExists:
-    """Test load_yaml_if_exists() function for optional file loading."""
-    
-    def test_load_existing_file(self, tmp_path):
-        """Test loading file that exists."""
-        config_file = tmp_path / "config.yaml"
-        config_file.write_text("key: value\nnum: 42")
-        
-        result = load_yaml_if_exists(config_file)
-        assert result == {"key": "value", "num": 42}
-    
-    def test_load_missing_file_returns_default_none(self, tmp_path):
-        """Test loading missing file returns None by default."""
-        missing_file = tmp_path / "missing.yaml"
-        
-        result = load_yaml_if_exists(missing_file)
-        assert result is None
-    
-    def test_load_missing_file_returns_custom_default(self, tmp_path):
-        """Test loading missing file returns custom default value."""
-        missing_file = tmp_path / "missing.yaml"
-        
-        result = load_yaml_if_exists(missing_file, default_value={})
-        assert result == {}
-        
-        result = load_yaml_if_exists(missing_file, default_value={"default": "config"})
-        assert result == {"default": "config"}
-    
-    def test_load_with_error_context(self, tmp_path):
-        """Test that error_context is passed through to load_yaml_file."""
-        bad_file = tmp_path / "bad.yaml"
-        bad_file.write_text("a: 1\n---\nb: 2")  # Multi-document
-        
-        with pytest.raises(MultiDocumentError) as exc_info:
-            load_yaml_if_exists(bad_file, error_context="test config")
-        
-        assert "test config" in str(exc_info.value)
-    
-    def test_load_empty_file_with_allow_empty(self, tmp_path):
-        """Test loading empty file with allow_empty parameter."""
-        empty_file = tmp_path / "empty.yaml"
-        empty_file.write_text("---\n")  # Single null document
-        
-        result = load_yaml_if_exists(empty_file, allow_empty=True)
-        assert result == {}
-        
-        result = load_yaml_if_exists(empty_file, allow_empty=False)
-        assert result is None
 
 
 class TestSafeLoadYAMLWithFallback:

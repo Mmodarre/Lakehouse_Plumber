@@ -31,7 +31,7 @@ from typing import Dict, Sequence
 
 import pytest
 
-from lhp.core.pipeline_executor import group_by_pipeline, run_generate_pool
+from lhp.core.pipeline_executor import run_generate_pool
 from lhp.models.config import FlowGroupContext
 from lhp.models.processing import PipelineDelta
 
@@ -309,32 +309,3 @@ class TestRunGeneratePoolDeterminism:
                     run_content == baseline
                 ), "Non-deterministic outcome across repeated runs"
 
-
-@pytest.mark.unit
-class TestGroupByPipeline:
-    """:func:`group_by_pipeline` is a pure helper — no pool involved."""
-
-    def test_groups_by_pipeline_field(self):
-        contexts = [
-            _ctx(_FakeFlowGroup("p1", "a")),
-            _ctx(_FakeFlowGroup("p2", "b")),
-            _ctx(_FakeFlowGroup("p1", "c")),
-        ]
-        result = group_by_pipeline(contexts)
-        assert set(result) == {"p1", "p2"}
-        assert [ctx.flowgroup.flowgroup for ctx in result["p1"]] == ["a", "c"]
-        assert [ctx.flowgroup.flowgroup for ctx in result["p2"]] == ["b"]
-
-    def test_preserves_first_occurrence_order(self):
-        # Insertion order: pipelines first appear in this order: p2, p1, p3
-        contexts = [
-            _ctx(_FakeFlowGroup("p2", "x")),
-            _ctx(_FakeFlowGroup("p1", "y")),
-            _ctx(_FakeFlowGroup("p2", "z")),
-            _ctx(_FakeFlowGroup("p3", "w")),
-        ]
-        result = group_by_pipeline(contexts)
-        assert list(result.keys()) == ["p2", "p1", "p3"]
-
-    def test_empty_input_returns_empty_dict(self):
-        assert group_by_pipeline([]) == {}

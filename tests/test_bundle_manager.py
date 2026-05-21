@@ -672,19 +672,6 @@ class TestBundleManagerUtilityMethods:
 
         assert "does not exist" in str(exc_info.value)
 
-    def test_handle_pipeline_error_yaml_parsing(self):
-        """Test handling YAML parsing errors."""
-        from lhp.bundle.exceptions import YAMLParsingError
-
-        error = YAMLParsingError("YAML error")
-        result = self.manager._handle_pipeline_error(
-            "test_pipeline", error, "test operation"
-        )
-
-        assert isinstance(result, BundleResourceError)
-        assert "YAML processing failed" in str(result)
-        assert "test_pipeline" in str(result)
-
     def test_handle_pipeline_error_os_error(self):
         """Test handling OS errors."""
         error = OSError("Permission denied")

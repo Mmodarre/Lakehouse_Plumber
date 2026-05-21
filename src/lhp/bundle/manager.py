@@ -488,7 +488,7 @@ class BundleManager:
 
             except (LHPError, BundleResourceError):
                 # Structured errors (LHPError, BundleResourceError and its
-                # YAMLProcessingError/YAMLParsingError subclasses) propagate
+                # YAMLProcessingError subclasses) propagate
                 # as-is to the CLI error boundary.
                 raise
             except Exception as e:

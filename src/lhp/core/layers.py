@@ -152,15 +152,6 @@ class ApplicationLayer(ABC):
         pass
 
 
-class BusinessLayer(ABC):
-    """Interface for the business layer - contains business rules."""
-
-    @abstractmethod
-    def validate_configuration(self, pipeline_identifier: str, env: str) -> tuple:
-        """Validate configuration based on business rules."""
-        pass
-
-
 class DataLayer(ABC):
     """Interface for the data layer - handles data access and persistence."""
 

@@ -86,12 +86,18 @@ class TestEnsureProjectRoot:
 
     def test_ensure_project_root_no_project(self, tmp_path):
         """Lines 124-139: raises LHPError when _find_project_root returns None."""
-        from lhp.utils.error_formatter import LHPError
+        from lhp.utils.error_formatter import ErrorCategory, LHPError
 
         with patch("lhp.cli.main._find_project_root", return_value=None):
             with pytest.raises(LHPError) as exc_info:
                 _ensure_project_root()
-            assert "Not in a LakehousePlumber project directory" in exc_info.value.title
+            # Assert on structured error contract (category + code)
+            # instead of the human-readable title. The title text was
+            # copied verbatim from the source; the (category, code)
+            # tuple is the stable behavioral contract that downstream
+            # tooling (exit-code mapping, docs links) actually consumes.
+            assert exc_info.value.category == ErrorCategory.CONFIG
+            assert exc_info.value.code == "LHP-CFG-011"
 
     def test_ensure_project_root_found(self, tmp_path):
         """Happy path: returns the project root when found."""

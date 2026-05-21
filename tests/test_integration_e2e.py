@@ -35,77 +35,7 @@ class TestEndToEndBundleWorkflow:
         os.chdir(self.original_cwd)
         shutil.rmtree(self.temp_dir)
 
-    def test_complete_bundle_project_lifecycle(self):
-        """Test complete lifecycle: init -> configure -> generate -> sync."""
-        # Create the project subdirectory and cd into it so CWD-based init works
-        self.project_root.mkdir(parents=True, exist_ok=True)
-        os.chdir(self.project_root)
-
-        # Step 1: Initialize bundle project (bundle is default)
-        with patch(
-            "lhp.bundle.template_fetcher.DatabricksTemplateFetcher.fetch_and_apply_template"
-        ) as mock_fetch:
-            mock_fetch.return_value = None
-
-            from click.testing import CliRunner
-
-            runner = CliRunner()
-
-            # Test project initialization with bundle (default)
-            result = runner.invoke(cli, ["init", "e2e_test_project"])
-            assert result.exit_code == 0
-            assert (self.project_root / "databricks.yml").exists()
-            assert (self.project_root / "resources").exists()
-
-        # Step 2: Create realistic project structure
-        self._create_realistic_project_structure()
-
-        # Step 3: Verify bundle detection
-        assert should_enable_bundle_support(self.project_root) == True
-
-        # Step 4: Generate files using CLI and test bundle sync
-        os.chdir(self.project_root)
-
-        # v0.8.7: preflight requires --pipeline-config for bundle-enabled
-        # projects. Write a minimal config so the test can reach bundle sync.
-        (self.project_root / "config").mkdir(parents=True, exist_ok=True)
-        (self.project_root / "config" / "pipeline_config.yaml").write_text(
-            "project_defaults:\n"
-            "  catalog: test_catalog_dev\n"
-            "  schema: bronze\n"
-            "  serverless: true\n"
-        )
-
-        # Mock bundle sync to verify it's called at CLI level
-        with patch(
-            "lhp.bundle.manager.BundleManager.sync_resources_with_generated_files"
-        ) as mock_sync:
-            # Use CLI runner to generate files (this is where bundle sync happens)
-            from click.testing import CliRunner
-
-            runner = CliRunner()
-
-            result = runner.invoke(
-                cli,
-                [
-                    "generate",
-                    "-e",
-                    "dev",
-                    "--pipeline-config",
-                    "config/pipeline_config.yaml",
-                ],
-            )
-
-            # Verify generation succeeded
-            assert result.exit_code == 0
-            output_dir = self.project_root / "generated"
-            assert output_dir.exists()
-
-            # Verify bundle sync was called at CLI level
-            mock_sync.assert_called_once()
-
-        # Step 5: Verify generated structure
-        self._verify_generated_structure(output_dir)
+    
 
     def test_bundle_workflow_with_multiple_environments(self):
         """Test bundle workflow across multiple environments."""

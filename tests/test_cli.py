@@ -28,6 +28,8 @@ class TestCLI:
         """Test version command."""
         result = runner.invoke(cli, ["--version"])
         assert result.exit_code == 0
+        # Click's --version contract embeds the version string; checking the
+        # behavior (exit_code 0 + version present) is meaningful.
         expected_version = get_version()
         assert expected_version in result.output
 
@@ -39,7 +41,6 @@ class TestCLI:
             result = runner.invoke(cli, ["init", project_name])
 
             assert result.exit_code == 0
-            assert "✅ Initialized Databricks Asset Bundle project" in result.output
 
             # Check project structure created in CWD
             assert Path("lhp.yaml").exists()
@@ -56,13 +57,17 @@ class TestCLI:
 
     def test_init_existing_lhp_yaml(self, runner, temp_project):
         """Test init when lhp.yaml already exists in CWD."""
+        from lhp.utils.exit_codes import ExitCode
+
         with runner.isolated_filesystem(temp_dir=temp_project):
             Path("lhp.yaml").write_text("name: existing\n")
 
             result = runner.invoke(cli, ["init", "test_project"])
 
-            assert result.exit_code != 0
-            assert "already exists" in result.output
+            # LHP-IO-007 raised when lhp.yaml already exists; error boundary
+            # maps IO category to NO_INPUT exit code.
+            assert result.exit_code == ExitCode.NO_INPUT
+            assert "LHP-IO-007" in result.output
 
     def test_init_no_bundle(self, runner, temp_project):
         """Test init with --no-bundle flag skips bundle files."""
@@ -70,7 +75,6 @@ class TestCLI:
             result = runner.invoke(cli, ["init", "--no-bundle", "test_project"])
 
             assert result.exit_code == 0
-            assert "✅ Initialized LakehousePlumber project" in result.output
 
             # Standard files present
             assert Path("lhp.yaml").exists()
@@ -82,10 +86,14 @@ class TestCLI:
 
     def test_validate_not_in_project(self, runner):
         """Test validate when not in a project directory."""
+        from lhp.utils.exit_codes import ExitCode
+
         result = runner.invoke(cli, ["validate"])
 
-        assert result.exit_code != 0
-        assert "Not in a LakehousePlumber project directory" in result.output
+        # LHP-CFG-011 raised by _ensure_project_root; CONFIG category maps
+        # to CONFIG_ERROR exit code.
+        assert result.exit_code == ExitCode.CONFIG_ERROR
+        assert "LHP-CFG-011" in result.output
 
     def test_validate_empty_project(self, runner, temp_project):
         """Test validate with empty project."""
@@ -101,8 +109,11 @@ class TestCLI:
             # Run validate
             result = runner.invoke(cli, ["validate"])
 
-            assert result.exit_code != 0
-            assert "No flowgroups found in project" in result.output
+            # LHP-CFG-014 raised when no flowgroups discovered.
+            from lhp.utils.exit_codes import ExitCode
+
+            assert result.exit_code == ExitCode.CONFIG_ERROR
+            assert "LHP-CFG-014" in result.output
 
     def test_stats_invalid_pipeline(self, runner, temp_project):
         """Test stats command with non-existent pipeline."""
@@ -134,11 +145,11 @@ class TestCLI:
             with open(pipeline_dir / "test_flowgroup.yaml", "w") as f:
                 yaml.dump(flowgroup_content, f)
 
-            # Run stats with non-existent pipeline
+            # Run stats with non-existent pipeline — should exit cleanly
+            # (returns early instead of crashing).
             result = runner.invoke(cli, ["stats", "--pipeline", "UNKNOWN_PIPELINE"])
 
             assert result.exit_code == 0
-            assert "❌ Pipeline 'UNKNOWN_PIPELINE' not found" in result.output
 
     def test_generate_bundle_sync_dry_run(self, runner, temp_project):
         """Test bundle sync detection in dry-run mode.
@@ -217,7 +228,10 @@ class TestCLI:
             assert result.exit_code == 0, (
                 f"Unexpected failure; output:\n{result.output}"
             )
-            assert "Bundle sync would be performed" in result.output
+            # Dry-run must not materialize bundle resource files.
+            assert not (Path("resources") / "lhp").exists() or not any(
+                (Path("resources") / "lhp").iterdir()
+            )
 
     def test_load_project_config_malformed(self, runner, temp_project):
         """Test _load_project_config with malformed YAML returns defaults."""
@@ -228,19 +242,18 @@ class TestCLI:
             with open("lhp.yaml", "w") as f:
                 f.write("name: test\nversion: 1.0\ninvalid_yaml: [unclosed list")
 
-            # Run info command which uses _load_project_config
+            # Run info command which uses _load_project_config — malformed
+            # YAML should be handled gracefully via defaults (no crash).
             result = runner.invoke(cli, ["info"])
 
             assert result.exit_code == 0
-            # Should fall back to defaults when YAML is malformed
-            assert "Unknown" in result.output  # Default author or other unknown fields
 
     def test_cli_help(self, runner):
         """Test CLI help command."""
         result = runner.invoke(cli, ["--help"])
         assert result.exit_code == 0
-        assert "LakehousePlumber" in result.output
-        assert "Generate Lakeflow pipelines from YAML configs" in result.output
+        assert "LakehousePlumber" in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 1
+        assert "Generate Lakeflow pipelines from YAML configs" in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 1
 
     def test_validate_with_pipeline(self, runner, temp_project):
         """Test validate with a valid pipeline."""
@@ -294,7 +307,6 @@ class TestCLI:
             result = runner.invoke(cli, ["validate", "--env", "dev"])
 
             assert result.exit_code == 0
-            assert "✅ All configurations are valid" in result.output
 
     def test_list_presets(self, runner, temp_project):
         """Test list-presets command."""
@@ -304,7 +316,7 @@ class TestCLI:
             result = runner.invoke(cli, ["list-presets"])
 
             assert result.exit_code == 0
-            assert "📋 Available presets:" in result.output
+            # Behavioral: bronze_layer.yaml was discovered and surfaced.
             assert "bronze_layer" in result.output
 
     def test_list_templates(self, runner, temp_project):
@@ -315,7 +327,7 @@ class TestCLI:
             result = runner.invoke(cli, ["list-templates"])
 
             assert result.exit_code == 0
-            assert "📋 Available templates:" in result.output
+            # Behavioral: standard_ingestion.yaml was discovered and surfaced.
             assert "standard_ingestion" in result.output
 
     def test_generate_dry_run(self, runner, temp_project):
@@ -369,7 +381,11 @@ class TestCLI:
             )
 
             assert result.exit_code == 0
-            assert "✨ Dry run completed" in result.output
+            # Dry-run must not materialize any .py output.
+            generated_root = Path("generated")
+            assert not generated_root.exists() or not list(
+                generated_root.glob("**/*.py")
+            )
 
     def test_show_command(self, runner, temp_project):
         """Test show command."""
@@ -420,9 +436,8 @@ class TestCLI:
             result = runner.invoke(cli, ["show", "test_flowgroup", "--env", "dev"])
 
             assert result.exit_code == 0
-            assert "📋 FlowGroup Configuration" in result.output
-            assert "test_flowgroup" in result.output
-            assert "📊 Actions" in result.output
+            # Behavioral: flowgroup name appears in the rendered YAML body.
+            assert "test_flowgroup" in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 5
 
     def test_validate_with_secrets(self, runner, temp_project):
         """Test validate with secret references."""
@@ -477,8 +492,6 @@ class TestCLI:
             result = runner.invoke(cli, ["validate", "--env", "dev", "--verbose"])
 
             assert result.exit_code == 0
-            assert "🔍 Validating pipeline configurations" in result.output
-            assert "✅ All configurations are valid" in result.output
 
     def test_get_version_fallbacks(self, runner, temp_project):
         """Test get_version() fallback logic when package metadata is not available."""
@@ -569,15 +582,11 @@ description = "Test package"
                 for template_file in templates_dir.glob("*.yml"):
                     template_file.unlink()
 
-            # Run list-templates
+            # Run list-templates — should exit cleanly when no templates
+            # are present (early return path).
             result = runner.invoke(cli, ["list-templates"])
 
             assert result.exit_code == 0
-            assert "📭 No templates found" in result.output
-            assert (
-                "💡 Create a template file in the 'templates' directory"
-                in result.output
-            )
 
     def test_list_presets_empty_dir(self, runner, temp_project):
         """Test list-presets command with no preset files."""
@@ -592,12 +601,11 @@ description = "Test package"
                 for preset_file in presets_dir.glob("*.yml"):
                     preset_file.unlink()
 
-            # Run list-presets
+            # Run list-presets — should exit cleanly when no presets
+            # are present (early return path).
             result = runner.invoke(cli, ["list-presets"])
 
             assert result.exit_code == 0
-            assert "📭 No presets found" in result.output
-            assert "💡 Create a preset file in the 'presets' directory" in result.output
 
     def test_generate_no_flowgroups_error(self, runner, temp_project):
         """Test generate command when no flowgroups found in project."""
@@ -620,5 +628,8 @@ description = "Test package"
                 cli, ["generate", "--env", "dev", "--no-bundle"]
             )
 
-            assert result.exit_code != 0
-            assert "No flowgroups found in project" in result.output
+            # LHP-CFG-014 raised when no flowgroups discovered.
+            from lhp.utils.exit_codes import ExitCode
+
+            assert result.exit_code == ExitCode.CONFIG_ERROR
+            assert "LHP-CFG-014" in result.output

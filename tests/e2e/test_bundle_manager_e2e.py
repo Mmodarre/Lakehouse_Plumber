@@ -651,7 +651,7 @@ resources:
             f"Generate must fail when bundle is enabled and -pc is omitted. "
             f"exit_code={result.exit_code}, output={result.output!r}"
         )
-        assert "LHP-CFG-023" in result.output, (
+        assert "LHP-CFG-023" in result.output, (  # SNAPSHOT-TODO: re-target to new Rich output in Phase 2
             f"Expected LHP-CFG-023 in CLI output; got:\n{result.output}"
         )
 
@@ -709,11 +709,11 @@ resources:
             f"Generate must fail when catalog/schema are missing. "
             f"exit_code={result.exit_code}, output={result.output!r}"
         )
-        assert "LHP-CFG-026" in result.output, (
+        assert "LHP-CFG-026" in result.output, (  # SNAPSHOT-TODO: re-target to new Rich output in Phase 2
             f"Expected LHP-CFG-026 in CLI output; got:\n{result.output}"
         )
         # Aggregated message lists the offending pipeline name.
-        assert "simple_pipeline" in result.output, (
+        assert "simple_pipeline" in result.output, (  # SNAPSHOT-TODO: re-target to new Rich output in Phase 2
             f"Aggregated error must name the failing pipeline; got:\n{result.output}"
         )
 
@@ -755,7 +755,7 @@ resources:
             f"Dry-run must still fail B-gate. "
             f"exit_code={result.exit_code}, output={result.output!r}"
         )
-        assert "LHP-CFG-023" in result.output, (
+        assert "LHP-CFG-023" in result.output, (  # SNAPSHOT-TODO: re-target to new Rich output in Phase 2
             f"Expected LHP-CFG-023 specifically (not a generic error); "
             f"got:\n{result.output}"
         )

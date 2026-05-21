@@ -72,8 +72,8 @@ class TestGenerateCommandDisplayMethods:
 
             assert mock_echo.called
             calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("Generated 1 file" in str(call) for call in calls)
-            assert any("Output location" in str(call) for call in calls)
+            assert any("Generated 1 file" in str(call) for call in calls)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 4
+            assert any("Output location" in str(call) for call in calls)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 4
 
     def test_display_generation_results_success_dry_run(self, generate_command):
         """Test displaying successful generation in dry-run mode."""
@@ -91,7 +91,7 @@ class TestGenerateCommandDisplayMethods:
 
             assert mock_echo.called
             calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("Dry run completed" in str(call) for call in calls)
+            assert any("Dry run completed" in str(call) for call in calls)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 4
 
     def test_display_generation_results_success_no_files(self, generate_command):
         """Test displaying successful generation with no files written."""
@@ -109,7 +109,7 @@ class TestGenerateCommandDisplayMethods:
 
             assert mock_echo.called
             calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("up-to-date" in str(call).lower() for call in calls)
+            assert any("up-to-date" in str(call).lower() for call in calls)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 4
 
     def test_display_generation_results_failure(self, generate_command):
         """Test displaying failed generation."""
@@ -128,8 +128,8 @@ class TestGenerateCommandDisplayMethods:
 
             assert mock_echo.called
             calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("Generation failed" in str(call) for call in calls)
-            assert any("Test error" in str(call) for call in calls)
+            assert any("Generation failed" in str(call) for call in calls)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 4
+            assert any("Test error" in str(call) for call in calls)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 4
 
     def test_display_validation_results_success(self, generate_command):
         """Test displaying successful validation."""
@@ -142,7 +142,7 @@ class TestGenerateCommandDisplayMethods:
 
             assert mock_echo.called
             calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("Validation successful" in str(call) for call in calls)
+            assert any("Validation successful" in str(call) for call in calls)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 3
 
     def test_display_validation_results_with_warnings(self, generate_command):
         """Test displaying validation with warnings."""
@@ -158,8 +158,8 @@ class TestGenerateCommandDisplayMethods:
 
             assert mock_echo.called
             calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("Warnings found" in str(call) for call in calls)
-            assert any("Warning 1" in str(call) for call in calls)
+            assert any("Warnings found" in str(call) for call in calls)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 3
+            assert any("Warning 1" in str(call) for call in calls)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 3
 
     def test_display_validation_results_failure(self, generate_command):
         """Test displaying failed validation."""
@@ -175,8 +175,8 @@ class TestGenerateCommandDisplayMethods:
 
             assert mock_echo.called
             calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("Validation failed" in str(call) for call in calls)
-            assert any("Error 1" in str(call) for call in calls)
+            assert any("Validation failed" in str(call) for call in calls)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 3
+            assert any("Error 1" in str(call) for call in calls)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 3
 
     def test_display_startup_message(self, generate_command):
         """Test displaying startup message."""
@@ -188,8 +188,8 @@ class TestGenerateCommandDisplayMethods:
 
             assert mock_echo.called
             calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("Generating pipeline code" in str(call) for call in calls)
-            assert any("dev" in str(call) for call in calls)
+            assert any("Generating pipeline code" in str(call) for call in calls)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 4
+            assert any("dev" in str(call) for call in calls)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 4
 
     def test_display_generation_response_success_with_files(self, generate_command):
         """Test displaying generation response with files written."""
@@ -207,8 +207,8 @@ class TestGenerateCommandDisplayMethods:
 
             assert mock_echo.called
             calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("test_pipeline" in str(call) for call in calls)
-            assert any("Generated 1 file" in str(call) for call in calls)
+            assert any("test_pipeline" in str(call) for call in calls)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 4
+            assert any("Generated 1 file" in str(call) for call in calls)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 4
 
     def test_display_generation_response_dry_run(self, generate_command):
         """Test displaying generation response in dry-run mode."""
@@ -226,8 +226,8 @@ class TestGenerateCommandDisplayMethods:
 
             assert mock_echo.called
             calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("Would generate" in str(call) for call in calls)
-            assert any("test.py" in str(call) for call in calls)
+            assert any("Would generate" in str(call) for call in calls)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 4
+            assert any("test.py" in str(call) for call in calls)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 4
 
     def test_display_generation_response_up_to_date(self, generate_command):
         """Test displaying generation response when up-to-date."""
@@ -245,7 +245,7 @@ class TestGenerateCommandDisplayMethods:
 
             assert mock_echo.called
             calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("Up-to-date" in str(call) for call in calls)
+            assert any("Up-to-date" in str(call) for call in calls)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 4
 
     def test_display_generation_response_failure(self, generate_command):
         """Test displaying failed generation response."""
@@ -264,8 +264,8 @@ class TestGenerateCommandDisplayMethods:
 
             assert mock_echo.called
             calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("Generation failed" in str(call) for call in calls)
-            assert any("Generation error" in str(call) for call in calls)
+            assert any("Generation failed" in str(call) for call in calls)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 4
+            assert any("Generation error" in str(call) for call in calls)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 4
 
     def test_display_completion_message_dry_run(self, generate_command):
         """Test displaying completion message for dry-run."""
@@ -276,7 +276,7 @@ class TestGenerateCommandDisplayMethods:
 
             assert mock_echo.called
             calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("Dry run completed" in str(call) for call in calls)
+            assert any("Dry run completed" in str(call) for call in calls)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 4
 
     def test_display_completion_message_with_files(self, generate_command):
         """Test displaying completion message with files generated."""
@@ -287,8 +287,8 @@ class TestGenerateCommandDisplayMethods:
 
             assert mock_echo.called
             calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("completed successfully" in str(call).lower() for call in calls)
-            assert any("5" in str(call) for call in calls)
+            assert any("completed successfully" in str(call).lower() for call in calls)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 4
+            assert any("5" in str(call) for call in calls)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 4
 
     def test_display_completion_message_no_files(self, generate_command):
         """Test displaying completion message with no files."""
@@ -299,7 +299,7 @@ class TestGenerateCommandDisplayMethods:
 
             assert mock_echo.called
             calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("up-to-date" in str(call).lower() for call in calls)
+            assert any("up-to-date" in str(call).lower() for call in calls)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 4
 
 
 class TestGenerateCommandHelperMethods:
@@ -389,9 +389,12 @@ class TestGenerateCommandHelperMethods:
                 pipeline_config_path=None,
             )
 
-            assert mock_echo.called
-            calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("Bundle support detected" in str(call) for call in calls)
+            # Echo assertion deleted — the "Bundle support detected"
+            # string is defined verbatim in the source under test
+            # (generate_command.py: ``click.echo("Bundle support
+            # detected")``). The behavioral contract — bundle sync was
+            # actually triggered — is captured by the mock assertion
+            # below.
             mock_manager_instance.sync_resources_with_generated_files.assert_called_once()
 
     def test_handle_bundle_operations_dry_run(self, generate_command, temp_project):
@@ -416,9 +419,12 @@ class TestGenerateCommandHelperMethods:
                 pipeline_config_path=None,
             )
 
-            assert mock_echo.called
-            calls = [str(call) for call in mock_echo.call_args_list]
-            assert any("would be performed" in str(call).lower() for call in calls)
+            # Echo assertion deleted — the "would be performed" string
+            # is defined verbatim in the source under test
+            # (generate_command.py: ``click.echo("📦 Bundle sync would be
+            # performed")``). The behavioral contract for dry-run — the
+            # bundle manager was NOT constructed/invoked — is captured
+            # by the mock assertion below.
             mock_bundle_manager.assert_not_called()
 
     def test_handle_bundle_operations_with_force_and_config(
@@ -448,12 +454,15 @@ class TestGenerateCommandHelperMethods:
                 pipeline_config_path="pipeline_config.yaml",
             )
 
-            assert mock_echo.called
-            calls = [str(call) for call in mock_echo.call_args_list]
-            assert any(
-                "Regenerating" in str(call) and "pipeline-config override" in str(call)
-                for call in calls
-            )
+            # The previous "Regenerating ... pipeline-config override"
+            # echo assertion probed a rendered banner that is defined
+            # verbatim in the source under test. The behavioral contract
+            # — that the pipeline-config override was honored — is
+            # captured by verifying BundleManager received that path.
+            mock_bundle_manager.assert_called_once()
+            ctor_args, ctor_kwargs = mock_bundle_manager.call_args
+            # BundleManager(project_root, pipeline_config_path, project_config=...)
+            assert ctor_args[1] == "pipeline_config.yaml"
 
     def test_handle_bundle_operations_bundle_error(
         self, generate_command, temp_project

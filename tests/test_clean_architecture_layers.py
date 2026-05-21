@@ -1,24 +1,19 @@
 """Tests for Clean Architecture layer separation."""
 
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, Mock
+from unittest.mock import Mock
 
 import pytest
 
 from lhp.cli.commands.generate_command import GenerateCommand
 from lhp.core.layers import (
     ApplicationLayer,
-    BusinessLayer,
-    DataLayer,
     GenerationResponse,
     LakehousePlumberApplicationFacade,
     PipelineGenerationRequest,
     PipelineValidationRequest,
-    PresentationLayer,
     ValidationResponse,
 )
-from lhp.core.orchestrator import ActionOrchestrator
 
 
 class TestDataTransferObjects:
@@ -167,21 +162,6 @@ class TestApplicationFacade:
 
 class TestLayerInterfaces:
     """Test that layer interfaces are properly implemented."""
-
-    def test_orchestrator_implements_business_layer(self):
-        """Test that ActionOrchestrator implements BusinessLayer interface."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-            (project_root / "substitutions").mkdir()
-
-            orchestrator = ActionOrchestrator(project_root)
-
-        # Verify it implements BusinessLayer interface (via method existence)
-        # Note: Interface inheritance removed to avoid circular imports, but methods preserved
-        assert hasattr(orchestrator, "validate_configuration")
-
-        # Verify methods are callable
-        assert callable(getattr(orchestrator, "validate_configuration"))
 
     def test_application_facade_implements_application_layer(self):
         """Test that ApplicationFacade implements ApplicationLayer interface."""

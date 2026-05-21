@@ -287,23 +287,6 @@ class _PipelineProgress:
         return len(self.results) >= self.expected
 
 
-def group_by_pipeline(
-    contexts: Sequence["FlowGroupContext"],
-) -> Dict[str, List["FlowGroupContext"]]:
-    """Group FlowGroupContext envelopes by their pipeline field, preserving
-    insertion order.
-
-    Two flowgroups carrying the same ``pipeline`` value are merged
-    into one logical pipeline regardless of source directory.
-    Returned dict iteration order matches first-occurrence order for
-    deterministic reporting.
-    """
-    result: Dict[str, List["FlowGroupContext"]] = {}
-    for ctx in contexts:
-        result.setdefault(ctx.flowgroup.pipeline, []).append(ctx)
-    return result
-
-
 def run_generate_pool(
     *,
     flowgroups_by_pipeline: Mapping[str, Sequence["FlowGroupContext"]],

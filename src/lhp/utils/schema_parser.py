@@ -253,8 +253,3 @@ class SchemaParser:
                 errors.append(f"Column {i} 'nullable' must be boolean")
 
         return errors
-
-
-def create_schema_parser() -> SchemaParser:
-    """Factory function to create a schema parser."""
-    return SchemaParser()

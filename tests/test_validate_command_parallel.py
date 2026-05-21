@@ -120,7 +120,7 @@ class TestValidateCommandParallel:
                 # Each pipeline name should appear in the per-pipeline
                 # display section.
                 for name in self.PIPELINES:
-                    assert name in result.output, (
+                    assert name in result.output, (  # SNAPSHOT-TODO: re-target to new Rich output in Phase 3
                         f"Pipeline {name} missing from validate output:\n"
                         f"{result.output}"
                     )
@@ -157,7 +157,7 @@ class TestValidateCommandParallel:
 
                 # Both runs should report the same per-pipeline names.
                 for name in self.PIPELINES:
-                    assert name in par_result.output
-                    assert name in seq_result.output
+                    assert name in par_result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 3
+                    assert name in seq_result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 3
             finally:
                 os.chdir(cwd)

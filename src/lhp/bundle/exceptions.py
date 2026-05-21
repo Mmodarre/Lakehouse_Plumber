@@ -102,15 +102,6 @@ class YAMLProcessingError(BundleResourceError):
         super().__init__(full_message, original_error)
 
 
-class YAMLParsingError(YAMLProcessingError):
-    """
-    Alias for YAMLProcessingError for backward compatibility and clearer semantics.
-
-    This exception is specifically for YAML parsing errors.
-    """
-
-    pass
-
 
 class BundleConfigurationError(BundleResourceError):
     """
