@@ -3,7 +3,7 @@
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Optional, Set
+from typing import Dict, Optional
 
 import click
 

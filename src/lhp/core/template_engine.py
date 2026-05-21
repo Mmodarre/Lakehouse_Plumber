@@ -12,7 +12,6 @@ from ..parsers.yaml_parser import YAMLParser
 from ..utils.error_formatter import (
     ErrorCategory,
     ErrorFormatter,
-    LHPConfigError,
     LHPValidationError,
 )
 

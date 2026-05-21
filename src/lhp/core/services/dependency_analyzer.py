@@ -9,10 +9,8 @@ import networkx as nx
 
 from ...models.config import Action, ActionType, FlowGroup, FlowGroupContext
 from ...models.dependencies import (
-    ActionDependencyInfo,
     DependencyAnalysisResult,
     DependencyGraphs,
-    FlowgroupDependencyInfo,
     PipelineDependency,
 )
 from ...parsers.yaml_parser import CachingYAMLParser, YAMLParser
@@ -248,7 +246,6 @@ class DependencyAnalyzer:
         if not flowgroups:
             self.logger.warning("No flowgroups found for analysis")
             # Return empty results - create minimal result for consistency
-            from ...models.dependencies import DependencyGraphs
 
             empty_graphs = self._create_empty_graphs()
             empty_result = DependencyAnalysisResult(

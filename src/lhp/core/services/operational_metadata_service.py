@@ -1,7 +1,7 @@
 """Service for handling operational metadata across all generators."""
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict
 
 from ...utils.operational_metadata import OperationalMetadata
 

@@ -4,7 +4,6 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Union
 
-import yaml
 
 from .error_formatter import ErrorFormatter, LHPError
 

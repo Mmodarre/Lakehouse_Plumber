@@ -3,8 +3,7 @@
 import logging
 from typing import List
 
-from ...models.config import Action, TestActionType, ViolationAction
-from ...utils.error_formatter import ErrorFormatter
+from ...models.config import Action, TestActionType
 
 logger = logging.getLogger(__name__)
 

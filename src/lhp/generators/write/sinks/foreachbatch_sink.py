@@ -6,9 +6,7 @@ from typing import Any, Dict
 
 from ....models.config import Action
 from ....utils.error_formatter import (
-    ErrorCategory,
     ErrorFormatter,
-    LHPValidationError,
 )
 from .base_sink import BaseSinkWriteGenerator
 

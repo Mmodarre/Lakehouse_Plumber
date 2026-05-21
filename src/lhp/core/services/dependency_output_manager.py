@@ -438,7 +438,6 @@ class DependencyOutputManager:
         Returns:
             Path or Dict[str, Path] - single path for backward compat, dict for multiple jobs
         """
-        from ...models.config import FlowGroup
 
         # Create JobGenerator with project root and config path
         job_generator = JobGenerator(

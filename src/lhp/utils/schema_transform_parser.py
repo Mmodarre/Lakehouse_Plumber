@@ -3,16 +3,13 @@
 import logging
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
 import yaml
 
 from ..parsers.yaml_parser import YAMLParser
 from ..utils.error_formatter import (
-    ErrorCategory,
     ErrorFormatter,
-    LHPFileError,
-    LHPValidationError,
 )
 
 logger = logging.getLogger(__name__)

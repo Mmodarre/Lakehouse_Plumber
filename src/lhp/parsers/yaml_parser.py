@@ -3,7 +3,6 @@ import threading
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar
 
-import yaml
 
 from ..models.config import ActionType, FlowGroup, Preset, Template
 from ..utils.error_formatter import (

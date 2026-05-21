@@ -3,9 +3,8 @@
 import logging
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
-import yaml
 
 from ...utils.error_formatter import (
     ErrorCategory,

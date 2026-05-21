@@ -3,7 +3,7 @@
 import fnmatch
 import logging
 from pathlib import Path
-from typing import List, Set, Union
+from typing import List
 
 
 class FilePatternMatcher:
@@ -118,9 +118,6 @@ class FilePatternMatcher:
 
     def _matches_recursive_pattern(self, file_path: str, pattern: str) -> bool:
         """Match file path against recursive pattern (containing **)."""
-        # Use pathlib for recursive matching
-        path = Path(file_path)
-
         # Create a Path object from the pattern for glob matching
         # We need to match against the parent directory structure
 

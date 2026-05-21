@@ -1,15 +1,13 @@
 """Kafka load generator"""
 
 import logging
-from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action
 from ...utils.error_formatter import (
     ErrorCategory,
     ErrorFormatter,
-    LHPError,
     LHPValidationError,
 )
 from ...utils.kafka_validator import KafkaOptionsValidator
@@ -114,8 +112,6 @@ class KafkaLoadGenerator(BaseActionGenerator):
         # Validate mandatory options are present
         self._validate_mandatory_options(reader_options, action.name)
 
-        # Handle operational metadata
-        flowgroup = context.get("flowgroup")
         # Handle operational metadata
         add_operational_metadata, metadata_columns = self._get_operational_metadata(
             action, context

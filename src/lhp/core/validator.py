@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import logging
-from collections import defaultdict
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, List
 
-from ..models.config import Action, ActionType, FlowGroup, WriteTargetType
+from ..models.config import Action, ActionType, FlowGroup
 from ..utils.error_formatter import LHPError
 from .action_registry import ActionRegistry
 from .config_field_validator import ConfigFieldValidator
@@ -25,7 +24,7 @@ from .validators import (
 )
 
 if TYPE_CHECKING:
-    from ..models.config import WriteTarget
+    pass
 
 
 class ConfigValidator:
