@@ -1,0 +1,50 @@
+# B5.3 fixture — temp_table transform (intermediate staging table).
+# Chain: delta load (raw) -> temp_table transform (intermediate) -> sql transform
+# -> materialized_view write. Demonstrates the intermediate-staging use case:
+# the temp_table materializes a streaming view so two downstream transforms can
+# read from it without recomputing the source.
+pipeline: 16_temp_table
+flowgroup: staging_chain
+
+actions:
+  - name: load_raw_orders
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: "orders"
+    target: v_raw_orders
+    description: "Load raw orders from bronze for staging"
+
+  - name: stage_orders_intermediate
+    type: transform
+    transform_type: temp_table
+    source: v_raw_orders
+    target: staging_orders
+    readMode: stream
+    description: "Materialize raw orders as an intermediate staging table"
+
+  - name: aggregate_orders_summary
+    type: transform
+    transform_type: sql
+    source: staging_orders
+    target: v_orders_summary
+    sql: |
+      SELECT
+        DATE(order_date) AS order_day,
+        COUNT(*) AS order_count,
+        SUM(total_amount) AS total_revenue
+      FROM staging_orders
+      GROUP BY DATE(order_date)
+    description: "Aggregate staged orders into daily summary"
+
+  - name: write_orders_summary
+    type: write
+    source: v_orders_summary
+    write_target:
+      type: materialized_view
+      database: "${catalog}.${gold_schema}"
+      table: "orders_daily_summary"
+      comment: "Daily order summary computed off the staging temp_table"

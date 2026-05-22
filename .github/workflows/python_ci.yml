@@ -67,7 +67,7 @@ jobs:
           # Run unit tests sequentially (fast anyway)
           pytest tests/ --ignore=tests/e2e --cov --cov-branch --junitxml=junit-unit.xml -o junit_family=legacy
           # Run e2e tests sequentially to avoid race conditions with Black formatter
-          pytest tests/e2e --cov --cov-append --cov-branch --cov-report=xml --cov-fail-under=40 --junitxml=junit-e2e.xml -o junit_family=legacy
+          pytest tests/e2e -n auto --cov --cov-append --cov-branch --cov-report=xml --cov-fail-under=40 --junitxml=junit-e2e.xml -o junit_family=legacy
         else
           echo "No tests directory found, skipping tests"
         fi
@@ -149,10 +149,65 @@ jobs:
     - name: Test with pytest (e2e only)
       run: |
         if (Test-Path tests\e2e) {
-          pytest tests\e2e --cov --cov-branch --cov-report=xml --junitxml=junit-e2e-windows.xml -o junit_family=legacy
+          pytest tests\e2e -n auto --cov --cov-branch --cov-report=xml --junitxml=junit-e2e-windows.xml -o junit_family=legacy
         } else {
           Write-Host "No e2e tests directory found, skipping tests"
         }
+
+  # Ensures pyproject.toml's version and CHANGELOG.md stay in sync.
+  # Lives in this workflow because publish.yml gates PyPI on "Tests" succeeding.
+  changelog-check:
+    runs-on: ubuntu-latest
+
+    env:
+      LHP_DISABLE_ANALYTICS: 1
+
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      with:
+        fetch-depth: 0
+
+    - name: Verify pyproject version has matching CHANGELOG header
+      run: |
+        version=$(grep -E '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+        if [ -z "$version" ]; then
+          echo "::error file=pyproject.toml::Could not extract version line from pyproject.toml"
+          exit 1
+        fi
+        if ! grep -qE "^## \[$version\] " CHANGELOG.md; then
+          echo "::error file=CHANGELOG.md::pyproject.toml version is $version but CHANGELOG.md has no '## [$version] — YYYY-MM-DD' header. Either add an entry for $version or revert the version bump."
+          exit 1
+        fi
+        echo "[OK] CHANGELOG.md has header for version $version"
+      shell: bash
+
+    - name: Verify CHANGELOG.md was updated if version bumped in this PR
+      if: github.event_name == 'pull_request'
+      run: |
+        base="${{ github.event.pull_request.base.sha }}"
+        head="${{ github.event.pull_request.head.sha }}"
+
+        version_changed=false
+        if git diff "$base" "$head" -- pyproject.toml | grep -qE '^[+-]version = '; then
+          version_changed=true
+        fi
+
+        changelog_changed=false
+        if git diff --name-only "$base" "$head" | grep -qx 'CHANGELOG.md'; then
+          changelog_changed=true
+        fi
+
+        if [ "$version_changed" = "true" ] && [ "$changelog_changed" = "false" ]; then
+          echo "::error file=CHANGELOG.md::pyproject.toml version was bumped in this PR but CHANGELOG.md was not updated. Add an entry for the new version (rename [Unreleased] to the new version, or add a new ## [X.Y.Z] block)."
+          exit 1
+        fi
+
+        if [ "$version_changed" = "true" ]; then
+          echo "[OK] Version bump detected and CHANGELOG.md was updated"
+        else
+          echo "[OK] No version bump in this PR; changelog sync gate not applicable"
+        fi
+      shell: bash
 
   # Separate job for testing import functionality across platforms
   test-import:

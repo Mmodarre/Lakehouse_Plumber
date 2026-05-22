@@ -4,7 +4,6 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List
 
-import yaml
 
 from ...core.base_generator import BaseActionGenerator
 from ...models.config import Action

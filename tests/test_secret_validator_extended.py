@@ -114,54 +114,47 @@ class TestSecretValidator:
         assert validator._is_valid_key_format("key!value") is False
         assert validator._is_valid_key_format("key.value") is False
 
-    def test_set_available_scopes(self):
-        """Should update available scopes via set_available_scopes."""
+    
+
+    def test_validate_secret_references_invalid_scope_syntax(self):
+        """Should return error when scope name has invalid syntax."""
         validator = SecretValidator()
-        assert validator.available_scopes == set()
 
-        validator.set_available_scopes({"prod_secrets", "dev_secrets"})
-        assert validator.available_scopes == {"prod_secrets", "dev_secrets"}
-
-    def test_validate_secret_references_scope_not_available(self):
-        """Should return error when scope is not in available scopes."""
-        validator = SecretValidator()
-        validator.set_available_scopes({"prod_secrets", "dev_secrets"})
-
-        refs = {SecretReference(scope="unknown_scope", key="mykey")}
+        # Space and `!` are not in the alphanumeric/underscore/hyphen allowlist.
+        refs = {SecretReference(scope="bad scope!", key="mykey")}
         errors = validator.validate_secret_references(refs)
 
         assert len(errors) == 1
-        assert "unknown_scope" in errors[0]
-        assert "not found" in errors[0]
+        assert "bad scope!" in errors[0]
+        assert "alphanumeric" in errors[0]
 
     def test_validate_secret_references_multiple_invalid_scopes(self):
-        """Should return an error for each invalid scope."""
+        """Should return an error for each syntactically-invalid scope."""
         validator = SecretValidator()
-        validator.set_available_scopes({"prod_secrets"})
 
         refs = {
-            SecretReference(scope="bad_scope_1", key="key1"),
-            SecretReference(scope="bad_scope_2", key="key2"),
+            SecretReference(scope="bad scope 1", key="key1"),
+            SecretReference(scope="bad.scope.2", key="key2"),
         }
         errors = validator.validate_secret_references(refs)
 
         assert len(errors) == 2
 
     def test_validate_secret_references_valid_refs_empty_errors(self):
-        """Should return empty errors list for valid references."""
-        validator = SecretValidator(available_scopes={"my_scope"})
+        """Should return empty errors list for syntactically-valid references."""
+        validator = SecretValidator()
 
         refs = {
             SecretReference(scope="my_scope", key="db_password"),
-            SecretReference(scope="my_scope", key="api-key"),
+            SecretReference(scope="my-scope", key="api-key"),
         }
         errors = validator.validate_secret_references(refs)
 
         assert errors == []
 
-    def test_validate_secret_references_no_available_scopes_skips_scope_check(self):
-        """Should skip scope validation when no available_scopes are set."""
-        validator = SecretValidator()  # No available_scopes
+    def test_validate_secret_references_syntactically_valid_scope_no_error(self):
+        """Syntactically-valid scopes produce no error (existence is enforced at runtime by Databricks)."""
+        validator = SecretValidator()
 
         refs = {SecretReference(scope="any_scope", key="any_key")}
         errors = validator.validate_secret_references(refs)
@@ -211,25 +204,16 @@ class TestSecretValidator:
         assert errors == []
 
     def test_validate_secret_references_scope_and_key_errors_combined(self):
-        """Should return errors for both invalid scope and invalid key."""
-        validator = SecretValidator(available_scopes={"valid_scope"})
+        """Should return errors for both invalid scope syntax and invalid key."""
+        validator = SecretValidator()
 
-        refs = {SecretReference(scope="bad_scope", key="bad key!")}
+        refs = {SecretReference(scope="bad scope!", key="bad key!")}
         errors = validator.validate_secret_references(refs)
 
         assert len(errors) == 2
-        assert any("not found" in e for e in errors)
+        assert any("bad scope!" in e for e in errors)
         assert any("Invalid secret key format" in e for e in errors)
 
-    def test_init_with_available_scopes(self):
-        """Should accept available_scopes in constructor."""
-        scopes = {"scope_a", "scope_b"}
-        validator = SecretValidator(available_scopes=scopes)
+    
 
-        assert validator.available_scopes == scopes
-
-    def test_init_without_available_scopes(self):
-        """Should default to empty set when no available_scopes provided."""
-        validator = SecretValidator()
-
-        assert validator.available_scopes == set()
+    

@@ -257,7 +257,6 @@ class TransformActionValidator(BaseActionValidator):
         else:
             # Check if module file exists (if project_root is available)
             if self.project_root:
-                from pathlib import Path
 
                 module_path = getattr(action, "module_path")
                 source_file = self.project_root / module_path

@@ -10,8 +10,8 @@ __author__ = "LHP Development Team"
 
 # Re-export main classes for convenience
 try:
-    from .manager import BundleManager
     from .exceptions import BundleResourceError
+    from .manager import BundleManager
 
     __all__ = [
         "BundleManager",

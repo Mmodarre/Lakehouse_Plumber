@@ -1,0 +1,15 @@
+# B1 fixture — referential_integrity test action
+# Validates foreign-key relationships across two tables.
+pipeline: 12_test_actions
+flowgroup: ta_referential_integrity
+
+actions:
+  - name: ta_orders_customer_fk
+    type: test
+    test_type: referential_integrity
+    source: "${catalog}.${silver_schema}.fact_orders"
+    reference: "${catalog}.${silver_schema}.dim_customer"
+    source_columns: [customer_id]
+    reference_columns: [customer_id]
+    on_violation: warn
+    description: "Ensure orders reference valid customers"

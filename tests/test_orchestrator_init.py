@@ -1,13 +1,15 @@
 """Tests for ActionOrchestrator initialization and configuration."""
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
-from pathlib import Path
 import os
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 from lhp.core.orchestrator import ActionOrchestrator
-from lhp.models.config import FlowGroup
-from lhp.utils.error_formatter import LHPError, ErrorCategory
+from lhp.models.config import FlowGroup, FlowGroupContext
+from lhp.utils.error_formatter import ErrorCategory, LHPError
+from tests.helpers import wrap_in_ctx as _wrap_in_ctx
 
 
 class TestActionOrchestratorInitialization:
@@ -558,12 +560,12 @@ class TestActionOrchestratorFlowgroupDiscovery:
                 pipeline_field=nonexistent_pipeline, env="dev"
             )
 
-            # Assert - should return empty dict, not raise exception
-            assert result == {}
-            assert isinstance(result, dict)
+            # Assert - should return empty tuple, not raise exception
+            assert result == ()
+            assert isinstance(result, tuple)
 
     def test_no_flowgroups_found_returns_empty_dict(self, orchestrator_basic):
-        """Test no flowgroups found returns empty dict and logs warning."""
+        """Test no flowgroups found returns empty tuple and logs warning."""
         # Arrange
         pipeline_name = "empty_pipeline"
 
@@ -576,9 +578,9 @@ class TestActionOrchestratorFlowgroupDiscovery:
                 pipeline_field=pipeline_name, env="dev"
             )
 
-            # Assert - should return empty dict, not raise exception
-            assert result == {}
-            assert isinstance(result, dict)
+            # Assert - should return empty tuple, not raise exception
+            assert result == ()
+            assert isinstance(result, tuple)
 
     def test_include_patterns_filtering_applied_correctly(self, orchestrator_basic):
         """Test include patterns are applied correctly in filtering."""
@@ -634,80 +636,7 @@ class TestActionOrchestratorFlowgroupDiscovery:
             mock_flowgroups
         )
 
-    def test_yaml_parsing_fails_continue_with_warnings(self, orchestrator_basic):
-        """Test YAML parsing fails for some files but continues with warnings."""
-        # This tests the behavior in generate_pipeline_by_field when parsing new files
-        # Arrange
-        pipeline_field = "test_pipeline"
-
-        # Mock discoverer to return flowgroups
-        from lhp.models.config import FlowGroup
-
-        mock_flowgroup = Mock(
-            spec=FlowGroup, pipeline=pipeline_field, flowgroup="test_flowgroup"
-        )
-        mock_flowgroup.actions = []  # Strategy code expects actions attribute
-        mock_flowgroup._synthetic = False
-        orchestrator_basic.mock_discoverer.discover_all_flowgroups.return_value = [
-            mock_flowgroup
-        ]
-        orchestrator_basic.config_validator.validate_duplicate_pipeline_flowgroup.return_value = (
-            []
-        )
-
-        # Mock state manager with new files that cause parsing errors.
-        # _apply_smart_generation_filtering now pulls per-pipeline info via the
-        # env-wide get_all_files_needing_generation (reused through StalenessCache).
-        mock_state_manager = Mock()
-        # Stored context matches current run so the context gate does NOT fire —
-        # this test is exercising YAML parse-error recovery, not context handling.
-        mock_state_manager.state.last_generation_context = {
-            "dev": {"include_tests": "False"}
-        }
-        generation_info = {
-            "new": [Path("/path/to/invalid.yaml"), Path("/path/to/valid.yaml")],
-            "stale": [],
-            "up_to_date": [],
-        }
-        mock_state_manager.get_files_needing_generation.return_value = generation_info
-        mock_state_manager.get_all_files_needing_generation.return_value = {
-            pipeline_field: generation_info
-        }
-
-        # Mock YAML parser to fail on first file, succeed on second
-        # Note: parse_flowgroups_from_file returns a LIST of flowgroups
-        def parse_side_effect(yaml_path):
-            if "invalid.yaml" in str(yaml_path):
-                raise Exception("YAML parsing failed")
-            else:
-                mock_fg = Mock(spec=FlowGroup)
-                mock_fg.flowgroup = "valid_flowgroup"
-                mock_fg.actions = []  # Strategy code expects actions attribute
-                return [mock_fg]  # Return list of flowgroups
-
-        orchestrator_basic.yaml_parser.parse_flowgroups_from_file.side_effect = (
-            parse_side_effect
-        )
-
-        with patch.object(orchestrator_basic, "logger") as mock_logger:
-            # Act
-            result = orchestrator_basic.generate_pipeline_by_field(
-                pipeline_field=pipeline_field,
-                env="dev",
-                output_dir=None,  # Dry run to avoid file operations
-                state_manager=mock_state_manager,
-                force_all=False,
-            )
-
-            # Assert - should complete successfully despite parsing error
-            assert isinstance(result, dict)
-            # Should log warning about parsing failure
-            warning_calls = [
-                call
-                for call in mock_logger.warning.call_args_list
-                if "Could not parse new flowgroup" in str(call)
-            ]
-            assert len(warning_calls) > 0  # At least one warning should be logged
+    # At least one warning should be logged
 
     def test_pipeline_field_multiple_matches_returns_all(self, orchestrator_basic):
         """Test pipeline field matches multiple flowgroups returns all matches."""
@@ -1136,391 +1065,6 @@ class TestActionOrchestratorActionAnalysis:
         ]
 
 
-class TestActionOrchestratorBundleSynchronization:
-    """Test ActionOrchestrator bundle resource synchronization logic."""
-
-    @pytest.fixture
-    def mock_project_root(self):
-        """Mock project root path."""
-        return Path("/mock/project")
-
-    @pytest.fixture
-    def orchestrator_bundle(self, mock_project_root):
-        """Create orchestrator for bundle synchronization testing."""
-        with (
-            patch("lhp.core.orchestrator.YAMLParser"),
-            patch("lhp.core.orchestrator.PresetManager"),
-            patch("lhp.core.orchestrator.TemplateEngine"),
-            patch("lhp.core.orchestrator.ProjectConfigLoader") as mock_config_loader,
-            patch("lhp.core.orchestrator.ActionRegistry"),
-            patch("lhp.core.orchestrator.ConfigValidator"),
-            patch("lhp.core.orchestrator.SecretValidator"),
-            patch("lhp.core.orchestrator.DependencyResolver"),
-            patch("lhp.core.orchestrator.FlowgroupDiscoverer"),
-            patch("lhp.core.orchestrator.FlowgroupProcessor"),
-            patch("lhp.core.orchestrator.CodeGenerator"),
-            patch("lhp.core.orchestrator.PipelineValidator"),
-        ):
-
-            # Configure mocks
-            mock_config_loader_instance = Mock()
-            mock_config_loader.return_value = mock_config_loader_instance
-            mock_config_loader_instance.load_project_config.return_value = None
-
-            # Create orchestrator
-            orchestrator = ActionOrchestrator(mock_project_root, enforce_version=False)
-
-            return orchestrator
-
-    def test_bundle_support_disabled_skips_sync_and_logs_debug(
-        self, orchestrator_bundle
-    ):
-        """Test bundle support disabled skips sync and logs debug message."""
-        # Arrange
-        output_dir = Path("/output")
-        environment = "dev"
-
-        # Mock bundle detection to return False (disabled)
-        with (
-            patch(
-                "lhp.utils.bundle_detection.should_enable_bundle_support"
-            ) as mock_should_enable,
-            patch.object(orchestrator_bundle, "logger") as mock_logger,
-        ):
-
-            mock_should_enable.return_value = False
-
-            # Act
-            orchestrator_bundle._sync_bundle_resources(output_dir, environment)
-
-            # Assert
-            mock_should_enable.assert_called_once_with(orchestrator_bundle.project_root)
-
-            # Should log debug message about bundle support being disabled
-            debug_calls = [str(call) for call in mock_logger.debug.call_args_list]
-            disabled_logged = any(
-                "Bundle support disabled" in call for call in debug_calls
-            )
-            assert disabled_logged
-
-            # Should return early without attempting import or sync
-            mock_logger.info.assert_not_called()  # No success message
-
-    def test_bundle_support_enabled_attempts_synchronization(self, orchestrator_bundle):
-        """Test bundle support enabled attempts synchronization."""
-        # Arrange
-        output_dir = Path("/output")
-        environment = "dev"
-
-        # Mock bundle detection to return True (enabled)
-        with (
-            patch(
-                "lhp.utils.bundle_detection.should_enable_bundle_support"
-            ) as mock_should_enable,
-            patch("lhp.bundle.manager.BundleManager") as mock_bundle_manager_class,
-            patch.object(orchestrator_bundle, "logger") as mock_logger,
-        ):
-
-            mock_should_enable.return_value = True
-
-            # Mock BundleManager creation and sync
-            mock_bundle_manager = Mock()
-            mock_bundle_manager_class.return_value = mock_bundle_manager
-            mock_bundle_manager.sync_resources_with_generated_files.return_value = None
-
-            # Act
-            orchestrator_bundle._sync_bundle_resources(output_dir, environment)
-
-            # Assert
-            mock_should_enable.assert_called_once_with(orchestrator_bundle.project_root)
-
-            # Should create BundleManager with project root and pipeline_config_path
-            mock_bundle_manager_class.assert_called_once_with(
-                orchestrator_bundle.project_root,
-                orchestrator_bundle.pipeline_config_path,
-                project_config=orchestrator_bundle.project_config,
-            )
-
-            # Should call sync_resources_with_generated_files
-            mock_bundle_manager.sync_resources_with_generated_files.assert_called_once_with(
-                output_dir, environment
-            )
-
-            # Should log debug and success messages
-            debug_calls = [str(call) for call in mock_logger.debug.call_args_list]
-            starting_logged = any(
-                "Starting bundle resource synchronization" in call
-                for call in debug_calls
-            )
-            assert starting_logged
-
-            info_calls = [str(call) for call in mock_logger.info.call_args_list]
-            success_logged = any(
-                "Bundle resource synchronization completed successfully" in call
-                for call in info_calls
-            )
-            assert success_logged
-
-    def test_bundle_manager_import_fails_logs_debug_and_continues(
-        self, orchestrator_bundle
-    ):
-        """Test BundleManager import fails logs debug message and continues."""
-        # Arrange
-        output_dir = Path("/output")
-        environment = "dev"
-
-        # Mock bundle detection to return True, but simulate ImportError in the try block
-        with (
-            patch(
-                "lhp.utils.bundle_detection.should_enable_bundle_support"
-            ) as mock_should_enable,
-            patch.object(orchestrator_bundle, "logger") as mock_logger,
-        ):
-
-            mock_should_enable.return_value = True
-
-            # Patch the import that happens inside the try block
-            import builtins
-
-            original_import = builtins.__import__
-
-            def mock_import(name, *args, **kwargs):
-                if "bundle.manager" in name:
-                    raise ImportError("No module named 'bundle.manager'")
-                return original_import(name, *args, **kwargs)
-
-            with patch("builtins.__import__", side_effect=mock_import):
-                # Act - should not raise exception
-                orchestrator_bundle._sync_bundle_resources(output_dir, environment)
-
-            # Assert
-            mock_should_enable.assert_called_once_with(orchestrator_bundle.project_root)
-
-            # Should log debug message about modules not being available
-            debug_calls = [str(call) for call in mock_logger.debug.call_args_list]
-            import_error_logged = any(
-                "Bundle modules not available" in call for call in debug_calls
-            )
-            assert import_error_logged
-
-            # Should not log success message since import failed
-            info_calls = [str(call) for call in mock_logger.info.call_args_list]
-            success_logged = any(
-                "synchronization completed successfully" in call for call in info_calls
-            )
-            assert not success_logged
-
-    def test_bundle_sync_succeeds_logs_success_message(self, orchestrator_bundle):
-        """Test bundle sync succeeds logs success message."""
-        # Arrange
-        output_dir = Path("/output")
-        environment = "prod"
-
-        # Mock all components for successful sync
-        with (
-            patch(
-                "lhp.utils.bundle_detection.should_enable_bundle_support"
-            ) as mock_should_enable,
-            patch("lhp.bundle.manager.BundleManager") as mock_bundle_manager_class,
-            patch.object(orchestrator_bundle, "logger") as mock_logger,
-        ):
-
-            mock_should_enable.return_value = True
-
-            # Mock BundleManager creation and successful sync
-            mock_bundle_manager = Mock()
-            mock_bundle_manager_class.return_value = mock_bundle_manager
-            mock_bundle_manager.sync_resources_with_generated_files.return_value = (
-                None  # Success (no exception)
-            )
-
-            # Act
-            orchestrator_bundle._sync_bundle_resources(output_dir, environment)
-
-            # Assert
-            mock_should_enable.assert_called_once_with(orchestrator_bundle.project_root)
-            mock_bundle_manager_class.assert_called_once_with(
-                orchestrator_bundle.project_root,
-                orchestrator_bundle.pipeline_config_path,
-                project_config=orchestrator_bundle.project_config,
-            )
-            mock_bundle_manager.sync_resources_with_generated_files.assert_called_once_with(
-                output_dir, environment
-            )
-
-            # Should log both debug start message and info success message
-            debug_calls = [str(call) for call in mock_logger.debug.call_args_list]
-            starting_logged = any(
-                "Starting bundle resource synchronization for environment: prod" in call
-                for call in debug_calls
-            )
-            assert starting_logged
-
-            info_calls = [str(call) for call in mock_logger.info.call_args_list]
-            success_logged = any(
-                "Bundle resource synchronization completed successfully" in call
-                for call in info_calls
-            )
-            assert success_logged
-
-    def test_bundle_sync_fails_logs_warning_but_does_not_fail_generation(
-        self, orchestrator_bundle
-    ):
-        """Test bundle sync fails logs warning but does not fail generation."""
-        # Arrange
-        output_dir = Path("/output")
-        environment = "dev"
-
-        # Mock bundle detection to return True, but sync to fail
-        with (
-            patch(
-                "lhp.utils.bundle_detection.should_enable_bundle_support"
-            ) as mock_should_enable,
-            patch("lhp.bundle.manager.BundleManager") as mock_bundle_manager_class,
-            patch.object(orchestrator_bundle, "logger") as mock_logger,
-        ):
-
-            mock_should_enable.return_value = True
-
-            # Mock BundleManager creation but sync fails
-            mock_bundle_manager = Mock()
-            mock_bundle_manager_class.return_value = mock_bundle_manager
-            sync_error = Exception("Bundle sync operation failed")
-            mock_bundle_manager.sync_resources_with_generated_files.side_effect = (
-                sync_error
-            )
-
-            # Act - should not raise exception (bundle errors should not fail generation)
-            orchestrator_bundle._sync_bundle_resources(output_dir, environment)
-
-            # Assert
-            mock_should_enable.assert_called_once_with(orchestrator_bundle.project_root)
-            mock_bundle_manager_class.assert_called_once_with(
-                orchestrator_bundle.project_root,
-                orchestrator_bundle.pipeline_config_path,
-                project_config=orchestrator_bundle.project_config,
-            )
-            mock_bundle_manager.sync_resources_with_generated_files.assert_called_once_with(
-                output_dir, environment
-            )
-
-            # Should log warning about bundle sync failure
-            warning_calls = [str(call) for call in mock_logger.warning.call_args_list]
-            sync_failed_logged = any(
-                "Bundle synchronization failed" in call for call in warning_calls
-            )
-            assert sync_failed_logged
-
-            # Should also log debug error details with exc_info=True
-            debug_calls = [str(call) for call in mock_logger.debug.call_args_list]
-            error_details_logged = any(
-                "Bundle sync error details" in call for call in debug_calls
-            )
-            assert error_details_logged
-
-            # Should not log success message since sync failed
-            info_calls = [str(call) for call in mock_logger.info.call_args_list]
-            success_logged = any(
-                "synchronization completed successfully" in call for call in info_calls
-            )
-            assert not success_logged
-
-    def test_bundle_support_check_exception_catches_and_continues(
-        self, orchestrator_bundle
-    ):
-        """Test should_enable_bundle_support throws exception catches and continues."""
-        # Arrange
-        output_dir = Path("/output")
-        environment = "dev"
-
-        # Mock bundle detection to throw exception
-        with (
-            patch(
-                "lhp.utils.bundle_detection.should_enable_bundle_support"
-            ) as mock_should_enable,
-            patch.object(orchestrator_bundle, "logger") as mock_logger,
-        ):
-
-            # Make bundle detection throw an exception
-            bundle_check_error = Exception("Bundle detection failed")
-            mock_should_enable.side_effect = bundle_check_error
-
-            # Act - should not raise exception (should catch and continue gracefully)
-            orchestrator_bundle._sync_bundle_resources(output_dir, environment)
-
-            # Assert
-            mock_should_enable.assert_called_once_with(orchestrator_bundle.project_root)
-
-            # Should log warning about bundle sync failure
-            warning_calls = [str(call) for call in mock_logger.warning.call_args_list]
-            sync_failed_logged = any(
-                "Bundle synchronization failed" in call for call in warning_calls
-            )
-            assert sync_failed_logged
-
-            # Should log debug error details
-            debug_calls = [str(call) for call in mock_logger.debug.call_args_list]
-            error_details_logged = any(
-                "Bundle sync error details" in call for call in debug_calls
-            )
-            assert error_details_logged
-
-    def test_bundle_manager_creation_fails_catches_exception_and_logs_warning(
-        self, orchestrator_bundle
-    ):
-        """Test bundle manager creation fails catches exception and logs warning."""
-        # Arrange
-        output_dir = Path("/output")
-        environment = "dev"
-
-        # Mock bundle detection to return True, but manager creation to fail
-        with (
-            patch(
-                "lhp.utils.bundle_detection.should_enable_bundle_support"
-            ) as mock_should_enable,
-            patch("lhp.bundle.manager.BundleManager") as mock_bundle_manager_class,
-            patch.object(orchestrator_bundle, "logger") as mock_logger,
-        ):
-
-            mock_should_enable.return_value = True
-
-            # Mock BundleManager creation to fail
-            manager_creation_error = Exception("BundleManager initialization failed")
-            mock_bundle_manager_class.side_effect = manager_creation_error
-
-            # Act - should not raise exception (bundle errors should not fail generation)
-            orchestrator_bundle._sync_bundle_resources(output_dir, environment)
-
-            # Assert
-            mock_should_enable.assert_called_once_with(orchestrator_bundle.project_root)
-            mock_bundle_manager_class.assert_called_once_with(
-                orchestrator_bundle.project_root,
-                orchestrator_bundle.pipeline_config_path,
-                project_config=orchestrator_bundle.project_config,
-            )
-
-            # Should log warning about bundle sync failure
-            warning_calls = [str(call) for call in mock_logger.warning.call_args_list]
-            sync_failed_logged = any(
-                "Bundle synchronization failed" in call for call in warning_calls
-            )
-            assert sync_failed_logged
-
-            # Should also log debug error details
-            debug_calls = [str(call) for call in mock_logger.debug.call_args_list]
-            error_details_logged = any(
-                "Bundle sync error details" in call for call in debug_calls
-            )
-            assert error_details_logged
-
-            # Should not log success message since manager creation failed
-            info_calls = [str(call) for call in mock_logger.info.call_args_list]
-            success_logged = any(
-                "synchronization completed successfully" in call for call in info_calls
-            )
-            assert not success_logged
-
-
 class TestActionOrchestratorValidationWithoutGeneration:
     """Test ActionOrchestrator validation without generation logic."""
 
@@ -1591,10 +1135,17 @@ class TestActionOrchestratorValidationWithoutGeneration:
                 in error_message
             )
 
-            # Should call discover_flowgroups_by_pipeline_field
-            orchestrator_validation.discover_flowgroups_by_pipeline_field.assert_called_once_with(
-                pipeline_field, pre_discovered_all_flowgroups=None
+            # Should call discover_flowgroups_by_pipeline_field. The shim
+            # now delegates through validate_pipelines_by_fields which
+            # pre-discovers all_flowgroups once and passes that list as
+            # pre_discovered_all_flowgroups; the test asserts the call
+            # happened with the right pipeline field, not the exact kwarg
+            # value (which is now a non-None list).
+            orchestrator_validation.discover_flowgroups_by_pipeline_field.assert_called_once()
+            call_args = (
+                orchestrator_validation.discover_flowgroups_by_pipeline_field.call_args
             )
+            assert call_args.args[0] == pipeline_field
 
     def test_validate_pipeline_by_field_method_delegation(
         self, orchestrator_validation
@@ -1617,10 +1168,11 @@ class TestActionOrchestratorValidationWithoutGeneration:
                 pipeline_field, env
             )
 
-            # Assert - method should delegate correctly
-            mock_discover.assert_called_once_with(
-                pipeline_field, pre_discovered_all_flowgroups=None
-            )
+            # Assert - method should delegate correctly. The plural method
+            # in the new architecture pre-discovers all_flowgroups, so the
+            # pre_discovered_all_flowgroups kwarg is no longer None.
+            mock_discover.assert_called_once()
+            assert mock_discover.call_args.args[0] == pipeline_field
 
             # Should return appropriate error for no flowgroups
             assert len(errors) == 1
@@ -1692,9 +1244,16 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
     ):
         """Test FlowgroupProcessor succeeds returns processed flowgroup."""
         # Arrange
+        from lhp.models.config import FlowGroupContext
+
         processed_flowgroup = Mock(spec=FlowGroup)
+        # The processor now returns a FlowGroupContext envelope; the shim
+        # unwraps `.flowgroup` for backward-compatible single-fg callers.
+        processed_ctx = FlowGroupContext(
+            flowgroup=processed_flowgroup, source_yaml=None
+        )
         orchestrator_processing.mock_processor.process_flowgroup.return_value = (
-            processed_flowgroup
+            processed_ctx
         )
 
         # Act
@@ -1705,15 +1264,21 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
         # Assert
         assert result == processed_flowgroup  # Should return processed flowgroup
 
-        # Should delegate to processor service with correct arguments
-        orchestrator_processing.mock_processor.process_flowgroup.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr, include_tests=True
-        )
+        # Should delegate to processor service. The shim wraps the FlowGroup
+        # in a FlowGroupContext envelope at the call site.
+        call_args = orchestrator_processing.mock_processor.process_flowgroup.call_args
+        passed_ctx = call_args.args[0]
+        assert isinstance(passed_ctx, FlowGroupContext)
+        assert passed_ctx.flowgroup is mock_flowgroup
+        assert call_args.args[1] is mock_substitution_mgr
+        assert call_args.kwargs.get("include_tests") is True
 
     def test_process_flowgroup_fails_propagates_exception(
         self, orchestrator_processing, mock_flowgroup, mock_substitution_mgr
     ):
         """Test FlowgroupProcessor fails propagates exception."""
+        from lhp.models.config import FlowGroupContext
+
         # Arrange
         processor_error = Exception(
             "Flowgroup processing failed: missing required template"
@@ -1730,10 +1295,11 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
                 mock_flowgroup, mock_substitution_mgr
             )
 
-        # Should still call processor service
-        orchestrator_processing.mock_processor.process_flowgroup.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr, include_tests=True
-        )
+        # Should still call processor service with a FlowGroupContext envelope.
+        call_args = orchestrator_processing.mock_processor.process_flowgroup.call_args
+        passed_ctx = call_args.args[0]
+        assert isinstance(passed_ctx, FlowGroupContext)
+        assert passed_ctx.flowgroup is mock_flowgroup
 
     def test_generate_flowgroup_code_succeeds_returns_generated_code(
         self, orchestrator_processing, mock_flowgroup, mock_substitution_mgr
@@ -1742,7 +1308,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
         # Arrange
         expected_code = "# Generated Python code\nimport pandas as pd\n# ...\n"
         output_dir = Path("/output")
-        state_manager = Mock()
         source_yaml = Path("/source/flowgroup.yaml")
         env = "dev"
         include_tests = False
@@ -1756,7 +1321,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             mock_flowgroup,
             mock_substitution_mgr,
             output_dir,
-            state_manager,
             source_yaml,
             env,
             include_tests,
@@ -1770,11 +1334,11 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             mock_flowgroup,
             mock_substitution_mgr,
             output_dir,
-            state_manager,
             source_yaml,
             env,
             include_tests,
             None,
+            phase_a_records=None,
         )
 
     def test_generate_flowgroup_code_fails_propagates_exception(
@@ -1788,7 +1352,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
         )
 
         output_dir = Path("/output")
-        state_manager = Mock()
         source_yaml = Path("/source/flowgroup.yaml")
         env = "dev"
         include_tests = False
@@ -1801,7 +1364,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
                 mock_flowgroup,
                 mock_substitution_mgr,
                 output_dir,
-                state_manager,
                 source_yaml,
                 env,
                 include_tests,
@@ -1812,24 +1374,29 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             mock_flowgroup,
             mock_substitution_mgr,
             output_dir,
-            state_manager,
             source_yaml,
             env,
             include_tests,
             None,
+            phase_a_records=None,
         )
 
     def test_substitution_mgr_none_still_delegates_to_services(
         self, orchestrator_processing, mock_flowgroup
     ):
         """Test substitution_mgr is None still delegates to services."""
+        from lhp.models.config import FlowGroupContext
+
         # Arrange
         processed_flowgroup = Mock(spec=FlowGroup)
+        processed_ctx = FlowGroupContext(
+            flowgroup=processed_flowgroup, source_yaml=None
+        )
         generated_code = "# Generated code without substitution\n"
 
         # Test both methods with None substitution manager
         orchestrator_processing.mock_processor.process_flowgroup.return_value = (
-            processed_flowgroup
+            processed_ctx
         )
         orchestrator_processing.mock_generator.generate_flowgroup_code.return_value = (
             generated_code
@@ -1845,12 +1412,22 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
         assert result1 == processed_flowgroup
         assert result2 == generated_code
 
-        # Should still delegate to services with None as parameter
-        orchestrator_processing.mock_processor.process_flowgroup.assert_called_once_with(
-            mock_flowgroup, None, include_tests=True
-        )
+        # Should still delegate to services. The shim wraps in FlowGroupContext.
+        call_args = orchestrator_processing.mock_processor.process_flowgroup.call_args
+        passed_ctx = call_args.args[0]
+        assert isinstance(passed_ctx, FlowGroupContext)
+        assert passed_ctx.flowgroup is mock_flowgroup
+        assert call_args.args[1] is None
+        assert call_args.kwargs.get("include_tests") is True
         orchestrator_processing.mock_generator.generate_flowgroup_code.assert_called_once_with(
-            mock_flowgroup, None, None, None, None, None, False, None
+            mock_flowgroup,
+            None,
+            None,
+            None,
+            None,
+            False,
+            None,
+            phase_a_records=None,
         )
 
     def test_include_tests_true_passes_to_code_generator(
@@ -1864,7 +1441,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
         )
 
         output_dir = Path("/output")
-        state_manager = Mock()
         source_yaml = Path("/source/flowgroup.yaml")
         env = "dev"
         include_tests = True  # Key parameter being tested
@@ -1874,7 +1450,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             mock_flowgroup,
             mock_substitution_mgr,
             output_dir,
-            state_manager,
             source_yaml,
             env,
             include_tests,
@@ -1888,11 +1463,11 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             mock_flowgroup,
             mock_substitution_mgr,
             output_dir,
-            state_manager,
             source_yaml,
             env,
             True,
             None,
+            phase_a_records=None,
         )
 
     def test_include_tests_false_passes_to_code_generator(
@@ -1906,7 +1481,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
         )
 
         output_dir = Path("/output")
-        state_manager = Mock()
         source_yaml = Path("/source/flowgroup.yaml")
         env = "dev"
         include_tests = False  # Key parameter being tested
@@ -1916,7 +1490,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             mock_flowgroup,
             mock_substitution_mgr,
             output_dir,
-            state_manager,
             source_yaml,
             env,
             include_tests,
@@ -1930,11 +1503,11 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             mock_flowgroup,
             mock_substitution_mgr,
             output_dir,
-            state_manager,
             source_yaml,
             env,
             False,
             None,
+            phase_a_records=None,
         )
 
 
@@ -2031,12 +1604,25 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
                 mock_flowgroup, mock_substitution_mgr
             )
 
-        # Should have attempted to call both services despite failures
-        orchestrator_error_handling.mock_processor.process_flowgroup.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr, include_tests=True
+        # Should have attempted to call both services despite failures.
+        # The shim wraps the FlowGroup in a FlowGroupContext envelope.
+        call_args = (
+            orchestrator_error_handling.mock_processor.process_flowgroup.call_args
         )
+        passed_ctx = call_args.args[0]
+        assert isinstance(passed_ctx, FlowGroupContext)
+        assert passed_ctx.flowgroup is mock_flowgroup
+        assert call_args.args[1] is mock_substitution_mgr
+        assert call_args.kwargs.get("include_tests") is True
         orchestrator_error_handling.mock_generator.generate_flowgroup_code.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr, None, None, None, None, False, None
+            mock_flowgroup,
+            mock_substitution_mgr,
+            None,
+            None,
+            None,
+            False,
+            None,
+            phase_a_records=None,
         )
 
     def test_logging_operations_fail_does_not_break_main_functionality(
@@ -2051,7 +1637,7 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
         generated_code = "# Generated code\n"
 
         orchestrator_error_handling.mock_processor.process_flowgroup.return_value = (
-            processed_flowgroup
+            _wrap_in_ctx(processed_flowgroup)
         )
         orchestrator_error_handling.mock_generator.generate_flowgroup_code.return_value = (
             generated_code
@@ -2075,19 +1661,24 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
             assert result1 == processed_flowgroup
             assert result2 == generated_code
 
-            # Services should still be called successfully
-            orchestrator_error_handling.mock_processor.process_flowgroup.assert_called_once_with(
-                mock_flowgroup, mock_substitution_mgr, include_tests=True
+            # Services should still be called successfully. The shim wraps
+            # the FlowGroup in a FlowGroupContext envelope.
+            call_args = (
+                orchestrator_error_handling.mock_processor.process_flowgroup.call_args
             )
+            passed_ctx = call_args.args[0]
+            assert isinstance(passed_ctx, FlowGroupContext)
+            assert passed_ctx.flowgroup is mock_flowgroup
+            assert call_args.args[1] is mock_substitution_mgr
             orchestrator_error_handling.mock_generator.generate_flowgroup_code.assert_called_once_with(
                 mock_flowgroup,
                 mock_substitution_mgr,
                 None,
                 None,
                 None,
-                None,
                 False,
                 None,
+                phase_a_records=None,
             )
 
     def test_invalid_parameters_passed_delegates_to_services(
@@ -2173,9 +1764,8 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
             # Should handle empty string gracefully
             assert len(errors) == 1
             assert "No flowgroups found for pipeline field:" in errors[0]
-            mock_discover.assert_called_once_with(
-                "", pre_discovered_all_flowgroups=None
-            )
+            mock_discover.assert_called_once()
+            assert mock_discover.call_args.args[0] == ""
 
         # Test None pipeline field - should raise exception or handle gracefully
         with patch.object(
@@ -2205,9 +1795,8 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
             # Should handle whitespace-only string
             assert len(errors) == 1
             assert "No flowgroups found for pipeline field:    " in errors[0]
-            mock_discover_whitespace.assert_called_once_with(
-                "   ", pre_discovered_all_flowgroups=None
-            )
+            mock_discover_whitespace.assert_called_once()
+            assert mock_discover_whitespace.call_args.args[0] == "   "
 
     def test_edge_case_service_returns_none_or_empty_results(
         self, orchestrator_error_handling, mock_flowgroup
@@ -2218,12 +1807,17 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
 
         mock_substitution_mgr = Mock(spec=EnhancedSubstitutionManager)
 
-        # Test processor returning None
-        orchestrator_error_handling.mock_processor.process_flowgroup.return_value = None
+        # Test processor returning a context with None flowgroup. The
+        # processor's new contract is FlowGroupContext-in / -out; the
+        # legacy `process_flowgroup` shim unwraps `.flowgroup` so a
+        # None inner flowgroup surfaces as a None result.
+        orchestrator_error_handling.mock_processor.process_flowgroup.return_value = (
+            _wrap_in_ctx(None)
+        )
         result = orchestrator_error_handling.process_flowgroup(
             mock_flowgroup, mock_substitution_mgr
         )
-        assert result is None  # Should handle None return gracefully
+        assert result is None  # Should handle None inner flowgroup gracefully
 
         # Test generator returning empty string
         orchestrator_error_handling.mock_generator.generate_flowgroup_code.return_value = (
@@ -2303,7 +1897,7 @@ class TestActionOrchestratorIntegrationScenarios:
 
         # Configure services to show dependency conflict
         orchestrator_integration.mock_processor.process_flowgroup.return_value = (
-            processed_flowgroup
+            _wrap_in_ctx(processed_flowgroup)
         )
         orchestrator_integration.mock_generator.generate_flowgroup_code.side_effect = ValueError(
             "Generator conflict: Processed flowgroup format incompatible with generator expectations"
@@ -2324,19 +1918,23 @@ class TestActionOrchestratorIntegrationScenarios:
         )
         assert result == processed_flowgroup
 
-        # But generator fails due to dependency conflict
-        orchestrator_integration.mock_processor.process_flowgroup.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr, include_tests=True
-        )
+        # But generator fails due to dependency conflict.
+        # The shim wraps the FlowGroup in a FlowGroupContext envelope.
+        call_args = orchestrator_integration.mock_processor.process_flowgroup.call_args
+        passed_ctx = call_args.args[0]
+        assert isinstance(passed_ctx, FlowGroupContext)
+        assert passed_ctx.flowgroup is mock_flowgroup
+        assert call_args.args[1] is mock_substitution_mgr
+        assert call_args.kwargs.get("include_tests") is True
         orchestrator_integration.mock_generator.generate_flowgroup_code.assert_called_once_with(
             processed_flowgroup,
             mock_substitution_mgr,
             None,
             None,
             None,
-            None,
             False,
             None,
+            phase_a_records=None,
         )
 
     def test_service_coordination_with_complex_data_flow(
@@ -2373,9 +1971,11 @@ class TestActionOrchestratorIntegrationScenarios:
 
         mock_substitution_mgr = Mock(spec=EnhancedSubstitutionManager)
 
-        # Configure services to transform data through the chain
+        # Configure services to transform data through the chain.
+        # Processor returns a FlowGroupContext envelope; the shim unwraps
+        # `.flowgroup` for the legacy single-fg caller signature.
         orchestrator_integration.mock_processor.process_flowgroup.return_value = (
-            transformed_flowgroup
+            _wrap_in_ctx(transformed_flowgroup)
         )
         orchestrator_integration.mock_generator.generate_flowgroup_code.return_value = (
             "# Generated from transformed data\n"
@@ -2393,19 +1993,23 @@ class TestActionOrchestratorIntegrationScenarios:
         assert step1_result == transformed_flowgroup
         assert step2_result == "# Generated from transformed data\n"
 
-        # Verify proper data flow: original -> processor -> generator
-        orchestrator_integration.mock_processor.process_flowgroup.assert_called_once_with(
-            original_flowgroup, mock_substitution_mgr, include_tests=True
-        )
+        # Verify proper data flow: original -> processor -> generator.
+        # The shim wraps the FlowGroup in a FlowGroupContext envelope.
+        call_args = orchestrator_integration.mock_processor.process_flowgroup.call_args
+        passed_ctx = call_args.args[0]
+        assert isinstance(passed_ctx, FlowGroupContext)
+        assert passed_ctx.flowgroup is original_flowgroup
+        assert call_args.args[1] is mock_substitution_mgr
+        assert call_args.kwargs.get("include_tests") is True
         orchestrator_integration.mock_generator.generate_flowgroup_code.assert_called_once_with(
             transformed_flowgroup,
             mock_substitution_mgr,
             None,
             None,
             None,
-            None,
             False,
             None,
+            phase_a_records=None,
         )
 
     def test_service_integration_error_propagation_and_recovery(
@@ -2419,13 +2023,15 @@ class TestActionOrchestratorIntegrationScenarios:
         mock_flowgroup = Mock(spec=FlowGroup)
         mock_substitution_mgr = Mock(spec=EnhancedSubstitutionManager)
 
-        # Configure processor to initially fail, then succeed on retry
+        # Configure processor to initially fail, then succeed on retry.
+        # The processor now returns a FlowGroupContext envelope; the shim
+        # unwraps `.flowgroup` for the legacy single-fg caller signature.
         processor_failure = Exception("Temporary processor failure")
         processed_flowgroup = Mock(spec=FlowGroup)
         processed_flowgroup.flowgroup = "test_flowgroup"
         orchestrator_integration.mock_processor.process_flowgroup.side_effect = [
             processor_failure,
-            processed_flowgroup,
+            _wrap_in_ctx(processed_flowgroup),
         ]
 
         # Configure generator to succeed
@@ -2472,7 +2078,7 @@ class TestActionOrchestratorIntegrationScenarios:
 
         # Test various parameter combinations through service chain
         orchestrator_integration.mock_processor.process_flowgroup.return_value = (
-            mock_flowgroup
+            _wrap_in_ctx(mock_flowgroup)
         )
         orchestrator_integration.mock_generator.generate_flowgroup_code.return_value = (
             "generated_code"
@@ -2480,7 +2086,6 @@ class TestActionOrchestratorIntegrationScenarios:
 
         # Test parameters are passed correctly through service chain
         output_dir = Path("/output")
-        state_manager = Mock()
         source_yaml = Path("/source.yaml")
         env = "test"
         include_tests = True
@@ -2493,7 +2098,6 @@ class TestActionOrchestratorIntegrationScenarios:
             result1,
             mock_substitution_mgr,
             output_dir,
-            state_manager,
             source_yaml,
             env,
             include_tests,
@@ -2503,17 +2107,21 @@ class TestActionOrchestratorIntegrationScenarios:
         assert result1 == mock_flowgroup
         assert result2 == "generated_code"
 
-        # Verify parameter passing
-        orchestrator_integration.mock_processor.process_flowgroup.assert_called_once_with(
-            mock_flowgroup, mock_substitution_mgr, include_tests=True
-        )
+        # Verify parameter passing. The shim wraps the FlowGroup in a
+        # FlowGroupContext envelope.
+        call_args = orchestrator_integration.mock_processor.process_flowgroup.call_args
+        passed_ctx = call_args.args[0]
+        assert isinstance(passed_ctx, FlowGroupContext)
+        assert passed_ctx.flowgroup is mock_flowgroup
+        assert call_args.args[1] is mock_substitution_mgr
+        assert call_args.kwargs.get("include_tests") is True
         orchestrator_integration.mock_generator.generate_flowgroup_code.assert_called_once_with(
             mock_flowgroup,
             mock_substitution_mgr,
             output_dir,
-            state_manager,
             source_yaml,
             env,
             include_tests,
             None,
+            phase_a_records=None,
         )

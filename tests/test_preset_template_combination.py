@@ -6,6 +6,7 @@ from pathlib import Path
 import yaml
 
 from lhp.core.orchestrator import ActionOrchestrator
+from tests.helpers import read_generated_pipeline
 
 
 class TestPresetTemplateCombination:
@@ -38,9 +39,11 @@ class TestPresetTemplateCombination:
             
             # Generate code using orchestrator
             orchestrator = ActionOrchestrator(project_root)
-            generated_files = orchestrator.generate_pipeline_by_field(
+            generated_files = read_generated_pipeline(
+                orchestrator,
                 pipeline_field="test_pipeline",
-                env="dev"
+                env="dev",
+                output_dir=project_root / "generated",
             )
             
             # Get generated code
@@ -114,9 +117,11 @@ class TestPresetTemplateCombination:
             
             # Generate code
             orchestrator = ActionOrchestrator(project_root)
-            generated_files = orchestrator.generate_pipeline_by_field(
+            generated_files = read_generated_pipeline(
+                orchestrator,
                 pipeline_field="test_pipeline",
-                env="dev"
+                env="dev",
+                output_dir=project_root / "generated",
             )
             
             # Get generated code
@@ -161,9 +166,11 @@ class TestPresetTemplateCombination:
             
             # Generate code
             orchestrator = ActionOrchestrator(project_root)
-            generated_files = orchestrator.generate_pipeline_by_field(
+            generated_files = read_generated_pipeline(
+                orchestrator,
                 pipeline_field="test_pipeline",
-                env="dev"
+                env="dev",
+                output_dir=project_root / "generated",
             )
             
             # Get generated code
@@ -253,9 +260,11 @@ class TestPresetTemplateCombination:
             
             # Generate code
             orchestrator = ActionOrchestrator(project_root)
-            generated_files = orchestrator.generate_pipeline_by_field(
+            generated_files = read_generated_pipeline(
+                orchestrator,
                 pipeline_field="test_pipeline",
-                env="dev"
+                env="dev",
+                output_dir=project_root / "generated",
             )
             
             # Get generated code
@@ -451,9 +460,11 @@ class TestPresetTemplateCombination:
                 yaml.dump(lhp_config, f)
             
             orchestrator = ActionOrchestrator(project_root, enforce_version=False)
-            result = orchestrator.generate_pipeline_by_field(
+            result = read_generated_pipeline(
+                orchestrator,
                 pipeline_field='test_pipeline',
-                env='dev'
+                env='dev',
+                output_dir=project_root / "generated",
             )
             generated_code = result.get('template_preset_test.py', '')
             
@@ -556,9 +567,11 @@ class TestPresetTemplateCombination:
                 yaml.dump(lhp_config, f)
             
             orchestrator = ActionOrchestrator(project_root, enforce_version=False)
-            result = orchestrator.generate_pipeline_by_field(
+            result = read_generated_pipeline(
+                orchestrator,
                 pipeline_field='test_pipeline',
-                env='dev'
+                env='dev',
+                output_dir=project_root / "generated",
             )
             generated_code = result.get('combined_preset_test.py', '')
             

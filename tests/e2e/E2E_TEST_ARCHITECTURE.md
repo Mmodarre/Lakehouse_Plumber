@@ -19,7 +19,6 @@ This document explains the architecture, design decisions, and execution flow of
   - [Job Orchestration](#job-orchestration)
   - [Pipeline Configuration](#pipeline-configuration)
   - [Local Variables](#local-variables)
-- [State File Tracking](#state-file-tracking)
 - [Shared Fixtures (conftest.py)](#shared-fixtures-conftestpy)
 - [Adding New E2E Tests](#adding-new-e2e-tests)
 - [Updating Baselines](#updating-baselines)
@@ -314,19 +313,7 @@ The largest test suite validates the bundle resource file lifecycle — the deci
 | BM-3 | No resource file | Generate | New LHP resource file created |
 | BM-4 | Resource file exists, no Python | Generate | Orphan resource deleted |
 | BM-5 | Multiple resource files | Generate | Warning/error issued |
-| BM-6 | Mixed headers | Generate | Correct LHP vs user detection |
 | BM-7 | Missing generated/ directory | Generate | Directory auto-created |
-
-#### Python function dependency scenarios (BM-8 through BM-13)
-
-These test the **incremental regeneration** system — when a Python function changes, only dependent generated files are rebuilt.
-
-**Two function patterns exist:**
-
-- **Embedded** (`partsupp_snapshot_func.py`): Function code is inlined into the generated file. Change triggers regeneration of 1 file.
-- **Copied** (`sample_func.py`): Function is copied to `custom_python_functions/` and imported. Change triggers regeneration of 2 files (the copy + the importer).
-
-The dependency tracking relies on `.lhp_state.json` (see [State File Tracking](#state-file-tracking)).
 
 #### Conflict & overwrite scenarios (BM-14, BM-15)
 
@@ -363,59 +350,6 @@ Tests the `%{local_var}` substitution feature. Validates:
 - Variables resolve correctly throughout the flowgroup
 - Undefined variables raise `LHPError`
 - Generated Python output contains resolved values, no unresolved `%{...}` patterns
-
----
-
-## State File Tracking
-
-LHP writes `.lhp_state.json` after each generation run. E2E tests use this to verify incremental regeneration behaviour.
-
-```json
-{
-  "version": "1.0",
-  "last_updated": "2025-02-16T...",
-  "environments": {
-    "dev": {
-      "generated/dev/acmi_edw_bronze/customer_bronze.py": {
-        "checksum": "abc123...",
-        "file_composite_checksum": "def456...",
-        "pipeline": "acmi_edw_bronze",
-        "flowgroup": "customer_bronze",
-        "source_yaml": "pipelines/02_bronze/customer_bronze.yaml",
-        "file_dependencies": {
-          "py_functions/sample_func.py": {
-            "checksum": "ghi789...",
-            "type": "python_function"
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-**Test pattern for dependency tracking:**
-
-```python
-# Phase 1: Generate and capture state
-self.run_bundle_sync()
-baseline_state = self._load_state_file()
-
-# Phase 2: Modify a Python function
-self._modify_python_function("py_functions/sample_func.py", "test change")
-
-# Phase 3: Regenerate
-self.run_bundle_sync()
-updated_state = self._load_state_file()
-
-# Phase 4: Assert only dependent files were regenerated
-regen_count = self._validate_python_dependency_regeneration(
-    baseline_state, updated_state,
-    "py_functions/sample_func.py",
-    expected_dependent_files
-)
-assert regen_count == expected_count
-```
 
 ---
 

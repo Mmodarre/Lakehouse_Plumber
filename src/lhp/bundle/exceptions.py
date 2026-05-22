@@ -5,7 +5,7 @@ This module defines bundle-specific exceptions for better error handling
 and user feedback during bundle operations.
 """
 
-from typing import Optional, Any
+from typing import Optional
 
 
 class BundleResourceError(Exception):
@@ -16,7 +16,11 @@ class BundleResourceError(Exception):
     including YAML parsing, resource file generation, and sync operations.
     """
 
-    def __init__(self, message: str, original_error: Optional[Exception] = None):
+    def __init__(
+        self,
+        message: str,
+        original_error: Optional[Exception] = None,
+    ):
         """
         Initialize bundle resource error.
 
@@ -98,15 +102,6 @@ class YAMLProcessingError(BundleResourceError):
         super().__init__(full_message, original_error)
 
 
-class YAMLParsingError(YAMLProcessingError):
-    """
-    Alias for YAMLProcessingError for backward compatibility and clearer semantics.
-
-    This exception is specifically for YAML parsing errors.
-    """
-
-    pass
-
 
 class BundleConfigurationError(BundleResourceError):
     """
@@ -114,17 +109,6 @@ class BundleConfigurationError(BundleResourceError):
 
     This exception is used for errors in bundle structure, missing
     configuration files, or invalid bundle settings.
-    """
-
-    pass
-
-
-class MissingDatabricksTargetError(BundleResourceError):
-    """
-    Exception raised when substitution file exists but corresponding target missing in databricks.yml.
-
-    This exception is used when LHP finds substitution files (e.g., substitutions/dev.yaml)
-    but the corresponding targets are not defined in databricks.yml.
     """
 
     pass

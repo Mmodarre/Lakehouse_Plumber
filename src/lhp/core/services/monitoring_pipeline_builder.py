@@ -17,6 +17,7 @@ from ...models.config import (
     Action,
     ActionType,
     FlowGroup,
+    FlowGroupContext,
     MonitoringConfig,
     ProjectConfig,
 )
@@ -25,6 +26,28 @@ from ...utils.external_file_loader import load_external_file_text
 from ...utils.template_renderer import TemplateRenderer
 
 logger = logging.getLogger(__name__)
+
+
+def resolve_monitoring_pipeline_name(
+    project_config: Optional[ProjectConfig],
+) -> Optional[str]:
+    """Return the synthetic monitoring pipeline name if monitoring is enabled.
+
+    Returns ``None`` when ``project_config`` is missing, when monitoring is
+    absent or disabled, or when monitoring is enabled without an explicit
+    ``pipeline_name`` and ``project_config.name`` is unavailable. Otherwise
+    returns the configured ``monitoring.pipeline_name`` or the default
+    ``{project_config.name}_event_log_monitoring``.
+    """
+    if not project_config:
+        return None
+    monitoring = getattr(project_config, "monitoring", None)
+    if not monitoring or not monitoring.enabled:
+        return None
+    if monitoring.pipeline_name:
+        return str(monitoring.pipeline_name)
+    return f"{project_config.name}_event_log_monitoring"
+
 
 # Default MV SQL: pipeline run summary with status, duration, and row metrics
 DEFAULT_MV_SQL = """\
@@ -125,17 +148,23 @@ class MonitoringBuildResult:
     """Result of building the monitoring pipeline artifacts.
 
     Attributes:
-        flowgroup: MVs-only DLT pipeline FlowGroup, or None when no MVs.
+        context: FlowGroupContext envelope wrapping the MVs-only DLT pipeline
+            FlowGroup, or None when no MVs.
         template_context: Raw context dict for the notebook template
             (rendered after substitution tokens are resolved).
         eligible_pipelines: Pipeline names included in the monitoring notebook.
-        pipeline_name: Monitoring pipeline name (needed even when flowgroup is None).
+        pipeline_name: Monitoring pipeline name (needed even when context is None).
     """
 
-    flowgroup: Optional[FlowGroup]
+    context: Optional[FlowGroupContext]
     template_context: Dict[str, Any]
     eligible_pipelines: List[str] = field(default_factory=list)
     pipeline_name: str = ""
+
+    @property
+    def flowgroup(self) -> Optional[FlowGroup]:
+        """Backward-compatible accessor for the wrapped FlowGroup."""
+        return self.context.flowgroup if self.context is not None else None
 
 
 class MonitoringPipelineBuilder:
@@ -448,18 +477,23 @@ class MonitoringPipelineBuilder:
                 self._build_mv_action("events_summary", default_sql, catalog, schema)
             )
 
-        # Build FlowGroup (None when no actions — e.g. materialized_views: [])
-        fg: Optional[FlowGroup] = None
+        # Build FlowGroup + envelope (None when no actions — e.g. materialized_views: [])
+        ctx: Optional[FlowGroupContext] = None
         if actions:
             fg = FlowGroup(
                 pipeline=self.pipeline_name,
                 flowgroup="monitoring",
                 actions=actions,
             )
-            fg._synthetic = True
-
+            auxiliary_files: Dict[str, str] = {}
             if self.monitoring_config.enable_job_monitoring:
-                fg._auxiliary_files[JOBS_STATS_MODULE_PATH] = _load_jobs_stats_source()
+                auxiliary_files[JOBS_STATS_MODULE_PATH] = _load_jobs_stats_source()
+            ctx = FlowGroupContext(
+                flowgroup=fg,
+                source_yaml=None,
+                synthetic=True,
+                auxiliary_files=auxiliary_files,
+            )
 
         # Build template context (rendering deferred until substitutions resolved)
         # Use lists (not tuples) so SubstitutionManager._substitute_recursive handles them
@@ -474,7 +508,7 @@ class MonitoringPipelineBuilder:
         }
 
         return MonitoringBuildResult(
-            flowgroup=fg,
+            context=ctx,
             template_context=template_context,
             eligible_pipelines=eligible_pipelines,
             pipeline_name=self.pipeline_name,

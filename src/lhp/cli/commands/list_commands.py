@@ -172,13 +172,13 @@ class ListCommand(BaseCommand):
             for name, (bp, bp_path) in sorted(blueprints.items()):
                 click.echo(f"\n  {name} ({bp_path}):")
                 for instance, instance_path in instances_by_blueprint.get(name, []):
-                    fgs, _ = expander.expand_single_instance(
+                    contexts, _ = expander.expand_single_instance(
                         instance, instance_path, blueprints
                     )
-                    pipelines = sorted({fg.pipeline for fg in fgs})
+                    pipelines = sorted({ctx.flowgroup.pipeline for ctx in contexts})
                     click.echo(
                         f"    - {instance_path.name}: "
-                        f"{len(fgs)} flowgroup(s) -> pipeline(s) {pipelines}"
+                        f"{len(contexts)} flowgroup(s) -> pipeline(s) {pipelines}"
                     )
 
         click.echo(

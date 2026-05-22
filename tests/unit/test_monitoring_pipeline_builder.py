@@ -236,7 +236,7 @@ class TestBuild:
         loader = _make_pipeline_config_loader()
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
         result = builder.build(["bronze", "silver"])
-        assert result.flowgroup._synthetic is True
+        assert result.context.synthetic is True
 
     def test_pipeline_and_flowgroup_names(self):
         config = _make_project_config(name="acme")
@@ -363,7 +363,10 @@ class TestBuildFlowgroupCompat:
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
         fg = builder.build_flowgroup(["bronze"])
         assert isinstance(fg, FlowGroup)
-        assert fg._synthetic is True
+        # Synthetic-ness now lives on FlowGroupContext, accessible via
+        # build() rather than the backward-compat build_flowgroup() wrapper.
+        result = builder.build(["bronze"])
+        assert result.context.synthetic is True
 
     def test_returns_none_when_disabled(self):
         config = _make_project_config(monitoring_enabled=False)
@@ -560,15 +563,15 @@ class TestJobMonitoring:
         assert jobs_stats_write.write_target["schema"] == "_analytics"
 
     def test_job_monitoring_populates_auxiliary_files(self):
-        """_auxiliary_files contains package resource content when enable_job_monitoring enabled."""
+        """auxiliary_files contains package resource content when enable_job_monitoring enabled."""
         config = _make_project_config(monitoring_enable_job_monitoring=True)
         loader = _make_pipeline_config_loader()
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
         result = builder.build(["bronze"])
-        fg = result.flowgroup
+        aux = result.context.auxiliary_files
 
-        assert JOBS_STATS_MODULE_PATH in fg._auxiliary_files
-        content = fg._auxiliary_files[JOBS_STATS_MODULE_PATH]
+        assert JOBS_STATS_MODULE_PATH in aux
+        content = aux[JOBS_STATS_MODULE_PATH]
         assert "def get_jobs_stats" in content
         assert "WorkspaceClient" in content
         # Verify it matches the package resource file
@@ -580,14 +583,13 @@ class TestJobMonitoring:
         assert content == expected
 
     def test_job_monitoring_disabled_no_auxiliary_files(self):
-        """_auxiliary_files empty when enable_job_monitoring disabled."""
+        """auxiliary_files empty when enable_job_monitoring disabled."""
         config = _make_project_config(monitoring_enable_job_monitoring=False)
         loader = _make_pipeline_config_loader()
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
         result = builder.build(["bronze"])
-        fg = result.flowgroup
 
-        assert len(fg._auxiliary_files) == 0
+        assert len(result.context.auxiliary_files) == 0
 
 
 @pytest.mark.unit

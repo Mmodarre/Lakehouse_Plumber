@@ -13,7 +13,6 @@ from lhp.models.config import (
     ProjectConfig,
     TestReportingConfig,
 )
-from lhp.utils.smart_file_writer import SmartFileWriter
 from lhp.utils.substitution import EnhancedSubstitutionManager
 
 
@@ -51,12 +50,10 @@ class TestTestReportingHookGenerator:
         """No test_reporting config → returns None."""
         config = _make_project_config(test_reporting=None)
         gen = TestReportingHookGenerator(config, tmp_path)
-        writer = SmartFileWriter()
         result = gen.generate(
             processed_flowgroups=[],
             pipeline_name="p1",
             output_dir=tmp_path / "output",
-            smart_writer=writer,
         )
         assert result is None
 
@@ -81,14 +78,12 @@ class TestTestReportingHookGenerator:
             ]
         )
 
-        writer = SmartFileWriter()
         output_dir = tmp_path / "output"
         output_dir.mkdir()
         result = gen.generate(
             processed_flowgroups=[fg],
             pipeline_name="p1",
             output_dir=output_dir,
-            smart_writer=writer,
         )
         assert result is None
 
@@ -117,12 +112,10 @@ class TestTestReportingHookGenerator:
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        writer = SmartFileWriter()
         content = gen.generate(
             processed_flowgroups=[fg],
             pipeline_name="my_pipeline",
             output_dir=output_dir,
-            smart_writer=writer,
         )
 
         assert content is not None
@@ -155,12 +148,10 @@ class TestTestReportingHookGenerator:
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        writer = SmartFileWriter()
         content = gen.generate(
             processed_flowgroups=[fg],
             pipeline_name="p1",
             output_dir=output_dir,
-            smart_writer=writer,
         )
         assert "tmp_test_my_test" in content
         assert "T-1" in content
@@ -183,12 +174,10 @@ class TestTestReportingHookGenerator:
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        writer = SmartFileWriter()
         content = gen.generate(
             processed_flowgroups=[fg],
             pipeline_name="p1",
             output_dir=output_dir,
-            smart_writer=writer,
         )
         assert "custom_target" in content
         assert "tmp_test_my_test" not in content
@@ -213,12 +202,10 @@ class TestTestReportingHookGenerator:
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        writer = SmartFileWriter()
         gen.generate(
             processed_flowgroups=[fg],
             pipeline_name="p1",
             output_dir=output_dir,
-            smart_writer=writer,
         )
 
         providers_dir = output_dir / "test_reporting_providers"
@@ -257,12 +244,10 @@ class TestTestReportingHookGenerator:
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        writer = SmartFileWriter()
         content = gen.generate(
             processed_flowgroups=[fg],
             pipeline_name="p1",
             output_dir=output_dir,
-            smart_writer=writer,
         )
 
         assert "plan_id" in content
@@ -285,7 +270,6 @@ class TestTestReportingHookGenerator:
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        writer = SmartFileWriter()
 
         from lhp.utils.error_formatter import LHPError
 
@@ -294,7 +278,6 @@ class TestTestReportingHookGenerator:
                 processed_flowgroups=[fg],
                 pipeline_name="p1",
                 output_dir=output_dir,
-                smart_writer=writer,
             )
 
     def test_hook_contains_pipeline_name(self, tmp_path):
@@ -315,12 +298,10 @@ class TestTestReportingHookGenerator:
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        writer = SmartFileWriter()
         content = gen.generate(
             processed_flowgroups=[fg],
             pipeline_name="bronze_pipeline",
             output_dir=output_dir,
-            smart_writer=writer,
         )
         assert "bronze_pipeline" in content
 
@@ -345,12 +326,10 @@ class TestTestReportingHookGenerator:
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        writer = SmartFileWriter()
         content = gen.generate(
             processed_flowgroups=[fg],
             pipeline_name="p1",
             output_dir=output_dir,
-            smart_writer=writer,
         )
         assert "from test_reporting_providers.my_ado_publisher import go" in content
 
@@ -377,12 +356,10 @@ class TestTestReportingHookGenerator:
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        writer = SmartFileWriter()
         gen.generate(
             processed_flowgroups=[fg],
             pipeline_name="p1",
             output_dir=output_dir,
-            smart_writer=writer,
             substitution_mgr=substitution_mgr,
         )
 
@@ -406,12 +383,10 @@ class TestTestReportingHookGenerator:
 
         output_dir = tmp_path / "output"
         output_dir.mkdir()
-        writer = SmartFileWriter()
         gen.generate(
             processed_flowgroups=[fg],
             pipeline_name="p1",
             output_dir=output_dir,
-            smart_writer=writer,
         )
 
         copied = (output_dir / "test_reporting_providers" / "pub.py").read_text()

@@ -464,7 +464,7 @@ flowgroup: flowgroup2
             yaml_file.unlink()
     
     def test_error_messages_include_document_index(self):
-        """Test that parsing errors include document index in error message."""
+        """Test that parsing errors include identifying context about the failing action."""
         parser = YAMLParser()
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
@@ -498,8 +498,14 @@ actions:
                 parser.parse_flowgroups_from_file(yaml_file)
             
             error_msg = str(exc_info.value)
-            # Should contain document index (2, since it's the second document)
-            assert "document 2" in error_msg or "document" in error_msg
+            # The pre-check emits LHP-ACT-001 for unknown action types, which
+            # surfaces the offending action name and type plus the file path —
+            # more useful for diagnosis than a raw document index.
+            assert (
+                "invalid_type" in error_msg
+                or "action2" in error_msg
+                or "LHP-ACT-001" in error_msg
+            )
         finally:
             yaml_file.unlink()
     

@@ -1,0 +1,36 @@
+# B5.1 fixture — JDBC load (query-mode)
+# Reads via a custom SQL query using JDBC option("query", ...).
+pipeline: 14_jdbc_load
+flowgroup: jdbc_query_mode
+
+actions:
+  - name: load_external_customers
+    type: load
+    readMode: batch
+    operational_metadata: ["_processing_timestamp"]
+    source:
+      type: jdbc
+      url: "jdbc:postgresql://example.com:5432/sample"
+      driver: "org.postgresql.Driver"
+      user: "${secret:database/username}"
+      password: "${secret:database/password}"
+      query: |
+        SELECT
+          customer_id,
+          first_name,
+          last_name,
+          email,
+          registration_date
+        FROM customers
+        WHERE status = 'active'
+    target: v_external_customers
+    description: "Load active customers from external PostgreSQL via JDBC query"
+
+  - name: write_external_customers
+    type: write
+    source: v_external_customers
+    write_target:
+      type: materialized_view
+      database: "${catalog}.${bronze_schema}"
+      table: "jdbc_customers"
+      comment: "Materialized view of active customers from external JDBC source"

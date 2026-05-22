@@ -20,7 +20,7 @@ cd "$PROJECT_DIR" || exit 1
 # Test 1: Clean Generation (Full Rebuild)
 echo "📊 Test 1: Clean Generation (Full Rebuild)" | tee -a "../../$RESULTS_FILE"
 echo "Removing state and generated files..."
-rm -rf generated/ .lhp_state/
+rm -rf generated/
 
 echo "Starting generation..." | tee -a "../../$RESULTS_FILE"
 START=$(date +%s.%N)

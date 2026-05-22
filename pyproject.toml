@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lakehouse-plumber"
-version = "0.8.6"
+version = "0.8.7"
 description = "A framework for building and managing enterprise Lakeflow Spark Declaritive Pipelines"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -30,7 +30,6 @@ dependencies = [
     "pyyaml>=6.0.3",
     "ruamel.yaml>=0.19.0",
     "jinja2>=3.0.0",
-    "rich>=14.0.0",
     "pydantic>=2.12.0",
     "jsonschema>=4.26.0",
     "packaging>=23.2",
@@ -95,7 +94,7 @@ addopts = [
 ]
 testpaths = ["tests"]
 norecursedirs = ["tests/baselines"]
-pythonpath = ["src"]
+pythonpath = ["src", "."]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",

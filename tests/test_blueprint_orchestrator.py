@@ -34,8 +34,8 @@ def test_no_blueprints_expand_returns_empty(tmp_path):
     must return ([], {}) without error."""
     _bootstrap_project(tmp_path)
     orch = ActionOrchestrator(tmp_path, enforce_version=False)
-    flowgroups, provenance = orch._expand_blueprints()
-    assert flowgroups == []
+    contexts, provenance = orch._expand_blueprints()
+    assert contexts == []
     assert provenance == {}
 
 
@@ -93,7 +93,7 @@ flowgroups:
 
 
 def test_expand_blueprints_returns_synthetic_flowgroups(tmp_path):
-    """Returned synthetic flowgroups must carry _synthetic=True."""
+    """Returned synthetic flowgroup contexts must carry synthetic=True."""
     _bootstrap_project(tmp_path)
     _write(
         tmp_path / "blueprints" / "erp.yaml",
@@ -113,9 +113,9 @@ flowgroups:
         "blueprint: erp\nsite_name: apac_sg\n",
     )
     orch = ActionOrchestrator(tmp_path, enforce_version=False)
-    flowgroups, provenance = orch._expand_blueprints()
-    assert len(flowgroups) == 1
-    assert flowgroups[0]._synthetic is True
+    contexts, provenance = orch._expand_blueprints()
+    assert len(contexts) == 1
+    assert contexts[0].synthetic is True
     assert ("apac_sg_raw", "apac_sg_orders") in provenance
 
 

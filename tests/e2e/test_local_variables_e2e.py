@@ -8,6 +8,7 @@ from click.testing import CliRunner
 
 from lhp.cli.main import cli
 from lhp.core.orchestrator import ActionOrchestrator
+from lhp.models.config import FlowGroupContext
 from lhp.parsers.yaml_parser import YAMLParser
 from lhp.utils.substitution import EnhancedSubstitutionManager
 
@@ -57,7 +58,10 @@ class TestLocalVariablesE2E:
         substitution_file = self.project_root / "substitutions" / "dev.yaml"
         substitution_mgr = EnhancedSubstitutionManager(substitution_file, env="dev")
         
-        processed_fg = orchestrator.processor.process_flowgroup(flowgroup, substitution_mgr)
+        ctx_in = FlowGroupContext(flowgroup=flowgroup, source_yaml=None)
+        processed_fg = orchestrator.processor.process_flowgroup(
+            ctx_in, substitution_mgr
+        ).flowgroup
         
         # Verify local variables were resolved (entity = test_customer)
         assert processed_fg.actions[0].name == "test_customer_raw_load"
@@ -112,8 +116,9 @@ actions:
         
         # Should raise error about undefined variable
         from lhp.utils.error_formatter import LHPError
+        ctx_in = FlowGroupContext(flowgroup=flowgroup, source_yaml=None)
         with pytest.raises(LHPError) as exc_info:
-            orchestrator.processor.process_flowgroup(flowgroup, substitution_mgr)
+            orchestrator.processor.process_flowgroup(ctx_in, substitution_mgr)
         
         error = exc_info.value
         assert "Undefined local variable" in error.title
@@ -122,8 +127,11 @@ actions:
     def test_generate_command_with_local_variables(self):
         """Test that lhp generate command works with local variables."""
         runner = CliRunner()
-        result = runner.invoke(cli, ['generate', '-e', 'dev'])
-        
+        result = runner.invoke(
+            cli,
+            ['generate', '-e', 'dev', '--pipeline-config', 'config/pipeline_config.yaml'],
+        )
+
         # Should succeed without errors
         assert result.exit_code == 0, f"Generate command failed: {result.output}"
         

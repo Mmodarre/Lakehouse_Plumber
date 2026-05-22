@@ -6,6 +6,30 @@ resources:
       name: acme_edw_orchestration
       max_concurrent_runs: 2
       tasks:
+        - task_key: 12_test_actions_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.12_test_actions_pipeline.id}
+            full_refresh: false
+        - task_key: 13_sinks_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.13_sinks_pipeline.id}
+            full_refresh: false
+        - task_key: 14_jdbc_load_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.14_jdbc_load_pipeline.id}
+            full_refresh: false
+        - task_key: 15_python_load_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.15_python_load_pipeline.id}
+            full_refresh: false
+        - task_key: 16_temp_table_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.16_temp_table_pipeline.id}
+            full_refresh: false
+        - task_key: 17_delta_cdc_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.17_delta_cdc_pipeline.id}
+            full_refresh: false
         - task_key: acme_edw_bp_raw_pipeline
           pipeline_task:
             pipeline_id: ${resources.pipelines.acme_edw_bp_raw_pipeline.id}

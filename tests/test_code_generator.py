@@ -1,9 +1,10 @@
 """Tests for CodeGenerator service."""
 
-import pytest
-from pathlib import Path
-from unittest.mock import Mock, MagicMock
 from collections import defaultdict
+from pathlib import Path
+from unittest.mock import MagicMock, Mock
+
+import pytest
 
 from lhp.core.services.code_generator import CodeGenerator
 from lhp.models.config import Action, ActionType, FlowGroup, TransformType
@@ -494,7 +495,6 @@ class TestCodeGeneratorGenerateActionSections:
             None,
             None,
             None,
-            None,
             include_tests=True,
         )
 
@@ -518,7 +518,6 @@ class TestCodeGeneratorGenerateActionSections:
             flowgroup.actions,
             Mock(),
             {},
-            None,
             None,
             None,
             None,
@@ -569,7 +568,6 @@ class TestCodeGeneratorDQSectionPartitioning:
             None,
             None,
             None,
-            None,
             include_tests=False,
         )
         joined = "\n".join(sections)
@@ -609,7 +607,6 @@ class TestCodeGeneratorDQSectionPartitioning:
             None,
             None,
             None,
-            None,
             include_tests=False,
         )
         joined = "\n".join(sections)
@@ -638,7 +635,6 @@ class TestCodeGeneratorDQSectionPartitioning:
             [sql_action],
             Mock(),
             {},
-            None,
             None,
             None,
             None,
@@ -675,7 +671,6 @@ class TestCodeGeneratorDQSectionPartitioning:
             None,
             None,
             None,
-            None,
             include_tests=False,
         )
         joined = "\n".join(sections)
@@ -706,7 +701,6 @@ class TestCodeGeneratorDQSectionPartitioning:
             [dq_action],
             Mock(),
             {},
-            None,
             None,
             None,
             None,

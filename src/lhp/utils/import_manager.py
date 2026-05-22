@@ -19,8 +19,7 @@ Key Features:
 import ast
 import logging
 import re
-from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import Dict, List, Optional, Set, Tuple
 
 # Import existing proven components
 from .operational_metadata import ImportDetector

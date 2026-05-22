@@ -1,0 +1,718 @@
+{
+  "lhp_version": "v0.8.0",
+  "captured_at": "2026-05-11T12:24:53+00:00",
+  "machine_fingerprint": "Darwin-arm64-py3.12",
+  "fixture": "performance_testing",
+  "runs": 1,
+  "project_shape": {},
+  "metrics": {
+    "category.find_source_yaml.avg": {
+      "median": 0.017,
+      "p25": 0.017,
+      "p75": 0.017,
+      "unit": "seconds"
+    },
+    "category.find_source_yaml.cnt": {
+      "median": 4001.0,
+      "p25": 4001.0,
+      "p75": 4001.0,
+      "unit": "count"
+    },
+    "category.find_source_yaml.total": {
+      "median": 69.45,
+      "p25": 69.45,
+      "p75": 69.45,
+      "unit": "seconds"
+    },
+    "category.format_code.avg": {
+      "median": 0.007,
+      "p25": 0.007,
+      "p75": 0.007,
+      "unit": "seconds"
+    },
+    "category.format_code.cnt": {
+      "median": 4001.0,
+      "p25": 4001.0,
+      "p75": 4001.0,
+      "unit": "count"
+    },
+    "category.format_code.total": {
+      "median": 29.18,
+      "p25": 29.18,
+      "p75": 29.18,
+      "unit": "seconds"
+    },
+    "category.generate_code.avg": {
+      "median": 0.086,
+      "p25": 0.086,
+      "p75": 0.086,
+      "unit": "seconds"
+    },
+    "category.generate_code.cnt": {
+      "median": 4001.0,
+      "p25": 4001.0,
+      "p75": 4001.0,
+      "unit": "count"
+    },
+    "category.generate_code.total": {
+      "median": 343.64,
+      "p25": 343.64,
+      "p75": 343.64,
+      "unit": "seconds"
+    },
+    "category.process_flowgroup.avg": {
+      "median": 0.034,
+      "p25": 0.034,
+      "p75": 0.034,
+      "unit": "seconds"
+    },
+    "category.process_flowgroup.cnt": {
+      "median": 4001.0,
+      "p25": 4001.0,
+      "p75": 4001.0,
+      "unit": "count"
+    },
+    "category.process_flowgroup.total": {
+      "median": 135.56,
+      "p25": 135.56,
+      "p75": 135.56,
+      "unit": "seconds"
+    },
+    "phase.Bundle sync": {
+      "median": 6.609,
+      "p25": 6.609,
+      "p75": 6.609,
+      "unit": "seconds"
+    },
+    "phase.Cleanup operations": {
+      "median": 0.0,
+      "p25": 0.0,
+      "p75": 0.0,
+      "unit": "seconds"
+    },
+    "phase.Orchestrator init": {
+      "median": 0.02,
+      "p25": 0.02,
+      "p75": 0.02,
+      "unit": "seconds"
+    },
+    "phase.Pipeline discovery": {
+      "median": 5.779,
+      "p25": 5.779,
+      "p75": 5.779,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_a_bronze]": {
+      "median": 1.812,
+      "p25": 1.812,
+      "p75": 1.812,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_a_gold]": {
+      "median": 0.492,
+      "p25": 0.492,
+      "p75": 0.492,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_a_modelled]": {
+      "median": 1.995,
+      "p25": 1.995,
+      "p75": 1.995,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_a_raw]": {
+      "median": 1.313,
+      "p25": 1.313,
+      "p75": 1.313,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_a_silver]": {
+      "median": 2.33,
+      "p25": 2.33,
+      "p75": 2.33,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_b_bronze]": {
+      "median": 1.651,
+      "p25": 1.651,
+      "p75": 1.651,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_b_gold]": {
+      "median": 0.469,
+      "p25": 0.469,
+      "p75": 0.469,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_b_modelled]": {
+      "median": 1.804,
+      "p25": 1.804,
+      "p75": 1.804,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_b_raw]": {
+      "median": 1.584,
+      "p25": 1.584,
+      "p75": 1.584,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_b_silver]": {
+      "median": 2.58,
+      "p25": 2.58,
+      "p75": 2.58,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_c_bronze]": {
+      "median": 1.675,
+      "p25": 1.675,
+      "p75": 1.675,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_c_gold]": {
+      "median": 0.467,
+      "p25": 0.467,
+      "p75": 0.467,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_c_modelled]": {
+      "median": 1.788,
+      "p25": 1.788,
+      "p75": 1.788,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_c_raw]": {
+      "median": 1.784,
+      "p25": 1.784,
+      "p75": 1.784,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_c_silver]": {
+      "median": 2.33,
+      "p25": 2.33,
+      "p75": 2.33,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_d_bronze]": {
+      "median": 1.618,
+      "p25": 1.618,
+      "p75": 1.618,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_d_gold]": {
+      "median": 0.738,
+      "p25": 0.738,
+      "p75": 0.738,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_d_modelled]": {
+      "median": 2.024,
+      "p25": 2.024,
+      "p75": 2.024,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_d_raw]": {
+      "median": 1.377,
+      "p25": 1.377,
+      "p75": 1.377,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_d_silver]": {
+      "median": 7.602,
+      "p25": 7.602,
+      "p75": 7.602,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_e_bronze]": {
+      "median": 1.74,
+      "p25": 1.74,
+      "p75": 1.74,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_e_gold]": {
+      "median": 0.595,
+      "p25": 0.595,
+      "p75": 0.595,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_e_modelled]": {
+      "median": 1.774,
+      "p25": 1.774,
+      "p75": 1.774,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_e_raw]": {
+      "median": 1.313,
+      "p25": 1.313,
+      "p75": 1.313,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_e_silver]": {
+      "median": 2.427,
+      "p25": 2.427,
+      "p75": 2.427,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_f_bronze]": {
+      "median": 1.779,
+      "p25": 1.779,
+      "p75": 1.779,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_f_gold]": {
+      "median": 0.52,
+      "p25": 0.52,
+      "p75": 0.52,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_f_modelled]": {
+      "median": 1.747,
+      "p25": 1.747,
+      "p75": 1.747,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_f_raw]": {
+      "median": 1.318,
+      "p25": 1.318,
+      "p75": 1.318,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_f_silver]": {
+      "median": 2.204,
+      "p25": 2.204,
+      "p75": 2.204,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_g_bronze]": {
+      "median": 1.754,
+      "p25": 1.754,
+      "p75": 1.754,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_g_gold]": {
+      "median": 0.521,
+      "p25": 0.521,
+      "p75": 0.521,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_g_modelled]": {
+      "median": 1.977,
+      "p25": 1.977,
+      "p75": 1.977,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_g_raw]": {
+      "median": 1.502,
+      "p25": 1.502,
+      "p75": 1.502,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_g_silver]": {
+      "median": 2.658,
+      "p25": 2.658,
+      "p75": 2.658,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_h_bronze]": {
+      "median": 1.716,
+      "p25": 1.716,
+      "p75": 1.716,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_h_gold]": {
+      "median": 0.537,
+      "p25": 0.537,
+      "p75": 0.537,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_h_modelled]": {
+      "median": 2.025,
+      "p25": 2.025,
+      "p75": 2.025,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_h_raw]": {
+      "median": 1.281,
+      "p25": 1.281,
+      "p75": 1.281,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_h_silver]": {
+      "median": 2.361,
+      "p25": 2.361,
+      "p75": 2.361,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_i_bronze]": {
+      "median": 1.512,
+      "p25": 1.512,
+      "p75": 1.512,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_i_gold]": {
+      "median": 0.51,
+      "p25": 0.51,
+      "p75": 0.51,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_i_modelled]": {
+      "median": 1.864,
+      "p25": 1.864,
+      "p75": 1.864,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_i_raw]": {
+      "median": 1.269,
+      "p25": 1.269,
+      "p75": 1.269,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_i_silver]": {
+      "median": 2.36,
+      "p25": 2.36,
+      "p75": 2.36,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_j_bronze]": {
+      "median": 1.557,
+      "p25": 1.557,
+      "p75": 1.557,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_j_gold]": {
+      "median": 0.527,
+      "p25": 0.527,
+      "p75": 0.527,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_j_modelled]": {
+      "median": 1.74,
+      "p25": 1.74,
+      "p75": 1.74,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_j_raw]": {
+      "median": 1.195,
+      "p25": 1.195,
+      "p75": 1.195,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_j_silver]": {
+      "median": 2.291,
+      "p25": 2.291,
+      "p75": 2.291,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_k_bronze]": {
+      "median": 1.727,
+      "p25": 1.727,
+      "p75": 1.727,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_k_gold]": {
+      "median": 0.499,
+      "p25": 0.499,
+      "p75": 0.499,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_k_modelled]": {
+      "median": 1.908,
+      "p25": 1.908,
+      "p75": 1.908,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_k_raw]": {
+      "median": 1.247,
+      "p25": 1.247,
+      "p75": 1.247,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_k_silver]": {
+      "median": 2.277,
+      "p25": 2.277,
+      "p75": 2.277,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_l_bronze]": {
+      "median": 1.547,
+      "p25": 1.547,
+      "p75": 1.547,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_l_gold]": {
+      "median": 0.423,
+      "p25": 0.423,
+      "p75": 0.423,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_l_modelled]": {
+      "median": 1.904,
+      "p25": 1.904,
+      "p75": 1.904,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_l_raw]": {
+      "median": 1.269,
+      "p25": 1.269,
+      "p75": 1.269,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_l_silver]": {
+      "median": 2.153,
+      "p25": 2.153,
+      "p75": 2.153,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_m_bronze]": {
+      "median": 1.449,
+      "p25": 1.449,
+      "p75": 1.449,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_m_gold]": {
+      "median": 0.499,
+      "p25": 0.499,
+      "p75": 0.499,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_m_modelled]": {
+      "median": 0.691,
+      "p25": 0.691,
+      "p75": 0.691,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_m_raw]": {
+      "median": 1.473,
+      "p25": 1.473,
+      "p75": 1.473,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_m_silver]": {
+      "median": 1.183,
+      "p25": 1.183,
+      "p75": 1.183,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_n_bronze]": {
+      "median": 1.66,
+      "p25": 1.66,
+      "p75": 1.66,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_n_gold]": {
+      "median": 0.505,
+      "p25": 0.505,
+      "p75": 0.505,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_n_modelled]": {
+      "median": 0.91,
+      "p25": 0.91,
+      "p75": 0.91,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_n_raw]": {
+      "median": 1.195,
+      "p25": 1.195,
+      "p75": 1.195,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_n_silver]": {
+      "median": 1.169,
+      "p25": 1.169,
+      "p75": 1.169,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_o_bronze]": {
+      "median": 1.57,
+      "p25": 1.57,
+      "p75": 1.57,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_o_gold]": {
+      "median": 0.521,
+      "p25": 0.521,
+      "p75": 0.521,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_o_modelled]": {
+      "median": 0.634,
+      "p25": 0.634,
+      "p75": 0.634,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_o_raw]": {
+      "median": 1.369,
+      "p25": 1.369,
+      "p75": 1.369,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_o_silver]": {
+      "median": 1.023,
+      "p25": 1.023,
+      "p75": 1.023,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_p_bronze]": {
+      "median": 1.637,
+      "p25": 1.637,
+      "p75": 1.637,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_p_gold]": {
+      "median": 0.518,
+      "p25": 0.518,
+      "p75": 0.518,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_p_modelled]": {
+      "median": 0.725,
+      "p25": 0.725,
+      "p75": 0.725,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_p_raw]": {
+      "median": 1.294,
+      "p25": 1.294,
+      "p75": 1.294,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_p_silver]": {
+      "median": 1.106,
+      "p25": 1.106,
+      "p75": 1.106,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_q_bronze]": {
+      "median": 1.525,
+      "p25": 1.525,
+      "p75": 1.525,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_q_gold]": {
+      "median": 0.525,
+      "p25": 0.525,
+      "p75": 0.525,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_q_modelled]": {
+      "median": 0.716,
+      "p25": 0.716,
+      "p75": 0.716,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_q_raw]": {
+      "median": 1.344,
+      "p25": 1.344,
+      "p75": 1.344,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_q_silver]": {
+      "median": 1.473,
+      "p25": 1.473,
+      "p75": 1.473,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_r_bronze]": {
+      "median": 1.435,
+      "p25": 1.435,
+      "p75": 1.435,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_r_gold]": {
+      "median": 0.451,
+      "p25": 0.451,
+      "p75": 0.451,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_r_modelled]": {
+      "median": 0.722,
+      "p25": 0.722,
+      "p75": 0.722,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_r_raw]": {
+      "median": 1.471,
+      "p25": 1.471,
+      "p75": 1.471,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_r_silver]": {
+      "median": 1.292,
+      "p25": 1.292,
+      "p75": 1.292,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_s_bronze]": {
+      "median": 1.606,
+      "p25": 1.606,
+      "p75": 1.606,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_s_gold]": {
+      "median": 0.425,
+      "p25": 0.425,
+      "p75": 0.425,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_s_modelled]": {
+      "median": 0.636,
+      "p25": 0.636,
+      "p75": 0.636,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_s_raw]": {
+      "median": 1.292,
+      "p25": 1.292,
+      "p75": 1.292,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_s_silver]": {
+      "median": 1.44,
+      "p25": 1.44,
+      "p75": 1.44,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_t_bronze]": {
+      "median": 1.409,
+      "p25": 1.409,
+      "p75": 1.409,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_t_gold]": {
+      "median": 0.473,
+      "p25": 0.473,
+      "p75": 0.473,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_t_modelled]": {
+      "median": 0.657,
+      "p25": 0.657,
+      "p75": 0.657,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_t_raw]": {
+      "median": 1.253,
+      "p25": 1.253,
+      "p75": 1.253,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_t_silver]": {
+      "median": 1.171,
+      "p25": 1.171,
+      "p75": 1.171,
+      "unit": "seconds"
+    },
+    "phase.Staleness analysis": {
+      "median": 0.0,
+      "p25": 0.0,
+      "p75": 0.0,
+      "unit": "seconds"
+    },
+    "wall_clock": {
+      "median": 153.819,
+      "p25": 153.819,
+      "p75": 153.819,
+      "unit": "seconds"
+    }
+  }
+}

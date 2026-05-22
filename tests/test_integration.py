@@ -1,16 +1,18 @@
 """Integration tests for LakehousePlumber based on requirements."""
 
-import pytest
-import tempfile
-import yaml
 import json
+import tempfile
 from pathlib import Path
+
+import pytest
+import yaml
 from click.testing import CliRunner
 
 from lhp.cli.main import cli
 from lhp.core.orchestrator import ActionOrchestrator
+from lhp.models.config import Action, ActionType, FlowGroup
 from lhp.parsers.yaml_parser import YAMLParser
-from lhp.models.config import FlowGroup, Action, ActionType
+from tests.helpers import read_generated_pipeline
 
 
 class TestIntegrationCore:
@@ -129,8 +131,11 @@ actions:
 
         # Generate pipeline
         orchestrator = ActionOrchestrator(project_root)
-        generated_files = orchestrator.generate_pipeline_by_field(
-            pipeline_field="sales_bronze", env="dev"
+        generated_files = read_generated_pipeline(
+            orchestrator,
+            pipeline_field="sales_bronze",
+            env="dev",
+            output_dir=project_root / "generated",
         )
 
         # Verify generated code
@@ -152,7 +157,14 @@ actions:
         assert "from pyspark.sql import functions as F" in code
 
     def test_jdbc_source_with_secrets(self, temp_project):
-        """Test JDBC source with secret management as per requirements."""
+        """Test JDBC source with secret management as per requirements.
+
+        Pins the runtime-correct emission shape: bare ``dbutils.secrets.get(...)``
+        calls for entire-value fields (user, password) and an f-string for
+        the URL where the secret is embedded mid-literal. Explicitly checks
+        that the wrapped-string regression form is absent — a string literal
+        containing the call text is what broke JDBC auth in v0.8.7 §2.
+        """
         project_root = self.create_project_structure(temp_project)
 
         # Create substitutions with secret configuration
@@ -208,30 +220,68 @@ actions:
 
         # Generate pipeline
         orchestrator = ActionOrchestrator(project_root)
-        generated_files = orchestrator.generate_pipeline_by_field(
-            pipeline_field="customer_ingestion", env="prod"
+        generated_files = read_generated_pipeline(
+            orchestrator,
+            pipeline_field="customer_ingestion",
+            env="prod",
+            output_dir=project_root / "generated",
         )
 
         # Verify generated code
         assert "external_customer_load.py" in generated_files
         code = generated_files["external_customer_load.py"]
 
-        # Check for JDBC configuration
+        # JDBC scaffolding still present
         assert "spark.read" in code
         assert '.format("jdbc")' in code
 
-        # Check for valid secret substitution - should be f-strings or direct dbutils calls
-        assert "dbutils.secrets.get" in code
-        assert 'scope="prod_db_secrets"' in code
+        # Entire-value secrets must be emitted as bare dbutils calls.
+        # The wrapped-string form (which v0.8.7 §2 introduced and Option 1
+        # reverts) would break JDBC auth at runtime — auth would receive
+        # the literal call text instead of the resolved secret.
+        # Wrap-tolerant: black may break the .option(...) call across lines
+        # when the full single-line form is >88 chars (e.g. the password
+        # variant comes out at 89 chars, one over the configured limit).
+        # Normalise ALL whitespace to nothing so the wrapped form
+        # ``.option(\n    "password",\n    dbutils...)`` collapses to the
+        # same shape as the single-line form. The load-bearing distinction
+        # (bare ``dbutils.secrets.get(...)`` vs string-wrapped
+        # ``"dbutils.secrets.get..."``) is preserved by this normalisation
+        # because the quote character is a structural difference, not a
+        # whitespace one.
+        import re
+
+        compact_code = re.sub(r"\s+", "", code)
+
+        def _compact(s: str) -> str:
+            return re.sub(r"\s+", "", s)
+
         assert (
-            'key="host"' in code or "key='host'" in code
-        )  # Either quote style is valid
+            _compact('.option("user", dbutils.secrets.get(scope="prod_db_secrets", key="username"))')
+            in compact_code
+        ), "Expected bare dbutils call for 'user'; got:\n" + code
         assert (
-            'key="username"' in code or "key='username'" in code
-        )  # Either quote style is valid
+            _compact('.option("password", dbutils.secrets.get(scope="prod_db_secrets", key="password"))')
+            in compact_code
+        ), "Expected bare dbutils call for 'password'; got:\n" + code
+
+        # Wrapped-string regression must not be present.
+        for bad in (
+            '.option("user", "dbutils.secrets.get',
+            '.option("password", "dbutils.secrets.get',
+            '.option("url", "dbutils.secrets.get',
+        ):
+            assert bad not in code, (
+                f"Found wrapped-string regression ({bad!r}); code:\n" + code
+            )
+
+        # URL has the secret embedded mid-string, so the post-pass must
+        # rewrite it as an f-string. Inside the f-expression the dbutils
+        # call uses single quotes (no collision with the outer "...").
         assert (
-            'key="password"' in code or "key='password'" in code
-        )  # Either quote style is valid
+            "f\"jdbc:postgresql://{dbutils.secrets.get(scope='prod_db_secrets', key='host')}:5432/customers\""
+            in code
+        ), "Expected f-string with embedded dbutils call for URL; got:\n" + code
 
         # Verify SQL query is included
         assert "SELECT" in code
@@ -323,8 +373,11 @@ actions:
 
         # Generate pipeline
         orchestrator = ActionOrchestrator(project_root)
-        generated_files = orchestrator.generate_pipeline_by_field(
-            pipeline_field="sales_silver", env="dev"
+        generated_files = read_generated_pipeline(
+            orchestrator,
+            pipeline_field="sales_silver",
+            env="dev",
+            output_dir=project_root / "generated",
         )
 
         # Verify generated code
@@ -424,8 +477,11 @@ template_parameters:
 
         # Generate pipeline
         orchestrator = ActionOrchestrator(project_root)
-        generated_files = orchestrator.generate_pipeline_by_field(
-            pipeline_field="orders_bronze", env="dev"
+        generated_files = read_generated_pipeline(
+            orchestrator,
+            pipeline_field="orders_bronze",
+            env="dev",
+            output_dir=project_root / "generated",
         )
 
         # Verify generated code
@@ -507,8 +563,11 @@ actions:
 
         # Generate pipeline
         orchestrator = ActionOrchestrator(project_root)
-        generated_files = orchestrator.generate_pipeline_by_field(
-            pipeline_field="customer_quality", env="dev"
+        generated_files = read_generated_pipeline(
+            orchestrator,
+            pipeline_field="customer_quality",
+            env="dev",
+            output_dir=project_root / "generated",
         )
 
         # Verify generated code

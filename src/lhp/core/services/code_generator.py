@@ -3,9 +3,12 @@
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Set, Tuple
 
 from ...models.config import Action, ActionType, FlowGroup, TransformType
+
+if TYPE_CHECKING:
+    from ...generators.python_file_copier import CopiedModuleRecord
 from ...utils.error_formatter import ErrorCategory, LHPError, LHPValidationError
 from ...utils.performance_timer import perf_timer
 from ...utils.source_extractor import extract_source_views_from_action
@@ -50,11 +53,12 @@ class CodeGenerator:
         flowgroup: FlowGroup,
         substitution_mgr: EnhancedSubstitutionManager,
         output_dir: Optional[Path] = None,
-        state_manager=None,
         source_yaml: Optional[Path] = None,
         env: Optional[str] = None,
         include_tests: bool = False,
         python_file_copier=None,
+        phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
+        auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> str:
         """
         Generate complete Python code for a flowgroup.
@@ -63,11 +67,18 @@ class CodeGenerator:
             flowgroup: FlowGroup to generate code for
             substitution_mgr: Substitution manager for the environment
             output_dir: Output directory for generated files
-            state_manager: State manager for file tracking
             source_yaml: Source YAML path for file tracking
             env: Environment name for file tracking
             include_tests: Whether to include test actions
             python_file_copier: Thread-safe Python file copier (for parallel mode)
+            phase_a_records: Optional list passed by Phase A workers to
+                receive ``CopiedModuleRecord`` entries instead of writing
+                user Python modules to disk. ``None`` (the default) means
+                disk writes happen inline — the legacy single-threaded path.
+            auxiliary_files: Optional ``{module_path: source_str}`` mapping
+                of inline Python modules (carried on
+                :class:`FlowGroupContext`). Used by ``custom_python_functions``
+                generators in lieu of an on-disk file.
 
         Returns:
             Complete Python code for the flowgroup
@@ -118,14 +129,20 @@ class CodeGenerator:
                 substitution_mgr,
                 preset_config,
                 output_dir,
-                state_manager,
                 source_yaml,
                 env,
                 include_tests,
                 python_file_copier,
+                phase_a_records=phase_a_records,
+                auxiliary_files=auxiliary_files,
             )
 
-        # 5-6. Apply secret substitutions and assemble final code
+        # 5-6. Apply secret substitutions and assemble final code.
+        # Substitution emits ``__SECRET_scope_key__`` placeholders so Jinja
+        # templates can naively wrap values in Python string literals; this
+        # post-pass rewrites whole-string placeholders to bare
+        # ``dbutils.secrets.get(...)`` calls and embedded placeholders to
+        # f-strings.
         with perf_timer(f"assemble_code [{fg}]"):
             complete_code = self._apply_secret_substitutions(
                 generated_sections, substitution_mgr
@@ -144,11 +161,12 @@ class CodeGenerator:
         substitution_mgr: EnhancedSubstitutionManager,
         preset_config: Dict[str, Any],
         output_dir: Optional[Path],
-        state_manager,
         source_yaml: Optional[Path],
         env: Optional[str],
         include_tests: bool,
         python_file_copier=None,
+        phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
+        auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> Tuple[List[str], Set[str], Set[str]]:
         """Generate code sections for all actions."""
         # Group actions by type while preserving order
@@ -185,10 +203,11 @@ class CodeGenerator:
             substitution_mgr=substitution_mgr,
             preset_config=preset_config,
             output_dir=output_dir,
-            state_manager=state_manager,
             source_yaml=source_yaml,
             env=env,
             python_file_copier=python_file_copier,
+            phase_a_records=phase_a_records,
+            auxiliary_files=auxiliary_files,
         )
 
         for action_type in action_types:
@@ -268,10 +287,11 @@ class CodeGenerator:
         substitution_mgr: EnhancedSubstitutionManager,
         preset_config: Dict[str, Any],
         output_dir: Optional[Path],
-        state_manager,
         source_yaml: Optional[Path],
         env: Optional[str],
         python_file_copier=None,
+        phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
+        auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> Tuple[List[str], Set[str], Set[str]]:
         """Generate code for write actions with target grouping."""
         sections = []
@@ -304,10 +324,11 @@ class CodeGenerator:
                     substitution_mgr,
                     preset_config,
                     output_dir,
-                    state_manager,
                     source_yaml,
                     env,
                     python_file_copier,
+                    phase_a_records=phase_a_records,
+                    auxiliary_files=auxiliary_files,
                 )
                 action_code = generator.generate(combined_action, context)
                 sections.append(action_code)
@@ -351,10 +372,11 @@ class CodeGenerator:
         substitution_mgr: EnhancedSubstitutionManager,
         preset_config: Dict[str, Any],
         output_dir: Optional[Path],
-        state_manager,
         source_yaml: Optional[Path],
         env: Optional[str],
         python_file_copier=None,
+        phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
+        auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> Tuple[List[str], Set[str], Set[str]]:
         """Generate code for regular (non-write) actions."""
         sections = []
@@ -362,52 +384,21 @@ class CodeGenerator:
         pre_pipeline_statements: Set[str] = set()
 
         for action in actions:
-            try:
-                # Determine action sub-type
-                sub_type = self.determine_action_subtype(action)
-
-                # Get generator
-                generator = self.action_registry.get_generator(action.type, sub_type)
-
-                # Generate code
-                context = self._build_generation_context(
-                    flowgroup,
-                    substitution_mgr,
-                    preset_config,
-                    output_dir,
-                    state_manager,
-                    source_yaml,
-                    env,
-                    python_file_copier,
-                )
-                action_code = generator.generate(action, context)
-                sections.append(action_code)
-
-                # Collect imports and pre-pipeline statements
-                section_imports, section_pre = self._collect_generator_outputs(
-                    generator
-                )
-                imports.update(section_imports)
-                pre_pipeline_statements.update(section_pre)
-
-            except LHPError:
-                raise  # Re-raise LHPError as-is
-            except Exception as e:
-                raise LHPError(
-                    category=ErrorCategory.ACTION,
-                    code_number="002",
-                    title=f"Action code generation failed for '{action.name}'",
-                    details=f"Error generating code for action '{action.name}': {e}",
-                    suggestions=[
-                        "Check the action configuration for errors",
-                        "Verify source and target references are correct",
-                        "Run 'lhp validate' for detailed diagnostics",
-                    ],
-                    context={
-                        "Action": action.name,
-                        "Action Type": str(action.type),
-                    },
-                ) from e
+            code, section_imports, section_pre = self._generate_one_action_code(
+                action,
+                flowgroup,
+                substitution_mgr,
+                preset_config,
+                output_dir,
+                source_yaml,
+                env,
+                python_file_copier,
+                phase_a_records=phase_a_records,
+                auxiliary_files=auxiliary_files,
+            )
+            sections.append(code)
+            imports.update(section_imports)
+            pre_pipeline_statements.update(section_pre)
 
         return sections, imports, pre_pipeline_statements
 
@@ -418,10 +409,11 @@ class CodeGenerator:
         substitution_mgr: EnhancedSubstitutionManager,
         preset_config: Dict[str, Any],
         output_dir: Optional[Path],
-        state_manager,
         source_yaml: Optional[Path],
         env: Optional[str],
         python_file_copier=None,
+        phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
+        auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> Tuple[List[str], Set[str], Set[str]]:
         """Generate code for data quality actions with sub-headers."""
         sections = []
@@ -429,67 +421,86 @@ class CodeGenerator:
         pre_pipeline_statements: Set[str] = set()
 
         for action in actions:
-            try:
-                # Build sub-header based on DQ mode
-                source = action.source if isinstance(action.source, str) else "source"
-                target = action.target or "target"
-                mode = getattr(action, "mode", None) or "dqe"
+            source = action.source if isinstance(action.source, str) else "source"
+            target = action.target or "target"
+            mode = getattr(action, "mode", None) or "dqe"
 
-                if mode == "quarantine":
-                    sub_header_text = f"Quarantine: {source} → {target}"
-                else:
-                    sub_header_text = f"Expectations: {source} → {target}"
+            if mode == "quarantine":
+                sub_header_text = f"Quarantine: {source} → {target}"
+            else:
+                sub_header_text = f"Expectations: {source} → {target}"
 
-                sub_header = f"\n# {'-' * 76}\n# {sub_header_text}\n# {'-' * 76}"
-                sections.append(sub_header)
+            sub_header = f"\n# {'-' * 76}\n# {sub_header_text}\n# {'-' * 76}"
+            sections.append(sub_header)
 
-                # Determine action sub-type
-                sub_type = self.determine_action_subtype(action)
-
-                # Get generator
-                generator = self.action_registry.get_generator(action.type, sub_type)
-
-                # Generate code
-                context = self._build_generation_context(
-                    flowgroup,
-                    substitution_mgr,
-                    preset_config,
-                    output_dir,
-                    state_manager,
-                    source_yaml,
-                    env,
-                    python_file_copier,
-                )
-                action_code = generator.generate(action, context)
-                sections.append(action_code)
-
-                # Collect imports and pre-pipeline statements
-                section_imports, section_pre = self._collect_generator_outputs(
-                    generator
-                )
-                imports.update(section_imports)
-                pre_pipeline_statements.update(section_pre)
-
-            except LHPError:
-                raise  # Re-raise LHPError as-is
-            except Exception as e:
-                raise LHPError(
-                    category=ErrorCategory.ACTION,
-                    code_number="002",
-                    title=f"Action code generation failed for '{action.name}'",
-                    details=f"Error generating code for action '{action.name}': {e}",
-                    suggestions=[
-                        "Check the action configuration for errors",
-                        "Verify source and target references are correct",
-                        "Run 'lhp validate' for detailed diagnostics",
-                    ],
-                    context={
-                        "Action": action.name,
-                        "Action Type": str(action.type),
-                    },
-                ) from e
+            code, section_imports, section_pre = self._generate_one_action_code(
+                action,
+                flowgroup,
+                substitution_mgr,
+                preset_config,
+                output_dir,
+                source_yaml,
+                env,
+                python_file_copier,
+                phase_a_records=phase_a_records,
+                auxiliary_files=auxiliary_files,
+            )
+            sections.append(code)
+            imports.update(section_imports)
+            pre_pipeline_statements.update(section_pre)
 
         return sections, imports, pre_pipeline_statements
+
+    def _generate_one_action_code(
+        self,
+        action: Action,
+        flowgroup: FlowGroup,
+        substitution_mgr: EnhancedSubstitutionManager,
+        preset_config: Dict[str, Any],
+        output_dir: Optional[Path],
+        source_yaml: Optional[Path],
+        env: Optional[str],
+        python_file_copier=None,
+        phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
+        auxiliary_files: Optional[Mapping[str, str]] = None,
+    ) -> Tuple[str, Set[str], Set[str]]:
+        """Resolve generator, build context, produce code + outputs, and wrap action-level errors as LHPError."""
+        try:
+            sub_type = self.determine_action_subtype(action)
+            generator = self.action_registry.get_generator(action.type, sub_type)
+            context = self._build_generation_context(
+                flowgroup,
+                substitution_mgr,
+                preset_config,
+                output_dir,
+                source_yaml,
+                env,
+                python_file_copier,
+                phase_a_records=phase_a_records,
+                auxiliary_files=auxiliary_files,
+            )
+            code = generator.generate(action, context)
+            imports, pre_stmts = self._collect_generator_outputs(generator)
+            return code, imports, pre_stmts
+
+        except LHPError:
+            raise
+        except Exception as e:
+            raise LHPError(
+                category=ErrorCategory.ACTION,
+                code_number="002",
+                title=f"Action code generation failed for '{action.name}'",
+                details=f"Error generating code for action '{action.name}': {e}",
+                suggestions=[
+                    "Check the action configuration for errors",
+                    "Verify source and target references are correct",
+                    "Run 'lhp validate' for detailed diagnostics",
+                ],
+                context={
+                    "Action": action.name,
+                    "Action Type": str(action.type),
+                },
+            ) from e
 
     def _build_generation_context(
         self,
@@ -497,10 +508,11 @@ class CodeGenerator:
         substitution_mgr: EnhancedSubstitutionManager,
         preset_config: Dict[str, Any],
         output_dir: Optional[Path],
-        state_manager,
         source_yaml: Optional[Path],
         env: Optional[str],
         python_file_copier=None,
+        phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
+        auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> Dict[str, Any]:
         """Build context dictionary for generator execution."""
         project_root = self.project_root or Path.cwd()
@@ -512,11 +524,23 @@ class CodeGenerator:
             "preset_config": preset_config,
             "project_config": self.project_config,
             "output_dir": output_dir,
-            "state_manager": state_manager,
             "source_yaml": source_yaml,
             "environment": env,
-            "secret_references": set(),  # Track secret references from file processing
-            "python_file_copier": python_file_copier,  # Thread-safe copier for parallel mode
+            # Per-flowgroup accumulator for secret references collected by
+            # generators that run their own _process_string calls. The
+            # substitution manager keeps the canonical set; this mirror is
+            # populated by generators for legacy callers that read from
+            # the context dict.
+            "secret_references": set(),
+            "python_file_copier": python_file_copier,
+            # Phase A collect carrier: when present, copy_user_module_for_pipeline
+            # appends CopiedModuleRecord entries here instead of writing to disk,
+            # so Phase B can replay the writes on the main thread.
+            "phase_a_records": phase_a_records,
+            # Inline auxiliary Python modules carried on the FlowGroupContext
+            # (e.g. monitoring's jobs_stats_loader.py). Read by
+            # ``copy_user_module_for_pipeline`` to skip on-disk lookup.
+            "auxiliary_files": auxiliary_files or {},
         }
 
     def _collect_generator_outputs(self, generator) -> Tuple[Set[str], Set[str]]:
@@ -549,16 +573,32 @@ class CodeGenerator:
         generated_sections: List[str],
         substitution_mgr: EnhancedSubstitutionManager,
     ) -> str:
-        """Apply secret substitutions to generated code."""
+        """Apply secret substitutions to generated code.
+
+        Secrets are emitted as ``__SECRET_scope_key__`` placeholders during
+        YAML substitution so that Jinja templates can wrap values in Python
+        string literals without disturbing the secret expression. This
+        post-pass walks the assembled code and rewrites placeholders:
+
+        - When a string literal's content is exactly one placeholder, it is
+          replaced with a bare ``dbutils.secrets.get(...)`` call so that
+          fields like ``.option("user", "${secret:db/user}")`` become
+          ``.option("user", dbutils.secrets.get(...))``.
+        - When a placeholder is embedded in a larger string literal, the
+          literal is rewritten as an f-string so the dbutils call evaluates
+          at runtime.
+        """
         complete_code = "\n\n".join(generated_sections)
 
-        # Use SecretCodeGenerator to convert secret placeholders to valid f-strings
+        # Use SecretCodeGenerator to convert secret placeholders to valid
+        # Python (bare calls or f-strings). Pull references from the
+        # substitution manager — it is the canonical source.
         try:
             from ...utils.secret_code_generator import SecretCodeGenerator
 
             secret_generator = SecretCodeGenerator()
             complete_code = secret_generator.generate_python_code(
-                complete_code, substitution_mgr.get_secret_references()
+                complete_code, substitution_mgr.secret_references
             )
         except ImportError:
             self.logger.warning(

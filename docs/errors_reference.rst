@@ -6,7 +6,7 @@ Error Reference
    :description: Troubleshooting guide with all Lakehouse Plumber error codes, causes, and resolution steps.
 
 Overview
-========
+--------
 
 When Lakehouse Plumber encounters a problem, it displays a structured error with a unique
 code in the format ``LHP-{CATEGORY}-{NUMBER}``:
@@ -56,7 +56,7 @@ detailed resolution steps.
    that can help diagnose the issue.
 
 Error Categories
-================
+----------------
 
 .. list-table::
    :header-rows: 1
@@ -82,13 +82,13 @@ Error Categories
      - Circular dependencies between views or preset inheritance cycles
 
 Configuration Errors (LHP-CFG)
-==============================
+------------------------------
 
 Configuration errors indicate problems with your YAML files, presets, templates,
 or Databricks Asset Bundle setup. They are the most common error category.
 
 LHP-CFG-001: Configuration Conflict
-------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** You have specified the same configuration option in multiple ways,
 typically when both legacy and new-format fields are present in the same action.
@@ -128,7 +128,7 @@ typically when both legacy and new-format fields are present in the same action.
    :doc:`actions/index` for the current configuration format for each action type.
 
 LHP-CFG-006: Invalid Event Log Configuration
----------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** The ``event_log`` section in ``lhp.yaml`` is not a valid YAML mapping,
 or its field values have incorrect types.
@@ -155,10 +155,10 @@ or its field values have incorrect types.
 
 .. seealso::
 
-   :doc:`monitoring` for all available event log and monitoring configuration options.
+   :doc:`monitoring_reference` for all available event log and monitoring configuration options.
 
 LHP-CFG-007: Incomplete Event Log Configuration
-------------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** The ``event_log`` section in ``lhp.yaml`` is enabled but missing
 required fields (``catalog`` and/or ``schema``).
@@ -199,7 +199,7 @@ required fields (``catalog`` and/or ``schema``).
    Set ``enabled: false`` to define the section without activating event log injection.
 
 LHP-CFG-008: Invalid Monitoring Configuration
-----------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** The ``monitoring`` section in ``lhp.yaml`` is not a valid YAML mapping,
 its field values have incorrect types, or it fails cross-validation with the ``event_log``
@@ -302,10 +302,10 @@ at ``{checkpoint_path}/{pipeline_name}/``.
 
 .. seealso::
 
-   :doc:`monitoring` for complete monitoring configuration reference and examples.
+   :doc:`monitoring_reference` for complete monitoring configuration reference and examples.
 
 LHP-CFG-009: YAML Parsing Error
---------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** A YAML file contains invalid syntax that cannot be parsed.
 
@@ -342,7 +342,7 @@ LHP-CFG-009: YAML Parsing Error
    issues before running ``lhp validate``.
 
 LHP-CFG-010: Deprecated Field
-------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** Your configuration uses a field name that has been removed
 or replaced in a newer version of Lakehouse Plumber.
@@ -377,7 +377,7 @@ deprecated field with the suggested replacement.
            cloudFiles.schemaHints: "id BIGINT, name STRING"   # New format
 
 LHP-CFG-012: Missing Template Parameters
------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** A template requires parameters that were not provided in
 the ``template_parameters`` section of the flowgroup.
@@ -417,7 +417,7 @@ the ``template_parameters`` section of the flowgroup.
    :doc:`templates_reference` for how templates and parameters work.
 
 LHP-CFG-020: Bundle Resource Error
------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** An error occurred while generating or syncing Databricks Asset Bundle
 resource files during ``lhp generate``.
@@ -432,14 +432,14 @@ resource files during ``lhp generate``.
 
 1. Run ``lhp validate --env <env>`` to check your configuration
 2. Check that files under ``resources/lhp/`` are valid YAML
-3. If files are corrupted, delete them and re-run ``lhp generate --env <env> --force``
+3. If files are corrupted, delete them and re-run ``lhp generate --env <env>``
 
 .. seealso::
 
-   :doc:`databricks_bundles` for bundle setup and configuration.
+   :doc:`configure_bundles` for bundle setup and configuration.
 
 LHP-CFG-021: Bundle YAML Processing Error
-------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** A bundle-related YAML file (such as ``databricks.yml`` or a resource
 file) could not be processed.
@@ -456,66 +456,8 @@ file) could not be processed.
 2. Check for syntax errors at the line number shown in the error details
 3. Ensure all YAML files use UTF-8 encoding
 
-LHP-CFG-022: Missing databricks.yml
-------------------------------------
-
-**When it occurs:** Bundle operations require a ``databricks.yml`` file, but it was
-not found in the project root.
-
-**Common causes:**
-
-- Running bundle commands in a project that was not initialized with bundle support
-- Running commands from the wrong directory
-
-.. code-block:: bash
-   :caption: Resolution options
-
-   # Option 1: Initialize a new project with bundle support
-   lhp init my_project
-
-   # Option 2: Skip bundle operations
-   lhp generate --env dev --no-bundle
-
-LHP-CFG-023: Missing Databricks Bundle Targets
------------------------------------------------
-
-**When it occurs:** Substitution files exist for environments (e.g., ``substitutions/dev.yaml``)
-but the corresponding targets are not defined in ``databricks.yml``.
-
-**Common causes:**
-
-- Adding a new substitution file without updating ``databricks.yml``
-- Renaming a target in ``databricks.yml`` without updating the substitution file name
-
-.. code-block:: yaml
-   :caption: Before (triggers LHP-CFG-023) — substitutions/staging.yaml exists but...
-
-   # databricks.yml
-   targets:
-     dev:
-       default: true
-     prod:
-       mode: production
-     # Missing: staging target!
-
-.. code-block:: yaml
-   :caption: After (fixed)
-
-   # databricks.yml
-   targets:
-     dev:
-       default: true
-     staging:                    # Added to match substitutions/staging.yaml
-       mode: development
-     prod:
-       mode: production
-
-.. seealso::
-
-   :doc:`databricks_bundles` for target configuration details.
-
 LHP-CFG-024: Bundle Template Error
------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** An error occurred while fetching or processing bundle templates
 during project initialization.
@@ -533,7 +475,7 @@ during project initialization.
 3. Try running the command again
 
 LHP-CFG-025: Bundle Configuration Error
-----------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** The ``databricks.yml`` file or bundle configuration has structural
 problems that prevent LHP from processing it.
@@ -551,7 +493,7 @@ problems that prevent LHP from processing it.
 3. Compare with a working project's ``databricks.yml``
 
 LHP-CFG-027: Template Not Found
---------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** The flowgroup references a template name that does not exist
 in the ``templates/`` directory.
@@ -581,13 +523,13 @@ in the ``templates/`` directory.
    Run ``lhp list_templates`` to see all available template names.
 
 Validation Errors (LHP-VAL)
-============================
+----------------------------
 
 Validation errors indicate that your configuration is syntactically valid YAML but
 contains values that are structurally incorrect, missing, or incompatible.
 
 LHP-VAL-001: Missing Required Field
-------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** An action is missing a field that is required for its type.
 
@@ -625,7 +567,7 @@ LHP-VAL-001: Missing Required Field
    example of the correct configuration.
 
 LHP-VAL-002: Validation Failed
--------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** An action or component has multiple validation issues that
 were detected together during ``lhp validate`` or ``lhp generate``.
@@ -671,7 +613,7 @@ item in the list to resolve this error.
    on SQL transform syntax.
 
 LHP-VAL-006: Invalid Field Value
----------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** A field has a value that is not in the set of allowed values.
 
@@ -708,7 +650,7 @@ LHP-VAL-006: Invalid Field Value
          type: streaming_table    # Correct spelling
 
 LHP-VAL-007: Invalid readMode
-------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** The ``readMode`` value is not valid for the action type.
 
@@ -746,7 +688,7 @@ LHP-VAL-007: Invalid readMode
    use ``stream(view_name)`` in the SQL expression.
 
 LHP-VAL-008: Invalid Field Type
---------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** A field has the wrong data type (e.g., a string where a list is
 expected, or a number where a boolean is expected).
@@ -776,7 +718,7 @@ expected, or a number where a boolean is expected).
          path: /data/events/
 
 LHP-VAL-010: Duplicate Monitoring Pipeline Configuration
----------------------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** Both the ``__eventlog_monitoring`` alias and the actual monitoring
 pipeline name are defined as separate entries in ``pipeline_config.yaml``.
@@ -806,11 +748,11 @@ pipeline name are defined as separate entries in ``pipeline_config.yaml``.
 
 .. seealso::
 
-   :doc:`monitoring` for details on the ``__eventlog_monitoring`` reserved keyword
+   :doc:`monitoring_reference` for details on the ``__eventlog_monitoring`` reserved keyword
    and monitoring pipeline configuration.
 
 LHP-VAL-011: Monitoring Alias in Pipeline List / Schema Syntax Error
----------------------------------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This error code covers two validation scenarios.
 
@@ -846,7 +788,7 @@ This error code covers two validation scenarios.
 
 .. seealso::
 
-   :doc:`monitoring` for details on the ``__eventlog_monitoring`` reserved keyword
+   :doc:`monitoring_reference` for details on the ``__eventlog_monitoring`` reserved keyword
    and monitoring pipeline configuration.
 
 **Scenario 2: Schema Syntax Error**
@@ -886,7 +828,7 @@ This error code covers two validation scenarios.
    ``BINARY``, ``BYTE``, ``SHORT``, and ``DECIMAL(precision,scale)``.
 
 LHP-VAL-012: Invalid Source Format
------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** The ``source`` configuration for an action is not in the
 expected format for its type.
@@ -922,12 +864,12 @@ expected format for its type.
    action type.
 
 I/O Errors (LHP-IO)
-====================
+--------------------
 
 I/O errors indicate problems reading or writing files referenced in your configuration.
 
 LHP-IO-001: File Not Found
----------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** A file referenced in your configuration does not exist at the
 expected path.
@@ -968,7 +910,7 @@ expected path.
    were searched.
 
 LHP-IO-003: Invalid Document Count
------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** A YAML file that is expected to contain a single document
 has zero documents (empty file) or multiple documents separated by ``---``.
@@ -1009,12 +951,12 @@ has zero documents (empty file) or multiple documents separated by ``---``.
    flowgroup syntax.
 
 Action Errors (LHP-ACT)
-========================
+------------------------
 
 Action errors indicate that an action type, subtype, or preset name is not recognized.
 
 LHP-ACT-001: Unknown Type
---------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** A value you provided is not recognized. This covers unknown
 action types, subtypes, sink types, source types, and preset names.
@@ -1052,13 +994,13 @@ to a valid option. It also lists all valid values.
    :doc:`actions/index` for valid action types and subtypes.
 
 Dependency Errors (LHP-DEP)
-============================
+----------------------------
 
 Dependency errors indicate circular references in your pipeline's view graph
 or preset inheritance chain.
 
 LHP-DEP-001: Circular Dependency Detected
-------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** Two or more views form a dependency cycle where
 view A depends on view B, which depends on view C, which depends back on view A.
@@ -1120,26 +1062,10 @@ you identify which dependency to remove or redirect.
    for details.
 
 General Troubleshooting
-=======================
-
-State Management
-----------------
-
-.. code-block:: bash
-   :caption: Debugging state issues
-
-   # Force regeneration of all files
-   lhp generate --force-all --env dev
-
-   # Clear state and regenerate everything
-   rm .lhp_state.json
-   lhp generate --env dev
-
-   # Check what files would be regenerated
-   lhp generate --dry-run --env dev --verbose
+-----------------------
 
 Dependency Debugging
---------------------
+~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
    :caption: Dependency debugging
@@ -1151,15 +1077,14 @@ Dependency Debugging
    lhp validate --env dev --check-cycles
 
 Performance Optimization
-------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 - Use **include patterns** to limit file scanning scope
 - Keep **FlowGroups focused** — avoid overly large YAML files
-- Leverage **state management** — don't force regeneration unless needed
 - Use **specific targets** when possible instead of full pipeline generation
 
 Getting Help
-============
+------------
 
 **Error not listed here?** This page documents the most common errors you will
 encounter as a pipeline author. Some error codes are used internally for rare

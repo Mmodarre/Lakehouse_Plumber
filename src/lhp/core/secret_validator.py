@@ -1,26 +1,29 @@
 """Secret reference validation for LakehousePlumber."""
 
 import logging
-from typing import List, Set, Optional
+from typing import List, Optional, Set
 from ..utils.substitution import SecretReference
 
 
 class SecretValidator:
-    """Validate secret references and scopes."""
+    """Validate secret references — syntax-only by design.
 
-    def __init__(self, available_scopes: Set[str] = None):
-        """Initialize secret validator.
+    LHP does not contact the Databricks workspace at generate/validate time,
+    so we cannot know which secret scopes actually exist. Rather than maintain
+    a stale local list, this validator only checks that scope and key names
+    conform to the syntactic rules Databricks itself enforces (alphanumeric
+    plus underscore/hyphen, length cap on scope names). Existence is verified
+    by Databricks when the generated pipeline runs.
+    """
 
-        Args:
-            available_scopes: Set of available secret scopes
-        """
-        self.available_scopes = available_scopes or set()
+    def __init__(self):
+        """Initialize secret validator."""
         self.logger = logging.getLogger(__name__)
 
     def validate_secret_references(
         self, secret_refs: Set[SecretReference]
     ) -> List[str]:
-        """Validate secret references.
+        """Validate secret references syntactically.
 
         Args:
             secret_refs: Set of secret references to validate
@@ -38,10 +41,11 @@ class SecretValidator:
                 self.logger.warning(f"Duplicate secret reference: ${{{ref_key}}}")
             seen_refs.add(ref_key)
 
-            # Check scope exists if available_scopes is provided
-            if self.available_scopes and secret_ref.scope not in self.available_scopes:
+            # Check scope name syntax (alphanumeric/underscore/hyphen, ≤128 chars).
+            scope_error = self.validate_scope_syntax(secret_ref.scope)
+            if scope_error is not None:
                 errors.append(
-                    f"Secret scope '{secret_ref.scope}' not found in available scopes"
+                    f"Invalid secret scope '{secret_ref.scope}': {scope_error}"
                 )
 
             # Check key format
@@ -69,14 +73,6 @@ class SecretValidator:
             "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"
         )
         return all(c in allowed_chars for c in key)
-
-    def set_available_scopes(self, scopes: Set[str]):
-        """Update available scopes.
-
-        Args:
-            scopes: Set of available secret scopes
-        """
-        self.available_scopes = scopes
 
     def validate_scope_syntax(self, scope: str) -> Optional[str]:
         """Validate scope name syntax.

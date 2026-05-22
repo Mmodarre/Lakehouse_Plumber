@@ -1,0 +1,15 @@
+# B1 fixture — all_lookups_found test action
+# Validates that dimension lookups succeed (e.g., surrogate keys are present after joins).
+pipeline: 12_test_actions
+flowgroup: ta_all_lookups_found
+
+actions:
+  - name: ta_orders_date_lookup
+    type: test
+    test_type: all_lookups_found
+    source: "${catalog}.${silver_schema}.fact_orders"
+    lookup_table: "${catalog}.${gold_schema}.dim_date"
+    lookup_columns: [order_date]
+    lookup_result_columns: [date_key]
+    on_violation: warn
+    description: "Ensure all order dates resolve to a date dimension key"

@@ -51,11 +51,22 @@ class FlowgroupDiscoverer:
         """
         Discover all flowgroups in a specific pipeline directory.
 
+        Parse failures are fatal as of v0.8.7: bad YAML, unknown action types,
+        and other structural errors surface as LHPErrors. The previous broad
+        ``except Exception`` that downgraded parse failures to a WARNING and
+        silently dropped the offending file has been removed — those files
+        should never have been routed here in the first place (instance and
+        blueprint files are filtered earlier), so any failure indicates a real
+        configuration bug the user needs to see.
+
         Args:
             pipeline_dir: Directory containing flowgroup YAML files
 
         Returns:
             List of discovered flowgroups
+
+        Raises:
+            LHPError: When any YAML file under ``pipeline_dir`` fails to parse.
         """
         flowgroups = []
 
@@ -73,22 +84,12 @@ class FlowgroupDiscoverer:
             yaml_files.extend(pipeline_dir.rglob("*.yaml"))
             yaml_files.extend(pipeline_dir.rglob("*.yml"))
 
-        skipped_files = []
         for yaml_file in yaml_files:
-            try:
-                # Use parse_flowgroups_from_file() to support multi-flowgroup files
-                file_flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
-                flowgroups.extend(file_flowgroups)
-                self.logger.debug(
-                    f"Discovered {len(file_flowgroups)} flowgroup(s) from {yaml_file}"
-                )
-            except Exception as e:
-                self.logger.debug(f"Could not parse flowgroup {yaml_file}: {e}")
-                skipped_files.append(yaml_file.name)
-
-        if skipped_files:
-            self.logger.warning(
-                f"Skipped {len(skipped_files)} file(s) due to parse errors: {skipped_files}"
+            # Use parse_flowgroups_from_file() to support multi-flowgroup files
+            file_flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
+            flowgroups.extend(file_flowgroups)
+            self.logger.debug(
+                f"Discovered {len(file_flowgroups)} flowgroup(s) from {yaml_file}"
             )
 
         return flowgroups
@@ -214,8 +215,16 @@ class FlowgroupDiscoverer:
         """
         Discover all flowgroups across all directories with their source file paths.
 
+        Parse failures are fatal as of v0.8.7 — see ``discover_flowgroups`` for
+        the rationale. Instance and blueprint files are filtered earlier in
+        ``parse_flowgroups_from_file``; anything else that fails to parse is a
+        real bug the user needs to see, not a file we should silently skip.
+
         Returns:
             List of tuples containing (flowgroup, yaml_file_path)
+
+        Raises:
+            LHPError: When any YAML file under ``pipelines/`` fails to parse.
         """
         flowgroups_with_paths = []
         pipelines_dir = self.project_root / "pipelines"
@@ -237,24 +246,13 @@ class FlowgroupDiscoverer:
             yaml_files.extend(pipelines_dir.rglob("*.yaml"))
             yaml_files.extend(pipelines_dir.rglob("*.yml"))
 
-        skipped_files = []
         for yaml_file in yaml_files:
-            try:
-                # Use parse_flowgroups_from_file() to support multi-flowgroup files
-                file_flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
-                # Add each flowgroup with the same file path
-                for flowgroup in file_flowgroups:
-                    flowgroups_with_paths.append((flowgroup, yaml_file))
-                self.logger.debug(
-                    f"Discovered {len(file_flowgroups)} flowgroup(s) from {yaml_file}"
-                )
-            except Exception as e:
-                self.logger.debug(f"Could not parse flowgroup {yaml_file}: {e}")
-                skipped_files.append(yaml_file.name)
-
-        if skipped_files:
-            self.logger.warning(
-                f"Skipped {len(skipped_files)} file(s) due to parse errors: {skipped_files}"
+            # Use parse_flowgroups_from_file() to support multi-flowgroup files
+            file_flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
+            for flowgroup in file_flowgroups:
+                flowgroups_with_paths.append((flowgroup, yaml_file))
+            self.logger.debug(
+                f"Discovered {len(file_flowgroups)} flowgroup(s) from {yaml_file}"
             )
 
         return flowgroups_with_paths

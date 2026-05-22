@@ -3,7 +3,6 @@
 import logging
 import os
 import re
-import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
@@ -30,8 +29,15 @@ class SecretReference:
         return False
 
     def to_dbutils_call(self) -> str:
-        """Generate dbutils.secrets.get() call."""
-        return f'dbutils.secrets.get(scope="{self.scope}", key="{self.key}")'
+        """Generate a dbutils.secrets.get() call as a Python expression.
+
+        Single-quoted scope/key arguments so the call is safe to embed
+        inside double-quoted string literals (e.g. inside JDBC URL
+        templates) without breaking the outer quote nesting. This
+        matches the format the legacy post-pass SecretCodeGenerator
+        emitted before inline emission replaced it.
+        """
+        return f"dbutils.secrets.get(scope='{self.scope}', key='{self.key}')"
 
 
 class EnhancedSubstitutionManager:
@@ -58,17 +64,7 @@ class EnhancedSubstitutionManager:
         self.prefix_suffix_rules: Dict[str, Dict[str, str]] = {}
         self.secret_scopes: Dict[str, str] = {}
         self.default_secret_scope: Optional[str] = None
-        self.secret_references: Set[SecretReference] = set()  # Thread-safe with lock
-
-        # Key access tracking for granular dependency detection (thread-safe)
-        self._accessed_keys: Dict[str, Set[str]] = {}
-        self._accessed_keys_lock = threading.RLock()  # Lock for thread-safe dict access
-        self._secret_references_lock = (
-            threading.RLock()
-        )  # Lock for thread-safe secret references
-        self._thread_local = (
-            threading.local()
-        )  # Per-thread storage for current flowgroup
+        self.secret_references: Set[SecretReference] = set()
 
         # Add reserved tokens
         self._add_reserved_tokens()
@@ -239,72 +235,26 @@ class EnhancedSubstitutionManager:
             # Resolve scope alias if it exists
             actual_scope = self.secret_scopes.get(scope, scope)
 
-            # Store reference for validation and code generation (thread-safe)
+            # Store reference for validation
             secret_reference = SecretReference(actual_scope, key)
-            with self._secret_references_lock:
-                self.secret_references.add(secret_reference)
+            self.secret_references.add(secret_reference)
 
-            # Return placeholder for later replacement
+            # Return placeholder; SecretCodeGenerator post-pass converts these
+            # to bare dbutils calls or f-strings after Jinja templates have
+            # wrapped values in Python string literals.
             return f"__SECRET_{actual_scope}_{key}__"
 
         return self.SECRET_PATTERN.sub(secret_replacer, text)
-
-    def set_tracking_context(self, flowgroup_name: str) -> None:
-        """Set current flowgroup for key access tracking.
-
-        Thread-safe: Uses thread-local storage for current flowgroup.
-
-        Args:
-            flowgroup_name: Name of the flowgroup being processed
-        """
-        self._thread_local.current_flowgroup = flowgroup_name
-        with self._accessed_keys_lock:
-            if flowgroup_name not in self._accessed_keys:
-                self._accessed_keys[flowgroup_name] = set()
-
-    def clear_tracking_context(self) -> None:
-        """Clear current tracking context.
-
-        Thread-safe: Clears thread-local storage.
-        """
-        self._thread_local.current_flowgroup = None
-
-    def get_accessed_keys(self, flowgroup_name: str) -> Set[str]:
-        """Get keys accessed by a flowgroup.
-
-        Thread-safe: Uses lock for reading shared state.
-
-        Args:
-            flowgroup_name: Name of the flowgroup
-
-        Returns:
-            Set of keys accessed by the flowgroup (copy for safety)
-        """
-        with self._accessed_keys_lock:
-            return self._accessed_keys.get(flowgroup_name, set()).copy()
 
     def _replace_tokens_in_string(self, text: str) -> str:
         """Replace all {TOKEN} and ${TOKEN} patterns in a string."""
 
         def default_replacer(match):
             token = match.group(1)
-            # Track key access (thread-safe)
-            current_fg = getattr(self._thread_local, "current_flowgroup", None)
-            if current_fg:
-                with self._accessed_keys_lock:
-                    if current_fg in self._accessed_keys:
-                        self._accessed_keys[current_fg].add(token)
             return self.mappings.get(token, match.group(0))
 
         def dollar_replacer(match):
             token = match.group(1)
-            # Track key access (thread-safe)
-            current_fg = getattr(self._thread_local, "current_flowgroup", None)
-            if current_fg:
-                with self._accessed_keys_lock:
-                    if current_fg in self._accessed_keys:
-                        self._accessed_keys[current_fg].add(token)
-            # For ${TOKEN} pattern, just return the replacement value
             return self.mappings.get(token, match.group(0))
 
         # Apply patterns - dollar pattern first to avoid conflicts
@@ -323,17 +273,6 @@ class EnhancedSubstitutionManager:
 
         text = self.DEFAULT_TOKEN_PATTERN.sub(default_replacer, text)
         return text
-
-    def get_secret_references(self) -> Set[SecretReference]:
-        """Get all secret references found during substitution.
-
-        Thread-safe: Uses lock for reading shared state.
-
-        Returns:
-            Set of secret references (copy for safety)
-        """
-        with self._secret_references_lock:
-            return self.secret_references.copy()
 
     def validate_no_unresolved_tokens(
         self, data: Any, path: str = "config"

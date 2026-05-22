@@ -138,7 +138,7 @@ def test_discover_instances_custom_patterns(tmp_path):
 
 
 # ----------------------------------------------------------------------
-# Issue 2 + 3 (PR #130): cache plumbing + load-error UX
+# Cache wiring and load-error UX in instance discovery
 # ----------------------------------------------------------------------
 
 

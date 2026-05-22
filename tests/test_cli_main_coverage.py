@@ -86,12 +86,18 @@ class TestEnsureProjectRoot:
 
     def test_ensure_project_root_no_project(self, tmp_path):
         """Lines 124-139: raises LHPError when _find_project_root returns None."""
-        from lhp.utils.error_formatter import LHPError
+        from lhp.utils.error_formatter import ErrorCategory, LHPError
 
         with patch("lhp.cli.main._find_project_root", return_value=None):
             with pytest.raises(LHPError) as exc_info:
                 _ensure_project_root()
-            assert "Not in a LakehousePlumber project directory" in exc_info.value.title
+            # Assert on structured error contract (category + code)
+            # instead of the human-readable title. The title text was
+            # copied verbatim from the source; the (category, code)
+            # tuple is the stable behavioral contract that downstream
+            # tooling (exit-code mapping, docs links) actually consumes.
+            assert exc_info.value.category == ErrorCategory.CONFIG
+            assert exc_info.value.code == "LHP-CFG-011"
 
     def test_ensure_project_root_found(self, tmp_path):
         """Happy path: returns the project root when found."""
@@ -289,19 +295,6 @@ class TestCommandRouting:
         """Context manager that patches the cli group callback to be a no-op."""
         return patch("lhp.cli.main.configure_logging", return_value=None)
 
-    def test_state_command_routing(self, runner):
-        """Lines 338-340: state command instantiates StateCommand and calls execute."""
-        with self._patch_cli_group():
-            with patch("lhp.cli.main._find_project_root", return_value=Path("/fake")):
-                with patch(
-                    "lhp.cli.commands.state_command.StateCommand.execute"
-                ) as mock_exec:
-                    result = runner.invoke(cli, ["state", "--env", "dev"])
-                    mock_exec.assert_called_once_with(
-                        "dev", None, False, False, False, False, False, False
-                    )
-                    assert result.exit_code == 0
-
     def test_substitutions_command_routing(self, runner):
         """Lines 387-389: substitutions command routes to ShowCommand.show_substitutions."""
         with self._patch_cli_group():
@@ -324,8 +317,15 @@ class TestCommandRouting:
                         cli, ["deps", "--format", "json", "--pipeline", "p1"]
                     )
                     mock_exec.assert_called_once_with(
-                        "json", None, "p1", None, None, False, False,
-                        expand_blueprints=False, blueprint_filter=None,
+                        "json",
+                        None,
+                        "p1",
+                        None,
+                        None,
+                        False,
+                        False,
+                        expand_blueprints=False,
+                        blueprint_filter=None,
                     )
                     assert result.exit_code == 0
 
@@ -366,33 +366,6 @@ class TestCommandRouting:
                         blueprint_filter=None,
                     )
                     assert result.exit_code == 0
-
-    def test_state_command_all_flags(self, runner):
-        """State command with all boolean flags set."""
-        with self._patch_cli_group():
-            with patch("lhp.cli.main._find_project_root", return_value=Path("/fake")):
-                with patch(
-                    "lhp.cli.commands.state_command.StateCommand.execute"
-                ) as mock_exec:
-                    runner.invoke(
-                        cli,
-                        [
-                            "state",
-                            "--env",
-                            "prod",
-                            "--pipeline",
-                            "p1",
-                            "--orphaned",
-                            "--stale",
-                            "--new",
-                            "--dry-run",
-                            "--cleanup",
-                            "--regen",
-                        ],
-                    )
-                    mock_exec.assert_called_once_with(
-                        "prod", "p1", True, True, True, True, True, True
-                    )
 
 
 # ============================================================================

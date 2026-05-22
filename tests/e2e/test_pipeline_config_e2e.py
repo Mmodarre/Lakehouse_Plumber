@@ -35,6 +35,8 @@ class TestPipelineConfigE2E:
 
         pipeline_config_content = """
 project_defaults:
+  catalog: acme_edw_dev
+  schema: edw_raw
   serverless: false
   edition: ADVANCED
   channel: CURRENT
@@ -131,6 +133,8 @@ clusters:
 
         pipeline_config_content = """
 project_defaults:
+  catalog: acme_edw_dev
+  schema: edw_raw
   serverless: false
   edition: PRO
 
@@ -320,6 +324,8 @@ clusters:
 
         pipeline_config_content = """
 project_defaults:
+  catalog: acme_edw_dev
+  schema: edw_raw
   serverless: false
   edition: ADVANCED
 
@@ -383,6 +389,8 @@ clusters:
 
         pipeline_config_content = """
 project_defaults:
+  catalog: acme_edw_dev
+  schema: edw_raw
   serverless: false
   edition: ADVANCED
 
@@ -642,7 +650,6 @@ class TestEnvironmentDependenciesE2E:
                 "dev",
                 "--pipeline-config",
                 "config/pipeline_config.yaml",
-                "--force",
             ],
         )
         assert result.exit_code == 0, f"Generation should succeed:\n{result.output}"
@@ -869,7 +876,6 @@ class TestConfigurationBlockE2E:
                 "dev",
                 "--pipeline-config",
                 "config/pipeline_config.yaml",
-                "--force",
             ],
         )
         assert result.exit_code == 0, f"Generation should succeed:\n{result.output}"
@@ -1328,7 +1334,15 @@ class TestMonitoringPipelineE2E:
         """Run lhp generate --env dev --force via CLI."""
         runner = CliRunner()
         result = runner.invoke(
-            cli, ["--verbose", "generate", "--env", "dev", "--force"]
+            cli,
+            [
+                "--verbose",
+                "generate",
+                "--env",
+                "dev",
+                "--pipeline-config",
+                "config/pipeline_config.yaml",
+            ],
         )
         return result.exit_code, result.output
 
@@ -1764,9 +1778,7 @@ class TestMonitoringPipelineE2E:
         self._assert_monitoring_notebook_baseline("default")
 
         # Job YAML must reflect the rich overrides + substituted tokens.
-        job_yml = (
-            self.resources_root / "acme_edw_event_log_monitoring.job.yml"
-        )
+        job_yml = self.resources_root / "acme_edw_event_log_monitoring.job.yml"
         assert job_yml.exists(), f"Monitoring job YAML not generated: {job_yml}"
         parsed = yaml.safe_load(job_yml.read_text())
         job = parsed["resources"]["jobs"]["acme_edw_event_log_monitoring_job"]
@@ -1806,8 +1818,7 @@ class TestMonitoringPipelineE2E:
         self._enable_event_log()
         # Hand-roll a monitoring block that references a file we do NOT create
         self.lhp_yaml.write_text(
-            self.lhp_yaml.read_text()
-            + "\nmonitoring:\n"
+            self.lhp_yaml.read_text() + "\nmonitoring:\n"
             '  checkpoint_path: "/Volumes/cat/_meta/checkpoints/event_logs"\n'
             '  job_config_path: "config/does_not_exist.yaml"\n'
         )
@@ -1870,7 +1881,6 @@ tags:
                 "generate",
                 "--env",
                 "dev",
-                "--force",
                 "--pipeline-config",
                 "config/pipeline_config.yaml",
             ],
@@ -1961,6 +1971,8 @@ tags:
         config_file = self.project_root / "config" / "pipeline_config.yaml"
         config_file.write_text(
             "project_defaults:\n"
+            "  catalog: acme_edw_dev\n"
+            "  schema: edw_raw\n"
             "  serverless: false\n"
             "  edition: PRO\n"
             "  photon: true\n"
@@ -1975,7 +1987,6 @@ tags:
                 "generate",
                 "--env",
                 "dev",
-                "--force",
                 "--pipeline-config",
                 "config/pipeline_config.yaml",
             ],
@@ -2023,6 +2034,8 @@ tags:
         config_file = self.project_root / "config" / "pipeline_config.yaml"
         config_file.write_text(
             "project_defaults:\n"
+            "  catalog: acme_edw_dev\n"
+            "  schema: edw_raw\n"
             "  serverless: true\n"
             "\n"
             "---\n"
@@ -2050,7 +2063,6 @@ tags:
                 "generate",
                 "--env",
                 "dev",
-                "--force",
                 "--pipeline-config",
                 "config/pipeline_config.yaml",
             ],

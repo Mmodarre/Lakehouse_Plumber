@@ -84,6 +84,10 @@ class CodeFormatter:
                 magic_trailing_comma=True,
             )
 
+            # Under ProcessPoolExecutor with mp_context="spawn", each worker
+            # owns its own black tokenizer cache and grammar tables; only
+            # one thread per process ever reaches this call, so the
+            # historical intra-process lock around format_str is obsolete.
             formatted = black.format_str(code, mode=mode)
             return formatted
 

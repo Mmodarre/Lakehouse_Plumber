@@ -1,0 +1,28 @@
+# B2 fixture — Delta sink (dp.create_sink + @dp.append_flow)
+# Writes to a Unity Catalog external Delta table via tableName.
+pipeline: 13_sinks
+flowgroup: sk_delta
+
+actions:
+  - name: load_metrics_for_delta_sink
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      database: "${catalog}.${silver_schema}"
+      table: "fact_orders"
+    target: v_metrics_delta_sink
+    description: "Load fact_orders for streaming export to Delta sink"
+
+  - name: write_metrics_to_delta_sink
+    type: write
+    source: v_metrics_delta_sink
+    write_target:
+      type: sink
+      sink_type: delta
+      sink_name: analytics_delta_export
+      comment: "Stream daily order metrics to shared analytics catalog"
+      options:
+        tableName: "${catalog}.edw_analytics.daily_order_metrics"
+        checkpointLocation: "/Volumes/${catalog}/_meta/checkpoints/sk_delta_export"
+        mergeSchema: "true"

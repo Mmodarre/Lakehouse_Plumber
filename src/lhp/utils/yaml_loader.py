@@ -107,45 +107,6 @@ def load_yaml_file(
         ) from e
 
 
-def load_yaml_if_exists(
-    file_path: Union[Path, str],
-    default_value: Optional[Dict[str, Any]] = None,
-    **kwargs,
-) -> Optional[Dict[str, Any]]:
-    """
-    Load YAML file if it exists, return default if missing.
-
-    Consolidates the common pattern for optional configuration files:
-    ```python
-    config = {}
-    if config_file.exists():
-        try:
-            with open(config_file, "r") as f:
-                config = yaml.safe_load(f) or {}
-        except Exception as e:
-            logger.warning(f"Could not load config: {e}")
-    ```
-
-    Args:
-        file_path: Path to YAML file to load
-        default_value: Value to return if file doesn't exist (default: None)
-        **kwargs: Additional arguments passed to load_yaml_file()
-
-    Returns:
-        Parsed YAML content if file exists, default_value if missing
-
-    Examples:
-        >>> config = load_yaml_if_exists("config.yaml", default_value={})
-        >>> substitutions = load_yaml_if_exists(sub_file, error_context="substitution")
-    """
-    file_path = Path(file_path)
-
-    if file_path.exists():
-        return load_yaml_file(file_path, **kwargs)
-    else:
-        return default_value
-
-
 def safe_load_yaml_with_fallback(
     file_path: Union[Path, str],
     fallback_value: Dict[str, Any] = None,

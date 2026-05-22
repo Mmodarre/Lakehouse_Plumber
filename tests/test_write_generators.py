@@ -1,14 +1,16 @@
 """Tests for write action generators of LakehousePlumber."""
 
-import pytest
-from pathlib import Path
 import tempfile
+from pathlib import Path
 from unittest.mock import patch
-from lhp.models.config import Action, ActionType
+
+import pytest
+
 from lhp.generators.write import (
-    StreamingTableWriteGenerator,
     MaterializedViewWriteGenerator,
+    StreamingTableWriteGenerator,
 )
+from lhp.models.config import Action, ActionType
 
 
 class TestWriteGenerators:
@@ -434,7 +436,9 @@ def test_materialized_view_no_catalog_schema_fallback():
 
     # Verify table name is used without catalog.schema prefix
     assert 'name="test_table"' in code
-    assert 'name="test_cat.test_sch.test_table"' not in code  # Should not have catalog.schema prefix
+    assert (
+        'name="test_cat.test_sch.test_table"' not in code
+    )  # Should not have catalog.schema prefix
     assert "@dp.materialized_view(" in code
     assert "spark.sql" in code
 
@@ -822,7 +826,7 @@ FROM dev_catalog.bronze.sales
 WHERE sale_date >= '2024-01-01'
 GROUP BY product_id
 """
-        mock_subst_mgr.get_secret_references.return_value = set()
+        mock_subst_mgr.secret_references = set()
 
         generator = MaterializedViewWriteGenerator()
         action = Action(
@@ -856,6 +860,7 @@ def test_materialized_view_sql_path_file_not_found():
     """Test error handling when sql_path file doesn't exist."""
     import tempfile
     from pathlib import Path
+
     from lhp.utils.error_formatter import LHPError
 
     with tempfile.TemporaryDirectory() as tmpdir:

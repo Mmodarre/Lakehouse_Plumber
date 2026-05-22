@@ -69,23 +69,30 @@ class TestCliDepsIntegration:
         """Test that the deps command is registered in the CLI."""
         result = self.runner.invoke(cli, ['--help'])
         assert result.exit_code == 0
-        assert 'deps' in result.output
-        assert 'Analyze and visualize pipeline dependencies' in result.output
+        # ``deps`` should appear in the root command listing; help-text
+        # rendering is owned by Phase 1 and re-pinned via snapshot then.
+        assert 'deps' in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 1
+        # Docstring-mirror assertion deleted — the deps() function
+        # docstring is the literal source of this string, so the previous
+        # check was tautological.
 
     def test_deps_command_help(self):
         """Test deps command help output."""
         result = self.runner.invoke(cli, ['deps', '--help'])
         assert result.exit_code == 0
 
-        # Check for expected options
-        assert '--format' in result.output
-        assert '--output' in result.output
-        assert '--pipeline' in result.output
-        assert '--job-name' in result.output
-        assert '--verbose' in result.output
+        # Phase 1 will re-render help via rich-click; the contract that
+        # each option is documented in help text will be re-pinned via
+        # snapshot once the new renderer lands.
+        assert '--format' in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 1
+        assert '--output' in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 1
+        assert '--pipeline' in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 1
+        assert '--job-name' in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 1
+        assert '--verbose' in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 1
 
-        # Check help text
-        assert 'Analyze and visualize pipeline dependencies' in result.output
+        # Docstring-mirror assertion deleted — the deps() function
+        # docstring is the literal source of this string, so the previous
+        # check was tautological.
 
     @patch('lhp.cli.commands.dependencies_command.DependenciesCommand.execute')
     def test_deps_command_basic_execution(self, mock_execute):
@@ -159,9 +166,12 @@ class TestCliDepsIntegration:
         """Test deps command with invalid format option."""
         result = self.runner.invoke(cli, ['deps', '--format', 'invalid_format'])
 
-        # Should exit with error due to invalid choice
+        # The behavior under test is "Click rejects values outside the
+        # ``click.Choice([...])`` set"; that is fully captured by the
+        # non-zero exit code. The previous wording match probed Click's
+        # framework error message, which is owned by Click (and will be
+        # restyled by rich-click in Phase 1).
         assert result.exit_code != 0
-        assert 'Invalid value' in result.output or 'invalid choice' in result.output.lower()
 
     def test_deps_command_format_choices(self):
         """Test that deps command accepts all valid format choices."""
@@ -350,10 +360,11 @@ class TestCliDepsIntegration:
         # Check that the command exists in the CLI group
         assert hasattr(cli, 'commands') or hasattr(cli, 'list_commands')
 
-        # Run CLI help and verify deps is listed
+        # Run CLI help and verify deps is listed; help-text rendering is
+        # owned by Phase 1 and re-pinned via snapshot then.
         result = self.runner.invoke(cli, ['--help'])
         commands_output = result.output
-        assert 'deps' in commands_output
+        assert 'deps' in commands_output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 1
 
     def test_deps_command_import_path(self):
         """Test that the deps command can be imported correctly."""

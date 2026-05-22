@@ -1,4 +1,6 @@
 project_defaults:
+  catalog: test_catalog
+  schema: test_schema
   serverless: false
   edition: ADVANCED
   channel: CURRENT

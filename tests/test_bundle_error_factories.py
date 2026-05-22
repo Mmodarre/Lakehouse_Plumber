@@ -6,14 +6,12 @@ from lhp.bundle.error_factories import (
     convert_bundle_error,
     create_bundle_config_error,
     create_bundle_resource_error,
-    create_missing_target_error,
     create_template_error,
     create_yaml_processing_error,
 )
 from lhp.bundle.exceptions import (
     BundleConfigurationError,
     BundleResourceError,
-    MissingDatabricksTargetError,
     TemplateError,
     YAMLProcessingError,
 )
@@ -150,66 +148,6 @@ class TestCreateYamlProcessingError:
         assert any("YAML linter" in s for s in result.suggestions)
 
 
-class TestCreateMissingTargetError:
-    """Tests for create_missing_target_error factory."""
-
-    def test_basic_creation(self):
-        """Should create LHPError with CONFIG category and code 023."""
-        result = create_missing_target_error(
-            missing_targets=["staging"],
-            available_targets=["dev", "prod"],
-            file_path="databricks.yml",
-        )
-
-        assert isinstance(result, LHPError)
-        assert result.category == ErrorCategory.CONFIG
-        assert result.code == "LHP-CFG-023"
-        assert "Missing Databricks bundle targets" in result.title
-
-    def test_formats_missing_targets(self):
-        """Should format missing targets as quoted comma-separated list."""
-        result = create_missing_target_error(
-            missing_targets=["staging", "qa"],
-            available_targets=["dev", "prod"],
-            file_path="databricks.yml",
-        )
-
-        assert "'staging'" in result.details
-        assert "'qa'" in result.details
-        assert result.context["Missing Targets"] == "'staging', 'qa'"
-
-    def test_formats_available_targets(self):
-        """Should format available targets as quoted list in context."""
-        result = create_missing_target_error(
-            missing_targets=["staging"],
-            available_targets=["dev", "prod"],
-            file_path="databricks.yml",
-        )
-
-        assert result.context["Available Targets"] == "'dev', 'prod'"
-
-    def test_empty_available_targets(self):
-        """Should show 'none found' when no available targets."""
-        result = create_missing_target_error(
-            missing_targets=["staging"],
-            available_targets=[],
-            file_path="databricks.yml",
-        )
-
-        assert "none found" in result.details
-        assert result.context["Available Targets"] == "none found"
-
-    def test_file_path_in_context(self):
-        """Should include file path in context."""
-        result = create_missing_target_error(
-            missing_targets=["staging"],
-            available_targets=["dev"],
-            file_path="/project/databricks.yml",
-        )
-
-        assert result.context["File"] == "/project/databricks.yml"
-
-
 class TestCreateTemplateError:
     """Tests for create_template_error factory."""
 
@@ -312,19 +250,6 @@ class TestCreateBundleConfigError:
 
 class TestConvertBundleError:
     """Tests for convert_bundle_error dispatch function."""
-
-    def test_missing_databricks_target_error(self):
-        """Should dispatch MissingDatabricksTargetError to target resolution error."""
-        error = MissingDatabricksTargetError("Target 'staging' not found")
-
-        result = convert_bundle_error(error, "generate")
-
-        assert isinstance(result, LHPError)
-        assert result.category == ErrorCategory.CONFIG
-        assert result.code == "LHP-CFG-020"
-        assert result.context["Operation"] == "target resolution"
-        assert "staging" in result.details
-        assert any("databricks.yml" in s for s in result.suggestions)
 
     def test_yaml_processing_error_with_attrs(self):
         """Should dispatch YAMLProcessingError using its file_path, line_number, and context."""
@@ -438,15 +363,6 @@ class TestConvertBundleError:
         result = convert_bundle_error(error)
 
         assert result.context["Operation"] == "bundle operation"
-
-    def test_dispatch_priority_missing_target_over_base(self):
-        """MissingDatabricksTargetError should match before BundleResourceError."""
-        error = MissingDatabricksTargetError("Target missing")
-
-        result = convert_bundle_error(error)
-
-        # Should match MissingDatabricksTargetError, not BundleResourceError
-        assert result.context["Operation"] == "target resolution"
 
     def test_dispatch_priority_yaml_over_base(self):
         """YAMLProcessingError should match before BundleResourceError."""

@@ -46,8 +46,13 @@ Load actions bring data into temporary **views** for downstream processing.
 - **DDL/SQL file**: `"schemas/customer_schema.ddl"` or `.sql`
 
 **Key points:**
-- `readMode: stream` → `spark.readStream.format("cloudFiles")`, `batch` → `spark.read.format("cloudFiles")`
+- `readMode` must be `stream` — `cloudfiles` rejects `batch` with a validation error
+- `cloudFiles.format` is mandatory; LHP auto-injects it from `source.format` if omitted
+- `source.schema` and `cloudFiles.schemaHints` are **mutually exclusive** (also conflicts with legacy `schema_file`); with `source.schema` set, schema evolution is disabled
 - `_metadata.*` columns (`file_path`, `file_size`, `file_modification_time`) only available in views, not downstream transforms
+- Recycled-data / replay knobs: `cloudFiles.includeExistingFiles` (fresh-pipeline only), `cloudFiles.allowOverwrites`, `cloudFiles.cleanSource` + `cleanSource.retentionDuration` + `cleanSource.moveDestination`
+- Throughput/listing knobs: `cloudFiles.maxFilesPerTrigger`, `cloudFiles.maxBytesPerTrigger`, `cloudFiles.useIncrementalListing`, `cloudFiles.useNotifications`
+- Path filtering: narrow `source.path` glob (prefix) or use `pathGlobFilter` in options (basename)
 - All options mirror Databricks Auto Loader options
 
 ---

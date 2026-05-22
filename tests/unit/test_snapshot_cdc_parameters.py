@@ -420,7 +420,14 @@ class TestParameterSubstitution:
             Path(fn).unlink()
 
     def test_secret_references_in_parameters_tracked(self, generator):
-        """Secret references in parameter values are collected."""
+        """Secret references in parameter values are collected on the substitution manager.
+
+        The substitution layer records every secret reference it encounters
+        directly on ``EnhancedSubstitutionManager.secret_references``. The
+        per-context ``secret_references`` accumulator (also present) is a
+        mirror used by some downstream consumers, but the substitution
+        manager's attribute is the canonical, user-facing source.
+        """
         fn = _write_function_file(FUNC_WITH_SUBSTITUTION_TOKENS)
         try:
             action = _make_action(
@@ -437,8 +444,7 @@ class TestParameterSubstitution:
 
             generator.generate(action, ctx)
 
-            # Secret references should be tracked in context
-            assert len(ctx["secret_references"]) > 0
+            assert len(sub_mgr.secret_references) > 0
         finally:
             Path(fn).unlink()
 

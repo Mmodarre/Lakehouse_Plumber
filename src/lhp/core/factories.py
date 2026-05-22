@@ -1,12 +1,10 @@
 """Factory interfaces for dependency injection in LakehousePlumber orchestrator."""
 
-from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Protocol
+from typing import Protocol
 
 from ..utils.substitution import EnhancedSubstitutionManager
-from ..utils.smart_file_writer import SmartFileWriter
-from .state.staleness_cache import StalenessCache
 
 
 class SubstitutionFactory(Protocol):
@@ -26,19 +24,6 @@ class SubstitutionFactory(Protocol):
         ...
 
 
-class FileWriterFactory(Protocol):
-    """Factory interface for creating file writers."""
-
-    def create(self) -> SmartFileWriter:
-        """
-        Create a smart file writer instance.
-
-        Returns:
-            SmartFileWriter instance
-        """
-        ...
-
-
 class DefaultSubstitutionFactory:
     """Default implementation of SubstitutionFactory."""
 
@@ -47,43 +32,16 @@ class DefaultSubstitutionFactory:
         return EnhancedSubstitutionManager(substitution_file, env)
 
 
-class DefaultFileWriterFactory:
-    """Default implementation of FileWriterFactory."""
-
-    def create(self) -> SmartFileWriter:
-        """Create default smart file writer."""
-        return SmartFileWriter()
-
-
+@dataclass
 class OrchestrationDependencies:
     """Dependency container for orchestrator injection."""
 
-    def __init__(
-        self,
-        substitution_factory: SubstitutionFactory = None,
-        file_writer_factory: FileWriterFactory = None,
-        staleness_cache: Optional[StalenessCache] = None,
-    ):
-        """
-        Initialize orchestration dependencies.
-
-        Args:
-            substitution_factory: Factory for substitution managers
-            file_writer_factory: Factory for file writers
-            staleness_cache: Shared per-run env-wide staleness cache. When
-                ``None``, a fresh cache is created (each orchestrator then
-                owns its own, which is fine for tests and one-shot usage).
-        """
-        self.substitution_factory = substitution_factory or DefaultSubstitutionFactory()
-        self.file_writer_factory = file_writer_factory or DefaultFileWriterFactory()
-        self.staleness_cache = staleness_cache or StalenessCache()
+    substitution_factory: SubstitutionFactory = field(
+        default_factory=lambda: DefaultSubstitutionFactory()
+    )
 
     def create_substitution_manager(
         self, substitution_file: Path, env: str
     ) -> EnhancedSubstitutionManager:
         """Create substitution manager using factory."""
         return self.substitution_factory.create(substitution_file, env)
-
-    def create_file_writer(self) -> SmartFileWriter:
-        """Create file writer using factory."""
-        return self.file_writer_factory.create()

@@ -1,10 +1,11 @@
 """Test action generator for Lakehouse Plumber."""
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from lhp.core.base_generator import BaseActionGenerator
-from lhp.models.config import Action, TestActionType, ViolationAction
+from lhp.models.config import Action
+from lhp.utils.error_formatter import ErrorCategory, LHPValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -49,34 +50,16 @@ class TestActionGenerator(BaseActionGenerator):
             FROM {source} s
             LEFT JOIN {lookup_table} l ON {join_condition}
         """,
-        "schema_match": """
-            WITH source_schema AS (
-              SELECT column_name, data_type, ordinal_position
-              FROM information_schema.columns
-              WHERE table_name = '{source}'
-            ),
-            reference_schema AS (
-              SELECT column_name, data_type, ordinal_position
-              FROM information_schema.columns
-              WHERE table_name = '{reference}'
-            ),
-            schema_diff AS (
-              SELECT 
-                COALESCE(s.column_name, r.column_name) as column_name,
-                s.data_type as source_type,
-                r.data_type as reference_type,
-                CASE 
-                  WHEN s.column_name IS NULL THEN 'missing_in_source'
-                  WHEN r.column_name IS NULL THEN 'extra_in_source'
-                  WHEN s.data_type != r.data_type THEN 'type_mismatch'
-                  ELSE 'match'
-                END as status
-              FROM source_schema s
-              FULL OUTER JOIN reference_schema r ON s.column_name = r.column_name
-            )
-            SELECT * FROM schema_diff WHERE status != 'match'
-        """,
+        # NOTE: ``schema_match`` is intentionally NOT a templated entry here —
+        # its SQL needs to inject a catalog into both the FROM clause and three
+        # WHERE-clause columns, per source/reference table, which a single
+        # ``str.format()`` cannot do without ambiguity. The SQL is built inline
+        # in ``_generate_test_sql`` from the parsed 3-part FQN.
     }
+
+    # Test types that have associated SQL generation logic (templated or inline).
+    # Used by gates that decide whether to call ``_generate_test_sql``.
+    _SQL_TEST_TYPES = frozenset(TEST_SQL_TEMPLATES) | frozenset({"schema_match"})
 
     def __init__(self, config: Dict[str, Any] = None, context: Dict[str, Any] = None):
         """Initialize TestGenerator with config and context."""
@@ -111,7 +94,7 @@ class TestActionGenerator(BaseActionGenerator):
 
         # Build SQL if needed
         sql = None
-        if test_type in self.TEST_SQL_TEMPLATES:
+        if test_type in self._SQL_TEST_TYPES:
             sql = self._generate_test_sql(test_type)
         elif test_type == "custom_sql":
             sql = self.config.get("sql")
@@ -209,7 +192,7 @@ class TestActionGenerator(BaseActionGenerator):
         }
 
         # Add SQL based on test type
-        if test_type in self.TEST_SQL_TEMPLATES:
+        if test_type in self._SQL_TEST_TYPES:
             config["sql"] = self._generate_test_sql(test_type)
         elif test_type == "custom_sql":
             config["sql"] = self.config.get("sql")
@@ -223,6 +206,11 @@ class TestActionGenerator(BaseActionGenerator):
 
     def _generate_test_sql(self, test_type: str) -> str:
         """Generate SQL for specific test type."""
+        # schema_match is built inline (not from TEST_SQL_TEMPLATES) — see note
+        # on the class-level template dict.
+        if test_type == "schema_match":
+            return self._build_schema_match_sql()
+
         template = self.TEST_SQL_TEMPLATES.get(test_type)
         if not template:
             return ""
@@ -315,14 +303,113 @@ class TestActionGenerator(BaseActionGenerator):
                 join_condition=" AND ".join(join_conditions),
             )
 
-        elif test_type == "schema_match":
-            source = self.config.get("source")
-            if isinstance(source, list):
-                source = source[0] if source else "source_table"
-            reference = self.config.get("reference", "reference_table")
-            return template.format(source=source, reference=reference)
-
         return template
+
+    def _parse_three_part_fqn(self, value: Any, field: str) -> tuple:
+        """Parse and validate a 3-part Unity Catalog FQN.
+
+        The schema_match SQL queries ``information_schema.columns``, which in
+        Unity Catalog stores the *unqualified* table name in ``table_name``. To
+        produce a SQL predicate that actually matches a single table we must
+        split the user-supplied FQN into ``(catalog, schema, table)`` and use
+        all three parts in the WHERE clause — and also catalog-qualify
+        ``information_schema.columns`` so the query targets the right
+        ``information_schema`` (each UC catalog has its own).
+
+        Args:
+            value: The FQN string from action config (already substituted).
+            field: Action field name (``source`` or ``reference``), surfaced
+                in the error context.
+
+        Returns:
+            Tuple of (catalog, schema, table) — all non-empty strings.
+
+        Raises:
+            LHPValidationError: When the input is not exactly three
+                dot-separated non-empty parts, or contains backticks.
+        """
+        invalid = not isinstance(value, str) or "`" in str(value or "")
+        parts: List[str] = []
+        if not invalid:
+            parts = value.split(".")
+            if len(parts) != 3 or not all(parts):
+                invalid = True
+        if invalid:
+            raise LHPValidationError(
+                category=ErrorCategory.VALIDATION,
+                code_number="022",
+                title="Invalid table identifier for schema_match",
+                details=(
+                    f"Field '{field}' for the schema_match test must be a "
+                    f"fully-qualified Unity Catalog table name in the form "
+                    f"'catalog.schema.table'. Got: {value!r}."
+                ),
+                suggestions=[
+                    "Use a three-part name: '<catalog>.<schema>.<table>'",
+                    "Resolve the FQN via substitutions if the parts come from "
+                    "env (e.g. '${catalog}.${silver_schema}.fact_orders')",
+                    "Avoid backticked identifiers; use plain dotted form",
+                ],
+                context={
+                    "Provided": str(value),
+                    "Field": field,
+                    "Test type": "schema_match",
+                },
+            )
+        return parts[0], parts[1], parts[2]
+
+    def _build_schema_match_sql(self) -> str:
+        """Build the schema_match comparison SQL inline.
+
+        Each CTE queries its own catalog's ``information_schema.columns`` —
+        robust against source and reference living in different catalogs,
+        while remaining byte-identical to the baseline when they share one.
+
+        Indentation is tuned to the post-processing in ``generate``: line 0 is
+        stripped and prefixed with 8 spaces; subsequent lines keep their
+        original leading whitespace and also receive an 8-space prefix.
+        """
+        source = self.config.get("source")
+        if isinstance(source, list):
+            source = source[0] if source else ""
+        reference = self.config.get("reference")
+        src_catalog, src_schema, src_table = self._parse_three_part_fqn(
+            source, "source"
+        )
+        ref_catalog, ref_schema, ref_table = self._parse_three_part_fqn(
+            reference, "reference"
+        )
+        return f"""
+            WITH source_schema AS (
+              SELECT column_name, data_type, ordinal_position
+              FROM {src_catalog}.information_schema.columns
+              WHERE table_catalog = '{src_catalog}'
+                AND table_schema = '{src_schema}'
+                AND table_name = '{src_table}'
+            ),
+            reference_schema AS (
+              SELECT column_name, data_type, ordinal_position
+              FROM {ref_catalog}.information_schema.columns
+              WHERE table_catalog = '{ref_catalog}'
+                AND table_schema = '{ref_schema}'
+                AND table_name = '{ref_table}'
+            ),
+            schema_diff AS (
+              SELECT
+                COALESCE(s.column_name, r.column_name) as column_name,
+                s.data_type as source_type,
+                r.data_type as reference_type,
+                CASE
+                  WHEN s.column_name IS NULL THEN 'missing_in_source'
+                  WHEN r.column_name IS NULL THEN 'extra_in_source'
+                  WHEN s.data_type != r.data_type THEN 'type_mismatch'
+                  ELSE 'match'
+                END as status
+              FROM source_schema s
+              FULL OUTER JOIN reference_schema r ON s.column_name = r.column_name
+            )
+            SELECT * FROM schema_diff WHERE status != 'match'
+        """
 
     def _build_expectations(self, test_type: str) -> List[Dict[str, Any]]:
         """Build expectations based on test type."""

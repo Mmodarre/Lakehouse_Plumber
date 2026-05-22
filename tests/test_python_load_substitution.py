@@ -179,7 +179,15 @@ class TestPythonLoadSubstitution:
         assert "${py_functions_dir}" not in code or "custom_python/loaders" in code
 
     def test_python_load_secret_in_parameters(self):
-        """Test ${secret:scope/key} substitution in parameters."""
+        """Test ${secret:scope/key} substitution in parameters.
+
+        Substitution emits sentinel placeholders at the generator layer;
+        the post-pass (`SecretCodeGenerator`, invoked from
+        `CodeGenerator._apply_secret_substitutions`) rewrites placeholders
+        to bare ``dbutils.secrets.get(...)`` calls or f-strings depending
+        on string-literal context. Bare-call form is asserted at the
+        integration layer in `tests/test_integration.py`.
+        """
         # Create substitution manager with secret support
         substitution_mgr = EnhancedSubstitutionManager()
         substitution_mgr.default_secret_scope = "default_scope"
@@ -206,10 +214,17 @@ class TestPythonLoadSubstitution:
         generator = PythonLoadGenerator()
         code = generator.generate(action, context)
 
-        # Verify secrets are converted to placeholders (not dbutils calls yet)
-        assert "__SECRET_" in code
-        assert "api_secrets" in code or "service_key" in code
+        # Placeholder is emitted at this layer; explicit and default scopes
+        # both resolve to ``__SECRET_<scope>_<key>__``.
+        assert "__SECRET_api_secrets_service_key__" in code
+        assert "__SECRET_default_scope_password__" in code
+
+        # ${secret:...} tokens must be fully replaced by substitution.
         assert "${secret:" not in code
+
+        # No bare dbutils calls at the generator level — that happens in
+        # the post-pass on assembled flowgroup code.
+        assert "dbutils.secrets.get" not in code
 
     def test_python_load_no_substitution_manager(self):
         """Test graceful handling when no substitution manager is available."""

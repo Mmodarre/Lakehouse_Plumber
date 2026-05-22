@@ -6,7 +6,6 @@
 - [Dependency Analysis](#dependency-analysis)
 - [Multi-Job Orchestration](#multi-job-orchestration)
 - [CI/CD Patterns](#cicd-patterns)
-- [State Management](#state-management)
 
 ---
 
@@ -16,20 +15,23 @@ LHP generates DAB pipeline resource YAML files; it does NOT replace DAB or deplo
 
 ### Setup
 
+Bundle is enabled by default. Use `--no-bundle` to opt out.
+
 ```bash
-lhp init --bundle my-data-platform
+lhp init my-data-platform
 cd my-data-platform
-# Edit databricks.yml with workspace details
+# Edit databricks.yml with workspace details (host, run_as)
 lhp generate -e dev
 databricks bundle deploy --target dev
 ```
 
 ### What LHP Does
 
-- Generates `resources/lhp/*.pipeline.yml` using glob patterns
-- Synchronizes resources with generated code
-- Cleans up obsolete resource files
-- Never modifies `databricks.yml` or files outside `resources/lhp/`
+- `lhp init` (default) scaffolds `databricks.yml` (targets: dev/tst/prod) and `resources/lhp/`
+- Generates `resources/lhp/*.pipeline.yml` using glob libraries
+- Conservative sync: creates missing files, leaves LHP-owned files untouched, backs up user-edited files to `.bkup`, deletes orphans when a pipeline directory is removed
+- Never modifies `databricks.yml` (except DEPRECATED auto-detect variable update, removed in v1.0.0) or files outside `resources/lhp/`
+- Target names in `databricks.yml` must match substitution filenames under `substitutions/`
 
 ### Generated Resource Example
 
@@ -206,7 +208,6 @@ Each unique `job_name` generates a separate job file + a master orchestration jo
 1. YAML is single source of truth; generated Python is ephemeral
 2. Same commit SHA deployed to all environments
 3. Environment isolation via separate substitution files
-4. `.lhp_state.json` not in git (regenerates in CI)
 
 **Version pinning (lhp.yaml):**
 ```yaml
@@ -225,18 +226,7 @@ required_lhp_version: ">=0.7.0,<1.0.0"
 # In CI/CD
 pip install lakehouse-plumber
 lhp validate --env $ENV
-lhp generate --env $ENV --force
+lhp generate --env $ENV
 lhp deps --format job --job-config config/job_config.yaml --bundle-output
 databricks bundle deploy --target $ENV
 ```
-
----
-
-## State Management
-
-`.lhp_state.json` tracks generated files, checksums, and dependencies.
-
-- Only changed files regenerated on subsequent runs
-- Upstream changes trigger downstream regeneration
-- `--force` flag skips state checking
-- Not committed to git (regenerates in CI)

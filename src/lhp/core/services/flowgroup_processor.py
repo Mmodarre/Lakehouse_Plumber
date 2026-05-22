@@ -1,9 +1,10 @@
 """Flowgroup processing service for LakehousePlumber."""
 
+import dataclasses
 import logging
 from typing import Any, Dict
 
-from ...models.config import ActionType, FlowGroup
+from ...models.config import ActionType, FlowGroup, FlowGroupContext
 from ...utils.error_formatter import LHPError, LHPValidationError
 from ...utils.local_variables import LocalVariableResolver
 from ...utils.performance_timer import perf_timer
@@ -42,10 +43,10 @@ class FlowgroupProcessor:
 
     def process_flowgroup(
         self,
-        flowgroup: FlowGroup,
+        ctx: FlowGroupContext,
         substitution_mgr: EnhancedSubstitutionManager,
         include_tests: bool = True,
-    ) -> FlowGroup:
+    ) -> FlowGroupContext:
         """
         Process flowgroup: expand templates, apply presets, apply substitutions.
 
@@ -54,14 +55,15 @@ class FlowgroupProcessor:
         customize as needed.
 
         Args:
-            flowgroup: FlowGroup to process
+            ctx: FlowGroupContext envelope to process
             substitution_mgr: Substitution manager for the environment
             include_tests: If False, filter out test actions before processing.
                 Defaults to True for backward compatibility.
 
         Returns:
-            Processed flowgroup
+            New FlowGroupContext wrapping the processed FlowGroup.
         """
+        flowgroup = ctx.flowgroup
         self.logger.debug(
             f"Processing flowgroup '{flowgroup.flowgroup}' in pipeline '{flowgroup.pipeline}' ({len(flowgroup.actions)} actions)"
         )
@@ -98,11 +100,6 @@ class FlowgroupProcessor:
                 # Add template actions to existing actions
                 flowgroup.actions.extend(template_actions)
 
-        # Record whether this flowgroup originally had test actions (before filtering)
-        flowgroup._has_original_test_actions = any(
-            a.type == ActionType.TEST for a in flowgroup.actions
-        )
-
         # Filter test actions when include_tests=False
         # Placed after template expansion so template-generated test actions are also caught
         tests_were_filtered = False
@@ -127,13 +124,19 @@ class FlowgroupProcessor:
                     template_preset_config = self.preset_manager.resolve_preset_chain(
                         template.presets
                     )
-                    flowgroup = self.apply_preset_config(flowgroup, template_preset_config)
+                    flowgroup = self.apply_preset_config(
+                        flowgroup, template_preset_config
+                    )
 
         # Step 2: Apply flowgroup-level presets (may override template presets)
         if flowgroup.presets:
             with perf_timer(f"fg_presets [{fg}]"):
-                self.logger.debug(f"Applying flowgroup-level presets: {flowgroup.presets}")
-                preset_config = self.preset_manager.resolve_preset_chain(flowgroup.presets)
+                self.logger.debug(
+                    f"Applying flowgroup-level presets: {flowgroup.presets}"
+                )
+                preset_config = self.preset_manager.resolve_preset_chain(
+                    flowgroup.presets
+                )
                 flowgroup = self.apply_preset_config(flowgroup, preset_config)
 
         # Step 3: Apply substitutions
@@ -220,7 +223,7 @@ class FlowgroupProcessor:
         # Step 5: Validate secret references
         with perf_timer(f"secret_validation [{fg}]"):
             secret_errors = self.secret_validator.validate_secret_references(
-                substitution_mgr.get_secret_references()
+                substitution_mgr.secret_references
             )
             if secret_errors:
                 from ...utils.error_formatter import ErrorCategory
@@ -245,7 +248,10 @@ class FlowgroupProcessor:
         self.logger.debug(
             f"Flowgroup '{processed_flowgroup.flowgroup}' processing complete ({len(processed_flowgroup.actions)} actions)"
         )
-        return processed_flowgroup
+        return dataclasses.replace(
+            ctx,
+            flowgroup=processed_flowgroup,
+        )
 
     def apply_preset_config(
         self, flowgroup: FlowGroup, preset_config: Dict[str, Any]

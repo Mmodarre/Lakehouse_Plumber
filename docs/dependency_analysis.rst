@@ -12,7 +12,7 @@ orchestration job generation for Databricks.
 Overview
 --------
 
-Lakehouse Plumber analyzes your FlowGroup YAML files to build a comprehensive dependency graph that shows:
+Lakehouse Plumber analyzes your :term:`FlowGroup` YAML files to build a comprehensive dependency graph that shows:
 
 - **Pipeline Dependencies**: Which pipelines depend on others
 - **Execution Stages**: The optimal order for running pipelines
@@ -43,7 +43,7 @@ Dependencies are automatically detected by analyzing:
 
 - **Table References**: SQL queries that reference tables from other pipelines
 - **Python Functions**: Custom transformations that read from pipeline outputs
-- **CDC Snapshots**: Slowly Changing Dimension patterns with source functions
+- **CDC Snapshots**: :term:`Slowly Changing Dimension <SCD>` patterns with source functions
 
 External Sources
 ~~~~~~~~~~~~~~~~
@@ -81,8 +81,7 @@ How Dependencies Are Resolved
 ------------------------------
 
 Transforms may reference earlier views (or tables) via the ``source`` field.
-LHP's resolver builds a DAG, checks for cycles, and ensures downstream
-FlowGroups regenerate when upstream definitions change.
+LHP's resolver builds a DAG and checks for cycles.
 
 **Dependency resolution process:**
 
@@ -90,7 +89,6 @@ FlowGroups regenerate when upstream definitions change.
 2. **Build dependency graph** — Create directed acyclic graph (DAG) of dependencies
 3. **Cycle detection** — Prevent circular dependencies that would cause runtime errors
 4. **Topological ordering** — Generate actions in correct execution order
-5. **Change propagation** — Mark downstream FlowGroups for regeneration when dependencies change
 
 **Example dependency chain:**
 
@@ -482,7 +480,7 @@ Create a ``job_config.yaml`` file to customize job settings:
    lhp deps --format job --job-config config/job_config.yaml --bundle-output
 
 .. seealso::
-   For complete job configuration options, see :doc:`databricks_bundles`.
+   For complete job configuration options, see :doc:`bundle_config_reference`.
 
 Integration with Databricks Bundles
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -627,7 +625,7 @@ CLI Quick Reference
 Related Documentation
 ---------------------
 
-* :doc:`databricks_bundles` - Bundle integration and configuration
-* :doc:`concepts` - Understanding pipelines and flowgroups
-* :doc:`cicd_reference` - CI/CD patterns and deployment workflows
+* :doc:`bundle_config_reference` - Bundle integration and configuration
+* :doc:`architecture` - Understanding pipelines and flowgroups
+* :doc:`cicd` - CI/CD patterns and deployment workflows
 * :doc:`cli` - Complete CLI command reference

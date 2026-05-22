@@ -7,7 +7,6 @@ from typing import Dict, List, Optional, Tuple
 from ..models.config import Action, ActionType
 from ..utils.error_formatter import (
     ErrorCategory,
-    LHPConfigError,
     LHPValidationError,
 )
 from ..utils.source_extractor import extract_action_sources, is_cdc_write_action

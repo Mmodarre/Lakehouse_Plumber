@@ -1,14 +1,16 @@
 """Tests for substitution support in Python functions and SQL files."""
 
 import tempfile
-import pytest
 from pathlib import Path
-from lhp.models.config import Action, ActionType, FlowGroup
-from lhp.generators.write.streaming_table import StreamingTableWriteGenerator
-from lhp.generators.load.sql import SQLLoadGenerator
-from lhp.generators.transform.sql import SQLTransformGenerator
-from lhp.generators.transform.python import PythonTransformGenerator
+
+import pytest
+
 from lhp.generators.load.custom_datasource import CustomDataSourceLoadGenerator
+from lhp.generators.load.sql import SQLLoadGenerator
+from lhp.generators.transform.python import PythonTransformGenerator
+from lhp.generators.transform.sql import SQLTransformGenerator
+from lhp.generators.write.streaming_table import StreamingTableWriteGenerator
+from lhp.models.config import Action, ActionType, FlowGroup
 from lhp.utils.substitution import EnhancedSubstitutionManager
 
 
@@ -102,7 +104,12 @@ def next_snapshot_and_version(latest_snapshot_version: Optional[int]) -> Optiona
             Path(function_file).unlink()
 
     def test_snapshot_cdc_function_secret_substitution(self):
-        """Test ${secret:scope/key} substitution in snapshot CDC Python functions."""
+        """Test ${secret:scope/key} substitution in snapshot CDC Python functions.
+
+        Generator output contains ``__SECRET_scope_key__`` placeholders; the
+        bare ``dbutils.secrets.get(...)`` form is emitted later by the
+        post-pass on the assembled flowgroup code.
+        """
         # Create a temporary function file with secret references
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write("""from typing import Optional, Tuple
@@ -154,13 +161,18 @@ def next_snapshot_with_secrets(latest_version: Optional[int]) -> Optional[Tuple[
         generator = StreamingTableWriteGenerator()
 
         try:
-            # Generate code - this should apply secret substitutions
+            # Generate code - this applies substitution but not the post-pass
             code = generator.generate(action, context)
 
-            # Verify secret substitutions were applied (should be f-strings with dbutils calls)
+            # Placeholders are emitted at the generator layer.
             assert (
-                "dbutils.secrets.get" in code or "__SECRET_" in code
-            ), f"Expected secret processing in: {code}"
+                "__SECRET_db_config_catalog__" in code
+            ), f"Expected catalog secret placeholder in: {code}"
+            assert (
+                "__SECRET_db_config_bronze_schema__" in code
+            ), f"Expected bronze_schema secret placeholder in: {code}"
+
+            # Raw ${secret:...} tokens must not survive substitution.
             assert (
                 "${secret:db_config/catalog}" not in code
             ), f"Unsubstituted secret found in: {code}"
@@ -168,9 +180,12 @@ def next_snapshot_with_secrets(latest_version: Optional[int]) -> Optional[Tuple[
                 "${secret:db_config/bronze_schema}" not in code
             ), f"Unsubstituted secret found in: {code}"
 
+            # Bare dbutils calls are produced by the post-pass, not here.
+            assert "dbutils.secrets.get" not in code
+
             # Verify secret references were tracked
             assert (
-                len(context["secret_references"]) > 0
+                len(substitution_mgr.secret_references) > 0
             ), "Expected secret references to be tracked"
 
         finally:
@@ -178,7 +193,11 @@ def next_snapshot_with_secrets(latest_version: Optional[int]) -> Optional[Tuple[
             Path(function_file).unlink()
 
     def test_snapshot_cdc_function_mixed_substitution(self):
-        """Test mixed token and secret substitution in the same function."""
+        """Test mixed token and secret substitution in the same function.
+
+        Token substitution happens inline (text replaces text); secret
+        substitution emits placeholders that the post-pass later rewrites.
+        """
         # Create a temporary function file with both tokens and secrets
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write("""from typing import Optional, Tuple
@@ -240,7 +259,7 @@ def next_snapshot_mixed(latest_version: Optional[int]) -> Optional[Tuple[DataFra
             # Generate code
             code = generator.generate(action, context)
 
-            # Verify token substitutions
+            # Verify token substitutions (inline replacement at this layer)
             assert (
                 "prod_catalog.prod_bronze.part" in code
             ), f"Expected token substitution in: {code}"
@@ -249,13 +268,14 @@ def next_snapshot_mixed(latest_version: Optional[int]) -> Optional[Tuple[DataFra
             ), f"Expected environment substitution in: {code}"
             assert "{catalog}" not in code, f"Unsubstituted token found in: {code}"
 
-            # Verify secret substitutions
+            # Secret becomes a placeholder; post-pass rewrites it later.
             assert (
-                "dbutils.secrets.get" in code or "__SECRET_" in code
-            ), f"Expected secret processing in: {code}"
+                "__SECRET_api_key__" in code
+            ), f"Expected secret placeholder in: {code}"
             assert (
                 "${secret:api/key}" not in code
             ), f"Unsubstituted secret found in: {code}"
+            assert "dbutils.secrets.get" not in code
 
         finally:
             # Clean up temp file
@@ -496,7 +516,13 @@ class TestSQLFileSubstitution:
             Path(sql_file).unlink()
 
     def test_sql_file_secret_substitution(self):
-        """Test ${secret:scope/key} substitution in SQL files."""
+        """Test ${secret:scope/key} substitution in SQL files.
+
+        At the generator layer, secrets become ``__SECRET_scope_key__``
+        placeholders. The post-pass (`SecretCodeGenerator`) decides on
+        bare-call vs. f-string emission once the full flowgroup code is
+        assembled.
+        """
         # Create a temporary SQL file with secret references
         with tempfile.NamedTemporaryFile(mode="w", suffix=".sql", delete=False) as f:
             f.write("""
@@ -533,7 +559,7 @@ class TestSQLFileSubstitution:
         generator = SQLLoadGenerator()
 
         try:
-            # Generate code - this should apply secret substitutions
+            # Generate code - this applies substitution but not the post-pass
             code = generator.generate(action, context)
 
             # Verify token substitutions
@@ -542,10 +568,18 @@ class TestSQLFileSubstitution:
             ), f"Expected token substitution in: {code}"
             assert "{catalog}" not in code, f"Unsubstituted token found in: {code}"
 
-            # Verify secret substitutions were applied (should be f-strings with dbutils calls)
+            # Placeholders are emitted at this layer.
             assert (
-                "dbutils.secrets.get" in code or "__SECRET_" in code
-            ), f"Expected secret processing in: {code}"
+                "__SECRET_env_config_environment__" in code
+            ), f"Expected env placeholder in: {code}"
+            assert (
+                "__SECRET_build_info_version__" in code
+            ), f"Expected build_info placeholder in: {code}"
+            assert (
+                "__SECRET_api_keys_customer_service__" in code
+            ), f"Expected api_keys placeholder in: {code}"
+
+            # Raw ${secret:...} must be fully substituted.
             assert (
                 "${secret:env_config/environment}" not in code
             ), f"Unsubstituted secret found in: {code}"
@@ -556,9 +590,12 @@ class TestSQLFileSubstitution:
                 "${secret:api_keys/customer_service}" not in code
             ), f"Unsubstituted secret found in: {code}"
 
+            # Bare dbutils calls only after the post-pass.
+            assert "dbutils.secrets.get" not in code
+
             # Verify secret references were tracked
             assert (
-                len(context["secret_references"]) > 0
+                len(substitution_mgr.secret_references) > 0
             ), "Expected secret references to be tracked"
 
         finally:

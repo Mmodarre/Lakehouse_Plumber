@@ -34,6 +34,9 @@ class PerfSummary:
         self._lock = threading.Lock()
         self._timings: dict[str, list[float]] = {}
         self._phase_timings: dict[str, float] = {}
+        self._counts: dict[str, int] = {}
+        # Phases that nest inside another phase; excluded from %/total math.
+        self._sub_phase_timings: dict[str, list[tuple[str, float]]] = {}
 
     def record(self, category: str, duration: float) -> None:
         """Record a duration for a named category (thread-safe)."""
@@ -45,11 +48,36 @@ class PerfSummary:
         with self._lock:
             self._phase_timings[phase] = duration
 
+    def record_sub_phase(
+        self, parent: str, phase: str, duration: float
+    ) -> None:
+        """Record a sub-phase that nests inside ``parent`` (thread-safe).
+
+        Sub-phases are rendered indented under their parent in the summary and
+        are EXCLUDED from the phase % / total math, since they overlap with
+        their parent's duration.
+        """
+        with self._lock:
+            self._sub_phase_timings.setdefault(parent, []).append(
+                (phase, duration)
+            )
+
+    def record_count(self, name: str, value: int) -> None:
+        """Record a project-shape count for the summary header (thread-safe).
+
+        Counts (blueprints, instances, synthetic flowgroups, etc.) let you
+        normalize timings across runs of different project sizes.
+        """
+        with self._lock:
+            self._counts[name] = value
+
     def reset(self) -> None:
         """Clear all collected timings."""
         with self._lock:
             self._timings.clear()
             self._phase_timings.clear()
+            self._counts.clear()
+            self._sub_phase_timings.clear()
 
     def log_summary(self) -> None:
         """Log the aggregated summary at INFO level to perf logger."""
@@ -62,11 +90,23 @@ class PerfSummary:
             "[PERF]",
         ]
 
-        # Phase breakdown
+        # Snapshot under lock
         with self._lock:
             phase_timings = dict(self._phase_timings)
             timings = {k: list(v) for k, v in self._timings.items()}
+            counts = dict(self._counts)
+            sub_phase_timings = {
+                k: list(v) for k, v in self._sub_phase_timings.items()
+            }
 
+        # Project shape (counts)
+        if counts:
+            lines.append("[PERF] Project shape:")
+            for name, value in sorted(counts.items()):
+                lines.append(f"[PERF]   {name:<35s} {value:>8d}")
+            lines.append("[PERF]")
+
+        # Phase breakdown (sub-phases excluded from total math)
         if phase_timings:
             total_phase = sum(phase_timings.values())
             lines.append("[PERF] Phase breakdown:")
@@ -75,6 +115,11 @@ class PerfSummary:
                 lines.append(
                     f"[PERF]   {phase:<35s} {elapsed:>8.3f}s  ({pct:>5.1f}%)"
                 )
+                # Render any sub-phases indented under this parent
+                for sub_name, sub_elapsed in sub_phase_timings.get(phase, []):
+                    lines.append(
+                        f"[PERF]     ↳ {sub_name:<31s} {sub_elapsed:>8.3f}s"
+                    )
             lines.append(
                 f"[PERF]   {'Total':<35s} {total_phase:>8.3f}s"
             )
@@ -82,7 +127,7 @@ class PerfSummary:
 
         # Per-category aggregate stats
         if timings:
-            lines.append("[PERF] Per-flowgroup aggregate stats:")
+            lines.append("[PERF] Per-category aggregate stats:")
             for category, durations in sorted(timings.items()):
                 cnt = len(durations)
                 total = sum(durations)
@@ -98,6 +143,57 @@ class PerfSummary:
 
         for line in lines:
             _perf_logger.info(line)
+
+    def snapshot(self) -> dict:
+        """Return a deep-copy snapshot of all collected metrics.
+
+        Shape::
+
+            {
+                "enabled": bool,
+                "started_at": str | None,
+                "phases": {phase_name: seconds, ...},
+                "sub_phases": {parent: [(name, seconds), ...], ...},
+                "categories": {
+                    cat: {"cnt": int, "total": float, "min": float,
+                          "max": float, "avg": float}, ...
+                },
+                "counts": {name: int, ...},
+            }
+
+        Callable even when ``--perf`` is disabled; inner collections will be
+        empty in that case. Returned object is caller-owned: mutating it does
+        not affect internal state.
+        """
+        with self._lock:
+            timings = {k: list(v) for k, v in self._timings.items()}
+            phase_timings = dict(self._phase_timings)
+            counts = dict(self._counts)
+            sub_phase_timings = {
+                k: [(name, dur) for name, dur in v]
+                for k, v in self._sub_phase_timings.items()
+            }
+
+        categories: dict[str, dict[str, float]] = {}
+        for cat, durations in timings.items():
+            cnt = len(durations)
+            total = sum(durations)
+            categories[cat] = {
+                "cnt": cnt,
+                "total": total,
+                "min": min(durations) if durations else 0.0,
+                "max": max(durations) if durations else 0.0,
+                "avg": (total / cnt) if cnt else 0.0,
+            }
+
+        return {
+            "enabled": _enabled,
+            "started_at": _start_wall_clock,
+            "phases": phase_timings,
+            "sub_phases": sub_phase_timings,
+            "categories": categories,
+            "counts": counts,
+        }
 
 
 # Module-level singleton
@@ -162,6 +258,7 @@ def perf_timer(
     label: str,
     category: Optional[str] = None,
     phase: bool = False,
+    parent_phase: Optional[str] = None,
 ):
     """Time a code block and log / aggregate the result.
 
@@ -172,8 +269,12 @@ def perf_timer(
         label: Human-readable label for the timing line.
         category: If provided, duration is recorded into the aggregate
             summary under this category name.
-        phase: If True, duration is recorded as a top-level phase in the
-            summary's phase breakdown table.
+        phase: If True, duration is recorded as a phase in the summary's
+            phase breakdown table. Combine with ``parent_phase`` to nest.
+        parent_phase: If set together with ``phase=True``, the duration is
+            recorded as a sub-phase under ``parent_phase`` (indented in
+            display, excluded from %/total math because it overlaps with
+            its parent's wall time).
     """
     if not _enabled:
         yield
@@ -188,4 +289,27 @@ def perf_timer(
         if category:
             _summary.record(category, elapsed)
         if phase:
-            _summary.record_phase(label, elapsed)
+            if parent_phase:
+                _summary.record_sub_phase(parent_phase, label, elapsed)
+            else:
+                _summary.record_phase(label, elapsed)
+
+
+def record_count(name: str, value: int) -> None:
+    """Record a project-shape count for the perf summary header.
+
+    No-op when ``--perf`` is disabled. Use this to capture project shape
+    metrics (blueprints, instances, synthetic flowgroups, etc.) so that
+    timings can be normalized across runs of different project sizes.
+    """
+    if _enabled:
+        _summary.record_count(name, value)
+
+
+def get_perf_summary() -> dict:
+    """Return a snapshot of collected perf metrics.
+
+    See ``PerfSummary.snapshot`` for the dict shape. Always callable; returns
+    an empty-shape dict (with ``enabled=False``) when perf timing is disabled.
+    """
+    return _summary.snapshot()

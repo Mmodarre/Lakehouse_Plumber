@@ -123,7 +123,7 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
             sql_query = substitution_mgr._process_string(sql_query)
 
             # Track secret references
-            secret_refs = substitution_mgr.get_secret_references()
+            secret_refs = substitution_mgr.secret_references
             if (
                 "secret_references" in context
                 and context["secret_references"] is not None

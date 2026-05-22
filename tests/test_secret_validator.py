@@ -9,19 +9,20 @@ class TestSecretValidator:
     """Test secret validation."""
     
     def test_validate_secret_references(self):
-        """Test validating secret references."""
-        validator = SecretValidator(available_scopes={'prod_secrets', 'dev_secrets'})
-        
+        """Test validating secret references — syntax-only by design."""
+        validator = SecretValidator()
+
+        # Two valid references and one with a syntactically-invalid scope.
         refs = {
             SecretReference('prod_secrets', 'db_password'),
             SecretReference('dev_secrets', 'api-key'),
-            SecretReference('unknown_scope', 'some_key')
+            SecretReference('bad scope!', 'some_key'),
         }
-        
+
         errors = validator.validate_secret_references(refs)
-        
+
         assert len(errors) == 1
-        assert "unknown_scope" in errors[0]
+        assert "bad scope!" in errors[0]
     
     def test_key_format_validation(self):
         """Test secret key format validation."""

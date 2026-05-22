@@ -1,0 +1,31 @@
+# B8 fixture — Delta CDC reader with startingVersion + ignoreDeletes.
+# Streams the Change Data Feed starting from version 5 and ignores delete
+# operations. Verifies that LHP emits .option("startingVersion", "5") and
+# .option("ignoreDeletes", "true") on a spark.readStream chain.
+pipeline: 17_delta_cdc
+flowgroup: cdc_starting_version
+
+actions:
+  - name: read_customers_cdf
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: "customers"
+      options:
+        readChangeFeed: "true"
+        startingVersion: "5"
+        ignoreDeletes: "true"
+    target: v_customers_cdf
+    description: "Stream customer changes from version 5, ignoring deletes"
+
+  - name: write_customers_cdf
+    type: write
+    source: v_customers_cdf
+    write_target:
+      type: streaming_table
+      database: "${catalog}.${silver_schema}"
+      table: "customers_cdf"
+      comment: "CDF stream of customers (from v5, no deletes) into silver"

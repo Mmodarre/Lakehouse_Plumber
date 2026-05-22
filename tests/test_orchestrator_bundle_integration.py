@@ -138,10 +138,11 @@ bundle:
         )
         
         # Verify normal generation behavior
-        assert isinstance(generated_files, dict)
+        assert isinstance(generated_files, tuple)
         assert len(generated_files) == 1
-        
-        filename, code = next(iter(generated_files.items()))
+
+        filename = generated_files[0]
+        code = (output_dir / "test_pipeline" / filename).read_text()
         assert filename == "test_flowgroup.py"
         assert isinstance(code, str)
         assert len(code) > 0
