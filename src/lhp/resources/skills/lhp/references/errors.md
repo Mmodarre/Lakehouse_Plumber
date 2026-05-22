@@ -17,6 +17,7 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | I/O | `IO` | Files not found, read/write failures, format issues |
 | Action | `ACT` | Unknown action types, subtypes, or preset names |
 | Dependency | `DEP` | Circular dependencies between views or preset inheritance |
+| General | `GEN` | Worker exceptions, unexpected errors, internal-error guards (mostly post-0.8.7 parallel-generation failures) |
 
 ---
 
@@ -31,7 +32,7 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | **CFG-009** | YAML parsing error (bad indent, unquoted special chars) | Quote strings with `:` `{` `}` `[` `]`; use YAML linter |
 | **CFG-010** | Deprecated field name | Replace with the field name shown in error message |
 | **CFG-012** | Missing required template parameters | Add `template_parameters:` with all required params |
-| **CFG-021** | Bundle YAML processing error | Validate `databricks.yml` syntax; check UTF-8 encoding |
+| **CFG-021** | Module / skill / bundle YAML processing error (covers import-time errors, skill command failures, and bundle-resource parsing) | Check the error context for the specific cause; for bundle sites validate `databricks.yml` syntax and UTF-8 encoding |
 | **CFG-023** | `--pipeline-config` not passed and bundle support enabled (preflight) | Pass `--pipeline-config config/pipeline_config.yaml`, or `--no-bundle` to skip bundle resource generation |
 | **CFG-024** | Bundle template fetch error | Check network; verify template path/URL |
 | **CFG-025** | Bundle configuration structural error | Review `databricks.yml` against DAB docs |
@@ -48,9 +49,9 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | **VAL-007** | Invalid `readMode` | Use `stream` or `batch` only |
 | **VAL-008** | Wrong data type (string where dict expected) | Check YAML structure matches expected format |
 | **VAL-010** | Both `__eventlog_monitoring` alias and real pipeline name in config | Use only one — alias or real name |
-| **VAL-011** | `__eventlog_monitoring` in a pipeline list | Must be standalone `pipeline:` entry in separate document |
-| **VAL-011** | Schema syntax error (bad column type) | Fix type names; valid: STRING, BIGINT, INT, DECIMAL, etc. |
+| **VAL-011** | Multiple validation causes; commonly: eventlog alias misuse OR schema column-type syntax. See source for the specific site. | Check the error context for the specific cause |
 | **VAL-012** | Invalid source format (string where dict needed) | Provide full source config with `type`, `path`, etc. |
+| **VAL-902** | Multi-pipeline validation aggregator — N pipelines failed during a parallel `lhp generate` run (raised by orchestrator after worker results are joined) | Re-run with `--verbose` for full stack; check `~/.lhp/logs/` for per-pipeline tracebacks; inspect the per-pipeline rows in the summary table |
 
 ## I/O Errors (LHP-IO)
 
@@ -70,6 +71,16 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | Code | Trigger | Fix |
 |------|---------|-----|
 | **DEP-001** | Circular dependency (A → B → C → A) | Break the cycle; error shows full path. Use `lhp deps --format dot` to visualize |
+
+## General Errors (LHP-GEN)
+
+| Code | Trigger | Fix |
+|------|---------|-----|
+| **GEN-001** | Internal-error guard: preflight bypassed for bundle resource generation (see below) | Programming bug — invoke `bundle.preflight.validate_catalog_schema` first |
+| **GEN-901** | Worker exception during a parallel `lhp generate` run — a child process raised an exception and the orchestrator reconstructed it via `lhp_error_from_worker_failure` | Re-run with `--verbose` for full stack; check `~/.lhp/logs/` for the worker traceback |
+| **GEN-902** | Unexpected non-LHP, non-Bundle exception wrapped by `from_unexpected_exception` (CLI fallback path) | Re-run with `--verbose` for full stack; check `~/.lhp/logs/` for the traceback |
+
+> **Note (0.8.7+):** `GEN-901`, `GEN-902`, and `VAL-902` are the codes users will most often encounter after a parallel-generation failure — they wrap worker-side exceptions and aggregate multi-pipeline failures from the orchestrator. The structured traceback always lands in `~/.lhp/logs/` regardless of terminal verbosity.
 
 ## Pre-flight validation: LHP-CFG-023 and LHP-CFG-026
 
@@ -260,6 +271,7 @@ Read the error code prefix:
 - `LHP-IO-*` — fix file path (paths are relative to FlowGroup YAML)
 - `LHP-ACT-*` — fix typo in action type/sub_type/preset name
 - `LHP-DEP-*` — break the dependency cycle shown in the message
+- `LHP-GEN-*` — worker / unexpected exception (re-run with `--verbose`; check `~/.lhp/logs/`)
 
 Apply the numbered fix suggestions in the terminal output, then re-run.
 
@@ -277,9 +289,10 @@ see the resolved config (after preset merge + template expansion).
 
 ### YAML completion / IntelliSense not working
 
-JSON Schemas live under `src/lhp/schemas/` in the installed package. The editor
-must map them to `pipelines/*.yaml`, `presets/*.yaml`, `templates/*.yaml`,
-`substitutions/*.yaml`. Reload editor window after LHP install/upgrade.
+JSON Schemas ship as package data under `lhp/schemas/` (source checkout:
+`src/lhp/schemas/`). The editor must map them to `pipelines/*.yaml`,
+`presets/*.yaml`, `templates/*.yaml`, `substitutions/*.yaml`. Reload editor
+window after LHP install/upgrade.
 
 ### Substitutions not resolved (literal `${token}` in output)
 
@@ -299,18 +312,7 @@ preset/template is actually referenced via `lhp show <flowgroup>`.
 
 ### CLI flags reference
 
-Only these flags exist on `lhp generate`:
-
-- `--env <name>` — required
-- `--dry-run` — preview without writing
-- `--no-bundle` — skip bundle resource generation
-- `--include-tests` — include test actions in output
-- `--pipeline <name>` — target a single pipeline
-- `--verbose` / `-v` — extra logging
-
-Do **not** use `--force`, `--force-all`, `--show-dependencies`, or
-`--check-cycles` — those flags do not exist (despite appearing in some older
-docs).
+For the `lhp generate` flag reference, see `project-config.md` (CLI Commands section) or run `lhp generate --help`.
 
 ### POSIX exit codes (from `src/lhp/utils/exit_codes.py`)
 

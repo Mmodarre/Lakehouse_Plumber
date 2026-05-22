@@ -11,8 +11,6 @@ Covers the path from the Click CLI down to the orchestrator and verifies:
 
 from __future__ import annotations
 
-import os
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -98,127 +96,124 @@ class TestGenerateCommandParallel:
     def runner(self):
         return CliRunner()
 
-    def test_max_workers_flag_accepted_with_4_workers(self, runner):
+    def test_max_workers_flag_accepted_with_4_workers(
+        self, runner, tmp_path, monkeypatch
+    ):
         """``--max-workers 4`` runs cleanly through CLI to the flat-pool engine."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-            _build_multipipeline_project(project_root, self.PIPELINES)
+        project_root = tmp_path
+        _build_multipipeline_project(project_root, self.PIPELINES)
 
-            cwd = os.getcwd()
-            try:
-                os.chdir(project_root)
-                result = runner.invoke(
-                    cli,
-                    [
-                        "generate",
-                        "--env",
-                        "dev",
-                        "--max-workers",
-                        "4",
-                        "--no-bundle",
-                    ],
-                )
-                assert (
-                    result.exit_code == 0
-                ), f"CLI exited {result.exit_code}: {result.output}"
+        monkeypatch.chdir(project_root)
+        result = runner.invoke(
+            cli,
+            [
+                "generate",
+                "--env",
+                "dev",
+                "--max-workers",
+                "4",
+                "--no-bundle",
+            ],
+        )
+        assert result.exit_code == 0, f"CLI exited {result.exit_code}: {result.output}"
 
-                # Each pipeline gets its own subdirectory under generated/dev.
-                for name in self.PIPELINES:
-                    assert (
-                        project_root / "generated" / "dev" / name / f"{name}_fg.py"
-                    ).exists(), f"Expected file missing for {name}"
-            finally:
-                os.chdir(cwd)
+        # Each pipeline gets its own subdirectory under generated/dev.
+        for name in self.PIPELINES:
+            assert (
+                project_root / "generated" / "dev" / name / f"{name}_fg.py"
+            ).exists(), f"Expected file missing for {name}"
 
-    def test_per_pipeline_completion_line_per_pipeline(self, runner):
+    def test_per_pipeline_completion_line_per_pipeline(
+        self, runner, tmp_path, monkeypatch
+    ):
         """The on_pipeline_complete callback fires once per pipeline.
 
         Asserts the per-pipeline display line appears in CLI output exactly
         once for each pipeline (the existing display function emits
         ``✅`` for actual writes, or ``⚡ is up to date`` for skip).
         """
-        with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-            _build_multipipeline_project(project_root, self.PIPELINES)
+        project_root = tmp_path
+        _build_multipipeline_project(project_root, self.PIPELINES)
 
-            cwd = os.getcwd()
-            try:
-                os.chdir(project_root)
-                result = runner.invoke(
-                    cli,
-                    [
-                        "generate",
-                        "--env",
-                        "dev",
-                        "--max-workers",
-                        "4",
-                        "--no-bundle",
-                    ],
-                )
-                assert (
-                    result.exit_code == 0
-                ), f"CLI exited {result.exit_code}: {result.output}"
+        monkeypatch.chdir(project_root)
+        # ``--show-all`` opts into the full per-pipeline summary
+        # table; the failures-only default would suppress the
+        # table on a successful run, but this test asserts on
+        # per-pipeline row visibility.
+        result = runner.invoke(
+            cli,
+            [
+                "generate",
+                "--env",
+                "dev",
+                "--max-workers",
+                "4",
+                "--no-bundle",
+                "--show-all",
+            ],
+        )
+        assert result.exit_code == 0, f"CLI exited {result.exit_code}: {result.output}"
 
-                # Each pipeline's name appears in output (either ✅ generated
-                # or ⚡ up-to-date line). On a fresh run with no state we
-                # expect generation, so look for the file count line.
-                for name in self.PIPELINES:
-                    # The display line for a fresh generate writes the
-                    # pipeline name with file count; just assert the name
-                    # is present at least once.
-                    assert (
-                        name in result.output
-                    ), f"Pipeline {name} missing from CLI output:\n{result.output}"
-            finally:
-                os.chdir(cwd)
+        # Each pipeline's name appears in output (either ✅ generated
+        # or ⚡ up-to-date line). On a fresh run with no state we
+        # expect generation, so look for the file count line.
+        for name in self.PIPELINES:
+            # The display line for a fresh generate writes the
+            # pipeline name with file count; just assert the name
+            # is present at least once.
+            assert name in result.output, (
+                f"Pipeline {name} missing from CLI output:\n{result.output}"
+            )
 
-    def test_parallel_output_byte_identical_to_sequential(self, runner):
-        """``--max-workers 1`` and ``--max-workers 4`` produce identical files."""
-        with (
-            tempfile.TemporaryDirectory() as par_tmp,
-            tempfile.TemporaryDirectory() as seq_tmp,
-        ):
-            par_root = Path(par_tmp)
-            seq_root = Path(seq_tmp)
-            _build_multipipeline_project(par_root, self.PIPELINES)
-            _build_multipipeline_project(seq_root, self.PIPELINES)
+    def test_parallel_output_byte_identical_to_sequential(
+        self, runner, tmp_path, monkeypatch
+    ):
+        """``--max-workers 1`` and ``--max-workers 4`` produce identical files.
 
-            cwd = os.getcwd()
-            try:
-                os.chdir(par_root)
-                par_result = runner.invoke(
-                    cli,
-                    [
-                        "generate",
-                        "--env",
-                        "dev",
-                        "--max-workers",
-                        "4",
-                        "--no-bundle",
-                    ],
-                )
-                assert par_result.exit_code == 0
+        This test relies on generator output being fully deterministic:
+        no per-run timestamps, no dict-iteration-order dependency.
+        If a future generator change introduces non-determinism, this
+        test should be the first to fail; do NOT silence it — fix the
+        generator to remain deterministic.
+        """
+        par_root = tmp_path / "par"
+        seq_root = tmp_path / "seq"
+        par_root.mkdir()
+        seq_root.mkdir()
+        _build_multipipeline_project(par_root, self.PIPELINES)
+        _build_multipipeline_project(seq_root, self.PIPELINES)
 
-                os.chdir(seq_root)
-                seq_result = runner.invoke(
-                    cli,
-                    [
-                        "generate",
-                        "--env",
-                        "dev",
-                        "--max-workers",
-                        "1",
-                        "--no-bundle",
-                    ],
-                )
-                assert seq_result.exit_code == 0
+        monkeypatch.chdir(par_root)
+        par_result = runner.invoke(
+            cli,
+            [
+                "generate",
+                "--env",
+                "dev",
+                "--max-workers",
+                "4",
+                "--no-bundle",
+            ],
+        )
+        assert par_result.exit_code == 0
 
-                for name in self.PIPELINES:
-                    par_file = par_root / "generated" / "dev" / name / f"{name}_fg.py"
-                    seq_file = seq_root / "generated" / "dev" / name / f"{name}_fg.py"
-                    assert par_file.read_bytes() == seq_file.read_bytes(), (
-                        f"Bytewise diff for {name} between parallel and "
-                        f"sequential runs"
-                    )
-            finally:
-                os.chdir(cwd)
+        monkeypatch.chdir(seq_root)
+        seq_result = runner.invoke(
+            cli,
+            [
+                "generate",
+                "--env",
+                "dev",
+                "--max-workers",
+                "1",
+                "--no-bundle",
+            ],
+        )
+        assert seq_result.exit_code == 0
+
+        for name in self.PIPELINES:
+            par_file = par_root / "generated" / "dev" / name / f"{name}_fg.py"
+            seq_file = seq_root / "generated" / "dev" / name / f"{name}_fg.py"
+            assert par_file.read_bytes() == seq_file.read_bytes(), (
+                f"Bytewise diff for {name} between parallel and sequential runs"
+            )

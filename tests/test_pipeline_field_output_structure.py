@@ -334,9 +334,20 @@ dev:
         try:
             os.chdir(str(project_with_pipeline_field_structure))
 
-            # Generate using pipeline field
+            # Generate using pipeline field. ``--show-all`` opts into the
+            # full per-pipeline summary table; the failures-only default
+            # would suppress the table on a clean run, but this test
+            # asserts that the pipeline name appears in stdout.
             result = runner.invoke(
-                cli, ["generate", "--env", "dev", "--pipeline", "raw_ingestions"]
+                cli,
+                [
+                    "generate",
+                    "--env",
+                    "dev",
+                    "--pipeline",
+                    "raw_ingestions",
+                    "--show-all",
+                ],
             )
 
             assert result.exit_code == 0
@@ -375,9 +386,21 @@ dev:
 
             os.chdir(str(project_with_pipeline_field_structure))
 
-            # Generate using different pipeline field
+            # Generate using different pipeline field. ``--show-all``
+            # opts into the full per-pipeline summary table; the
+            # failures-only default would suppress the table on a clean
+            # run, but this test asserts that the pipeline name appears
+            # in stdout.
             result = runner.invoke(
-                cli, ["generate", "--env", "dev", "--pipeline", "silver_transforms"]
+                cli,
+                [
+                    "generate",
+                    "--env",
+                    "dev",
+                    "--pipeline",
+                    "silver_transforms",
+                    "--show-all",
+                ],
             )
 
             assert result.exit_code == 0
@@ -411,18 +434,30 @@ dev:
 
             os.chdir(str(project_with_pipeline_field_structure))
 
-            # Validate using pipeline field
+            # Validate using pipeline field. ``--show-all`` opts into
+            # the full per-pipeline summary table; the failures-only
+            # default would suppress the table on a clean run, but this
+            # test asserts that the pipeline name appears in stdout.
             result = runner.invoke(
-                cli, ["validate", "--env", "dev", "--pipeline", "raw_ingestions"]
+                cli,
+                [
+                    "validate",
+                    "--env",
+                    "dev",
+                    "--pipeline",
+                    "raw_ingestions",
+                    "--show-all",
+                ],
             )
 
             assert result.exit_code == 0
             assert "raw_ingestions" in result.output
 
-            # Should validate all 3 flowgroups with pipeline: raw_ingestions
-            # After fixing the bug, success messages are no longer in warnings
-            assert "Pipeline 'raw_ingestions' is valid" in result.output
-            assert "Total errors: 0" in result.output
+            # Rendering contract is asserted by test_validate_rendering;
+            # here we only check that the pipeline name appears in the
+            # per-pipeline display section (exit_code 0 covers validity).
+            # The "Total errors: 0" line was removed in the Phase 3b
+            # Rich Table refactor.
 
     # Should not use directory name
 

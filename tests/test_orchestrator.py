@@ -7,8 +7,75 @@ import pytest
 import yaml
 
 from lhp.core.orchestrator import ActionOrchestrator
-from lhp.models.config import Action, ActionType, FlowGroup, TransformType
 from tests.helpers import read_generated_pipeline
+
+
+def _build_multipipeline_project(tmpdir, pipeline_names):
+    """Build a multi-pipeline project with one flowgroup per pipeline.
+
+    Each flowgroup performs the same load + transform + write pattern so
+    the comparison ``plural-output == repeated-single-output`` is a
+    meaningful byte-identical test. Shared by ``TestGeneratePipelinesByFields``
+    and ``TestValidatePipelinesByFields``.
+    """
+    project_root = Path(tmpdir)
+    (project_root / "presets").mkdir()
+    (project_root / "templates").mkdir()
+    (project_root / "substitutions").mkdir()
+    for name in pipeline_names:
+        (project_root / "pipelines" / name).mkdir(parents=True)
+
+    substitutions = {
+        "dev": {
+            "catalog": "dev_catalog",
+            "bronze_schema": "bronze",
+            "landing_path": "/mnt/dev/landing",
+        }
+    }
+    with open(project_root / "substitutions" / "dev.yaml", "w") as f:
+        yaml.dump(substitutions, f)
+
+    for name in pipeline_names:
+        flowgroup = {
+            "pipeline": name,
+            "flowgroup": f"{name}_fg",
+            "actions": [
+                {
+                    "name": f"load_{name}",
+                    "type": "load",
+                    "target": f"v_{name}_raw",
+                    "source": {
+                        "type": "cloudfiles",
+                        "path": "${landing_path}/" + name,
+                        "format": "json",
+                    },
+                },
+                {
+                    "name": f"clean_{name}",
+                    "type": "transform",
+                    "transform_type": "sql",
+                    "source": f"v_{name}_raw",
+                    "target": f"v_{name}_clean",
+                    "sql": f"SELECT * FROM v_{name}_raw",
+                },
+                {
+                    "name": f"write_{name}",
+                    "type": "write",
+                    "source": f"v_{name}_clean",
+                    "write_target": {
+                        "type": "streaming_table",
+                        "catalog": "${catalog}",
+                        "schema": "${bronze_schema}",
+                        "table": name,
+                        "create_table": True,
+                    },
+                },
+            ],
+        }
+        with open(project_root / "pipelines" / name / f"{name}_fg.yaml", "w") as f:
+            yaml.dump(flowgroup, f)
+
+    return project_root
 
 
 class TestActionOrchestrator:
@@ -99,18 +166,6 @@ class TestActionOrchestrator:
             yaml.dump(flowgroup, f)
 
         return project_root
-
-    def test_orchestrator_initialization(self):
-        """Test orchestrator initialization."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = self.create_test_project(tmpdir)
-            orchestrator = ActionOrchestrator(project_root)
-
-            assert orchestrator.project_root == project_root
-            assert orchestrator.yaml_parser is not None
-            assert orchestrator.preset_manager is not None
-            assert orchestrator.template_engine is not None
-            assert orchestrator.action_registry is not None
 
     def test_discover_flowgroups(self):
         """Test flowgroup discovery."""
@@ -483,25 +538,11 @@ class TestActionOrchestrator:
 class TestOrchestratorDependencyInjection:
     """Test orchestrator dependency injection functionality."""
 
-    def test_orchestrator_with_default_dependencies(self):
-        """Test orchestrator initialization with default dependencies."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-            (project_root / "substitutions").mkdir()
-
-            # Should work with default dependencies
-            orchestrator = ActionOrchestrator(project_root)
-
-            # Verify dependencies are set
-            assert orchestrator.dependencies is not None
-            assert hasattr(orchestrator.dependencies, "substitution_factory")
-
     def test_orchestrator_with_custom_dependencies(self):
         """Test orchestrator initialization with custom dependencies."""
         from unittest.mock import Mock
 
         from lhp.core.factories import (
-            DefaultSubstitutionFactory,
             OrchestrationDependencies,
         )
 
@@ -561,25 +602,6 @@ class TestOrchestratorWithPipelineConfig:
             assert hasattr(orchestrator, "pipeline_config_path")
             assert orchestrator.pipeline_config_path is None
 
-    def test_orchestrator_init_with_pipeline_config(self):
-        """Orchestrator accepts pipeline_config_path parameter."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-
-            # Create minimal project structure
-            (project_root / "lhp.yaml").write_text("name: test\nversion: '1.0'")
-            (project_root / "pipelines").mkdir()
-
-            config_path = "templates/bundle/pipeline_config.yaml"
-
-            # Initialize with pipeline config
-            orchestrator = ActionOrchestrator(
-                project_root, enforce_version=False, pipeline_config_path=config_path
-            )
-
-            # Config path should be stored
-            assert orchestrator.pipeline_config_path == config_path
-
     def test_orchestrator_stores_config_path(self):
         """Orchestrator stores config_path as instance variable."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -608,76 +630,12 @@ class TestGeneratePipelinesByFields:
     ``generate_pipeline_by_field`` delegates to this method.
     """
 
-    def _build_project(self, tmpdir, pipeline_names):
-        """Build a multi-pipeline project with one flowgroup per pipeline.
-
-        Each flowgroup performs the same load + transform + write pattern so
-        the comparison ``plural-output == repeated-single-output`` is a
-        meaningful byte-identical test.
-        """
-        project_root = Path(tmpdir)
-        (project_root / "presets").mkdir()
-        (project_root / "templates").mkdir()
-        (project_root / "substitutions").mkdir()
-        for name in pipeline_names:
-            (project_root / "pipelines" / name).mkdir(parents=True)
-
-        substitutions = {
-            "dev": {
-                "catalog": "dev_catalog",
-                "bronze_schema": "bronze",
-                "landing_path": "/mnt/dev/landing",
-            }
-        }
-        with open(project_root / "substitutions" / "dev.yaml", "w") as f:
-            yaml.dump(substitutions, f)
-
-        for name in pipeline_names:
-            flowgroup = {
-                "pipeline": name,
-                "flowgroup": f"{name}_fg",
-                "actions": [
-                    {
-                        "name": f"load_{name}",
-                        "type": "load",
-                        "target": f"v_{name}_raw",
-                        "source": {
-                            "type": "cloudfiles",
-                            "path": "${landing_path}/" + name,
-                            "format": "json",
-                        },
-                    },
-                    {
-                        "name": f"clean_{name}",
-                        "type": "transform",
-                        "transform_type": "sql",
-                        "source": f"v_{name}_raw",
-                        "target": f"v_{name}_clean",
-                        "sql": f"SELECT * FROM v_{name}_raw",
-                    },
-                    {
-                        "name": f"write_{name}",
-                        "type": "write",
-                        "source": f"v_{name}_clean",
-                        "write_target": {
-                            "type": "streaming_table",
-                            "catalog": "${catalog}",
-                            "schema": "${bronze_schema}",
-                            "table": name,
-                            "create_table": True,
-                        },
-                    },
-                ],
-            }
-            with open(project_root / "pipelines" / name / f"{name}_fg.yaml", "w") as f:
-                yaml.dump(flowgroup, f)
-
-        return project_root
-
     def test_plural_matches_repeated_single_call(self):
         """Plural call output is byte-identical to repeated single-pipeline calls."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = self._build_project(tmpdir, ["p_alpha", "p_beta", "p_gamma"])
+            project_root = _build_multipipeline_project(
+                tmpdir, ["p_alpha", "p_beta", "p_gamma"]
+            )
 
             # Reference: repeated single-pipeline calls via the shim
             ref_orch = ActionOrchestrator(project_root, max_workers=1)
@@ -708,15 +666,17 @@ class TestGeneratePipelinesByFields:
                 for filename in single[name]:
                     single_code = (ref_out_dir / name / filename).read_text()
                     plural_code = (plural_out_dir / name / filename).read_text()
-                    assert (
-                        plural_code == single_code
-                    ), f"Content mismatch for {name}/{filename}"
+                    assert plural_code == single_code, (
+                        f"Content mismatch for {name}/{filename}"
+                    )
 
     def test_max_workers_1_matches_max_workers_8(self):
         """``max_workers=1`` (sequential) and ``max_workers=8`` produce
         byte-identical content."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = self._build_project(tmpdir, ["p1", "p2", "p3", "p4"])
+            project_root = _build_multipipeline_project(
+                tmpdir, ["p1", "p2", "p3", "p4"]
+            )
 
             orch1 = ActionOrchestrator(project_root, max_workers=1)
             out1 = orch1.generate_pipelines_by_fields(
@@ -741,7 +701,9 @@ class TestGeneratePipelinesByFields:
     def test_determinism_across_runs(self):
         """10 runs of the same workload produce identical content."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = self._build_project(tmpdir, ["d1", "d2", "d3", "d4", "d5"])
+            project_root = _build_multipipeline_project(
+                tmpdir, ["d1", "d2", "d3", "d4", "d5"]
+            )
 
             baseline: dict = None
             for run_idx in range(10):
@@ -760,7 +722,7 @@ class TestGeneratePipelinesByFields:
     def test_empty_pipeline_returns_empty_dict(self):
         """A pipeline name with no flowgroups returns ``{}`` and does not crash."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = self._build_project(tmpdir, ["e_real"])
+            project_root = _build_multipipeline_project(tmpdir, ["e_real"])
             # Add an empty pipeline directory with no flowgroup yamls
             (project_root / "pipelines" / "e_empty").mkdir()
 
@@ -785,7 +747,7 @@ class TestGeneratePipelinesByFields:
         from lhp.models.processing import PipelineDelta
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = self._build_project(tmpdir, ["c1", "c2", "c3"])
+            project_root = _build_multipipeline_project(tmpdir, ["c1", "c2", "c3"])
 
             seen: list = []
 
@@ -804,6 +766,171 @@ class TestGeneratePipelinesByFields:
             # time but the set must match.
             assert sorted(seen) == ["c1", "c2", "c3"]
 
+    def test_single_lhp_failure_unwraps_original(self, monkeypatch):
+        """When the pool returns one failed delta with a live lhp_error,
+        orchestrator re-raises the original LHPError unchanged (preserving
+        the original code, not wrapping as LHP-GEN-901 or LHP-VAL-902)."""
+        from lhp.core import orchestrator as orchestrator_module
+        from lhp.models.processing import PipelineDelta
+        from lhp.utils.error_formatter import (
+            ErrorCategory,
+            LHPError,
+            LHPValidationError,
+        )
+
+        original = LHPValidationError(
+            category=ErrorCategory.VALIDATION,
+            code_number="007",
+            title="Invalid action configuration",
+            details="action 'foo' references missing source 'bar'",
+            context={"pipeline": "p_alpha"},
+        )
+        failed_delta = PipelineDelta(
+            pipeline_name="p_alpha",
+            success=False,
+            lhp_error=original,
+            error_type="LHPValidationError",
+            error_message=str(original),
+            error_traceback="(synthetic traceback)",
+        )
+
+        def fake_pool(**kwargs):
+            return ([], [failed_delta])
+
+        monkeypatch.setattr(orchestrator_module, "run_generate_pool", fake_pool)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = _build_multipipeline_project(tmpdir, ["p_alpha"])
+            orch = ActionOrchestrator(project_root, max_workers=1)
+
+            with pytest.raises(LHPError) as excinfo:
+                orch.generate_pipelines_by_fields(
+                    pipeline_fields=["p_alpha"],
+                    env="dev",
+                    output_dir=project_root / "out",
+                )
+
+            # The orchestrator must re-raise the ORIGINAL LHPError unchanged.
+            # Critically, the code is LHP-VAL-007 (not LHP-GEN-901 from
+            # from_worker_exception and not LHP-VAL-902 from the aggregator).
+            assert excinfo.value is original
+            assert excinfo.value.code == "LHP-VAL-007"
+
+    def test_multi_lhp_failure_aggregates_with_902(self, monkeypatch):
+        """When the pool returns multiple failed deltas with distinct
+        LHPError codes, orchestrator raises LHP-VAL-902 with per-pipeline
+        codes surfaced in the context dict."""
+        from lhp.core import orchestrator as orchestrator_module
+        from lhp.models.processing import PipelineDelta
+        from lhp.utils.error_formatter import (
+            ErrorCategory,
+            LHPConfigError,
+            LHPError,
+            LHPValidationError,
+        )
+
+        err_alpha = LHPValidationError(
+            category=ErrorCategory.VALIDATION,
+            code_number="007",
+            title="Invalid action config",
+            details="alpha details",
+        )
+        err_beta = LHPConfigError(
+            category=ErrorCategory.CONFIG,
+            code_number="003",
+            title="Missing substitution",
+            details="beta details",
+        )
+        err_gamma = LHPValidationError(
+            category=ErrorCategory.VALIDATION,
+            code_number="019",
+            title="Duplicate flowgroup",
+            details="gamma details",
+        )
+        deltas = [
+            PipelineDelta(
+                pipeline_name=name,
+                success=False,
+                lhp_error=err,
+                error_type=type(err).__name__,
+                error_message=str(err),
+                error_traceback="(synthetic)",
+            )
+            for name, err in (
+                ("p_alpha", err_alpha),
+                ("p_beta", err_beta),
+                ("p_gamma", err_gamma),
+            )
+        ]
+
+        def fake_pool(**kwargs):
+            return ([], deltas)
+
+        monkeypatch.setattr(orchestrator_module, "run_generate_pool", fake_pool)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = _build_multipipeline_project(
+                tmpdir, ["p_alpha", "p_beta", "p_gamma"]
+            )
+            orch = ActionOrchestrator(project_root, max_workers=3)
+
+            with pytest.raises(LHPError) as excinfo:
+                orch.generate_pipelines_by_fields(
+                    pipeline_fields=["p_alpha", "p_beta", "p_gamma"],
+                    env="dev",
+                    output_dir=project_root / "out",
+                )
+
+            # Aggregator wraps as LHP-VAL-902 with per-pipeline original
+            # codes surfaced in the context dict (not nested panels).
+            assert excinfo.value.code == "LHP-VAL-902"
+            ctx = excinfo.value.context
+            assert ctx["failure_count"] == 3
+            assert "LHP-VAL-007" in ctx["p_alpha"]
+            assert "LHP-CFG-003" in ctx["p_beta"]
+            assert "LHP-VAL-019" in ctx["p_gamma"]
+
+    def test_single_non_lhp_failure_wraps_as_901(self, monkeypatch):
+        """When the pool returns one failed delta with lhp_error=None
+        (a non-LHP worker exception like KeyError), orchestrator wraps
+        the failure via lhp_error_from_worker_failure → LHP-GEN-901."""
+        from lhp.core import orchestrator as orchestrator_module
+        from lhp.models.processing import PipelineDelta
+        from lhp.utils.error_formatter import LHPError
+
+        failed_delta = PipelineDelta(
+            pipeline_name="p_alpha",
+            success=False,
+            lhp_error=None,
+            error_type="KeyError",
+            error_message="'missing_substitution'",
+            error_traceback=(
+                "Traceback (most recent call last):\n"
+                "  File 'worker.py', line 1, in <module>\n"
+                "KeyError: 'missing_substitution'"
+            ),
+        )
+
+        def fake_pool(**kwargs):
+            return ([], [failed_delta])
+
+        monkeypatch.setattr(orchestrator_module, "run_generate_pool", fake_pool)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = _build_multipipeline_project(tmpdir, ["p_alpha"])
+            orch = ActionOrchestrator(project_root, max_workers=1)
+
+            with pytest.raises(LHPError) as excinfo:
+                orch.generate_pipelines_by_fields(
+                    pipeline_fields=["p_alpha"],
+                    env="dev",
+                    output_dir=project_root / "out",
+                )
+
+            # Non-LHP worker exceptions are reconstructed via
+            # from_worker_exception → LHP-GEN-901.
+            assert excinfo.value.code == "LHP-GEN-901"
+
 
 class TestValidatePipelinesByFields:
     """Tests for the flat-pool plural method ``validate_pipelines_by_fields``.
@@ -813,72 +940,11 @@ class TestValidatePipelinesByFields:
     cross-flowgroup CDC fan-in compatibility check per pipeline.
     """
 
-    def _build_project(self, tmpdir, pipeline_names):
-        """Build a multi-pipeline project (same shape as TestGenerate's helper)."""
-        project_root = Path(tmpdir)
-        (project_root / "presets").mkdir()
-        (project_root / "templates").mkdir()
-        (project_root / "substitutions").mkdir()
-        for name in pipeline_names:
-            (project_root / "pipelines" / name).mkdir(parents=True)
-
-        substitutions = {
-            "dev": {
-                "catalog": "dev_catalog",
-                "bronze_schema": "bronze",
-                "landing_path": "/mnt/dev/landing",
-            }
-        }
-        with open(project_root / "substitutions" / "dev.yaml", "w") as f:
-            yaml.dump(substitutions, f)
-
-        for name in pipeline_names:
-            flowgroup = {
-                "pipeline": name,
-                "flowgroup": f"{name}_fg",
-                "actions": [
-                    {
-                        "name": f"load_{name}",
-                        "type": "load",
-                        "target": f"v_{name}_raw",
-                        "source": {
-                            "type": "cloudfiles",
-                            "path": "${landing_path}/" + name,
-                            "format": "json",
-                        },
-                    },
-                    {
-                        "name": f"clean_{name}",
-                        "type": "transform",
-                        "transform_type": "sql",
-                        "source": f"v_{name}_raw",
-                        "target": f"v_{name}_clean",
-                        "sql": f"SELECT * FROM v_{name}_raw",
-                    },
-                    {
-                        "name": f"write_{name}",
-                        "type": "write",
-                        "source": f"v_{name}_clean",
-                        "write_target": {
-                            "type": "streaming_table",
-                            "catalog": "${catalog}",
-                            "schema": "${bronze_schema}",
-                            "table": name,
-                            "create_table": True,
-                        },
-                    },
-                ],
-            }
-            with open(project_root / "pipelines" / name / f"{name}_fg.yaml", "w") as f:
-                yaml.dump(flowgroup, f)
-
-        return project_root
-
     def test_multi_pipeline_happy_path(self):
         """All pipelines validate cleanly: each outcome has success=True
         and zero errors."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = self._build_project(tmpdir, ["v1", "v2", "v3"])
+            project_root = _build_multipipeline_project(tmpdir, ["v1", "v2", "v3"])
             orch = ActionOrchestrator(project_root, max_workers=4)
 
             outcomes = orch.validate_pipelines_by_fields(
@@ -890,8 +956,7 @@ class TestValidatePipelinesByFields:
             assert len(outcomes) == 3
             for outcome in outcomes:
                 assert outcome.success, (
-                    f"Pipeline {outcome.pipeline} failed unexpectedly: "
-                    f"{outcome.errors}"
+                    f"Pipeline {outcome.pipeline} failed unexpectedly: {outcome.errors}"
                 )
                 assert outcome.errors == ()
                 assert outcome.warnings == ()
@@ -900,7 +965,9 @@ class TestValidatePipelinesByFields:
         """Outcomes are returned in the order of pipeline_fields input, not
         completion order — important for stable display in the CLI."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = self._build_project(tmpdir, ["z_last", "a_first", "m_mid"])
+            project_root = _build_multipipeline_project(
+                tmpdir, ["z_last", "a_first", "m_mid"]
+            )
             orch = ActionOrchestrator(project_root, max_workers=4)
 
             outcomes = orch.validate_pipelines_by_fields(
@@ -920,7 +987,7 @@ class TestValidatePipelinesByFields:
         found' error rather than silently succeeding (matches the shim's
         legacy behavior)."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = self._build_project(tmpdir, ["real_one"])
+            project_root = _build_multipipeline_project(tmpdir, ["real_one"])
             orch = ActionOrchestrator(project_root)
 
             outcomes = orch.validate_pipelines_by_fields(
@@ -940,7 +1007,7 @@ class TestValidatePipelinesByFields:
         """The single-pipeline shim ``validate_pipeline_by_field`` returns
         the legacy ``(errors, warnings)`` tuple unchanged."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = self._build_project(tmpdir, ["shim_pipe"])
+            project_root = _build_multipipeline_project(tmpdir, ["shim_pipe"])
             orch = ActionOrchestrator(project_root)
 
             errors, warnings = orch.validate_pipeline_by_field(
@@ -955,7 +1022,9 @@ class TestValidatePipelinesByFields:
     def test_max_workers_1_matches_max_workers_8(self):
         """Sequential and parallel validation produce the same outcome set."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = self._build_project(tmpdir, ["w1", "w2", "w3", "w4"])
+            project_root = _build_multipipeline_project(
+                tmpdir, ["w1", "w2", "w3", "w4"]
+            )
 
             orch = ActionOrchestrator(project_root)
             seq = orch.validate_pipelines_by_fields(

@@ -40,6 +40,7 @@ from ..utils.performance_timer import perf_timer
 if TYPE_CHECKING:
     from ..models.config import FlowGroupContext, ProjectConfig
     from ..models.processing import PipelineDelta
+    from ..utils.error_formatter import LHPError
     from ..utils.formatter import CodeFormatter
     from ..utils.substitution import EnhancedSubstitutionManager
     from .pipeline_processor import ProcessingContext
@@ -53,17 +54,24 @@ logger = logging.getLogger(__name__)
 def _init_worker_logger(level: int) -> None:
     """Per-worker logging init.
 
-    Called once per spawned worker. Configures a stderr handler at the
-    parent's effective level so worker diagnostics surface during a
-    failing run. ``perf_timer`` data emitted from worker processes
-    stays process-local — only main-thread timings drive the release
-    perf gate, which is fine because that gate measures wall-clock at
-    the top level.
+    Silences worker stdlib loggers entirely. Workers MUST NOT write to
+    OS stderr — the parent's ``Live(... redirect_stderr=True)`` only
+    intercepts the parent's own ``sys.stderr``, not the worker's. All
+    worker diagnostics travel back via :class:`PipelineDelta` (which
+    carries the live LHPError on ``lhp_error`` plus pre-formatted
+    traceback strings).
+
+    The previous implementation used ``logging.basicConfig`` with a
+    ``[worker %(process)d]`` format string and a stderr StreamHandler;
+    that produced N copies of every worker-side warning on failing
+    runs (one per worker, written to a stream the parent cannot
+    intercept).
     """
-    logging.basicConfig(
-        level=level,
-        format="[worker %(process)d] %(levelname)s %(name)s: %(message)s",
-    )
+    root = logging.getLogger()
+    for handler in list(root.handlers):
+        root.removeHandler(handler)
+    root.addHandler(logging.NullHandler())
+    root.setLevel(level)
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,12 +175,24 @@ def _generate_one_pipeline(
 
 @dataclass(frozen=True, slots=True)
 class PipelineValidationOutcome:
-    """Aggregate outcome for a single pipeline's validation."""
+    """Aggregate outcome for a single pipeline's validation.
+
+    ``errors`` is the string-projection tuple (legacy plain-string
+    errors plus stringified non-LHP exceptions and discovery failures).
+    ``lhp_errors`` is the structured tuple of live :class:`LHPError`
+    instances aggregated across the pipeline's flowgroups plus the
+    cross-flowgroup CDC fan-in check. The two are NOT alternatives at
+    the pipeline level — they coexist because plain-string errors and
+    structured errors can both originate within the same pipeline (e.g.
+    a discovery failure plus an LHPError from a worker). They ARE
+    mutually exclusive per individual issue.
+    """
 
     pipeline: str
     errors: Tuple[str, ...]
     warnings: Tuple[str, ...]
     success: bool
+    lhp_errors: Tuple["LHPError", ...] = ()
 
 
 def _process_pipeline_for_generate(
@@ -409,7 +429,7 @@ def run_generate_pool(
             pipeline_name = future_to_pipeline[fut]
             try:
                 delta = fut.result()
-            except BaseException as exc:
+            except Exception as exc:
                 delta = PipelineDelta.failure(pipeline_name, exc)
 
             bucket = successful if delta.success else failed
@@ -440,11 +460,20 @@ class FlowgroupValidationResult:
     Phase A workers return one of these per flowgroup. The main thread
     buckets them by pipeline; Phase B then runs cross-flowgroup
     validation (e.g. CDC fan-in compatibility) on the bucket.
+
+    ``errors`` (string tuple) and ``lhp_error`` (optional instance) are
+    MUTUALLY EXCLUSIVE per flowgroup: the worker chooses one based on
+    ``isinstance(exc, LHPError)``. This eliminates dedup complexity in
+    the main-thread outcome assembler. ``lhp_error`` survives the
+    worker→main pickle via the LHPError ``__reduce__`` contract so the
+    live subclass identity, ``code``, ``context``, and ``suggestions``
+    are preserved verbatim.
     """
 
     pipeline: str
     flowgroup_name: str
     errors: Tuple[str, ...]
+    lhp_error: Optional["LHPError"] = None
 
 
 def _process_flowgroup_for_validate(
@@ -459,9 +488,19 @@ def _process_flowgroup_for_validate(
     Calls :meth:`FlowgroupProcessor.process_flowgroup` — that method
     runs all per-flowgroup validation (schema, references,
     action-specific). Any exception is caught and returned as a single
-    error string keyed by the flowgroup name; the worker never raises so
-    the pool can aggregate failures.
+    :class:`FlowgroupValidationResult` keyed by the flowgroup name; the
+    worker never raises so the pool can aggregate failures.
+
+    LHPError instances are carried via the structured ``lhp_error``
+    field so the main thread keeps the live subclass identity,
+    ``code``, ``context``, and ``suggestions`` (the ``__str__`` form
+    drops these and re-introduces the ``=====`` border that polluted
+    earlier validation displays). Non-LHP exceptions fall back to the
+    string projection on ``errors``. The two fields are mutually
+    exclusive per result.
     """
+    from lhp.utils.error_formatter import LHPError
+
     fg = ctx.flowgroup
     try:
         processor.process_flowgroup(ctx, substitution_mgr, include_tests=include_tests)
@@ -470,16 +509,26 @@ def _process_flowgroup_for_validate(
             flowgroup_name=fg.flowgroup,
             errors=(),
         )
-    except BaseException as exc:
+    except Exception as exc:
         logger.debug(
-            f"Phase A validate worker: flowgroup '{fg.flowgroup}' "
-            f"in pipeline '{fg.pipeline}' raised: {exc}",
+            "Phase A validate worker: flowgroup '%s' in pipeline '%s' raised: %s",
+            fg.flowgroup,
+            fg.pipeline,
+            type(exc).__name__,
             exc_info=True,
         )
+        if isinstance(exc, LHPError):
+            return FlowgroupValidationResult(
+                pipeline=fg.pipeline,
+                flowgroup_name=fg.flowgroup,
+                errors=(),
+                lhp_error=exc,
+            )
         return FlowgroupValidationResult(
             pipeline=fg.pipeline,
             flowgroup_name=fg.flowgroup,
-            errors=(f"Flowgroup '{fg.flowgroup}': {exc}",),
+            errors=(f"Flowgroup '{fg.flowgroup}': {type(exc).__name__}: {exc}",),
+            lhp_error=None,
         )
 
 
@@ -491,7 +540,6 @@ ValidationAssembler: TypeAlias = Callable[
 
 def run_validate_pool(
     *,
-    pipelines: Sequence[str],
     flowgroups_by_pipeline: Mapping[str, Sequence["FlowGroupContext"]],
     worker_state: _ValidateWorkerState,
     assemble_pipeline: ValidationAssembler,
@@ -509,16 +557,22 @@ def run_validate_pool(
     delivered to each worker via the ``initializer=`` seam, so the per-task
     submit shrinks to a single :class:`FlowGroupContext` argument.
 
+    Pipeline ordering is derived from ``flowgroups_by_pipeline.keys()``
+    — dict insertion order is preserved (Python 3.7+), so the caller
+    controls display order by the order in which it inserts pipelines
+    into the mapping.
+
     Returns outcomes **ordered by the input pipeline order** (not
     completion order) for stable display. Callers that want completion
     order should consume ``on_pipeline_complete`` instead.
     """
+    pipelines: List[str] = list(flowgroups_by_pipeline.keys())
     progress: Dict[str, _PipelineProgress] = {
         p: _PipelineProgress(pipeline=p, expected=0) for p in pipelines
     }
     worklist: List[Tuple[str, "FlowGroupContext"]] = []
     for p in pipelines:
-        ctxs = list(flowgroups_by_pipeline.get(p, []))
+        ctxs = list(flowgroups_by_pipeline[p])
         progress[p].expected = len(ctxs)
         for ctx in ctxs:
             worklist.append((p, ctx))
@@ -578,7 +632,7 @@ def run_validate_pool(
                 pipeline, fg_ctx = future_to_key[fut]
                 try:
                     result = fut.result()
-                except BaseException as exc:
+                except Exception as exc:
                     result = FlowgroupValidationResult(
                         pipeline=pipeline,
                         flowgroup_name=fg_ctx.flowgroup.flowgroup,

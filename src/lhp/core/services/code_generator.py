@@ -56,7 +56,6 @@ class CodeGenerator:
         source_yaml: Optional[Path] = None,
         env: Optional[str] = None,
         include_tests: bool = False,
-        python_file_copier=None,
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
         auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> str:
@@ -70,7 +69,6 @@ class CodeGenerator:
             source_yaml: Source YAML path for file tracking
             env: Environment name for file tracking
             include_tests: Whether to include test actions
-            python_file_copier: Thread-safe Python file copier (for parallel mode)
             phase_a_records: Optional list passed by Phase A workers to
                 receive ``CopiedModuleRecord`` entries instead of writing
                 user Python modules to disk. ``None`` (the default) means
@@ -132,7 +130,6 @@ class CodeGenerator:
                 source_yaml,
                 env,
                 include_tests,
-                python_file_copier,
                 phase_a_records=phase_a_records,
                 auxiliary_files=auxiliary_files,
             )
@@ -164,7 +161,6 @@ class CodeGenerator:
         source_yaml: Optional[Path],
         env: Optional[str],
         include_tests: bool,
-        python_file_copier=None,
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
         auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> Tuple[List[str], Set[str], Set[str]]:
@@ -205,7 +201,6 @@ class CodeGenerator:
             output_dir=output_dir,
             source_yaml=source_yaml,
             env=env,
-            python_file_copier=python_file_copier,
             phase_a_records=phase_a_records,
             auxiliary_files=auxiliary_files,
         )
@@ -289,7 +284,6 @@ class CodeGenerator:
         output_dir: Optional[Path],
         source_yaml: Optional[Path],
         env: Optional[str],
-        python_file_copier=None,
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
         auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> Tuple[List[str], Set[str], Set[str]]:
@@ -326,7 +320,6 @@ class CodeGenerator:
                     output_dir,
                     source_yaml,
                     env,
-                    python_file_copier,
                     phase_a_records=phase_a_records,
                     auxiliary_files=auxiliary_files,
                 )
@@ -349,8 +342,7 @@ class CodeGenerator:
                     code_number="002",
                     title="Write action code generation failed",
                     details=(
-                        f"Error generating code for write actions "
-                        f"{action_names}: {e}"
+                        f"Error generating code for write actions {action_names}: {e}"
                     ),
                     suggestions=[
                         "Check write action configuration for the target table",
@@ -374,7 +366,6 @@ class CodeGenerator:
         output_dir: Optional[Path],
         source_yaml: Optional[Path],
         env: Optional[str],
-        python_file_copier=None,
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
         auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> Tuple[List[str], Set[str], Set[str]]:
@@ -392,7 +383,6 @@ class CodeGenerator:
                 output_dir,
                 source_yaml,
                 env,
-                python_file_copier,
                 phase_a_records=phase_a_records,
                 auxiliary_files=auxiliary_files,
             )
@@ -411,7 +401,6 @@ class CodeGenerator:
         output_dir: Optional[Path],
         source_yaml: Optional[Path],
         env: Optional[str],
-        python_file_copier=None,
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
         auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> Tuple[List[str], Set[str], Set[str]]:
@@ -441,7 +430,6 @@ class CodeGenerator:
                 output_dir,
                 source_yaml,
                 env,
-                python_file_copier,
                 phase_a_records=phase_a_records,
                 auxiliary_files=auxiliary_files,
             )
@@ -460,7 +448,6 @@ class CodeGenerator:
         output_dir: Optional[Path],
         source_yaml: Optional[Path],
         env: Optional[str],
-        python_file_copier=None,
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
         auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> Tuple[str, Set[str], Set[str]]:
@@ -475,7 +462,6 @@ class CodeGenerator:
                 output_dir,
                 source_yaml,
                 env,
-                python_file_copier,
                 phase_a_records=phase_a_records,
                 auxiliary_files=auxiliary_files,
             )
@@ -510,7 +496,6 @@ class CodeGenerator:
         output_dir: Optional[Path],
         source_yaml: Optional[Path],
         env: Optional[str],
-        python_file_copier=None,
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
         auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> Dict[str, Any]:
@@ -532,7 +517,6 @@ class CodeGenerator:
             # populated by generators for legacy callers that read from
             # the context dict.
             "secret_references": set(),
-            "python_file_copier": python_file_copier,
             # Phase A collect carrier: when present, copy_user_module_for_pipeline
             # appends CopiedModuleRecord entries here instead of writing to disk,
             # so Phase B can replay the writes on the main thread.
@@ -825,10 +809,10 @@ FLOWGROUP_ID = "{flowgroup.flowgroup}"
             if len(source_views_for_action) > 1:
                 # Multiple sources in this action: create separate append flow for each
                 for i, source_view in enumerate(source_views_for_action):
-                    flow_name = f"{base_flow_name}_{i+1}"
+                    flow_name = f"{base_flow_name}_{i + 1}"
                     action_metadata.append(
                         {
-                            "action_name": f"{action.name}_{i+1}",
+                            "action_name": f"{action.name}_{i + 1}",
                             "source_view": source_view,
                             "once": action.once or False,
                             "readMode": action.readMode,  # Preserve individual readMode

@@ -1,10 +1,15 @@
 """Error formatter for user-friendly error messages."""
 
+from __future__ import annotations
+
 import textwrap
 from difflib import get_close_matches
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+
+if TYPE_CHECKING:
+    from rich.panel import Panel
 
 
 class ErrorCategory(Enum):
@@ -54,46 +59,124 @@ class LHPError(Exception):
         # Format the complete error message
         super().__init__(self._format_message())
 
+    def _category_label(self) -> str:
+        """Return a human-readable label for the error category."""
+        return {
+            ErrorCategory.VALIDATION: "Validation Error",
+            ErrorCategory.CONFIG: "Configuration Error",
+            ErrorCategory.IO: "I/O Error",
+            ErrorCategory.DEPENDENCY: "Dependency Error",
+            ErrorCategory.ACTION: "Action Error",
+            ErrorCategory.CLOUDFILES: "CloudFiles Error",
+            ErrorCategory.GENERAL: "Error",
+        }.get(self.category, "Error")
+
+    def _border_style(self) -> str:
+        """Return the Rich border style for this error's category."""
+        return {
+            ErrorCategory.VALIDATION: "yellow",
+            ErrorCategory.CONFIG: "red",
+            ErrorCategory.IO: "red",
+            ErrorCategory.DEPENDENCY: "red",
+            ErrorCategory.ACTION: "red",
+            ErrorCategory.CLOUDFILES: "red",
+            ErrorCategory.GENERAL: "red",
+        }.get(self.category, "red")
+
+    def _template_data(self) -> Dict[str, Any]:
+        """Return structured data for rendering this error.
+
+        Single source of truth consumed by both ``_format_message`` (plain
+        text used by ``__str__`` and the file logger) and ``__rich__`` (Rich
+        Panel rendering on stderr). Keeps the two presentations from drifting.
+        """
+        return {
+            "code": self.code,
+            "category_label": self._category_label(),
+            "title": self.title,
+            "details": self.details,
+            "context": dict(self.context) if self.context else {},
+            "suggestions": list(self.suggestions or []),
+            "example": self.example or None,
+            "doc_link": self.doc_link or None,
+        }
+
     def _format_message(self) -> str:
-        """Format the error message with all components."""
-        lines = []
+        """Format the error as a plain-text ASCII message.
 
-        # Header with error code
-        lines.append(f"\n❌ Error [{self.code}]: {self.title}")
+        Used by ``__str__`` and the file logger. No emoji, no ANSI escapes —
+        safe for log files, piped output, and non-TTY contexts.
+        """
+        d = self._template_data()
+        lines = [f"Error [{d['code']}]: {d['title']}"]
         lines.append("=" * 70)
-
-        # Details
-        if self.details:
+        if d["details"]:
             lines.append("")
-            lines.append(textwrap.fill(self.details, width=70))
-
-        # Context information
-        if self.context:
-            lines.append("\n📍 Context:")
-            for key, value in self.context.items():
-                lines.append(f"   • {key}: {value}")
-
-        # Suggestions
-        if self.suggestions:
-            lines.append("\n💡 How to fix:")
-            for i, suggestion in enumerate(self.suggestions, 1):
-                wrapped = textwrap.fill(
-                    suggestion, width=66, subsequent_indent="      "
-                )
-                lines.append(f"   {i}. {wrapped}")
-
-        # Example
-        if self.example:
-            lines.append("\n📝 Example:")
-            example_lines = self.example.strip().split("\n")
-            for line in example_lines:
-                lines.append(f"   {line}")
-
-        # Documentation link
-        lines.append(f"\n📚 More info: {self.doc_link}")
+            lines.append(textwrap.fill(d["details"], width=70))
+        if d["context"]:
+            lines.append("")
+            lines.append("Context")
+            for key, value in d["context"].items():
+                lines.append(f"  {key}: {value}")
+        if d["suggestions"]:
+            lines.append("")
+            lines.append("Suggestions")
+            for suggestion in d["suggestions"]:
+                wrapped = textwrap.fill(suggestion, width=66, subsequent_indent="     ")
+                lines.append(f"  -> {wrapped}")
+        if d["example"]:
+            lines.append("")
+            lines.append("Example")
+            for line in d["example"].strip().split("\n"):
+                lines.append(f"  {line}")
+        if d["doc_link"]:
+            lines.append("")
+            lines.append(f"More info: {d['doc_link']}")
         lines.append("=" * 70)
-
         return "\n".join(lines)
+
+    def __rich__(self) -> Panel:
+        """Render the error as a Rich Panel for stderr console output.
+
+        Rich detects ``__rich__`` automatically when ``Console.print`` is
+        called with an LHPError instance.
+        """
+        # Local imports to keep ``rich`` an optional render-time dependency
+        # for callers that only need ``__str__``.
+        from rich.panel import Panel
+        from rich.text import Text
+
+        d = self._template_data()
+        body = Text()
+        body.append(d["title"] + "\n\n", style="bold")
+        if d["details"]:
+            body.append(d["details"] + "\n")
+        if d["context"]:
+            body.append("\n")
+            body.append("Context\n", style="bold dim")
+            for key, value in d["context"].items():
+                body.append(f"  {key}: {value}\n", style="dim")
+        if d["suggestions"]:
+            body.append("\n")
+            body.append("Suggestions\n", style="bold dim")
+            for suggestion in d["suggestions"]:
+                body.append("  -> ")
+                body.append(f"{suggestion}\n")
+        if d["example"]:
+            body.append("\n")
+            body.append("Example\n", style="bold dim")
+            for line in d["example"].strip().split("\n"):
+                body.append(f"  {line}\n")
+        if d["doc_link"]:
+            body.append("\n")
+            body.append(f"More info: {d['doc_link']}", style="dim underline")
+        return Panel(
+            body,
+            title=f"{d['code']}   {d['category_label']}",
+            border_style=self._border_style(),
+            title_align="left",
+            padding=(1, 2),
+        )
 
     def __reduce__(self):
         return (
@@ -110,39 +193,32 @@ class LHPError(Exception):
             ),
         )
 
-
     @classmethod
-    def from_worker_exception(
+    def from_unexpected_exception(
         cls,
-        *,
-        pipeline_name: str,
-        error_type: str,
-        error_message: str,
-        error_traceback: str,
+        exc: BaseException,
+        operation: str,
     ) -> "LHPError":
-        """Reconstruct a worker-side exception as an LHPError on the main thread.
+        """Wrap a non-LHP, non-Bundle exception as an LHPError for CLI rendering.
 
-        Used by the parallel pipeline executor to surface worker failures
-        through the project's unified error type without losing the worker's
-        original exception type or chained traceback. The full traceback is
-        preserved on ``worker_traceback`` so log handlers and CI surfaces can
-        capture it; ``worker_error_type`` carries the original exception class
-        name for structured error classification.
+        Used by :func:`cli_error_boundary` to surface generic fallback failures
+        through the project's unified Rich panel UX rather than as plain stderr
+        lines. The full Python traceback is intentionally NOT carried on the
+        returned LHPError; callers are expected to ``logger.exception(...)`` so
+        the traceback lands in the log file only.
         """
-        first_trace_line = error_traceback.strip().splitlines()[-1] if error_traceback else ""
-        details = error_message or "(no message)"
-        if first_trace_line and first_trace_line not in details:
-            details = f"{details}\n[{first_trace_line}]"
-        err = cls(
+        return cls(
             category=ErrorCategory.GENERAL,
-            code_number="901",
-            title=f"Pipeline '{pipeline_name}' failed in worker ({error_type})",
-            details=details,
-            context={"pipeline": pipeline_name, "worker_exception": error_type},
+            code_number="902",
+            title=f"{operation} failed: unexpected error",
+            details=str(exc) or repr(exc),
+            context={"exception_type": type(exc).__name__},
+            suggestions=[
+                "Re-run with --verbose to keep the traceback in your terminal",
+                "Check the log file for the full Python traceback",
+                "If this is reproducible, please file an issue with the log excerpt",
+            ],
         )
-        err.worker_error_type = error_type
-        err.worker_traceback = error_traceback
-        return err
 
 
 class LHPValidationError(LHPError, ValueError):
@@ -175,18 +251,13 @@ class LHPFileError(LHPError, FileNotFoundError):
     pass
 
 
-
 _WORKER_ERROR_TYPE_TO_LHP_CLASS: Dict[str, type] = {
-    # LHP errors round-trip back to their own class so existing handler
-    # specificity is preserved.
-    "LHPError": LHPError,
-    "LHPValidationError": LHPValidationError,
-    "LHPConfigError": LHPConfigError,
-    "LHPFileError": LHPFileError,
     # Common stdlib exception names map to the LHP subclass that carries
     # the matching dual inheritance, so legacy ``except ValueError`` /
     # ``except FileNotFoundError`` handlers still catch worker failures
-    # surfaced across the spawn boundary.
+    # surfaced across the spawn boundary. LHPError instances raised in
+    # workers do NOT round-trip through this mapping: they travel back
+    # via ``PipelineDelta.lhp_error`` and are re-raised unchanged.
     "ValueError": LHPValidationError,
     "FileNotFoundError": LHPFileError,
     "OSError": LHPFileError,
@@ -211,13 +282,24 @@ def lhp_error_from_worker_failure(
     ``FileNotFoundError`` / etc. continue to catch worker failures the
     same way they caught them when generation ran in the main thread.
     Unknown types fall back to plain :class:`LHPError`.
+
+    LHPError instances raised in workers do NOT go through this function:
+    they travel back via :attr:`PipelineDelta.lhp_error` and are re-raised
+    unchanged by the orchestrator / layers consumer.
     """
     target_cls = _WORKER_ERROR_TYPE_TO_LHP_CLASS.get(error_type, LHPError)
-    return target_cls.from_worker_exception(
-        pipeline_name=pipeline_name,
-        error_type=error_type,
-        error_message=error_message,
-        error_traceback=error_traceback,
+    first_trace_line = (
+        error_traceback.strip().splitlines()[-1] if error_traceback else ""
+    )
+    details = error_message or "(no message)"
+    if first_trace_line and first_trace_line not in details:
+        details = f"{details}\n[{first_trace_line}]"
+    return target_cls(
+        category=ErrorCategory.GENERAL,
+        code_number="901",
+        title=f"Pipeline '{pipeline_name}' failed in worker ({error_type})",
+        details=details,
+        context={"pipeline": pipeline_name, "worker_exception": error_type},
     )
 
 
@@ -643,8 +725,7 @@ actions:
             code_number="008",
             title=f"Invalid type for field '{field_name}' in action '{action_name}'",
             details=(
-                f"Expected '{field_name}' to be {expected_type}, "
-                f"but got {actual_type}."
+                f"Expected '{field_name}' to be {expected_type}, but got {actual_type}."
             ),
             suggestions=[
                 f"Change '{field_name}' to a {expected_type} value",
@@ -738,7 +819,7 @@ actions:
             ),
             suggestions=suggestions,
             example=f"""template_parameters:
-  {missing_params[0] if missing_params else 'param'}: value""",
+  {missing_params[0] if missing_params else "param"}: value""",
             context={
                 "Template": template_name,
                 "Missing": missing_list,
@@ -783,5 +864,5 @@ actions:
             provided_value=preset_name,
             valid_values=available_presets,
             example_usage=f"""presets:
-  - {available_presets[0] if available_presets else 'my_preset'}""",
+  - {available_presets[0] if available_presets else "my_preset"}""",
         )

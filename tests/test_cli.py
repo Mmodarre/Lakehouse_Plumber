@@ -49,6 +49,7 @@ class TestCLI:
             assert Path("templates").exists()
             assert Path("substitutions").exists()
             assert Path("substitutions/dev.yaml.tmpl").exists()
+            assert Path("presets/bronze_layer.yaml.tmpl").exists()
             assert Path("README.md").exists()
             assert Path(".gitignore").exists()
             # Bundle files present by default
@@ -102,8 +103,6 @@ class TestCLI:
             runner.invoke(cli, ["init", "test_project"])
 
             # Create dev.yaml for testing by copying the template
-            import shutil
-
             shutil.copy("substitutions/dev.yaml.tmpl", "substitutions/dev.yaml")
 
             # Run validate
@@ -121,8 +120,6 @@ class TestCLI:
             runner.invoke(cli, ["init", "test_project"])
 
             # Create dev.yaml for testing by copying the template
-            import shutil
-
             shutil.copy("substitutions/dev.yaml.tmpl", "substitutions/dev.yaml")
 
             # Create a valid pipeline first
@@ -163,8 +160,6 @@ class TestCLI:
             runner.invoke(cli, ["init", "test_project"])
 
             # Create dev.yaml for testing by copying the template
-            import shutil
-
             shutil.copy("substitutions/dev.yaml.tmpl", "substitutions/dev.yaml")
 
             # databricks.yml already created by default bundle init
@@ -252,8 +247,12 @@ class TestCLI:
         """Test CLI help command."""
         result = runner.invoke(cli, ["--help"])
         assert result.exit_code == 0
-        assert "LakehousePlumber" in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 1
-        assert "Generate Lakeflow pipelines from YAML configs" in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 1
+        assert (
+            "LakehousePlumber" in result.output
+        )  # SNAPSHOT-TODO: re-target to new Rich output in Phase 1
+        assert (
+            "Generate Lakeflow pipelines from YAML configs" in result.output
+        )  # SNAPSHOT-TODO: re-target to new Rich output in Phase 1
 
     def test_validate_with_pipeline(self, runner, temp_project):
         """Test validate with a valid pipeline."""
@@ -262,8 +261,6 @@ class TestCLI:
             runner.invoke(cli, ["init", "test_project"])
 
             # Create dev.yaml for testing by copying the template
-            import shutil
-
             shutil.copy("substitutions/dev.yaml.tmpl", "substitutions/dev.yaml")
 
             # Create a pipeline
@@ -336,8 +333,6 @@ class TestCLI:
             runner.invoke(cli, ["init", "test_project"])
 
             # Create dev.yaml for testing by copying the template
-            import shutil
-
             shutil.copy("substitutions/dev.yaml.tmpl", "substitutions/dev.yaml")
 
             # Create a pipeline
@@ -393,8 +388,6 @@ class TestCLI:
             runner.invoke(cli, ["init", "test_project"])
 
             # Copy template to actual substitution file
-            import shutil
-
             shutil.copy("substitutions/dev.yaml.tmpl", "substitutions/dev.yaml")
 
             # Create a pipeline with flowgroup
@@ -437,7 +430,7 @@ class TestCLI:
 
             assert result.exit_code == 0
             # Behavioral: flowgroup name appears in the rendered YAML body.
-            assert "test_flowgroup" in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 5
+            assert "test_flowgroup" in result.output
 
     def test_validate_with_secrets(self, runner, temp_project):
         """Test validate with secret references."""
@@ -445,8 +438,6 @@ class TestCLI:
             runner.invoke(cli, ["init", "test_project"])
 
             # Create dev.yaml for testing by copying the template
-            import shutil
-
             shutil.copy("substitutions/dev.yaml.tmpl", "substitutions/dev.yaml")
 
             # Create a pipeline with secrets
@@ -495,8 +486,6 @@ class TestCLI:
 
     def test_get_version_fallbacks(self, runner, temp_project):
         """Test get_version() fallback logic when package metadata is not available."""
-        import shutil
-        import tempfile
         from unittest.mock import patch
 
         # Test 1: Mock importlib.metadata.version to raise exception, should fall back to pyproject.toml
@@ -613,8 +602,6 @@ description = "Test package"
             runner.invoke(cli, ["init", "test_project"])
 
             # Create dev.yaml for testing by copying the template
-            import shutil
-
             shutil.copy("substitutions/dev.yaml.tmpl", "substitutions/dev.yaml")
 
             # Create an empty pipeline directory (no YAML files)
@@ -624,9 +611,7 @@ description = "Test package"
             # Run generate with ``--no-bundle`` so the v0.8.7 preflight
             # ``LHP-CFG-023`` check doesn't fire before flowgroup discovery —
             # this test specifically verifies the "no flowgroups" error.
-            result = runner.invoke(
-                cli, ["generate", "--env", "dev", "--no-bundle"]
-            )
+            result = runner.invoke(cli, ["generate", "--env", "dev", "--no-bundle"])
 
             # LHP-CFG-014 raised when no flowgroups discovered.
             from lhp.utils.exit_codes import ExitCode

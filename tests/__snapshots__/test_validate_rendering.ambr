@@ -1,0 +1,15 @@
+# serializer version: 1
+# name: test_validate_summary_failure_renders_rich_table
+  '''
+               Validation Summary             
+  ┏━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━┓
+  ┃    ┃ Pipeline        ┃ Errors ┃ Warnings ┃
+  ┡━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━┩
+  │ ✗  │ silver_pipeline │      2 │        1 │
+  │ ✓  │ gold_pipeline   │      0 │        0 │
+  └────┴─────────────────┴────────┴──────────┘
+  
+    Pipelines validated  1 passed   1 failed   1 warnings
+  
+  '''
+# ---

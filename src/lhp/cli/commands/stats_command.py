@@ -102,40 +102,6 @@ class StatsCommand(BaseCommand):
             "action_types": defaultdict(int),
         }
 
-    def _get_include_patterns(self, project_root: Path) -> list[str]:
-        """Get include patterns from project configuration."""
-        try:
-            from ...core.project_config_loader import ProjectConfigLoader
-
-            config_loader = ProjectConfigLoader(project_root)
-            project_config = config_loader.load_project_config()
-
-            if project_config and project_config.include:
-                return project_config.include
-            else:
-                return []
-        except Exception as e:
-            self.logger.warning(
-                f"Could not load project config for include patterns: {e}"
-            )
-            return []
-
-    def _discover_yaml_files_with_include(
-        self, pipeline_dir: Path, include_patterns: list[str]
-    ) -> list[Path]:
-        """Discover YAML files with include pattern filtering."""
-        if include_patterns:
-            # Use include filtering
-            from ...utils.file_pattern_matcher import discover_files_with_patterns
-
-            return discover_files_with_patterns(pipeline_dir, include_patterns)
-        else:
-            # No include patterns, discover all YAML files
-            yaml_files = []
-            yaml_files.extend(pipeline_dir.rglob("*.yaml"))
-            yaml_files.extend(pipeline_dir.rglob("*.yml"))
-            return yaml_files
-
     def _analyze_pipeline(
         self,
         pipeline_dir: Path,

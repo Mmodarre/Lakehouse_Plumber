@@ -104,6 +104,10 @@ class TestValidateCommandParallel:
             cwd = os.getcwd()
             try:
                 os.chdir(project_root)
+                # ``--show-all`` opts into the full per-pipeline summary
+                # table; the failures-only default would suppress the
+                # table on a clean run, but this test asserts on
+                # per-pipeline row visibility.
                 result = runner.invoke(
                     cli,
                     [
@@ -112,15 +116,16 @@ class TestValidateCommandParallel:
                         "dev",
                         "--max-workers",
                         "4",
+                        "--show-all",
                     ],
                 )
-                assert (
-                    result.exit_code == 0
-                ), f"CLI exited {result.exit_code}: {result.output}"
+                assert result.exit_code == 0, (
+                    f"CLI exited {result.exit_code}: {result.output}"
+                )
                 # Each pipeline name should appear in the per-pipeline
                 # display section.
                 for name in self.PIPELINES:
-                    assert name in result.output, (  # SNAPSHOT-TODO: re-target to new Rich output in Phase 3
+                    assert name in result.output, (
                         f"Pipeline {name} missing from validate output:\n"
                         f"{result.output}"
                     )
@@ -142,22 +147,27 @@ class TestValidateCommandParallel:
             cwd = os.getcwd()
             try:
                 os.chdir(par_root)
+                # ``--show-all`` opts into the full per-pipeline summary
+                # table on both runs; the failures-only default would
+                # suppress the table on a clean run, but this test
+                # asserts on per-pipeline row visibility across both
+                # worker configurations.
                 par_result = runner.invoke(
                     cli,
-                    ["validate", "--env", "dev", "--max-workers", "4"],
+                    ["validate", "--env", "dev", "--max-workers", "4", "--show-all"],
                 )
                 assert par_result.exit_code == 0
 
                 os.chdir(seq_root)
                 seq_result = runner.invoke(
                     cli,
-                    ["validate", "--env", "dev", "--max-workers", "1"],
+                    ["validate", "--env", "dev", "--max-workers", "1", "--show-all"],
                 )
                 assert seq_result.exit_code == 0
 
                 # Both runs should report the same per-pipeline names.
                 for name in self.PIPELINES:
-                    assert name in par_result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 3
-                    assert name in seq_result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 3
+                    assert name in par_result.output
+                    assert name in seq_result.output
             finally:
                 os.chdir(cwd)

@@ -2,7 +2,6 @@
 
 import shutil
 import tempfile
-import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -249,5 +248,3 @@ class TestPythonFileCopier:
         # Verify no error was raised (would have raised PythonFunctionConflictError before fix)
         assert dest_path.exists()
         assert dest_path.read_text() == content
-
-

@@ -13,10 +13,18 @@ These tests resolve Plan 2's B1 verification: pickle round-trip on
 from __future__ import annotations
 
 import pickle
+from pathlib import Path
 
 import pytest
 
 from lhp.models.processing import PipelineDelta
+from lhp.utils.error_formatter import (
+    ErrorCategory,
+    LHPConfigError,
+    LHPFileError,
+    LHPValidationError,
+    MultiDocumentError,
+)
 
 
 class TestPipelineDeltaSerialization:
@@ -79,3 +87,81 @@ class TestPipelineDeltaSerialization:
         assert delta.files_written == twice.files_written
         assert delta.artifacts_count == twice.artifacts_count
         assert delta.generated_filenames == twice.generated_filenames
+
+
+@pytest.mark.parametrize(
+    "error_cls,code_number,category",
+    [
+        (LHPValidationError, "007", ErrorCategory.VALIDATION),
+        (LHPConfigError, "011", ErrorCategory.CONFIG),
+        (LHPFileError, "001", ErrorCategory.IO),
+    ],
+)
+def test_pipeline_delta_pickle_with_lhp_subclass(error_cls, code_number, category):
+    """Whole-PipelineDelta pickle preserves LHPError subclass identity."""
+    err = error_cls(
+        category=category,
+        code_number=code_number,
+        title="Test failure",
+        details="The thing broke.",
+        context={"Pipeline": "x"},
+        suggestions=["Fix the thing"],
+    )
+    delta = PipelineDelta.failure("test_pipeline", err)
+    restored = pickle.loads(pickle.dumps(delta))
+    assert restored.lhp_error is not None
+    assert restored.lhp_error.__class__ is error_cls
+    assert restored.lhp_error.code == f"LHP-{category.value}-{code_number}"
+    assert restored.lhp_error.title == "Test failure"
+    assert restored.lhp_error.context == {"Pipeline": "x"}
+    assert restored.lhp_error.suggestions == ["Fix the thing"]
+    assert restored.error_message == str(err)  # legacy field still populated
+
+
+def test_pipeline_delta_pickle_with_non_lhp_exception():
+    """Non-LHP exception: lhp_error is None, string fields preserved."""
+    exc = ValueError("simulated parse error")
+    delta = PipelineDelta.failure("test_pipeline", exc)
+    restored = pickle.loads(pickle.dumps(delta))
+    assert restored.lhp_error is None
+    assert restored.error_type == "ValueError"
+    assert "simulated parse error" in restored.error_message
+    assert restored.error_traceback != ""
+
+
+def test_pipeline_delta_pickle_with_multi_document_error():
+    """MultiDocumentError has its own __reduce__ signature — verify round-trip."""
+    err = MultiDocumentError(
+        file_path=Path("/tmp/test.yaml"),
+        num_documents=3,
+        error_context="some context",
+    )
+    delta = PipelineDelta.failure("test_pipeline", err)
+    restored = pickle.loads(pickle.dumps(delta))
+    assert restored.lhp_error is not None
+    assert restored.lhp_error.__class__ is MultiDocumentError
+    assert restored.lhp_error.code == "LHP-IO-003"
+
+
+def test_pipeline_delta_pickle_with_python_function_conflict_error():
+    """PythonFunctionConflictError has a custom 3-arg ``__init__`` and must
+    define its own ``__reduce__`` so the spawn-pool pickle round-trip
+    preserves subclass identity (otherwise the parent ``LHPError.__reduce__``
+    would attempt the 8-arg base reconstruction and unpickling would raise
+    ``TypeError`` — silently collapsing the original LHP-VAL-019 error into
+    a non-LHP wrap on the parent side)."""
+    from lhp.generators.python_file_copier import PythonFunctionConflictError
+
+    err = PythonFunctionConflictError(
+        destination="dest.py",
+        existing_source="a/src.py",
+        new_source="b/src.py",
+    )
+    delta = PipelineDelta.failure("test_pipeline", err)
+    restored = pickle.loads(pickle.dumps(delta))
+    assert restored.lhp_error is not None
+    assert restored.lhp_error.__class__ is PythonFunctionConflictError
+    assert restored.lhp_error.code == "LHP-VAL-019"
+    assert restored.lhp_error.destination == "dest.py"
+    assert restored.lhp_error.existing_source == "a/src.py"
+    assert restored.lhp_error.new_source == "b/src.py"

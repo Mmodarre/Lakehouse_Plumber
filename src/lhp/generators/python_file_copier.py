@@ -4,7 +4,7 @@ import logging
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 from ..utils.error_formatter import ErrorCategory, LHPValidationError
 from ..utils.external_file_loader import resolve_external_file_path
@@ -18,8 +18,7 @@ class CopiedModuleRecord:
 
     Produced in Phase A by :func:`compute_copy_record` with no side
     effects — no filesystem writes, no state mutation. Replayed in
-    Phase B by :meth:`PythonFileCopier.apply_copy_record`, which
-    reports what was written via :class:`CopiedFileEntry` records.
+    Phase B by :meth:`PythonFileCopier.apply_copy_record`.
     """
 
     source_path: str
@@ -27,18 +26,6 @@ class CopiedModuleRecord:
     content: str
     module_path: str
     custom_functions_dir: Path
-
-
-@dataclass(frozen=True, slots=True)
-class CopiedFileEntry:
-    """A single file that :meth:`PythonFileCopier.apply_copy_record` actually wrote.
-
-    Zero or more entries are emitted per call. A dedup hit (the same
-    destination already written by another flowgroup in this worker)
-    returns an empty list.
-    """
-
-    dest_path: Path
 
 
 class PythonFunctionConflictError(LHPValidationError):
@@ -70,6 +57,20 @@ class PythonFunctionConflictError(LHPValidationError):
             },
         )
 
+    def __reduce__(self):
+        # Override the parent ``LHPError.__reduce__`` (which reconstructs
+        # with the 8-arg base ``__init__`` signature) so this subclass's
+        # custom 3-arg ``__init__(destination, existing_source,
+        # new_source)`` survives the spawn-pool pickle round-trip.
+        # Without this override, ``PipelineDelta.lhp_error`` cannot ship
+        # this subclass across the worker→main boundary and the original
+        # LHP-VAL-019 error is silently replaced by an unpickling
+        # ``TypeError`` on the parent side.
+        return (
+            self.__class__,
+            (self.destination, self.existing_source, self.new_source),
+        )
+
 
 class PythonFileCopier:
     """Per-worker file-copy coordinator with intra-pipeline dedup.
@@ -81,8 +82,8 @@ class PythonFileCopier:
     across the spawn boundary.
 
     When multiple flowgroups reference the same Python file, only one
-    call performs the copy; subsequent calls return an empty entry
-    list so callers do not double-track state.
+    call performs the copy; subsequent calls are no-ops so callers do
+    not double-track state.
     """
 
     def __init__(self):
@@ -171,37 +172,20 @@ class PythonFileCopier:
     def apply_copy_record(
         self,
         record: "CopiedModuleRecord",
-    ) -> List[CopiedFileEntry]:
-        """Replay a Phase-A-captured copy: ensure init, copy, return entries.
+    ) -> None:
+        """Replay a Phase-A-captured copy: ensure init, copy module.
 
         Calls :meth:`ensure_init_file`, then :meth:`copy_python_file` (both
         lock-protected for intra-pipeline dedup within this worker process).
-        Returns a list of :class:`CopiedFileEntry` records describing the
-        files that were actually written this call — empty when dedup
-        suppressed the write.
+        When dedup suppresses the write (same record re-applied), this is a
+        no-op. Observability of what was written is exposed via
+        :meth:`get_copied_files`.
 
         Args:
             record: Result of :func:`compute_copy_record`.
-
-        Returns:
-            ``[]`` when dedup suppressed the write. Otherwise a list with
-            two entries (the package ``__init__.py`` and the module file
-            itself). The same record re-applied returns ``[]`` on the
-            second call.
         """
         self.ensure_init_file(record.custom_functions_dir)
-        file_copied = self.copy_python_file(
-            record.source_path, record.dest_path, record.content
-        )
-
-        if not file_copied:
-            return []
-
-        init_file = record.custom_functions_dir / "__init__.py"
-        return [
-            CopiedFileEntry(dest_path=init_file),
-            CopiedFileEntry(dest_path=record.dest_path),
-        ]
+        self.copy_python_file(record.source_path, record.dest_path, record.content)
 
 
 def compute_copy_record(
@@ -250,9 +234,9 @@ def compute_copy_record(
     if inline_source is not None:
         original_content = inline_source
     else:
-        assert (
-            source_file is not None
-        ), "compute_copy_record requires either source_file or inline_source"
+        assert source_file is not None, (
+            "compute_copy_record requires either source_file or inline_source"
+        )
         original_content = source_file.read_text()
 
     substitution_mgr = context.get("substitution_manager")

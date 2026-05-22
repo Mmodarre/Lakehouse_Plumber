@@ -2,11 +2,10 @@
 
 import logging
 import sys
-import warnings
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
-import click
+import rich_click as click
 
 from .error_boundary import cli_error_boundary
 
@@ -93,8 +92,6 @@ def configure_logging(verbose: bool, project_root: Optional[Path] = None):
         file_handler.setFormatter(file_formatter)
         root_logger.addHandler(file_handler)
 
-    warnings.filterwarnings("default", category=DeprecationWarning, module=r"lhp\.")
-
     return str(log_file_path) if log_file_path else None
 
 
@@ -119,78 +116,6 @@ def _find_project_root() -> Optional[Path]:
     return None
 
 
-def _ensure_project_root() -> Path:
-    """Find project root or raise LHPError."""
-    from ..utils.error_formatter import ErrorCategory, LHPError
-
-    project_root = _find_project_root()
-    if not project_root:
-        raise LHPError(
-            category=ErrorCategory.CONFIG,
-            code_number="011",
-            title="Not in a LakehousePlumber project directory",
-            details="No lhp.yaml file found in the current directory or any parent.",
-            suggestions=[
-                "Run 'lhp init <project_name>' to create a new project",
-                "Navigate to an existing project directory",
-            ],
-        )
-
-    return project_root
-
-
-def _load_project_config(project_root: Path) -> dict:
-    """Load project configuration from lhp.yaml."""
-    import yaml  # noqa: F401
-
-    config_file = project_root / "lhp.yaml"
-    if not config_file.exists():
-        return {}
-
-    from ..utils.yaml_loader import safe_load_yaml_with_fallback
-
-    return safe_load_yaml_with_fallback(
-        config_file,
-        fallback_value={},
-        error_context="project configuration",
-        log_errors=True,
-    )
-
-
-def _get_include_patterns(project_root: Path) -> List[str]:
-    """Get include patterns from project configuration."""
-    try:
-        from ..core.project_config_loader import ProjectConfigLoader
-
-        config_loader = ProjectConfigLoader(project_root)
-        project_config = config_loader.load_project_config()
-
-        if project_config and project_config.include:
-            return project_config.include
-        else:
-            return []
-    except Exception as e:
-        logging.getLogger(__name__).warning(
-            f"Could not load project config for include patterns: {e}"
-        )
-        return []
-
-
-def _discover_yaml_files_with_include(
-    pipelines_dir: Path, include_patterns: List[str] = None
-) -> List[Path]:
-    """Discover YAML files with optional include pattern filtering."""
-    if include_patterns:
-        from ..utils.file_pattern_matcher import discover_files_with_patterns
-
-        return discover_files_with_patterns(pipelines_dir, include_patterns)
-    else:
-        yaml_files = []
-        yaml_files.extend(pipelines_dir.rglob("*.yaml"))
-        yaml_files.extend(pipelines_dir.rglob("*.yml"))
-        return yaml_files
-
-
 # ============================================================================
 # CLI Command Group and Routing
 # ============================================================================
@@ -198,7 +123,12 @@ def _discover_yaml_files_with_include(
 
 @click.group()
 @click.version_option(version=get_version(), prog_name="lhp")
-@click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging")
+@click.option(
+    "--verbose",
+    "-v",
+    is_flag=True,
+    help="Enable verbose logging (controls log output only)",
+)
 @click.option("--perf", is_flag=True, hidden=True)
 def cli(verbose, perf):
     """LakehousePlumber - Generate Lakeflow pipelines from YAML configs."""
@@ -328,7 +258,7 @@ def skill_uninstall(user: bool, force: bool) -> None:
     "--force",
     "-f",
     is_flag=True,
-    help="Force regeneration of all files, even if unchanged",
+    help="Deprecated no-op; retained for backwards compatibility.",
 )
 @click.option(
     "--no-bundle",
@@ -357,6 +287,17 @@ def skill_uninstall(user: bool, force: bool) -> None:
     ),
 )
 @click.option(
+    "--show-all",
+    "-a",
+    is_flag=True,
+    default=False,
+    help=(
+        "Show every pipeline in the summary table (default: failed pipelines "
+        "only). Note: --verbose/-v controls log-file verbosity, not the "
+        "summary table."
+    ),
+)
+@click.option(
     "--no-state",
     "no_state",
     is_flag=True,
@@ -374,14 +315,10 @@ def generate(
     include_tests,
     pipeline_config,
     max_workers,
+    show_all,
     no_state,
 ):
     """Generate DLT pipeline code"""
-    if force or no_state:
-        click.echo(
-            "warning: --force and --no-state are deprecated and will be removed in a future release; their previous behavior is now the default.",
-            err=True,
-        )
     from .commands.generate_command import GenerateCommand
 
     GenerateCommand().execute(
@@ -393,6 +330,9 @@ def generate(
         include_tests,
         pipeline_config,
         max_workers=max_workers,
+        show_all=show_all,
+        force=force,
+        no_state=no_state,
     )
 
 
@@ -416,13 +356,29 @@ def generate(
         "Override with the LHP_MAX_WORKERS env var. Use 1 for sequential."
     ),
 )
+@click.option(
+    "--show-all",
+    "-a",
+    is_flag=True,
+    default=False,
+    help=(
+        "Show every pipeline in the summary table (default: failed pipelines "
+        "only). Note: --verbose/-v controls log-file verbosity, not the "
+        "summary table."
+    ),
+)
 @cli_error_boundary("Pipeline validation")
-def validate(env, pipeline, verbose, include_tests, max_workers):
+def validate(env, pipeline, verbose, include_tests, max_workers, show_all):
     """Validate pipeline configurations"""
     from .commands.validate_command import ValidateCommand
 
     ValidateCommand().execute(
-        env, pipeline, verbose, include_tests, max_workers=max_workers
+        env,
+        pipeline,
+        verbose,
+        include_tests,
+        max_workers=max_workers,
+        show_all=show_all,
     )
 
 
@@ -484,38 +440,9 @@ def list_blueprints(verbose):
 @cli_error_boundary("Show flowgroup")
 def show(flowgroup, env, instance_path):
     """Show resolved configuration for a flowgroup or blueprint instance."""
-    from ..utils.error_formatter import ErrorCategory, LHPError
     from .commands.show_command import ShowCommand
 
-    if instance_path:
-        if flowgroup:
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="057",
-                title="Cannot pass both flowgroup and --instance",
-                details=(
-                    "Use either FLOWGROUP positional argument OR --instance "
-                    "<path>, not both."
-                ),
-                suggestions=[
-                    "Drop the FLOWGROUP positional argument when using --instance",
-                ],
-            )
-        ShowCommand().show_instance(instance_path, env)
-        return
-
-    if not flowgroup:
-        raise LHPError(
-            category=ErrorCategory.CONFIG,
-            code_number="058",
-            title="Missing flowgroup argument",
-            details="Provide a flowgroup name OR --instance <path>.",
-            suggestions=[
-                "Run `lhp show <flowgroup>` to inspect a flowgroup",
-                "Run `lhp show --instance <path>` to inspect a blueprint instance",
-            ],
-        )
-    ShowCommand().show_flowgroup(flowgroup, env)
+    ShowCommand().execute(flowgroup, env, instance_path)
 
 
 @cli.command()

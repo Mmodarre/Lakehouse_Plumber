@@ -1,11 +1,9 @@
 """Comprehensive CLI tests for LakehousePlumber."""
 
-import json
 import tempfile
 from pathlib import Path
 
 import pytest
-import yaml
 from click.testing import CliRunner
 
 from lhp.cli.main import cleanup_logging, cli
@@ -142,43 +140,6 @@ actions:
                 # Clean up logging handlers to prevent Windows file lock issues
                 cleanup_logging()
 
-    def test_init_command(self, runner):
-        """Test project initialization command in CWD with bundle default."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with runner.isolated_filesystem(temp_dir=Path(tmpdir)):
-                result = runner.invoke(cli, ["init", "my_new_project"])
-
-                assert result.exit_code == 0
-
-                # Check created structure in CWD
-                assert Path("lhp.yaml").exists()
-                assert Path("presets").exists()
-                assert Path("templates").exists()
-                assert Path("pipelines").exists()
-                assert Path("substitutions").exists()
-
-                # Check example files were created
-                assert Path("substitutions/dev.yaml.tmpl").exists()
-                assert Path("presets/bronze_layer.yaml.tmpl").exists()
-
-                # Bundle files present by default
-                assert Path("databricks.yml").exists()
-                assert Path("resources").exists()
-
-    def test_init_existing_lhp_yaml(self, runner):
-        """Test init command when lhp.yaml already exists."""
-        from lhp.utils.exit_codes import ExitCode
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with runner.isolated_filesystem(temp_dir=Path(tmpdir)):
-                Path("lhp.yaml").write_text("name: existing\n")
-
-                result = runner.invoke(cli, ["init", "test_project"])
-
-                # LHP-IO-007 raised when lhp.yaml already exists.
-                assert result.exit_code == ExitCode.NO_INPUT
-                assert "LHP-IO-007" in result.output
-
     def test_validate_command_success(self, runner, temp_project):
         """Test validate command with valid configuration."""
         with runner.isolated_filesystem():
@@ -260,33 +221,6 @@ actions: []
             assert "@dp.temporary_view()" in code
             assert "dev_catalog.bronze.test_table" in code
 
-    def test_generate_dry_run(self, runner, temp_project):
-        """Test dry-run generation."""
-        with runner.isolated_filesystem():
-            import os
-
-            os.chdir(str(temp_project))
-
-            result = runner.invoke(cli, ["generate", "--env", "dev", "--dry-run"])
-
-            assert result.exit_code == 0
-
-            # Verify no files were actually created
-            generated_dir = temp_project / "generated"
-            assert not list(generated_dir.glob("**/*.py"))
-
-    def test_generate_with_format(self, runner, temp_project):
-        """Test generation with code formatting (always applied by default)."""
-        with runner.isolated_filesystem():
-            import os
-
-            os.chdir(str(temp_project))
-
-            result = runner.invoke(cli, ["generate", "--env", "dev"])
-
-            assert result.exit_code == 0
-            # Code should be formatted (Black is always applied by default)
-
     def test_generate_specific_pipeline(self, runner, temp_project):
         """Test generating a specific pipeline."""
         with runner.isolated_filesystem():
@@ -348,8 +282,8 @@ actions: []
 
             assert result.exit_code == 0
             # Behavioral: flowgroup body (action names) appears in rendered output.
-            assert "load_test_data" in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 5
-            assert "save_test_data" in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 5
+            assert "load_test_data" in result.output
+            assert "save_test_data" in result.output
 
     def test_info_command(self, runner, temp_project):
         """Test info command for project information."""

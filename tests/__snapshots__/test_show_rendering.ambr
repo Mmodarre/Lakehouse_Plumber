@@ -1,0 +1,24 @@
+# serializer version: 1
+# name: test_show_flowgroup_renders_yaml_panel
+  '''
+  ╭─ bronze_pipeline.customer_bronze   env: dev ─────────────────────────────────╮
+  │    1 pipeline: bronze_pipeline                                               │
+  │    2 flowgroup: customer_bronze                                              │
+  │    3 presets:                                                                │
+  │    4 - bronze_defaults                                                       │
+  │    5 actions:                                                                │
+  │    6 - name: load_customer                                                   │
+  │    7   type: load                                                            │
+  │    8   source:                                                               │
+  │    9     type: cloudfiles                                                    │
+  │   10     path: /Volumes/raw/customer                                         │
+  │   11   target: v_customer_raw                                                │
+  │   12 - name: write_customer                                                  │
+  │   13   type: write                                                           │
+  │   14   source: v_customer_raw                                                │
+  │   15   target: customer_bronze                                               │
+  │   16                                                                         │
+  ╰──────────────────────────────────────────────────────────────────────────────╯
+  
+  '''
+# ---

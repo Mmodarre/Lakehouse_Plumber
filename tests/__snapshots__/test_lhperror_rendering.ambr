@@ -1,0 +1,65 @@
+# serializer version: 1
+# name: test_lhperror_config_panel
+  '''
+  ╭─ LHP-CFG-011   Configuration Error ──────────────────────────────────────────╮
+  │                                                                              │
+  │  Not in a LakehousePlumber project directory                                 │
+  │                                                                              │
+  │  No lhp.yaml found in the current directory or any parent.                   │
+  │                                                                              │
+  │  Suggestions                                                                 │
+  │    -> Run 'lhp init <project_name>' to create a new project                  │
+  │                                                                              │
+  │  More info:                                                                  │
+  │  https://lakehouse-plumber.readthedocs.io/en/latest/errors_reference.html    │
+  │                                                                              │
+  ╰──────────────────────────────────────────────────────────────────────────────╯
+  
+  '''
+# ---
+# name: test_lhperror_io_panel
+  '''
+  ╭─ LHP-IO-007   I/O Error ─────────────────────────────────────────────────────╮
+  │                                                                              │
+  │  File already exists                                                         │
+  │                                                                              │
+  │  lhp.yaml already exists in the target directory.                            │
+  │                                                                              │
+  │  Context                                                                     │
+  │    path: /tmp/example/lhp.yaml                                               │
+  │                                                                              │
+  │  Suggestions                                                                 │
+  │    -> Choose a different project name or remove the existing file            │
+  │                                                                              │
+  │  More info:                                                                  │
+  │  https://lakehouse-plumber.readthedocs.io/en/latest/errors_reference.html    │
+  │                                                                              │
+  ╰──────────────────────────────────────────────────────────────────────────────╯
+  
+  '''
+# ---
+# name: test_lhperror_validation_panel
+  '''
+  ╭─ LHP-VAL-021   Validation Error ─────────────────────────────────────────────╮
+  │                                                                              │
+  │  Missing required field 'source'                                             │
+  │                                                                              │
+  │  Action 'load_customer' must specify a 'source' field.                       │
+  │                                                                              │
+  │  Context                                                                     │
+  │    action: load_customer                                                     │
+  │    flowgroup: customer_bronze                                                │
+  │                                                                              │
+  │  Suggestions                                                                 │
+  │    -> Add 'source: customer_raw' to the action                               │
+  │                                                                              │
+  │  Example                                                                     │
+  │    source: customer_raw  # the upstream view name                            │
+  │                                                                              │
+  │  More info:                                                                  │
+  │  https://lakehouse-plumber.readthedocs.io/en/latest/errors_reference.html    │
+  │                                                                              │
+  ╰──────────────────────────────────────────────────────────────────────────────╯
+  
+  '''
+# ---

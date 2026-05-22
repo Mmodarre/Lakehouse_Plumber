@@ -99,7 +99,7 @@ def _fake_process_one_pipeline(
             content = _format_content(fg)
             if content:
                 generated_filenames.append(f"{fg.flowgroup}.py")
-    except BaseException as exc:
+    except Exception as exc:
         return PipelineDelta.failure(pipeline_name, exc)
     return PipelineDelta.success_(
         pipeline_name,
@@ -305,7 +305,32 @@ class TestRunGeneratePoolDeterminism:
             if baseline is None:
                 baseline = run_content
             else:
-                assert (
-                    run_content == baseline
-                ), "Non-deterministic outcome across repeated runs"
+                assert run_content == baseline, (
+                    "Non-deterministic outcome across repeated runs"
+                )
 
+
+def test_init_worker_logger_attaches_only_null_handler():
+    """After init, root logger has exactly one NullHandler and no stderr handler."""
+    import logging
+
+    from lhp.core.pipeline_executor import _init_worker_logger
+
+    root = logging.getLogger()
+    original_handlers = list(root.handlers)
+    original_level = root.level
+    try:
+        _init_worker_logger(logging.WARNING)
+        assert len(root.handlers) == 1, (
+            f"expected 1 handler, got {len(root.handlers)}: "
+            f"{[type(h).__name__ for h in root.handlers]}"
+        )
+        assert isinstance(root.handlers[0], logging.NullHandler)
+        assert root.level == logging.WARNING
+    finally:
+        # Restore the root logger so subsequent tests aren't affected.
+        for h in list(root.handlers):
+            root.removeHandler(h)
+        for h in original_handlers:
+            root.addHandler(h)
+        root.setLevel(original_level)

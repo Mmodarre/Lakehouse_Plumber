@@ -15,9 +15,10 @@ from typing import (
     Tuple,
 )
 
-from ..models.config import Action, FlowGroup, FlowGroupContext
+from ..models.config import FlowGroup, FlowGroupContext
 
 if TYPE_CHECKING:
+    from ..cli.warning_collector import WarningCollector
     from ..generators.python_file_copier import CopiedModuleRecord
     from ..models.processing import PipelineDelta
 
@@ -37,10 +38,6 @@ from ..utils.error_formatter import (
 from ..utils.file_header import write_normalized
 from ..utils.formatter import CodeFormatter
 from ..utils.performance_timer import perf_timer
-from ..utils.source_extractor import (
-    extract_single_source_view,
-    extract_source_views_from_action,
-)
 from ..utils.substitution import EnhancedSubstitutionManager
 from ..utils.version import get_version
 from .action_registry import ActionRegistry
@@ -163,7 +160,6 @@ class ActionOrchestrator:
             caching_yaml_parser=self._cached_yaml_parser,
         )
         self.blueprint_expander = BlueprintExpander()
-        self._blueprint_provenance: Dict[Tuple[str, str], BlueprintProvenance] = {}
         self._synthetic_contexts: Dict[Tuple[str, str], FlowGroupContext] = {}
         self.processor = FlowgroupProcessor(
             self.template_engine,
@@ -216,11 +212,6 @@ class ActionOrchestrator:
         else:
             self.logger.info("No project configuration found, using defaults")
 
-    @property
-    def cached_yaml_parser(self) -> CachingYAMLParser:
-        """Public accessor for the shared CachingYAMLParser instance."""
-        return self._cached_yaml_parser
-
     def _enforce_version_requirements(self) -> None:
         """Enforce version requirements if specified in project config."""
         # Skip if no project config or no version requirement
@@ -265,7 +256,7 @@ class ActionOrchestrator:
                     details=f"Project requires LakehousePlumber version '{required_spec}', but version '{actual_version}' is installed.",
                     suggestions=[
                         f"Install a compatible version: pip install 'lakehouse-plumber{required_spec}'",
-                        f"Or update the project's version requirement in lhp.yaml if you intend to upgrade",
+                        "Or update the project's version requirement in lhp.yaml if you intend to upgrade",
                         "Or set LHP_IGNORE_VERSION=1 to bypass version checking (not recommended for production)",
                     ],
                     context={
@@ -302,10 +293,6 @@ class ActionOrchestrator:
     # BUSINESS LAYER INTERFACE IMPLEMENTATION
     # ============================================================================
 
-    def validate_configuration(self, pipeline_identifier: str, env: str) -> tuple:
-        """Validate configuration based on business rules."""
-        return self.validate_pipeline_by_field(pipeline_identifier, env)
-
     def discover_flowgroups(self, pipeline_dir: Path) -> List[FlowGroup]:
         """
         Discover all flowgroups in a specific pipeline directory.
@@ -331,10 +318,6 @@ class ActionOrchestrator:
              configured.
 
         Side effects:
-          - Populates `self._blueprint_provenance` with the expansion's
-            (pipeline, flowgroup) -> BlueprintProvenance mapping. Used by the
-            state dependency resolver, dependency tracker, and source-path
-            index to handle instance-file changes correctly.
           - Populates `self._synthetic_contexts` with FlowGroupContext envelopes
             for synthetic flowgroups (blueprint-expanded + monitoring).
           - Stores the full MonitoringBuildResult in `self._monitoring_result`.
@@ -353,7 +336,6 @@ class ActionOrchestrator:
         ):
             blueprint_ctxs, provenance = self._expand_blueprints()
         flowgroups.extend(ctx.flowgroup for ctx in blueprint_ctxs)
-        self._blueprint_provenance = provenance
         self._synthetic_contexts = {
             (ctx.flowgroup.pipeline, ctx.flowgroup.flowgroup): ctx
             for ctx in blueprint_ctxs
@@ -638,8 +620,8 @@ class ActionOrchestrator:
                         if first_line.startswith(self._MONITORING_JOB_HEADER):
                             f.unlink()
                             self.logger.info(f"Removed monitoring job: {f}")
-                    except OSError:
-                        pass
+                    except OSError as exc:
+                        self.logger.debug(f"failed to read {f}: {exc}")
 
         # 3. Clean generated DLT monitoring pipeline directories.
         #    Only when monitoring is removed/disabled — when monitoring IS configured,
@@ -662,8 +644,8 @@ class ActionOrchestrator:
                         self.logger.info(
                             f"Removed monitoring pipeline directory: {pipeline_dir}"
                         )
-                except OSError:
-                    pass
+                except OSError as exc:
+                    self.logger.debug(f"failed to read {monitoring_py}: {exc}")
 
     def discover_flowgroups_by_pipeline_field(
         self,
@@ -714,7 +696,7 @@ class ActionOrchestrator:
                 category=ErrorCategory.VALIDATION,
                 code_number="009",
                 title="Duplicate pipeline+flowgroup combinations found",
-                details=f"Duplicate pipeline+flowgroup combinations found:\n"
+                details="Duplicate pipeline+flowgroup combinations found:\n"
                 + "\n".join(f"  - {e}" for e in errors),
                 suggestions=[
                     "Ensure each pipeline+flowgroup combination is unique",
@@ -791,6 +773,7 @@ class ActionOrchestrator:
         pre_discovered_all_flowgroups: Optional[List[FlowGroup]] = None,
         max_workers: Optional[int] = None,
         on_pipeline_complete: Optional[Callable[["PipelineDelta"], None]] = None,
+        warning_collector: Optional["WarningCollector"] = None,
     ) -> Dict[str, tuple[str, ...]]:
         """Run one worker per pipeline; aggregate results on the main thread.
 
@@ -822,7 +805,7 @@ class ActionOrchestrator:
 
         Raises:
             LHPError: When a single pipeline failed; reconstructed via
-                :meth:`LHPError.from_worker_exception` so the worker's
+                :func:`lhp_error_from_worker_failure` so the worker's
                 error type and full traceback survive.
             LHPValidationError: When multiple pipelines failed; one
                 aggregate error listing every failure.
@@ -886,6 +869,15 @@ class ActionOrchestrator:
                         substitution_file, env
                     )
                 )
+            if (
+                warning_collector is not None
+                and substitution_managers[pipeline_field].has_deprecated_bare_tokens
+            ):
+                warning_collector.add(
+                    "deprecation",
+                    "The bare {token} substitution syntax is deprecated and will "
+                    "be removed in v1.0. Use ${token} instead.",
+                )
 
         worker_state = _GenerateWorkerState(
             processor=self.processor,
@@ -913,31 +905,41 @@ class ActionOrchestrator:
         if failed:
             if len(failed) == 1:
                 d = failed[0]
+                if d.lhp_error is not None:
+                    raise d.lhp_error
                 raise lhp_error_from_worker_failure(
                     pipeline_name=d.pipeline_name,
                     error_type=d.error_type or "UnknownError",
                     error_message=d.error_message or "(no message)",
                     error_traceback=d.error_traceback or "",
                 )
-            failure_lines = [
-                f"  - {d.pipeline_name}: {d.error_type}: {d.error_message}"
-                for d in failed
-            ]
+            # Multi-failure aggregator: synthesize LHP-VAL-902 surfacing the
+            # original per-pipeline error codes in Context so the user sees
+            # them in the Rich panel without rendering N nested panels.
+            by_pipeline: Dict[str, str] = {}
+            for d in failed:
+                if d.lhp_error is not None:
+                    by_pipeline[d.pipeline_name] = (
+                        f"{d.lhp_error.code} ({d.lhp_error.title})"
+                    )
+                else:
+                    by_pipeline[d.pipeline_name] = (
+                        f"{d.error_type or 'UnknownError'} (non-LHP exception)"
+                    )
             raise LHPValidationError(
                 category=ErrorCategory.VALIDATION,
-                code_number="011",
-                title=(f"{len(failed)} pipeline(s) failed during batch generation"),
-                details=("Multiple pipelines failed:\n" + "\n".join(failure_lines)),
+                code_number="902",
+                title=f"{len(failed)} pipeline(s) failed",
+                details=(
+                    f"{len(failed)} of {len(failed) + len(successful)} pipelines "
+                    f"failed during generation. See per-pipeline rows in the "
+                    f"summary table for full diagnostics."
+                ),
+                context={"failure_count": len(failed), **by_pipeline},
                 suggestions=[
-                    "Inspect each failing pipeline's error individually",
-                    "Run with --pipeline <name> to isolate failures",
-                    "Run 'lhp validate' for upfront diagnostics",
+                    "Inspect the summary table above for per-pipeline status",
+                    "Run 'lhp validate' for detailed per-flowgroup diagnostics",
                 ],
-                context={
-                    "Failed Pipelines": ", ".join(d.pipeline_name for d in failed),
-                    "Successful Pipelines": str(len(successful)),
-                    "Failure Count": str(len(failed)),
-                },
             )
 
         return {delta.pipeline_name: delta.generated_filenames for delta in successful}
@@ -963,15 +965,9 @@ class ActionOrchestrator:
         Looks up synthetic provenance (synthetic flag, auxiliary_files) from
         `self._synthetic_contexts`; disk-sourced flowgroups get default values.
         Source YAML is resolved via the FlowgroupDiscoverer (threading.Lock'd
-        index — must run on the main process before spawn). Tests may construct
-        the orchestrator without a discoverer, in which case source_yaml is
-        left None.
+        index — must run on the main process before spawn).
         """
-        source_yaml = (
-            self._find_source_yaml_for_flowgroup(fg)
-            if self.discoverer is not None
-            else None
-        )
+        source_yaml = self._find_source_yaml_for_flowgroup(fg)
         if self._synthetic_contexts:
             existing = self._synthetic_contexts.get((fg.pipeline, fg.flowgroup))
             if existing is not None:
@@ -1017,7 +1013,6 @@ class ActionOrchestrator:
         source_yaml: Optional[Path] = None,
         env: Optional[str] = None,
         include_tests: bool = False,
-        python_file_copier=None,
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
     ) -> str:
         """
@@ -1030,7 +1025,6 @@ class ActionOrchestrator:
             source_yaml: Source YAML path for file tracking
             env: Environment name for file tracking
             include_tests: Whether to include test actions
-            python_file_copier: Thread-safe Python file copier (for parallel mode)
             phase_a_records: Optional list passed by Phase A workers in the
                 cross-pipeline flat pool; when supplied, the file copier
                 appends :class:`CopiedModuleRecord` entries to it instead
@@ -1046,21 +1040,8 @@ class ActionOrchestrator:
             source_yaml,
             env,
             include_tests,
-            python_file_copier,
             phase_a_records=phase_a_records,
         )
-
-    def determine_action_subtype(self, action: Action) -> str:
-        """
-        Determine the sub-type of an action for generator selection.
-
-        Args:
-            action: Action to determine sub-type for
-
-        Returns:
-            Sub-type string for generator selection
-        """
-        return self.generator.determine_action_subtype(action)
 
     def _discover_and_filter_flowgroups(
         self,
@@ -1155,105 +1136,6 @@ class ActionOrchestrator:
 
         return all_flowgroups
 
-    def _process_flowgroups_batch(
-        self,
-        flowgroups: List[FlowGroup],
-        substitution_mgr: EnhancedSubstitutionManager,
-        include_tests: bool = True,
-    ) -> List[FlowGroup]:
-        """Process all flowgroups in a batch.
-
-        Handles template expansion, preset application, and substitution
-        for a list of flowgroups. Returns the processed FlowGroups (callers
-        of this method don't need provenance — `FlowGroupContext` envelopes
-        are constructed at the worker boundary).
-
-        Args:
-            flowgroups: List of flowgroups to process
-            substitution_mgr: Substitution manager for the environment
-            include_tests: If False, filter out test actions before processing.
-
-        Returns:
-            List of processed flowgroups
-
-        Raises:
-            Exception: If processing fails for any flowgroup
-        """
-        processed = []
-        for flowgroup in flowgroups:
-            self.logger.info(f"Processing flowgroup: {flowgroup.flowgroup}")
-            try:
-                with perf_timer(
-                    f"process_flowgroup [{flowgroup.flowgroup}]",
-                    category="process_flowgroup",
-                ):
-                    ctx_in = self._make_context(flowgroup)
-                    ctx_out = self.processor.process_flowgroup(
-                        ctx_in, substitution_mgr, include_tests=include_tests
-                    )
-                processed.append(ctx_out.flowgroup)
-            except Exception as e:
-                self.logger.debug(
-                    f"Error processing flowgroup {flowgroup.flowgroup}: {e}"
-                )
-                raise
-        return processed
-
-    def group_write_actions_by_target(
-        self, write_actions: List[Action]
-    ) -> Dict[str, List[Action]]:
-        """
-        Group write actions by their target table.
-
-        Args:
-            write_actions: List of write actions
-
-        Returns:
-            Dictionary mapping target table names to lists of actions
-        """
-        return self.generator.group_write_actions_by_target(write_actions)
-
-    def create_combined_write_action(
-        self, actions: List[Action], target_table: str
-    ) -> Action:
-        """
-        Create a combined write action with individual action metadata preserved.
-
-        Args:
-            actions: List of write actions targeting the same table
-            target_table: Full target table name
-
-        Returns:
-            Combined action with individual action metadata
-        """
-        return self.generator.create_combined_write_action(actions, target_table)
-
-    def _extract_single_source_view(self, source) -> str:
-        """Extract a single source view from various source formats.
-
-        Delegates to utility function for consistency across codebase.
-
-        Args:
-            source: Source configuration (string, list, or dict)
-
-        Returns:
-            Source view name as string
-        """
-        return extract_single_source_view(source)
-
-    def _extract_source_views_from_action(self, source) -> List[str]:
-        """Extract all source views from an action source configuration.
-
-        Delegates to utility function for consistency across codebase.
-
-        Args:
-            source: Source configuration (string, list, or dict)
-
-        Returns:
-            List of source view names
-        """
-        return extract_source_views_from_action(source)
-
     def validate_pipeline_by_field(
         self,
         pipeline_field: str,
@@ -1267,6 +1149,12 @@ class ActionOrchestrator:
         existing :class:`ValidateCommand` per-pipeline loop and
         :class:`LakehousePlumberApplicationFacade.validate_pipeline` keep
         working unchanged.
+
+        ``lhp_errors`` are flattened into the ``errors`` projection here
+        so non-CLI callers (and legacy tests) that read the string tuple
+        still see structured worker failures. The CLI path consumes the
+        structured tuple directly via the on-outcome callback and does
+        not go through this shim.
         """
         outcomes = self.validate_pipelines_by_fields(
             pipeline_fields=[pipeline_field],
@@ -1278,7 +1166,11 @@ class ActionOrchestrator:
         if not outcomes:
             return [], []
         outcome = outcomes[0]
-        return list(outcome.errors), list(outcome.warnings)
+        errors_projection = [
+            f"Flowgroup: {e.title} ({e.code})" for e in outcome.lhp_errors
+        ]
+        errors_projection.extend(outcome.errors)
+        return errors_projection, list(outcome.warnings)
 
     def validate_pipelines_by_fields(
         self,
@@ -1289,6 +1181,7 @@ class ActionOrchestrator:
         pre_discovered_all_flowgroups: Optional[List[FlowGroup]] = None,
         max_workers: Optional[int] = None,
         on_pipeline_complete: Optional[OnValidationComplete] = None,
+        warning_collector: Optional["WarningCollector"] = None,
     ) -> List[PipelineValidationOutcome]:
         """Flat-pool validate across multiple pipelines.
 
@@ -1361,6 +1254,15 @@ class ActionOrchestrator:
             substitution_managers[pipeline_field] = (
                 self.dependencies.create_substitution_manager(substitution_file, env)
             )
+            if (
+                warning_collector is not None
+                and substitution_managers[pipeline_field].has_deprecated_bare_tokens
+            ):
+                warning_collector.add(
+                    "deprecation",
+                    "The bare {token} substitution syntax is deprecated and will "
+                    "be removed in v1.0. Use ${token} instead.",
+                )
 
         # Captured once and shipped to each worker via the pool's initializer=
         # seam. Replaces the per-task functools.partial capture that re-pickled
@@ -1399,12 +1301,23 @@ class ActionOrchestrator:
                 )
 
             errors: List[str] = []
+            lhp_errors_acc: List[LHPError] = []
+            # ``errors`` (string tuple) and ``lhp_error`` (Optional[LHPError])
+            # are mutually exclusive per FlowgroupValidationResult, so this
+            # fold needs no dedup: each result contributes to exactly one of
+            # the two buckets.
             for result in results:
                 errors.extend(result.errors)
+                if result.lhp_error is not None:
+                    lhp_errors_acc.append(result.lhp_error)
 
             # Cross-flowgroup CDC fan-in compatibility — runs even when
             # per-flowgroup errors exist (mismatches only surface when
-            # flowgroups are considered as a set).
+            # flowgroups are considered as a set). Live LHPErrors raised
+            # here MUST land in ``lhp_errors_acc`` so the validate CLI
+            # can render the structured yellow Panel; stringifying drops
+            # ``code``, ``context``, and ``suggestions`` and re-introduces
+            # the ``=====`` border in the per-pipeline summary table.
             try:
                 with perf_timer(
                     f"validate_cdc_fanin_compatibility [{pipeline_name}]",
@@ -1415,7 +1328,7 @@ class ActionOrchestrator:
                     )
                 errors.extend(cdc_errors)
             except LHPError as e:
-                errors.append(f"CDC fan-in validation: {e}")
+                lhp_errors_acc.append(e)
             except Exception as e:
                 errors.append(f"CDC fan-in validation failed: {e}")
 
@@ -1423,7 +1336,8 @@ class ActionOrchestrator:
                 pipeline=pipeline_name,
                 errors=tuple(errors),
                 warnings=(),
-                success=len(errors) == 0,
+                success=(len(errors) == 0 and len(lhp_errors_acc) == 0),
+                lhp_errors=tuple(lhp_errors_acc),
             )
 
         # Resolve worker count — constructor already turned None into
@@ -1433,7 +1347,6 @@ class ActionOrchestrator:
         )
 
         return run_validate_pool(
-            pipelines=list(pipeline_fields),
             flowgroups_by_pipeline=contexts_by_pipeline,
             worker_state=worker_state,
             assemble_pipeline=_assemble,

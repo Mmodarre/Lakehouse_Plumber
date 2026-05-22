@@ -48,7 +48,7 @@ def test_validate_silent_pass_when_no_blueprints(tmp_path):
         "LHP-VAL-045",
         "LHP-VAL-046",
     ):
-        assert blueprint_code not in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 2
+        assert blueprint_code not in result.output
 
 
 def test_validate_malformed_blueprint_fails(tmp_path):
@@ -71,7 +71,7 @@ flowgroups: 42
     assert result.exit_code != 0
     # The blueprint error must surface; spec table documents 050 for Pydantic
     # failure, 049 for non-blueprint shape. Either is acceptable.
-    assert ("LHP-CFG-050" in result.output) or ("LHP-CFG-049" in result.output)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 2
+    assert ("LHP-CFG-050" in result.output) or ("LHP-CFG-049" in result.output)
 
 
 def test_validate_instance_unknown_blueprint_raises_041(tmp_path):
@@ -86,7 +86,7 @@ def test_validate_instance_unknown_blueprint_raises_041(tmp_path):
         )
         result = runner.invoke(cli, ["validate", "--env", "dev"])
     assert result.exit_code != 0
-    assert "LHP-VAL-041" in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 2
+    assert "LHP-VAL-041" in result.output
 
 
 def test_validate_duplicate_tuple_raises_045(tmp_path):
@@ -119,9 +119,9 @@ flowgroups:
         )
         result = runner.invoke(cli, ["validate", "--env", "dev"])
     assert result.exit_code != 0
-    assert "LHP-VAL-045" in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 2
-    assert "sg_a.yaml" in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 2
-    assert "sg_b.yaml" in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 2
+    assert "LHP-VAL-045" in result.output
+    assert "sg_a.yaml" in result.output
+    assert "sg_b.yaml" in result.output
 
 
 def test_validate_env_token_in_pipeline_raises_044(tmp_path):
@@ -148,7 +148,7 @@ flowgroups:
         )
         result = runner.invoke(cli, ["validate", "--env", "dev"])
     assert result.exit_code != 0
-    assert "LHP-VAL-044" in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 2
+    assert "LHP-VAL-044" in result.output
 
 
 def test_validate_with_valid_blueprint_passes(tmp_path):
@@ -247,7 +247,7 @@ def test_validate_no_flowgroups_raises_014(tmp_path):
         result = runner.invoke(cli, ["validate", "--env", "dev"])
     assert result.exit_code != 0
     # Code 014 is the existing "no flowgroups" config error.
-    assert "LHP-CFG-014" in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 2
+    assert "LHP-CFG-014" in result.output
 
 
 def test_validate_pipeline_filter_not_found_raises_015(tmp_path):
@@ -281,7 +281,7 @@ actions:
             cli, ["validate", "--env", "dev", "--pipeline", "missing_pipeline"]
         )
     assert result.exit_code != 0
-    assert "LHP-CFG-015" in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 2
+    assert "LHP-CFG-015" in result.output
 
 
 def test_validate_include_tests_runs_test_reporting(tmp_path):

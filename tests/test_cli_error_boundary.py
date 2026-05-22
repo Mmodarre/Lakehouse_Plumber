@@ -1,12 +1,13 @@
 """Tests for CLI error boundary decorator."""
 
-import pytest
-from unittest.mock import patch, MagicMock
+import logging
 
+import pytest
+
+from lhp.bundle.exceptions import BundleResourceError, TemplateError
 from lhp.cli.error_boundary import cli_error_boundary
 from lhp.utils.error_formatter import ErrorCategory, LHPError
 from lhp.utils.exit_codes import ExitCode
-from lhp.bundle.exceptions import BundleResourceError, TemplateError
 
 
 class TestCliErrorBoundary:
@@ -109,87 +110,6 @@ class TestCliErrorBoundary:
         # TemplateError converts to CONFIG category -> CONFIG_ERROR
         assert exc_info.value.code == ExitCode.CONFIG_ERROR
 
-    def test_wrapped_lhp_val_error_maps_to_data_error(self):
-        """Should detect 'Error [LHP-VAL-' in exception string and exit with DATA_ERROR."""
-        # Simulate a wrapped LHPError string (contains both markers)
-        error_msg = (
-            "\nError [LHP-VAL-001]: Validation failed\n"
-            "======================================================================\n"
-            "Some details"
-        )
-
-        @cli_error_boundary("validate")
-        def wrapped_val_error_func():
-            raise Exception(error_msg)
-
-        with pytest.raises(SystemExit) as exc_info:
-            wrapped_val_error_func()
-        assert exc_info.value.code == ExitCode.DATA_ERROR
-
-    def test_wrapped_lhp_io_error_maps_to_io_error(self):
-        """Should detect 'LHP-IO-' in exception string and exit with IO_ERROR."""
-        error_msg = (
-            "\nError [LHP-IO-001]: File not found\n"
-            "======================================================================\n"
-            "Details here"
-        )
-
-        @cli_error_boundary("read file")
-        def wrapped_io_error_func():
-            raise Exception(error_msg)
-
-        with pytest.raises(SystemExit) as exc_info:
-            wrapped_io_error_func()
-        assert exc_info.value.code == ExitCode.IO_ERROR
-
-    def test_wrapped_lhp_cfg_error_maps_to_config_error(self):
-        """Should detect 'LHP-CFG-' in exception string and exit with CONFIG_ERROR."""
-        error_msg = (
-            "\nError [LHP-CFG-009]: YAML parsing error\n"
-            "======================================================================\n"
-            "Bad YAML"
-        )
-
-        @cli_error_boundary("parse config")
-        def wrapped_cfg_error_func():
-            raise Exception(error_msg)
-
-        with pytest.raises(SystemExit) as exc_info:
-            wrapped_cfg_error_func()
-        assert exc_info.value.code == ExitCode.CONFIG_ERROR
-
-    def test_wrapped_lhp_dep_error_maps_to_data_error(self):
-        """Should detect 'LHP-DEP-' in exception string and exit with DATA_ERROR."""
-        error_msg = (
-            "\nError [LHP-DEP-001]: Circular dependency\n"
-            "======================================================================\n"
-            "A -> B -> A"
-        )
-
-        @cli_error_boundary("dependency check")
-        def wrapped_dep_error_func():
-            raise Exception(error_msg)
-
-        with pytest.raises(SystemExit) as exc_info:
-            wrapped_dep_error_func()
-        assert exc_info.value.code == ExitCode.DATA_ERROR
-
-    def test_wrapped_lhp_unknown_prefix_maps_to_general_error(self):
-        """Should fall back to GENERAL_ERROR for unknown LHP- prefix in wrapped error."""
-        error_msg = (
-            "\nError [LHP-GEN-001]: General error\n"
-            "======================================================================\n"
-            "Something happened"
-        )
-
-        @cli_error_boundary("general op")
-        def wrapped_gen_error_func():
-            raise Exception(error_msg)
-
-        with pytest.raises(SystemExit) as exc_info:
-            wrapped_gen_error_func()
-        assert exc_info.value.code == ExitCode.GENERAL_ERROR
-
     def test_generic_exception_exits_with_general_error(self):
         """Should catch generic exceptions and exit with GENERAL_ERROR."""
 
@@ -201,8 +121,8 @@ class TestCliErrorBoundary:
             generic_error_func()
         assert exc_info.value.code == ExitCode.GENERAL_ERROR
 
-    def test_error_message_echoed_to_stderr_for_lhp_error(self):
-        """Should echo the LHPError message to stderr."""
+    def test_error_message_echoed_to_stderr_for_lhp_error(self, capsys):
+        """Should print the LHPError Rich Panel to stderr."""
         lhp_error = LHPError(
             category=ErrorCategory.CONFIG,
             code_number="001",
@@ -214,31 +134,27 @@ class TestCliErrorBoundary:
         def error_func():
             raise lhp_error
 
-        with patch("lhp.cli.error_boundary.click.echo") as mock_echo:
-            with pytest.raises(SystemExit):
-                error_func()
+        with pytest.raises(SystemExit):
+            error_func()
 
-            mock_echo.assert_called_once()
-            call_args = mock_echo.call_args
-            assert call_args[1]["err"] is True
-            assert "LHP-CFG-001" in call_args[0][0]
+        captured = capsys.readouterr()
+        assert "LHP-CFG-001" in captured.err
+        assert captured.out == ""
 
-    def test_generic_error_message_echoed_to_stderr(self):
-        """Should echo generic error message to stderr."""
+    def test_generic_error_message_echoed_to_stderr(self, capsys):
+        """Should print the generic-error message to stderr."""
 
         @cli_error_boundary("my operation")
         def error_func():
             raise RuntimeError("Unexpected failure")
 
-        with patch("lhp.cli.error_boundary.click.echo") as mock_echo:
-            with pytest.raises(SystemExit):
-                error_func()
+        with pytest.raises(SystemExit):
+            error_func()
 
-            mock_echo.assert_called_once()
-            call_args = mock_echo.call_args
-            assert call_args[1]["err"] is True
-            assert "my operation failed" in call_args[0][0]
-            assert "Unexpected failure" in call_args[0][0]
+        captured = capsys.readouterr()
+        assert "my operation failed" in captured.err
+        assert "Unexpected failure" in captured.err
+        assert captured.out == ""
 
     def test_decorator_preserves_function_metadata(self):
         """Should preserve the decorated function's name and docstring."""
@@ -274,3 +190,52 @@ class TestCliErrorBoundary:
         with pytest.raises(SystemExit) as exc_info:
             config_error_func()
         assert exc_info.value.code == ExitCode.CONFIG_ERROR
+
+    def test_generic_exception_renders_lhp_gen_902_panel(self, capsys):
+        """Generic fallback should render a Rich panel with LHP-GEN-902."""
+
+        @cli_error_boundary("my operation")
+        def boom_func():
+            raise RuntimeError("boom")
+
+        with pytest.raises(SystemExit) as exc_info:
+            boom_func()
+        assert exc_info.value.code == ExitCode.GENERAL_ERROR
+
+        captured = capsys.readouterr()
+        assert "LHP-GEN-902" in captured.err
+        assert "unexpected error" in captured.err.lower()
+        assert "Traceback (most recent call last)" not in captured.err
+        assert "Use --verbose flag for detailed" not in captured.err
+        assert captured.out == ""
+
+    def test_generic_exception_traceback_is_logged_not_stderr(self, capsys, caplog):
+        """Generic fallback must log the traceback but never print it to stderr."""
+
+        @cli_error_boundary("my operation")
+        def boom_func():
+            raise RuntimeError("boom")
+
+        with caplog.at_level(logging.ERROR, logger="lhp.cli.error_boundary"):
+            with pytest.raises(SystemExit):
+                boom_func()
+
+        captured = capsys.readouterr()
+        assert "Traceback (most recent call last)" not in captured.err
+
+        traceback_records = [
+            r
+            for r in caplog.records
+            if r.name == "lhp.cli.error_boundary" and r.exc_info is not None
+        ]
+        assert traceback_records, (
+            "Expected logger.exception to attach exc_info on the error boundary log "
+            "so the traceback lands in the log file."
+        )
+        formatted = "\n".join(r.getMessage() for r in traceback_records)
+        formatted_with_tb = "\n".join(
+            logging.Formatter().format(r) for r in traceback_records
+        )
+        assert "my operation failed with unexpected error" in formatted
+        assert "Traceback (most recent call last)" in formatted_with_tb
+        assert "RuntimeError: boom" in formatted_with_tb

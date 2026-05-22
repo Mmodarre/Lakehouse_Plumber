@@ -7,11 +7,8 @@ generation and synchronization, using real project data and scenarios.
 
 import os
 import shutil
-import subprocess
 import tempfile
-import time
 from pathlib import Path
-from unittest.mock import Mock, patch
 
 import pytest
 
@@ -35,8 +32,6 @@ class TestEndToEndBundleWorkflow:
         os.chdir(self.original_cwd)
         shutil.rmtree(self.temp_dir)
 
-    
-
     def test_bundle_workflow_with_multiple_environments(self):
         """Test bundle workflow across multiple environments."""
         self._setup_bundle_project()
@@ -44,7 +39,6 @@ class TestEndToEndBundleWorkflow:
         environments = ["dev", "test", "prod"]
 
         orchestrator = ActionOrchestrator(self.project_root)
-        bundle_manager = BundleManager(self.project_root)
 
         for env in environments:
             # Generate for each environment
@@ -97,9 +91,7 @@ resources:
         # Pipeline config with catalog/schema (required after refactor)
         config_file = self.project_root / "pipeline_config.yaml"
         config_file.write_text(
-            "project_defaults:\n"
-            "  catalog: test_catalog\n"
-            "  schema: test_schema\n"
+            "project_defaults:\n  catalog: test_catalog\n  schema: test_schema\n"
         )
 
         # Test sync
@@ -133,11 +125,11 @@ resources:
             in lhp_content
         )
 
-    def test_bundle_workflow_performance(self):
-        """Test that bundle integration doesn't significantly impact performance."""
+    def test_bundle_workflow_multiple_pipelines(self):
+        """Verify bundle-enabled generation succeeds across multiple pipelines."""
         self._setup_bundle_project()
 
-        # Create multiple pipelines for performance testing
+        # Create multiple pipelines
         pipelines_dir = self.project_root / "pipelines"
         for i in range(5):
             pipeline_file = pipelines_dir / f"pipeline_{i}.yaml"
@@ -163,18 +155,13 @@ actions:
 
         orchestrator = ActionOrchestrator(self.project_root)
 
-        # Measure generation time with bundle
-        start_time = time.time()
+        # Generate each pipeline; real perf coverage lives in tests/performance/
         for i in range(5):
             output_dir = self.project_root / "generated"
             generated_files = orchestrator.generate_pipeline_by_field(
                 f"pipeline_{i}", "dev", output_dir
             )
             assert len(generated_files) > 0
-        bundle_time = time.time() - start_time
-
-        # Performance should be reasonable (< 5 seconds for 5 small pipelines)
-        assert bundle_time < 5.0, f"Bundle generation took too long: {bundle_time:.2f}s"
 
     def test_bundle_workflow_with_errors_and_recovery(self):
         """Test complete workflow handles errors gracefully."""
@@ -246,8 +233,8 @@ resources:
         non_bundle_project.mkdir()
 
         # Test bundle detection
-        assert should_enable_bundle_support(bundle_project) == True
-        assert should_enable_bundle_support(non_bundle_project) == False
+        assert should_enable_bundle_support(bundle_project)
+        assert not should_enable_bundle_support(non_bundle_project)
 
         # Both should work with orchestrator
         for project_root in [bundle_project, non_bundle_project]:
@@ -290,12 +277,13 @@ resources:
             ],
         )
 
-        # Should complete successfully
+        # Should complete successfully. The bundle/verbose banners
+        # ("Bundle support detected", "Syncing resource files...") were
+        # removed in Phase 4; bundle activity now surfaces as a Live-panel
+        # phase marker (only when >250ms) and as ``logger.debug`` records
+        # in the rotating log file. The CLI's behavioral contract here is
+        # the clean exit; rendered text is no longer load-bearing.
         assert result.exit_code == 0
-
-        # Should mention bundle operations in verbose output
-        output = result.output.lower()
-        assert "bundle" in output or "resource" in output or "sync" in output
 
     def _setup_bundle_project(self):
         """Set up a basic bundle project for testing."""
@@ -320,61 +308,6 @@ targets:
 
         # Create LHP project structure
         self._create_minimal_project_structure(self.project_root)
-
-    def _create_realistic_project_structure(self):
-        """Create a realistic LHP project structure."""
-        # Project config
-        (self.project_root / "lhp.yaml").write_text("""
-name: e2e_test_project
-version: "1.0"
-""")
-
-        # Substitutions
-        subs_dir = self.project_root / "substitutions"
-        subs_dir.mkdir(exist_ok=True)
-        for env in ["dev", "test", "prod"]:
-            (subs_dir / f"{env}.yaml").write_text(f"""{env}:
-  catalog: test_catalog_{env}
-  raw_schema: raw
-  bronze_schema: bronze
-  silver_schema: silver
-  gold_schema: gold
-""")
-
-        # Pipelines
-        pipes_dir = self.project_root / "pipelines"
-        pipes_dir.mkdir(exist_ok=True)
-        (pipes_dir / "test_pipeline.yaml").write_text("""
-pipeline: test_pipeline
-flowgroup: test_flowgroup
-actions:
-  - name: load_customers
-    type: load
-    source:
-      type: delta
-      database: "{catalog}.{raw_schema}"
-      table: customers
-    target: v_customers_raw
-  - name: transform_customers
-    type: transform
-    transform_type: sql
-    source: v_customers_raw
-    target: v_customers_clean
-    sql: |
-      SELECT 
-        customer_id,
-        UPPER(customer_name) as customer_name,
-        customer_email
-      FROM v_customers_raw
-      WHERE customer_id IS NOT NULL
-  - name: write_customers
-    type: write
-    source: v_customers_clean
-    write_target:
-      type: streaming_table
-      database: "{catalog}.{bronze_schema}"
-      table: customers
-""")
 
     def _create_minimal_project_structure(self, project_root: Path):
         """Create minimal LHP project structure."""
@@ -429,23 +362,6 @@ actions:
       table: test_table
 """)
 
-    def _verify_generated_structure(self, output_dir: Path):
-        """Verify the generated file structure is correct."""
-        assert output_dir.exists()
-
-        # Should have pipeline directory
-        pipeline_dir = output_dir / "test_pipeline"
-        if pipeline_dir.exists():
-            # Should have Python files
-            py_files = list(pipeline_dir.glob("*.py"))
-            assert len(py_files) > 0
-
-            # Verify content structure
-            for py_file in py_files:
-                content = py_file.read_text()
-                assert "from pyspark import pipelines as dp" in content
-                assert "Generated by LakehousePlumber" in content
-
 
 class TestEndToEndACMIIntegration:
     """Test end-to-end integration using the real ACMI project."""
@@ -474,20 +390,15 @@ class TestEndToEndACMIIntegration:
         pipeline_fields = ["raw_ingestions", "bronze_load", "silver_load", "gold_load"]
 
         for pipeline_field in pipeline_fields:
-            try:
-                generated_files = orchestrator.generate_pipeline_by_field(
-                    pipeline_field, "dev", None
-                )
+            generated_files = orchestrator.generate_pipeline_by_field(
+                pipeline_field, "dev", None
+            )
 
-                # Dry-run (output_dir=None) writes nothing; only verify
-                # that filenames were returned and end with .py.
-                if len(generated_files) > 0:
-                    for filename in generated_files:
-                        assert filename.endswith(".py")
-
-            except Exception as e:
-                # Log but don't fail - some pipelines might have dependencies
-                print(f"Pipeline {pipeline_field} generation issue: {e}")
+            # Dry-run (output_dir=None) writes nothing; only verify
+            # that filenames were returned and end with .py.
+            if len(generated_files) > 0:
+                for filename in generated_files:
+                    assert filename.endswith(".py")
 
 
 class TestEndToEndCompatibility:
@@ -560,14 +471,14 @@ actions:
 """)
 
         # Test bundle detection and basic functionality
-        assert should_enable_bundle_support(project_root) == True
+        assert should_enable_bundle_support(project_root)
 
         # Test orchestrator initialization
         orchestrator = ActionOrchestrator(project_root)
         assert orchestrator.project_root == project_root
 
-    def test_bundle_workflow_memory_usage(self):
-        """Test that bundle workflow doesn't have memory leaks."""
+    def test_repeated_generation_succeeds(self):
+        """Run 15 generation iterations and verify each returns non-empty filenames."""
         project_root = self.temp_dir / "memory_test"
         project_root.mkdir()
 
@@ -642,7 +553,7 @@ version: "1.0"
         )
 
         # Test bundle detection
-        assert should_enable_bundle_support(project_root) == True
+        assert should_enable_bundle_support(project_root)
 
         # Test bundle manager
         bundle_manager = BundleManager(project_root)

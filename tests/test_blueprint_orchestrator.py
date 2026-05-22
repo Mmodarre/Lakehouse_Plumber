@@ -1,8 +1,8 @@
 """Spec-driven unit tests for orchestrator integration (Phase 6, Phase 11).
 
 Covers ``discover_all_flowgroups`` returning blueprint-expanded + disk-sourced
-flowgroups, the no-op behavior when no blueprints are present, the populated
-``_blueprint_provenance`` map, and ``_lookup_pipeline_slice`` cache behavior.
+flowgroups, the no-op behavior when no blueprints are present, synthetic
+source-path index wiring, and ``_lookup_pipeline_slice`` cache behavior.
 """
 
 from pathlib import Path
@@ -86,10 +86,13 @@ flowgroups:
     assert "apac_sg_orders" in flow_names
     assert "emea_uk_orders" in flow_names
 
-    # Provenance map is populated.
-    assert orch._blueprint_provenance is not None
-    assert ("apac_sg_raw", "apac_sg_orders") in orch._blueprint_provenance
-    assert ("emea_uk_raw", "emea_uk_orders") in orch._blueprint_provenance
+    # Synthetic blueprint flowgroups are wired into the discoverer's
+    # source-path index — find_source_yaml_for_flowgroup resolves them to
+    # the originating blueprint path.
+    apac_fg = next(fg for fg in all_fgs if fg.flowgroup == "apac_sg_orders")
+    emea_fg = next(fg for fg in all_fgs if fg.flowgroup == "emea_uk_orders")
+    assert orch.discoverer.find_source_yaml_for_flowgroup(apac_fg) is not None
+    assert orch.discoverer.find_source_yaml_for_flowgroup(emea_fg) is not None
 
 
 def test_expand_blueprints_returns_synthetic_flowgroups(tmp_path):

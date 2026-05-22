@@ -2,13 +2,13 @@
 
 import os
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
 from lhp.core.orchestrator import ActionOrchestrator
 from lhp.models.config import FlowGroup, FlowGroupContext
-from lhp.utils.error_formatter import ErrorCategory, LHPError
+from lhp.utils.error_formatter import LHPError
 from tests.helpers import wrap_in_ctx as _wrap_in_ctx
 
 
@@ -39,7 +39,6 @@ class TestActionOrchestratorInitialization:
             patch("lhp.core.orchestrator.CodeGenerator") as mock_generator,
             patch("lhp.core.orchestrator.PipelineValidator") as mock_validator,
         ):
-
             # Configure mocks
             mock_config_loader_instance = Mock()
             mock_config_loader.return_value = mock_config_loader_instance
@@ -70,9 +69,9 @@ class TestActionOrchestratorInitialization:
         mock_project_config.required_lhp_version = ">=0.4.0"
         mock_project_config.name = "test_project"
         mock_project_config.version = "1.0.0"
-        mock_components["config_loader_instance"].load_project_config.return_value = (
-            mock_project_config
-        )
+        mock_components[
+            "config_loader_instance"
+        ].load_project_config.return_value = mock_project_config
 
         with patch.object(
             ActionOrchestrator, "_enforce_version_requirements"
@@ -90,9 +89,9 @@ class TestActionOrchestratorInitialization:
         # Arrange
         mock_project_config = Mock()
         mock_project_config.required_lhp_version = ">=0.4.0"
-        mock_components["config_loader_instance"].load_project_config.return_value = (
-            mock_project_config
-        )
+        mock_components[
+            "config_loader_instance"
+        ].load_project_config.return_value = mock_project_config
 
         with patch.object(
             ActionOrchestrator, "_enforce_version_requirements"
@@ -108,9 +107,9 @@ class TestActionOrchestratorInitialization:
     def test_project_config_loader_fails(self, mock_project_root, mock_components):
         """Test handling when project_config_loader fails to load config."""
         # Arrange
-        mock_components["config_loader_instance"].load_project_config.side_effect = (
-            Exception("Config loading failed")
-        )
+        mock_components[
+            "config_loader_instance"
+        ].load_project_config.side_effect = Exception("Config loading failed")
 
         # Act & Assert - should propagate the exception
         with pytest.raises(Exception, match="Config loading failed"):
@@ -120,12 +119,11 @@ class TestActionOrchestratorInitialization:
         """Test exception propagation when core component initialization fails."""
         # Arrange - mock one component to fail
         with (
-            patch("lhp.core.orchestrator.YAMLParser") as mock_yaml,
+            patch("lhp.core.orchestrator.YAMLParser"),
             patch("lhp.core.orchestrator.PresetManager") as mock_preset,
-            patch("lhp.core.orchestrator.TemplateEngine") as mock_template,
+            patch("lhp.core.orchestrator.TemplateEngine"),
             patch("lhp.core.orchestrator.ProjectConfigLoader") as mock_config_loader,
         ):
-
             # Make one component fail during initialization
             mock_preset.side_effect = Exception("PresetManager initialization failed")
 
@@ -175,9 +173,9 @@ class TestActionOrchestratorInitialization:
         mock_project_config.name = "test_project"
         mock_project_config.version = "2.1.0"
         mock_project_config.required_lhp_version = None
-        mock_components["config_loader_instance"].load_project_config.return_value = (
-            mock_project_config
-        )
+        mock_components[
+            "config_loader_instance"
+        ].load_project_config.return_value = mock_project_config
 
         with patch("logging.getLogger") as mock_get_logger:
             mock_logger = Mock()
@@ -190,15 +188,15 @@ class TestActionOrchestratorInitialization:
             assert orchestrator.project_config == mock_project_config
             # Should log project configuration details
             mock_logger.info.assert_any_call(
-                f"Loaded project configuration: test_project v2.1.0"
+                "Loaded project configuration: test_project v2.1.0"
             )
 
     def test_project_config_none_logging(self, mock_project_root, mock_components):
         """Test logging when project config is None (using defaults)."""
         # Arrange
-        mock_components["config_loader_instance"].load_project_config.return_value = (
-            None
-        )
+        mock_components[
+            "config_loader_instance"
+        ].load_project_config.return_value = None
 
         with patch("logging.getLogger") as mock_get_logger:
             mock_logger = Mock()
@@ -240,7 +238,6 @@ class TestActionOrchestratorVersionEnforcement:
             patch("lhp.core.orchestrator.CodeGenerator"),
             patch("lhp.core.orchestrator.PipelineValidator"),
         ):
-
             # Configure project config with version requirement
             mock_project_config = Mock()
             mock_project_config.required_lhp_version = ">=0.4.0"
@@ -291,7 +288,6 @@ class TestActionOrchestratorVersionEnforcement:
                 orchestrator_with_version_requirement, "logger"
             ) as mock_logger,
         ):
-
             # Act - should complete without raising exception
             orchestrator_with_version_requirement._enforce_version_requirements()
 
@@ -312,7 +308,6 @@ class TestActionOrchestratorVersionEnforcement:
                 orchestrator_with_version_requirement, "logger"
             ) as mock_logger,
         ):
-
             # Act - should complete without raising exception
             orchestrator_with_version_requirement._enforce_version_requirements()
 
@@ -333,7 +328,6 @@ class TestActionOrchestratorVersionEnforcement:
                 orchestrator_with_version_requirement, "logger"
             ) as mock_logger,
         ):
-
             # Act - should complete without raising exception
             orchestrator_with_version_requirement._enforce_version_requirements()
 
@@ -399,7 +393,6 @@ class TestActionOrchestratorVersionEnforcement:
             patch("lhp.core.orchestrator.get_version") as mock_get_version,
             patch("packaging.specifiers.SpecifierSet") as mock_specifier_set,
         ):
-
             mock_get_version.return_value = "0.4.1"
             # Simulate invalid version format exception
             mock_specifier_set.side_effect = Exception("Invalid version specifier")
@@ -425,7 +418,6 @@ class TestActionOrchestratorVersionEnforcement:
             patch("packaging.version.Version") as mock_version_class,
             patch("packaging.specifiers.SpecifierSet") as mock_specifier_set,
         ):
-
             mock_get_version.return_value = "invalid-actual-version"
             # Simulate actual version parsing failure
             mock_version_class.side_effect = Exception("Invalid version format")
@@ -463,7 +455,6 @@ class TestActionOrchestratorVersionEnforcement:
             patch("lhp.core.orchestrator.get_version") as mock_get_version,
             patch("packaging.specifiers.SpecifierSet") as mock_specifier_set,
         ):
-
             mock_get_version.return_value = "0.4.1"
             # Simulate SpecifierSet creation failure (not an ImportError)
             mock_specifier_set.side_effect = ValueError("Invalid specifier format")
@@ -510,7 +501,7 @@ class TestActionOrchestratorFlowgroupDiscovery:
             patch("lhp.core.orchestrator.TemplateEngine"),
             patch("lhp.core.orchestrator.ProjectConfigLoader") as mock_config_loader,
             patch("lhp.core.orchestrator.ActionRegistry"),
-            patch("lhp.core.orchestrator.ConfigValidator") as mock_config_validator,
+            patch("lhp.core.orchestrator.ConfigValidator"),
             patch("lhp.core.orchestrator.SecretValidator"),
             patch("lhp.core.orchestrator.DependencyResolver"),
             patch("lhp.core.orchestrator.FlowgroupDiscoverer") as mock_discoverer,
@@ -518,7 +509,6 @@ class TestActionOrchestratorFlowgroupDiscovery:
             patch("lhp.core.orchestrator.CodeGenerator"),
             patch("lhp.core.orchestrator.PipelineValidator"),
         ):
-
             # Configure project config loader
             mock_config_loader_instance = Mock()
             mock_config_loader.return_value = mock_config_loader_instance
@@ -534,12 +524,8 @@ class TestActionOrchestratorFlowgroupDiscovery:
 
             # Configure validator to return empty errors for table creation validation
             # This allows tests to pass when testing other aspects of the orchestrator
-            orchestrator.config_validator.validate_table_creation_rules.return_value = (
-                []
-            )
-            orchestrator.config_validator.validate_duplicate_pipeline_flowgroup.return_value = (
-                []
-            )
+            orchestrator.config_validator.validate_table_creation_rules.return_value = []
+            orchestrator.config_validator.validate_duplicate_pipeline_flowgroup.return_value = []
 
             # Store mock discoverer for test access
             orchestrator.mock_discoverer = mock_discoverer.return_value
@@ -549,9 +535,6 @@ class TestActionOrchestratorFlowgroupDiscovery:
         """Test pipeline directory does not exist returns empty dict and logs warning."""
         # Arrange
         nonexistent_pipeline = "nonexistent_pipeline"
-        pipeline_dir = (
-            orchestrator_basic.project_root / "pipelines" / nonexistent_pipeline
-        )
 
         # Mock path exists to return False
         with patch.object(Path, "exists", return_value=False):
@@ -694,7 +677,7 @@ class TestActionOrchestratorFlowgroupDiscovery:
         )
 
         # Mock logger to verify warning
-        with patch.object(orchestrator_basic, "logger") as mock_logger:
+        with patch.object(orchestrator_basic, "logger"):
             # Act
             result = orchestrator_basic.discover_flowgroups_by_pipeline_field(
                 "nonexistent_pipeline"
@@ -743,328 +726,6 @@ class TestActionOrchestratorFlowgroupDiscovery:
         )
 
 
-class TestActionOrchestratorActionAnalysis:
-    """Test ActionOrchestrator action analysis and transformation logic."""
-
-    @pytest.fixture
-    def mock_project_root(self):
-        """Mock project root path."""
-        return Path("/mock/project")
-
-    @pytest.fixture
-    def orchestrator_action_analysis(self, mock_project_root):
-        """Create orchestrator for action analysis testing."""
-        with (
-            patch("lhp.core.orchestrator.YAMLParser"),
-            patch("lhp.core.orchestrator.PresetManager"),
-            patch("lhp.core.orchestrator.TemplateEngine"),
-            patch("lhp.core.orchestrator.ProjectConfigLoader") as mock_config_loader,
-            patch("lhp.core.orchestrator.ActionRegistry"),
-            patch("lhp.core.orchestrator.ConfigValidator"),
-            patch("lhp.core.orchestrator.SecretValidator"),
-            patch("lhp.core.orchestrator.DependencyResolver"),
-            patch("lhp.core.orchestrator.FlowgroupDiscoverer"),
-            patch("lhp.core.orchestrator.FlowgroupProcessor"),
-            patch("lhp.core.orchestrator.CodeGenerator") as mock_generator,
-            patch("lhp.core.orchestrator.PipelineValidator"),
-        ):
-
-            # Configure mocks
-            mock_config_loader_instance = Mock()
-            mock_config_loader.return_value = mock_config_loader_instance
-            mock_config_loader_instance.load_project_config.return_value = None
-
-            # Create orchestrator
-            orchestrator = ActionOrchestrator(mock_project_root, enforce_version=False)
-
-            # Store generator mock for test access
-            orchestrator.mock_generator = mock_generator.return_value
-
-            return orchestrator
-
-    def test_determine_action_subtype_delegation(self, orchestrator_action_analysis):
-        """Test determine_action_subtype delegates to generator."""
-        # Arrange
-        from lhp.models.config import Action
-
-        mock_action = Mock(spec=Action)
-        expected_subtype = "cloudfiles"
-
-        orchestrator_action_analysis.mock_generator.determine_action_subtype.return_value = (
-            expected_subtype
-        )
-
-        # Act
-        result = orchestrator_action_analysis.determine_action_subtype(mock_action)
-
-        # Assert
-        assert result == expected_subtype
-        orchestrator_action_analysis.mock_generator.determine_action_subtype.assert_called_once_with(
-            mock_action
-        )
-
-    def test_group_write_actions_by_target_delegation(
-        self, orchestrator_action_analysis
-    ):
-        """Test group_write_actions_by_target delegates to generator."""
-        # Arrange
-        from lhp.models.config import Action
-
-        write_actions = [Mock(spec=Action), Mock(spec=Action)]
-        expected_groups = {"table1": [write_actions[0]], "table2": [write_actions[1]]}
-
-        orchestrator_action_analysis.mock_generator.group_write_actions_by_target.return_value = (
-            expected_groups
-        )
-
-        # Act
-        result = orchestrator_action_analysis.group_write_actions_by_target(
-            write_actions
-        )
-
-        # Assert
-        assert result == expected_groups
-        orchestrator_action_analysis.mock_generator.group_write_actions_by_target.assert_called_once_with(
-            write_actions
-        )
-
-    def test_create_combined_write_action_delegation(
-        self, orchestrator_action_analysis
-    ):
-        """Test create_combined_write_action delegates to generator."""
-        # Arrange
-        from lhp.models.config import Action
-
-        actions = [Mock(spec=Action), Mock(spec=Action)]
-        target_table = "combined_table"
-        expected_combined_action = Mock(spec=Action)
-
-        orchestrator_action_analysis.mock_generator.create_combined_write_action.return_value = (
-            expected_combined_action
-        )
-
-        # Act
-        result = orchestrator_action_analysis.create_combined_write_action(
-            actions, target_table
-        )
-
-        # Assert
-        assert result == expected_combined_action
-        orchestrator_action_analysis.mock_generator.create_combined_write_action.assert_called_once_with(
-            actions, target_table
-        )
-
-    def test_extract_single_source_view_string_source(
-        self, orchestrator_action_analysis
-    ):
-        """Test _extract_single_source_view with string source."""
-        # Arrange
-        source = "simple_table_name"
-
-        # Act
-        result = orchestrator_action_analysis._extract_single_source_view(source)
-
-        # Assert
-        assert result == "simple_table_name"
-
-    def test_extract_single_source_view_list_with_strings(
-        self, orchestrator_action_analysis
-    ):
-        """Test _extract_single_source_view with list containing strings."""
-        # Arrange
-        source = ["first_table", "second_table"]  # Should return first item
-
-        # Act
-        result = orchestrator_action_analysis._extract_single_source_view(source)
-
-        # Assert
-        assert result == "first_table"
-
-    def test_extract_single_source_view_list_with_dicts(
-        self, orchestrator_action_analysis
-    ):
-        """Test _extract_single_source_view with list containing dictionaries."""
-        # Arrange
-        source = [{"catalog": "test_cat", "schema": "test_db", "table": "test_table"}]
-
-        # Act
-        result = orchestrator_action_analysis._extract_single_source_view(source)
-
-        # Assert
-        assert result == "test_cat.test_db.test_table"
-
-    def test_extract_single_source_view_dict_with_catalog_schema_table(
-        self, orchestrator_action_analysis
-    ):
-        """Test _extract_single_source_view with dict containing catalog, schema, and table."""
-        # Arrange
-        source = {"catalog": "prod_cat", "schema": "prod_db", "table": "customer_data"}
-
-        # Act
-        result = orchestrator_action_analysis._extract_single_source_view(source)
-
-        # Assert
-        assert result == "prod_cat.prod_db.customer_data"
-
-    def test_extract_single_source_view_dict_with_table_only(
-        self, orchestrator_action_analysis
-    ):
-        """Test _extract_single_source_view with dict containing only table."""
-        # Arrange
-        source = {"table": "standalone_table"}
-
-        # Act
-        result = orchestrator_action_analysis._extract_single_source_view(source)
-
-        # Assert
-        assert result == "standalone_table"
-
-    def test_extract_single_source_view_dict_with_view_field(
-        self, orchestrator_action_analysis
-    ):
-        """Test _extract_single_source_view with dict using 'view' field."""
-        # Arrange
-        source = {
-            "catalog": "analytics_cat",
-            "schema": "analytics_db",
-            "view": "customer_view",
-        }
-
-        # Act
-        result = orchestrator_action_analysis._extract_single_source_view(source)
-
-        # Assert
-        assert result == "analytics_cat.analytics_db.customer_view"
-
-    def test_extract_single_source_view_empty_or_invalid(
-        self, orchestrator_action_analysis
-    ):
-        """Test _extract_single_source_view with empty or invalid sources."""
-        # Test empty string
-        assert orchestrator_action_analysis._extract_single_source_view("") == ""
-
-        # Test empty list
-        assert orchestrator_action_analysis._extract_single_source_view([]) == ""
-
-        # Test empty dict
-        assert orchestrator_action_analysis._extract_single_source_view({}) == ""
-
-        # Test None
-        assert orchestrator_action_analysis._extract_single_source_view(None) == ""
-
-        # Test number
-        assert orchestrator_action_analysis._extract_single_source_view(123) == ""
-
-    def test_extract_source_views_from_action_string(
-        self, orchestrator_action_analysis
-    ):
-        """Test _extract_source_views_from_action with string source."""
-        # Arrange
-        source = "simple_view"
-
-        # Act
-        result = orchestrator_action_analysis._extract_source_views_from_action(source)
-
-        # Assert
-        assert result == ["simple_view"]
-
-    def test_extract_source_views_from_action_list_with_strings(
-        self, orchestrator_action_analysis
-    ):
-        """Test _extract_source_views_from_action with list of strings."""
-        # Arrange
-        source = ["view1", "view2", "view3"]
-
-        # Act
-        result = orchestrator_action_analysis._extract_source_views_from_action(source)
-
-        # Assert
-        assert result == ["view1", "view2", "view3"]
-
-    def test_extract_source_views_from_action_list_with_dicts(
-        self, orchestrator_action_analysis
-    ):
-        """Test _extract_source_views_from_action with list of dictionaries."""
-        # Arrange
-        source = [
-            {"catalog": "cat1", "schema": "db1", "table": "table1"},
-            {"catalog": "cat2", "schema": "db2", "view": "view2"},
-            {"table": "standalone_table"},
-            {"name": "named_table"},
-        ]
-
-        # Act
-        result = orchestrator_action_analysis._extract_source_views_from_action(source)
-
-        # Assert
-        expected = [
-            "cat1.db1.table1",
-            "cat2.db2.view2",
-            "standalone_table",
-            "named_table",
-        ]
-        assert result == expected
-
-    def test_extract_source_views_from_action_mixed_list(
-        self, orchestrator_action_analysis
-    ):
-        """Test _extract_source_views_from_action with mixed list formats."""
-        # Arrange
-        source = [
-            "string_table",
-            {"catalog": "cat1", "schema": "db1", "table": "dict_table"},
-            123,  # Non-string item
-            {"incomplete": "dict"},  # Dict without table/view/name
-        ]
-
-        # Act
-        result = orchestrator_action_analysis._extract_source_views_from_action(source)
-
-        # Assert - the incomplete dict doesn't add an empty string, it's skipped
-        expected = ["string_table", "cat1.db1.dict_table", "123"]
-        assert result == expected
-
-    def test_extract_source_views_from_action_dict_single(
-        self, orchestrator_action_analysis
-    ):
-        """Test _extract_source_views_from_action with single dictionary source."""
-        # Arrange
-        source = {"catalog": "analytics_cat", "schema": "analytics", "table": "metrics"}
-
-        # Act
-        result = orchestrator_action_analysis._extract_source_views_from_action(source)
-
-        # Assert
-        assert result == ["analytics_cat.analytics.metrics"]
-
-    def test_extract_source_views_from_action_empty_invalid(
-        self, orchestrator_action_analysis
-    ):
-        """Test _extract_source_views_from_action with empty or invalid sources."""
-        # Test empty string
-        assert orchestrator_action_analysis._extract_source_views_from_action("") == [
-            ""
-        ]
-
-        # Test empty list
-        assert orchestrator_action_analysis._extract_source_views_from_action([]) == []
-
-        # Test empty dict - now returns ["source"] as fallback (Phase 1 refactoring)
-        assert orchestrator_action_analysis._extract_source_views_from_action({}) == [
-            "source"
-        ]
-
-        # Test None - now returns ["source"] as fallback (Phase 1 refactoring)
-        assert orchestrator_action_analysis._extract_source_views_from_action(None) == [
-            "source"
-        ]
-
-        # Test number - now returns ["source"] as fallback (Phase 1 refactoring)
-        assert orchestrator_action_analysis._extract_source_views_from_action(123) == [
-            "source"
-        ]
-
-
 class TestActionOrchestratorValidationWithoutGeneration:
     """Test ActionOrchestrator validation without generation logic."""
 
@@ -1077,7 +738,7 @@ class TestActionOrchestratorValidationWithoutGeneration:
     def orchestrator_validation(self, mock_project_root):
         """Create orchestrator for validation testing."""
         with (
-            patch("lhp.core.orchestrator.YAMLParser") as mock_yaml,
+            patch("lhp.core.orchestrator.YAMLParser"),
             patch("lhp.core.orchestrator.PresetManager"),
             patch("lhp.core.orchestrator.TemplateEngine"),
             patch("lhp.core.orchestrator.ProjectConfigLoader") as mock_config_loader,
@@ -1090,7 +751,6 @@ class TestActionOrchestratorValidationWithoutGeneration:
             patch("lhp.core.orchestrator.CodeGenerator"),
             patch("lhp.core.orchestrator.PipelineValidator"),
         ):
-
             # Configure mocks
             mock_config_loader_instance = Mock()
             mock_config_loader.return_value = mock_config_loader_instance
@@ -1162,7 +822,6 @@ class TestActionOrchestratorValidationWithoutGeneration:
             "discover_flowgroups_by_pipeline_field",
             return_value=[],
         ) as mock_discover:
-
             # Act
             errors, warnings = orchestrator_validation.validate_pipeline_by_field(
                 pipeline_field, env
@@ -1193,7 +852,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
     def orchestrator_processing(self, mock_project_root):
         """Create orchestrator for processing pipeline testing."""
         with (
-            patch("lhp.core.orchestrator.YAMLParser") as mock_yaml,
+            patch("lhp.core.orchestrator.YAMLParser"),
             patch("lhp.core.orchestrator.PresetManager"),
             patch("lhp.core.orchestrator.TemplateEngine"),
             patch("lhp.core.orchestrator.ProjectConfigLoader") as mock_config_loader,
@@ -1206,7 +865,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             patch("lhp.core.orchestrator.CodeGenerator") as mock_generator,
             patch("lhp.core.orchestrator.PipelineValidator"),
         ):
-
             # Configure mocks
             mock_config_loader_instance = Mock()
             mock_config_loader.return_value = mock_config_loader_instance
@@ -1337,7 +995,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             source_yaml,
             env,
             include_tests,
-            None,
             phase_a_records=None,
         )
 
@@ -1377,7 +1034,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             source_yaml,
             env,
             include_tests,
-            None,
             phase_a_records=None,
         )
 
@@ -1426,7 +1082,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             None,
             None,
             False,
-            None,
             phase_a_records=None,
         )
 
@@ -1466,7 +1121,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             source_yaml,
             env,
             True,
-            None,
             phase_a_records=None,
         )
 
@@ -1506,7 +1160,6 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
             source_yaml,
             env,
             False,
-            None,
             phase_a_records=None,
         )
 
@@ -1523,7 +1176,7 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
     def orchestrator_error_handling(self, mock_project_root):
         """Create orchestrator for error handling testing."""
         with (
-            patch("lhp.core.orchestrator.YAMLParser") as mock_yaml,
+            patch("lhp.core.orchestrator.YAMLParser"),
             patch("lhp.core.orchestrator.PresetManager"),
             patch("lhp.core.orchestrator.TemplateEngine"),
             patch("lhp.core.orchestrator.ProjectConfigLoader") as mock_config_loader,
@@ -1536,7 +1189,6 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
             patch("lhp.core.orchestrator.CodeGenerator") as mock_generator,
             patch("lhp.core.orchestrator.PipelineValidator"),
         ):
-
             # Configure mocks
             mock_config_loader_instance = Mock()
             mock_config_loader.return_value = mock_config_loader_instance
@@ -1593,9 +1245,7 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
         orchestrator_error_handling.mock_processor.process_flowgroup.side_effect = None
 
         # Test generator service exception
-        orchestrator_error_handling.mock_generator.generate_flowgroup_code.side_effect = (
-            unexpected_error
-        )
+        orchestrator_error_handling.mock_generator.generate_flowgroup_code.side_effect = unexpected_error
 
         with pytest.raises(
             RuntimeError, match="Unexpected service failure: database connection lost"
@@ -1621,7 +1271,6 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
             None,
             None,
             False,
-            None,
             phase_a_records=None,
         )
 
@@ -1639,9 +1288,7 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
         orchestrator_error_handling.mock_processor.process_flowgroup.return_value = (
             _wrap_in_ctx(processed_flowgroup)
         )
-        orchestrator_error_handling.mock_generator.generate_flowgroup_code.return_value = (
-            generated_code
-        )
+        orchestrator_error_handling.mock_generator.generate_flowgroup_code.return_value = generated_code
 
         # Mock logger to raise exception during logging
         with patch.object(orchestrator_error_handling, "logger") as mock_logger:
@@ -1677,7 +1324,6 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
                 None,
                 None,
                 False,
-                None,
                 phase_a_records=None,
             )
 
@@ -1772,7 +1418,7 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
             orchestrator_error_handling,
             "discover_flowgroups_by_pipeline_field",
             side_effect=ValueError("Pipeline field cannot be None"),
-        ) as mock_discover_none:
+        ):
             errors, warnings = orchestrator_error_handling.validate_pipeline_by_field(
                 None, "dev"
             )
@@ -1820,18 +1466,14 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
         assert result is None  # Should handle None inner flowgroup gracefully
 
         # Test generator returning empty string
-        orchestrator_error_handling.mock_generator.generate_flowgroup_code.return_value = (
-            ""
-        )
+        orchestrator_error_handling.mock_generator.generate_flowgroup_code.return_value = ""
         result = orchestrator_error_handling.generate_flowgroup_code(
             mock_flowgroup, mock_substitution_mgr
         )
         assert result == ""  # Should handle empty string return gracefully
 
         # Test generator returning None
-        orchestrator_error_handling.mock_generator.generate_flowgroup_code.return_value = (
-            None
-        )
+        orchestrator_error_handling.mock_generator.generate_flowgroup_code.return_value = None
         result = orchestrator_error_handling.generate_flowgroup_code(
             mock_flowgroup, mock_substitution_mgr
         )
@@ -1850,7 +1492,7 @@ class TestActionOrchestratorIntegrationScenarios:
     def orchestrator_integration(self, mock_project_root):
         """Create orchestrator for integration testing."""
         with (
-            patch("lhp.core.orchestrator.YAMLParser") as mock_yaml,
+            patch("lhp.core.orchestrator.YAMLParser"),
             patch("lhp.core.orchestrator.PresetManager"),
             patch("lhp.core.orchestrator.TemplateEngine"),
             patch("lhp.core.orchestrator.ProjectConfigLoader") as mock_config_loader,
@@ -1863,7 +1505,6 @@ class TestActionOrchestratorIntegrationScenarios:
             patch("lhp.core.orchestrator.CodeGenerator") as mock_generator,
             patch("lhp.core.orchestrator.PipelineValidator"),
         ):
-
             # Configure mocks
             mock_config_loader_instance = Mock()
             mock_config_loader.return_value = mock_config_loader_instance
@@ -1933,7 +1574,6 @@ class TestActionOrchestratorIntegrationScenarios:
             None,
             None,
             False,
-            None,
             phase_a_records=None,
         )
 
@@ -2008,7 +1648,6 @@ class TestActionOrchestratorIntegrationScenarios:
             None,
             None,
             False,
-            None,
             phase_a_records=None,
         )
 
@@ -2122,6 +1761,5 @@ class TestActionOrchestratorIntegrationScenarios:
             source_yaml,
             env,
             include_tests,
-            None,
             phase_a_records=None,
         )

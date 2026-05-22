@@ -10,8 +10,6 @@ from .error_formatter import ErrorCategory, LHPConfigError, LHPError, LHPValidat
 
 logger = logging.getLogger(__name__)
 
-_DEPRECATED_BARE_TOKEN_WARNED = False
-
 
 class SecretReference:
     """Represents a secret reference with scope and key."""
@@ -43,10 +41,15 @@ class SecretReference:
 class EnhancedSubstitutionManager:
     """Enhanced substitution manager with YAML and secret support."""
 
-    # Regex patterns for token matching
+    # Regex patterns for token matching.
+    # DEFAULT_TOKEN_PATTERN intentionally has no lookbehind/lookahead guards
+    # against ``${X}``, ``%{X}``, or ``{{X}}`` because it is applied AFTER
+    # Jinja2 template rendering and the ``%{}`` local-variable pass have
+    # already consumed those syntaxes — the blind spot is not exercised in
+    # this context. The standalone YAML scanner in ``lhp.cli.yaml_scanner``
+    # runs on raw YAML and therefore uses a stricter pattern.
     DEFAULT_TOKEN_PATTERN = re.compile(r"\{(\w+)\}")
     DOLLAR_TOKEN_PATTERN = re.compile(r"\$\{(\w+)\}")
-    DOLLAR_TOKEN_SIMPLE_PATTERN = re.compile(r"\$(\w+)")
     SECRET_PATTERN = re.compile(r"\$\{secret:([^}]+)\}")
     UNRESOLVED_TOKEN_PATTERN = re.compile(r"\{(?!dbutils\.)(\w+)\}")
 
@@ -65,6 +68,14 @@ class EnhancedSubstitutionManager:
         self.secret_scopes: Dict[str, str] = {}
         self.default_secret_scope: Optional[str] = None
         self.secret_references: Set[SecretReference] = set()
+        # Per-instance flag flipped in ``_replace_tokens_in_string`` when
+        # the deprecated bare ``{token}`` syntax is encountered. Callers
+        # (the orchestrator's pipeline-by-fields methods) consult this
+        # after constructing the manager and forward a single
+        # ``WarningCollector`` entry; the worker-side ``logger.warning``
+        # path was removed because workers attach a ``NullHandler`` and
+        # never reach the user.
+        self.has_deprecated_bare_tokens: bool = False
 
         # Add reserved tokens
         self._add_reserved_tokens()
@@ -103,7 +114,7 @@ class EnhancedSubstitutionManager:
             raise LHPConfigError(
                 category=ErrorCategory.CONFIG,
                 code_number="020",
-                title=f"Failed to load substitution file",
+                title="Failed to load substitution file",
                 details=f"Error loading substitution file {file_path}: {e}",
                 suggestions=[
                     "Check the substitution file for YAML syntax errors",
@@ -249,29 +260,24 @@ class EnhancedSubstitutionManager:
     def _replace_tokens_in_string(self, text: str) -> str:
         """Replace all {TOKEN} and ${TOKEN} patterns in a string."""
 
-        def default_replacer(match):
-            token = match.group(1)
-            return self.mappings.get(token, match.group(0))
-
-        def dollar_replacer(match):
-            token = match.group(1)
-            return self.mappings.get(token, match.group(0))
+        def _lookup(match):
+            return self.mappings.get(match.group(1), match.group(0))
 
         # Apply patterns - dollar pattern first to avoid conflicts
-        text = self.DOLLAR_TOKEN_PATTERN.sub(dollar_replacer, text)
+        text = self.DOLLAR_TOKEN_PATTERN.sub(_lookup, text)
 
-        # Warn once per process about deprecated {token} syntax
-        global _DEPRECATED_BARE_TOKEN_WARNED
-        if not _DEPRECATED_BARE_TOKEN_WARNED and self.DEFAULT_TOKEN_PATTERN.search(
-            text
-        ):
-            logger.warning(
-                "The bare {token} substitution syntax is deprecated and will be "
-                "removed in v1.0. Use ${token} instead."
-            )
-            _DEPRECATED_BARE_TOKEN_WARNED = True
-
-        text = self.DEFAULT_TOKEN_PATTERN.sub(default_replacer, text)
+        # Flip per-instance flag the first time a deprecated bare
+        # ``{token}`` substitution actually happens. The orchestrator
+        # inspects this flag after constructing the manager and forwards
+        # a single warning to the per-run WarningCollector; emitting via
+        # logger.warning here would be silenced inside worker processes
+        # (NullHandler-only loggers).
+        if not self.has_deprecated_bare_tokens:
+            text, n = self.DEFAULT_TOKEN_PATTERN.subn(_lookup, text)
+            if n > 0:
+                self.has_deprecated_bare_tokens = True
+        else:
+            text = self.DEFAULT_TOKEN_PATTERN.sub(_lookup, text)
         return text
 
     def validate_no_unresolved_tokens(

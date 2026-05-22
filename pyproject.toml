@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lakehouse-plumber"
-version = "0.8.7"
+version = "0.8.8"
 description = "A framework for building and managing enterprise Lakeflow Spark Declaritive Pipelines"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -27,6 +27,8 @@ classifiers = [
 requires-python = ">=3.11"
 dependencies = [
     "click>=8.3.0",
+    "rich-click>=1.9.0,<2.0",
+    "rich>=13.0.0",
     "pyyaml>=6.0.3",
     "ruamel.yaml>=0.19.0",
     "jinja2>=3.0.0",
@@ -42,6 +44,7 @@ dev = [
     "pytest>=9.0.0",
     "pytest-cov>=4.0.0",
     "pytest-mock>=3.10.0",
+    "syrupy>=4.6.0",
     "flake8>=6.0.0",
     "black==26.3.1",
     "isort>=5.12.0",
@@ -51,7 +54,7 @@ dev = [
     "bandit[sarif]>=1.7.0",
     "liccheck>=0.9.0",
     "pre-commit>=3.0.0",
-    "build>=1.0",
+    "build>=1.0",  # used by tests/test_packaging.py to build a wheel for package-data assertions
 ]
 
 [project.urls]
@@ -73,6 +76,7 @@ where = ["src"]
 "lhp.schemas" = ["*.json", "*.md"]
 "lhp.templates" = ["*.j2"]
 "lhp.templates.bundle" = ["*.j2"]
+# triple glob defends against historical setuptools dotfile inclusion bug
 "lhp.templates.init" = ["**/*", ".*", "**/.*"]
 "lhp.templates.load" = ["*.j2"]
 "lhp.templates.transform" = ["*.j2"]
@@ -94,7 +98,7 @@ addopts = [
 ]
 testpaths = ["tests"]
 norecursedirs = ["tests/baselines"]
-pythonpath = ["src", "."]
+pythonpath = ["src", "."]  # "." needed so tests can `from tests.helpers import ...` / `from tests.fakes import ...`
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",

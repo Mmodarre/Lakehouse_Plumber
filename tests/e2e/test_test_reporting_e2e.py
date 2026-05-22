@@ -183,9 +183,9 @@ class TestTestReportingE2E:
         assert exit_code == 0, f"Generation failed: {output}"
 
         hook_file = self.generated_dir / "acmi_edw_bronze" / "_test_reporting_hook.py"
-        assert (
-            not hook_file.exists()
-        ), "Hook file should NOT exist without --include-tests"
+        assert not hook_file.exists(), (
+            "Hook file should NOT exist without --include-tests"
+        )
 
     def test_no_test_flowgroup_without_include_tests(self):
         """Without --include-tests, test flowgroup is not generated."""
@@ -193,9 +193,9 @@ class TestTestReportingE2E:
         assert exit_code == 0, f"Generation failed: {output}"
 
         tst_file = self.generated_dir / "acmi_edw_bronze" / "tst_customer_dq.py"
-        assert (
-            not tst_file.exists()
-        ), "Test flowgroup should NOT exist without --include-tests"
+        assert not tst_file.exists(), (
+            "Test flowgroup should NOT exist without --include-tests"
+        )
 
     def test_existing_baselines_unaffected_without_include_tests(self):
         """Adding test_reporting config does NOT change existing baselines
@@ -215,12 +215,14 @@ class TestTestReportingE2E:
 
         if generated_file.exists() and baseline_file.exists():
             hash_diff = self._compare_file_hashes(generated_file, baseline_file)
-            assert (
-                hash_diff == ""
-            ), f"Existing baseline affected by test_reporting config: {hash_diff}"
+            assert hash_diff == "", (
+                f"Existing baseline affected by test_reporting config: {hash_diff}"
+            )
 
     def test_validate_with_include_tests(self):
         """Validate command succeeds with valid test reporting config."""
         exit_code, output = self.run_validate_with_tests()
         assert exit_code == 0, f"Validation failed: {output}"
-        assert "Test reporting configuration is valid" in output
+        # Post-Phase-3b the test-reporting validate signal renders as a
+        # Rich ``✓ test_reporting`` line instead of the prior banner.
+        assert "test_reporting" in output and "✓" in output

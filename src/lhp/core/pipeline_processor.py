@@ -170,9 +170,11 @@ class PipelineProcessor:
                 artifacts_count=self._artifacts_count,
                 generated_filenames=generated_filenames,
             )
-        except BaseException as exc:
+        except Exception as exc:
             logger.error(
-                f"PipelineProcessor failed for pipeline {self.pipeline_name}: {exc}"
+                "PipelineProcessor failed for pipeline %s: %s",
+                self.pipeline_name,
+                type(exc).__name__,
             )
             return PipelineDelta.failure(self.pipeline_name, exc)
 
@@ -229,7 +231,6 @@ class PipelineProcessor:
                     source_yaml,
                     self.environment,
                     self.include_tests,
-                    None,
                     phase_a_records=records,
                     auxiliary_files=ctx_out.auxiliary_files,
                 )
@@ -251,11 +252,16 @@ class PipelineProcessor:
                 copied_modules=tuple(records),
                 auxiliary_files=tuple(ctx_out.auxiliary_files.items()),
             )
-        except BaseException as exc:
+        except Exception as exc:
             logger.error(
-                f"Phase A worker failed for flowgroup {fg.flowgroup} "
-                f"in pipeline {fg.pipeline}: {exc}"
+                "Phase A worker failed for flowgroup %s in pipeline %s: %s",
+                fg.flowgroup,
+                fg.pipeline,
+                type(exc).__name__,
             )
+            # copied_modules retained on failure-result for debug telemetry
+            # only; never applied because _raise_for_phase_a_failures precedes
+            # _apply_copy_records.
             return FlowgroupResult(
                 pipeline=fg.pipeline,
                 flowgroup_name=fg.flowgroup,
@@ -292,8 +298,7 @@ class PipelineProcessor:
                 suggestions=[
                     "Ensure each target table has exactly one action "
                     "with create_table: true",
-                    "Check for conflicting table creation settings "
-                    "across flowgroups",
+                    "Check for conflicting table creation settings across flowgroups",
                     "Run 'lhp validate' for detailed diagnostics",
                 ],
             )
@@ -355,6 +360,12 @@ class PipelineProcessor:
 
         Empty flowgroups have their output file removed. Dry-run
         (``output_dir is None``) skips disk writes.
+
+        Atomicity invariant: PipelineProcessor failures may leave a
+        partial directory. The main thread's aggregate raise
+        short-circuits state persistence but not file writes — earlier
+        flowgroups in the same pipeline may already be written to disk
+        before a later flowgroup's delete fails.
         """
         if self.output_dir is None:
             for result in results:
@@ -371,7 +382,10 @@ class PipelineProcessor:
                     output_file.unlink(missing_ok=True)
                 except OSError as exc:
                     logger.error(
-                        f"Failed to delete empty flowgroup file {output_file}: {exc}"
+                        "Failed to delete empty flowgroup file %s: %s: %s",
+                        output_file,
+                        type(exc).__name__,
+                        exc.strerror or str(exc),
                     )
                     raise
                 if fg is not None:

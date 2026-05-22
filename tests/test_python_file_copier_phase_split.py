@@ -176,16 +176,15 @@ class TestApplyCopyRecord:
         )
 
         copier = PythonFileCopier()
-        entries = copier.apply_copy_record(record)
+        copier.apply_copy_record(record)
 
-        # Two entries (init + module) means the file was newly copied.
-        assert len(entries) == 2
+        # Both the package __init__ and the module file should be on disk.
         assert (custom_dir / "user_module.py").exists()
         assert (custom_dir / "__init__.py").exists()
         assert (custom_dir / "user_module.py").read_text() == "# header\nX = 1\n"
 
-    def test_apply_emits_entries_for_init_and_module(self, temp_dir, flowgroup):
-        """``apply_copy_record`` reports both files it wrote via entries."""
+    def test_apply_tracks_init_and_module(self, temp_dir, flowgroup):
+        """``apply_copy_record`` writes both the init package and the module."""
         custom_dir = temp_dir / "custom_python_functions"
         record = CopiedModuleRecord(
             source_path="user_module.py",
@@ -195,19 +194,18 @@ class TestApplyCopyRecord:
             custom_functions_dir=custom_dir,
         )
 
-        entries = PythonFileCopier().apply_copy_record(record)
+        copier = PythonFileCopier()
+        copier.apply_copy_record(record)
 
-        assert sorted(e.dest_path.name for e in entries) == [
-            "__init__.py",
-            "user_module.py",
-        ]
+        copied = copier.get_copied_files()
+        assert str(custom_dir / "__init__.py") in copied
+        assert str(custom_dir / "user_module.py") in copied
 
-    def test_dedup_returns_empty_on_second_apply(self, temp_dir, flowgroup):
-        """Same record applied twice: second call dedupes, returns ``[]``.
+    def test_dedup_on_second_apply_is_no_op(self, temp_dir, flowgroup):
+        """Same record applied twice: second call dedupes (no-op).
 
-        An empty entry list is the new signal for ``"already copied,
-        nothing to track"`` — replacing the boolean ``False`` returned by
-        the pre-Plan-2 signature.
+        The second apply must not overwrite anything and the copier's
+        tracked-file registry size must not grow on the second call.
         """
         custom_dir = temp_dir / "custom_python_functions"
         record = CopiedModuleRecord(
@@ -219,14 +217,17 @@ class TestApplyCopyRecord:
         )
 
         copier = PythonFileCopier()
-        first = copier.apply_copy_record(record)
-        second = copier.apply_copy_record(record)
+        copier.apply_copy_record(record)
+        first_snapshot = copier.get_copied_files()
 
-        assert len(first) == 2
-        assert second == []
+        copier.apply_copy_record(record)
+        second_snapshot = copier.get_copied_files()
+
+        assert first_snapshot == second_snapshot
+        assert (custom_dir / "user_module.py").exists()
 
     def test_apply_writes_file(self, temp_dir, flowgroup):
-        """File is copied and both entries are reported."""
+        """File is copied to disk and both entries are tracked."""
         custom_dir = temp_dir / "custom_python_functions"
         record = CopiedModuleRecord(
             source_path="user_module.py",
@@ -237,7 +238,6 @@ class TestApplyCopyRecord:
         )
 
         copier = PythonFileCopier()
-        entries = copier.apply_copy_record(record)
-        assert len(entries) == 2
+        copier.apply_copy_record(record)
         assert (custom_dir / "user_module.py").exists()
-
+        assert (custom_dir / "__init__.py").exists()

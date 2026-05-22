@@ -5,6 +5,93 @@ All notable changes to Lakehouse Plumber are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.8] — 2026-05-22
+
+This release is a CLI rendering overhaul: `lhp generate`, `lhp validate`,
+and `lhp show` now drive a Rich `Live` panel during execution and emit
+a per-pipeline summary table on exit, errors render as category-coloured
+Rich panels, and warnings are surfaced through a per-run collector
+instead of a process-wide flag. There are no breaking changes to YAML
+schemas, generated code, or exit codes.
+
+### Added
+
+- **Rich-based CLI rendering.** `lhp generate`, `lhp validate`, and
+  `lhp show` now run inside a Rich `Live` panel that opens with a
+  `Discovering flowgroups…` spinner, switches to per-phase duration
+  markers (✓ / ✗) and an in-flight progress spinner as work proceeds,
+  and prints a per-pipeline summary table on exit. Coloring honors
+  `NO_COLOR` and falls back to plain text when stdout is not a TTY.
+  Shared rendering primitives live in `src/lhp/cli/live_panel.py`,
+  with command-specific summary tables in `generate_summary.py` and
+  `validate_summary.py`.
+- **`--show-all` / `-a` flag on `lhp generate` and `lhp validate`.**
+  The post-run summary table defaults to failed pipelines only; pass
+  `--show-all` to render the full table including passing rows. On a
+  full-success run with no failures, the table is suppressed entirely
+  and a single-line footer is printed (with a `(use -a to list)` hint
+  when more than one pipeline ran). This keeps quiet runs short
+  without losing the table for users who want it.
+- **`rich-click` for CLI help rendering.** `click` is imported as
+  `rich_click as click`; existing decorators are unchanged but
+  `--help` output now renders as a styled Rich panel.
+- **`LHPError.__rich__` + `LHPError.from_unexpected_exception`.** Errors
+  are rendered to stderr as a category-coloured Rich `Panel` with
+  Context / Suggestions / Example / docs-link sections; the plain-text
+  `__str__` rendering is preserved verbatim for log files and non-TTY
+  output. Unexpected exceptions are now converted into a generic
+  `LHPError` via `from_unexpected_exception` instead of being matched
+  by sniffing for `"Error [LHP-"` substrings in the stringified message.
+- **`WarningCollector` + pre-pool YAML scanner.** A per-run
+  `WarningCollector` (`src/lhp/cli/warning_collector.py`) deduplicates
+  non-fatal warnings by `(category, message)` and renders them as a
+  yellow Rich panel at end of run. The deprecated bare-`{token}`
+  substitution warning is now detected by a main-thread scan of raw
+  YAML (`src/lhp/cli/yaml_scanner.py`) before workers are spawned —
+  this fixes a silent regression where worker-side `logger.warning`
+  calls were swallowed by the workers' `NullHandler`-only logger.
+- **`EnhancedSubstitutionManager.has_deprecated_bare_tokens`.**
+  Per-instance flag flipped on the first deprecated `{token}`
+  substitution so the orchestrator can forward a single entry to the
+  `WarningCollector`. Replaces the previous module-level
+  `_DEPRECATED_BARE_TOKEN_WARNED` flag.
+- **Snapshot tests via `syrupy`.** Rich rendering for `LHPError`
+  panels, the validate summary table, and `show` flowgroup output is
+  pinned by `.ambr` snapshots under `tests/__snapshots__/`. An autouse
+  `_isolate_lhp_console` fixture in `tests/conftest.py` swaps the
+  `lhp.cli.console` singletons for a deterministic no-color Console at
+  fixed width so snapshots are stable across terminals and CI.
+
+### Changed
+
+- **`cli_error_boundary` renders via Rich Console.** Errors print
+  through `err_console.print(lhp_error)` so the new `__rich__` panel
+  takes effect on TTYs; the stringified-LHPError sniffing safety net
+  is replaced by `LHPError.from_unexpected_exception`.
+- **`error_formatter.py` reshaped around a single template dict.**
+  Plain-text (`_format_message`) and Rich (`__rich__`) renderings now
+  consume the same `_template_data()` dict so the two presentations
+  cannot drift. Category labels and Rich border styles are centralized
+  in `_category_label` / `_border_style`.
+- **`src/lhp/cli/main.py` slimmed.** Unused helpers
+  (`_ensure_project_root`, `_load_project_config`,
+  `_get_include_patterns`, `_discover_yaml_files_with_include`) and a
+  stray `warnings.filterwarnings` call were removed — the Click
+  subcommands own these concerns directly.
+
+### Removed
+
+- **Module-level `_DEPRECATED_BARE_TOKEN_WARNED` global** in
+  `lhp/utils/substitution.py` (replaced by per-instance
+  `has_deprecated_bare_tokens` + `WarningCollector`).
+- **`DOLLAR_TOKEN_SIMPLE_PATTERN`** in `EnhancedSubstitutionManager` —
+  was unused.
+
+### Dependencies
+
+- Add `rich>=13.0.0` and `rich-click>=1.9.0,<2.0` as runtime deps.
+- Add `syrupy>=4.6.0` as a dev dep for snapshot testing.
+
 ## [0.8.7] — 2026-05-21
 
 ### Breaking changes

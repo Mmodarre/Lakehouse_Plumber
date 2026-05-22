@@ -107,7 +107,7 @@ def test_two_cdc_actions_one_flowgroup_combine_into_one_file():
     )
 
     orchestrator = ActionOrchestrator(Path("."))
-    combined = orchestrator.create_combined_write_action(
+    combined = orchestrator.generator.create_combined_write_action(
         [creator, contributor], "cat.sch.dim_customer"
     )
 
@@ -162,7 +162,7 @@ def test_cdc_fanin_with_once_backfill():
     )
 
     orchestrator = ActionOrchestrator(Path("."))
-    combined = orchestrator.create_combined_write_action(
+    combined = orchestrator.generator.create_combined_write_action(
         [streaming, backfill], "cat.sch.dim_customer"
     )
     code = StreamingTableWriteGenerator().generate(combined, {"expectations": []})
@@ -194,7 +194,7 @@ def test_cdc_fanin_per_flow_params_render_correctly():
     )
 
     orchestrator = ActionOrchestrator(Path("."))
-    combined = orchestrator.create_combined_write_action(
+    combined = orchestrator.generator.create_combined_write_action(
         [creator, contributor], "cat.sch.dim_customer"
     )
     code = StreamingTableWriteGenerator().generate(combined, {"expectations": []})
@@ -224,7 +224,7 @@ def test_cdc_except_column_list_per_flow():
     )
 
     orchestrator = ActionOrchestrator(Path("."))
-    combined = orchestrator.create_combined_write_action(
+    combined = orchestrator.generator.create_combined_write_action(
         [creator, contributor], "cat.sch.dim_customer"
     )
     code = StreamingTableWriteGenerator().generate(combined, {"expectations": []})

@@ -1,14 +1,11 @@
 """Advanced feature tests for LakehousePlumber."""
 
 import tempfile
-from datetime import datetime
 from pathlib import Path
 
 import pytest
-import yaml
 
 from lhp.core.orchestrator import ActionOrchestrator
-from lhp.models.config import Action, ActionType, FlowGroup
 from tests.helpers import read_generated_pipeline
 
 
@@ -605,12 +602,10 @@ actions:
             )
 
         error_str = str(exc_info.value)
-        # Verify it contains rich error formatting
-        assert "❌ Error [LHP-CFG-004]" in error_str
+        # Identity-level assertions only; rendered LHPError shape is owned
+        # by snapshot tests in tests/test_lhperror_rendering.py.
+        assert "LHP-CFG-004" in error_str
         assert "Multiple table creators detected" in error_str
-        assert "Context:" in error_str
-        assert "How to fix:" in error_str
-        assert "Example:" in error_str
 
     def test_preset_inheritance_chain(self, project_root):
         """Test complex preset inheritance chains."""

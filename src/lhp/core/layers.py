@@ -1,49 +1,28 @@
 """Clean Architecture layer definitions for LakehousePlumber."""
 
 import logging
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
     List,
+    Literal,
     Optional,
     Sequence,
-    Set,
-    Tuple,
 )
 
 from ..utils.performance_timer import perf_timer
 
+if TYPE_CHECKING:
+    from ..cli.warning_collector import WarningCollector
+    from ..utils.error_formatter import LHPError
+
 # ============================================================================
 # DATA TRANSFER OBJECTS (DTOs) - Cross-layer communication
 # ============================================================================
-
-
-@dataclass
-class PipelineGenerationRequest:
-    """DTO for pipeline generation requests from presentation to application layer."""
-
-    pipeline_identifier: str
-    environment: str
-    include_tests: bool = False
-    specific_flowgroups: Optional[List[str]] = None
-    output_directory: Optional[Path] = None
-    dry_run: bool = False
-    no_cleanup: bool = False
-    pipeline_config_path: Optional[str] = None
-
-
-@dataclass
-class PipelineValidationRequest:
-    """DTO for pipeline validation requests."""
-
-    pipeline_identifier: str
-    environment: str
-    verbose: bool = False
-    include_tests: bool = True
 
 
 @dataclass
@@ -89,23 +68,64 @@ class BatchGenerationResponse:
         return self.success
 
 
+@dataclass(frozen=True)
+class ValidationIssue:
+    """A single validation diagnostic — error or warning.
+
+    Constructed by the validation service from LHPError instances (for
+    errors) or directly at warning-emission sites. Consumers filter by
+    severity to compute counts and render per-pipeline displays.
+
+    ``lhp_error`` carries the live exception instance when the issue
+    originates from a structured LHPError raised by a validation
+    worker. It survives the worker→main IPC boundary via the LHPError
+    ``__reduce__`` contract (preserves subclass identity, ``code``,
+    ``context``, ``suggestions``). The CLI uses it to render the rich
+    yellow ``Panel`` via :meth:`LHPError.__rich__` after the Live frame
+    exits. ``None`` for issues sourced from plain strings (legacy CDC
+    fan-in errors, discovery errors, deprecation warnings).
+    """
+
+    code: str  # e.g. "LHP-VAL-021"; "" for issues without a code
+    severity: Literal["error", "warning"]
+    title: str
+    details: str = ""
+    location: Optional[str] = None  # flowgroup name or file path
+    lhp_error: Optional["LHPError"] = None
+
+
 @dataclass
 class ValidationResponse:
-    """DTO for validation responses."""
+    """Per-pipeline validation outcome.
+
+    Issues are a flat list of :class:`ValidationIssue` records carrying
+    severity, code, title, details, and location. Convenience properties
+    expose per-severity counts; ``has_errors`` / ``has_warnings`` remain
+    available for predicate use.
+    """
 
     success: bool
-    errors: List[str]
-    warnings: List[str]
+    issues: List[ValidationIssue]
     validated_pipelines: List[str]
     error_message: Optional[str] = None
 
+    @property
+    def error_count(self) -> int:
+        """Number of error-severity issues."""
+        return sum(1 for i in self.issues if i.severity == "error")
+
+    @property
+    def warning_count(self) -> int:
+        """Number of warning-severity issues."""
+        return sum(1 for i in self.issues if i.severity == "warning")
+
     def has_errors(self) -> bool:
         """Check if validation found errors."""
-        return len(self.errors) > 0
+        return self.error_count > 0
 
     def has_warnings(self) -> bool:
         """Check if validation found warnings."""
-        return len(self.warnings) > 0
+        return self.warning_count > 0
 
 
 @dataclass
@@ -130,77 +150,11 @@ class BatchValidationResponse:
 
 
 # ============================================================================
-# LAYER INTERFACES - Define contracts between layers
-# ============================================================================
-
-
-class ApplicationLayer(ABC):
-    """Interface for the application layer - coordinates use cases."""
-
-    @abstractmethod
-    def generate_pipeline(
-        self, request: PipelineGenerationRequest
-    ) -> GenerationResponse:
-        """Coordinate pipeline generation use case."""
-        pass
-
-    @abstractmethod
-    def validate_pipeline(
-        self, request: PipelineValidationRequest
-    ) -> ValidationResponse:
-        """Coordinate pipeline validation use case."""
-        pass
-
-
-class DataLayer(ABC):
-    """Interface for the data layer - handles data access and persistence."""
-
-    @abstractmethod
-    def get_generation_state(self, env: str, pipeline: str = None) -> Dict[str, List]:
-        """Get current generation state from persistence."""
-        pass
-
-    @abstractmethod
-    def track_generated_file(self, file_path: Path, metadata: Dict[str, Any]) -> None:
-        """Track generated file in persistent state."""
-        pass
-
-    @abstractmethod
-    def cleanup_orphaned_files(
-        self,
-        env: str,
-        dry_run: bool = False,
-        active_flowgroups: Optional[Set[Tuple[str, str]]] = None,
-    ) -> List[str]:
-        """Clean up orphaned files from persistence."""
-        pass
-
-
-class PresentationLayer(ABC):
-    """Interface for the presentation layer - handles user interaction."""
-
-    @abstractmethod
-    def display_generation_results(self, response: GenerationResponse) -> None:
-        """Display generation results to user."""
-        pass
-
-    @abstractmethod
-    def display_validation_results(self, response: ValidationResponse) -> None:
-        """Display validation results to user."""
-        pass
-
-    @abstractmethod
-    def get_user_input(self, prompt: str) -> str:
-        """Get input from user."""
-        pass
-
-
-# ============================================================================
 # APPLICATION FACADE - Implements application layer interface
 # ============================================================================
 
 
-class LakehousePlumberApplicationFacade(ApplicationLayer):
+class LakehousePlumberApplicationFacade:
     """
     Application layer facade providing clean interface to business layer.
 
@@ -218,73 +172,6 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
         self.orchestrator = orchestrator
         self.logger = logging.getLogger(__name__)
 
-    def generate_pipeline(
-        self,
-        request: PipelineGenerationRequest,
-        pre_discovered_all_flowgroups=None,
-    ) -> GenerationResponse:
-        """
-        Coordinate pipeline generation use case.
-
-        Translates presentation layer request into business layer operations
-        and returns structured response for presentation layer.
-        """
-        try:
-            # Execute generation through orchestrator
-            with perf_timer(
-                f"facade.generate_pipeline [{request.pipeline_identifier}]"
-            ):
-                generated_filenames = self.orchestrator.generate_pipeline_by_field(
-                    pipeline_field=request.pipeline_identifier,
-                    env=request.environment,
-                    output_dir=(
-                        request.output_directory if not request.dry_run else None
-                    ),
-                    specific_flowgroups=request.specific_flowgroups,
-                    include_tests=request.include_tests,
-                    pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
-                )
-
-            return GenerationResponse(
-                success=True,
-                generated_filenames=generated_filenames,
-                files_written=len(generated_filenames) if not request.dry_run else 0,
-                total_flowgroups=len(generated_filenames),
-                output_location=request.output_directory,
-                performance_info={
-                    "dry_run": request.dry_run,
-                    "include_tests": request.include_tests,
-                },
-            )
-
-        except Exception as e:
-            # Log brief context without full error details (avoids duplication)
-            from ..utils.error_formatter import LHPError
-
-            if isinstance(e, LHPError):
-                # LHPError already has formatted details, just log context
-                self.logger.debug(
-                    f"Pipeline generation failed for {request.pipeline_identifier}"
-                )
-            else:
-                # Regular exception - log full details
-                self.logger.error(f"Pipeline generation failed: {e}")
-
-            # Build the failure response so the CLI can still print a per-pipeline
-            # status line, but attach the original exception so the CLI can
-            # re-raise at the fail-fast boundary (where cli_error_boundary takes
-            # over formatting and exit-code mapping).
-            return GenerationResponse(
-                success=False,
-                generated_filenames=(),
-                files_written=0,
-                total_flowgroups=0,
-                output_location=None,
-                performance_info={},
-                error_message=str(e),
-                original_error=e,
-            )
-
     def generate_pipelines(
         self,
         *,
@@ -298,6 +185,7 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
         on_pipeline_complete: Optional[
             Callable[[str, "GenerationResponse"], None]
         ] = None,
+        warning_collector: Optional["WarningCollector"] = None,
     ) -> "BatchGenerationResponse":
         """Coordinate batch (multi-pipeline) generation through the per-pipeline pool.
 
@@ -337,7 +225,7 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
         pipeline_responses: Dict[str, "GenerationResponse"] = {}
 
         def _on_delta(delta: "PipelineDelta") -> None:
-            from ..utils.error_formatter import LHPError
+            from ..utils.error_formatter import lhp_error_from_worker_failure
 
             original_error: Optional[BaseException] = None
             error_message: Optional[str] = None
@@ -347,12 +235,28 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
                     if delta.error_type
                     else delta.error_message
                 )
-                original_error = LHPError.from_worker_exception(
-                    pipeline_name=delta.pipeline_name,
-                    error_type=delta.error_type or "UnknownError",
-                    error_message=delta.error_message or "(no message)",
-                    error_traceback=delta.error_traceback or "",
-                )
+                if delta.lhp_error is not None:
+                    # Worker raised LHPError — surface the live instance unchanged.
+                    original_error = delta.lhp_error
+                else:
+                    # Non-LHP exception — dispatch through
+                    # ``lhp_error_from_worker_failure`` so the synthesized
+                    # error preserves dual-inheritance subclass identity
+                    # for stdlib types: ``ValueError`` →
+                    # ``LHPValidationError``, ``FileNotFoundError`` →
+                    # ``LHPFileError``, etc. This keeps the
+                    # ``response.original_error`` shape consistent with the
+                    # orchestrator's terminal raise path (orchestrator.py:918),
+                    # so callers' ``except ValueError:`` / ``except
+                    # FileNotFoundError:`` handlers still catch worker
+                    # failures the same way they catch them when generation
+                    # runs in the main thread.
+                    original_error = lhp_error_from_worker_failure(
+                        pipeline_name=delta.pipeline_name,
+                        error_type=delta.error_type or "UnknownError",
+                        error_message=delta.error_message or "(no message)",
+                        error_traceback=delta.error_traceback or "",
+                    )
 
             response = GenerationResponse(
                 success=delta.success,
@@ -362,8 +266,6 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
                 output_location=output_dir,
                 performance_info={
                     "dry_run": output_dir is None,
-                    "include_tests": include_tests,
-                    "artifacts_count": delta.artifacts_count,
                 },
                 error_message=error_message,
                 original_error=original_error,
@@ -372,7 +274,7 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
             if on_pipeline_complete is not None:
                 try:
                     on_pipeline_complete(delta.pipeline_name, response)
-                except BaseException as cb_exc:
+                except Exception as cb_exc:
                     self.logger.warning(
                         f"on_pipeline_complete callback raised "
                         f"for {delta.pipeline_name}: {cb_exc}"
@@ -389,6 +291,7 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
                     pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
                     max_workers=max_workers,
                     on_pipeline_complete=_on_delta,
+                    warning_collector=warning_collector,
                 )
 
             aggregate: tuple[str, ...] = ()
@@ -444,6 +347,7 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
         ] = None,
         include_tests: bool = True,
         pre_discovered_all_flowgroups=None,
+        warning_collector: Optional["WarningCollector"] = None,
     ) -> "BatchValidationResponse":
         """Coordinate batch (multi-pipeline) validation through the flat-pool engine.
 
@@ -483,17 +387,53 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
         pipeline_responses: Dict[str, "ValidationResponse"] = {}
 
         def _on_outcome(outcome: "PipelineValidationOutcome") -> None:
+            # Structured LHPError instances → render via __rich__ as
+            # yellow Panels at the validate CLI; plain-string errors
+            # continue to surface as flat rows. ``outcome.lhp_errors``
+            # and ``outcome.errors`` are NOT alternatives — they can
+            # coexist within a single outcome when an LHPError-raising
+            # flowgroup sits in the same pipeline as a string-only
+            # discovery or CDC failure.
+            issues: List[ValidationIssue] = []
+            for lhp_err in outcome.lhp_errors:
+                issues.append(
+                    ValidationIssue(
+                        code=lhp_err.code,
+                        severity="error",
+                        title=lhp_err.title,
+                        details=lhp_err.details,
+                        location=outcome.pipeline,
+                        lhp_error=lhp_err,
+                    )
+                )
+            for err in outcome.errors:
+                issues.append(
+                    ValidationIssue(
+                        code="",
+                        severity="error",
+                        title=err,
+                        location=outcome.pipeline,
+                    )
+                )
+            for warn in outcome.warnings:
+                issues.append(
+                    ValidationIssue(
+                        code="",
+                        severity="warning",
+                        title=warn,
+                        location=outcome.pipeline,
+                    )
+                )
             response = ValidationResponse(
                 success=outcome.success,
-                errors=list(outcome.errors),
-                warnings=list(outcome.warnings),
+                issues=issues,
                 validated_pipelines=[outcome.pipeline],
             )
             pipeline_responses[outcome.pipeline] = response
             if on_pipeline_complete is not None:
                 try:
                     on_pipeline_complete(outcome.pipeline, response)
-                except BaseException as cb_exc:
+                except Exception as cb_exc:
                     # The orchestrator already logs callback exceptions; we
                     # add a facade-level safety net so a buggy CLI display
                     # never tears down the batch.
@@ -511,10 +451,11 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
                     pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
                     max_workers=max_workers,
                     on_pipeline_complete=_on_outcome,
+                    warning_collector=warning_collector,
                 )
 
-            total_errors = sum(len(r.errors) for r in pipeline_responses.values())
-            total_warnings = sum(len(r.warnings) for r in pipeline_responses.values())
+            total_errors = sum(r.error_count for r in pipeline_responses.values())
+            total_warnings = sum(r.warning_count for r in pipeline_responses.values())
 
             return BatchValidationResponse(
                 success=total_errors == 0,
@@ -537,8 +478,8 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
             else:
                 self.logger.error(f"Batch pipeline validation failed: {exc}")
 
-            total_errors = sum(len(r.errors) for r in pipeline_responses.values())
-            total_warnings = sum(len(r.warnings) for r in pipeline_responses.values())
+            total_errors = sum(r.error_count for r in pipeline_responses.values())
+            total_warnings = sum(r.warning_count for r in pipeline_responses.values())
 
             return BatchValidationResponse(
                 success=False,
@@ -548,32 +489,4 @@ class LakehousePlumberApplicationFacade(ApplicationLayer):
                 validated_pipelines=list(pipeline_fields),
                 error_message=str(exc),
                 original_error=exc,
-            )
-
-    def validate_pipeline(
-        self, request: PipelineValidationRequest
-    ) -> ValidationResponse:
-        """Coordinate pipeline validation use case."""
-        try:
-            errors, warnings = self.orchestrator.validate_pipeline_by_field(
-                pipeline_field=request.pipeline_identifier,
-                env=request.environment,
-                include_tests=request.include_tests,
-            )
-
-            return ValidationResponse(
-                success=len(errors) == 0,
-                errors=errors,
-                warnings=warnings,
-                validated_pipelines=[request.pipeline_identifier],
-            )
-
-        except Exception as e:
-            self.logger.error(f"Pipeline validation failed: {e}")
-            return ValidationResponse(
-                success=False,
-                errors=[str(e)],
-                warnings=[],
-                validated_pipelines=[],
-                error_message=str(e),
             )

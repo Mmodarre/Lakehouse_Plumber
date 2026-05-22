@@ -4,13 +4,12 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import List, Optional
+from typing import Iterator, List, Optional, Tuple
 
 import click
 import yaml
 
 from ...core.orchestrator import ActionOrchestrator
-from ...models.config import ActionType
 from ...parsers.yaml_parser import YAMLParser
 from ...utils.substitution import EnhancedSubstitutionManager
 from .base_command import BaseCommand
@@ -26,6 +25,50 @@ class ShowCommand(BaseCommand):
     and resolved configurations with substitutions applied.
     """
 
+    def execute(
+        self,
+        flowgroup: Optional[str],
+        env: str,
+        instance_path: Optional[str],
+    ) -> None:
+        """Dispatch ``lhp show`` to either flowgroup or instance handling.
+
+        Validates the (flowgroup, --instance) argument combination here so
+        that ``main.py`` stays a thin wiring layer; both error paths raise
+        ``LHPError`` codes 057 (mutually exclusive) and 058 (missing).
+        """
+        from ...utils.error_formatter import ErrorCategory, LHPError
+
+        if instance_path:
+            if flowgroup:
+                raise LHPError(
+                    category=ErrorCategory.CONFIG,
+                    code_number="057",
+                    title="Cannot pass both flowgroup and --instance",
+                    details=(
+                        "Use either FLOWGROUP positional argument OR --instance "
+                        "<path>, not both."
+                    ),
+                    suggestions=[
+                        "Drop the FLOWGROUP positional argument when using --instance",
+                    ],
+                )
+            self.show_instance(instance_path, env)
+            return
+
+        if not flowgroup:
+            raise LHPError(
+                category=ErrorCategory.CONFIG,
+                code_number="058",
+                title="Missing flowgroup argument",
+                details="Provide a flowgroup name OR --instance <path>.",
+                suggestions=[
+                    "Run `lhp show <flowgroup>` to inspect a flowgroup",
+                    "Run `lhp show --instance <path>` to inspect a blueprint instance",
+                ],
+            )
+        self.show_flowgroup(flowgroup, env)
+
     def show_flowgroup(self, flowgroup: str, env: str = "dev") -> None:
         """
         Show resolved configuration for a specific flowgroup.
@@ -38,10 +81,6 @@ class ShowCommand(BaseCommand):
         project_root = self.ensure_project_root()
 
         logger.debug(f"Show flowgroup request: flowgroup={flowgroup}, env={env}")
-
-        click.echo(
-            f"🔍 Showing resolved configuration for '{flowgroup}' in environment '{env}'"
-        )
 
         # Find the flowgroup file
         logger.debug(f"Searching for flowgroup file: {flowgroup}")
@@ -75,18 +114,8 @@ class ShowCommand(BaseCommand):
         substitution_mgr = self._load_substitution_manager(project_root, env)
         processed_fg = self._process_flowgroup(fg, substitution_mgr, project_root)
 
-        # Display flowgroup information
-        self._display_flowgroup_configuration(
-            processed_fg, flowgroup_file, project_root, env
-        )
-
-        # Display actions in detail
-        self._display_actions_table(processed_fg)
-        self._display_action_details(processed_fg)
-
-        # Show secret references and substitution summary
-        self._display_secret_references(substitution_mgr)
-        self._display_substitution_summary(substitution_mgr)
+        # Render resolved flowgroup as YAML in a syntax-highlighted panel.
+        self._display_flowgroup_configuration(processed_fg, env)
 
     def show_instance(self, instance_path_str: str, env: str = "dev") -> None:
         """Show resolved configuration for the flowgroups produced by an instance.
@@ -126,7 +155,7 @@ class ShowCommand(BaseCommand):
             )
 
         click.echo(
-            f"🔍 Resolving instance '{instance_path.name}' " f"in environment '{env}'"
+            f"🔍 Resolving instance '{instance_path.name}' in environment '{env}'"
         )
 
         project_config = ProjectConfigLoader(project_root).load_project_config()
@@ -172,9 +201,7 @@ class ShowCommand(BaseCommand):
             click.echo(f"Pipeline: {fg.pipeline}    Flowgroup: {fg.flowgroup}")
             click.echo("=" * 70)
             processed = self._process_flowgroup(fg, substitution_mgr, project_root)
-            self._display_flowgroup_configuration(
-                processed, instance_path, project_root, env
-            )
+            self._display_flowgroup_configuration(processed, env)
             self._display_actions_table(processed)
 
         self._display_secret_references(substitution_mgr)
@@ -189,8 +216,8 @@ class ShowCommand(BaseCommand):
         click.echo("=" * 60)
 
         # Load and display project configuration
-        config = self._load_project_config(project_root)
-        self._display_project_basic_info(config, project_root)
+        project_config = self._load_project_config(project_root)
+        self._display_project_basic_info(project_config, project_root)
 
         # Display resource summary
         resource_summary = self._collect_resource_summary(project_root)
@@ -202,6 +229,50 @@ class ShowCommand(BaseCommand):
         # Display recent activity
         self._display_recent_activity(project_root)
 
+    def _iter_yaml_flowgroups(self, project_root: Path) -> Iterator[Tuple[Path, str]]:
+        """Yield ``(yaml_file, flowgroup_name)`` pairs for every flowgroup
+        declared under ``pipelines/``.
+
+        Walks the include-pattern-filtered YAML files, parses each as a
+        multi-document YAML stream, and emits both:
+
+        - regular single-document files with a top-level ``flowgroup`` field
+        - array syntax (a ``flowgroups`` list per document)
+
+        YAML parse errors and file read errors are tolerated (logged at
+        DEBUG and skipped) so callers see a best-effort view of the project.
+        """
+        pipelines_dir = project_root / "pipelines"
+        if not pipelines_dir.exists():
+            return
+
+        include_patterns = self._get_include_patterns(project_root)
+        yaml_files = self._discover_yaml_files_with_include(
+            pipelines_dir, include_patterns
+        )
+
+        for yaml_file in yaml_files:
+            try:
+                with open(yaml_file, "r", encoding="utf-8") as f:
+                    documents = list(yaml.safe_load_all(f))
+            except (yaml.YAMLError, OSError) as e:
+                logger.debug(f"Could not parse {yaml_file}: {e}")
+                continue
+
+            for doc in documents:
+                if doc is None:
+                    continue
+
+                fg_name = doc.get("flowgroup")
+                if fg_name:
+                    yield yaml_file, fg_name
+
+                if "flowgroups" in doc:
+                    for fg_config in doc["flowgroups"]:
+                        nested_name = fg_config.get("flowgroup")
+                        if nested_name:
+                            yield yaml_file, nested_name
+
     def _find_flowgroup_file(
         self, flowgroup: str, project_root: Path
     ) -> Optional[Path]:
@@ -209,102 +280,14 @@ class ShowCommand(BaseCommand):
 
         Supports multi-document (---) and flowgroups array syntax.
         """
-        pipelines_dir = project_root / "pipelines"
-
-        # Get include patterns and discover files
-        include_patterns = self._get_include_patterns(project_root)
-        yaml_files = self._discover_yaml_files_with_include(
-            pipelines_dir, include_patterns
-        )
-
-        for yaml_file in yaml_files:
-            try:
-                with open(yaml_file, "r", encoding="utf-8") as f:
-                    # Load all documents to support multi-document files
-                    documents = list(yaml.safe_load_all(f))
-
-                # Check each document
-                for doc in documents:
-                    if doc is None:
-                        continue
-
-                    # Check regular syntax (flowgroup field at document level)
-                    if doc.get("flowgroup") == flowgroup:
-                        return yaml_file
-
-                    # Check array syntax (flowgroups list)
-                    if "flowgroups" in doc:
-                        for fg_config in doc["flowgroups"]:
-                            if fg_config.get("flowgroup") == flowgroup:
-                                return yaml_file
-            except Exception as e:
-                logger.debug(f"Could not parse {yaml_file}: {e}")
-                continue
-
+        for yaml_file, fg_name in self._iter_yaml_flowgroups(project_root):
+            if fg_name == flowgroup:
+                return yaml_file
         return None
 
     def _collect_available_flowgroups(self, project_root: Path) -> List[str]:
         """Collect available flowgroup names from the project."""
-        pipelines_dir = project_root / "pipelines"
-        if not pipelines_dir.exists():
-            return []
-
-        available = []
-        include_patterns = self._get_include_patterns(project_root)
-        yaml_files = self._discover_yaml_files_with_include(
-            pipelines_dir, include_patterns
-        )
-
-        for yaml_file in yaml_files:
-            try:
-                with open(yaml_file, "r", encoding="utf-8") as f:
-                    documents = list(yaml.safe_load_all(f))
-                for doc in documents:
-                    if doc is None:
-                        continue
-                    fg_name = doc.get("flowgroup")
-                    if fg_name:
-                        available.append(fg_name)
-                    if "flowgroups" in doc:
-                        for fg_config in doc["flowgroups"]:
-                            fg_name = fg_config.get("flowgroup")
-                            if fg_name:
-                                available.append(fg_name)
-            except Exception:
-                continue
-
-        return available
-
-    def _get_include_patterns(self, project_root: Path) -> list[str]:
-        """Get include patterns from project configuration."""
-        try:
-            from ...core.project_config_loader import ProjectConfigLoader
-
-            config_loader = ProjectConfigLoader(project_root)
-            project_config = config_loader.load_project_config()
-
-            if project_config and project_config.include:
-                return project_config.include
-            return []
-        except Exception as e:
-            self.logger.warning(
-                f"Could not load project config for include patterns: {e}"
-            )
-            return []
-
-    def _discover_yaml_files_with_include(
-        self, pipelines_dir: Path, include_patterns: list[str]
-    ) -> list[Path]:
-        """Discover YAML files with include pattern filtering."""
-        if include_patterns:
-            from ...utils.file_pattern_matcher import discover_files_with_patterns
-
-            return discover_files_with_patterns(pipelines_dir, include_patterns)
-        else:
-            yaml_files = []
-            yaml_files.extend(pipelines_dir.rglob("*.yaml"))
-            yaml_files.extend(pipelines_dir.rglob("*.yml"))
-            return yaml_files
+        return [fg_name for _, fg_name in self._iter_yaml_flowgroups(project_root)]
 
     def _parse_flowgroup(self, flowgroup_file: Path):
         """Parse flowgroup file."""
@@ -315,7 +298,7 @@ class ShowCommand(BaseCommand):
         """Load substitution manager for environment."""
         substitution_file = project_root / "substitutions" / f"{env}.yaml"
         if not substitution_file.exists():
-            click.echo(f"⚠️  Warning: Substitution file not found: {substitution_file}")
+            click.echo(f"⚠ Warning: Substitution file not found: {substitution_file}")
             return EnhancedSubstitutionManager(env=env)
         else:
             return EnhancedSubstitutionManager(substitution_file, env)
@@ -325,22 +308,45 @@ class ShowCommand(BaseCommand):
         orchestrator = ActionOrchestrator(project_root, enforce_version=False)
         return orchestrator.process_flowgroup(fg, substitution_mgr)
 
-    def _display_flowgroup_configuration(
-        self, processed_fg, flowgroup_file: Path, project_root: Path, env: str
-    ) -> None:
-        """Display basic flowgroup configuration information."""
-        click.echo("\n📋 FlowGroup Configuration")
-        click.echo("─" * 60)
-        click.echo(f"Pipeline:    {processed_fg.pipeline}")
-        click.echo(f"FlowGroup:   {processed_fg.flowgroup}")
-        click.echo(f"Location:    {flowgroup_file.relative_to(project_root)}")
-        click.echo(f"Environment: {env}")
+    def _display_flowgroup_configuration(self, processed_fg, env: str) -> None:
+        """Render the resolved flowgroup as syntax-highlighted YAML inside a Panel.
 
-        if processed_fg.presets:
-            click.echo(f"Presets:     {', '.join(processed_fg.presets)}")
+        The flowgroup is dumped with Pydantic ``model_dump(mode="json")`` so
+        enum values (e.g. ``ActionType``) serialize as primitive strings that
+        ``yaml.safe_dump`` can handle. The result is wrapped in a Rich
+        ``Syntax`` (YAML, monokai theme, line numbers) and a ``Panel`` whose
+        title identifies the pipeline, flowgroup and environment.
+        """
+        from rich.panel import Panel
+        from rich.syntax import Syntax
 
-        if processed_fg.use_template:
-            click.echo(f"Template:    {processed_fg.use_template}")
+        from .. import console as _console_module
+
+        if hasattr(processed_fg, "model_dump"):
+            data = processed_fg.model_dump(mode="json", exclude_none=True)
+        elif hasattr(processed_fg, "dict"):
+            # Pydantic v1 fallback.
+            data = processed_fg.dict(exclude_none=True)
+        else:
+            data = dict(processed_fg)
+
+        yaml_text = yaml.safe_dump(
+            data,
+            default_flow_style=False,
+            sort_keys=False,
+            indent=2,
+        )
+        syntax = Syntax(
+            yaml_text,
+            "yaml",
+            theme="monokai",
+            line_numbers=True,
+            word_wrap=False,
+        )
+        title = f"{processed_fg.pipeline}.{processed_fg.flowgroup}   env: {env}"
+        _console_module.console.print(
+            Panel(syntax, title=title, title_align="left", border_style="dim")
+        )
 
     def _display_actions_table(self, processed_fg) -> None:
         """Display actions in table format."""
@@ -382,41 +388,6 @@ class ShowCommand(BaseCommand):
 
         click.echo("─" * 80)
 
-    def _display_action_details(self, processed_fg) -> None:
-        """Display detailed action information."""
-        click.echo("\n📝 Action Details:")
-        for i, action in enumerate(processed_fg.actions):
-            click.echo(f"\n{i+1}. {action.name} ({action.type.value})")
-
-            # Show source configuration
-            if action.source:
-                click.echo("   Source:")
-                if isinstance(action.source, str):
-                    click.echo(f"      {action.source}")
-                elif isinstance(action.source, list):
-                    for src in action.source:
-                        click.echo(f"      • {src}")
-                elif isinstance(action.source, dict):
-                    for key, value in action.source.items():
-                        # Show values, keeping secret placeholders
-                        if isinstance(value, str) and "${secret:" in value:
-                            click.echo(f"      {key}: {value}")
-                        else:
-                            click.echo(f"      {key}: {value}")
-
-            # Show additional properties
-            if action.type == ActionType.TRANSFORM and action.transform_type:
-                click.echo(f"   Transform Type: {action.transform_type}")
-
-            if hasattr(action, "sql") and action.sql:
-                sql_preview = (
-                    action.sql[:100] + "..." if len(action.sql) > 100 else action.sql
-                )
-                click.echo(f"   SQL: {sql_preview}")
-
-            if hasattr(action, "sql_path") and action.sql_path:
-                click.echo(f"   SQL Path: {action.sql_path}")
-
     def _display_secret_references(self, substitution_mgr) -> None:
         """Display secret references found in configuration."""
         secret_refs = substitution_mgr.secret_references
@@ -438,30 +409,36 @@ class ShowCommand(BaseCommand):
                 display_value = str(value)
                 if len(display_value) > 40:
                     display_value = display_value[:37] + "..."
-                click.echo(f"   {{{token}}} → {display_value}")
+                click.echo(f"   ${{{token}}} → {display_value}")
 
             if len(substitution_mgr.mappings) > 10:
                 click.echo(f"   ... and {len(substitution_mgr.mappings) - 10} more")
 
-    def _load_project_config(self, project_root: Path) -> dict:
-        """Load project configuration from lhp.yaml."""
-        config_file = project_root / "lhp.yaml"
-        if not config_file.exists():
-            return {}
+    def _load_project_config(self, project_root: Path):
+        """Load project configuration via the canonical ProjectConfigLoader.
 
+        Returns the ``ProjectConfig`` Pydantic model (or ``None`` if the file
+        is missing or fails to load — matching the previous best-effort
+        behaviour of ``lhp info``).
+        """
         try:
-            with open(config_file, "r") as f:
-                return yaml.safe_load(f) or {}
+            from ...core.project_config_loader import ProjectConfigLoader
+
+            return ProjectConfigLoader(project_root).load_project_config()
         except Exception as e:
             self.logger.warning(f"Could not load project config: {e}")
-            return {}
+            return None
 
-    def _display_project_basic_info(self, config: dict, project_root: Path) -> None:
+    def _display_project_basic_info(self, project_config, project_root: Path) -> None:
         """Display basic project information."""
-        click.echo(f"Name:        {config.get('name', 'Unknown')}")
-        click.echo(f"Version:     {config.get('version', 'Unknown')}")
-        click.echo(f"Description: {config.get('description', 'No description')}")
-        click.echo(f"Author:      {config.get('author', 'Unknown')}")
+        name = getattr(project_config, "name", None) or "Unknown"
+        version = getattr(project_config, "version", None) or "Unknown"
+        description = getattr(project_config, "description", None) or "No description"
+        author = getattr(project_config, "author", None) or "Unknown"
+        click.echo(f"Name:        {name}")
+        click.echo(f"Version:     {version}")
+        click.echo(f"Description: {description}")
+        click.echo(f"Author:      {author}")
         click.echo(f"Location:    {project_root}")
 
     def _collect_resource_summary(self, project_root: Path) -> dict:
@@ -596,7 +573,7 @@ class ShowCommand(BaseCommand):
         if simple_tokens:
             click.echo("\n✨ Simple Tokens:")
             for key, value in sorted(simple_tokens.items()):
-                click.echo(f'  {{<KEY>}}: "{value}"'.replace("<KEY>", key))
+                click.echo(f'  ${{<KEY>}}: "{value}"'.replace("<KEY>", key))
 
         # Display maps (with tree structure)
         if maps:
@@ -609,7 +586,7 @@ class ShowCommand(BaseCommand):
         if reserved:
             click.echo("\n🔒 Reserved Tokens:")
             for key, value in sorted(reserved.items()):
-                click.echo(f'  {{<KEY>}}: "{value}"'.replace("<KEY>", key))
+                click.echo(f'  ${{<KEY>}}: "{value}"'.replace("<KEY>", key))
 
         click.echo("")
 

@@ -134,3 +134,43 @@ class BaseCommand:
             click.echo(f"{message}")
             if "Detailed logs:" not in message:
                 click.echo(f"Detailed logs: {self.log_file}")
+
+    def _get_include_patterns(self, project_root: Path) -> list:
+        """Get include patterns from project configuration.
+
+        Returns the list of YAML include patterns declared in ``lhp.yaml``.
+        Returns an empty list when no project config is present, no
+        ``include`` field is set, or loading fails (logged as a warning).
+        """
+        try:
+            from ...core.project_config_loader import ProjectConfigLoader
+
+            config_loader = ProjectConfigLoader(project_root)
+            project_config = config_loader.load_project_config()
+
+            if project_config and project_config.include:
+                return project_config.include
+            return []
+        except Exception as e:
+            self.logger.warning(
+                f"Could not load project config for include patterns: {e}"
+            )
+            return []
+
+    def _discover_yaml_files_with_include(
+        self, search_dir: Path, include_patterns: list
+    ) -> list:
+        """Discover YAML files under ``search_dir`` with include filtering.
+
+        When ``include_patterns`` is non-empty, defers to
+        ``discover_files_with_patterns``. Otherwise returns all ``*.yaml``
+        and ``*.yml`` files via ``rglob``.
+        """
+        if include_patterns:
+            from ...utils.file_pattern_matcher import discover_files_with_patterns
+
+            return discover_files_with_patterns(search_dir, include_patterns)
+        yaml_files = []
+        yaml_files.extend(search_dir.rglob("*.yaml"))
+        yaml_files.extend(search_dir.rglob("*.yml"))
+        return yaml_files
