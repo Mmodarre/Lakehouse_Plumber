@@ -10,9 +10,23 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from rich.console import Console
 
-import lhp.cli.console as _lhp_console_module
+# Rich and the LHP console module are imported defensively so the
+# ``packaging-check`` CI job — which installs neither the project nor
+# rich into its venv — can still collect ``tests/test_packaging.py``.
+# Tests that actually exercise rich rendering live elsewhere and run
+# under the unit-test job, which installs ``lhp[dev]`` and therefore
+# has both rich and syrupy available.
+try:
+    from rich.console import Console
+
+    import lhp.cli.console as _lhp_console_module
+
+    _RICH_AVAILABLE = True
+except ImportError:
+    Console = None  # type: ignore[assignment,misc]
+    _lhp_console_module = None  # type: ignore[assignment]
+    _RICH_AVAILABLE = False
 
 
 @contextlib.contextmanager
@@ -47,7 +61,14 @@ def _isolate_lhp_console(monkeypatch):
     Replaces the module-level ``console`` and ``err_console`` singletons with
     Consoles that emit plain text at a fixed wide width so assertions are not
     perturbed by terminal width, ANSI codes, or TTY detection.
+
+    No-ops when rich (and therefore ``lhp.cli.console``) is not importable —
+    needed so the ``packaging-check`` CI job, which runs against a minimal
+    venv, can still collect ``tests/test_packaging.py``.
     """
+    if not _RICH_AVAILABLE:
+        yield
+        return
     monkeypatch.setattr(
         _lhp_console_module,
         "console",
