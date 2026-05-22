@@ -63,6 +63,16 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'README.md', 'DOCS_REORG
 html_theme = 'furo'
 html_static_path = ['_static']
 
+# -- Analytics: GoatCounter (privacy-respecting, no cookies, free for OSS) ---
+# Register the slug at https://www.goatcounter.com/signup before this collects data.
+html_js_files = [
+    (
+        "https://gc.zgo.at/count.js",
+        {"data-goatcounter": "https://lakehouse-plumber.goatcounter.com/count",
+         "async": "async"},
+    ),
+]
+
 # -- SEO: Page title ----------------------------------------------------------
 html_title = "Lakehouse Plumber"
 
