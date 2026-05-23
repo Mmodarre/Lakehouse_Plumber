@@ -19,12 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class ValidateCommand(BaseCommand):
-    """
-    Handles pipeline configuration validation command.
-
-    Validates YAML pipeline configurations for syntax, structure,
-    and business logic rules across specified environments.
-    """
+    """Pipeline configuration validation."""
 
     def execute(
         self,
@@ -36,46 +31,34 @@ class ValidateCommand(BaseCommand):
         max_workers: Optional[int] = None,
         show_all: bool = False,
     ) -> None:
-        """
-        Execute the validate command.
+        """Run the validate command.
 
-        Mirrors the generate command's Live-status-panel orchestration:
-        outer ``rich_handler_attached`` scope → inner ``Live`` frame →
+        Mirrors the generate command's Live-panel orchestration: outer
+        ``rich_handler_attached`` scope → inner ``Live`` frame →
         completion callback mutates ``records`` (no inline ``print``) →
         post-Live summary table + per-failure ``LHPError`` panels →
         end-of-run warning panel. The symmetric teardown ensures any
         final ``SystemExit`` propagates through clean stderr with no
-        Rich machinery attached, which is what ``cli_error_boundary``
-        relies on for non-glued Panel borders.
+        Rich machinery attached.
 
-        Args:
-            env: Environment to validate against
-            pipeline: Specific pipeline to validate (optional)
-            verbose: Enable verbose output
-            include_tests: Include test reporting validation
-            max_workers: Maximum worker processes for the cross-pipeline
-                flat pool used by Phase A validation. ``None`` defers to
-                the orchestrator constructor's resolution order
-                (``LHP_MAX_WORKERS`` env var → :func:`_auto_max_workers`).
-                The raw user value (possibly ``None``) is forwarded
-                through the application facade so the resolution rule
-                lives in one place.
-            show_all: When True, the post-run summary table includes
-                every pipeline. Default False — only failed pipelines
-                are shown, and on a full-success run the table is
-                suppressed in favor of a single-line footer.
+        ``max_workers=None`` defers to the orchestrator constructor's
+        resolution order (``LHP_MAX_WORKERS`` env var →
+        :func:`_auto_max_workers`). ``show_all=False`` (default)
+        suppresses the summary table on a full-success run.
         """
         from time import perf_counter
 
-        from rich.console import Group
         from rich.live import Live
         from rich.text import Text
 
         from .. import console as _console_module
         from ..live_panel import (
+            ActivityTail,
+            HeaderContext,
+            OverallProgress,
+            PhaseTracker,
             PipelineRecord,
-            append_phase_marker_line,
-            render_status_group,
+            render_live_frame,
             rich_handler_attached,
         )
         from ..validate_summary import print_validate_summary_table
@@ -88,7 +71,6 @@ class ValidateCommand(BaseCommand):
         # yellow-bordered Rich Panel after the Live frame exits.
         warning_collector = WarningCollector()
 
-        # Override verbose setting if provided directly
         if verbose:
             self.verbose = verbose
 
@@ -104,17 +86,25 @@ class ValidateCommand(BaseCommand):
         # discover_all_flowgroups later, just less cleanly.
         self._validate_blueprints_and_instances(project_root)
 
-        # Check if substitution file exists
         self.check_substitution_file(env)
 
-        # Initialize orchestrator
         orchestrator = ActionOrchestrator(project_root, max_workers=max_workers)
 
-        # State for the Live status panel.
         records: Dict[str, PipelineRecord] = {}
-        phase_lines: List[Text] = []
         failure_lines: List[Text] = []
         run_start = perf_counter()
+        phase_tracker = PhaseTracker()
+        activity_tail = ActivityTail(max_entries=5)
+        overall_progress = OverallProgress(
+            "Validating pipelines", total=0, console=_console_module.console
+        )
+        header_ctx = HeaderContext(
+            command_name="validate",
+            env=env,
+            total_pipelines=0,
+        )
+        # TODO(ui-consolidation): this Live-frame closure duplicates ~80% of
+        # generate_command.py. Consolidate into a shared LiveFrameRunner.
 
         # Populated inside the Live frame; referenced by the post-Live
         # rendering path so they must be defined here. ``with`` does NOT
@@ -124,147 +114,185 @@ class ValidateCommand(BaseCommand):
         tr_errors: List[str] = []
         pipelines_to_validate: List[str] = []
         all_flowgroups: list = []
-
-        def _maybe_phase_line(
-            label: str,
-            duration_s: float,
-            *,
-            force: bool = False,
-            success: bool = True,
-        ) -> None:
-            append_phase_marker_line(
-                phase_lines,
-                label,
-                duration_s,
-                force=force,
-                success=success,
-            )
+        # Set inside the Live frame when ``_determine_pipelines_to_validate``
+        # returns an empty pipeline list (edge case where flowgroups exist
+        # but resolve to zero pipeline names). The post-Live block and the
+        # final SystemExit are then skipped — the warning is emitted and
+        # the command returns cleanly with exit code 0. This intentionally
+        # diverges from ``lhp generate``, which raises ``LHPConfigError-014``
+        # in the analogous situation; for validate the user-facing contract
+        # is "warn, don't fail".
+        empty_no_op = False
 
         def _elapsed() -> str:
             s = int(perf_counter() - run_start)
             return f"{s // 60:02d}:{s % 60:02d}"
 
-        def _render() -> Group:
-            return render_status_group(
-                records,
-                phase_lines,
+        def _render():
+            failed_count = sum(1 for r in records.values() if r.success is False)
+            return render_live_frame(
+                phase_tracker,
+                overall_progress,
+                activity_tail,
                 failure_lines,
+                header_context=header_ctx,
                 elapsed_text=_elapsed(),
-                in_flight_verb="Validating",
+                show_progress=phase_tracker.active == "Validation",
+                failed_count=failed_count,
+                console_width=_console_module.console.width,
             )
 
         with rich_handler_attached(_console_module.err_console):
-            with Live(
-                _render(),
-                console=_console_module.console,
-                refresh_per_second=10,
-                redirect_stdout=True,
-                redirect_stderr=True,
-            ) as live:
-                # === Discovery ===
-                disc_start = perf_counter()
-                pipelines_to_validate, all_flowgroups = (
-                    self._determine_pipelines_to_validate(pipeline, orchestrator)
-                )
-                _maybe_phase_line(
-                    f"Discovering ({len(all_flowgroups)} flowgroups)",
-                    perf_counter() - disc_start,
-                )
-                live.update(_render())
-
-                # Pre-pool deprecation scan: workers are silenced
-                # (NullHandler only) so the in-worker SubstitutionManager
-                # warning cannot reach the user. Resolve each discovered
-                # flowgroup's source YAML on the main thread and record
-                # the warning on ``warning_collector``; the panel renders
-                # after Live exits.
-                emit_deprecation_warning_if_needed(
-                    warning_collector,
-                    (
-                        orchestrator._find_source_yaml_for_flowgroup(fg)
-                        for fg in all_flowgroups
-                    ),
-                )
-
-                # Seed records up front so the spinner shows
-                # ``0 of N pipelines done`` immediately.
-                for pipeline_name in pipelines_to_validate:
-                    records[pipeline_name] = PipelineRecord(pipeline_name)
-                live.update(_render())
-
-                # === Validation ===
-                # Main-thread per-pipeline callback fired by the facade in
-                # completion order. Mutates record state ONLY — no direct
-                # output — so the Live panel paints the change on the next
-                # ``live.update``. Failure rendering is deferred to the
-                # post-Live phase.
-                def _on_complete(
-                    pipeline_name: str, response: "ValidationResponse"
-                ) -> None:
-                    rec = records[pipeline_name]
-                    rec.success = bool(response.success)
-                    rec.errors_count = response.error_count
-                    rec.warnings_count = response.warning_count
-                    if not response.success:
-                        # Surface the first LHPError code on the inline
-                        # failure line; falls back to ``—`` for plain
-                        # string-only failures.
-                        first_lhp = next(
-                            (
-                                i.lhp_error
-                                for i in response.issues
-                                if i.lhp_error is not None
-                            ),
-                            None,
-                        )
-                        rec.error_code = first_lhp.code if first_lhp else None
-                        failure_lines.append(
-                            Text.assemble(
-                                ("  ", "default"),
-                                ("✗ ", "bold red"),
-                                (pipeline_name, "default"),
-                                (" failed  ", "default"),
-                                (rec.error_code or "—", "red"),
-                            )
-                        )
+            try:
+                phase_tracker.start("Discovering")
+                with Live(
+                    _render(),
+                    console=_console_module.console,
+                    refresh_per_second=10,
+                    redirect_stdout=True,
+                    redirect_stderr=True,
+                ) as live:
+                    pipelines_to_validate, all_flowgroups = (
+                        self._determine_pipelines_to_validate(pipeline, orchestrator)
+                    )
+                    phase_tracker.complete(
+                        "Discovering",
+                        label=f"Discovering ({len(all_flowgroups)} flowgroups)",
+                    )
                     live.update(_render())
 
-                val_start = perf_counter()
-                batch_response = self._validate_all_pipelines(
-                    pipelines_to_validate,
-                    env,
-                    orchestrator,
-                    include_tests=include_tests,
-                    all_flowgroups=all_flowgroups,
-                    max_workers=max_workers,
-                    warning_collector=warning_collector,
-                    on_pipeline_complete=_on_complete,
-                )
-                val_duration = perf_counter() - val_start
+                    # Empty-pipelines guard. ``_determine_pipelines_to_validate``
+                    # already raises ``LHPConfigError-014`` when no flowgroups
+                    # exist at all, but an empty pipeline list can still occur
+                    # in edge cases (e.g. all discovered flowgroups have a
+                    # ``pipeline`` field that resolves to nothing usable). In
+                    # those cases, exit cleanly with a warning rather than
+                    # opening the Validation phase on an empty list and
+                    # printing an empty summary table.
+                    if not pipelines_to_validate:
+                        empty_no_op = True
+                        warning_collector.add(
+                            "no-op",
+                            "No pipelines found to validate.",
+                        )
+                        live.update(_render())
 
-                # Force a phase marker for the Validation phase on
-                # failure so the user sees WHICH phase failed even when
-                # validation is sub-250ms.
-                if not batch_response.is_successful():
-                    _maybe_phase_line(
-                        "Validation",
-                        val_duration,
-                        force=True,
-                        success=False,
-                    )
-                else:
-                    _maybe_phase_line("Validation", val_duration)
-                live.update(_render())
+                    # Pre-pool deprecation scan: workers are silenced
+                    # (NullHandler only) so the in-worker SubstitutionManager
+                    # warning cannot reach the user. Resolve each discovered
+                    # flowgroup's source YAML on the main thread and record
+                    # the warning on ``warning_collector``; the panel renders
+                    # after Live exits. Hoisted above the ``empty_no_op``
+                    # gate so users with deprecated bare-``{token}`` syntax
+                    # still get warned when ``pipelines_to_validate`` is
+                    # empty but ``all_flowgroups`` is non-empty (e.g.
+                    # ``--pipeline foo`` filter resolves to no flowgroups).
+                    if all_flowgroups:
+                        emit_deprecation_warning_if_needed(
+                            warning_collector,
+                            (
+                                orchestrator._find_source_yaml_for_flowgroup(fg)
+                                for fg in all_flowgroups
+                            ),
+                        )
+
+                    if not empty_no_op:
+                        # Seed records up front so the spinner shows
+                        # ``0 of N pipelines done`` immediately.
+                        for pipeline_name in pipelines_to_validate:
+                            records[pipeline_name] = PipelineRecord(pipeline_name)
+
+                        # Now that the real pipeline count is known, bind the
+                        # ``OverallProgress`` total and rebuild the (frozen)
+                        # ``HeaderContext`` with the real total. Start the
+                        # Progress object so it begins ticking elapsed time.
+                        overall_progress.set_total(len(pipelines_to_validate))
+                        overall_progress.start()
+                        header_ctx = HeaderContext(
+                            command_name="validate",
+                            env=env,
+                            total_pipelines=len(pipelines_to_validate),
+                        )
+                        live.update(_render())
+
+                        # Main-thread per-pipeline callback fired by the
+                        # facade in completion order. Mutates record state
+                        # ONLY (no direct output); failure rendering is
+                        # deferred to the post-Live phase.
+                        def _on_complete(
+                            pipeline_name: str, response: "ValidationResponse"
+                        ) -> None:
+                            rec = records[pipeline_name]
+                            rec.kind = "validate"
+                            rec.success = bool(response.success)
+                            rec.errors_count = response.error_count
+                            rec.warnings_count = response.warning_count
+                            if not response.success:
+                                # First LHPError code goes on the inline
+                                # failure line; ``—`` covers plain string
+                                # failures with no LHPError attached.
+                                first_lhp = next(
+                                    (
+                                        i.lhp_error
+                                        for i in response.issues
+                                        if i.lhp_error is not None
+                                    ),
+                                    None,
+                                )
+                                rec.error_code = first_lhp.code if first_lhp else None
+                                failure_lines.append(
+                                    Text.assemble(
+                                        ("  ", "default"),
+                                        ("✗ ", "bold red"),
+                                        (pipeline_name, "default"),
+                                        (" failed  ", "default"),
+                                        (rec.error_code or "—", "red"),
+                                    )
+                                )
+                            activity_tail.append(rec)
+                            overall_progress.advance()
+                            live.update(_render())
+
+                        phase_tracker.start("Validation")
+                        live.update(_render())
+                        batch_response = self._validate_all_pipelines(
+                            pipelines_to_validate,
+                            env,
+                            orchestrator,
+                            include_tests=include_tests,
+                            all_flowgroups=all_flowgroups,
+                            max_workers=max_workers,
+                            warning_collector=warning_collector,
+                            on_pipeline_complete=_on_complete,
+                        )
+
+                        if not batch_response.is_successful():
+                            phase_tracker.complete("Validation", success=False)
+                        else:
+                            phase_tracker.complete("Validation")
+                        live.update(_render())
+            finally:
+                overall_progress.stop()
 
             # Live frame has closed. We are still inside the
             # ``rich_handler_attached`` context so any logger.warning
             # emitted by post-Live code still routes through Rich,
             # but the parent console is no longer in Live-redirect mode.
-            # Compute tr_errors here (silently) so ``failed_overall`` is
-            # known before the summary table; the inline ✓/✗ line is
-            # printed AFTER the table to keep the visual order
-            # table → tr lines → warnings (no gap between Live frame
-            # close and the summary heading).
+
+            if empty_no_op:
+                # Render the per-run warning panel (yellow border) for the
+                # no-op notice, then skip the summary table, per-failure
+                # panels and SystemExit. Validate returns cleanly with
+                # exit code 0 — generate raises ``LHPConfigError-014`` in
+                # the analogous situation, so this is intentionally
+                # asymmetric.
+                warning_collector.render(_console_module.err_console)
+                logger.info("Validate no-op: no pipelines to validate")
+                return None
+
+            # Computed silently so ``failed_overall`` is known before the
+            # summary table; the inline ✓/✗ line is printed AFTER the table
+            # to keep the visual order table → tr lines → warnings.
             tr_result = self._validate_test_reporting(
                 orchestrator,
                 all_flowgroups,
@@ -288,10 +316,9 @@ class ValidateCommand(BaseCommand):
 
             self._print_test_reporting_status(tr_result)
 
-            # Per-failing-pipeline rich Panel via ``LHPError.__rich__``.
-            # Plain-string-only failures already appeared as the inline
-            # failure line inside Live; the panels here surface the
-            # structured ``LHP-XXX-NNN`` errors.
+            # Plain-string failures already appeared as the inline failure
+            # line inside Live; the panels here surface the structured
+            # ``LHP-XXX-NNN`` errors via ``LHPError.__rich__``.
             if batch_response is not None:
                 for response in batch_response.pipeline_responses.values():
                     for issue in response.issues:
@@ -397,11 +424,7 @@ class ValidateCommand(BaseCommand):
     def _determine_pipelines_to_validate(
         self, pipeline: Optional[str], orchestrator: ActionOrchestrator
     ) -> Tuple[List[str], list]:
-        """Determine which pipelines to validate based on user input.
-
-        Returns:
-            Tuple of (pipeline names to validate, all discovered flowgroups)
-        """
+        """Returns ``(pipeline names to validate, all discovered flowgroups)``."""
         from ...utils.error_formatter import ErrorCategory, LHPConfigError
 
         all_flowgroups = orchestrator.discover_all_flowgroups()
@@ -459,39 +482,11 @@ class ValidateCommand(BaseCommand):
             "Callable[[str, ValidationResponse], None]"
         ] = None,
     ) -> "BatchValidationResponse":
-        """
-        Validate all specified pipelines through the application facade.
+        """Validate via :meth:`LakehousePlumberApplicationFacade.validate_pipelines`.
 
-        Routes the validate path through
-        :meth:`LakehousePlumberApplicationFacade.validate_pipelines` so the
-        layered dependency direction matches the generate command
-        (CLI → facade → orchestrator). The per-pipeline ``on_pipeline_complete``
-        callback is passed in from the Live-frame caller so this method
-        stays free of direct output and the orchestration of stream
-        rendering lives at one level only.
-
-        Args:
-            pipelines_to_validate: List of pipeline names to validate.
-            env: Environment name.
-            orchestrator: Action orchestrator instance (wrapped in a
-                facade internally; passed in to reuse the caller's
-                already-constructed instance).
-            include_tests: If False, skip test actions during validation.
-            all_flowgroups: Pre-discovered flowgroups to avoid redundant scans.
-            max_workers: Raw user-supplied process-pool size. ``None``
-                lets the orchestrator's constructor default
-                (``LHP_MAX_WORKERS`` env var → :func:`_auto_max_workers`)
-                take over.
-            warning_collector: Per-run accumulator for non-fatal
-                warnings; the facade attaches the deprecated-bare-token
-                warning when any pipeline's substitution manager saw the
-                deprecated form.
-            on_pipeline_complete: Main-thread callback fired once per
-                pipeline (in completion order). The validate command
-                wires this to the Live-frame record mutator.
-
-        Returns:
-            The :class:`BatchValidationResponse` from the facade.
+        Layered direction matches generate (CLI → facade → orchestrator).
+        The ``on_pipeline_complete`` callback is passed in by the Live-frame
+        caller so this method stays free of direct output.
         """
         from ...core.layers import LakehousePlumberApplicationFacade
 
@@ -516,20 +511,12 @@ class ValidateCommand(BaseCommand):
         pipelines_to_validate: List[str],
         include_tests: bool,
     ) -> Optional[List[str]]:
-        """Validate test reporting configuration if present.
+        """Validate test reporting config.
 
-        Args:
-            orchestrator: Action orchestrator instance
-            all_flowgroups: Pre-discovered flowgroups (avoids redundant discovery)
-            pipelines_to_validate: Pipeline names being validated
-            include_tests: Whether to perform extended test-level validation
-
-        Returns:
-            List of error messages when test_reporting is configured (empty
-            list on success), or ``None`` when test_reporting is not
-            configured at all. The tri-state lets the printer skip output
-            entirely on the not-configured path while still distinguishing
-            "configured + clean" (``[]``) from "not configured" (``None``).
+        Returns errors when configured (empty list on success), or ``None``
+        when not configured. The tri-state lets the printer skip output on
+        the not-configured path while still distinguishing "configured +
+        clean" (``[]``) from "not configured" (``None``).
         """
         project_config = orchestrator.project_config
         if not project_config or not project_config.test_reporting:
@@ -557,10 +544,9 @@ class ValidateCommand(BaseCommand):
     def _print_test_reporting_status(self, errors: Optional[List[str]]) -> None:
         """Render the test_reporting inline ✓/✗ status line(s).
 
-        Called AFTER ``print_validate_summary_table`` so the visual order
-        is: summary table → tr lines → warning panel. ``errors=None``
-        means test_reporting was not configured for this project and no
-        line is emitted.
+        Called AFTER ``print_validate_summary_table`` so the visual order is
+        summary → tr lines → warning panel. ``errors=None`` means
+        test_reporting was not configured; no line is emitted.
         """
         if errors is None:
             return

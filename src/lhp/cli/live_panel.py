@@ -1,52 +1,78 @@
-"""Shared Rich Live-panel primitives for the generate and validate CLIs.
+"""Shared Rich Live-panel primitives for the generate and validate CLIs."""
 
-Holds the pieces that both commands' Live status frames depend on: the
-per-pipeline tracking record, the logging-handler swap that keeps the
-panel border clean during failure rendering, the phase-marker line
-appender (with sub-second suppression), and the group composer that
-combines phase markers, inline failure lines, and the in-flight spinner.
-
-The ``warning_suffix_parts`` helper also lives here because both
-``generate_summary`` and ``validate_summary`` emit identical
-``"; N warning(s)"`` tails on their success and partial-failure footers.
-
-The public surface intentionally takes plain arguments rather than
-closing over command-scope locals so each helper can be unit-tested
-without spinning up the full ``execute()`` orchestration.
-"""
-
+import functools
 import logging
+import threading
+from collections import deque
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from time import perf_counter
 from typing import Dict, Iterator, List, Optional, Tuple
 
 from rich.console import Console as _RichConsole
-from rich.console import ConsoleRenderable, Group
+from rich.console import Group, RenderableType
 from rich.logging import RichHandler
+from rich.panel import Panel
+from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
 from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
 
-# Phase markers shorter than this duration are suppressed to avoid
-# sub-second flicker in the Live panel. 250ms matches the visual
-# refresh budget of the terminal at ``refresh_per_second=10``.
+logger = logging.getLogger(__name__)
+
+# 250ms matches the visual refresh budget at ``refresh_per_second=10``;
+# shorter phase markers would only flicker.
 _PHASE_MARKER_MIN_DURATION_S = 0.25
+
+_BRAND_ORANGE = "#E07A2C"
+
+_LHP_WORDMARK = """\
+██╗     ██╗  ██╗██████╗
+██║     ██║  ██║██╔══██╗
+██║     ███████║██████╔╝
+██║     ██╔══██║██╔═══╝
+███████╗██║  ██║██║
+╚══════╝╚═╝  ╚═╝╚═╝     """
+
+# Widest wordmark row + 1-char margin each side; fixes the right column
+# width so the wordmark cannot wrap.
+_WORDMARK_COL_WIDTH = 26
+
+# Wordmark column + 60-char minimum left column + ~4 chars of panel
+# border/grid padding. Below this, render the single-column fallback.
+_WORDMARK_MIN_PANEL_WIDTH = _WORDMARK_COL_WIDTH + 60 + 4
+
+
+@functools.cache
+def _get_lhp_version() -> str:
+    """Return the installed ``lakehouse-plumber`` version, or ``'?'`` on miss.
+
+    Lazy import keeps this module free of a CLI-layer import cycle. Cached
+    because ``render_live_frame`` calls this on every Rich Live refresh.
+    """
+    try:
+        from importlib.metadata import version as _pkg_version
+
+        return _pkg_version("lakehouse-plumber")
+    except Exception:
+        return "?"
 
 
 @dataclass
 class PipelineRecord:
     """In-memory tracking for one pipeline during a generate/validate run.
 
-    Populated by the ``on_pipeline_complete`` callback (main thread,
-    completion order) and consumed by ``print_summary_table`` or
-    ``print_validate_summary_table`` after the Rich ``Live`` context
-    exits. Lives at module scope so it is testable without entering
-    the full ``execute()`` orchestration.
-
     Generate populates ``files`` / ``duration_s``; validate populates
-    ``errors_count`` / ``warnings_count``. The two surfaces share the
-    same record so ``rich_handler_attached`` / ``render_status_group``
-    don't have to be duplicated per command.
+    ``errors_count`` / ``warnings_count``. ``kind`` discriminates the
+    two for ``ActivityTail.render``.
     """
 
     name: str
@@ -56,19 +82,294 @@ class PipelineRecord:
     error_code: Optional[str] = None
     errors_count: int = 0
     warnings_count: int = 0
+    kind: str = "generate"
+
+
+@dataclass
+class PhaseTracker:
+    """Tracks discrete phases of work and renders them in the live panel."""
+
+    completed: List[Tuple[str, float, bool]] = field(default_factory=list)
+    active: Optional[str] = None
+
+    _start_times: Dict[str, float] = field(default_factory=dict)
+    _active_spinner: Optional[Spinner] = field(default=None)
+    _active_spinner_name: Optional[str] = field(default=None)
+    _lock: threading.Lock = field(
+        default_factory=threading.Lock, init=False, repr=False
+    )
+
+    def start(self, name: str) -> None:
+        with self._lock:
+            self._start_times[name] = perf_counter()
+            self.active = name
+
+    def complete(
+        self,
+        name: str,
+        *,
+        success: bool = True,
+        suppress_if_fast: bool = False,
+        label: Optional[str] = None,
+    ) -> None:
+        """Mark a phase as complete.
+
+        ``suppress_if_fast`` drops phases shorter than 250ms.
+        """
+        with self._lock:
+            start = self._start_times.pop(name, None)
+            if start is None:
+                logger.debug(
+                    f"PhaseTracker.complete called for unknown phase {name!r}; ignoring"
+                )
+                return
+            duration = perf_counter() - start
+            if suppress_if_fast and duration < _PHASE_MARKER_MIN_DURATION_S:
+                if self.active == name:
+                    self.active = None
+                return
+            render_label = label if label is not None else name
+            self.completed.append((render_label, duration, success))
+            if self.active == name:
+                self.active = None
+
+    def render(self) -> RenderableType:
+        with self._lock:
+            elements: List[RenderableType] = []
+            for label, duration_s, success in self.completed:
+                marker = "✓" if success else "✗"
+                marker_style = "bold green" if success else "bold red"
+                elements.append(
+                    Text.assemble(
+                        ("  ", "default"),
+                        (label.ljust(36), "dim"),
+                        (marker, marker_style),
+                        (f"   {duration_s:.1f}s", "dim"),
+                    )
+                )
+            if self.active is None:
+                self._active_spinner = None
+                self._active_spinner_name = None
+            else:
+                if self._active_spinner_name != self.active:
+                    self._active_spinner = Spinner(
+                        "dots",
+                        text=Text(self.active, style="bold cyan"),
+                    )
+                    self._active_spinner_name = self.active
+                elements.append(self._active_spinner)
+            return Group(*elements)
+
+
+@dataclass
+class ActivityTail:
+    """Bounded ring of recently completed pipelines, rendered as a dim tail."""
+
+    max_entries: int = 5
+    _entries: "deque[PipelineRecord]" = field(init=False)
+
+    def __post_init__(self) -> None:
+        self._entries = deque(maxlen=self.max_entries)
+
+    def append(self, record: PipelineRecord) -> None:
+        self._entries.append(record)
+
+    def has_entries(self) -> bool:
+        return bool(self._entries)
+
+    def render(self) -> RenderableType:
+        # list() over a deque is atomic in CPython; safe while the main
+        # thread may append concurrently.
+        snapshot = list(self._entries)
+        if not snapshot:
+            return Text("")
+        elements: List[RenderableType] = []
+        for record in snapshot:
+            if record.success:
+                if record.kind == "validate":
+                    elements.append(
+                        Text.assemble(
+                            ("  ", "default"),
+                            ("✓", "bold green"),
+                            (f" {record.name.ljust(24)}", "dim"),
+                            (f" {record.errors_count} errors", "dim"),
+                            (f"   {record.warnings_count} warnings", "dim"),
+                        )
+                    )
+                else:
+                    elements.append(
+                        Text.assemble(
+                            ("  ", "default"),
+                            ("✓", "bold green"),
+                            (f" {record.name.ljust(24)}", "dim"),
+                            (f" {record.files} files", "dim"),
+                            (f"   {record.duration_s:.1f}s", "dim"),
+                        )
+                    )
+            else:
+                code = record.error_code or "—"
+                elements.append(
+                    Text.assemble(
+                        ("  ", "default"),
+                        ("✗", "bold red"),
+                        (f" {record.name.ljust(24)}", "dim"),
+                        (f" {code}", "red"),
+                    )
+                )
+        return Group(*elements)
+
+
+class OverallProgress:
+    """Single Rich Progress bar driven by the outer Live refresh.
+
+    The Progress is used purely as a renderable embedded in the outer Panel;
+    its internal ``rich.live.Live`` is never started. Calling
+    ``Progress.start()`` while a parent ``Live`` is active stacks Lives on
+    ``console._live_stack``: the topmost Live composes every stacked Live's
+    ``get_renderable()`` into a Group, double-painting the bar and (with the
+    internal Live's ``transient=False`` default) leaving an orphan after
+    teardown. ``auto_refresh=False`` is belt-and-braces.
+    """
+
+    def __init__(
+        self,
+        label: str,
+        total: int,
+        *,
+        console: Optional[_RichConsole] = None,
+    ) -> None:
+        self._progress = Progress(
+            SpinnerColumn(),
+            TextColumn("[bold]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            TimeRemainingColumn(),
+            console=console,
+            auto_refresh=False,
+        )
+        # ``start=False`` keeps TimeElapsedColumn at ``-:--:--`` until the
+        # caller signals work has begun.
+        self._task_id = self._progress.add_task(label, total=total, start=False)
+        self._started = False
+
+    def start(self) -> None:
+        # Deliberately NOT calling ``self._progress.start()`` — see class
+        # docstring on the duplicate-bar hazard.
+        self._progress.start_task(self._task_id)
+        self._started = True
+
+    def stop(self) -> None:
+        if not self._started:
+            return
+        self._progress.stop_task(self._task_id)
+
+    def advance(self, n: int = 1) -> None:
+        self._progress.update(self._task_id, advance=n)
+
+    def set_total(self, total: int) -> None:
+        self._progress.update(self._task_id, total=total)
+
+    def render(self) -> RenderableType:
+        return self._progress
+
+
+@dataclass(frozen=True)
+class HeaderContext:
+    command_name: str  # "generate" or "validate"
+    env: str
+    total_pipelines: int
+
+
+def render_live_frame(
+    phase_tracker: PhaseTracker,
+    overall_progress: OverallProgress,
+    activity_tail: ActivityTail,
+    failure_lines: List[Text],
+    *,
+    header_context: HeaderContext,
+    elapsed_text: str,
+    show_progress: bool,
+    failed_count: int = 0,
+    console_width: int = 120,
+) -> Panel:
+    """Compose the persistent Live frame Panel.
+
+    Pure function — no mutation, no I/O. The title is a ``rich.text.Text``
+    instance, so callers asserting on title content must use
+    ``panel.title.plain``.
+    """
+    title = Text(
+        f"LHP {header_context.command_name} — env={header_context.env} "
+        f"— pipelines={header_context.total_pipelines} — elapsed {elapsed_text}"
+    )
+    if failed_count > 0:
+        title.append(Text(f" — {failed_count} failed", style="red bold"))
+
+    has_recent = activity_tail.has_entries()
+    body_elements: List[RenderableType] = [phase_tracker.render()]
+    if show_progress:
+        body_elements.append(overall_progress.render())
+    body_elements.extend(
+        [
+            Text(""),
+            Text("Recent:", style="dim") if has_recent else Text(""),
+            activity_tail.render(),
+            *failure_lines,
+        ]
+    )
+    left_body = Group(*body_elements)
+
+    body: RenderableType
+    if console_width >= _WORDMARK_MIN_PANEL_WIDTH:
+        wordmark = Text(_LHP_WORDMARK, style=f"bold {_BRAND_ORANGE}")
+        version_tag = Text(
+            f"v{_get_lhp_version()}",
+            style=f"dim {_BRAND_ORANGE}",
+            justify="right",
+        )
+        right_col = Group(wordmark, Text(""), version_tag)
+        grid = Table.grid(expand=True, padding=(0, 1))
+        grid.add_column(ratio=1)
+        grid.add_column(width=_WORDMARK_COL_WIDTH)
+        grid.add_row(left_body, right_col)
+        body = grid
+    else:
+        body = left_body
+
+    return Panel(body, title=title, title_align="left", border_style="dim")
+
+
+class _LiveUpdateCoalescer:
+    """Drops live.update calls within ``min_interval_s`` of the last.
+
+    Throttles the burst of update calls during executor-submit so that large
+    N does not block the main thread re-rendering the Panel before any worker
+    finishes. The 100ms default aligns with ``Live(refresh_per_second=10)``.
+    """
+
+    def __init__(self, live, render_fn, min_interval_s: float = 0.1) -> None:
+        self._live = live
+        self._render_fn = render_fn
+        self._min_interval_s = min_interval_s
+        self._last_update = 0.0
+
+    def update(self, *, force: bool = False) -> None:
+        now = perf_counter()
+        if force or (now - self._last_update) >= self._min_interval_s:
+            self._live.update(self._render_fn())
+            self._last_update = now
 
 
 @contextmanager
 def rich_handler_attached(err_console: _RichConsole) -> Iterator[None]:
-    """Attach a Rich logging handler for the duration of the Live frame
-    and restore the original stream handlers on exit.
+    """Swap stream log handlers for a RichHandler during a Live frame.
 
-    Critical for clean failure rendering: the cli_error_boundary panel
-    must print to a stderr that has no Rich handler still attached, or
-    Rich's redirect_stderr machinery from a closed Live frame can cause
-    line-gluing on the final panel border. By using a context manager
-    we guarantee teardown order: Live exits -> handler detaches -> raise
-    propagates -> cli_error_boundary prints through clean stderr.
+    The teardown order matters: ``cli_error_boundary`` must print to a stderr
+    with no Rich handler still attached, otherwise Rich's redirect_stderr
+    machinery from a closed Live frame causes line-gluing on the final panel
+    border. The context manager guarantees: Live exits -> handler detaches
+    -> raise propagates -> cli_error_boundary prints through clean stderr.
     """
     root_logger = logging.getLogger()
     rich_handler = RichHandler(
@@ -95,120 +396,11 @@ def rich_handler_attached(err_console: _RichConsole) -> Iterator[None]:
             root_logger.addHandler(h)
 
 
-def append_phase_marker_line(
-    phase_lines: List[Text],
-    label: str,
-    duration_s: float,
-    *,
-    force: bool = False,
-    success: bool = True,
-) -> None:
-    """Append a phase marker line to ``phase_lines`` (in place).
-
-    Module-level helper that captures the phase-line append semantics so
-    the closure inside :meth:`GenerateCommand.execute` stays a thin
-    wrapper that pre-binds the closure-local ``phase_lines`` list. This
-    keeps the rendering contract -- threshold suppression, force
-    override, marker glyph, marker style -- unit-testable without
-    spinning up the full ``execute()`` orchestration.
-
-    ``force=True`` bypasses the duration threshold so a failing phase
-    always emits a diagnostic line. ``success=False`` swaps the default
-    ``✓`` (bold green) marker for ``✗`` (bold red) so failing phases
-    render with the failure glyph and style.
-    """
-    if not force and duration_s < _PHASE_MARKER_MIN_DURATION_S:
-        return
-    marker = "✓" if success else "✗"
-    marker_style = "bold green" if success else "bold red"
-    phase_lines.append(
-        Text.assemble(
-            ("  ", "default"),
-            (label.ljust(36), "dim"),
-            (marker, marker_style),
-            (f"   {duration_s:.1f}s", "dim"),
-        )
-    )
-
-
-def render_status_group(
-    records: Dict[str, PipelineRecord],
-    phase_lines: List[Text],
-    failure_lines: List[Text],
-    *,
-    elapsed_text: str,
-    in_flight_verb: str = "Generating",
-) -> Group:
-    """Build the Rich ``Group`` rendered inside the Live status panel.
-
-    Composes -- in order -- the accumulated phase marker lines, the
-    inline per-pipeline failure lines, and (while pipelines are still
-    in flight) a single spinner row that summarises completion progress.
-    The spinner is omitted when every record has completed (the panel
-    handed off to the post-run summary table).
-
-    Before any records or phase lines have been appended (i.e. while
-    discovery is still walking the YAML tree on the main thread), the
-    function renders a single ``Discovering flowgroups`` spinner so the
-    user sees motion within the first Live frame instead of a silent
-    terminal. The spinner is atomically replaced once
-    ``append_phase_marker_line`` records the first ``Discovering`` phase
-    or pipeline records are seeded.
-
-    ``in_flight_verb`` controls the in-flight spinner label
-    (``"Generating"`` for the generate command; ``"Validating"`` for
-    validate). The discovery spinner is identical across commands.
-
-    ``elapsed_text`` is the caller's pre-formatted ``MM:SS`` clock; it
-    is passed in rather than computed here so the function stays pure
-    and the caller controls the time source.
-    """
-    if not records and not phase_lines and not failure_lines:
-        return Group(
-            Spinner(
-                "dots",
-                text=Text.assemble(
-                    ("Discovering flowgroups", "bold"),
-                    ("…   ", "default"),
-                    (elapsed_text, "dim"),
-                ),
-            )
-        )
-
-    elements: List[ConsoleRenderable] = []
-    elements.extend(phase_lines)
-    elements.extend(failure_lines)
-
-    completed = sum(1 for r in records.values() if r.success is not None)
-    total = len(records)
-    if total > 0 and completed < total:
-        failed_so_far = sum(1 for r in records.values() if r.success is False)
-        failed_suffix = f" ({failed_so_far} failed)" if failed_so_far else ""
-        elements.append(
-            Spinner(
-                "dots",
-                text=Text.assemble(
-                    (f"{in_flight_verb}  ", "bold"),
-                    (
-                        f"{completed} of {total} pipelines done",
-                        "default",
-                    ),
-                    (failed_suffix, "red"),
-                    (f"   {elapsed_text}", "dim"),
-                ),
-            )
-        )
-    return Group(*elements)
-
-
 def make_summary_table(title: str) -> Table:
     """Build the shared skeleton for generate/validate post-run summary tables.
 
-    Both commands print a Rich ``Table`` with the same title styling,
-    border style, and a leading two-column pair (status icon + Pipeline
-    name). Centralising the skeleton here keeps the two surfaces visually
-    aligned and avoids two near-identical ``Table(...)`` constructors in
-    the summary modules; callers append only their own data columns.
+    Returns a Rich ``Table`` with status-icon and Pipeline columns; callers
+    append their own data columns.
     """
     table = Table(
         title=title,
@@ -223,13 +415,10 @@ def make_summary_table(title: str) -> Table:
 
 
 def warning_suffix_parts(warning_count: int) -> List[Tuple[str, str]]:
-    """Return Rich ``Text.assemble`` part tuples for the warning suffix.
+    """Return Rich ``Text.assemble`` parts for the warning-count suffix.
 
-    Empty list when ``warning_count`` is zero so callers can splat it
-    into ``Text.assemble`` unconditionally and the suffix vanishes when
-    there are no warnings. Pluralization is intentional: ``1 warning``
-    vs ``N warnings``. Warning counts are never negative in practice
-    (the collector is monotonic), so the zero-check is an exact match.
+    Empty list when ``warning_count`` is zero so callers can splat
+    unconditionally.
     """
     if warning_count == 0:
         return []

@@ -1,14 +1,4 @@
-"""Post-run summary renderers for the ``lhp generate`` command.
-
-Renders the per-pipeline summary table and totals footer printed once
-the Rich ``Live`` panel exits. Imports its shared primitives from
-:mod:`lhp.cli.live_panel` so the rendering contract stays in one place
-across generate and validate.
-
-The public surface intentionally takes plain arguments rather than
-closing over command-scope locals so it can be unit-tested without
-spinning up the full ``execute()`` orchestration.
-"""
+"""Post-run summary renderers for the ``lhp generate`` command."""
 
 from typing import Dict
 
@@ -21,22 +11,10 @@ def _print_generate_footer_only(
     *,
     total: int,
     total_files: int,
-    total_duration: float,
     dry_run: bool,
     warning_count: int,
+    elapsed_s: float,
 ) -> None:
-    """Print the generate command's single-line footer with no table.
-
-    Used by ``print_summary_table`` when ``show_all`` is False and every
-    pipeline succeeded. The wording matches the regular success footer
-    plus a terminal phrase that names the count of passing pipelines so
-    the user has the count without scanning a table.
-
-    When ``total > 1``, appends a dim ``(use -a to list)`` hint so users
-    discover the flag that surfaces the per-pipeline table. (This helper
-    is only called on the ``not show_all`` path, so the hint is always
-    relevant here.)
-    """
     from . import console as _console_module
 
     verb = "Would generate" if dry_run else "Generated"
@@ -47,7 +25,7 @@ def _print_generate_footer_only(
             (f"{verb} ", "default"),
             (f"{total_files:,}", "bold green"),
             (" files in ", "default"),
-            (f"{total_duration:.1f}s", "bold"),
+            (f"{elapsed_s:.1f}s", "bold"),
             (" — ", "default"),
             (f"all {total} {pipelines_word} passed", "default"),
             *warning_suffix_parts(warning_count),
@@ -63,57 +41,31 @@ def print_summary_table(
     failed: bool = False,
     show_all: bool = False,
     warning_count: int = 0,
+    elapsed_s: float,
 ) -> None:
     """Render the post-run per-pipeline summary table and total line.
 
-    Dereferences the console singleton via the module attribute so the
-    autouse test fixture's monkeypatch in ``tests/conftest.py`` is
-    honored. The verb on the total line switches between ``Generated``
-    and ``Would generate`` so dry-run output is distinguishable.
-
-    When ``failed`` is True, the footer line is adapted:
-
-    - Partial failure (some records succeeded): the footer adds
-      ``" (F of T pipelines failed)"`` after the standard success line.
-    - Total failure (no records succeeded): the footer is replaced with
-      ``"Failed to generate -- 0 of T pipelines succeeded in DURATION"``.
-
-    When ``show_all`` is False (the default), the table is filtered to
-    failed pipelines only. On a full-success run with no failures, the
-    table is suppressed entirely and only a single-line footer is
-    printed. ``--show-all`` opts into the unfiltered table.
-
-    ``warning_count`` (when > 0) is appended to the success/partial
-    footer wording (``"; N warnings"``) so the user does not have to
-    scroll to the warning panel to learn there were any.
-
-    An empty ``records`` dict short-circuits (no table, no footer) so the
-    caller can invoke this unconditionally even on early failures that
-    never seeded any pipeline records.
+    ``elapsed_s`` must be the caller's wall-clock duration; summing per-pipeline
+    ``duration_s`` would over-count under parallel worker scheduling.
     """
     if not records:
         return
 
-    # Pre-compute per-record success counts up front so the footer-only
-    # path and the table path agree on the same totals.
     success_count = sum(1 for r in records.values() if r.success is True)
     failure_count = sum(1 for r in records.values() if r.success is not True)
     total = success_count + failure_count
     total_files = sum(r.files for r in records.values() if r.success is True)
-    total_duration = sum(r.duration_s for r in records.values())
+    total_duration = elapsed_s
 
-    # Failures-only filtering. On full success with no failed rows, skip
-    # the table entirely and emit only the single-line footer so the user
-    # doesn't scroll past N green checkmarks.
     if not show_all:
         filtered = {k: v for k, v in records.items() if v.success is not True}
         if not filtered and not failed:
             _print_generate_footer_only(
                 total=total,
                 total_files=total_files,
-                total_duration=total_duration,
                 dry_run=dry_run,
                 warning_count=warning_count,
+                elapsed_s=elapsed_s,
             )
             return
         records_to_render = filtered if filtered else records
@@ -144,11 +96,13 @@ def print_summary_table(
 
     _console_module.console.print(table)
 
-    # ``failed`` is a hint from the orchestrator. The actual footer is
-    # selected by cross-referencing it with the per-record success counts
-    # so the table cannot disagree with the footer.
     is_total_failure = failed and success_count == 0
     is_partial_failure = failed and success_count > 0 and failure_count > 0
+    # Orchestrator-level failure that fired AFTER every pipeline succeeded
+    # (e.g. monitoring-artifact finalization raised post-run). Without this
+    # branch the footer would claim "Generated N files" directly above the
+    # failure Panel the caller prints.
+    is_orchestrator_failure = failed and success_count > 0 and failure_count == 0
 
     if is_total_failure:
         _console_module.console.print(
@@ -157,6 +111,22 @@ def print_summary_table(
                 ("Failed to generate -- ", "bold red"),
                 ("0", "bold red"),
                 (f" of {total} pipelines succeeded in ", "default"),
+                (f"{total_duration:.1f}s", "bold"),
+                *warning_suffix_parts(warning_count),
+            )
+        )
+        return
+
+    if is_orchestrator_failure:
+        pipelines_word = "pipeline" if total == 1 else "pipelines"
+        _console_module.console.print(
+            Text.assemble(
+                ("\n  ", "default"),
+                (
+                    f"All {total} {pipelines_word} completed but the run failed in post-processing",
+                    "bold red",
+                ),
+                (" in ", "default"),
                 (f"{total_duration:.1f}s", "bold"),
                 *warning_suffix_parts(warning_count),
             )

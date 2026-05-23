@@ -23,8 +23,6 @@ if TYPE_CHECKING:
     from ..models.processing import PipelineDelta
 
 from ..parsers.blueprint_parser import BlueprintParser
-
-# Component imports (for service initialization)
 from ..parsers.yaml_parser import CachingYAMLParser, YAMLParser
 from ..presets.preset_manager import PresetManager
 from ..utils.error_formatter import (
@@ -57,8 +55,6 @@ from .secret_validator import SecretValidator
 from .services.blueprint_discoverer import BlueprintDiscoverer
 from .services.blueprint_expander import BlueprintExpander, BlueprintProvenance
 from .services.code_generator import CodeGenerator
-
-# Service imports
 from .services.flowgroup_discoverer import FlowgroupDiscoverer
 from .services.flowgroup_processor import FlowgroupProcessor
 from .services.pipeline_validator import PipelineValidator
@@ -91,13 +87,7 @@ def _auto_max_workers() -> int:
 
 
 class ActionOrchestrator:
-    """
-    Main orchestration for pipeline generation (Service-based architecture).
-
-    Implements the business layer interface and coordinates specialized services
-    for discovery, processing, generation, and validation while maintaining
-    the same public API for backward compatibility.
-    """
+    """Coordinates discovery, processing, generation, and validation services."""
 
     def __init__(
         self,
@@ -107,20 +97,14 @@ class ActionOrchestrator:
         pipeline_config_path: Optional[str] = None,
         max_workers: Optional[int] = None,
     ):
-        """
-        Initialize orchestrator with service composition and dependency injection.
+        """Initialize orchestrator.
 
         Args:
-            project_root: Root directory of the LakehousePlumber project
-            enforce_version: Whether to enforce version requirements (default: True)
-            dependencies: Optional dependency container for injection (uses defaults if None)
-            pipeline_config_path: Optional path to custom pipeline config file (relative to project_root)
-            max_workers: Maximum worker processes for the parallel pool
-                (generate parallelizes per pipeline, validate per flowgroup).
-                If None, resolves in priority order: ``LHP_MAX_WORKERS`` env
-                var, else :func:`_auto_max_workers` (~80% of OS-visible CPU
-                count, honoring cgroup CPU limits on Linux). ``1`` is
-                sequential.
+            max_workers: Worker count for the parallel pool (generate
+                parallelizes per pipeline, validate per flowgroup). If
+                ``None``, resolves to ``LHP_MAX_WORKERS`` env var, else
+                :func:`_auto_max_workers` (~80% of OS-visible CPU count,
+                honoring cgroup CPU limits on Linux). ``1`` is sequential.
         """
         self.project_root = project_root
         self.enforce_version = enforce_version
@@ -128,7 +112,6 @@ class ActionOrchestrator:
         self.pipeline_config_path = pipeline_config_path
         self.logger = logging.getLogger(__name__)
 
-        # Initialize core components (still needed for services)
         self.yaml_parser = YAMLParser()
         self._cached_yaml_parser = CachingYAMLParser(self.yaml_parser)
         self.preset_manager = PresetManager(project_root / "presets")
@@ -138,13 +121,10 @@ class ActionOrchestrator:
         self.secret_validator = SecretValidator()
         self.dependency_resolver = DependencyResolver()
 
-        # Load project configuration (needed for validator)
         self.project_config = self.project_config_loader.load_project_config()
 
-        # Initialize config validator with project config for metadata validation
         self.config_validator = ConfigValidator(project_root, self.project_config)
 
-        # Initialize services with component dependencies
         self.discoverer = FlowgroupDiscoverer(
             project_root,
             self.project_config_loader,
@@ -214,11 +194,9 @@ class ActionOrchestrator:
 
     def _enforce_version_requirements(self) -> None:
         """Enforce version requirements if specified in project config."""
-        # Skip if no project config or no version requirement
         if not self.project_config or not self.project_config.required_lhp_version:
             return
 
-        # Check for bypass environment variable
         if os.environ.get("LHP_IGNORE_VERSION", "").lower() in ("1", "true", "yes"):
             self.logger.warning(
                 f"Version requirement bypass enabled via LHP_IGNORE_VERSION. "
@@ -281,28 +259,11 @@ class ActionOrchestrator:
             )
 
     def get_include_patterns(self) -> List[str]:
-        """
-        Get include patterns from project configuration.
-
-        Returns:
-            List of include patterns, or empty list if none specified
-        """
+        """Get include patterns from project configuration."""
         return self.discoverer.get_include_patterns()
 
-    # ============================================================================
-    # BUSINESS LAYER INTERFACE IMPLEMENTATION
-    # ============================================================================
-
     def discover_flowgroups(self, pipeline_dir: Path) -> List[FlowGroup]:
-        """
-        Discover all flowgroups in a specific pipeline directory.
-
-        Args:
-            pipeline_dir: Directory containing flowgroup YAML files
-
-        Returns:
-            List of discovered flowgroups
-        """
+        """Discover all flowgroups in a specific pipeline directory."""
         return self.discoverer.discover_flowgroups(pipeline_dir)
 
     def discover_all_flowgroups(self) -> List[FlowGroup]:
@@ -444,24 +405,20 @@ class ActionOrchestrator:
             env: Environment name
             output_dir: Base output directory (e.g. generated/dev)
         """
-        # 1. Clean up existing monitoring artifacts (handles renames and removal)
         self._cleanup_monitoring_artifacts(env, output_dir)
 
         if not self._monitoring_result:
             return
 
-        # 2. Create substitution manager to resolve tokens in template context
         substitution_file = self.project_root / "substitutions" / f"{env}.yaml"
         substitution_mgr = self.dependencies.create_substitution_manager(
             substitution_file, env
         )
 
-        # 3. Apply substitution to template context values
         resolved_context = substitution_mgr.substitute_yaml(
             self._monitoring_result.template_context
         )
 
-        # 4. Render notebook with resolved context
         from ..utils.template_renderer import TemplateRenderer
 
         renderer = TemplateRenderer.from_package()
@@ -469,7 +426,6 @@ class ActionOrchestrator:
             "monitoring/union_event_logs.py.j2", resolved_context
         )
 
-        # 5. Write notebook to monitoring/{env}/
         monitoring_pipeline_name = self._monitoring_result.pipeline_name
 
         monitoring_dir = self.project_root / "monitoring" / env
@@ -478,24 +434,21 @@ class ActionOrchestrator:
         write_normalized(notebook_path, notebook_content)
         self.logger.info(f"Generated monitoring notebook: {notebook_path}")
 
-        # 6. Load + substitute + merge monitoring job config from the dedicated file
         import yaml
 
         from .services.job_generator import JobGenerator
 
         raw_job_config_rel_path = self.project_config.monitoring.job_config_path
-        # Substitute tokens (e.g. ${env}) in the path. The loader only checks
-        # file existence for static paths; tokenized paths are resolved here
-        # once the environment is known.
+        # Substitute tokens (e.g. ${env}) in the path; tokenized paths only
+        # resolve once the environment is known.
         job_config_rel_path = (
             substitution_mgr.substitute_yaml(raw_job_config_rel_path)
             if raw_job_config_rel_path
             else raw_job_config_rel_path
         )
-        # Presence + (static-path) existence are guaranteed by ProjectConfigLoader
-        # validation, but we keep a defensive check here because orchestration
-        # also runs through code paths that bypass the loader's validation (tests)
-        # and tokenized paths only resolve at this stage.
+        # Defensive: orchestration also runs through code paths that bypass
+        # ProjectConfigLoader validation (tests), and tokenized paths only
+        # resolve at this stage.
         if not job_config_rel_path:
             raise LHPError(
                 category=ErrorCategory.CONFIG,
@@ -563,7 +516,6 @@ class ActionOrchestrator:
             substituted_job_config
         )
 
-        # 7. Generate and write monitoring job resource
         job_name = f"{monitoring_pipeline_name}_job"
         job_gen = JobGenerator(project_root=self.project_root)
         notebook_workspace_path = (
@@ -593,24 +545,20 @@ class ActionOrchestrator:
         - Job resource: resources/*.job.yml files with monitoring header comment
         - Generated DLT code: generated/{env}/<pipeline>/ dirs with FLOWGROUP_ID = "monitoring"
         """
-        # 1. Clean monitoring notebook directory
         monitoring_dir = self.project_root / "monitoring" / env
         if monitoring_dir.exists():
             for f in monitoring_dir.iterdir():
                 if f.is_file():
                     f.unlink()
                     self.logger.info(f"Removed monitoring artifact: {f}")
-            # Remove empty directory
             if not any(monitoring_dir.iterdir()):
                 monitoring_dir.rmdir()
                 self.logger.debug(f"Removed empty directory: {monitoring_dir}")
-            # Remove parent monitoring/ if also empty
             monitoring_parent = monitoring_dir.parent
             if monitoring_parent.exists() and not any(monitoring_parent.iterdir()):
                 monitoring_parent.rmdir()
                 self.logger.debug(f"Removed empty directory: {monitoring_parent}")
 
-        # 2. Clean monitoring job resources (identified by header comment)
         resources_dir = self.project_root / "resources"
         if resources_dir.exists():
             for f in resources_dir.iterdir():
@@ -623,11 +571,10 @@ class ActionOrchestrator:
                     except OSError as exc:
                         self.logger.debug(f"failed to read {f}: {exc}")
 
-        # 3. Clean generated DLT monitoring pipeline directories.
-        #    Only when monitoring is removed/disabled — when monitoring IS configured,
-        #    the pipeline generation loop manages the generated/ directory.
-        #    Synthetic monitoring flowgroups aren't tracked in state, so orphan
-        #    detection misses them. Identify by FLOWGROUP_ID = "monitoring" marker.
+        # Only when monitoring is removed/disabled — when monitoring IS
+        # configured, the pipeline generation loop manages the generated/
+        # directory. Synthetic monitoring flowgroups aren't tracked in state,
+        # so orphan detection misses them; identify by FLOWGROUP_ID marker.
         if not self._monitoring_result and output_dir and output_dir.exists():
             import shutil
 
@@ -652,15 +599,10 @@ class ActionOrchestrator:
         pipeline_field: str,
         pre_discovered_all_flowgroups: Optional[List[FlowGroup]] = None,
     ) -> List[FlowGroup]:
-        """Discover all flowgroups with a specific pipeline field across all directories.
+        """Discover flowgroups matching a pipeline field across all directories.
 
-        Args:
-            pipeline_field: The pipeline field value to search for
-            pre_discovered_all_flowgroups: If provided, filter from this list
-                instead of running a new discovery scan.
-
-        Returns:
-            List of flowgroups with the specified pipeline field
+        When ``pre_discovered_all_flowgroups`` is provided, filters from
+        that list instead of running a fresh discovery scan.
         """
         if pre_discovered_all_flowgroups is not None:
             all_flowgroups = pre_discovered_all_flowgroups
@@ -682,13 +624,11 @@ class ActionOrchestrator:
     def validate_duplicate_pipeline_flowgroup_combinations(
         self, flowgroups: List[FlowGroup]
     ) -> None:
-        """Validate that there are no duplicate pipeline+flowgroup combinations.
-
-        Args:
-            flowgroups: List of flowgroups to validate
+        """Validate no duplicate pipeline+flowgroup combinations exist.
 
         Raises:
-            ValueError: If duplicate combinations are found
+            LHPValidationError: If duplicates are found (also a ``ValueError``
+                via dual inheritance).
         """
         errors = self.config_validator.validate_duplicate_pipeline_flowgroup(flowgroups)
         if errors:
@@ -773,6 +713,7 @@ class ActionOrchestrator:
         pre_discovered_all_flowgroups: Optional[List[FlowGroup]] = None,
         max_workers: Optional[int] = None,
         on_pipeline_complete: Optional[Callable[["PipelineDelta"], None]] = None,
+        on_pipeline_start: Optional[Callable[[str], None]] = None,
         warning_collector: Optional["WarningCollector"] = None,
     ) -> Dict[str, tuple[str, ...]]:
         """Run one worker per pipeline; aggregate results on the main thread.
@@ -900,6 +841,7 @@ class ActionOrchestrator:
             worker_state=worker_state,
             max_workers=resolved_workers,
             on_pipeline_complete=on_pipeline_complete,
+            on_pipeline_start=on_pipeline_start,
         )
 
         if failed:
@@ -945,18 +887,7 @@ class ActionOrchestrator:
         return {delta.pipeline_name: delta.generated_filenames for delta in successful}
 
     def _find_source_yaml_for_flowgroup(self, flowgroup: FlowGroup) -> Optional[Path]:
-        """Find the source YAML file for a given flowgroup.
-
-        Delegates to FlowgroupDiscoverer service for consistency.
-
-        Supports multi-document (---) and flowgroups array syntax.
-
-        Args:
-            flowgroup: The flowgroup to find the source YAML for
-
-        Returns:
-            Path to the source YAML file, or None if not found
-        """
+        """Find the source YAML for a flowgroup (multi-doc / array supported)."""
         return self.discoverer.find_source_yaml_for_flowgroup(flowgroup)
 
     def _make_context(self, fg: FlowGroup) -> FlowGroupContext:
@@ -980,30 +911,17 @@ class ActionOrchestrator:
         substitution_mgr: EnhancedSubstitutionManager,
         include_tests: bool = True,
     ) -> FlowGroup:
-        """
-        Process flowgroup: expand templates, apply presets, apply substitutions.
+        """Expand templates, apply presets and substitutions.
 
-        Backward-compatible shim around :meth:`FlowgroupProcessor.process_flowgroup`,
-        which now takes/returns :class:`FlowGroupContext`. This shim wraps the
-        FlowGroup in a default-empty context and returns just the processed
-        FlowGroup for callers that don't care about provenance.
-
-        Args:
-            flowgroup: FlowGroup to process
-            substitution_mgr: Substitution manager for the environment
-            include_tests: If False, filter out test actions before processing.
-                Defaults to True for backward compatibility.
-
-        Returns:
-            Processed flowgroup
+        Back-compat shim around :meth:`FlowgroupProcessor.process_flowgroup`
+        for callers that pass/expect a FlowGroup rather than a
+        FlowGroupContext.
         """
         ctx_in = self._make_context(flowgroup)
         ctx_out = self.processor.process_flowgroup(
             ctx_in, substitution_mgr, include_tests=include_tests
         )
         return ctx_out.flowgroup
-
-    # _apply_preset_config and _deep_merge methods moved to FlowgroupProcessor service
 
     def generate_flowgroup_code(
         self,
@@ -1015,23 +933,13 @@ class ActionOrchestrator:
         include_tests: bool = False,
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
     ) -> str:
-        """
-        Generate complete Python code for a flowgroup.
+        """Generate complete Python code for a flowgroup.
 
         Args:
-            flowgroup: FlowGroup to generate code for
-            substitution_mgr: Substitution manager for the environment
-            output_dir: Output directory for generated files
-            source_yaml: Source YAML path for file tracking
-            env: Environment name for file tracking
-            include_tests: Whether to include test actions
             phase_a_records: Optional list passed by Phase A workers in the
                 cross-pipeline flat pool; when supplied, the file copier
                 appends :class:`CopiedModuleRecord` entries to it instead
                 of writing to disk. Phase B replays those records.
-
-        Returns:
-            Complete Python code for the flowgroup
         """
         return self.generator.generate_flowgroup_code(
             flowgroup,
@@ -1052,18 +960,10 @@ class ActionOrchestrator:
         use_directory_discovery: bool = False,
         pre_discovered_flowgroups: Optional[List[FlowGroup]] = None,
     ) -> List[FlowGroup]:
-        """
-        Discover and filter flowgroups based on generation requirements.
+        """Discover and filter flowgroups for a pipeline.
 
-        Args:
-            env: Environment name
-            pipeline_identifier: Pipeline name or field value
-            include_tests: Include test actions parameter
-            specific_flowgroups: Optional list of specific flowgroups
-            use_directory_discovery: Use directory-based discovery vs field-based
-
-        Returns:
-            List of flowgroups that should be generated
+        ``use_directory_discovery`` switches between directory-based
+        (``pipelines/<name>/``) and pipeline-field discovery.
         """
         if use_directory_discovery:
             pipeline_dir = self.project_root / "pipelines" / pipeline_identifier
@@ -1265,9 +1165,7 @@ class ActionOrchestrator:
                 )
 
         # Captured once and shipped to each worker via the pool's initializer=
-        # seam. Replaces the per-task functools.partial capture that re-pickled
-        # FlowgroupProcessor on every submit (the big win on the validate path:
-        # one capture per pool vs. one per flowgroup).
+        # seam — one capture per pool vs. one per flowgroup submit.
         worker_state = _ValidateWorkerState(
             processor=self.processor,
             substitution_managers=substitution_managers,

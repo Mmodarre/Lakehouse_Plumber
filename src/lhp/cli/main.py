@@ -9,11 +9,9 @@ import rich_click as click
 
 from .error_boundary import cli_error_boundary
 
-# Import for dynamic version detection
 try:
     from importlib.metadata import version
 except ImportError:
-    # Fallback for older Python versions where importlib.metadata is not available
     try:
         from importlib_metadata import version  # type: ignore
     except Exception:  # pragma: no cover - best-effort fallback
@@ -25,22 +23,18 @@ except ImportError:
 def get_version():
     """Get the package version dynamically from package metadata."""
     try:
-        # Try to get version from installed package metadata
         return version("lakehouse-plumber")
     except Exception:
         try:
-            # Fallback: try reading from pyproject.toml (for development)
             import re
             from pathlib import Path
 
-            # Find pyproject.toml - look up the directory tree
             current_dir = Path(__file__).parent
-            for _ in range(5):  # Look up to 5 levels
+            for _ in range(5):
                 pyproject_path = current_dir / "pyproject.toml"
                 if pyproject_path.exists():
                     with open(pyproject_path, "r") as f:
                         content = f.read()
-                    # Use regex to find version = "x.y.z"
                     version_match = re.search(
                         r'version\s*=\s*["\']([^"\']+)["\']', content
                     )
@@ -53,31 +47,24 @@ def get_version():
                 f"Could not read version from pyproject.toml: {e}"
             )
 
-        # Final fallback
         return "0.2.11"
 
 
 def configure_logging(verbose: bool, project_root: Optional[Path] = None):
-    """Configure logging for LakehousePlumber.
-
-    Returns:
-        str: Path to log file if created, None otherwise
-    """
-    # Clear any existing handlers from previous runs
+    """Configure logging for LakehousePlumber. Returns log file path or None."""
     cleanup_logging()
 
-    # Configure root logger
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG if verbose else logging.INFO)
 
-    # Console handler
-    console_handler = logging.StreamHandler(sys.stdout)
+    # Diagnostic logs go to stderr so they never collide with primary
+    # command output on stdout. See STYLE.md section 2.
+    console_handler = logging.StreamHandler(sys.stderr)
     console_handler.setLevel(logging.WARNING if not verbose else logging.DEBUG)
     console_formatter = logging.Formatter("%(levelname)s: %(message)s")
     console_handler.setFormatter(console_formatter)
     root_logger.addHandler(console_handler)
 
-    # File handler (only if project root available)
     log_file_path = None
     if project_root:
         log_dir = project_root / ".lhp" / "logs"
@@ -98,7 +85,6 @@ def configure_logging(verbose: bool, project_root: Optional[Path] = None):
 def cleanup_logging():
     """Clean up logging handlers."""
     root_logger = logging.getLogger()
-    # Remove all existing handlers
     for handler in root_logger.handlers[:]:
         handler.close()
         root_logger.removeHandler(handler)
@@ -108,17 +94,11 @@ def _find_project_root() -> Optional[Path]:
     """Find the project root by looking for lhp.yaml."""
     current = Path.cwd().resolve()
 
-    # Check current directory and parent directories
     for path in [current] + list(current.parents):
         if (path / "lhp.yaml").exists():
             return path
 
     return None
-
-
-# ============================================================================
-# CLI Command Group and Routing
-# ============================================================================
 
 
 @click.group()
@@ -132,11 +112,9 @@ def _find_project_root() -> Optional[Path]:
 @click.option("--perf", is_flag=True, hidden=True)
 def cli(verbose, perf):
     """LakehousePlumber - Generate Lakeflow pipelines from YAML configs."""
-    # Try to find project root for better logging setup
     project_root = _find_project_root()
     log_file = configure_logging(verbose, project_root)
 
-    # Store logging info in context for subcommands
     ctx = click.get_current_context()
     ctx.ensure_object(dict)
     ctx.obj["verbose"] = verbose
@@ -147,11 +125,6 @@ def cli(verbose, perf):
         from ..utils.performance_timer import enable_perf_timing
 
         enable_perf_timing(project_root)
-
-
-# ============================================================================
-# Command Routing - Delegate to Command Classes
-# ============================================================================
 
 
 @cli.command()
@@ -541,10 +514,6 @@ def deps(
         blueprint_filter=blueprint_name,
     )
 
-
-# ============================================================================
-# Entry Point
-# ============================================================================
 
 if __name__ == "__main__":
     cli()

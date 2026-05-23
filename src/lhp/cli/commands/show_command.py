@@ -6,24 +6,23 @@ import time
 from pathlib import Path
 from typing import Iterator, List, Optional, Tuple
 
-import click
 import yaml
+from rich.table import Table
+from rich.text import Text
+from rich.tree import Tree
 
 from ...core.orchestrator import ActionOrchestrator
 from ...parsers.yaml_parser import YAMLParser
 from ...utils.substitution import EnhancedSubstitutionManager
+from .. import console as _console_module
+from ..render import render_command_header
 from .base_command import BaseCommand
 
 logger = logging.getLogger(__name__)
 
 
 class ShowCommand(BaseCommand):
-    """
-    Handles show and info commands for LakehousePlumber CLI.
-
-    Provides detailed information about flowgroups, project configuration,
-    and resolved configurations with substitutions applied.
-    """
+    """Show and info commands: resolved flowgroups, instances, and project info."""
 
     def execute(
         self,
@@ -70,19 +69,13 @@ class ShowCommand(BaseCommand):
         self.show_flowgroup(flowgroup, env)
 
     def show_flowgroup(self, flowgroup: str, env: str = "dev") -> None:
-        """
-        Show resolved configuration for a specific flowgroup.
-
-        Args:
-            flowgroup: Name of the flowgroup to show
-            env: Environment to resolve configuration for
-        """
+        """Show resolved configuration for a specific flowgroup."""
+        render_command_header(f"lhp show {flowgroup}")
         self.setup_from_context()
         project_root = self.ensure_project_root()
 
         logger.debug(f"Show flowgroup request: flowgroup={flowgroup}, env={env}")
 
-        # Find the flowgroup file
         logger.debug(f"Searching for flowgroup file: {flowgroup}")
         flowgroup_file = self._find_flowgroup_file(flowgroup, project_root)
         if not flowgroup_file:
@@ -108,24 +101,20 @@ class ShowCommand(BaseCommand):
                 context={"Flowgroup": flowgroup},
             )
 
-        # Parse and process flowgroup
         logger.debug(f"Found flowgroup file: {flowgroup_file}")
         fg = self._parse_flowgroup(flowgroup_file)
         substitution_mgr = self._load_substitution_manager(project_root, env)
         processed_fg = self._process_flowgroup(fg, substitution_mgr, project_root)
 
-        # Render resolved flowgroup as YAML in a syntax-highlighted panel.
         self._display_flowgroup_configuration(processed_fg, env)
 
     def show_instance(self, instance_path_str: str, env: str = "dev") -> None:
         """Show resolved configuration for the flowgroups produced by an instance.
 
-        M4 fix: at 80-instance scale, debugging a misconfigured instance would
-        otherwise require a full ``lhp generate`` run or mentally applying the
-        instance's parameters to the blueprint by hand. This command expands
-        only the named instance and prints the resolved flowgroups in the
-        existing show-flowgroup format, so the round-trip is sub-second.
+        Expands only the named instance (not the full project) so the
+        round-trip stays sub-second at 80-instance scale.
         """
+        render_command_header("lhp show --instance")
         self.setup_from_context()
         project_root = self.ensure_project_root()
 
@@ -154,8 +143,13 @@ class ShowCommand(BaseCommand):
                 context={"Path": str(instance_path)},
             )
 
-        click.echo(
-            f"🔍 Resolving instance '{instance_path.name}' in environment '{env}'"
+        _console_module.console.print(
+            Text.assemble(
+                ("Resolving instance ", "bold dim"),
+                (f"'{instance_path.name}'", ""),
+                (" in environment ", "bold dim"),
+                (f"'{env}'", ""),
+            )
         )
 
         project_config = ProjectConfigLoader(project_root).load_project_config()
@@ -191,15 +185,29 @@ class ShowCommand(BaseCommand):
         )
 
         substitution_mgr = self._load_substitution_manager(project_root, env)
-        click.echo(f"\n📐 Blueprint: {instance.blueprint_name}")
-        click.echo(f"📊 Flowgroups produced: {len(contexts)}")
+        _console_module.console.print(
+            Text.assemble(
+                ("Blueprint: ", "bold dim"),
+                (instance.blueprint_name, ""),
+            )
+        )
+        _console_module.console.print(
+            Text.assemble(
+                ("Flowgroups produced: ", "bold dim"),
+                (str(len(contexts)), ""),
+            )
+        )
 
         for ctx in contexts:
             fg = ctx.flowgroup
-            click.echo("")
-            click.echo("=" * 70)
-            click.echo(f"Pipeline: {fg.pipeline}    Flowgroup: {fg.flowgroup}")
-            click.echo("=" * 70)
+            _console_module.console.print(
+                Text.assemble(
+                    ("Pipeline: ", "bold dim"),
+                    (fg.pipeline, ""),
+                    ("    Flowgroup: ", "bold dim"),
+                    (fg.flowgroup, ""),
+                )
+            )
             processed = self._process_flowgroup(fg, substitution_mgr, project_root)
             self._display_flowgroup_configuration(processed, env)
             self._display_actions_table(processed)
@@ -208,25 +216,19 @@ class ShowCommand(BaseCommand):
         self._display_substitution_summary(substitution_mgr)
 
     def show_project_info(self) -> None:
-        """Display comprehensive project information and statistics."""
+        """Display project information and statistics."""
+        render_command_header("lhp info")
         self.setup_from_context()
         project_root = self.ensure_project_root()
 
-        click.echo("📊 LakehousePlumber Project Information")
-        click.echo("=" * 60)
-
-        # Load and display project configuration
         project_config = self._load_project_config(project_root)
         self._display_project_basic_info(project_config, project_root)
 
-        # Display resource summary
         resource_summary = self._collect_resource_summary(project_root)
         self._display_resource_summary(resource_summary)
 
-        # Display environments
         self._display_environments(project_root)
 
-        # Display recent activity
         self._display_recent_activity(project_root)
 
     def _iter_yaml_flowgroups(self, project_root: Path) -> Iterator[Tuple[Path, str]]:
@@ -276,51 +278,46 @@ class ShowCommand(BaseCommand):
     def _find_flowgroup_file(
         self, flowgroup: str, project_root: Path
     ) -> Optional[Path]:
-        """Find the YAML file containing the specified flowgroup.
-
-        Supports multi-document (---) and flowgroups array syntax.
-        """
+        """Supports multi-document (---) and flowgroups array syntax."""
         for yaml_file, fg_name in self._iter_yaml_flowgroups(project_root):
             if fg_name == flowgroup:
                 return yaml_file
         return None
 
     def _collect_available_flowgroups(self, project_root: Path) -> List[str]:
-        """Collect available flowgroup names from the project."""
         return [fg_name for _, fg_name in self._iter_yaml_flowgroups(project_root)]
 
     def _parse_flowgroup(self, flowgroup_file: Path):
-        """Parse flowgroup file."""
         parser = YAMLParser()
         return parser.parse_flowgroup(flowgroup_file)
 
     def _load_substitution_manager(self, project_root: Path, env: str):
-        """Load substitution manager for environment."""
         substitution_file = project_root / "substitutions" / f"{env}.yaml"
         if not substitution_file.exists():
-            click.echo(f"⚠ Warning: Substitution file not found: {substitution_file}")
+            _console_module.err_console.print(
+                Text.assemble(
+                    ("⚠ ", "bold yellow"),
+                    ("Warning: Substitution file not found: ", "bold yellow"),
+                    (str(substitution_file), ""),
+                )
+            )
             return EnhancedSubstitutionManager(env=env)
         else:
             return EnhancedSubstitutionManager(substitution_file, env)
 
     def _process_flowgroup(self, fg, substitution_mgr, project_root: Path):
-        """Process flowgroup with templates and presets."""
         orchestrator = ActionOrchestrator(project_root, enforce_version=False)
         return orchestrator.process_flowgroup(fg, substitution_mgr)
 
     def _display_flowgroup_configuration(self, processed_fg, env: str) -> None:
         """Render the resolved flowgroup as syntax-highlighted YAML inside a Panel.
 
-        The flowgroup is dumped with Pydantic ``model_dump(mode="json")`` so
-        enum values (e.g. ``ActionType``) serialize as primitive strings that
-        ``yaml.safe_dump`` can handle. The result is wrapped in a Rich
-        ``Syntax`` (YAML, monokai theme, line numbers) and a ``Panel`` whose
-        title identifies the pipeline, flowgroup and environment.
+        ``model_dump(mode="json")`` is used so enum values (e.g.
+        ``ActionType``) serialize as primitive strings that
+        ``yaml.safe_dump`` can handle.
         """
         from rich.panel import Panel
         from rich.syntax import Syntax
-
-        from .. import console as _console_module
 
         if hasattr(processed_fg, "model_dump"):
             data = processed_fg.model_dump(mode="json", exclude_none=True)
@@ -349,78 +346,85 @@ class ShowCommand(BaseCommand):
         )
 
     def _display_actions_table(self, processed_fg) -> None:
-        """Display actions in table format."""
-        click.echo(f"\n📊 Actions ({len(processed_fg.actions)} total)")
-        click.echo("─" * 80)
+        from ..render import ColumnSpec, render_empty_state, render_listing_table
+
+        title = f"Actions ({len(processed_fg.actions)} total)"
 
         if not processed_fg.actions:
-            click.echo("No actions found")
+            render_empty_state(
+                "No actions found.",
+                "Add at least one action to this flowgroup.",
+            )
             return
 
-        # Calculate column widths
-        name_width = max(len(a.name) for a in processed_fg.actions) + 2
-        type_width = 12
-        target_width = max(len(a.target or "-") for a in processed_fg.actions) + 2
-
-        # Header
-        click.echo(
-            f"{'Name':<{name_width}} │ {'Type':<{type_width}} │ "
-            f"{'Target':<{target_width}} │ Description"
-        )
-        click.echo("─" * 80)
-
-        # Actions
-        for action in processed_fg.actions:
-            name = action.name
-            action_type = action.type.value
-            target = action.target or "-"
-            description = action.description or "-"
-
-            # Truncate description if too long
-            max_desc_width = 80 - name_width - type_width - target_width - 9
-            if len(description) > max_desc_width:
-                description = description[: max_desc_width - 3] + "..."
-
-            click.echo(
-                f"{name:<{name_width}} │ {action_type:<{type_width}} │ "
-                f"{target:<{target_width}} │ {description}"
+        rows = [
+            (
+                action.name,
+                action.type.value,
+                action.target or "-",
+                action.description or "-",
             )
-
-        click.echo("─" * 80)
+            for action in processed_fg.actions
+        ]
+        render_listing_table(
+            title,
+            [
+                ColumnSpec("Name", style="bold"),
+                ColumnSpec("Type"),
+                ColumnSpec("Target"),
+                ColumnSpec("Description", style="dim"),
+            ],
+            rows,
+        )
 
     def _display_secret_references(self, substitution_mgr) -> None:
-        """Display secret references found in configuration."""
+        from ..render import ColumnSpec, render_listing_table
+
         secret_refs = substitution_mgr.secret_references
-        if secret_refs:
-            click.echo(f"\n🔐 Secret References ({len(secret_refs)} found)")
-            click.echo("─" * 60)
-            for ref in sorted(secret_refs, key=lambda r: f"{r.scope}/{r.key}"):
-                click.echo(f"   ${{{ref.scope}/{ref.key}}}")
+        if not secret_refs:
+            return
+        rows = [
+            (f"${{{ref.scope}/{ref.key}}}",)
+            for ref in sorted(secret_refs, key=lambda r: f"{r.scope}/{r.key}")
+        ]
+        render_listing_table(
+            f"Secret References ({len(secret_refs)} found)",
+            [ColumnSpec("Reference", style="bold")],
+            rows,
+        )
 
     def _display_substitution_summary(self, substitution_mgr) -> None:
-        """Display substitution token summary."""
-        if substitution_mgr.mappings:
-            click.echo(
-                f"\n🔄 Token Substitutions ({len(substitution_mgr.mappings)} found)"
-            )
-            click.echo("─" * 60)
-            for token, value in list(substitution_mgr.mappings.items())[:10]:
-                # Truncate long values for display
-                display_value = str(value)
-                if len(display_value) > 40:
-                    display_value = display_value[:37] + "..."
-                click.echo(f"   ${{{token}}} → {display_value}")
+        from ..render import ColumnSpec, render_listing_table
 
-            if len(substitution_mgr.mappings) > 10:
-                click.echo(f"   ... and {len(substitution_mgr.mappings) - 10} more")
+        if not substitution_mgr.mappings:
+            return
+
+        rows = []
+        for token, value in list(substitution_mgr.mappings.items())[:10]:
+            display_value = str(value)
+            if len(display_value) > 40:
+                display_value = display_value[:37] + "..."
+            rows.append((f"${{{token}}}", display_value))
+
+        render_listing_table(
+            f"Token Substitutions ({len(substitution_mgr.mappings)} found)",
+            [
+                ColumnSpec("Token", style="bold"),
+                ColumnSpec("Value"),
+            ],
+            rows,
+        )
+
+        if len(substitution_mgr.mappings) > 10:
+            _console_module.console.print(
+                Text(
+                    f"... and {len(substitution_mgr.mappings) - 10} more",
+                    style="dim",
+                )
+            )
 
     def _load_project_config(self, project_root: Path):
-        """Load project configuration via the canonical ProjectConfigLoader.
-
-        Returns the ``ProjectConfig`` Pydantic model (or ``None`` if the file
-        is missing or fails to load — matching the previous best-effort
-        behaviour of ``lhp info``).
-        """
+        """Returns the ``ProjectConfig`` model, or ``None`` on missing/invalid file."""
         try:
             from ...core.project_config_loader import ProjectConfigLoader
 
@@ -430,24 +434,38 @@ class ShowCommand(BaseCommand):
             return None
 
     def _display_project_basic_info(self, project_config, project_root: Path) -> None:
-        """Display basic project information."""
+        """Non-TTY writes plain ``"Name: value"`` lines to ``sink.file`` so
+        ``lhp info | grep Name`` returns the expected text without ANSI.
+        """
         name = getattr(project_config, "name", None) or "Unknown"
         version = getattr(project_config, "version", None) or "Unknown"
         description = getattr(project_config, "description", None) or "No description"
         author = getattr(project_config, "author", None) or "Unknown"
-        click.echo(f"Name:        {name}")
-        click.echo(f"Version:     {version}")
-        click.echo(f"Description: {description}")
-        click.echo(f"Author:      {author}")
-        click.echo(f"Location:    {project_root}")
+        rows = [
+            ("Name:", name),
+            ("Version:", version),
+            ("Description:", description),
+            ("Author:", author),
+            ("Location:", str(project_root)),
+        ]
+        if _console_module.console.is_terminal:
+            grid = Table.grid(padding=(0, 2))
+            grid.add_column(style="bold dim", no_wrap=True)
+            grid.add_column()
+            for label, value in rows:
+                grid.add_row(label, value)
+            _console_module.console.print(grid)
+            return
+        # Non-TTY: plain ``Label: value`` lines so grep/pipe works.
+        _console_module.console.file.write(
+            "".join(f"{label} {value}\n" for label, value in rows)
+        )
 
     def _collect_resource_summary(self, project_root: Path) -> dict:
-        """Collect summary statistics about project resources."""
         pipelines_dir = project_root / "pipelines"
         presets_dir = project_root / "presets"
         templates_dir = project_root / "templates"
 
-        # Count pipelines and flowgroups
         pipeline_count = 0
         flowgroup_count = 0
         if pipelines_dir.exists():
@@ -458,7 +476,6 @@ class ShowCommand(BaseCommand):
                 yaml_files = list(pipeline_dir.rglob("*.yaml"))
                 flowgroup_count += len(yaml_files)
 
-        # Count other resources
         preset_count = (
             len(list(presets_dir.glob("*.yaml"))) if presets_dir.exists() else 0
         )
@@ -474,26 +491,51 @@ class ShowCommand(BaseCommand):
         }
 
     def _display_resource_summary(self, summary: dict) -> None:
-        """Display resource summary statistics."""
-        click.echo("\n📈 Resource Summary:")
-        click.echo(f"   Pipelines:  {summary['pipeline_count']}")
-        click.echo(f"   FlowGroups: {summary['flowgroup_count']}")
-        click.echo(f"   Presets:    {summary['preset_count']}")
-        click.echo(f"   Templates:  {summary['template_count']}")
+        """Same two-column grid pattern as ``_display_project_basic_info``."""
+        rows = [
+            ("Pipelines:", str(summary["pipeline_count"])),
+            ("FlowGroups:", str(summary["flowgroup_count"])),
+            ("Presets:", str(summary["preset_count"])),
+            ("Templates:", str(summary["template_count"])),
+        ]
+        if _console_module.console.is_terminal:
+            _console_module.console.print(Text("Resource Summary", style="bold dim"))
+            grid = Table.grid(padding=(0, 2))
+            grid.add_column(style="bold dim", no_wrap=True)
+            grid.add_column()
+            for label, value in rows:
+                grid.add_row(label, value)
+            _console_module.console.print(grid)
+            return
+        # Non-TTY: plain ``Label: value`` lines so grep/pipe works.
+        _console_module.console.file.write("Resource Summary\n")
+        _console_module.console.file.write(
+            "".join(f"{label} {value}\n" for label, value in rows)
+        )
 
     def _display_environments(self, project_root: Path) -> None:
-        """Display available environments."""
+        """Non-TTY writes plain text via ``sink.file.write`` so
+        ``grep Environments`` still works."""
         substitutions_dir = project_root / "substitutions"
-        if substitutions_dir.exists():
-            env_files = [f.stem for f in substitutions_dir.glob("*.yaml")]
-            if env_files:
-                click.echo(f"\n🌍 Environments: {', '.join(env_files)}")
+        if not substitutions_dir.exists():
+            return
+        env_files = [f.stem for f in substitutions_dir.glob("*.yaml")]
+        if not env_files:
+            return
+        env_list = ", ".join(env_files)
+        if _console_module.console.is_terminal:
+            _console_module.console.print(
+                Text.assemble(
+                    ("Environments: ", "bold dim"),
+                    (env_list, ""),
+                )
+            )
+            return
+        _console_module.console.file.write(f"Environments: {env_list}\n")
 
     def _display_recent_activity(self, project_root: Path) -> None:
-        """Display recent activity information."""
-        click.echo("\n📅 Recent Activity:")
-
-        # Find most recently modified flowgroup
+        """Same TTY/non-TTY split as the rest of ``lhp info``; non-TTY writes
+        plain text via ``sink.file`` so the output remains grep-friendly."""
         pipelines_dir = project_root / "pipelines"
         recent_files = []
 
@@ -502,31 +544,45 @@ class ShowCommand(BaseCommand):
                 mtime = os.path.getmtime(yaml_file)
                 recent_files.append((yaml_file, mtime))
 
-        if recent_files:
-            recent_files.sort(key=lambda x: x[1], reverse=True)
-            most_recent = recent_files[0]
-            time_str = time.strftime(
-                "%Y-%m-%d %H:%M:%S", time.localtime(most_recent[1])
+        if not recent_files:
+            if _console_module.console.is_terminal:
+                _console_module.console.print(Text("Recent Activity", style="bold dim"))
+            else:
+                _console_module.console.file.write("Recent Activity\n")
+            return
+
+        recent_files.sort(key=lambda x: x[1], reverse=True)
+        most_recent = recent_files[0]
+        time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(most_recent[1]))
+        rel_path = most_recent[0].relative_to(project_root)
+
+        if _console_module.console.is_terminal:
+            _console_module.console.print(Text("Recent Activity", style="bold dim"))
+            _console_module.console.print(
+                Text.assemble(
+                    ("Last modified: ", "bold dim"),
+                    (str(rel_path), ""),
+                    (f" ({time_str})", "dim"),
+                )
             )
-            rel_path = most_recent[0].relative_to(project_root)
-            click.echo(f"   Last modified: {rel_path} ({time_str})")
+            return
+        _console_module.console.file.write("Recent Activity\n")
+        _console_module.console.file.write(f"Last modified: {rel_path} ({time_str})\n")
 
     def show_substitutions(self, env: str = "dev") -> None:
-        """
-        Show available substitution tokens for an environment.
+        """Show available substitution tokens for an environment.
 
-        Args:
-            env: Environment to show substitutions for
+        Non-TTY mode falls through to plain ``"Category: name = value"``
+        lines so ``lhp substitutions | grep`` still works.
         """
+        render_command_header("lhp substitutions")
         self.setup_from_context()
         project_root = self.ensure_project_root()
 
-        # Load substitutions
         sub_file = project_root / "substitutions" / f"{env}.yaml"
         if not sub_file.exists():
             from ...utils.error_formatter import ErrorCategory, LHPError
 
-            # Discover available environments for suggestions
             sub_dir = project_root / "substitutions"
             available_envs = []
             if sub_dir.exists():
@@ -552,14 +608,9 @@ class ShowCommand(BaseCommand):
 
         mgr = EnhancedSubstitutionManager(sub_file, env=env)
 
-        # Display
-        click.echo(f"\n📋 Available Substitutions for Environment: {env}")
-        click.echo("═" * 60)
-
-        # Separate simple tokens and maps
-        simple_tokens = {}
-        maps = {}
-        reserved = {}
+        simple_tokens: dict = {}
+        maps: dict = {}
+        reserved: dict = {}
 
         for key, value in mgr.mappings.items():
             if key in ["workspace_env", "logical_env"]:
@@ -569,38 +620,84 @@ class ShowCommand(BaseCommand):
             else:
                 simple_tokens[key] = value
 
-        # Display simple tokens
-        if simple_tokens:
-            click.echo("\n✨ Simple Tokens:")
-            for key, value in sorted(simple_tokens.items()):
-                click.echo(f'  ${{<KEY>}}: "{value}"'.replace("<KEY>", key))
+        if _console_module.console.is_terminal:
+            _console_module.console.print(
+                Text.assemble(
+                    ("Available Substitutions for Environment: ", "bold dim"),
+                    (env, ""),
+                )
+            )
+            self._render_simple_tokens_tty("Simple Tokens", simple_tokens)
+            self._render_maps_tty(maps)
+            self._render_simple_tokens_tty("Reserved Tokens", reserved)
+            return
 
-        # Display maps (with tree structure)
-        if maps:
-            click.echo("\n📦 Maps:")
-            for map_name, map_value in sorted(maps.items()):
-                click.echo(f"  {map_name}:")
-                self._display_dict_tree(map_value, indent=4)
+        # Non-TTY: plain ``Category: name = value`` lines so pipe/grep work.
+        # Use the same ``${name}`` rendering as the TTY branch so that
+        # consumers grepping for tokens see consistent text in both modes.
+        lines: list[str] = []
+        lines.append(f"Available Substitutions for Environment: {env}")
+        for category, mapping in (
+            ("Simple Tokens", simple_tokens),
+            ("Reserved Tokens", reserved),
+        ):
+            for key, value in sorted(mapping.items()):
+                lines.append(f"{category}: ${{{key}}} = {value}")
+        for map_name, map_value in sorted(maps.items()):
+            for key_path, leaf in self._flatten_map(map_value):
+                full_key = f"{map_name}.{key_path}" if key_path else map_name
+                lines.append(f"Maps: {full_key} = {leaf}")
+        _console_module.console.file.write("\n".join(lines) + "\n")
 
-        # Display reserved
-        if reserved:
-            click.echo("\n🔒 Reserved Tokens:")
-            for key, value in sorted(reserved.items()):
-                click.echo(f'  ${{<KEY>}}: "{value}"'.replace("<KEY>", key))
+    def _render_simple_tokens_tty(self, title: str, mapping: dict) -> None:
+        """Render a scalar token mapping as a Rich Table on TTY."""
+        from ..render import ColumnSpec, render_listing_table
 
-        click.echo("")
+        if not mapping:
+            return
+        rows = [(f"${{{key}}}", str(value)) for key, value in sorted(mapping.items())]
+        render_listing_table(
+            title,
+            [
+                ColumnSpec("Token", style="bold"),
+                ColumnSpec("Value"),
+            ],
+            rows,
+        )
 
-    def _display_dict_tree(
-        self, data: dict, indent: int = 0, is_last: bool = True
-    ) -> None:
-        """Display dict as tree structure."""
-        items = list(data.items())
-        for i, (key, value) in enumerate(items):
-            is_last_item = i == len(items) - 1
-            prefix = " " * indent + ("└─ " if is_last_item else "├─ ")
+    def _render_maps_tty(self, maps: dict) -> None:
+        """Render nested map substitutions as Rich ``Tree`` instances.
 
+        STYLE.md §8 lists this as an inline-only site, so the tree is
+        constructed here rather than via a shared helper.
+        """
+        if not maps:
+            return
+        _console_module.console.print(Text("Maps", style="bold dim"))
+        for map_name, map_value in sorted(maps.items()):
+            tree = Tree(Text(map_name, style="bold"))
+            self._add_tree_nodes(tree, map_value)
+            _console_module.console.print(tree)
+
+    def _add_tree_nodes(self, parent: Tree, data: dict) -> None:
+        """Scalars become leaves formatted as ``key: "value"`` so the
+        wrapping quotes match the legacy plain output."""
+        for key, value in data.items():
             if isinstance(value, dict):
-                click.echo(f"{prefix}{key}:")
-                self._display_dict_tree(value, indent + 2, is_last_item)
+                subtree = parent.add(Text(f"{key}", style="bold"))
+                self._add_tree_nodes(subtree, value)
             else:
-                click.echo(f'{prefix}{key}: "{value}"')
+                parent.add(Text(f'{key}: "{value}"'))
+
+    def _flatten_map(self, data: dict, prefix: str = "") -> Iterator[Tuple[str, str]]:
+        """Yield ``(dotted_key, value)`` pairs for a nested map.
+
+        Identical traversal to ``_add_tree_nodes`` so TTY and non-TTY
+        outputs cover the same leaves.
+        """
+        for key, value in data.items():
+            new_key = f"{prefix}.{key}" if prefix else key
+            if isinstance(value, dict):
+                yield from self._flatten_map(value, new_key)
+            else:
+                yield new_key, str(value)

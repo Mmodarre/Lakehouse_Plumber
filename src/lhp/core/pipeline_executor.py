@@ -60,12 +60,6 @@ def _init_worker_logger(level: int) -> None:
     worker diagnostics travel back via :class:`PipelineDelta` (which
     carries the live LHPError on ``lhp_error`` plus pre-formatted
     traceback strings).
-
-    The previous implementation used ``logging.basicConfig`` with a
-    ``[worker %(process)d]`` format string and a stderr StreamHandler;
-    that produced N copies of every worker-side warning on failing
-    runs (one per worker, written to a stream the parent cannot
-    intercept).
     """
     root = logging.getLogger()
     for handler in list(root.handlers):
@@ -263,30 +257,60 @@ def _dispatch_pipeline_for_generate(
     production path.
 
     Pipelines absent from ``substitution_managers`` (empty flowgroup
-    sets) short-circuit to a no-op success delta.
+    sets) short-circuit to a no-op success delta with
+    ``duration_s=0.0`` — no work was done.
+
+    Pure work-time measurement: ``t0 = perf_counter()`` is captured
+    after the empty-pipeline short-circuit, then stamped onto the
+    returned delta via :func:`dataclasses.replace` at this boundary.
+    Keeping the stamp at dispatch (rather than threading the duration
+    deeper into :func:`_process_pipeline_for_generate` or
+    :class:`PipelineProcessor`) avoids leaking timing concerns into
+    domain code. Both success and failure paths receive the same
+    measured duration so the Live panel can report real per-pipeline
+    work-time regardless of outcome.
     """
+    import dataclasses
+    from time import perf_counter
+
     from ..models.processing import PipelineDelta
     from .pipeline_processor import ProcessingContext
 
     if pipeline_name not in substitution_managers:
         return PipelineDelta.success_(pipeline_name)
 
-    context = ProcessingContext(
-        processor=processor,
-        code_generator=code_generator,
-        formatter=formatter,
-        substitution_mgr=substitution_managers[pipeline_name],
-        include_tests=include_tests,
-    )
-    return _process_pipeline_for_generate(
-        pipeline_name=pipeline_name,
-        contexts=contexts,
-        environment=environment,
-        output_dir=pipeline_output_dirs.get(pipeline_name),
-        project_root=project_root,
-        project_config=project_config,
-        context=context,
-    )
+    t0 = perf_counter()
+    try:
+        context = ProcessingContext(
+            processor=processor,
+            code_generator=code_generator,
+            formatter=formatter,
+            substitution_mgr=substitution_managers[pipeline_name],
+            include_tests=include_tests,
+        )
+        delta = _process_pipeline_for_generate(
+            pipeline_name=pipeline_name,
+            contexts=contexts,
+            environment=environment,
+            output_dir=pipeline_output_dirs.get(pipeline_name),
+            project_root=project_root,
+            project_config=project_config,
+            context=context,
+        )
+        return dataclasses.replace(delta, duration_s=perf_counter() - t0)
+    except BaseException as exc:
+        # Workers MUST NOT raise — the pool aggregator at as_completed
+        # synthesizes a failure delta on raise, but that path runs on
+        # the main thread without our worker t0.
+        # Exception: wrap here so duration is preserved on the failure delta.
+        # Non-Exception BaseException (KeyboardInterrupt, SystemExit) propagates
+        # from the worker; main-thread synthesis uses duration_s=0.0, which is
+        # fine for cancellation paths.
+        if isinstance(exc, Exception):
+            return PipelineDelta.failure(
+                pipeline_name, exc, duration_s=perf_counter() - t0
+            )
+        raise
 
 
 @dataclass
@@ -313,6 +337,7 @@ def run_generate_pool(
     worker_state: Optional[_GenerateWorkerState] = None,
     max_workers: int,
     on_pipeline_complete: Optional[Callable[["PipelineDelta"], None]] = None,
+    on_pipeline_start: Optional[Callable[[str], None]] = None,
     process_one: Optional[
         Callable[[str, Sequence["FlowGroupContext"]], "PipelineDelta"]
     ] = None,
@@ -379,6 +404,14 @@ def run_generate_pool(
     for pipeline_name in empty_pipelines:
         delta = PipelineDelta.success_(pipeline_name)
         successful.append(delta)
+        if on_pipeline_start is not None:
+            try:
+                on_pipeline_start(pipeline_name)
+            except Exception as cb_exc:
+                logger.warning(
+                    f"on_pipeline_start callback raised "
+                    f"for pipeline {pipeline_name}: {cb_exc}"
+                )
         if on_pipeline_complete is not None:
             try:
                 on_pipeline_complete(delta)
@@ -398,9 +431,8 @@ def run_generate_pool(
     ctx = multiprocessing.get_context("spawn")
     parent_level = logging.getLogger().level
 
-    # Pool-construction kwargs branch on whether we have worker_state.
     # Test seams pass process_one without worker_state — fall back to the
-    # logger-only initializer used before this commit.
+    # logger-only initializer.
     if worker_state is not None:
         pool_kwargs: Dict[str, Any] = {
             "initializer": _init_generate_worker,
@@ -420,10 +452,44 @@ def run_generate_pool(
             **pool_kwargs,
         ) as executor,
     ):
-        future_to_pipeline: Dict[Future, str] = {
-            executor.submit(worker_fn, pipeline_name, ctxs): pipeline_name
-            for pipeline_name, ctxs in worklist
-        }
+        future_to_pipeline: Dict[Future, str] = {}
+        for pipeline_name, ctxs in worklist:
+            if on_pipeline_start is not None:
+                try:
+                    on_pipeline_start(pipeline_name)
+                except Exception as cb_exc:
+                    logger.warning(
+                        f"on_pipeline_start callback raised "
+                        f"for pipeline {pipeline_name}: {cb_exc}"
+                    )
+            try:
+                future = executor.submit(worker_fn, pipeline_name, ctxs)
+            except Exception as submit_exc:
+                # ``executor.submit`` can raise on pickle failure or after
+                # the pool has been shut down. Without this guard the
+                # exception propagates out before the matching
+                # ``on_pipeline_complete`` fires, leaving OverallProgress
+                # stalled and the consumer holding partial state. Mirror
+                # the as_completed exception branch below: synthesize a
+                # failure delta and fire the completion callback so the
+                # aggregate counters stay consistent. The continue keeps
+                # the loop submitting remaining pipelines.
+                logger.warning(
+                    f"executor.submit raised for pipeline "
+                    f"{pipeline_name}: {submit_exc}"
+                )
+                delta = PipelineDelta.failure(pipeline_name, submit_exc)
+                failed.append(delta)
+                if on_pipeline_complete is not None:
+                    try:
+                        on_pipeline_complete(delta)
+                    except Exception as cb_exc:
+                        logger.warning(
+                            f"on_pipeline_complete callback raised "
+                            f"for pipeline {pipeline_name}: {cb_exc}"
+                        )
+                continue
+            future_to_pipeline[future] = pipeline_name
 
         for fut in as_completed(future_to_pipeline):
             pipeline_name = future_to_pipeline[fut]
@@ -625,7 +691,32 @@ def run_validate_pool(
         ):
             future_to_key: Dict[Future, Tuple[str, "FlowGroupContext"]] = {}
             for pipeline, fg_ctx in worklist:
-                fut: Future = executor.submit(_validate_one_fg, fg_ctx)
+                # Mirrors the executor.submit guard in run_generate_pool.
+                try:
+                    fut: Future = executor.submit(_validate_one_fg, fg_ctx)
+                except Exception as submit_exc:
+                    logger.warning(
+                        f"executor.submit raised for flowgroup "
+                        f"{fg_ctx.flowgroup.flowgroup} in pipeline "
+                        f"{pipeline}: {submit_exc}"
+                    )
+                    result = FlowgroupValidationResult(
+                        pipeline=pipeline,
+                        flowgroup_name=fg_ctx.flowgroup.flowgroup,
+                        errors=(
+                            f"Flowgroup '{fg_ctx.flowgroup.flowgroup}': "
+                            f"{submit_exc}",
+                        ),
+                    )
+                    progress[pipeline].results.append(result)
+                    if progress[pipeline].is_complete():
+                        results = sorted(
+                            progress[pipeline].results,
+                            key=lambda r: r.flowgroup_name,
+                        )
+                        del progress[pipeline]
+                        _emit_outcome(pipeline, results)
+                    continue
                 future_to_key[fut] = (pipeline, fg_ctx)
 
             for fut in as_completed(future_to_key):

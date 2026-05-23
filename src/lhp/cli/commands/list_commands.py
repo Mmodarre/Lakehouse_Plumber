@@ -4,29 +4,30 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-import click
+from rich.text import Text
 
 from ...parsers.yaml_parser import YAMLParser
+from .. import console as _console_module
+from ..render import (
+    ColumnSpec,
+    render_command_header,
+    render_empty_state,
+    render_listing_table,
+)
 from .base_command import BaseCommand
 
 logger = logging.getLogger(__name__)
 
 
 class ListCommand(BaseCommand):
-    """
-    Handles list commands for presets and templates.
-
-    Provides listing and detailed information about available
-    presets and templates in the project.
-    """
+    """List presets, templates, and blueprints."""
 
     def list_presets(self) -> None:
         """List all available presets with detailed information."""
+        render_command_header("lhp list-presets")
         self.setup_from_context()
         project_root = self.ensure_project_root()
         presets_dir = project_root / "presets"
-
-        click.echo("📋 Available presets:")
 
         if not presets_dir.exists():
             from ...utils.error_formatter import ErrorCategory, LHPConfigError
@@ -42,35 +43,49 @@ class ListCommand(BaseCommand):
                 ],
             )
 
-        # Discover preset files
         preset_files = list(presets_dir.glob("*.yaml")) + list(
             presets_dir.glob("*.yml")
         )
 
         if not preset_files:
-            click.echo("📭 No presets found")
-            click.echo("\n💡 Create a preset file in the 'presets' directory")
-            click.echo("   Example: presets/bronze_layer.yaml")
+            render_empty_state(
+                "No presets found.",
+                "Create a preset file in the 'presets' directory "
+                "(e.g. presets/bronze_layer.yaml).",
+            )
             return
 
-        # Parse preset information
         presets_info = self._parse_preset_information(preset_files)
 
-        # Display presets table
-        self._display_presets_table(presets_info)
+        rows = [
+            (
+                preset["name"],
+                preset["file"],
+                str(preset["version"]),
+                str(preset["extends"] or "-"),
+            )
+            for preset in presets_info
+        ]
+        render_listing_table(
+            "Available presets",
+            [
+                ColumnSpec("Name", style="bold"),
+                ColumnSpec("File"),
+                ColumnSpec("Version"),
+                ColumnSpec("Extends"),
+            ],
+            rows,
+            total_label="presets",
+        )
 
-        # Show descriptions
         self._display_preset_descriptions(presets_info)
-
-        click.echo(f"\n📊 Total presets: {len(presets_info)}")
 
     def list_templates(self) -> None:
         """List all available templates with detailed parameter information."""
+        render_command_header("lhp list-templates")
         self.setup_from_context()
         project_root = self.ensure_project_root()
         templates_dir = project_root / "templates"
-
-        click.echo("📋 Available templates:")
 
         if not templates_dir.exists():
             from ...utils.error_formatter import ErrorCategory, LHPConfigError
@@ -86,28 +101,53 @@ class ListCommand(BaseCommand):
                 ],
             )
 
-        # Discover template files
         template_files = list(templates_dir.glob("*.yaml")) + list(
             templates_dir.glob("*.yml")
         )
 
         if not template_files:
-            click.echo("📭 No templates found")
-            click.echo("\n💡 Create a template file in the 'templates' directory")
-            click.echo("   Example: templates/standard_ingestion.yaml")
+            render_empty_state(
+                "No templates found.",
+                "Create a template file in the 'templates' directory "
+                "(e.g. templates/standard_ingestion.yaml).",
+            )
             return
 
-        # Parse template information
         templates_info = self._parse_template_information(template_files)
 
-        # Display templates table
-        self._display_templates_table(templates_info)
+        rows = [
+            (
+                template["name"],
+                template["file"],
+                str(template["version"]),
+                str(template["params"]),
+                str(template["actions"]),
+            )
+            for template in templates_info
+        ]
+        render_listing_table(
+            "Available templates",
+            [
+                ColumnSpec("Name", style="bold"),
+                ColumnSpec("File"),
+                ColumnSpec("Version"),
+                ColumnSpec("Params"),
+                ColumnSpec("Actions"),
+            ],
+            rows,
+            total_label="templates",
+        )
 
-        # Show detailed template information
         self._display_template_details(template_files)
 
-        click.echo(f"\n📊 Total templates: {len(templates_info)}")
-        self._display_template_usage_help()
+        # Usage hint -> stderr (help text, not primary data).
+        _console_module.err_console.print(
+            Text(
+                "Use templates in your flowgroup configuration: "
+                "use_template: template_name; template_parameters: param1: value1",
+                style="dim",
+            )
+        )
 
     def list_blueprints(self, verbose: bool = False) -> None:
         """List blueprints with parameter and instance counts.
@@ -115,14 +155,13 @@ class ListCommand(BaseCommand):
         With ``--verbose``, lists each blueprint's instances and the resolved
         pipeline names that would be produced from each.
         """
+        render_command_header("lhp list-blueprints")
         self.setup_from_context()
         project_root = self.ensure_project_root()
 
         from ...core.project_config_loader import ProjectConfigLoader
         from ...core.services.blueprint_discoverer import BlueprintDiscoverer
         from ...parsers.blueprint_parser import BlueprintParser
-
-        click.echo("📐 Blueprints:")
 
         project_config_loader = ProjectConfigLoader(project_root)
         project_config = project_config_loader.load_project_config()
@@ -134,10 +173,10 @@ class ListCommand(BaseCommand):
         )
         blueprints = discoverer.discover_blueprints()
         if not blueprints:
-            click.echo("📭 No blueprints found")
-            click.echo(
-                "\n💡 Create a blueprint file under blueprints/ "
-                "(or your configured blueprint_include patterns)"
+            render_empty_state(
+                "No blueprints found.",
+                "Create a blueprint file under blueprints/ "
+                "(or your configured blueprint_include patterns).",
             )
             return
 
@@ -150,46 +189,57 @@ class ListCommand(BaseCommand):
                 (instance, instance_path)
             )
 
-        click.echo("")
-        click.echo(
-            f"{'Name':<30} {'Version':<8} {'Params':<8} "
-            f"{'Specs':<8} {'Instances':<10}"
-        )
-        click.echo("-" * 70)
-        for name, (bp, _path) in sorted(blueprints.items()):
-            n_instances = len(instances_by_blueprint.get(name, []))
-            click.echo(
-                f"{name:<30} {bp.version:<8} "
-                f"{len(bp.parameters):<8} {len(bp.flowgroups):<8} "
-                f"{n_instances:<10}"
+        rows = [
+            (
+                name,
+                str(bp.version),
+                str(len(bp.parameters)),
+                str(len(bp.flowgroups)),
+                str(len(instances_by_blueprint.get(name, []))),
             )
+            for name, (bp, _path) in sorted(blueprints.items())
+        ]
+        render_listing_table(
+            "Blueprints",
+            [
+                ColumnSpec("Name", style="bold"),
+                ColumnSpec("Version"),
+                ColumnSpec("Params"),
+                ColumnSpec("Specs"),
+                ColumnSpec("Instances"),
+            ],
+            rows,
+            total_label="blueprints",
+        )
 
         if verbose:
             from ...core.services.blueprint_expander import BlueprintExpander
 
             expander = BlueprintExpander()
-            click.echo("\n🔍 Verbose:")
+            _console_module.console.print(Text("Verbose:", style="bold dim"))
             for name, (bp, bp_path) in sorted(blueprints.items()):
-                click.echo(f"\n  {name} ({bp_path}):")
+                _console_module.console.print(
+                    Text.assemble(
+                        ("  ", ""),
+                        (name, "bold"),
+                        (f" ({bp_path}):", "dim"),
+                    )
+                )
                 for instance, instance_path in instances_by_blueprint.get(name, []):
                     contexts, _ = expander.expand_single_instance(
                         instance, instance_path, blueprints
                     )
                     pipelines = sorted({ctx.flowgroup.pipeline for ctx in contexts})
-                    click.echo(
+                    _console_module.console.print(
                         f"    - {instance_path.name}: "
                         f"{len(contexts)} flowgroup(s) -> pipeline(s) {pipelines}"
                     )
 
-        click.echo(
-            f"\n📊 Total blueprints: {len(blueprints)}, "
-            f"total instances: {len(instances)}"
-        )
+        _console_module.console.print(f"Total instances: {len(instances)}")
 
     def _parse_preset_information(
         self, preset_files: List[Path]
     ) -> List[Dict[str, Any]]:
-        """Parse preset files and extract information."""
         parser = YAMLParser()
         presets_info = []
 
@@ -227,14 +277,12 @@ class ListCommand(BaseCommand):
     def _parse_template_information(
         self, template_files: List[Path]
     ) -> List[Dict[str, Any]]:
-        """Parse template files and extract information."""
         parser = YAMLParser()
         templates_info = []
 
         for template_file in sorted(template_files):
             try:
                 template = parser.parse_template_raw(template_file)
-                # Count parameters
                 required_params = sum(
                     1 for p in template.parameters if p.get("required", False)
                 )
@@ -270,98 +318,34 @@ class ListCommand(BaseCommand):
 
         return templates_info
 
-    def _display_presets_table(self, presets_info: List[Dict[str, Any]]) -> None:
-        """Display presets in table format."""
-        if not presets_info:
-            return
-
-        # Calculate column widths
-        name_width = max(len(p["name"]) for p in presets_info) + 2
-        file_width = max(len(p["file"]) for p in presets_info) + 2
-        version_width = 10
-        extends_width = max(len(str(p["extends"] or "-")) for p in presets_info) + 2
-
-        # Header
-        total_width = name_width + file_width + version_width + extends_width + 9
-        click.echo("\n" + "─" * total_width)
-        click.echo(
-            f"{'Name':<{name_width}} │ {'File':<{file_width}} │ "
-            f"{'Version':<{version_width}} │ {'Extends':<{extends_width}}"
-        )
-        click.echo("─" * total_width)
-
-        # Rows
-        for preset in presets_info:
-            name = preset["name"]
-            file = preset["file"]
-            version = preset["version"]
-            extends = preset["extends"] or "-"
-            click.echo(
-                f"{name:<{name_width}} │ {file:<{file_width}} │ "
-                f"{version:<{version_width}} │ {extends:<{extends_width}}"
-            )
-
-        click.echo("─" * total_width)
-
     def _display_preset_descriptions(self, presets_info: List[Dict[str, Any]]) -> None:
-        """Display preset descriptions."""
-        click.echo("\n📝 Descriptions:")
-        for preset in presets_info:
-            if preset["description"] != "No description":
-                click.echo(f"\n{preset['name']}:")
-                click.echo(f"   {preset['description']}")
-
-    def _display_templates_table(self, templates_info: List[Dict[str, Any]]) -> None:
-        """Display templates in table format."""
-        if not templates_info:
+        described = [
+            preset
+            for preset in presets_info
+            if preset["description"] != "No description"
+        ]
+        if not described:
             return
-
-        # Calculate column widths
-        name_width = max(len(t["name"]) for t in templates_info) + 2
-        file_width = max(len(t["file"]) for t in templates_info) + 2
-        version_width = 10
-        params_width = 12
-        actions_width = 10
-
-        # Header
-        total_width = (
-            name_width + file_width + version_width + params_width + actions_width + 12
-        )
-        click.echo("\n" + "─" * total_width)
-        click.echo(
-            f"{'Name':<{name_width}} │ {'File':<{file_width}} │ "
-            f"{'Version':<{version_width}} │ {'Params':<{params_width}} │ {'Actions':<{actions_width}}"
-        )
-        click.echo("─" * total_width)
-
-        # Rows
-        for template in templates_info:
-            name = template["name"]
-            file = template["file"]
-            version = template["version"]
-            params = template["params"]
-            actions = str(template["actions"])
-            click.echo(
-                f"{name:<{name_width}} │ {file:<{file_width}} │ "
-                f"{version:<{version_width}} │ {params:<{params_width}} │ {actions:<{actions_width}}"
-            )
-
-        click.echo("─" * total_width)
+        _console_module.console.print(Text("Descriptions", style="bold dim"))
+        for preset in described:
+            _console_module.console.print(Text(f"{preset['name']}:", style="bold"))
+            _console_module.console.print(f"   {preset['description']}")
 
     def _display_template_details(self, template_files: List[Path]) -> None:
-        """Display detailed template information including parameters."""
         parser = YAMLParser()
 
-        click.echo("\n📝 Template Details:")
+        _console_module.console.print(Text("Template Details", style="bold dim"))
         for template_file in sorted(template_files):
             try:
                 template = parser.parse_template_raw(template_file)
-                click.echo(f"\n{template.name}:")
+                _console_module.console.print(Text(f"{template.name}:", style="bold"))
                 if template.description:
-                    click.echo(f"   Description: {template.description}")
+                    _console_module.console.print(
+                        f"   Description: {template.description}"
+                    )
 
                 if template.parameters:
-                    click.echo("   Parameters:")
+                    _console_module.console.print("   Parameters:")
                     for param in template.parameters:
                         param_name = param.get("name", "unknown")
                         param_type = param.get("type", "string")
@@ -371,23 +355,16 @@ class ListCommand(BaseCommand):
                         param_desc = param.get("description", "")
                         default = param.get("default")
 
-                        click.echo(
-                            f"      • {param_name} ({param_type}, {param_required})"
+                        _console_module.console.print(
+                            f"      - {param_name} ({param_type}, {param_required})"
                         )
                         if param_desc:
-                            click.echo(f"        {param_desc}")
+                            _console_module.console.print(f"        {param_desc}")
                         if default is not None:
-                            click.echo(f"        Default: {default}")
+                            _console_module.console.print(f"        Default: {default}")
 
             except Exception as e:
                 logger.debug(
                     f"Skipping template detail display for {template_file}: {e}"
                 )
-                pass  # Already logged during parsing
-
-    def _display_template_usage_help(self) -> None:
-        """Display template usage help information."""
-        click.echo("\n💡 Use templates in your flowgroup configuration:")
-        click.echo("   use_template: template_name")
-        click.echo("   template_parameters:")
-        click.echo("     param1: value1")
+                pass

@@ -6,7 +6,6 @@ from pathlib import Path
 from time import perf_counter
 from typing import Dict, List, Optional
 
-
 from ...bundle.exceptions import BundleResourceError
 from ...bundle.manager import BundleManager
 from ...bundle.preflight import (
@@ -25,9 +24,13 @@ from ...utils.bundle_detection import should_enable_bundle_support
 from ...utils.performance_timer import log_perf_summary, perf_timer
 from ..generate_summary import print_summary_table
 from ..live_panel import (
+    ActivityTail,
+    HeaderContext,
+    OverallProgress,
+    PhaseTracker,
     PipelineRecord,
-    append_phase_marker_line,
-    render_status_group,
+    _LiveUpdateCoalescer,
+    render_live_frame,
     rich_handler_attached,
 )
 from ..warning_collector import WarningCollector
@@ -38,19 +41,12 @@ logger = logging.getLogger(__name__)
 
 
 class GenerateCommand(BaseCommand):
-    """
-    Pipeline code generation command.
+    """Pipeline code generation command.
 
-    This command follows Clean Architecture principles:
-    - Pure presentation layer (no business logic)
-    - Uses DTOs for layer communication
-    - Delegates all business logic to application facade
-    - Focused only on user interaction and display
-
-    The user-facing run output is rendered via a single ``rich.live.Live``
-    status panel during generation, followed by a per-pipeline summary
-    table. Phase markers (Discovery / Preflight / Bundle sync) are only
-    shown when the phase takes longer than 250ms.
+    Run output is rendered via a single ``rich.live.Live`` status panel
+    during generation, followed by a per-pipeline summary table. Phase
+    markers (Discovery / Preflight / Bundle sync) are only shown when the
+    phase takes longer than 250ms.
     """
 
     def execute(
@@ -68,27 +64,13 @@ class GenerateCommand(BaseCommand):
         force: bool = False,
         no_state: bool = False,
     ) -> None:
-        """Execute the generate command using clean architecture.
+        """Run the generate command.
 
-        Args:
-            env: Environment to generate for
-            pipeline: Specific pipeline to generate (optional)
-            output: Output directory (defaults to generated/{env})
-            dry_run: Preview without generating files
-            no_bundle: Disable bundle support
-            include_tests: Include test actions in generation
-            pipeline_config: Custom pipeline config file path (relative to project root)
-            max_workers: Override the worker pool size; ``None`` defers to auto-detection.
-            show_all: When True, the post-run summary table includes every
-                pipeline. Default False — only failed pipelines are shown,
-                and on a full-success run the table is suppressed in favor
-                of a single-line footer.
-            force: Deprecated no-op flag (legacy ``--force``); when True,
-                routes a deprecation entry through ``warning_collector``.
-            no_state: Deprecated no-op flag (legacy ``--no-state``); when
-                True, routes a deprecation entry through ``warning_collector``.
+        ``show_all=False`` (default) suppresses the summary table on a
+        full-success run and only lists failed pipelines otherwise.
+        ``force`` and ``no_state`` are deprecated no-ops that route a
+        deprecation entry through ``warning_collector`` when truthy.
         """
-        from rich.console import Group
         from rich.live import Live
         from rich.text import Text
 
@@ -136,53 +118,50 @@ class GenerateCommand(BaseCommand):
             pipeline_config_path=pipeline_config,
         )
 
-        # State for the Live status panel.
         records: Dict[str, PipelineRecord] = {}
-        phase_lines: List[Text] = []
         failure_lines: List[Text] = []
-        start_times: Dict[str, float] = {}
         run_start = perf_counter()
+        phase_tracker = PhaseTracker()
+        activity_tail = ActivityTail(max_entries=5)
+        # TODO(ui-consolidation): this Live-frame closure duplicates ~80% of
+        # validate_command.py. Consolidate into a shared LiveFrameRunner.
 
-        # ``batch_response`` is referenced by the post-Live raise path,
-        # so it must be defined before the context managers open. The
+        # ``batch_response`` is referenced by the post-Live raise path; the
         # ``None`` sentinel covers "Live exited via an unrelated exception
         # before the batch was attempted".
         batch_response: Optional[BatchGenerationResponse] = None
         total_files = 0
         all_generated_filenames: List[str] = []
 
-        def _maybe_phase_line(
-            label: str,
-            duration_s: float,
-            *,
-            force: bool = False,
-            success: bool = True,
-        ) -> None:
-            """Append a phase marker to the closure-local ``phase_lines``.
-
-            Thin wrapper around :func:`append_phase_marker_line` that
-            pre-binds the closure-local list. The threshold suppression
-            and force override live in the module-level helper so they
-            can be unit-tested without instantiating the command.
-            """
-            append_phase_marker_line(
-                phase_lines,
-                label,
-                duration_s,
-                force=force,
-                success=success,
-            )
+        # ``total=0`` up front so the first frame (rendered before discovery)
+        # has a valid Progress to paint; the real total is bound after
+        # discovery via ``set_total``. ``header_ctx`` is frozen, so it's
+        # re-bound (not mutated) once the pipeline count is known.
+        overall_progress = OverallProgress(
+            "Generating pipelines", total=0, console=_console_module.console
+        )
+        header_ctx = HeaderContext(
+            command_name="generate",
+            env=env,
+            total_pipelines=0,
+        )
 
         def _elapsed() -> str:
             s = int(perf_counter() - run_start)
             return f"{s // 60:02d}:{s % 60:02d}"
 
-        def _render() -> Group:
-            return render_status_group(
-                records,
-                phase_lines,
+        def _render():
+            failed_count = sum(1 for r in records.values() if r.success is False)
+            return render_live_frame(
+                phase_tracker,
+                overall_progress,
+                activity_tail,
                 failure_lines,
+                header_context=header_ctx,
                 elapsed_text=_elapsed(),
+                show_progress=phase_tracker.active == "Generation",
+                failed_count=failed_count,
+                console_width=_console_module.console.width,
             )
 
         # Defensive RichHandler scope: route stray WARNING+ records
@@ -193,209 +172,232 @@ class GenerateCommand(BaseCommand):
         # attached -- that's what prevents the "failed  LHP-XXX-NNN<-
         # box-edge-glue" rendering bug.
         with rich_handler_attached(_console_module.err_console):
-            with Live(
-                _render(),
-                console=_console_module.console,
-                refresh_per_second=10,
-                redirect_stdout=True,
-                redirect_stderr=True,
-            ) as live:
-                # === Orchestrator init ===
-                # ``_create_application_facade`` triggers the lazy
-                # ``ActionOrchestrator`` import (~25 transitive modules,
-                # including the worker pool plumbing). Doing it INSIDE
-                # the Live frame means the first frame draws before the
-                # heavy import resolves, so the user sees the spinner
-                # immediately rather than staring at a blank terminal.
-                init_start = perf_counter()
-                with perf_timer("Orchestrator init", phase=True):
-                    application_facade = self._create_application_facade(
-                        project_root,
-                        pipeline_config,
-                        max_workers=max_workers,
-                    )
-                _maybe_phase_line("Orchestrator init", perf_counter() - init_start)
-                live.update(_render())
-
-                # === Discovery ===
-                disc_start = perf_counter()
-                with perf_timer("Pipeline discovery", phase=True):
-                    all_flowgroups = (
-                        application_facade.orchestrator.discover_all_flowgroups()
-                    )
-                    application_facade.orchestrator.validate_duplicate_pipeline_flowgroup_combinations(
-                        all_flowgroups
-                    )
-                    pipelines_to_generate = self._get_pipeline_names(
-                        pipeline, all_flowgroups
-                    )
-
-                if not pipelines_to_generate:
-                    from ...utils.error_formatter import ErrorCategory, LHPConfigError
-
-                    raise LHPConfigError(
-                        category=ErrorCategory.CONFIG,
-                        code_number="014",
-                        title="No flowgroups found in project",
-                        details=(
-                            "No flowgroup YAML files were found in the "
-                            "pipelines/ directory."
-                        ),
-                        suggestions=[
-                            "Create flowgroup YAML files in pipelines/<pipeline_name>/",
-                            "Check that pipeline YAML files have the correct extension (.yaml or .yml)",
-                            "Run 'lhp init <name>' to create a new project with example files",
-                        ],
-                    )
-
-                _maybe_phase_line(
-                    f"Discovering ({len(all_flowgroups)} flowgroups)",
-                    perf_counter() - disc_start,
-                )
-                live.update(_render())
-
-                logger.debug(
-                    f"Pipelines discovered for generation: {pipelines_to_generate}"
-                )
-
-                # === Preflight (only if bundle enabled) ===
-                if bundle_enabled:
-                    pf_start = perf_counter()
-                    self._run_catalog_schema_preflight(
-                        bundle_enabled=bundle_enabled,
-                        project_root=project_root,
-                        pipeline_config=pipeline_config,
-                        pipelines_to_generate=pipelines_to_generate,
-                        env=env,
-                        project_config=application_facade.orchestrator.project_config,
-                    )
-                    _maybe_phase_line("Preflight", perf_counter() - pf_start)
+            try:
+                phase_tracker.start("Orchestrator init")
+                with Live(
+                    _render(),
+                    console=_console_module.console,
+                    refresh_per_second=10,
+                    redirect_stdout=True,
+                    redirect_stderr=True,
+                ) as live:
+                    # Coalesce the submit-loop ``live.update`` storm: the
+                    # facade fires ``on_pipeline_start`` once per pipeline
+                    # synchronously on the main thread, so for N=100 we'd
+                    # paint the Panel 100 times before any worker finishes.
+                    # The coalescer drops calls inside a 100ms window;
+                    # completion callbacks still use direct ``live.update``.
+                    coalesced = _LiveUpdateCoalescer(live, _render)
+                    # Triggers the lazy ``ActionOrchestrator`` import (~25
+                    # transitive modules) inside the Live frame so the first
+                    # frame draws before the heavy import resolves and the
+                    # user sees the spinner immediately.
+                    with perf_timer("Orchestrator init", phase=True):
+                        application_facade = self._create_application_facade(
+                            project_root,
+                            pipeline_config,
+                            max_workers=max_workers,
+                        )
+                    phase_tracker.complete("Orchestrator init")
                     live.update(_render())
 
-                # Always wipe the env-specific generated directory: every
-                # run is a full regenerate after the V0.8.7 state-tracking
-                # removal. The resources/lhp/ wipe is gated on bundle so
-                # non-bundle projects don't materialize the directory just
-                # to delete it.
-                if not dry_run:
-                    with perf_timer("Cleanup operations", phase=True):
-                        self._wipe_generated_directory(output_dir.parent, env)
-                        if bundle_enabled:
-                            _wipe_resources_lhp_directory(project_root)
-
-                # Seed records up front so the spinner shows
-                # "0 of N pipelines done" immediately.
-                for pipeline_name in pipelines_to_generate:
-                    records[pipeline_name] = PipelineRecord(pipeline_name)
-                    start_times[pipeline_name] = perf_counter()
-                live.update(_render())
-
-                # Pre-pool deprecation scan: workers are silenced (NullHandler
-                # only) so the in-worker SubstitutionManager warning cannot
-                # reach the user. Resolve each discovered flowgroup's source
-                # YAML on the main thread and record the warning on the
-                # per-run ``WarningCollector`` here; the collector dedups
-                # and the final yellow Rich Panel renders after Live exits.
-                emit_deprecation_warning_if_needed(
-                    warning_collector,
-                    (
-                        application_facade.orchestrator._find_source_yaml_for_flowgroup(
-                            fg
+                    phase_tracker.start("Discovering")
+                    with perf_timer("Pipeline discovery", phase=True):
+                        all_flowgroups = (
+                            application_facade.orchestrator.discover_all_flowgroups()
                         )
-                        for fg in all_flowgroups
-                    ),
-                )
-
-                # === Generation ===
-                # Main-thread per-pipeline callback fired by the facade in
-                # completion order. Updates record state and appends an
-                # inline failure line for failures; the Live panel re-renders.
-                def _on_pipeline_complete(
-                    name: str, response: GenerationResponse
-                ) -> None:
-                    rec = records[name]
-                    rec.success = bool(response.success)
-                    rec.files = response.files_written if response.success else 0
-                    rec.duration_s = perf_counter() - start_times[name]
-                    if not response.success:
-                        orig = getattr(response, "original_error", None)
-                        rec.error_code = (
-                            orig.code if isinstance(orig, LHPError) else None
+                        application_facade.orchestrator.validate_duplicate_pipeline_flowgroup_combinations(
+                            all_flowgroups
                         )
-                        failure_lines.append(
-                            Text.assemble(
-                                ("  ", "default"),
-                                ("✗ ", "bold red"),
-                                (name, "default"),
-                                (" failed  ", "default"),
-                                (rec.error_code or "—", "red"),
-                            )
+                        pipelines_to_generate = self._get_pipeline_names(
+                            pipeline, all_flowgroups
                         )
-                    live.update(_render())
 
-                gen_start = perf_counter()
-                with perf_timer(
-                    f"Batch pipeline generation [{len(pipelines_to_generate)}]",
-                    phase=True,
-                ):
-                    batch_response = application_facade.generate_pipelines(
-                        pipeline_fields=pipelines_to_generate,
-                        env=env,
-                        output_dir=output_dir if not dry_run else None,
-                        specific_flowgroups=None,
-                        include_tests=include_tests,
-                        pre_discovered_all_flowgroups=all_flowgroups,
-                        max_workers=max_workers,
-                        on_pipeline_complete=_on_pipeline_complete,
-                        warning_collector=warning_collector,
-                    )
-                gen_duration = perf_counter() - gen_start
+                    if not pipelines_to_generate:
+                        from ...utils.error_formatter import (
+                            ErrorCategory,
+                            LHPConfigError,
+                        )
 
-                if not batch_response.is_successful():
-                    # Forced phase marker (overrides the 250ms threshold).
-                    # A fast-failing Generation phase still needs a
-                    # diagnostic line so the user sees WHICH phase
-                    # failed in the Live panel.
-                    _maybe_phase_line(
-                        "Generation",
-                        gen_duration,
-                        force=True,
-                        success=False,
+                        raise LHPConfigError(
+                            category=ErrorCategory.CONFIG,
+                            code_number="014",
+                            title="No flowgroups found in project",
+                            details=(
+                                "No flowgroup YAML files were found in the "
+                                "pipelines/ directory."
+                            ),
+                            suggestions=[
+                                "Create flowgroup YAML files in pipelines/<pipeline_name>/",
+                                "Check that pipeline YAML files have the correct extension (.yaml or .yml)",
+                                "Run 'lhp init <name>' to create a new project with example files",
+                            ],
+                        )
+
+                    phase_tracker.complete(
+                        "Discovering",
+                        label=f"Discovering ({len(all_flowgroups)} flowgroups)",
                     )
                     live.update(_render())
-                else:
-                    total_files = batch_response.total_files_written
-                    all_generated_filenames = (
-                        batch_response.aggregate_generated_filenames
+
+                    logger.debug(
+                        f"Pipelines discovered for generation: {pipelines_to_generate}"
                     )
 
-                    # Finalize monitoring artifacts after all pipelines complete.
-                    if not dry_run:
-                        with perf_timer("Monitoring artifacts", phase=True):
-                            application_facade.orchestrator.finalize_monitoring_artifacts(
-                                env, output_dir
-                            )
-
-                    # === Bundle sync (success-only path) ===
-                    # ``should_enable_bundle_support`` already factors in
-                    # ``no_bundle`` (returns False when --no-bundle is
-                    # set), so ``bundle_enabled`` alone is sufficient.
                     if bundle_enabled:
-                        bs_start = perf_counter()
-                        with perf_timer("Bundle sync", phase=True):
-                            self._handle_bundle_operations(
-                                project_root,
-                                output_dir,
-                                env,
-                                dry_run,
-                                pipeline_config,
-                                project_config=application_facade.orchestrator.project_config,
-                            )
-                        _maybe_phase_line(
-                            "Bundle sync" if not dry_run else "Bundle sync (dry-run)",
-                            perf_counter() - bs_start,
+                        phase_tracker.start("Preflight")
+                        self._run_catalog_schema_preflight(
+                            bundle_enabled=bundle_enabled,
+                            project_root=project_root,
+                            pipeline_config=pipeline_config,
+                            pipelines_to_generate=pipelines_to_generate,
+                            env=env,
+                            project_config=application_facade.orchestrator.project_config,
                         )
+                        phase_tracker.complete("Preflight")
                         live.update(_render())
+
+                    # Every run is a full regenerate: wipe env-specific
+                    # generated/. resources/lhp/ wipe is gated on bundle so
+                    # non-bundle projects don't materialize it just to delete.
+                    if not dry_run:
+                        phase_tracker.start("Cleanup")
+                        with perf_timer("Cleanup operations", phase=True):
+                            self._wipe_generated_directory(output_dir.parent, env)
+                            if bundle_enabled:
+                                _wipe_resources_lhp_directory(project_root)
+                        phase_tracker.complete("Cleanup")
+                        live.update(_render())
+
+                    # Seed records up front so the spinner shows
+                    # "0 of N pipelines done" immediately.
+                    for pipeline_name in pipelines_to_generate:
+                        records[pipeline_name] = PipelineRecord(pipeline_name)
+
+                    # Now that the real pipeline count is known, bind the
+                    # ``OverallProgress`` total and rebuild the (frozen)
+                    # ``HeaderContext`` with the real total. Start the
+                    # Progress object so it begins ticking elapsed time.
+                    overall_progress.set_total(len(pipelines_to_generate))
+                    overall_progress.start()
+                    header_ctx = HeaderContext(
+                        command_name="generate",
+                        env=env,
+                        total_pipelines=len(pipelines_to_generate),
+                    )
+                    live.update(_render())
+
+                    # Pre-pool deprecation scan: workers are silenced (NullHandler
+                    # only) so the in-worker SubstitutionManager warning cannot
+                    # reach the user. Resolve each discovered flowgroup's source
+                    # YAML on the main thread and record the warning on the
+                    # per-run ``WarningCollector`` here; the collector dedups
+                    # and the final yellow Rich Panel renders after Live exits.
+                    phase_tracker.start("Deprecation scan")
+                    emit_deprecation_warning_if_needed(
+                        warning_collector,
+                        (
+                            application_facade.orchestrator._find_source_yaml_for_flowgroup(
+                                fg
+                            )
+                            for fg in all_flowgroups
+                        ),
+                    )
+                    phase_tracker.complete("Deprecation scan")
+                    live.update(_render())
+
+                    # Main-thread per-pipeline callbacks fired by the facade.
+                    # ``_on_pipeline_start`` is idempotent under concurrent
+                    # worker starts because PhaseTracker.start is keyed by name.
+                    def _on_pipeline_start(name: str) -> None:
+                        if phase_tracker.active != "Generation":
+                            phase_tracker.start("Generation")
+                        coalesced.update()
+
+                    def _on_pipeline_complete(
+                        name: str, response: GenerationResponse
+                    ) -> None:
+                        rec = records[name]
+                        rec.success = bool(response.success)
+                        rec.files = response.files_written if response.success else 0
+                        rec.duration_s = response.duration_s
+                        if not response.success:
+                            orig = getattr(response, "original_error", None)
+                            rec.error_code = (
+                                orig.code if isinstance(orig, LHPError) else None
+                            )
+                            failure_lines.append(
+                                Text.assemble(
+                                    ("  ", "default"),
+                                    ("✗ ", "bold red"),
+                                    (name, "default"),
+                                    (" failed  ", "default"),
+                                    (rec.error_code or "—", "red"),
+                                )
+                            )
+                        activity_tail.append(records[name])
+                        overall_progress.advance()
+                        live.update(_render())
+
+                    with perf_timer(
+                        f"Batch pipeline generation [{len(pipelines_to_generate)}]",
+                        phase=True,
+                    ):
+                        batch_response = application_facade.generate_pipelines(
+                            pipeline_fields=pipelines_to_generate,
+                            env=env,
+                            output_dir=output_dir if not dry_run else None,
+                            specific_flowgroups=None,
+                            include_tests=include_tests,
+                            pre_discovered_all_flowgroups=all_flowgroups,
+                            max_workers=max_workers,
+                            on_pipeline_complete=_on_pipeline_complete,
+                            on_pipeline_start=_on_pipeline_start,
+                            warning_collector=warning_collector,
+                        )
+                        coalesced.update(force=True)
+
+                    if not batch_response.is_successful():
+                        phase_tracker.complete("Generation", success=False)
+                        live.update(_render())
+                    else:
+                        phase_tracker.complete("Generation")
+                        total_files = batch_response.total_files_written
+                        all_generated_filenames = (
+                            batch_response.aggregate_generated_filenames
+                        )
+
+                        if not dry_run:
+                            phase_tracker.start("Monitoring artifacts")
+                            with perf_timer("Monitoring artifacts", phase=True):
+                                application_facade.orchestrator.finalize_monitoring_artifacts(
+                                    env, output_dir
+                                )
+                            phase_tracker.complete("Monitoring artifacts")
+                            live.update(_render())
+
+                        # ``should_enable_bundle_support`` already factors in
+                        # ``no_bundle`` (returns False when --no-bundle is set).
+                        if bundle_enabled:
+                            bundle_phase_label = (
+                                "Bundle sync"
+                                if not dry_run
+                                else "Bundle sync (dry-run)"
+                            )
+                            phase_tracker.start(bundle_phase_label)
+                            with perf_timer("Bundle sync", phase=True):
+                                self._handle_bundle_operations(
+                                    project_root,
+                                    output_dir,
+                                    env,
+                                    dry_run,
+                                    pipeline_config,
+                                    project_config=application_facade.orchestrator.project_config,
+                                )
+                            phase_tracker.complete(bundle_phase_label)
+                            live.update(_render())
+            finally:
+                overall_progress.stop()
 
             # Live frame has closed cleanly. We are still inside the
             # ``rich_handler_attached`` context so any logger.warning
@@ -415,6 +417,7 @@ class GenerateCommand(BaseCommand):
                 failed=(batch_response is None) or (not batch_response.is_successful()),
                 show_all=show_all,
                 warning_count=warning_collector.count,
+                elapsed_s=perf_counter() - run_start,
             )
 
             # Render the per-run warning panel (yellow border) after the
@@ -425,13 +428,11 @@ class GenerateCommand(BaseCommand):
             warning_collector.render(_console_module.err_console)
 
         # Both context managers have exited: stderr stream handlers
-        # restored, no Rich Live frame attached. ANY raise from here on
-        # propagates through clean stderr, which is what
-        # ``cli_error_boundary`` needs to render its Panel cleanly.
+        # restored, no Rich Live frame attached, so any raise from here
+        # propagates through clean stderr (what ``cli_error_boundary``
+        # needs to render its Panel cleanly).
         if batch_response is None:
-            # Unreachable in practice: if Live exited normally, the
-            # batch was attempted. Defensive guard for the type checker
-            # and against future restructures.
+            # Unreachable in practice; defensive guard for the type checker.
             raise RuntimeError("generate batch did not complete")
         if not batch_response.is_successful():
             if batch_response.original_error is not None:
@@ -450,12 +451,11 @@ class GenerateCommand(BaseCommand):
         env: str,
         project_config: Optional[ProjectConfig],
     ) -> None:
-        """Run catalog/schema preflight validation when bundle support is enabled.
+        """Run catalog/schema preflight when bundle support is enabled.
 
-        ``require_pipeline_config_flag`` (called earlier in ``execute``)
-        guarantees ``pipeline_config`` is non-None whenever
-        ``bundle_enabled`` is True; the assertion documents that invariant
-        for mypy.
+        ``require_pipeline_config_flag`` guarantees ``pipeline_config`` is
+        non-None whenever ``bundle_enabled`` is True; the assertion
+        documents that invariant for mypy.
         """
         if not bundle_enabled:
             return
@@ -480,15 +480,10 @@ class GenerateCommand(BaseCommand):
         *,
         max_workers: Optional[int] = None,
     ) -> LakehousePlumberApplicationFacade:
-        """Create application facade for business layer access.
-
-        ``ActionOrchestrator`` is imported lazily here (rather than at
-        module top) because it pulls ~25 transitive modules — including
-        ``concurrent.futures`` worker plumbing — into the cold start of
-        every CLI invocation. Deferring the import shaves measurable
-        latency off ``lhp generate`` startup, where the cost is paid
-        inside the Live frame as the first phase instead of before any
-        UI has rendered.
+        """``ActionOrchestrator`` is imported lazily here because it pulls
+        ~25 transitive modules (including ``concurrent.futures`` worker
+        plumbing) into cold start; deferring the import shifts the cost
+        inside the Live frame so the spinner draws first.
         """
         from ...core.orchestrator import ActionOrchestrator
 
@@ -503,7 +498,6 @@ class GenerateCommand(BaseCommand):
     def _get_pipeline_names(
         pipeline: Optional[str], all_flowgroups: List[FlowGroup]
     ) -> List[str]:
-        """Extract pipeline names from discovered flowgroups, or return specific pipeline."""
         if pipeline:
             return [pipeline]
         pipeline_fields = {fg.pipeline for fg in all_flowgroups}
@@ -524,17 +518,12 @@ class GenerateCommand(BaseCommand):
         pipeline_config_path: Optional[str] = None,
         project_config=None,
     ) -> None:
-        """Handle bundle operations - coordinate with bundle management.
+        """Sync bundle resources for the generated output.
 
-        Bundle-related user-facing output is suppressed here because the
-        outer ``execute()`` renders bundle activity as a phase marker in
-        the Live status panel. Verbose detail is routed through
-        ``logger.debug`` so it shows up in the rotating log file but not
-        in the interactive run output.
-
-        Caller is expected to gate on ``bundle_enabled`` (computed once
-        at the top of ``execute()``); this method assumes bundle support
-        is on and does not recompute that decision.
+        Bundle activity is rendered as a phase marker by the outer
+        ``execute()``; detail here is routed to ``logger.debug``.
+        Caller must gate on ``bundle_enabled`` — this method assumes
+        bundle support is on and does not recompute that decision.
         """
         if pipeline_config_path is not None:
             logger.debug(

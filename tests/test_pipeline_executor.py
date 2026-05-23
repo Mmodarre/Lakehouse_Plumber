@@ -39,10 +39,9 @@ from lhp.models.processing import PipelineDelta
 class _FakeFlowGroup:
     """Picklable FlowGroup stand-in driven by a string ``mode`` attribute.
 
-    ``mode`` keys into :func:`_fake_process_one_pipeline` to select the
-    response shape per test. Carrying behaviour on the model (rather than
-    via a per-test closure) keeps the worker function top-level and
-    importable so it can be pickled into a spawned worker process.
+    Carrying behaviour on the model (rather than via a per-test closure) keeps
+    the worker function top-level and importable so it can be pickled into a
+    spawned worker process.
     """
 
     def __init__(self, pipeline: str, flowgroup: str, *, mode: str = "default"):
@@ -52,16 +51,10 @@ class _FakeFlowGroup:
 
 
 def _ctx(fg: "_FakeFlowGroup") -> FlowGroupContext:
-    """Wrap a fake FlowGroup in a real FlowGroupContext envelope.
-
-    ``FlowGroupContext`` is a frozen dataclass with no runtime validation
-    on its ``flowgroup`` field, so the picklable fake passes through.
-    """
     return FlowGroupContext(flowgroup=fg, source_yaml=None)
 
 
 def _format_content(fg: "_FakeFlowGroup") -> str:
-    """Render the formatted-code payload a worker would compute for ``fg``."""
     if fg.mode == "default":
         return ""
     if fg.mode == "format_name":
@@ -84,14 +77,7 @@ def _format_content(fg: "_FakeFlowGroup") -> str:
 def _fake_process_one_pipeline(
     pipeline_name: str, contexts: Sequence[FlowGroupContext]
 ) -> PipelineDelta:
-    """Top-level picklable per-pipeline worker.
-
-    Mirrors the legacy per-flowgroup helper's mode dispatch but produces
-    a :class:`PipelineDelta` instead of a list of per-flowgroup results.
-    A single flowgroup raising mid-iteration fails the whole pipeline —
-    that's the worker-atomicity contract that motivated the dispatch
-    refactor in the first place.
-    """
+    """Top-level picklable per-pipeline worker; a single flowgroup raising fails the whole pipeline (worker-atomicity contract)."""
     generated_filenames: list[str] = []
     try:
         for ctx in contexts:
@@ -122,7 +108,6 @@ class TestRunGeneratePoolBasics:
         assert fail == []
 
     def test_empty_pipeline_emits_success_delta(self):
-        """A pipeline with zero flowgroups still produces a success delta."""
         succ, fail = run_generate_pool(
             flowgroups_by_pipeline={"p_empty": []},
             process_one=_fake_process_one_pipeline,
@@ -185,13 +170,7 @@ class TestRunGeneratePoolMultiPipeline:
         assert by_pipeline["p3"].files_written == 2
 
     def test_pipeline_failure_lands_in_failed_bucket(self):
-        """A flowgroup raising inside a worker fails the whole pipeline.
-
-        With per-pipeline dispatch, partial-pipeline success isn't a
-        thing — the worker either returns a success delta or a failure
-        delta for the WHOLE pipeline. This matches the atomicity model
-        of :class:`PipelineProcessor`.
-        """
+        """A flowgroup raising inside a worker fails the whole pipeline (per-pipeline dispatch atomicity model)."""
         fgs = {
             "p_ok": [_ctx(_FakeFlowGroup("p_ok", "a", mode="fail_if_bad"))],
             "p_partial": [
@@ -218,8 +197,6 @@ class TestRunGeneratePoolCallback:
         lock = threading.Lock()
 
         def cb(delta: PipelineDelta) -> None:
-            # Callback fires on the main thread after each pipeline
-            # completes — a closure here is fine (no pickle boundary).
             with lock:
                 seen.append(delta.pipeline_name)
 
@@ -241,7 +218,7 @@ class TestRunGeneratePoolCallback:
             raise RuntimeError("callback boom")
 
         fgs = {"p1": [_ctx(_FakeFlowGroup("p1", "a", mode="ok"))]}
-        # Should NOT raise — the callback's exception is swallowed and logged.
+        # Callback's exception is swallowed and logged.
         succ, fail = run_generate_pool(
             flowgroups_by_pipeline=fgs,
             process_one=_fake_process_one_pipeline,
@@ -255,7 +232,6 @@ class TestRunGeneratePoolCallback:
 @pytest.mark.slow
 class TestRunGeneratePoolDeterminism:
     def test_max_workers_1_vs_8_produce_identical_deltas(self):
-        """Sequential and parallel runs must produce identical generated_filenames."""
         flowgroups = {
             p: [
                 _ctx(_FakeFlowGroup(p, f"fg_{i}", mode="format_pipe_slash_name"))
@@ -281,10 +257,8 @@ class TestRunGeneratePoolDeterminism:
     def test_repeat_runs_produce_byte_identical_deltas(self):
         """Repeated runs of the same workload must produce identical content.
 
-        Each iteration spawns a fresh worker pool (process-mode warmup
-        ~500ms). The non-determinism being checked — out-of-order worker
-        completion — manifests on every run, not statistically over many,
-        so 10 reruns is enough confidence.
+        10 reruns is sufficient — out-of-order worker completion manifests on
+        every run, not statistically over many.
         """
         flowgroups = {
             p: [
@@ -305,9 +279,9 @@ class TestRunGeneratePoolDeterminism:
             if baseline is None:
                 baseline = run_content
             else:
-                assert run_content == baseline, (
-                    "Non-deterministic outcome across repeated runs"
-                )
+                assert (
+                    run_content == baseline
+                ), "Non-deterministic outcome across repeated runs"
 
 
 def test_init_worker_logger_attaches_only_null_handler():
@@ -328,9 +302,112 @@ def test_init_worker_logger_attaches_only_null_handler():
         assert isinstance(root.handlers[0], logging.NullHandler)
         assert root.level == logging.WARNING
     finally:
-        # Restore the root logger so subsequent tests aren't affected.
         for h in list(root.handlers):
             root.removeHandler(h)
         for h in original_handlers:
             root.addHandler(h)
         root.setLevel(original_level)
+
+
+@pytest.mark.unit
+def test_dispatch_pipeline_for_generate_stamps_positive_duration(monkeypatch):
+    """Every non-empty pipeline that completes successfully must carry ``duration_s > 0``.
+
+    A future refactor that drops the ``dataclasses.replace`` at the dispatch
+    boundary would silently regress per-pipeline durations to ``0.0``.
+    """
+    import time
+    from pathlib import Path
+    from unittest.mock import MagicMock
+
+    from lhp.core import pipeline_executor as pe
+    from lhp.models.processing import PipelineDelta
+
+    def _slow_process(**_kwargs):
+        time.sleep(0.05)
+        return PipelineDelta.success_("p1", files_written=1)
+
+    monkeypatch.setattr(pe, "_process_pipeline_for_generate", _slow_process)
+
+    delta = pe._dispatch_pipeline_for_generate(
+        "p1",
+        [],
+        processor=MagicMock(),
+        code_generator=MagicMock(),
+        formatter=MagicMock(),
+        substitution_managers={"p1": MagicMock()},
+        pipeline_output_dirs={"p1": None},
+        environment="dev",
+        project_root=Path("."),
+        project_config=None,
+        include_tests=False,
+    )
+
+    assert delta.success
+    assert (
+        delta.duration_s >= 0.05
+    ), f"expected duration_s >= 0.05 from the 50ms stub, got {delta.duration_s}"
+
+
+@pytest.mark.unit
+def test_dispatch_pipeline_for_generate_stamps_duration_on_worker_failure(
+    monkeypatch,
+):
+    """Failure deltas synthesized by the dispatcher also carry ``duration_s > 0`` (Live panel shows time-before-failure)."""
+    import time
+    from pathlib import Path
+    from unittest.mock import MagicMock
+
+    from lhp.core import pipeline_executor as pe
+
+    def _slow_failure(**_kwargs):
+        time.sleep(0.05)
+        raise RuntimeError("worker boom")
+
+    monkeypatch.setattr(pe, "_process_pipeline_for_generate", _slow_failure)
+
+    delta = pe._dispatch_pipeline_for_generate(
+        "p1",
+        [],
+        processor=MagicMock(),
+        code_generator=MagicMock(),
+        formatter=MagicMock(),
+        substitution_managers={"p1": MagicMock()},
+        pipeline_output_dirs={"p1": None},
+        environment="dev",
+        project_root=Path("."),
+        project_config=None,
+        include_tests=False,
+    )
+
+    assert not delta.success
+    assert delta.error_type == "RuntimeError"
+    assert (
+        delta.duration_s >= 0.05
+    ), f"expected duration_s >= 0.05 from the 50ms stub, got {delta.duration_s}"
+
+
+@pytest.mark.unit
+def test_dispatch_pipeline_for_generate_empty_short_circuit_zero_duration():
+    """Pipelines absent from ``substitution_managers`` short-circuit to 0.0 (distinguishes "no work" from "fast work")."""
+    from pathlib import Path
+    from unittest.mock import MagicMock
+
+    from lhp.core import pipeline_executor as pe
+
+    delta = pe._dispatch_pipeline_for_generate(
+        "p_missing",
+        [],
+        processor=MagicMock(),
+        code_generator=MagicMock(),
+        formatter=MagicMock(),
+        substitution_managers={},  # p_missing absent → short-circuit
+        pipeline_output_dirs={},
+        environment="dev",
+        project_root=Path("."),
+        project_config=None,
+        include_tests=False,
+    )
+
+    assert delta.success
+    assert delta.duration_s == 0.0

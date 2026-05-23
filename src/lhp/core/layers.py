@@ -40,9 +40,15 @@ class GenerationResponse:
     # the fail-fast boundary, where ``cli_error_boundary`` formats it and
     # maps the LHP code to a POSIX exit code via ``ExitCode.from_lhp_error``.
     original_error: Optional[Exception] = None
+    # Per-pipeline worker work-time in seconds, stamped at the worker
+    # dispatch boundary in ``_dispatch_pipeline_for_generate``. Defaults to
+    # ``0.0`` for infrastructural failures synthesized on the main thread
+    # (``executor.submit`` raising, ``fut.result()`` unpickling errors) and
+    # for no-op success deltas from empty pipelines — neither consumed
+    # measurable worker work-time.
+    duration_s: float = 0.0
 
     def is_successful(self) -> bool:
-        """Check if generation was successful."""
         return self.success
 
 
@@ -111,20 +117,16 @@ class ValidationResponse:
 
     @property
     def error_count(self) -> int:
-        """Number of error-severity issues."""
         return sum(1 for i in self.issues if i.severity == "error")
 
     @property
     def warning_count(self) -> int:
-        """Number of warning-severity issues."""
         return sum(1 for i in self.issues if i.severity == "warning")
 
     def has_errors(self) -> bool:
-        """Check if validation found errors."""
         return self.error_count > 0
 
     def has_warnings(self) -> bool:
-        """Check if validation found warnings."""
         return self.warning_count > 0
 
 
@@ -155,20 +157,9 @@ class BatchValidationResponse:
 
 
 class LakehousePlumberApplicationFacade:
-    """
-    Application layer facade providing clean interface to business layer.
-
-    This facade abstracts the complexity of the orchestrator and provides
-    a clean, testable interface for the CLI layer.
-    """
+    """Application-layer facade over the orchestrator for the CLI."""
 
     def __init__(self, orchestrator):
-        """
-        Initialize application facade.
-
-        Args:
-            orchestrator: Business layer orchestrator
-        """
         self.orchestrator = orchestrator
         self.logger = logging.getLogger(__name__)
 
@@ -185,6 +176,7 @@ class LakehousePlumberApplicationFacade:
         on_pipeline_complete: Optional[
             Callable[[str, "GenerationResponse"], None]
         ] = None,
+        on_pipeline_start: Optional[Callable[[str], None]] = None,
         warning_collector: Optional["WarningCollector"] = None,
     ) -> "BatchGenerationResponse":
         """Coordinate batch (multi-pipeline) generation through the per-pipeline pool.
@@ -236,21 +228,14 @@ class LakehousePlumberApplicationFacade:
                     else delta.error_message
                 )
                 if delta.lhp_error is not None:
-                    # Worker raised LHPError — surface the live instance unchanged.
                     original_error = delta.lhp_error
                 else:
-                    # Non-LHP exception — dispatch through
-                    # ``lhp_error_from_worker_failure`` so the synthesized
-                    # error preserves dual-inheritance subclass identity
-                    # for stdlib types: ``ValueError`` →
-                    # ``LHPValidationError``, ``FileNotFoundError`` →
-                    # ``LHPFileError``, etc. This keeps the
-                    # ``response.original_error`` shape consistent with the
-                    # orchestrator's terminal raise path (orchestrator.py:918),
+                    # Synthesize an LHPError that preserves dual-inheritance
+                    # subclass identity for stdlib types (ValueError →
+                    # LHPValidationError, FileNotFoundError → LHPFileError, …)
                     # so callers' ``except ValueError:`` / ``except
-                    # FileNotFoundError:`` handlers still catch worker
-                    # failures the same way they catch them when generation
-                    # runs in the main thread.
+                    # FileNotFoundError:`` keep catching worker failures the
+                    # same way they catch main-thread failures.
                     original_error = lhp_error_from_worker_failure(
                         pipeline_name=delta.pipeline_name,
                         error_type=delta.error_type or "UnknownError",
@@ -269,6 +254,7 @@ class LakehousePlumberApplicationFacade:
                 },
                 error_message=error_message,
                 original_error=original_error,
+                duration_s=delta.duration_s,
             )
             pipeline_responses[delta.pipeline_name] = response
             if on_pipeline_complete is not None:
@@ -291,6 +277,7 @@ class LakehousePlumberApplicationFacade:
                     pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
                     max_workers=max_workers,
                     on_pipeline_complete=_on_delta,
+                    on_pipeline_start=on_pipeline_start,
                     warning_collector=warning_collector,
                 )
 

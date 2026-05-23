@@ -15,36 +15,37 @@ code in the format ``LHP-{CATEGORY}-{NUMBER}``:
 - **CATEGORY** — The error category (e.g. ``CFG`` for configuration, ``VAL`` for validation)
 - **NUMBER** — A unique number within that category
 
-Here is what an error looks like in your terminal:
+Here is what an error looks like in your terminal (Rich-rendered Panel on
+stderr; file logs receive the same content as plain ASCII):
 
 .. code-block:: text
    :caption: Example error output
 
-   ❌ Error [LHP-VAL-001]: Missing required field 'source'
-   ======================================================================
-
-   The Load action 'load_customers' requires a 'source' field. This field
-   specifies where to read data from.
-
-   📍 Context:
-      • Component Type: Load action
-      • Component Name: load_customers
-      • Missing Field: source
-
-   💡 How to fix:
-      1. Add the 'source' field to your configuration
-      2. Check the example below for the correct format
-
-   📝 Example:
-      actions:
-        - name: load_customers
-          type: load
-          source:
-            type: cloudfiles
-            path: /data/customers/
-
-   📚 More info: https://docs.lakehouseplumber.com/errors/lhp-val-001
-   ======================================================================
+   ╭─ LHP-VAL-001   Validation ──────────────────────────────────────────╮
+   │ Missing required field 'source'                                     │
+   │                                                                    │
+   │ The Load action 'load_customers' requires a 'source' field. This    │
+   │ field specifies where to read data from.                            │
+   │                                                                    │
+   │ Context                                                             │
+   │   Component Type: Load action                                       │
+   │   Component Name: load_customers                                    │
+   │   Missing Field: source                                             │
+   │                                                                    │
+   │ Suggestions                                                         │
+   │   -> Add the 'source' field to your configuration                   │
+   │   -> Check the example below for the correct format                 │
+   │                                                                    │
+   │ Example                                                             │
+   │   actions:                                                          │
+   │     - name: load_customers                                          │
+   │       type: load                                                    │
+   │       source:                                                       │
+   │         type: cloudfiles                                            │
+   │         path: /data/customers/                                      │
+   │                                                                    │
+   │ More info: https://docs.lakehouseplumber.com/errors/lhp-val-001     │
+   ╰─────────────────────────────────────────────────────────────────────╯
 
 Each error includes the cause, relevant context, numbered fix suggestions, and a
 configuration example where applicable. Search this page for your error code to find

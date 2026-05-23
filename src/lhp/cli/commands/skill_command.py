@@ -17,7 +17,10 @@ from typing import List, Literal, Optional
 import click
 from packaging.version import InvalidVersion
 from packaging.version import parse as parse_version
+from rich.text import Text
 
+from .. import console as _console_module
+from ..render import render_command_header
 from .base_command import BaseCommand
 
 logger = logging.getLogger(__name__)
@@ -33,12 +36,8 @@ class SkillCommand(BaseCommand):
     """Handles install/update/status/uninstall of the LHP Claude Code skill."""
 
     def install(self, user: bool, force: bool) -> None:
-        """Install the skill into the chosen location.
-
-        Args:
-            user: If True, install to ``~/.claude/skills/lhp/``; otherwise CWD.
-            force: If True, overwrite an existing install without checking.
-        """
+        """Install the skill. ``user=True`` targets ``~/.claude/skills/lhp/``."""
+        render_command_header("lhp skill install")
         self.setup_from_context()
 
         install_dir = self._resolve_install_dir(user)
@@ -71,16 +70,22 @@ class SkillCommand(BaseCommand):
         self._copy_skill_files(install_dir)
         self._write_marker(install_dir, current_version)
 
-        click.echo(f"✅ Installed LHP skill v{current_version} to {install_dir}")
-        click.echo("📚 Reload your Claude Code session to pick up the skill.")
+        _console_module.console.print(
+            Text.assemble(
+                ("✓ ", "bold green"),
+                f"Installed LHP skill v{current_version} to {install_dir}",
+            )
+        )
+        _console_module.console.print(
+            "Reload your Claude Code session to pick up the skill."
+        )
 
     def update(self, user: bool, yes: bool) -> None:
         """Update an existing install to the current LHP version.
 
-        Args:
-            user: If True, target ``~/.claude/skills/lhp/``; otherwise CWD.
-            yes: If True, skip the downgrade-confirmation prompt.
+        ``yes`` skips the downgrade-confirmation prompt.
         """
+        render_command_header("lhp skill update")
         self.setup_from_context()
 
         install_dir = self._resolve_install_dir(user)
@@ -108,13 +113,15 @@ class SkillCommand(BaseCommand):
         comparison = self._compare_versions(installed_version, current_version)
 
         if comparison == "newer" and not yes:
-            click.echo(
-                f"⚠️  Installed skill v{installed_version} is newer than "
-                f"the current LHP version v{current_version}.",
-                err=True,
+            _console_module.err_console.print(
+                Text.assemble(
+                    ("⚠ ", "bold yellow"),
+                    f"Installed skill v{installed_version} is newer than "
+                    f"the current LHP version v{current_version}.",
+                )
             )
             if not click.confirm("Continue and downgrade the skill?", default=False):
-                click.echo("Aborted.")
+                _console_module.console.print("Aborted.")
                 return
 
         logger.info(
@@ -122,144 +129,165 @@ class SkillCommand(BaseCommand):
             f"at {install_dir}"
         )
 
-        # Wipe and re-copy: simpler than computing diff and matches the
-        # "always overwrite" decision from the design.
+        # Wipe and re-copy: simpler than computing a diff.
         self._clear_install_dir(install_dir)
         self._copy_skill_files(install_dir)
         self._write_marker(install_dir, current_version)
 
         if comparison == "same":
-            click.echo(
-                f"✅ LHP skill is already at v{current_version}; "
-                f"refreshed files at {install_dir}"
+            _console_module.console.print(
+                Text.assemble(
+                    ("✓ ", "bold green"),
+                    f"LHP skill is already at v{current_version}; "
+                    f"refreshed files at {install_dir}",
+                )
             )
         elif comparison == "older":
-            click.echo(
-                f"✅ Updated LHP skill: v{installed_version} -> "
-                f"v{current_version} at {install_dir}"
+            _console_module.console.print(
+                Text.assemble(
+                    ("✓ ", "bold green"),
+                    f"Updated LHP skill: v{installed_version} -> "
+                    f"v{current_version} at {install_dir}",
+                )
             )
         else:
-            click.echo(
-                f"✅ Replaced LHP skill v{installed_version} with "
-                f"v{current_version} at {install_dir}"
+            _console_module.console.print(
+                Text.assemble(
+                    ("✓ ", "bold green"),
+                    f"Replaced LHP skill v{installed_version} with "
+                    f"v{current_version} at {install_dir}",
+                )
             )
 
     def status(self, user: bool) -> None:
-        """Print the install state of the skill.
-
-        Args:
-            user: If True, check the user-global install; otherwise CWD.
-        """
+        """Print the install state of the skill."""
+        render_command_header("lhp skill status")
         self.setup_from_context()
 
         install_dir = self._resolve_install_dir(user)
         current_version = self._current_version()
 
-        click.echo(f"Install location: {install_dir}")
-        click.echo(f"Current LHP version: v{current_version}")
+        _console_module.console.print(
+            Text.assemble(("Install location: ", "dim"), str(install_dir))
+        )
+        _console_module.console.print(
+            Text.assemble(("Current LHP version: ", "dim"), f"v{current_version}")
+        )
 
         if not install_dir.exists():
-            click.echo("Status: Not installed. Run `lhp skill install`.")
+            _console_module.console.print(
+                Text.assemble(
+                    ("✗ ", "bold red"),
+                    "Not installed. Run `lhp skill install`.",
+                )
+            )
             return
 
         installed_version = self._read_marker(install_dir)
 
         if installed_version is None:
-            click.echo(
-                "Status: ⚠️  Foreign install detected (no marker file). "
-                "Run `lhp skill install --force` to take over."
+            _console_module.err_console.print(
+                Text.assemble(
+                    ("⚠ ", "bold yellow"),
+                    "Foreign install detected (no marker file). "
+                    "Run `lhp skill install --force` to take over.",
+                )
             )
             return
 
         comparison = self._compare_versions(installed_version, current_version)
 
         if comparison == "same":
-            click.echo(f"Status: ✅ v{installed_version} (up-to-date)")
+            _console_module.console.print(
+                Text.assemble(
+                    ("✓ ", "bold green"),
+                    f"v{installed_version} (up-to-date)",
+                )
+            )
         elif comparison == "older":
-            click.echo(
-                f"Status: ⬆️  Update available: v{installed_version} -> "
-                f"v{current_version}. Run `lhp skill update`."
+            _console_module.err_console.print(
+                Text.assemble(
+                    ("⚠ ", "bold yellow"),
+                    f"Update available: v{installed_version} -> "
+                    f"v{current_version}. Run `lhp skill update`.",
+                )
             )
         else:
-            click.echo(
-                f"Status: ⚠️  Installed v{installed_version} is newer than "
-                f"CLI v{current_version}. "
-                f"Run `pip install -U lakehouse-plumber`."
+            _console_module.err_console.print(
+                Text.assemble(
+                    ("⚠ ", "bold yellow"),
+                    f"Installed v{installed_version} is newer than "
+                    f"CLI v{current_version}. "
+                    f"Run `pip install -U lakehouse-plumber`.",
+                )
             )
 
         extras = self._extra_files(install_dir)
         if extras:
-            click.echo("\nExtra files (will be removed by `lhp skill update`):")
+            _console_module.console.print("")
+            _console_module.console.print(
+                "Extra files (will be removed by `lhp skill update`):"
+            )
             for rel in extras:
-                click.echo(f"  • {rel}")
+                _console_module.console.print(f"  {rel}")
 
     def uninstall(self, user: bool, force: bool) -> None:
-        """Remove the skill install.
-
-        Args:
-            user: If True, remove from ``~/.claude/skills/lhp/``; otherwise CWD.
-            force: If True, skip the confirmation prompt.
-        """
+        """Remove the skill install. ``force`` skips the confirmation prompt."""
+        render_command_header("lhp skill uninstall")
         self.setup_from_context()
 
         install_dir = self._resolve_install_dir(user)
 
         if not install_dir.exists():
-            click.echo(f"Nothing to remove: {install_dir} does not exist.")
+            _console_module.console.print(
+                f"Nothing to remove: {install_dir} does not exist."
+            )
             return
 
         if not force:
             if not click.confirm(
                 f"Remove LHP skill from {install_dir}?", default=False
             ):
-                click.echo("Aborted.")
+                _console_module.console.print("Aborted.")
                 return
 
         shutil.rmtree(install_dir)
-        click.echo(f"✅ Removed LHP skill from {install_dir}")
+        _console_module.console.print(
+            Text.assemble(
+                ("✓ ", "bold green"),
+                f"Removed LHP skill from {install_dir}",
+            )
+        )
 
     def _resolve_install_dir(self, user: bool) -> Path:
-        """Compute the target install directory.
-
-        Args:
-            user: If True, resolve to ``~/.claude/skills/lhp/``;
-                otherwise ``<cwd>/.claude/skills/lhp/``.
-        """
         base = Path.home() if user else Path.cwd()
         return base / ".claude" / "skills" / SKILL_DIRNAME
 
     def _current_version(self) -> str:
-        """Return the current LHP version from package metadata."""
         try:
             return str(version("lakehouse-plumber"))
         except Exception:
-            # Editable installs without metadata, or other unusual setups,
-            # should not break the command outright. Fall back to the
-            # main module's version helper for symmetry with --version.
+            # Editable installs without metadata fall back to the main
+            # module's version helper for symmetry with --version.
             from ..main import get_version
 
             return str(get_version())
 
     def _read_marker(self, install_dir: Path) -> Optional[str]:
-        """Return the installed version recorded in the marker file, if any."""
         marker_path = install_dir / MARKER_FILE
         if not marker_path.is_file():
             return None
         return marker_path.read_text(encoding="utf-8").strip() or None
 
     def _write_marker(self, install_dir: Path, version_str: str) -> None:
-        """Write the marker file with the given version."""
         marker_path = install_dir / MARKER_FILE
         marker_path.write_text(version_str + "\n", encoding="utf-8")
 
     def _enumerate_skill_files(self) -> List[str]:
-        """Recursively enumerate skill files relative to the package root.
+        """Sorted relative POSIX paths under the skill package.
 
         Excludes ``__init__.py`` and ``__pycache__`` so the rendered skill
         contains only the markdown content.
-
-        Returns:
-            Sorted list of relative POSIX paths (e.g. ``"references/errors.md"``).
         """
         package_root = files(SKILL_PACKAGE)
         collected: List[str] = []
@@ -280,7 +308,6 @@ class SkillCommand(BaseCommand):
         return collected
 
     def _copy_skill_files(self, install_dir: Path) -> None:
-        """Copy all skill files from the package into ``install_dir``."""
         install_dir.mkdir(parents=True, exist_ok=True)
         package_root = files(SKILL_PACKAGE)
 
@@ -294,7 +321,6 @@ class SkillCommand(BaseCommand):
             logger.debug(f"Wrote skill file: {target}")
 
     def _clear_install_dir(self, install_dir: Path) -> None:
-        """Remove every entry inside ``install_dir`` except the directory itself."""
         if not install_dir.exists():
             return
         for child in install_dir.iterdir():
@@ -304,10 +330,9 @@ class SkillCommand(BaseCommand):
                 child.unlink()
 
     def _extra_files(self, install_dir: Path) -> List[str]:
-        """Return relative paths present in install_dir but not in current source.
+        """Paths present in install_dir but not in current source.
 
-        The marker file is intentionally excluded from "extras" since `update`
-        rewrites it.
+        Excludes the marker file (``update`` rewrites it).
         """
         if not install_dir.exists():
             return []
@@ -328,10 +353,7 @@ class SkillCommand(BaseCommand):
     def _compare_versions(
         self, installed: str, current: str
     ) -> Literal["same", "older", "newer"]:
-        """Compare two version strings via ``packaging.version.parse``.
-
-        Falls back to string equality if either version can't be parsed.
-        """
+        """Falls back to string equality if either version can't be parsed."""
         try:
             installed_v = parse_version(installed)
             current_v = parse_version(current)

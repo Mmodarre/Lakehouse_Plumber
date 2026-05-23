@@ -4,31 +4,25 @@ import logging
 from pathlib import Path
 from typing import List
 
-import click
+from rich.console import Group
+from rich.panel import Panel
+from rich.text import Text
 
 from ...core.init_template_context import InitTemplateContext
 from ...core.init_template_loader import InitTemplateLoader
+from .. import console as _console_module
+from ..render import render_command_header
 from .base_command import BaseCommand
 
 logger = logging.getLogger(__name__)
 
 
 class InitCommand(BaseCommand):
-    """
-    Handles project initialization command.
-
-    Creates a LakehousePlumber project in the current working directory,
-    with Databricks Asset Bundle integration enabled by default.
-    """
+    """Initialize a LakehousePlumber project in the current working directory."""
 
     def execute(self, project_name: str, bundle: bool = True) -> None:
-        """
-        Execute the init command.
-
-        Args:
-            project_name: Name used for template rendering (bundle name, lhp.yaml, etc.)
-            bundle: Whether to initialize as Databricks Asset Bundle project (default True)
-        """
+        """Initialize the project. ``bundle`` enables Databricks Asset Bundle layout."""
+        render_command_header("lhp init")
         self.setup_from_context()
 
         project_path = Path.cwd()
@@ -37,7 +31,6 @@ class InitCommand(BaseCommand):
             f"Initializing project '{project_name}' in {project_path}, bundle={bundle}"
         )
 
-        # Check for existing LHP project
         if (project_path / "lhp.yaml").exists():
             from ...utils.error_formatter import ErrorCategory, LHPFileError
 
@@ -55,30 +48,26 @@ class InitCommand(BaseCommand):
 
         created_items: List[Path] = []
         try:
-            # Create project structure
             logger.debug(f"Creating directory structure (bundle={bundle})")
             created_items = self._create_project_structure(project_path, bundle)
 
-            # Create template context
             context = InitTemplateContext.create(
                 project_name=project_name,
                 bundle_enabled=bundle,
-                author="",  # Empty by default as in original code
+                author="",
             )
 
-            # Create project files using template loader
             logger.debug("Rendering project template files")
             self._create_project_files(project_path, context)
 
             logger.info(f"Project '{project_name}' initialized successfully")
 
-            # Display success message
             self._display_success_message(project_name, bundle)
 
         except Exception as e:
             self.logger.error(f"Failed to create project: {e}")
 
-            # Selective cleanup: only remove items we created
+            # Only remove items we created.
             for item in reversed(created_items):
                 try:
                     if item.is_dir() and not any(item.iterdir()):
@@ -87,22 +76,12 @@ class InitCommand(BaseCommand):
                     logger.debug(
                         f"Could not remove directory {item} during cleanup: {cleanup_err}"
                     )
-            raise  # Let cli_error_boundary handle the error
+            raise
 
     def _create_project_structure(self, project_path: Path, bundle: bool) -> List[Path]:
-        """
-        Create project directory structure.
-
-        Args:
-            project_path: Path to the project (CWD)
-            bundle: Whether to create bundle directories
-
-        Returns:
-            List of newly created directories for cleanup tracking
-        """
+        """Returns newly created directories for cleanup tracking on failure."""
         created: List[Path] = []
 
-        # Create standard directories
         directories = [
             "presets",
             "templates",
@@ -120,7 +99,6 @@ class InitCommand(BaseCommand):
                 dir_path.mkdir()
                 created.append(dir_path)
 
-        # Add resources directory for bundle projects
         if bundle:
             resources_dir = project_path / "resources"
             resources_lhp_dir = resources_dir / "lhp"
@@ -136,24 +114,11 @@ class InitCommand(BaseCommand):
     def _create_project_files(
         self, project_path: Path, context: InitTemplateContext
     ) -> None:
-        """
-        Create project files using template loader.
-
-        Args:
-            project_path: Path to the project
-            context: Template context for file creation
-        """
         template_loader = InitTemplateLoader()
         template_loader.create_project_files(project_path, context)
 
     def _display_success_message(self, project_name: str, bundle: bool) -> None:
-        """
-        Display success message after project creation.
-
-        Args:
-            project_name: Name of the created project
-            bundle: Whether bundle support was enabled
-        """
+        """Render the post-init success Panel (border_style="dim")."""
         directories = [
             "presets",
             "templates",
@@ -166,33 +131,46 @@ class InitCommand(BaseCommand):
         ]
 
         if bundle:
-            click.echo(
-                f"✅ Initialized Databricks Asset Bundle project: {project_name}"
-            )
-            click.echo(f"📁 Created directories: {', '.join(directories)}, resources")
-            click.echo(
-                "📄 Created example files: presets/bronze_layer.yaml, "
+            title_label = f"Initialized Databricks Asset Bundle project: {project_name}"
+            directories_line = f"{', '.join(directories)}, resources"
+            example_files_line = (
+                "presets/bronze_layer.yaml, "
                 "templates/standard_ingestion.yaml, databricks.yml"
             )
-            click.echo(
-                "🔧 VS Code IntelliSense automatically configured for YAML files"
-            )
-            click.echo("\n🚀 Next steps:")
-            click.echo("   # Create your first pipeline")
-            click.echo("   mkdir pipelines/my_pipeline")
-            click.echo("   # Add flowgroup configurations")
-            click.echo("   # Deploy bundle with: databricks bundle deploy")
+            next_step_commands: List[str] = [
+                "# Create your first pipeline",
+                "mkdir pipelines/my_pipeline",
+                "# Add flowgroup configurations",
+                "# Deploy bundle with: databricks bundle deploy",
+            ]
         else:
-            click.echo(f"✅ Initialized LakehousePlumber project: {project_name}")
-            click.echo(f"📁 Created directories: {', '.join(directories)}")
-            click.echo(
-                "📄 Created example files: presets/bronze_layer.yaml, "
-                "templates/standard_ingestion.yaml"
+            title_label = f"Initialized LakehousePlumber project: {project_name}"
+            directories_line = ", ".join(directories)
+            example_files_line = (
+                "presets/bronze_layer.yaml, templates/standard_ingestion.yaml"
             )
-            click.echo(
-                "🔧 VS Code IntelliSense automatically configured for YAML files"
-            )
-            click.echo("\n🚀 Next steps:")
-            click.echo("   # Create your first pipeline")
-            click.echo("   mkdir pipelines/my_pipeline")
-            click.echo("   # Add flowgroup configurations")
+            next_step_commands = [
+                "# Create your first pipeline",
+                "mkdir pipelines/my_pipeline",
+                "# Add flowgroup configurations",
+            ]
+
+        title_line = Text.assemble(
+            ("✓ ", "bold green"),
+            (title_label, "bold"),
+        )
+        body_lines: List[Text] = [
+            title_line,
+            Text.assemble(("Created directories: ", "dim"), Text(directories_line)),
+            Text.assemble(("Example files: ", "dim"), Text(example_files_line)),
+            Text(
+                "VS Code IntelliSense automatically configured for YAML files",
+                style="dim",
+            ),
+            Text(""),
+            Text("Next steps:", style="bold"),
+        ]
+        for cmd in next_step_commands:
+            body_lines.append(Text(f"  {cmd}"))
+
+        _console_module.console.print(Panel(Group(*body_lines), border_style="dim"))

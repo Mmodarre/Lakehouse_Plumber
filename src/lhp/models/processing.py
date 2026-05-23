@@ -47,6 +47,7 @@ class PipelineDelta:
     files_written: int = 0
     artifacts_count: int = 0
     generated_filenames: tuple[str, ...] = ()
+    duration_s: float = 0.0
     lhp_error: Optional["LHPError"] = None
     error_type: Optional[str] = None
     error_message: Optional[str] = None
@@ -60,6 +61,7 @@ class PipelineDelta:
         files_written: int = 0,
         artifacts_count: int = 0,
         generated_filenames: Sequence[str] = (),
+        duration_s: float = 0.0,
     ) -> "PipelineDelta":
         """Build a success delta. The trailing underscore on the name avoids
         shadowing the ``success`` field while still reading naturally at
@@ -71,10 +73,17 @@ class PipelineDelta:
             files_written=files_written,
             artifacts_count=artifacts_count,
             generated_filenames=tuple(generated_filenames),
+            duration_s=duration_s,
         )
 
     @classmethod
-    def failure(cls, pipeline_name: str, exc: BaseException) -> "PipelineDelta":
+    def failure(
+        cls,
+        pipeline_name: str,
+        exc: BaseException,
+        *,
+        duration_s: float = 0.0,
+    ) -> "PipelineDelta":
         """Build a failure delta from a live exception.
 
         For LHPError instances, the live exception is carried via
@@ -87,6 +96,14 @@ class PipelineDelta:
         ``error_message=str(exc)`` is preserved for both kinds so legacy
         log lines, summary rows, and tests that read it keep working;
         the unwrap consumer prefers ``lhp_error`` when present.
+
+        ``duration_s`` defaults to ``0.0``. The worker dispatch boundary
+        stamps a measured value when the failure originates from actual
+        work in :func:`_dispatch_pipeline_for_generate`. Failures
+        synthesized on the main thread for infrastructural reasons
+        (``executor.submit`` raising, ``fut.result()`` unpickling errors,
+        worker crashes before t0 is captured) intentionally leave this
+        at ``0.0`` — those did not consume measurable worker work-time.
         """
         from lhp.utils.error_formatter import LHPError  # lazy to avoid cycle
 
@@ -95,6 +112,7 @@ class PipelineDelta:
         return cls(
             pipeline_name=pipeline_name,
             success=False,
+            duration_s=duration_s,
             lhp_error=lhp_err,
             error_type=type(exc).__name__,
             error_message=str(exc),

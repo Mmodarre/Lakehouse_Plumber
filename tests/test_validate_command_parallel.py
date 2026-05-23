@@ -19,11 +19,7 @@ from lhp.cli.main import cli
 
 
 def _build_multipipeline_project(project_root: Path, pipeline_names) -> None:
-    """Create a project with one flowgroup per pipeline.
-
-    Mirrors the helper in ``test_generate_command_parallel`` so both tests
-    cover the same fixture shape.
-    """
+    """Project with one flowgroup per pipeline (mirrors ``test_generate_command_parallel`` fixture shape)."""
     (project_root / "presets").mkdir(parents=True, exist_ok=True)
     (project_root / "templates").mkdir(parents=True, exist_ok=True)
     (project_root / "substitutions").mkdir(parents=True, exist_ok=True)
@@ -86,8 +82,6 @@ def _build_multipipeline_project(project_root: Path, pipeline_names) -> None:
 
 
 class TestValidateCommandParallel:
-    """Integration tests for ``lhp validate --max-workers N``."""
-
     PIPELINES = ["pv_alpha", "pv_beta", "pv_gamma"]
 
     @pytest.fixture
@@ -95,8 +89,6 @@ class TestValidateCommandParallel:
         return CliRunner()
 
     def test_max_workers_flag_accepted_with_4_workers(self, runner):
-        """``lhp validate --max-workers 4`` runs cleanly through the
-        flat-pool engine and exits 0 on a clean project."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             _build_multipipeline_project(project_root, self.PIPELINES)
@@ -119,11 +111,9 @@ class TestValidateCommandParallel:
                         "--show-all",
                     ],
                 )
-                assert result.exit_code == 0, (
-                    f"CLI exited {result.exit_code}: {result.output}"
-                )
-                # Each pipeline name should appear in the per-pipeline
-                # display section.
+                assert (
+                    result.exit_code == 0
+                ), f"CLI exited {result.exit_code}: {result.output}"
                 for name in self.PIPELINES:
                     assert name in result.output, (
                         f"Pipeline {name} missing from validate output:\n"
@@ -133,8 +123,7 @@ class TestValidateCommandParallel:
                 os.chdir(cwd)
 
     def test_parallel_validate_matches_sequential(self, runner):
-        """The set of pipeline-level errors is the same for
-        ``--max-workers 1`` and ``--max-workers 4``."""
+        """Pipeline-level errors are identical for ``--max-workers 1`` and ``--max-workers 4``."""
         with (
             tempfile.TemporaryDirectory() as par_tmp,
             tempfile.TemporaryDirectory() as seq_tmp,
@@ -165,9 +154,123 @@ class TestValidateCommandParallel:
                 )
                 assert seq_result.exit_code == 0
 
-                # Both runs should report the same per-pipeline names.
                 for name in self.PIPELINES:
                     assert name in par_result.output
                     assert name in seq_result.output
             finally:
                 os.chdir(cwd)
+
+
+class _FakeValidateFlowGroup:
+    """Picklable FlowGroup stand-in for the validate-pool unit test."""
+
+    def __init__(self, pipeline: str, flowgroup: str):
+        self.pipeline = pipeline
+        self.flowgroup = flowgroup
+
+
+def _ctx_validate(fg: "_FakeValidateFlowGroup"):
+    from lhp.models.config import FlowGroupContext
+
+    return FlowGroupContext(flowgroup=fg, source_yaml=None)
+
+
+@pytest.mark.unit
+def test_run_validate_pool_guards_executor_submit_raises(monkeypatch):
+    """If ``executor.submit`` raises mid-loop, every pipeline's ``on_pipeline_complete`` still fires exactly once and the submit exception is surfaced as a flowgroup-level error.
+
+    Monkeypatches ``ProcessPoolExecutor`` with a fake that fails its second
+    ``submit`` and short-circuits successful submits with a pre-completed
+    Future, so the worker function is never invoked and no subprocess spawn
+    is required.
+    """
+    from concurrent.futures import Future
+
+    from lhp.core import pipeline_executor as pe
+    from lhp.core.pipeline_executor import (
+        FlowgroupValidationResult,
+        PipelineValidationOutcome,
+        _ValidateWorkerState,
+        run_validate_pool,
+    )
+
+    flowgroups_by_pipeline = {
+        "p_alpha": [
+            _ctx_validate(_FakeValidateFlowGroup("p_alpha", "alpha_fg1")),
+            _ctx_validate(_FakeValidateFlowGroup("p_alpha", "alpha_fg2")),
+        ],
+        "p_beta": [
+            _ctx_validate(_FakeValidateFlowGroup("p_beta", "beta_fg1")),
+            _ctx_validate(_FakeValidateFlowGroup("p_beta", "beta_fg2")),
+        ],
+    }
+
+    submit_call_count = {"n": 0}
+
+    class _FakeExecutor:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def submit(self, fn, fg_ctx):
+            submit_call_count["n"] += 1
+            if submit_call_count["n"] == 2:
+                raise RuntimeError("simulated BrokenProcessPool on submit")
+            fut: Future = Future()
+            fut.set_result(
+                FlowgroupValidationResult(
+                    pipeline=fg_ctx.flowgroup.pipeline,
+                    flowgroup_name=fg_ctx.flowgroup.flowgroup,
+                    errors=(),
+                )
+            )
+            return fut
+
+    monkeypatch.setattr(pe, "ProcessPoolExecutor", _FakeExecutor)
+
+    def _assemble(pipeline: str, results):
+        errs = tuple(e for r in results for e in r.errors)
+        return PipelineValidationOutcome(
+            pipeline=pipeline,
+            errors=errs,
+            warnings=(),
+            success=not errs,
+        )
+
+    completions: list[PipelineValidationOutcome] = []
+
+    worker_state = _ValidateWorkerState(
+        processor=None,  # never invoked: _FakeExecutor short-circuits results.
+        substitution_managers={},
+        include_tests=False,
+    )
+
+    outcomes = run_validate_pool(
+        flowgroups_by_pipeline=flowgroups_by_pipeline,
+        worker_state=worker_state,
+        assemble_pipeline=_assemble,
+        max_workers=2,
+        on_pipeline_complete=completions.append,
+    )
+
+    completed_names = [o.pipeline for o in completions]
+    assert sorted(completed_names) == ["p_alpha", "p_beta"]
+    assert len(completions) == 2
+
+    assert [o.pipeline for o in outcomes] == ["p_alpha", "p_beta"]
+
+    by_pipeline = {o.pipeline: o for o in outcomes}
+
+    assert by_pipeline["p_alpha"].success is False
+    assert any(
+        "alpha_fg2" in e and "simulated BrokenProcessPool" in e
+        for e in by_pipeline["p_alpha"].errors
+    ), by_pipeline["p_alpha"].errors
+
+    assert by_pipeline["p_beta"].success is True
+    assert by_pipeline["p_beta"].errors == ()

@@ -1,72 +1,122 @@
-"""Tests for the discovery spinner emitted by ``render_status_group``.
+"""Tests for the discovery spinner emitted by ``render_live_frame``.
 
 Phase B of the CLI UX hardening replaces the previously empty first
 Live frame (a ~5s silent terminal on the 100-pipeline fixture project)
-with a ``Discovering flowgroups`` spinner. These tests pin the contract:
+with a ``Discovering`` spinner via the ``PhaseTracker`` active-phase
+slot. These tests pin the contract:
 
-* Empty inputs -> exactly one spinner whose text starts with the
-  discovery label so the user sees motion within the first frame.
-* Once ``phase_lines`` or ``records`` populate, the discovery spinner is
-  replaced by the existing render path; there is no double-spinner state.
+* When ``Discovering`` is the active phase, the rendered panel body
+  contains a Rich ``Spinner`` so the user sees motion within the first
+  frame.
+* Once ``Discovering`` completes, no Spinner remains in the body (the
+  ``OverallProgress`` instance is still present, but it is a
+  ``rich.progress.Progress``, not a bare Spinner).
+* Per-pipeline progress is now driven by an ``OverallProgress``
+  (``rich.progress.Progress``) instance and the panel title carries the
+  total pipeline count, rather than a counter spinner inside the body.
 """
 
+from rich.console import Group
+from rich.panel import Panel
+from rich.progress import Progress
 from rich.spinner import Spinner
-from rich.text import Text
 
-from lhp.cli.live_panel import PipelineRecord, render_status_group
-
-
-def test_render_status_group_empty_returns_discovery_spinner() -> None:
-    """Empty records + empty phase_lines + empty failure_lines -> one
-    discovery spinner whose label reads ``Discovering flowgroups``.
-
-    The spinner is a placeholder that occupies the otherwise silent
-    first Live frame; it is atomically replaced once the first
-    ``Discovering`` phase marker line is appended.
-    """
-    group = render_status_group({}, [], [], elapsed_text="00:00")
-
-    children = tuple(group.renderables)
-    assert len(children) == 1
-    spinner = children[0]
-    assert isinstance(spinner, Spinner)
-
-    # ``Spinner.text`` is the Rich ``Text`` instance constructed above.
-    text = spinner.text
-    assert isinstance(text, Text)
-    assert "Discovering flowgroups" in text.plain
+from lhp.cli.live_panel import (
+    ActivityTail,
+    HeaderContext,
+    OverallProgress,
+    PhaseTracker,
+    PipelineRecord,
+    render_live_frame,
+)
 
 
-def test_render_status_group_with_phase_lines_skips_discovery_spinner() -> None:
-    """A non-empty ``phase_lines`` list -> no discovery spinner.
-
-    Once the first ``Discovering`` phase marker has been appended, the
-    placeholder is replaced by the standard rendering path: only the
-    accumulated phase lines (and any failure lines / progress spinner
-    if applicable) appear.
-    """
-    phase_lines = [Text("  Discovering   ✓   0.5s")]
-    group = render_status_group({}, phase_lines, [], elapsed_text="00:01")
-
-    children = tuple(group.renderables)
-    # No discovery placeholder spinner. Without records, the progress
-    # spinner is also omitted -- only the phase line remains.
-    assert all(not isinstance(c, Spinner) for c in children)
-    assert phase_lines[0] in children
+def _has_spinner(node) -> bool:
+    if isinstance(node, Spinner):
+        return True
+    if isinstance(node, Group):
+        return any(_has_spinner(child) for child in node.renderables)
+    return False
 
 
-def test_render_status_group_with_records_skips_discovery_spinner() -> None:
-    """Non-empty ``records`` -> no discovery spinner.
+def _make_header(total: int = 0) -> HeaderContext:
+    return HeaderContext(command_name="generate", env="dev", total_pipelines=total)
 
-    Once pipelines have been seeded, the generation progress spinner
-    takes over; the discovery placeholder must not coexist with it.
-    """
-    records = {"p1": PipelineRecord("p1")}
-    group = render_status_group(records, [], [], elapsed_text="00:02")
 
-    spinners = [r for r in group.renderables if isinstance(r, Spinner)]
-    # Exactly one spinner -- the generation-progress spinner, not the
-    # discovery placeholder.
-    assert len(spinners) == 1
-    assert "Discovering flowgroups" not in spinners[0].text.plain
-    assert "Generating" in spinners[0].text.plain
+def test_render_live_frame_active_discovery_contains_spinner() -> None:
+    """Active ``Discovering`` phase: first Live frame must show motion via a Spinner."""
+    phase_tracker = PhaseTracker()
+    phase_tracker.start("Discovering")
+    overall = OverallProgress("Generating", total=0)
+    activity = ActivityTail()
+
+    # ``console_width=80`` keeps the body as a single-column ``Group`` so
+    # the recursive ``_has_spinner`` walker can traverse it directly.
+    panel = render_live_frame(
+        phase_tracker,
+        overall,
+        activity,
+        [],
+        header_context=_make_header(0),
+        elapsed_text="00:00",
+        show_progress=False,
+        console_width=80,
+    )
+
+    assert isinstance(panel, Panel)
+    assert _has_spinner(panel.renderable) is True
+
+
+def test_render_live_frame_after_discovery_completes_has_no_spinner() -> None:
+    """Completed ``Discovering`` phase: discovery placeholder is replaced by the standard render path."""
+    phase_tracker = PhaseTracker()
+    phase_tracker.start("Discovering")
+    # ``complete()`` renders by default, so the phase lands in
+    # ``phase_tracker.completed`` regardless of duration.
+    phase_tracker.complete("Discovering", success=True)
+    overall = OverallProgress("Generating", total=0)
+    activity = ActivityTail()
+
+    panel = render_live_frame(
+        phase_tracker,
+        overall,
+        activity,
+        [],
+        header_context=_make_header(0),
+        elapsed_text="00:01",
+        show_progress=False,
+        console_width=80,
+    )
+
+    assert _has_spinner(panel.renderable) is False
+    assert any(name == "Discovering" for name, _, _ in phase_tracker.completed)
+
+
+def test_render_live_frame_with_records_shows_overall_progress() -> None:
+    """Per-pipeline progress is rendered via the Progress widget rather than a bare counter spinner."""
+    phase_tracker = PhaseTracker()
+    phase_tracker.start("Discovering")
+    phase_tracker.complete("Discovering", success=True)
+    overall = OverallProgress("Generating", total=1)
+    activity = ActivityTail()
+    _ = PipelineRecord("p1")
+
+    panel = render_live_frame(
+        phase_tracker,
+        overall,
+        activity,
+        [],
+        header_context=_make_header(1),
+        elapsed_text="00:02",
+        show_progress=True,
+        console_width=80,
+    )
+
+    body = panel.renderable
+    assert isinstance(body, Group)
+    progresses = [c for c in body.renderables if isinstance(c, Progress)]
+    assert len(progresses) == 1
+    # Panel title carries the pipeline count rather than an in-body
+    # "N of M" spinner row. Title is a ``rich.text.Text`` (contract
+    # change in V0.8.8 wave D); read ``.plain`` for substring assertions.
+    assert "pipelines=1" in panel.title.plain
