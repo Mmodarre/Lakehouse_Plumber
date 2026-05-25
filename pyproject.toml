@@ -106,6 +106,19 @@ markers = [
     "e2e: marks tests as end-to-end tests",
     "performance: marks tests as performance tests (skipped in CI, run locally with '-m performance')",
 ]
+filterwarnings = [
+    # Phase 1 deprecation shims (architecture streamline). Removable after the
+    # earliest minor-version window — see each shim's module docstring.
+    "ignore:lhp.core.base_generator is deprecated:DeprecationWarning",
+    "ignore:lhp.utils.operational_metadata is deprecated:DeprecationWarning",
+    "ignore:lhp.utils.schema_parser is deprecated:DeprecationWarning",
+    "ignore:lhp.utils.schema_transform_parser is deprecated:DeprecationWarning",
+    # Phase 4: ``TestActionView`` is a public DTO in lhp.api.views whose
+    # name happens to match pytest's class-collection heuristic. The
+    # constructor signature differs from a test class so pytest already
+    # skips it; suppress the informational warning.
+    "ignore:cannot collect test class 'TestActionView':pytest.PytestCollectionWarning",
+]
 
 [tool.coverage.run]
 source = ["src"]
@@ -175,3 +188,76 @@ strict_equality = true
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false 
+[tool.importlinter]
+root_packages = ["lhp"]
+
+[[tool.importlinter.contracts]]
+name = "Public API and internal modules must not import from CLI"
+type = "forbidden"
+source_modules = ["lhp.api", "lhp.core", "lhp.parsers", "lhp.generators", "lhp.bundle", "lhp.utils", "lhp.models"]
+forbidden_modules = ["lhp.cli"]
+
+[[tool.importlinter.contracts]]
+name = "CLI must consume public API, not core.layers"
+type = "forbidden"
+source_modules = ["lhp.cli"]
+forbidden_modules = ["lhp.core.layers"]
+
+[[tool.importlinter.contracts]]
+name = "LHP top-down layering"
+type = "layers"
+layers = [
+    "lhp.cli",
+    "lhp.bundle",
+    "lhp.core",
+    "lhp.generators : lhp.parsers : lhp.presets",
+    "lhp.models",
+    "lhp.utils",
+]
+# Phase 1 documented carve-outs. The constitution preamble's "Authority"
+# clause says the constitution wins on conflicts. The conflict here is real
+# and acknowledged in `LOCAL/phase_1_structural_foundation.md` (Amendment
+# §A1): §7 Rule 10 requires the four deprecation shims to live for one
+# minor version, but the layered contract forbids the upward edges those
+# shims emit. The shim edges below are removable when the shims are
+# removed (earliest v0.9.x). The two `generators -> core.services` edges
+# survived deliverables 8–11 and are carried to Phase 4, which refactors
+# OperationalMetadataService out of `core/services/`.
+ignore_imports = [
+    # Phase-1 shim edges — remove with the shims (v0.9.x+).
+    "lhp.utils.operational_metadata -> lhp.core.services.operational_metadata",
+    "lhp.utils.schema_parser -> lhp.parsers.schema_parser",
+    "lhp.utils.schema_transform_parser -> lhp.parsers.schema_transform_parser",
+    "lhp.core.base_generator -> lhp.generators._base",
+    # Phase-4 refactor target.
+    "lhp.generators._base -> lhp.core.services.operational_metadata_service",
+    "lhp.generators.transform.quarantine -> lhp.core.services.operational_metadata_service",
+]
+
+[[tool.importlinter.contracts]]
+name = "Models must not depend on higher layers"
+type = "forbidden"
+source_modules = ["lhp.models"]
+forbidden_modules = ["lhp.cli", "lhp.bundle", "lhp.core", "lhp.generators", "lhp.parsers", "lhp.presets", "lhp.api"]
+
+[[tool.importlinter.contracts]]
+name = "Utils must depend only on stdlib (and at most models)"
+type = "forbidden"
+source_modules = ["lhp.utils"]
+forbidden_modules = ["lhp.cli", "lhp.bundle", "lhp.core", "lhp.generators", "lhp.parsers", "lhp.presets", "lhp.api"]
+# Phase-1 shim carve-out. See the layered contract above for the rationale.
+ignore_imports = [
+    "lhp.utils.operational_metadata -> lhp.core.services.operational_metadata",
+    "lhp.utils.schema_parser -> lhp.parsers.schema_parser",
+    "lhp.utils.schema_transform_parser -> lhp.parsers.schema_transform_parser",
+]
+
+[[tool.importlinter.contracts]]
+name = "Generator families must not import each other directly"
+type = "independence"
+modules = ["lhp.generators.load", "lhp.generators.transform", "lhp.generators.write", "lhp.generators.test"]
+
+[tool.mutmut]
+paths_to_mutate = "src/lhp/core/secret_validator.py"
+tests_dir = "tests/"
+

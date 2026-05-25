@@ -77,17 +77,6 @@ def f_part_raw_cloudfiles():
 
 **Measured ratio: ~8x per FlowGroup**, with the 51-line template amortized across every JSON ingestion in the project. Ten new tables of the same shape cost ~100 lines of YAML; you still get 810 lines of production-grade Python with schema hints, append-flow registration, and operational metadata columns. *(Numbers measured from `tests/e2e/fixtures/testing_project/`.)*
 
-## When to use LHP vs. alternatives
-
-| If you are doing this... | Use | Why |
-|---|---|---|
-| Hand-writing repetitive DLT Python across many bronze/silver tables | **LHP** | LHP generates the boilerplate; you keep the readable output |
-| Using **dlt-meta** | LHP — if you value static, debuggable Python in your repo | dlt-meta interprets metadata at *runtime* inside the DLT pipeline; LHP generates static Python *before* deployment. You read the code that runs, debug it in the IDE, and Databricks Assistant sees normal Python |
-| Using **dbt** for gold/semantic models | **Both** — LHP for bronze/silver ingestion + CDC, dbt for SQL transformations on top | dbt does not handle streaming, Auto Loader, CDC apply-changes, or SCD — LHP does. They compose; they don't compete |
-| Hand-writing raw **Lakeflow Declarative Pipelines (DLT)** | **LHP** if you have >10 similar tables | At low scale raw DLT is simpler. Past a dozen tables, the boilerplate is the problem LHP exists to solve |
-| Using **Databricks Asset Bundles (DABs)** for deployment | **Both** — they compose | DABs deploys; LHP generates the Python that DABs deploys. `lhp init` produces a DAB-ready project by default |
-
-LHP is **not** a runtime framework. There is no `import lhp` in any generated file, no agent process, no metadata table interpreted at pipeline-startup. The output is the same Python you would have written by hand — just with the boilerplate removed.
 
 ## Install and ship your first pipeline
 

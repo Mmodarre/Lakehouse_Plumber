@@ -61,6 +61,12 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
       shell: bash
 
+    - name: Run import-linter
+      run: |
+        pip install import-linter
+        lint-imports
+      shell: bash
+
     - name: Test with pytest
       run: |
         # Run tests with coverage if tests directory exists
