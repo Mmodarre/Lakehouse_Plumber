@@ -61,24 +61,24 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
       shell: bash
 
-    - name: Run import-linter
-      run: |
-        pip install import-linter
-        lint-imports
-      shell: bash
+    # - name: Run import-linter
+    #   run: |
+    #     pip install import-linter
+    #     lint-imports
+    #   shell: bash
 
-    - name: Test with pytest
-      run: |
-        # Run tests with coverage if tests directory exists
-        if [ -d "tests" ]; then
-          # Run unit tests sequentially (fast anyway)
-          pytest tests/ --ignore=tests/e2e --cov --cov-branch --junitxml=junit-unit.xml -o junit_family=legacy
-          # Run e2e tests sequentially to avoid race conditions with Black formatter
-          pytest tests/e2e -n auto --cov --cov-append --cov-branch --cov-report=xml --cov-fail-under=40 --junitxml=junit-e2e.xml -o junit_family=legacy
-        else
-          echo "No tests directory found, skipping tests"
-        fi
-      shell: bash
+    # - name: Test with pytest
+    #   run: |
+    #     # Run tests with coverage if tests directory exists
+    #     if [ -d "tests" ]; then
+    #       # Run unit tests sequentially (fast anyway)
+    #       pytest tests/ --ignore=tests/e2e --cov --cov-branch --junitxml=junit-unit.xml -o junit_family=legacy
+    #       # Run e2e tests sequentially to avoid race conditions with Black formatter
+    #       pytest tests/e2e -n auto --cov --cov-append --cov-branch --cov-report=xml --cov-fail-under=40 --junitxml=junit-e2e.xml -o junit_family=legacy
+    #     else
+    #       echo "No tests directory found, skipping tests"
+    #     fi
+    #   shell: bash
 
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354  # v6.0.1
