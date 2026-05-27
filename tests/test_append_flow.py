@@ -186,7 +186,7 @@ def test_source_list_validation():
 def test_multiple_write_actions_same_table_mixed_once_flags():
     """Test multiple write actions targeting the same table with mixed once flags."""
 
-    from lhp.core.coordination import ActionOrchestrator
+    from lhp.core.coordination.layers import build_facade_orchestrator
 
     # Create actions with mixed once flags
     streaming_action = Action(
@@ -218,7 +218,7 @@ def test_multiple_write_actions_same_table_mixed_once_flags():
     )
 
     # Test orchestrator combination logic
-    orchestrator = ActionOrchestrator(Path("."))
+    orchestrator = build_facade_orchestrator(Path("."), enforce_version=False)
     actions = [streaming_action, backfill_action]
     target_table = "catalog.schema.lineitem"
 
@@ -411,9 +411,9 @@ def test_backward_compatibility_single_action():
 def test_orchestrator_preserves_table_creation_logic():
     """Test that orchestrator preserves correct table creation logic from validation."""
 
-    from lhp.core.coordination import ActionOrchestrator
+    from lhp.core.coordination.layers import build_facade_orchestrator
 
-    orchestrator = ActionOrchestrator(Path("."))
+    orchestrator = build_facade_orchestrator(Path("."), enforce_version=False)
 
     # Test scenario: first action has create_table=False, second has create_table=True
     action1 = Action(

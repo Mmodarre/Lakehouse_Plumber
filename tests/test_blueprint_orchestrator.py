@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from lhp.core.coordination import ActionOrchestrator
+from lhp.core.coordination.layers import build_facade_orchestrator
 from lhp.models.config import FlowGroup
 
 pytestmark = pytest.mark.unit
@@ -33,7 +33,7 @@ def test_no_blueprints_expand_returns_empty(tmp_path):
     """When there are no blueprint or instance files, _expand_blueprints
     must return ([], {}) without error."""
     _bootstrap_project(tmp_path)
-    orch = ActionOrchestrator(tmp_path, enforce_version=False)
+    orch = build_facade_orchestrator(tmp_path, enforce_version=False)
     contexts, provenance = orch._expand_blueprints()
     assert contexts == []
     assert provenance == {}
@@ -79,7 +79,7 @@ flowgroups:
         tmp_path / "pipelines" / "erp" / "bronze" / "uk.yaml",
         "blueprint: erp\nsite_name: emea_uk\n",
     )
-    orch = ActionOrchestrator(tmp_path, enforce_version=False)
+    orch = build_facade_orchestrator(tmp_path, enforce_version=False)
     all_fgs = orch.discover_all_flowgroups()
     flow_names = {fg.flowgroup for fg in all_fgs}
     assert "regular_fg" in flow_names
@@ -115,16 +115,11 @@ flowgroups:
         tmp_path / "pipelines" / "erp" / "bronze" / "sg.yaml",
         "blueprint: erp\nsite_name: apac_sg\n",
     )
-    orch = ActionOrchestrator(tmp_path, enforce_version=False)
+    orch = build_facade_orchestrator(tmp_path, enforce_version=False)
     contexts, provenance = orch._expand_blueprints()
     assert len(contexts) == 1
     assert contexts[0].synthetic is True
     assert ("apac_sg_raw", "apac_sg_orders") in provenance
-
-
-# ---------------------------------------------------------------------------
-# _lookup_pipeline_slice (Phase 11)
-# ---------------------------------------------------------------------------
 
 
 def _fg(pipeline: str, name: str) -> FlowGroup:
@@ -133,7 +128,7 @@ def _fg(pipeline: str, name: str) -> FlowGroup:
 
 def test_lookup_pipeline_slice_returns_correct_subset(tmp_path):
     _bootstrap_project(tmp_path)
-    orch = ActionOrchestrator(tmp_path, enforce_version=False)
+    orch = build_facade_orchestrator(tmp_path, enforce_version=False)
     flowgroups = [
         _fg("p1", "fg_a"),
         _fg("p1", "fg_b"),
@@ -149,7 +144,7 @@ def test_lookup_pipeline_slice_caches_by_id(tmp_path):
     """Phase 11: same list passed twice → cache is reused. New list → cache
     invalidates and rebuilds."""
     _bootstrap_project(tmp_path)
-    orch = ActionOrchestrator(tmp_path, enforce_version=False)
+    orch = build_facade_orchestrator(tmp_path, enforce_version=False)
     list_a = [_fg("p", "x"), _fg("p", "y"), _fg("q", "z")]
     list_b = [_fg("p", "only_x")]
 

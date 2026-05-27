@@ -1,11 +1,10 @@
 """Dependency analysis composition root.
 
 Implements :class:`BaseDependencyAnalysisService` (the canonical ABC under
-``coordination/_interfaces.py``) by composing three internal collaborators:
+``coordination/_interfaces.py``) by composing two internal collaborators:
 
 - :class:`DependencyGraphBuilder` — discovery, source extraction, graph construction.
 - :class:`DependencyAnalyzer` — pure topological / cycle / external-source analysis.
-- :class:`DependencyMetricsService` — placeholder advanced metrics.
 
 The constructor takes an already-loaded :class:`ProjectConfig` and a
 :class:`ValidationService` (replacing the legacy 2-arg form that took a
@@ -46,7 +45,6 @@ from ..validators.secret_validator import SecretValidator
 from . import output
 from .analyzer import DependencyAnalyzer
 from .builder import DependencyGraphBuilder
-from .metrics import DependencyMetricsService
 
 
 class DependencyAnalysisService(BaseDependencyAnalysisService):
@@ -154,7 +152,6 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
             flowgroup_resolver=flowgroup_resolver,
         )
         self._analyzer = DependencyAnalyzer()
-        self._metrics = DependencyMetricsService()
 
     # --- BaseDependencyAnalysisService ABC implementations ------------------
 
@@ -312,14 +309,8 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
 
     # --- Metrics forwards ---------------------------------------------------
 
-    def get_critical_path(self, graphs: DependencyGraphs) -> List[str]:
-        """Find longest dependency chain through the pipeline graph (placeholder)."""
-        return self._metrics.get_critical_path(graphs)
+    
 
-    def get_parallelization_opportunities(self, graphs: DependencyGraphs):
-        """Identify pipelines that can run in parallel (placeholder)."""
-        return self._metrics.get_parallelization_opportunities(graphs)
+    
 
-    def get_centrality_metrics(self, graphs: DependencyGraphs):
-        """Identify hub pipelines with high dependency count (placeholder)."""
-        return self._metrics.get_centrality_metrics(graphs)
+    

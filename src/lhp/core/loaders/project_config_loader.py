@@ -12,6 +12,7 @@ Loads project-level configuration from lhp.yaml including operational metadata d
 # pipeline_config_loader and init_template_loader (see ProjectConfigLoader's
 # single-pass resolver design). Re-evaluate when env-merge migrates to a
 # dedicated config-resolution service (TARGET §4 follow-up).
+# TODO(Phase 9.5): split by concern (paths + substitutions + monitoring + env-merge) per LOCAL/REMAINING_WORK.md §9.5.
 
 import logging
 import re
@@ -77,7 +78,7 @@ class ProjectConfigLoader:
         except ValueError as e:
             # yaml_loader converts YAML and file errors to ValueError with clear context
             error_msg = str(e)
-            self.logger.error(f"Project configuration loading failed: {error_msg}")
+            self.logger.exception(f"Project configuration loading failed: {error_msg}")
 
             # Determine if it's a YAML syntax error or file error
             if "Invalid YAML" in error_msg:
@@ -91,13 +92,13 @@ class ProjectConfigLoader:
                         "Ensure proper indentation and structure",
                         "Validate YAML online or with a linter",
                     ],
-                )
+                ) from e
 
         except Exception as e:
             error_msg = (
                 f"Error loading project configuration from {self.config_file}: {e}"
             )
-            self.logger.error(error_msg)
+            self.logger.exception(error_msg)
             raise LHPError(
                 category=ErrorCategory.CONFIG,
                 code_number="002",
@@ -108,7 +109,7 @@ class ProjectConfigLoader:
                     "Verify file is not corrupted",
                     "Check project configuration structure",
                 ],
-            )
+            ) from e
 
     def _parse_project_config(self, config_data: Dict[str, Any]) -> ProjectConfig:
         """Parse raw configuration data into ProjectConfig model.
@@ -285,7 +286,7 @@ class ProjectConfigLoader:
                     "Check event_log field types: enabled (bool), catalog (string), schema (string)",
                     "name_prefix and name_suffix must be strings",
                 ],
-            )
+            ) from e
 
         self._validate_event_log_config(config)
         return config
@@ -426,7 +427,7 @@ class ProjectConfigLoader:
                     "Check monitoring field types: enabled (bool), pipeline_name (string)",
                     "catalog and schema must be strings",
                 ],
-            )
+            ) from e
 
         self._validate_monitoring_config(config, event_log_config)
         return config
@@ -493,7 +494,7 @@ class ProjectConfigLoader:
                     "Check test_reporting field types: module_path (string), function_name (string)",
                     "config_file is optional and must be a string path",
                 ],
-            )
+            ) from e
 
     def _validate_monitoring_config(
         self,
@@ -694,7 +695,7 @@ class ProjectConfigLoader:
 
                 except Exception as e:
                     error_msg = f"Error parsing column '{col_name}' in operational metadata: {e}"
-                    self.logger.error(error_msg)
+                    self.logger.exception(error_msg)
                     raise LHPError(
                         category=ErrorCategory.CONFIG,
                         code_number="003",
@@ -705,7 +706,7 @@ class ProjectConfigLoader:
                             "Ensure 'expression' field is provided",
                             "Verify applies_to is a list of valid target types",
                         ],
-                    )
+                    ) from e
 
         # Parse preset definitions
         presets = {}
@@ -727,7 +728,7 @@ class ProjectConfigLoader:
 
                 except Exception as e:
                     error_msg = f"Error parsing preset '{preset_name}' in operational metadata: {e}"
-                    self.logger.error(error_msg)
+                    self.logger.exception(error_msg)
                     raise LHPError(
                         category=ErrorCategory.CONFIG,
                         code_number="004",
@@ -738,7 +739,7 @@ class ProjectConfigLoader:
                             "Ensure 'columns' field is a list of column names",
                             "Verify all referenced columns are defined",
                         ],
-                    )
+                    ) from e
 
         # Parse defaults
         defaults = metadata_config.get("defaults", {})

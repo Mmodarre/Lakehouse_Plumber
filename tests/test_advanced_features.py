@@ -5,7 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from lhp.core.coordination import ActionOrchestrator
+from lhp.api import collect_response
+from lhp.api.facade import LakehousePlumberApplicationFacade
 from tests.helpers import read_generated_pipeline
 
 
@@ -104,9 +105,11 @@ def get_df(spark, parameters):
 """)
 
         # Generate pipeline
-        orchestrator = ActionOrchestrator(project_root)
+        facade = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False
+        )
         generated_files = read_generated_pipeline(
-            orchestrator,
+            facade,
             pipeline_field="python_pipeline",
             env="dev",
             output_dir=project_root / "generated",
@@ -180,9 +183,11 @@ actions:
       create_table: true
 """)
 
-        orchestrator = ActionOrchestrator(project_root)
+        facade = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False
+        )
         generated_files = read_generated_pipeline(
-            orchestrator,
+            facade,
             pipeline_field="temp_tables",
             env="dev",
             output_dir=project_root / "generated",
@@ -250,9 +255,11 @@ actions:
       create_table: true
 """)
 
-        orchestrator = ActionOrchestrator(project_root)
+        facade = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False
+        )
         generated_files = read_generated_pipeline(
-            orchestrator,
+            facade,
             pipeline_field="schema_pipeline",
             env="dev",
             output_dir=project_root / "generated",
@@ -351,9 +358,11 @@ actions:
       create_table: true
 """)
 
-        orchestrator = ActionOrchestrator(project_root)
+        facade = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False
+        )
         generated_files = read_generated_pipeline(
-            orchestrator,
+            facade,
             pipeline_field="complex_flows",
             env="dev",
             output_dir=project_root / "generated",
@@ -449,11 +458,13 @@ actions:
       create_table: true
 """)
 
-        orchestrator = ActionOrchestrator(project_root)
+        facade = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False
+        )
 
         # Test preset metadata
         files1 = read_generated_pipeline(
-            orchestrator,
+            facade,
             pipeline_field="metadata_test",
             env="dev",
             output_dir=project_root / "generated1",
@@ -467,7 +478,7 @@ actions:
 
         # Test override metadata
         files2 = read_generated_pipeline(
-            orchestrator,
+            facade,
             pipeline_field="metadata_test",
             env="dev",
             output_dir=project_root / "generated2",
@@ -497,13 +508,20 @@ actions:
     sql: "SELECT * FROM {source}"
 """)
 
-        orchestrator = ActionOrchestrator(project_root)
+        facade = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False
+        )
 
         # The orphaned transform error is more specific and helpful than "missing load action"
-        with pytest.raises(ValueError, match="Unused transform action"):
-            orchestrator.generate_pipeline_by_field(
-                pipeline_field="invalid_no_load", env="dev"
+        response = collect_response(
+            facade.generation.generate_pipelines(
+                pipeline_filter="invalid_no_load",
+                env="dev",
+                output_dir=None,
             )
+        )
+        assert not response.success
+        assert "Unused transform action" in (response.error_message or "")
 
         # Test 2: Circular dependency - Create separate pipeline
         pipeline_dir2 = project_root / "pipelines" / "invalid_circular"
@@ -546,13 +564,20 @@ actions:
       create_table: true
 """)
 
-        # Create fresh orchestrator instance
-        orchestrator2 = ActionOrchestrator(project_root)
+        # Create fresh facade instance
+        facade2 = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False
+        )
 
-        with pytest.raises(ValueError, match="Circular dependency"):
-            orchestrator2.generate_pipeline_by_field(
-                pipeline_field="invalid_circular", env="dev"
+        response2 = collect_response(
+            facade2.generation.generate_pipelines(
+                pipeline_filter="invalid_circular",
+                env="dev",
+                output_dir=None,
             )
+        )
+        assert not response2.success
+        assert "Circular dependency" in (response2.error_message or "")
 
         # Test 3: Multiple table creators (rich error formatting)
         pipeline_dir3 = project_root / "pipelines" / "invalid_multiple_creators"
@@ -592,20 +617,24 @@ actions:
       create_table: true
 """)
 
-        # Create fresh orchestrator instance
-        orchestrator3 = ActionOrchestrator(project_root)
+        # Create fresh facade instance
+        facade3 = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False
+        )
 
-        # Should raise a ValueError containing the rich LHPError formatting
-        with pytest.raises(ValueError) as exc_info:
-            orchestrator3.generate_pipeline_by_field(
-                pipeline_field="invalid_multiple_creators", env="dev"
+        # Should produce a failed response containing the rich LHPError formatting
+        response3 = collect_response(
+            facade3.generation.generate_pipelines(
+                pipeline_filter="invalid_multiple_creators",
+                env="dev",
+                output_dir=None,
             )
-
-        error_str = str(exc_info.value)
+        )
+        assert not response3.success
         # Identity-level assertions only; rendered LHPError shape is owned
         # by snapshot tests in tests/test_lhperror_rendering.py.
-        assert "LHP-CFG-004" in error_str
-        assert "Multiple table creators detected" in error_str
+        assert response3.error_code == "LHP-CFG-004"
+        assert "Multiple table creators detected" in (response3.error_message or "")
 
     def test_preset_inheritance_chain(self, project_root):
         """Test complex preset inheritance chains."""

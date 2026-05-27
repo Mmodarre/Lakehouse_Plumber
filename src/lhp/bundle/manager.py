@@ -5,6 +5,11 @@ This module provides the main BundleManager class that coordinates bundle
 resource operations including resource file synchronization and management.
 """
 
+# JUSTIFIED: bundle-manager state-machine + resource-file sync +
+# Databricks-CLI delegation form one cohesive runtime; splitting
+# requires a typed event bus to maintain manager-state invariants.
+# TODO(Phase 9.5): decompose into BundleStateMachine + ResourceFileSyncer + DatabricksCliAdapter
+
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -540,4 +545,4 @@ class BundleManager:
             except (OSError, PermissionError) as e:
                 raise BundleResourceError(
                     f"Failed to create resource file {resource_file}: {e}", e
-                )
+                ) from e

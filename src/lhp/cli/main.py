@@ -1,5 +1,10 @@
 """LakehousePlumber CLI - Main entry point."""
 
+# JUSTIFIED: Click command-group registration is one logical
+# declaration; module-load-time side effects mean partial-split
+# modules would import-cycle through cli/commands/.
+# TODO(Phase 9.2): redistribute version-resolution helpers to cli/_version.py after presenter extraction lands
+
 import logging
 import sys
 from pathlib import Path

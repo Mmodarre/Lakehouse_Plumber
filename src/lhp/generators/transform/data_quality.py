@@ -136,7 +136,7 @@ class DataQualityTransformGenerator(BaseActionGenerator):
         else:
             return ""
 
-    def _load_expectations(self, action: Action, spec_dir: Path = None) -> List:
+    def _load_expectations(self, action: Action, spec_dir: Path | None = None) -> List:
         """Load expectations from action configuration."""
         # Check if action has expectations as an attribute (from test)
         if hasattr(action, "expectations") and action.expectations:

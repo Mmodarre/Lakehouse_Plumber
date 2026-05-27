@@ -31,14 +31,10 @@ from lhp.api.responses import JSONValue
 from lhp.api.views import ValidationIssueView
 
 
-# ---------------------------------------------------------------------------
-# Helpers — JSON-safe projection of a ValidationIssueView.
-#
 # The view's ``context`` field is typed ``Mapping[str, JSONValue]`` and
-# defaults to a plain ``dict`` (see ``src/lhp/api/views.py:50``). The
-# helpers below project to / from a JSON-shape dict so a round-trip
-# test can verify field-by-field equality after wire serialization.
-# ---------------------------------------------------------------------------
+# defaults to a plain ``dict`` (see ``src/lhp/api/views.py:50``). Helpers
+# below project to / from a JSON-shape dict so a round-trip test can
+# verify field-by-field equality after wire serialization.
 
 
 def _to_json_safe_dict(view: ValidationIssueView) -> dict[str, JSONValue]:
@@ -82,11 +78,6 @@ def _from_json_safe_dict(payload: Mapping[str, object]) -> ValidationIssueView:
         context=dict(payload["context"]),  # type: ignore[arg-type]
         doc_link=payload["doc_link"],  # type: ignore[arg-type]
     )
-
-
-# ---------------------------------------------------------------------------
-# Fixtures.
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -145,11 +136,6 @@ def warning_view() -> ValidationIssueView:
     )
 
 
-# ---------------------------------------------------------------------------
-# 1. Frozen-check contract.
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.unit
 class TestFrozenContract:
     def test_dataclass_params_frozen(self) -> None:
@@ -159,11 +145,6 @@ class TestFrozenContract:
             "ValidationIssueView must be @dataclass(frozen=True); "
             f"got frozen={params.frozen}"
         )
-
-
-# ---------------------------------------------------------------------------
-# 2. Frozen-mutation contract.
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
@@ -187,11 +168,6 @@ class TestFrozenMutationRaises:
             populated_view.suggestions = ()  # type: ignore[misc]
 
 
-# ---------------------------------------------------------------------------
-# 3. Pickle round-trip.
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.unit
 class TestPickleRoundTrip:
     def test_picklable_view_round_trip(
@@ -211,11 +187,6 @@ class TestPickleRoundTrip:
         """
         restored = pickle.loads(pickle.dumps(warning_view))
         assert restored == warning_view
-
-
-# ---------------------------------------------------------------------------
-# 4. JSON-style round-trip via flat fields.
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
@@ -241,11 +212,6 @@ class TestJSONRoundTripViaFields:
         """Default suggestions=() and context={} serialise cleanly."""
         assert json.loads(json.dumps(list(warning_view.suggestions))) == []
         assert json.loads(json.dumps(dict(warning_view.context))) == {}
-
-
-# ---------------------------------------------------------------------------
-# 5. Field-type contract.
-# ---------------------------------------------------------------------------
 
 
 _BANNED_FIELD_PATTERNS = {
@@ -304,11 +270,6 @@ class TestFieldTypeContract:
             f"Per §8.3, every validation view must carry code/category/severity/"
             f"title and a structured context map."
         )
-
-
-# ---------------------------------------------------------------------------
-# 6. Flat-field round-trip — the LHPError-projection contract.
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit

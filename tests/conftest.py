@@ -279,7 +279,7 @@ def create_flowgroup():
     def _create(
         pipeline: str,
         flowgroup: str,
-        job_name: str = None,
+        job_name: str | None = None,
         source_table: str = "raw.source",
         target_table: str = "bronze.target",
     ):

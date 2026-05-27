@@ -56,11 +56,6 @@ from lhp.errors.categories import ErrorCategory
 from lhp.errors.types import LHPError
 
 
-# ---------------------------------------------------------------------------
-# Shared fixtures
-# ---------------------------------------------------------------------------
-
-
 _FIXTURE_PATH = (
     Path(__file__).parent.parent / "e2e" / "fixtures" / "testing_project"
 )
@@ -94,11 +89,6 @@ def output_dir(tmp_path: Path) -> Path:
     return out
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 def _injected_error() -> LHPError:
     """Construct an LHPError suitable for failure-path injection."""
     return LHPError(
@@ -108,11 +98,6 @@ def _injected_error() -> LHPError:
         details="injected test failure for stream-protocol contract",
         context={"injection_site": "test_event_protocol"},
     )
-
-
-# ===========================================================================
-# Per-op tests: validate_pipelines
-# ===========================================================================
 
 
 @pytest.mark.unit
@@ -191,11 +176,6 @@ class TestValidatePipelinesProtocol:
             facade.validation.validate_pipelines(pipeline_fields=(), env="dev")
         )
         assert not any(isinstance(e, ErrorEmitted) for e in events)
-
-
-# ===========================================================================
-# Per-op tests: generate_pipelines
-# ===========================================================================
 
 
 @pytest.mark.unit
@@ -280,11 +260,6 @@ class TestGeneratePipelinesProtocol:
         assert not any(isinstance(e, ErrorEmitted) for e in events)
 
 
-# ===========================================================================
-# Per-op tests: sync_resources
-# ===========================================================================
-
-
 @pytest.mark.unit
 class TestSyncResourcesProtocol:
     """Stream-protocol invariants for ``BundleFacade.sync_resources``."""
@@ -349,11 +324,6 @@ class TestSyncResourcesProtocol:
         assert not any(isinstance(e, ErrorEmitted) for e in events)
 
 
-# ===========================================================================
-# Cross-cutting: collect_response
-# ===========================================================================
-
-
 @pytest.mark.unit
 class TestCollectResponse:
     """``collect_response`` walks a stream and returns the terminal DTO."""
@@ -414,11 +384,6 @@ class TestCollectResponse:
             collect_response(_incomplete_stream())
 
 
-# ===========================================================================
-# Cross-cutting: hierarchy + marker invariants
-# ===========================================================================
-
-
 @pytest.mark.unit
 class TestEventHierarchy:
     """Class-hierarchy invariants for the stream protocol."""
@@ -477,11 +442,6 @@ class TestEventHierarchy:
         err = ErrorEmitted(lhp_error=_injected_error())
         assert isinstance(err, LHPEvent)
         assert not isinstance(err, OperationCompleted)
-
-
-# ===========================================================================
-# Cross-cutting: pickle round-trip
-# ===========================================================================
 
 
 @pytest.mark.unit
@@ -552,11 +512,6 @@ class TestEventPickleRoundTrip:
         assert restored_err.lhp_error.category == ErrorCategory.VALIDATION
         assert restored_err.lhp_error.details == "LHPError round-trip"
         assert restored_err.lhp_error.context == {"pipeline": "bronze"}
-
-
-# ===========================================================================
-# Cross-cutting: field-type discipline
-# ===========================================================================
 
 
 @pytest.mark.unit

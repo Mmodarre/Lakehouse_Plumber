@@ -111,7 +111,7 @@ class ActionRegistry:
         )
 
     def get_generator(
-        self, action_type: ActionType, sub_type: str = None
+        self, action_type: ActionType, sub_type: str | None = None
     ) -> BaseActionGenerator:
         """Implement generator factory method."""
         logger.debug(
@@ -152,7 +152,7 @@ class ActionRegistry:
             if isinstance(sub_type, str):
                 try:
                     sub_type = LoadSourceType(sub_type)
-                except ValueError:
+                except ValueError as e:
                     valid_types = [t.value for t in LoadSourceType]
                     raise ErrorFormatter.unknown_type_with_suggestion(
                         value_type="load sub_type",
@@ -167,7 +167,7 @@ class ActionRegistry:
       type: cloudfiles
       path: /path/to/files/*.csv
       format: csv""",
-                    )
+                    ) from e
 
             if sub_type not in self._load_generators:
                 raise LHPValidationError(
@@ -207,7 +207,7 @@ class ActionRegistry:
             if isinstance(sub_type, str):
                 try:
                     sub_type = TransformType(sub_type)
-                except ValueError:
+                except ValueError as e:
                     valid_types = [t.value for t in TransformType]
                     raise ErrorFormatter.unknown_type_with_suggestion(
                         value_type="transform sub_type",
@@ -221,7 +221,7 @@ class ActionRegistry:
     target: v_transformed_data
     sql: |
       SELECT * FROM $source WHERE active = true""",
-                    )
+                    ) from e
 
             if sub_type not in self._transform_generators:
                 raise LHPValidationError(
@@ -263,7 +263,7 @@ class ActionRegistry:
             if isinstance(sub_type, str):
                 try:
                     sub_type = WriteTargetType(sub_type)
-                except ValueError:
+                except ValueError as e:
                     valid_types = [t.value for t in WriteTargetType]
                     raise ErrorFormatter.unknown_type_with_suggestion(
                         value_type="write sub_type",
@@ -279,7 +279,7 @@ class ActionRegistry:
       catalog: my_catalog
       schema: my_schema
       table: my_table""",
-                    )
+                    ) from e
 
             if sub_type not in self._write_generators:
                 raise LHPValidationError(
@@ -308,7 +308,7 @@ class ActionRegistry:
             if isinstance(sub_type, str):
                 try:
                     sub_type = TestActionType(sub_type)
-                except ValueError:
+                except ValueError as e:
                     valid_types = [t.value for t in TestActionType]
                     raise ErrorFormatter.unknown_type_with_suggestion(
                         value_type="test_type",
@@ -320,7 +320,7 @@ class ActionRegistry:
     test_type: row_count  # ← Valid test_type
     source: [v_source, v_target]
     on_violation: fail""",
-                    )
+                    ) from e
 
             if sub_type not in self._test_generators:
                 raise LHPValidationError(

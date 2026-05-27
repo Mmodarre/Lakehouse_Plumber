@@ -24,6 +24,7 @@ root lives in :mod:`lhp.core.coordination.layers`.
 # §5.7. Heavy DTO-conversion bodies live in
 # :mod:`lhp.api._converters`; what remains is the per-method
 # delegation surface for Generation and Validation.
+# TODO(Phase 9.5): extract sub-facade composition once the BundleFacade / InspectionFacade pattern absorbs the per-method delegation surface; see LOCAL/REMAINING_WORK.md §9.5.
 from __future__ import annotations
 
 import logging
@@ -95,7 +96,7 @@ class GenerationFacade:
         output_dir: Optional[Path],
         specific_flowgroups: Optional[List[str]] = None,
         include_tests: bool = False,
-        pre_discovered_all_flowgroups: Any = None,
+        pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
         max_workers: Optional[int] = None,
         on_pipeline_complete: Optional[
             Callable[[str, "GenerationResponse"], None]
@@ -116,6 +117,12 @@ class GenerationFacade:
         the terminal response DTO.
 
         :stability: provisional
+        :raises lhp.errors.LHPError: ``LHP-VAL-*`` (config/action/schema
+            validation), ``LHP-CFG-*`` (project config + substitution),
+            ``LHP-FILE-*`` (missing files), ``LHP-MULT-*`` (multi-document
+            YAML), and ``LHP-TPL-*`` (template expansion) propagated from
+            the per-pipeline workers. An :class:`ErrorEmitted` event is
+            yielded before the exception escapes (§1.4 stream protocol).
         """
         yield OperationStarted(operation_name="generate_pipelines", env=env)
         try:
@@ -146,7 +153,7 @@ class GenerationFacade:
         output_dir: Optional[Path],
         specific_flowgroups: Optional[List[str]] = None,
         include_tests: bool = False,
-        pre_discovered_all_flowgroups: Any = None,
+        pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
         max_workers: Optional[int] = None,
         on_pipeline_complete: Optional[
             Callable[[str, "GenerationResponse"], None]
@@ -225,6 +232,8 @@ class GenerationFacade:
         to an exit code without handling a live exception (§4.8).
 
         :stability: provisional
+        :raises: None — failures are surfaced on the result's
+            ``error_code`` field (§4.8).
         """
         try:
             with perf_timer("facade.finalize_monitoring_artifacts"):
@@ -286,7 +295,7 @@ class ValidationFacade:
             Callable[[str, "ValidationResponse"], None]
         ] = None,
         include_tests: bool = True,
-        pre_discovered_all_flowgroups: Any = None,
+        pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
         warning_collector: Optional["WarningCollector"] = None,
     ) -> Iterator[LHPEvent]:
         """Stream-protocol wrapper around batch pipeline validation.
@@ -302,6 +311,12 @@ class ValidationFacade:
         the terminal response DTO.
 
         :stability: provisional
+        :raises lhp.errors.LHPError: ``LHP-VAL-*`` (config/action/schema
+            validation), ``LHP-CFG-*`` (project config + substitution),
+            ``LHP-FILE-*`` (missing files), ``LHP-MULT-*`` (multi-document
+            YAML), and ``LHP-TPL-*`` (template expansion) propagated from
+            the per-pipeline workers. An :class:`ErrorEmitted` event is
+            yielded before the exception escapes (§1.4 stream protocol).
         """
         yield OperationStarted(operation_name="validate_pipelines", env=env)
         try:
@@ -331,7 +346,7 @@ class ValidationFacade:
             Callable[[str, "ValidationResponse"], None]
         ] = None,
         include_tests: bool = True,
-        pre_discovered_all_flowgroups: Any = None,
+        pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
         warning_collector: Optional["WarningCollector"] = None,
     ) -> "BatchValidationResponse":
         """Coordinate batch validation; aggregate failure preserves the
@@ -445,6 +460,12 @@ class LakehousePlumberApplicationFacade:
         flowgroup-resolution (closes the §9.24 leak).
 
         :stability: provisional
+        :raises lhp.errors.LHPError: ``LHP-CFG-*`` if ``lhp.yaml`` is
+            absent, malformed, or fails project-config validation;
+            ``LHP-VAL-*`` if ``enforce_version`` is set and the
+            ``lhp_version`` constraint rejects the installed package;
+            ``LHP-FILE-*`` for missing-path conditions discovered
+            during composition.
         """
         # Composition is delegated to an internal helper so the
         # orchestrator class name never appears in :mod:`lhp.api`
@@ -460,22 +481,78 @@ class LakehousePlumberApplicationFacade:
         return cls(orchestrator)
 
     # ----- shortcut delegations (§1.11) -----
-    def generate_pipelines(self, **kwargs: Any) -> Iterator[LHPEvent]:
+    def generate_pipelines(
+        self,
+        *,
+        pipeline_filter: Optional[str] = None,
+        pipeline_fields: Sequence[str] = (),
+        env: str,
+        output_dir: Optional[Path],
+        specific_flowgroups: Optional[List[str]] = None,
+        include_tests: bool = False,
+        pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
+        max_workers: Optional[int] = None,
+        on_pipeline_complete: Optional[
+            Callable[[str, "GenerationResponse"], None]
+        ] = None,
+        on_pipeline_start: Optional[Callable[[str], None]] = None,
+        warning_collector: Optional["WarningCollector"] = None,
+    ) -> Iterator[LHPEvent]:
         """Shortcut for ``self.generation.generate_pipelines(...)``.
 
-        Returns the event stream from the sub-facade unchanged via
-        ``yield from`` (constitution §1.4, §5.7).
+        Restates the canonical signature (§4.2) and forwards every
+        parameter unchanged via ``yield from`` (§1.4, §5.7).
 
         :stability: provisional
+        :raises lhp.errors.LHPError: same families as
+            :meth:`GenerationFacade.generate_pipelines` — ``LHP-VAL-*``,
+            ``LHP-CFG-*``, ``LHP-FILE-*``, ``LHP-MULT-*``, ``LHP-TPL-*``.
         """
-        yield from self.generation.generate_pipelines(**kwargs)
+        yield from self.generation.generate_pipelines(
+            pipeline_filter=pipeline_filter,
+            pipeline_fields=pipeline_fields,
+            env=env,
+            output_dir=output_dir,
+            specific_flowgroups=specific_flowgroups,
+            include_tests=include_tests,
+            pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
+            max_workers=max_workers,
+            on_pipeline_complete=on_pipeline_complete,
+            on_pipeline_start=on_pipeline_start,
+            warning_collector=warning_collector,
+        )
 
-    def validate_pipelines(self, **kwargs: Any) -> Iterator[LHPEvent]:
+    def validate_pipelines(
+        self,
+        *,
+        pipeline_filter: Optional[str] = None,
+        pipeline_fields: Sequence[str] = (),
+        env: str,
+        max_workers: Optional[int] = None,
+        on_pipeline_complete: Optional[
+            Callable[[str, "ValidationResponse"], None]
+        ] = None,
+        include_tests: bool = True,
+        pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
+        warning_collector: Optional["WarningCollector"] = None,
+    ) -> Iterator[LHPEvent]:
         """Shortcut for ``self.validation.validate_pipelines(...)``.
 
-        Returns the event stream from the sub-facade unchanged via
-        ``yield from`` (constitution §1.4, §5.7).
+        Restates the canonical signature (§4.2) and forwards every
+        parameter unchanged via ``yield from`` (§1.4, §5.7).
 
         :stability: provisional
+        :raises lhp.errors.LHPError: same families as
+            :meth:`ValidationFacade.validate_pipelines` — ``LHP-VAL-*``,
+            ``LHP-CFG-*``, ``LHP-FILE-*``, ``LHP-MULT-*``, ``LHP-TPL-*``.
         """
-        yield from self.validation.validate_pipelines(**kwargs)
+        yield from self.validation.validate_pipelines(
+            pipeline_filter=pipeline_filter,
+            pipeline_fields=pipeline_fields,
+            env=env,
+            max_workers=max_workers,
+            on_pipeline_complete=on_pipeline_complete,
+            include_tests=include_tests,
+            pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
+            warning_collector=warning_collector,
+        )

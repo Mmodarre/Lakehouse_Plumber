@@ -4,7 +4,7 @@ import logging
 from typing import List
 
 from ...models.config import Action, ActionType, TransformType
-from .base_validator import BaseActionValidator
+from ._base import BaseActionValidator
 
 logger = logging.getLogger(__name__)
 

@@ -35,7 +35,7 @@ from lhp.core.coordination._interfaces import (
     CrossFlowgroupCheckResult,
 )
 from lhp.core.validators import ConfigValidator
-from lhp.core.validators.base_validator import ValidationError
+from lhp.core.validators._base import ValidationError
 from lhp.core.validators.cdc_fanin_compatibility_validator import (
     CdcFanInCompatibilityValidator,
 )
@@ -107,17 +107,16 @@ class ValidationService(BaseValidationService):
         # four are also instantiated inside ConfigValidator with different
         # constructor args (registries, field validators, project paths);
         # this slot exists only so external code never needs to import the
-        # class names directly. Untangling is Week 3 work.
+        # class names directly.
         self._load_validator_cls = LoadActionValidator
         self._transform_validator_cls = TransformActionValidator
         self._write_validator_cls = WriteActionValidator
         self._test_validator_cls = TestActionValidator
 
-        # Cross-flowgroup validators. Owned here AND inside ConfigValidator.
-        # Phase D callers invoke them via this service; ConfigValidator's
-        # own copies remain only because validate_table_creation_rules /
-        # validate_cdc_fanin_compatibility delegate to them. Week 3 collapse
-        # will remove the ConfigValidator forwarders.
+        # Cross-flowgroup validators. Owned here AND inside ConfigValidator;
+        # ConfigValidator's copies remain only because
+        # validate_table_creation_rules / validate_cdc_fanin_compatibility
+        # delegate to them.
         self._table_creation_validator = TableCreationValidator()
         self._fanin_validator = CdcFanInCompatibilityValidator()
 

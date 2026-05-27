@@ -298,10 +298,10 @@ actions:
 
     def test_validate_skips_test_actions_when_false(self, tmp_path):
         """validate_pipeline_by_field(include_tests=False) skips test action errors."""
-        from lhp.core.coordination import ActionOrchestrator
+        from lhp.core.coordination.layers import build_facade_orchestrator
 
         self._create_project_with_invalid_test(tmp_path)
-        orchestrator = ActionOrchestrator(tmp_path)
+        orchestrator = build_facade_orchestrator(tmp_path)
 
         errors, _ = orchestrator.validate_pipeline_by_field(
             "test_pipeline", "dev", include_tests=False
@@ -316,10 +316,10 @@ actions:
         Uses a separate orchestrator to avoid shared-state issues with
         discover_all_flowgroups caching.
         """
-        from lhp.core.coordination import ActionOrchestrator
+        from lhp.core.coordination.layers import build_facade_orchestrator
 
         self._create_project_with_invalid_test(tmp_path)
-        orchestrator = ActionOrchestrator(tmp_path)
+        orchestrator = build_facade_orchestrator(tmp_path)
 
         errors, _ = orchestrator.validate_pipeline_by_field(
             "test_pipeline", "dev", include_tests=True

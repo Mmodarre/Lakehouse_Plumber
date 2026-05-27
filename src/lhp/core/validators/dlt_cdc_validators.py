@@ -2,7 +2,7 @@
 Specialized validators for DLT table options and CDC configurations.
 """
 
-# JUSTIFIED: This module is 506 lines because it co-locates four validator
+# JUSTIFIED: This module is 526 lines because it co-locates four validator
 # classes that share the DLT/CDC compatibility-check vocabulary:
 # (1) `DltTableOptionsValidator` (L18-127) — validates the `dlt_table_options`
 # shape (`table_properties`, `partition_columns`, `cluster_columns`, etc.)
@@ -26,6 +26,7 @@ Specialized validators for DLT table options and CDC configurations.
 # coupling at a higher import-graph cost. Decomposition deferred to Week 4
 # alongside the broader `core/validators/` reorganization (which would
 # rationalize all 4 classes into `core/validators/dlt/` sub-package).
+# TODO(Phase 9.4): sort the four CDC validators into core/validators/compatibility/ when the action/pipeline/field/compatibility taxonomy lands; see LOCAL/REMAINING_WORK.md §9.4.
 
 import logging
 from typing import Any, Dict, List

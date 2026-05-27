@@ -323,6 +323,10 @@ site_id: SG001
     assert exc.value.code.endswith("-053")
 
 
+# OWNER: @mmodarre
+# ISSUE: https://github.com/Mmodarre/Lakehouse_Plumber/issues/wk6-fixup-lhp-val-054-spec-ambiguity
+# EXPIRY: 2026-08-01
+# REDUCED-GATE: pytest tests/test_blueprint_parser.py::test_instance_invalid_definition_raises_054 --collect-only
 @pytest.mark.skip(
     reason=(
         "Spec ambiguity: 054 is documented for 'Invalid instance definition "

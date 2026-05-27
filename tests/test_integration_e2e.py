@@ -12,9 +12,9 @@ from pathlib import Path
 
 import pytest
 
+from lhp.api import LakehousePlumberApplicationFacade, collect_response
 from lhp.bundle.manager import BundleManager
 from lhp.cli.main import cli
-from lhp.core.coordination import ActionOrchestrator
 from lhp.utils.bundle_detection import should_enable_bundle_support
 
 
@@ -38,14 +38,23 @@ class TestEndToEndBundleWorkflow:
 
         environments = ["dev", "test", "prod"]
 
-        orchestrator = ActionOrchestrator(self.project_root)
+        facade = LakehousePlumberApplicationFacade.for_project(
+            self.project_root, enforce_version=False
+        )
 
         for env in environments:
             # Generate for each environment
             output_dir = self.project_root / "generated"
-            generated_files = orchestrator.generate_pipeline_by_field(
-                "test_pipeline", env, output_dir
+            batch = collect_response(
+                facade.generation.generate_pipelines(
+                    pipeline_filter="test_pipeline",
+                    env=env,
+                    output_dir=output_dir,
+                )
             )
+            generated_files = batch.pipeline_responses[
+                "test_pipeline"
+            ].generated_filenames
 
             assert len(generated_files) > 0
 
@@ -153,14 +162,23 @@ actions:
       table: table_{i}
 """)
 
-        orchestrator = ActionOrchestrator(self.project_root)
+        facade = LakehousePlumberApplicationFacade.for_project(
+            self.project_root, enforce_version=False
+        )
 
         # Generate each pipeline; real perf coverage lives in tests/performance/
         for i in range(5):
             output_dir = self.project_root / "generated"
-            generated_files = orchestrator.generate_pipeline_by_field(
-                f"pipeline_{i}", "dev", output_dir
+            batch = collect_response(
+                facade.generation.generate_pipelines(
+                    pipeline_filter=f"pipeline_{i}",
+                    env="dev",
+                    output_dir=output_dir,
+                )
             )
+            generated_files = batch.pipeline_responses[
+                f"pipeline_{i}"
+            ].generated_filenames
             assert len(generated_files) > 0
 
     def test_bundle_workflow_with_errors_and_recovery(self):
@@ -236,13 +254,16 @@ resources:
         assert should_enable_bundle_support(bundle_project)
         assert not should_enable_bundle_support(non_bundle_project)
 
-        # Both should work with orchestrator
+        # Both should work with the facade
         for project_root in [bundle_project, non_bundle_project]:
             self._create_minimal_project_structure(project_root)
-            orchestrator = ActionOrchestrator(project_root)
+            facade = LakehousePlumberApplicationFacade.for_project(
+                project_root, enforce_version=False
+            )
 
-            # Should initialize without errors
-            assert orchestrator.project_root == project_root
+            # Should initialize without errors; ``project_root`` is preserved
+            # on the facade-built orchestrator (per the D4-prep inventory).
+            assert facade._orchestrator.project_root == project_root
 
     def test_cli_integration_with_verbose_output(self):
         """Test CLI integration with verbose bundle output."""
@@ -277,12 +298,9 @@ resources:
             ],
         )
 
-        # Should complete successfully. The bundle/verbose banners
-        # ("Bundle support detected", "Syncing resource files...") were
-        # removed in Phase 4; bundle activity now surfaces as a Live-panel
-        # phase marker (only when >250ms) and as ``logger.debug`` records
-        # in the rotating log file. The CLI's behavioral contract here is
-        # the clean exit; rendered text is no longer load-bearing.
+        # Behavioral contract here is the clean exit; rendered text is
+        # not load-bearing (bundle activity surfaces via Live-panel phase
+        # marker >250ms and ``logger.debug`` records only).
         assert result.exit_code == 0
 
     def _setup_bundle_project(self):
@@ -384,14 +402,24 @@ class TestEndToEndACMIIntegration:
         os.chdir(self.acmi_project)
 
         # Skip version enforcement for integration tests
-        orchestrator = ActionOrchestrator(self.acmi_project, enforce_version=False)
+        facade = LakehousePlumberApplicationFacade.for_project(
+            self.acmi_project, enforce_version=False
+        )
 
         # Test multiple pipeline fields
         pipeline_fields = ["raw_ingestions", "bronze_load", "silver_load", "gold_load"]
 
         for pipeline_field in pipeline_fields:
-            generated_files = orchestrator.generate_pipeline_by_field(
-                pipeline_field, "dev", None
+            batch = collect_response(
+                facade.generation.generate_pipelines(
+                    pipeline_filter=pipeline_field,
+                    env="dev",
+                    output_dir=None,
+                )
+            )
+            pipeline_response = batch.pipeline_responses.get(pipeline_field)
+            generated_files = (
+                pipeline_response.generated_filenames if pipeline_response else ()
             )
 
             # Dry-run (output_dir=None) writes nothing; only verify
@@ -473,9 +501,12 @@ actions:
         # Test bundle detection and basic functionality
         assert should_enable_bundle_support(project_root)
 
-        # Test orchestrator initialization
-        orchestrator = ActionOrchestrator(project_root)
-        assert orchestrator.project_root == project_root
+        # Test facade initialization; ``project_root`` is preserved on the
+        # facade-built orchestrator (per the D4-prep inventory).
+        facade = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False
+        )
+        assert facade._orchestrator.project_root == project_root
 
     def test_repeated_generation_succeeds(self):
         """Run 15 generation iterations and verify each returns non-empty filenames."""
@@ -516,13 +547,27 @@ actions:
       table: table_{i:02d}
 """)
 
-        orchestrator = ActionOrchestrator(project_root)
+        facade = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False
+        )
 
         # Generate multiple times to test for memory leaks
         for iteration in range(3):
             for i in range(5):  # Test subset to keep test time reasonable
-                generated_files = orchestrator.generate_pipeline_by_field(
-                    f"pipeline_{i:02d}", "dev", None
+                batch = collect_response(
+                    facade.generation.generate_pipelines(
+                        pipeline_filter=f"pipeline_{i:02d}",
+                        env="dev",
+                        output_dir=None,
+                    )
+                )
+                pipeline_response = batch.pipeline_responses.get(
+                    f"pipeline_{i:02d}"
+                )
+                generated_files = (
+                    pipeline_response.generated_filenames
+                    if pipeline_response
+                    else ()
                 )
                 assert len(generated_files) > 0
 

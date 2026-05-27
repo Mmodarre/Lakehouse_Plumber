@@ -8,8 +8,8 @@ import pytest
 import yaml
 from click.testing import CliRunner
 
+from lhp.api import LakehousePlumberApplicationFacade
 from lhp.cli.main import cli
-from lhp.core.coordination import ActionOrchestrator
 from lhp.models.config import Action, ActionType, FlowGroup
 from lhp.parsers.yaml_parser import YAMLParser
 from tests.helpers import read_generated_pipeline
@@ -130,9 +130,11 @@ actions:
 """)
 
         # Generate pipeline
-        orchestrator = ActionOrchestrator(project_root)
+        facade = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False
+        )
         generated_files = read_generated_pipeline(
-            orchestrator,
+            facade,
             pipeline_field="sales_bronze",
             env="dev",
             output_dir=project_root / "generated",
@@ -219,9 +221,11 @@ actions:
 """)
 
         # Generate pipeline
-        orchestrator = ActionOrchestrator(project_root)
+        facade = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False
+        )
         generated_files = read_generated_pipeline(
-            orchestrator,
+            facade,
             pipeline_field="customer_ingestion",
             env="prod",
             output_dir=project_root / "generated",
@@ -372,9 +376,11 @@ actions:
 """)
 
         # Generate pipeline
-        orchestrator = ActionOrchestrator(project_root)
+        facade = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False
+        )
         generated_files = read_generated_pipeline(
-            orchestrator,
+            facade,
             pipeline_field="sales_silver",
             env="dev",
             output_dir=project_root / "generated",
@@ -476,9 +482,11 @@ template_parameters:
 """)
 
         # Generate pipeline
-        orchestrator = ActionOrchestrator(project_root)
+        facade = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False
+        )
         generated_files = read_generated_pipeline(
-            orchestrator,
+            facade,
             pipeline_field="orders_bronze",
             env="dev",
             output_dir=project_root / "generated",
@@ -562,9 +570,11 @@ actions:
 """)
 
         # Generate pipeline
-        orchestrator = ActionOrchestrator(project_root)
+        facade = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False
+        )
         generated_files = read_generated_pipeline(
-            orchestrator,
+            facade,
             pipeline_field="customer_quality",
             env="dev",
             output_dir=project_root / "generated",

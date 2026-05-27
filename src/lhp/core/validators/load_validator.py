@@ -5,7 +5,7 @@ from typing import List
 
 from ...models.config import Action, ActionType, LoadSourceType
 from ...errors import LHPError
-from .base_validator import BaseActionValidator, ValidationError
+from ._base import BaseActionValidator, ValidationError
 
 logger = logging.getLogger(__name__)
 

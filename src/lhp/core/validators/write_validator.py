@@ -11,7 +11,7 @@ from .dlt_cdc_validators import (
     DltTableOptionsValidator,
     SnapshotCdcConfigValidator,
 )
-from .base_validator import BaseActionValidator, ValidationError
+from ._base import BaseActionValidator, ValidationError
 
 logger = logging.getLogger(__name__)
 

@@ -2,30 +2,34 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Protocol
+from abc import ABC, abstractmethod
 
 from ...utils.substitution import EnhancedSubstitutionManager
 
 
-class SubstitutionFactory(Protocol):
-    """Factory interface for creating substitution managers."""
+class SubstitutionFactory(ABC):
+    """Factory interface for creating substitution managers.
 
+    Internal contract per constitution §13.8 — implemented as
+    :class:`abc.ABC` (not :class:`typing.Protocol`) so that wiring
+    failures surface as :class:`TypeError` at construction rather than
+    as :class:`AttributeError` on first call. Mirrors the ABC style of
+    :mod:`lhp.core.coordination._interfaces`.
+    """
+
+    @abstractmethod
     def create(self, substitution_file: Path, env: str) -> EnhancedSubstitutionManager:
+        """Create a substitution manager for the given environment.
+
+        :param substitution_file: Path to substitution YAML file
+        :param env: Environment name
+        :returns: EnhancedSubstitutionManager instance
         """
-        Create a substitution manager for the given environment.
-
-        Args:
-            substitution_file: Path to substitution YAML file
-            env: Environment name
-
-        Returns:
-            EnhancedSubstitutionManager instance
-        """
-        ...
+        raise NotImplementedError
 
 
-class DefaultSubstitutionFactory:
-    """Default implementation of SubstitutionFactory."""
+class DefaultSubstitutionFactory(SubstitutionFactory):
+    """Default implementation of :class:`SubstitutionFactory`."""
 
     def create(self, substitution_file: Path, env: str) -> EnhancedSubstitutionManager:
         """Create default substitution manager."""

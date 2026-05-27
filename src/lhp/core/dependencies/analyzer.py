@@ -6,7 +6,6 @@ decomposed (Phase B of the Week 3 refactor):
 
 - composition root → ``service.py`` (``DependencyAnalysisService``)
 - discovery + graph construction → ``builder.py`` (``DependencyGraphBuilder``)
-- advanced metrics placeholders → ``metrics.py`` (``DependencyMetricsService``)
 - DOT/JSON/text serialization → ``output.py`` (module-level functions)
 
 This module now hosts only the pure analysis core (``DependencyAnalyzer``).
@@ -165,20 +164,10 @@ class DependencyAnalyzer:
                 },
             )
 
-            # Filter pipeline dependencies, keeping only intra-job depends_on
-            # (cross-job dependencies are handled by the master job)
-            job_pipeline_deps = {}
-            for name, dep in global_result.pipeline_dependencies.items():
-                if name in job_pipeline_names:
-                    job_pipeline_deps[name] = PipelineDependency(
-                        pipeline=dep.pipeline,
-                        depends_on=[
-                            d for d in dep.depends_on if d in job_pipeline_names
-                        ],
-                        flowgroup_count=dep.flowgroup_count,
-                        action_count=dep.action_count,
-                        external_sources=dep.external_sources,
-                    )
+            # Re-analyze pipeline dependencies from the partitioned graphs,
+            # producing correct intra-job depends_on lists by construction
+            # (cross-job dependencies are handled by the master job).
+            job_pipeline_deps = self._analyze_pipeline_dependencies(job_graphs)
 
             # Detect circular deps for this partition
             job_circular_deps = self._detect_circular_dependencies(job_graphs)
@@ -281,7 +270,7 @@ class DependencyAnalyzer:
             return list(nx.topological_generations(pipeline_graph))
         except nx.NetworkXError as e:
             # This should not happen if circular dependencies are handled properly
-            self.logger.error(f"Error in topological sorting: {e}")
+            self.logger.exception(f"Error in topological sorting: {e}")
             return []
 
     def _detect_circular_dependencies(

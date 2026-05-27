@@ -19,7 +19,7 @@ from ...errors import (
 class TemplateEngine:
     """Engine for handling YAML templates with parameter expansion."""
 
-    def __init__(self, templates_dir: Path = None):
+    def __init__(self, templates_dir: Path | None = None):
         """Initialize template engine with lazy loading.
 
         Args:
@@ -80,7 +80,7 @@ class TemplateEngine:
                         template = self.yaml_parser.parse_template_raw(template_file)
                         self._template_cache[template_name] = template
                     except Exception as e:
-                        self.logger.error(
+                        self.logger.exception(
                             f"Failed to load template {template_name}: {e}"
                         )
                         return None
@@ -291,7 +291,7 @@ class TemplateEngine:
                             "Or Python list syntax: ['item1', 'item2']",
                         ],
                         context={"Rendered Value": rendered[:100]},
-                    )
+                    ) from e
             except LHPValidationError:
                 raise
             except Exception as e:
@@ -304,7 +304,7 @@ class TemplateEngine:
                         "Ensure the array parameter is valid JSON or Python format",
                     ],
                     context={"Rendered Value": rendered[:100]},
-                )
+                ) from e
 
         # Try object conversion (JSON format, then Python literal) - but be more selective
         # Only try to parse as object if it looks like a proper JSON/Python object
@@ -364,7 +364,7 @@ class TemplateEngine:
                             "Or Python dict syntax: {'key': 'value'}",
                         ],
                         context={"Rendered Value": rendered[:100]},
-                    )
+                    ) from e
             except LHPValidationError:
                 raise
             except Exception as e:
@@ -377,7 +377,7 @@ class TemplateEngine:
                         "Ensure the object parameter is valid JSON or Python format",
                     ],
                     context={"Rendered Value": rendered[:100]},
-                )
+                ) from e
 
         # Try boolean conversion (strict true/false only)
         elif rendered.lower() in ("true", "false"):
@@ -398,7 +398,7 @@ class TemplateEngine:
                         "Check that the value does not exceed integer limits",
                     ],
                     context={"Rendered Value": rendered[:100]},
-                )
+                ) from e
 
         # Return as string if no conversion needed
         return rendered

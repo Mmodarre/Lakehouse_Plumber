@@ -6,7 +6,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from lhp.core.coordination import ActionOrchestrator
+from lhp.api import LakehousePlumberApplicationFacade
+from lhp.core.coordination.layers import build_facade_orchestrator
 from tests.helpers import read_generated_pipeline
 
 
@@ -171,7 +172,10 @@ class TestActionOrchestrator:
         """Test flowgroup discovery."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = self.create_test_project(tmpdir)
-            orchestrator = ActionOrchestrator(project_root)
+            # B-target via build_facade_orchestrator: the test calls
+            # ``discover_flowgroups(pipeline_dir)`` (directory-based), which
+            # is an orchestrator-internal method without a facade equivalent.
+            orchestrator = build_facade_orchestrator(project_root)
 
             pipeline_dir = project_root / "pipelines" / "test_pipeline"
             flowgroups = orchestrator.discover_flowgroups(pipeline_dir)
@@ -184,12 +188,14 @@ class TestActionOrchestrator:
         """Test complete pipeline generation."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = self.create_test_project(tmpdir)
-            orchestrator = ActionOrchestrator(project_root)
+            facade = LakehousePlumberApplicationFacade.for_project(
+                project_root, enforce_version=False
+            )
 
             # Generate pipeline
             output_dir = project_root / "generated"
             generated_files = read_generated_pipeline(
-                orchestrator,
+                facade,
                 pipeline_field="test_pipeline",
                 env="dev",
                 output_dir=output_dir,
@@ -285,9 +291,11 @@ class TestActionOrchestrator:
             ) as f:
                 yaml.dump(flowgroup, f)
 
-            orchestrator = ActionOrchestrator(project_root)
+            facade = LakehousePlumberApplicationFacade.for_project(
+                project_root, enforce_version=False
+            )
             generated_files = read_generated_pipeline(
-                orchestrator,
+                facade,
                 pipeline_field="test_pipeline",
                 env="dev",
                 output_dir=project_root / "generated",
@@ -403,9 +411,11 @@ class TestActionOrchestrator:
             ) as f:
                 yaml.dump(flowgroup, f)
 
-            orchestrator = ActionOrchestrator(project_root)
+            facade = LakehousePlumberApplicationFacade.for_project(
+                project_root, enforce_version=False
+            )
             generated_files = read_generated_pipeline(
-                orchestrator,
+                facade,
                 pipeline_field="test_pipeline",
                 env="dev",
                 output_dir=project_root / "generated",
@@ -444,12 +454,17 @@ class TestActionOrchestrator:
             ) as f:
                 yaml.dump(invalid_flowgroup, f)
 
-            orchestrator = ActionOrchestrator(project_root)
+            # B-target via build_facade_orchestrator: the test expects
+            # ``generate_pipelines`` to raise the validation ValueError
+            # directly. The facade swallows exceptions and returns a
+            # DTO with error_code, so we exercise the raw orchestrator
+            # method here to preserve the original assertion semantics.
+            orchestrator = build_facade_orchestrator(project_root)
 
             # Should raise validation error
             with pytest.raises(ValueError, match="validation failed"):
-                orchestrator.generate_pipeline_by_field(
-                    pipeline_field="test_pipeline", env="dev"
+                orchestrator.generate_pipelines(
+                    pipeline_filter="test_pipeline", env="dev"
                 )
 
     def test_dependency_resolution(self):
@@ -515,9 +530,11 @@ class TestActionOrchestrator:
             ) as f:
                 yaml.dump(flowgroup, f)
 
-            orchestrator = ActionOrchestrator(project_root)
+            facade = LakehousePlumberApplicationFacade.for_project(
+                project_root, enforce_version=False
+            )
             generated_files = read_generated_pipeline(
-                orchestrator,
+                facade,
                 pipeline_field="test_pipeline",
                 env="dev",
                 output_dir=project_root / "generated",
@@ -542,9 +559,19 @@ class TestOrchestratorDependencyInjection:
         """Test orchestrator initialization with custom dependencies."""
         from unittest.mock import Mock
 
+        from lhp.core.coordination.orchestrator import ActionOrchestrator
+        from lhp.core.coordination.validation_service import ValidationService
+        from lhp.core.loaders import ProjectConfigLoader
+        from lhp.core.processing import TemplateEngine
+        from lhp.core.processing.flowgroup_resolver import (
+            FlowgroupResolutionService,
+        )
         from lhp.core.registry import (
             OrchestrationDependencies,
         )
+        from lhp.core.validators import ConfigValidator
+        from lhp.core.validators.secret_validator import SecretValidator
+        from lhp.presets.preset_manager import PresetManager
 
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
@@ -556,12 +583,43 @@ class TestOrchestratorDependencyInjection:
                 substitution_factory=mock_substitution_factory,
             )
 
-            # Initialize with custom dependencies
-            orchestrator = ActionOrchestrator(project_root, dependencies=custom_deps)
+            # B-target via direct ActionOrchestrator: the test exercises
+            # the ``dependencies=`` injection seam, which lives on the raw
+            # orchestrator. We wire the same collaborators that
+            # ``build_facade_orchestrator`` would so the new __init__
+            # contract is satisfied.
+            project_config = ProjectConfigLoader(project_root).load_project_config()
+            template_engine = TemplateEngine(project_root / "templates")
+            preset_manager = PresetManager(project_root / "presets")
+            config_validator = ConfigValidator(project_root, project_config)
+            secret_validator = SecretValidator()
+            validation_service = ValidationService(
+                project_root=project_root,
+                project_config=project_config,
+                config_validator=config_validator,
+            )
+            flowgroup_resolver = FlowgroupResolutionService(
+                template_engine=template_engine,
+                preset_manager=preset_manager,
+                config_validator=config_validator,
+                secret_validator=secret_validator,
+            )
+            orchestrator = ActionOrchestrator(
+                project_root,
+                dependencies=custom_deps,
+                flowgroup_resolver=flowgroup_resolver,
+                validation_service=validation_service,
+                config_validator=config_validator,
+            )
 
-            # Verify custom dependencies are used
+            # Verify custom dependencies are used. The v0.0.9 refactor
+            # renamed the attribute holding ``OrchestrationDependencies``
+            # from ``orchestrator.dependencies`` (now holds the
+            # :class:`DependencyAnalysisService`) to
+            # ``orchestrator._orchestration_dependencies`` — see
+            # ``orchestrator.__init__`` line ~176.
             assert (
-                orchestrator.dependencies.substitution_factory
+                orchestrator._orchestration_dependencies.substitution_factory
                 == mock_substitution_factory
             )
 
@@ -593,8 +651,13 @@ class TestOrchestratorWithPipelineConfig:
             (project_root / "lhp.yaml").write_text("name: test\nversion: '1.0'")
             (project_root / "pipelines").mkdir()
 
-            # Initialize without pipeline config
-            orchestrator = ActionOrchestrator(project_root, enforce_version=False)
+            # B-target via build_facade_orchestrator: asserts on the
+            # orchestrator-internal ``pipeline_config_path`` and
+            # ``project_root`` attributes, which the facade does not
+            # surface as public DTO fields.
+            orchestrator = build_facade_orchestrator(
+                project_root, enforce_version=False
+            )
 
             # Should initialize successfully
             assert orchestrator.project_root == project_root
@@ -612,11 +675,14 @@ class TestOrchestratorWithPipelineConfig:
             (project_root / "pipelines").mkdir()
 
             config_path = "custom/path/config.yaml"
-            orchestrator = ActionOrchestrator(
-                project_root, enforce_version=False, pipeline_config_path=config_path
+            # B-target via build_facade_orchestrator: asserts on the
+            # orchestrator-internal ``pipeline_config_path`` attribute.
+            orchestrator = build_facade_orchestrator(
+                project_root,
+                enforce_version=False,
+                pipeline_config_path=config_path,
             )
 
-            # Should be accessible as instance attribute
             assert hasattr(orchestrator, "pipeline_config_path")
             assert orchestrator.pipeline_config_path == config_path
 
@@ -637,22 +703,23 @@ class TestGeneratePipelinesByFields:
                 tmpdir, ["p_alpha", "p_beta", "p_gamma"]
             )
 
-            # Reference: repeated single-pipeline calls via the shim
-            ref_orch = ActionOrchestrator(project_root, max_workers=1)
+            # Reference: repeated single-pipeline calls via the orchestrator's
+            # ``generate_pipelines(pipeline_filter=...)`` form.
+            ref_orch = build_facade_orchestrator(project_root, max_workers=1)
             ref_out_dir = project_root / "ref"
             single = {
-                name: ref_orch.generate_pipeline_by_field(
-                    pipeline_field=name,
+                name: ref_orch.generate_pipelines(
+                    pipeline_filter=name,
                     env="dev",
                     output_dir=ref_out_dir,
-                )
+                )[name]
                 for name in ["p_alpha", "p_beta", "p_gamma"]
             }
 
             # Plural: one call across all 3
-            plural_orch = ActionOrchestrator(project_root, max_workers=4)
+            plural_orch = build_facade_orchestrator(project_root, max_workers=4)
             plural_out_dir = project_root / "plural"
-            plural = plural_orch.generate_pipelines_by_fields(
+            plural = plural_orch.generate_pipelines(
                 pipeline_fields=["p_alpha", "p_beta", "p_gamma"],
                 env="dev",
                 output_dir=plural_out_dir,
@@ -678,16 +745,16 @@ class TestGeneratePipelinesByFields:
                 tmpdir, ["p1", "p2", "p3", "p4"]
             )
 
-            orch1 = ActionOrchestrator(project_root, max_workers=1)
-            out1 = orch1.generate_pipelines_by_fields(
+            orch1 = build_facade_orchestrator(project_root, max_workers=1)
+            out1 = orch1.generate_pipelines(
                 pipeline_fields=["p1", "p2", "p3", "p4"],
                 env="dev",
                 output_dir=project_root / "w1",
                 max_workers=1,
             )
 
-            orch8 = ActionOrchestrator(project_root, max_workers=8)
-            out8 = orch8.generate_pipelines_by_fields(
+            orch8 = build_facade_orchestrator(project_root, max_workers=8)
+            out8 = orch8.generate_pipelines(
                 pipeline_fields=["p1", "p2", "p3", "p4"],
                 env="dev",
                 output_dir=project_root / "w8",
@@ -707,8 +774,8 @@ class TestGeneratePipelinesByFields:
 
             baseline: dict = None
             for run_idx in range(10):
-                orch = ActionOrchestrator(project_root, max_workers=4)
-                run_out = orch.generate_pipelines_by_fields(
+                orch = build_facade_orchestrator(project_root, max_workers=4)
+                run_out = orch.generate_pipelines(
                     pipeline_fields=["d1", "d2", "d3", "d4", "d5"],
                     env="dev",
                     output_dir=project_root / f"r{run_idx}",
@@ -723,11 +790,10 @@ class TestGeneratePipelinesByFields:
         """A pipeline name with no flowgroups returns ``{}`` and does not crash."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = _build_multipipeline_project(tmpdir, ["e_real"])
-            # Add an empty pipeline directory with no flowgroup yamls
             (project_root / "pipelines" / "e_empty").mkdir()
 
-            orch = ActionOrchestrator(project_root, max_workers=2)
-            out = orch.generate_pipelines_by_fields(
+            orch = build_facade_orchestrator(project_root, max_workers=2)
+            out = orch.generate_pipelines(
                 pipeline_fields=["e_real", "e_empty"],
                 env="dev",
                 output_dir=project_root / "out",
@@ -754,8 +820,8 @@ class TestGeneratePipelinesByFields:
             def cb(delta: PipelineDelta) -> None:
                 seen.append(delta.pipeline_name)
 
-            orch = ActionOrchestrator(project_root, max_workers=3)
-            orch.generate_pipelines_by_fields(
+            orch = build_facade_orchestrator(project_root, max_workers=3)
+            orch.generate_pipelines(
                 pipeline_fields=["c1", "c2", "c3"],
                 env="dev",
                 output_dir=project_root / "out",
@@ -770,7 +836,7 @@ class TestGeneratePipelinesByFields:
         """When the pool returns one failed delta with a live lhp_error,
         orchestrator re-raises the original LHPError unchanged (preserving
         the original code, not wrapping as LHP-GEN-901 or LHP-VAL-902)."""
-        from lhp.core.coordination import orchestrator as orchestrator_module
+        from lhp.core.coordination import executor as executor_module
         from lhp.models.processing import PipelineDelta
         from lhp.errors import (
             ErrorCategory,
@@ -797,14 +863,14 @@ class TestGeneratePipelinesByFields:
         def fake_pool(**kwargs):
             return ([], [failed_delta])
 
-        monkeypatch.setattr(orchestrator_module, "run_generate_pool", fake_pool)
+        monkeypatch.setattr(executor_module, "run_generate_pool", fake_pool)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = _build_multipipeline_project(tmpdir, ["p_alpha"])
-            orch = ActionOrchestrator(project_root, max_workers=1)
+            orch = build_facade_orchestrator(project_root, max_workers=1)
 
             with pytest.raises(LHPError) as excinfo:
-                orch.generate_pipelines_by_fields(
+                orch.generate_pipelines(
                     pipeline_fields=["p_alpha"],
                     env="dev",
                     output_dir=project_root / "out",
@@ -820,7 +886,7 @@ class TestGeneratePipelinesByFields:
         """When the pool returns multiple failed deltas with distinct
         LHPError codes, orchestrator raises LHP-VAL-902 with per-pipeline
         codes surfaced in the context dict."""
-        from lhp.core.coordination import orchestrator as orchestrator_module
+        from lhp.core.coordination import executor as executor_module
         from lhp.models.processing import PipelineDelta
         from lhp.errors import (
             ErrorCategory,
@@ -866,16 +932,16 @@ class TestGeneratePipelinesByFields:
         def fake_pool(**kwargs):
             return ([], deltas)
 
-        monkeypatch.setattr(orchestrator_module, "run_generate_pool", fake_pool)
+        monkeypatch.setattr(executor_module, "run_generate_pool", fake_pool)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = _build_multipipeline_project(
                 tmpdir, ["p_alpha", "p_beta", "p_gamma"]
             )
-            orch = ActionOrchestrator(project_root, max_workers=3)
+            orch = build_facade_orchestrator(project_root, max_workers=3)
 
             with pytest.raises(LHPError) as excinfo:
-                orch.generate_pipelines_by_fields(
+                orch.generate_pipelines(
                     pipeline_fields=["p_alpha", "p_beta", "p_gamma"],
                     env="dev",
                     output_dir=project_root / "out",
@@ -894,7 +960,7 @@ class TestGeneratePipelinesByFields:
         """When the pool returns one failed delta with lhp_error=None
         (a non-LHP worker exception like KeyError), orchestrator wraps
         the failure via lhp_error_from_worker_failure → LHP-GEN-901."""
-        from lhp.core.coordination import orchestrator as orchestrator_module
+        from lhp.core.coordination import executor as executor_module
         from lhp.models.processing import PipelineDelta
         from lhp.errors import LHPError
 
@@ -914,14 +980,14 @@ class TestGeneratePipelinesByFields:
         def fake_pool(**kwargs):
             return ([], [failed_delta])
 
-        monkeypatch.setattr(orchestrator_module, "run_generate_pool", fake_pool)
+        monkeypatch.setattr(executor_module, "run_generate_pool", fake_pool)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = _build_multipipeline_project(tmpdir, ["p_alpha"])
-            orch = ActionOrchestrator(project_root, max_workers=1)
+            orch = build_facade_orchestrator(project_root, max_workers=1)
 
             with pytest.raises(LHPError) as excinfo:
-                orch.generate_pipelines_by_fields(
+                orch.generate_pipelines(
                     pipeline_fields=["p_alpha"],
                     env="dev",
                     output_dir=project_root / "out",
@@ -945,9 +1011,9 @@ class TestValidatePipelinesByFields:
         and zero errors."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = _build_multipipeline_project(tmpdir, ["v1", "v2", "v3"])
-            orch = ActionOrchestrator(project_root, max_workers=4)
+            orch = build_facade_orchestrator(project_root, max_workers=4)
 
-            outcomes = orch.validate_pipelines_by_fields(
+            outcomes = orch.validate_pipelines(
                 pipeline_fields=["v1", "v2", "v3"],
                 env="dev",
                 include_tests=True,
@@ -968,9 +1034,9 @@ class TestValidatePipelinesByFields:
             project_root = _build_multipipeline_project(
                 tmpdir, ["z_last", "a_first", "m_mid"]
             )
-            orch = ActionOrchestrator(project_root, max_workers=4)
+            orch = build_facade_orchestrator(project_root, max_workers=4)
 
-            outcomes = orch.validate_pipelines_by_fields(
+            outcomes = orch.validate_pipelines(
                 pipeline_fields=["z_last", "a_first", "m_mid"],
                 env="dev",
                 include_tests=True,
@@ -988,9 +1054,9 @@ class TestValidatePipelinesByFields:
         legacy behavior)."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = _build_multipipeline_project(tmpdir, ["real_one"])
-            orch = ActionOrchestrator(project_root)
+            orch = build_facade_orchestrator(project_root)
 
-            outcomes = orch.validate_pipelines_by_fields(
+            outcomes = orch.validate_pipelines(
                 pipeline_fields=["real_one", "missing_pipeline"],
                 env="dev",
                 include_tests=True,
@@ -1003,16 +1069,24 @@ class TestValidatePipelinesByFields:
                 "No flowgroups found" in e for e in by_name["missing_pipeline"].errors
             )
 
-    def test_shim_returns_first_outcome_errors_and_warnings(self):
-        """The single-pipeline shim ``validate_pipeline_by_field`` returns
-        the legacy ``(errors, warnings)`` tuple unchanged."""
+    def test_single_pipeline_validate_returns_outcome_with_errors_and_warnings(
+        self,
+    ):
+        """Single-pipeline validate via ``pipeline_filter=`` returns one
+        outcome whose ``errors`` / ``warnings`` tuples carry the legacy
+        per-pipeline diagnostics."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = _build_multipipeline_project(tmpdir, ["shim_pipe"])
-            orch = ActionOrchestrator(project_root)
+            orch = build_facade_orchestrator(project_root)
 
-            errors, warnings = orch.validate_pipeline_by_field(
-                "shim_pipe", "dev", include_tests=True
+            outcomes = orch.validate_pipelines(
+                pipeline_filter="shim_pipe", env="dev", include_tests=True,
             )
+
+            assert len(outcomes) == 1
+            outcome = outcomes[0]
+            errors = list(outcome.errors)
+            warnings = list(outcome.warnings)
 
             assert isinstance(errors, list)
             assert isinstance(warnings, list)
@@ -1026,15 +1100,15 @@ class TestValidatePipelinesByFields:
                 tmpdir, ["w1", "w2", "w3", "w4"]
             )
 
-            orch = ActionOrchestrator(project_root)
-            seq = orch.validate_pipelines_by_fields(
+            orch = build_facade_orchestrator(project_root)
+            seq = orch.validate_pipelines(
                 pipeline_fields=["w1", "w2", "w3", "w4"],
                 env="dev",
                 include_tests=True,
                 max_workers=1,
             )
 
-            par = orch.validate_pipelines_by_fields(
+            par = orch.validate_pipelines(
                 pipeline_fields=["w1", "w2", "w3", "w4"],
                 env="dev",
                 include_tests=True,

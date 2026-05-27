@@ -17,6 +17,7 @@ two dependency-output paths.
 # facades. Heavy DTO-conversion bodies live in
 # :mod:`lhp.api._converters`; what remains is the per-method delegation
 # surface plus the dependency-output enumeration path.
+# TODO(Phase 9.5): trim or split InspectionFacade's twelve methods into sub-facades grouped by DTO family once the inspection surface stabilises; see LOCAL/REMAINING_WORK.md §9.5.
 from __future__ import annotations
 
 import logging
@@ -106,6 +107,10 @@ class InspectionFacade:
         """List discovered flowgroups, optionally filtered by pipeline name.
 
         :stability: provisional
+        :raises lhp.errors.LHPError: ``LHP-CFG-*`` from project-config or
+            substitution loading, ``LHP-VAL-*`` from flowgroup validation
+            during discovery, ``LHP-FILE-*`` for missing paths, and
+            ``LHP-MULT-*`` for malformed multi-document YAML.
         """
         if pipeline_filter is None:
             flowgroups = self._orchestrator.discover_all_flowgroups()
@@ -122,6 +127,12 @@ class InspectionFacade:
         """Process a single flowgroup (expand templates, merge presets, substitute).
 
         :stability: provisional
+        :raises LookupError: if no flowgroup with ``flowgroup_name``
+            exists in the project.
+        :raises lhp.errors.LHPError: ``LHP-CFG-*`` from substitution-file
+            loading, ``LHP-TPL-*`` from template expansion, and
+            ``LHP-VAL-*`` from flowgroup-level validation during
+            resolution.
         """
         target = _locate_flowgroup_by_name(self._orchestrator, flowgroup_name)
         substitution_mgr = _build_substitution_manager_for_env(
@@ -137,6 +148,12 @@ class InspectionFacade:
         """Generate Python source for a single flowgroup without writing to disk.
 
         :stability: provisional
+        :raises LookupError: if no flowgroup with ``flowgroup_name``
+            exists in the project.
+        :raises lhp.errors.LHPError: ``LHP-CFG-*`` (substitution),
+            ``LHP-TPL-*`` (template expansion), ``LHP-VAL-*`` (per-action
+            validation during code-generation), and ``LHP-ACTION-*``
+            (action-generator failure).
         """
         target = _locate_flowgroup_by_name(self._orchestrator, flowgroup_name)
         substitution_mgr = _build_substitution_manager_for_env(
@@ -164,6 +181,10 @@ class InspectionFacade:
         """Return the source YAML path for the named flowgroup, or ``None``.
 
         :stability: provisional
+        :raises lhp.errors.LHPError: ``LHP-CFG-*`` / ``LHP-VAL-*`` /
+            ``LHP-FILE-*`` if flowgroup discovery (driven on first
+            access) fails. A pure name-miss returns ``None`` rather
+            than raising :class:`LookupError`.
         """
         try:
             target = _locate_flowgroup_by_name(self._orchestrator, flowgroup_name)
@@ -178,6 +199,7 @@ class InspectionFacade:
         """Return the project's flowgroup include glob patterns.
 
         :stability: provisional
+        :raises: None — reads already-loaded project configuration.
         """
         return tuple(self._orchestrator.get_include_patterns())
 
@@ -185,6 +207,8 @@ class InspectionFacade:
         """Return a frozen view of the project's loaded ``lhp.yaml``.
 
         :stability: provisional
+        :raises: None — converts the already-loaded project configuration
+            into a frozen DTO.
         """
         return _project_config_to_view(self._orchestrator.project_config)
 
@@ -192,6 +216,9 @@ class InspectionFacade:
         """Aggregate project statistics over every discovered flowgroup.
 
         :stability: provisional
+        :raises lhp.errors.LHPError: ``LHP-CFG-*`` / ``LHP-VAL-*`` /
+            ``LHP-FILE-*`` / ``LHP-MULT-*`` propagated from flowgroup
+            discovery — same families as :meth:`list_flowgroups`.
         """
         flowgroups = self._orchestrator.discover_all_flowgroups()
         return _build_stats_result(flowgroups)
@@ -205,6 +232,9 @@ class InspectionFacade:
         tuple (resolved flowgroup count + pipelines per instance file).
 
         :stability: provisional
+        :raises lhp.errors.LHPError: ``LHP-CFG-*`` / ``LHP-VAL-*`` /
+            ``LHP-FILE-*`` propagated from blueprint discovery and
+            instance-file parsing.
         """
         return _build_blueprint_views(
             self._orchestrator.blueprint_discoverer,
@@ -215,6 +245,8 @@ class InspectionFacade:
         """List all presets declared under the project's ``presets/`` directory.
 
         :stability: provisional
+        :raises: None — per-file parse errors are logged and skipped so
+            the inspection CLI can still enumerate the remaining presets.
         """
         from lhp.parsers.yaml_parser import YAMLParser
 
@@ -239,6 +271,8 @@ class InspectionFacade:
         """List all templates declared under the project's ``templates/`` directory.
 
         :stability: provisional
+        :raises: None — per-file parse errors are logged and skipped so
+            the inspection CLI can still enumerate the remaining templates.
         """
         from lhp.parsers.yaml_parser import YAMLParser
 
@@ -277,6 +311,9 @@ class InspectionFacade:
         from the named blueprint.
 
         :stability: provisional
+        :raises lhp.errors.LHPError: ``LHP-CFG-*`` / ``LHP-VAL-*`` /
+            ``LHP-FILE-*`` / ``LHP-MULT-*`` propagated from flowgroup
+            discovery and dependency analysis.
         """
         dep_service = self._orchestrator.dependencies
         dep_service.set_blueprint_view_mode(
@@ -312,6 +349,10 @@ class InspectionFacade:
         label.
 
         :stability: provisional
+        :raises lhp.errors.LHPError: ``LHP-CFG-*`` / ``LHP-VAL-*`` /
+            ``LHP-FILE-*`` / ``LHP-MULT-*`` propagated from discovery
+            and analysis, plus ``LHP-IO-*`` / :class:`OSError` for
+            filesystem failures while writing the requested formats.
         """
         from lhp.core.dependencies.output import DependencyOutputManager
 
@@ -372,5 +413,7 @@ class InspectionFacade:
         """Validate uniqueness of ``(pipeline, flowgroup)`` pairs across a view set.
 
         :stability: provisional
+        :raises: None — duplicate findings are surfaced on the returned
+            :class:`ValidationResponse` rather than raised (§4.8).
         """
         return _duplicates_to_validation_response(flowgroups)

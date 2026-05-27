@@ -290,9 +290,9 @@ class TestDiscoverAndFilterPreDiscovered:
             (root / "pipelines").mkdir()
 
             # Create minimal orchestrator with mocked dependencies
-            from lhp.core.coordination import ActionOrchestrator
+            from lhp.core.coordination.layers import build_facade_orchestrator
 
-            orch = ActionOrchestrator(root)
+            orch = build_facade_orchestrator(root, enforce_version=False)
 
             pre_discovered = [
                 _make_flowgroup("my_pipeline", "fg1"),
@@ -323,9 +323,9 @@ class TestDiscoverAndFilterPreDiscovered:
             root = Path(tmp)
             (root / "pipelines").mkdir()
 
-            from lhp.core.coordination import ActionOrchestrator
+            from lhp.core.coordination.layers import build_facade_orchestrator
 
-            orch = ActionOrchestrator(root)
+            orch = build_facade_orchestrator(root, enforce_version=False)
 
             mock_fgs = [_make_flowgroup("my_pipeline", "fg1")]
             with patch.object(

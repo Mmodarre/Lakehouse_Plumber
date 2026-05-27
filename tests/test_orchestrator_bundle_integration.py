@@ -12,7 +12,7 @@ import shutil
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from lhp.core.coordination import ActionOrchestrator
+from lhp.api import LakehousePlumberApplicationFacade, collect_response
 
 
 class TestOrchestratorBundleBehavior:
@@ -27,7 +27,9 @@ class TestOrchestratorBundleBehavior:
         # Create basic project structure
         self._create_test_project()
         
-        self.orchestrator = ActionOrchestrator(self.project_root)
+        self.facade = LakehousePlumberApplicationFacade.for_project(
+            self.project_root, enforce_version=False
+        )
 
     def teardown_method(self):
         """Clean up test environment after each test."""
@@ -90,14 +92,21 @@ actions:
         
         # Generate files
         output_dir = self.project_root / "generated"
-        generated_files = self.orchestrator.generate_pipeline_by_field(
-            "test_pipeline", "dev", output_dir
+        batch = collect_response(
+            self.facade.generation.generate_pipelines(
+                pipeline_filter="test_pipeline",
+                env="dev",
+                output_dir=output_dir,
+            )
         )
-        
+        generated_files = batch.pipeline_responses[
+            "test_pipeline"
+        ].generated_filenames
+
         # Verify files were generated
         assert len(generated_files) == 1
         assert "test_flowgroup.py" in generated_files
-        
+
         # Verify bundle manager was NOT created or called from orchestrator
         mock_bundle_manager_class.assert_not_called()
         mock_bundle_manager.sync_resources_with_generated_files.assert_not_called()
@@ -112,18 +121,25 @@ bundle:
         
         # Generate files
         output_dir = self.project_root / "generated"
-        generated_files = self.orchestrator.generate_pipeline_by_field(
-            "test_pipeline", "dev", output_dir
+        batch = collect_response(
+            self.facade.generation.generate_pipelines(
+                pipeline_filter="test_pipeline",
+                env="dev",
+                output_dir=output_dir,
+            )
         )
-        
+        generated_files = batch.pipeline_responses[
+            "test_pipeline"
+        ].generated_filenames
+
         # Verify files were generated correctly
         assert len(generated_files) == 1
         assert "test_flowgroup.py" in generated_files
-        
+
         # Verify output file exists
         output_file = output_dir / "test_pipeline" / "test_flowgroup.py"
         assert output_file.exists()
-        
+
         # Verify generated code content
         generated_code = output_file.read_text()
         assert "test_pipeline" in generated_code
@@ -133,10 +149,17 @@ bundle:
         """Should preserve normal generation behavior regardless of bundle setup."""
         # Generate files
         output_dir = self.project_root / "generated"
-        generated_files = self.orchestrator.generate_pipeline_by_field(
-            "test_pipeline", "dev", output_dir
+        batch = collect_response(
+            self.facade.generation.generate_pipelines(
+                pipeline_filter="test_pipeline",
+                env="dev",
+                output_dir=output_dir,
+            )
         )
-        
+        generated_files = batch.pipeline_responses[
+            "test_pipeline"
+        ].generated_filenames
+
         # Verify normal generation behavior
         assert isinstance(generated_files, tuple)
         assert len(generated_files) == 1

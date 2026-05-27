@@ -180,8 +180,8 @@ class TestSpecConfigParsing:
 
 def _make_test_action(
     name: str,
-    test_id: str = None,
-    target: str = None,
+    test_id: str | None = None,
+    target: str | None = None,
     test_type: str = "uniqueness",
     source: str = "v_source",
 ) -> Action:
@@ -203,7 +203,7 @@ def _make_test_action(
 def _make_flowgroup(
     pipeline: str = "test_pipeline",
     flowgroup: str = "test_fg",
-    actions: list = None,
+    actions: list | None = None,
 ) -> FlowGroup:
     """Helper to build a FlowGroup with the given actions."""
     return FlowGroup(

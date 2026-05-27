@@ -67,7 +67,7 @@ class SQLLoadGenerator(BaseActionGenerator):
         return self.render_template("load/sql.py.j2", template_context)
 
     def _get_sql_query(
-        self, source_config: dict, spec_dir: Path = None, context: dict = None
+        self, source_config: dict, spec_dir: Path | None = None, context: dict | None = None
     ) -> str:
         """Extract SQL query from configuration."""
         sql_content = None

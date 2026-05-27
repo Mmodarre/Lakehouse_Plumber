@@ -24,6 +24,7 @@ from typing import Optional
 # internal callers keep importing via ``lhp.core.coordination`` until
 # the Phase D CLI cutover (week5_plan §D11). After D11 this module
 # shrinks to just the composition-root helper.
+# TODO(Phase 9.1): collapse to just build_facade_orchestrator after the Phase D CLI cutover removes the transitional re-export; see LOCAL/REMAINING_WORK.md §9.
 
 
 def build_facade_orchestrator(

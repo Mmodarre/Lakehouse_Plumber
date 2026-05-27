@@ -1,5 +1,10 @@
 """Pipeline configuration loader with multi-document YAML support."""
 
+# JUSTIFIED: pipeline-config resolution is one substitution-pass over
+# a unified document tree; splitting load/substitute/validate creates
+# 3-pass overhead and a shared mutable state surface.
+# TODO(Phase 9.5): re-evaluate after core/processing/substitution.py evacuates utils/
+
 import logging
 from copy import deepcopy
 from pathlib import Path

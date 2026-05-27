@@ -57,6 +57,10 @@ class LakehousePlumberBootstrap:
 
         Returns:
             A frozen :class:`InitProjectResult` describing the outcome.
+
+        :raises: None — :class:`LHPError` and :class:`OSError` failures
+            during scaffolding are caught and surfaced on the result's
+            ``error_message`` / ``error_code`` fields (§4.8).
         """
         # Lazy imports keep this module cheap to import from
         # ``lhp.api`` even when the caller never invokes
@@ -99,12 +103,10 @@ class LakehousePlumberBootstrap:
             # Pre-state for diffing after the loader runs.
             pre_paths = _walk_paths(target_dir)
 
-            # 1. Create the standard project directory tree.
             new_dirs.extend(
                 _create_directory_tree(target_dir, bundle=bundle)
             )
 
-            # 2. Render templates / copy schemas.
             context = InitTemplateContext.create(
                 project_name=resolved_project_name,
                 bundle_enabled=bundle,
@@ -114,7 +116,6 @@ class LakehousePlumberBootstrap:
                 target_dir, context
             )
 
-            # 3. Diff filesystem to capture what the loader wrote.
             post_paths = _walk_paths(target_dir)
             delta = post_paths - pre_paths
 

@@ -6,16 +6,41 @@ from pathlib import Path
 from unittest.mock import MagicMock, Mock, call, patch
 
 import click
-import networkx as nx
 import pytest
 
 from lhp.cli.commands.dependencies_command import DependenciesCommand
-from lhp.models.dependencies import (
+from lhp.api.responses import (
     DependencyAnalysisResult,
-    DependencyGraphs,
-    PipelineDependency,
+    DependencyOutputEntry,
+    DependencyOutputsResult,
 )
+from lhp.api.views import FlowgroupView
 from lhp.errors import ErrorCategory, LHPError
+
+
+def _make_flowgroup_view(
+    *,
+    name: str = "fg1",
+    pipeline: str = "pipeline1",
+    job_name=None,
+) -> FlowgroupView:
+    """Build a minimal :class:`FlowgroupView` for tests.
+
+    Mirrors the public DTO shape declared in ``lhp.api.views``.
+    """
+
+    return FlowgroupView(
+        name=name,
+        pipeline=pipeline,
+        file_path=None,
+        presets=(),
+        template=None,
+        load_action_count=0,
+        transform_action_count=0,
+        write_action_count=0,
+        test_action_count=0,
+        job_name=job_name,
+    )
 
 
 class TestDependenciesCommand:
@@ -28,92 +53,81 @@ class TestDependenciesCommand:
 
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def create_mock_analysis_result(self):
-        graphs = DependencyGraphs(
-            action_graph=nx.DiGraph(),
-            flowgroup_graph=nx.DiGraph(),
-            pipeline_graph=nx.DiGraph(),
-            metadata={"total_pipelines": 2},
-        )
+    def create_mock_analysis_result(self) -> DependencyAnalysisResult:
+        """Build a frozen :class:`DependencyAnalysisResult` test fixture.
 
-        pipeline_deps = {
-            "pipeline1": PipelineDependency(
-                pipeline="pipeline1",
-                depends_on=[],
-                flowgroup_count=1,
-                action_count=2,
-                external_sources=["external.table1"],
-                stage=0,
-            ),
-            "pipeline2": PipelineDependency(
-                pipeline="pipeline2",
-                depends_on=["pipeline1"],
-                flowgroup_count=1,
-                action_count=3,
-                external_sources=[],
-                stage=1,
-            ),
-        }
-
+        Mirrors the public-API DTO shape (tuple-based, no graph object).
+        """
         return DependencyAnalysisResult(
-            graphs=graphs,
-            pipeline_dependencies=pipeline_deps,
-            execution_stages=[["pipeline1"], ["pipeline2"]],
-            circular_dependencies=[],
-            external_sources=["external.table1"],
+            pipeline_dependencies={
+                "pipeline1": (),
+                "pipeline2": ("pipeline1",),
+            },
+            execution_stages=(("pipeline1",), ("pipeline2",)),
+            circular_dependencies=(),
+            external_sources=("external.table1",),
+            total_pipelines=2,
+            total_external_sources=1,
         )
 
-    @patch("lhp.cli.commands.dependencies_command.DependencyAnalysisService")
+    def _make_outputs_result(self) -> DependencyOutputsResult:
+        return DependencyOutputsResult(
+            success=True,
+            entries=(),
+            output_dir=self.temp_dir,
+        )
+
+    @patch("lhp.cli.commands.dependencies_command.LakehousePlumberApplicationFacade")
     @patch.object(DependenciesCommand, "setup_from_context")
     @patch.object(DependenciesCommand, "ensure_project_root")
     def test_execute_with_pipeline_filter(
-        self, mock_ensure_root, mock_setup, mock_analyzer_class
+        self, mock_ensure_root, mock_setup, mock_facade_cls
     ):
         mock_ensure_root.return_value = self.temp_dir
-        mock_analyzer = Mock()
-        mock_analyzer_class.return_value = mock_analyzer
+
+        mock_facade = Mock()
+        mock_facade_cls.for_project.return_value = mock_facade
 
         result = self.create_mock_analysis_result()
-        result.pipeline_dependencies = {
-            "target_pipeline": result.pipeline_dependencies["pipeline1"]
-        }
-        mock_analyzer.analyze_dependencies.return_value = result
-
-        mock_fg1 = Mock(pipeline="target_pipeline", job_name=None)
-        mock_fg2 = Mock(pipeline="other_pipeline", job_name=None)
-        mock_analyzer.get_flowgroups.return_value = [mock_fg1, mock_fg2]
-
-        with (
-            patch("lhp.cli.commands.dependencies_command.DependencyOutputManager"),
-            patch("click.echo"),
-        ):
-            self.command.execute(pipeline="target_pipeline")
-
-        mock_analyzer.analyze_dependencies.assert_called_once_with(
-            pipeline_filter="target_pipeline"
+        mock_facade.inspection.analyze_dependencies.return_value = result
+        mock_facade.inspection.save_dependency_outputs.return_value = (
+            self._make_outputs_result()
         )
 
-    @patch("lhp.cli.commands.dependencies_command.DependencyAnalysisService")
+        # The CLI calls list_flowgroups() for the pipeline existence check.
+        mock_facade.inspection.list_flowgroups.return_value = (
+            _make_flowgroup_view(name="fg1", pipeline="target_pipeline"),
+            _make_flowgroup_view(name="fg2", pipeline="other_pipeline"),
+        )
+
+        with patch("click.echo"):
+            self.command.execute(pipeline="target_pipeline")
+
+        mock_facade_cls.for_project.assert_called_with(self.temp_dir)
+        mock_facade.inspection.analyze_dependencies.assert_called_once_with(
+            pipeline_filter="target_pipeline",
+            expand_blueprints=False,
+            blueprint_filter=None,
+        )
+
+    @patch("lhp.cli.commands.dependencies_command.LakehousePlumberApplicationFacade")
     @patch.object(DependenciesCommand, "setup_from_context")
     @patch.object(DependenciesCommand, "ensure_project_root")
     def test_pipeline_validation_failure(
-        self, mock_ensure_root, mock_setup, mock_analyzer_class
+        self, mock_ensure_root, mock_setup, mock_facade_cls
     ):
         mock_ensure_root.return_value = self.temp_dir
-        mock_analyzer = Mock()
-        mock_analyzer_class.return_value = mock_analyzer
 
-        mock_flowgroups = [
-            Mock(pipeline="existing_pipeline1"),
-            Mock(pipeline="existing_pipeline2"),
-        ]
-        mock_analyzer.get_flowgroups.return_value = mock_flowgroups
+        mock_facade = Mock()
+        mock_facade_cls.for_project.return_value = mock_facade
+
+        mock_facade.inspection.list_flowgroups.return_value = (
+            _make_flowgroup_view(name="fg1", pipeline="existing_pipeline1"),
+            _make_flowgroup_view(name="fg2", pipeline="existing_pipeline2"),
+        )
 
         with pytest.raises(LHPError) as exc_info:
-            with (
-                patch("lhp.cli.commands.dependencies_command.DependencyOutputManager"),
-                patch("click.echo"),
-            ):
+            with patch("click.echo"):
                 self.command.execute(pipeline="nonexistent_pipeline")
 
         assert "LHP-CFG-" in exc_info.value.code
@@ -126,25 +140,29 @@ class TestDependenciesCommand:
 
         with (
             patch(
-                "lhp.cli.commands.dependencies_command.DependencyAnalysisService"
-            ) as mock_analyzer_class,
-            patch("lhp.cli.commands.dependencies_command.DependencyOutputManager"),
+                "lhp.cli.commands.dependencies_command.LakehousePlumberApplicationFacade"
+            ) as mock_facade_cls,
             patch("click.echo"),
             patch("logging.getLogger") as mock_get_logger,
         ):
+            mock_facade = Mock()
+            mock_facade_cls.for_project.return_value = mock_facade
 
-            mock_analyzer = Mock()
-            mock_analyzer_class.return_value = mock_analyzer
-            mock_result = Mock()
+            mock_result = Mock(spec=DependencyAnalysisResult)
             mock_result.total_external_sources = 0
-            mock_result.execution_stages = []
-            mock_result.circular_dependencies = []
-            mock_analyzer.analyze_dependencies.return_value = mock_result
+            mock_result.total_pipelines = 0
+            mock_result.execution_stages = ()
+            mock_result.circular_dependencies = ()
+            mock_result.external_sources = ()
+            mock_facade.inspection.analyze_dependencies.return_value = mock_result
+            mock_facade.inspection.save_dependency_outputs.return_value = (
+                self._make_outputs_result()
+            )
 
             dep_logger = Mock()
             out_logger = Mock()
             mock_get_logger.side_effect = lambda name: {
-                "lhp.core.dependencies.analyzer": dep_logger,
+                "lhp.core.services.dependency_analyzer": dep_logger,
                 "lhp.core.dependencies.output": out_logger,
             }.get(name, Mock())
 
@@ -215,35 +233,36 @@ class TestDependenciesCommand:
     def test_job_name_parameter_handling(self):
         with (
             patch(
-                "lhp.cli.commands.dependencies_command.DependencyAnalysisService"
-            ) as mock_analyzer_class,
-            patch(
-                "lhp.cli.commands.dependencies_command.DependencyOutputManager"
-            ) as mock_output_manager_class,
+                "lhp.cli.commands.dependencies_command.LakehousePlumberApplicationFacade"
+            ) as mock_facade_cls,
             patch.object(DependenciesCommand, "setup_from_context"),
             patch.object(
                 DependenciesCommand, "ensure_project_root", return_value=self.temp_dir
             ),
             patch("click.echo"),
         ):
+            mock_facade = Mock()
+            mock_facade_cls.for_project.return_value = mock_facade
 
-            mock_analyzer = Mock()
-            mock_analyzer_class.return_value = mock_analyzer
-            mock_result = Mock()
+            mock_result = Mock(spec=DependencyAnalysisResult)
             mock_result.total_external_sources = 0
-            mock_result.execution_stages = []
-            mock_result.circular_dependencies = []
-            mock_analyzer.analyze_dependencies.return_value = mock_result
-
-            mock_output_manager = Mock()
-            mock_output_manager_class.return_value = mock_output_manager
-            mock_output_manager.save_outputs.return_value = {}
+            mock_result.total_pipelines = 0
+            mock_result.execution_stages = ()
+            mock_result.circular_dependencies = ()
+            mock_result.external_sources = ()
+            mock_facade.inspection.analyze_dependencies.return_value = mock_result
+            mock_facade.inspection.save_dependency_outputs.return_value = (
+                self._make_outputs_result()
+            )
 
             custom_job_name = "my_custom_job"
             self.command.execute(job_name=custom_job_name, output_format="job")
 
-            call_args = mock_output_manager.save_outputs.call_args
-            assert call_args[0][4] == custom_job_name  # 5th positional argument (job_name)
+            # New facade signature: kwargs-only — assert via kwargs["job_name"].
+            call_args = (
+                mock_facade.inspection.save_dependency_outputs.call_args
+            )
+            assert call_args.kwargs["job_name"] == custom_job_name
 
 
 class TestDependenciesCommandPipelineFilter:
@@ -256,89 +275,42 @@ class TestDependenciesCommandPipelineFilter:
 
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def create_mock_analysis_result(self):
-        graphs = DependencyGraphs(
-            action_graph=nx.DiGraph(),
-            flowgroup_graph=nx.DiGraph(),
-            pipeline_graph=nx.DiGraph(),
-            metadata={"total_pipelines": 2},
-        )
-
-        pipeline_deps = {
-            "pipeline1": PipelineDependency(
-                pipeline="pipeline1",
-                depends_on=[],
-                flowgroup_count=1,
-                action_count=2,
-                external_sources=["external.table1"],
-                stage=0,
-            ),
-            "pipeline2": PipelineDependency(
-                pipeline="pipeline2",
-                depends_on=["pipeline1"],
-                flowgroup_count=1,
-                action_count=3,
-                external_sources=[],
-                stage=1,
-            ),
-        }
-
+    def create_mock_analysis_result(self) -> DependencyAnalysisResult:
         return DependencyAnalysisResult(
-            graphs=graphs,
-            pipeline_dependencies=pipeline_deps,
-            execution_stages=[["pipeline1"], ["pipeline2"]],
-            circular_dependencies=[],
-            external_sources=["external.table1"],
+            pipeline_dependencies={
+                "pipeline1": (),
+                "pipeline2": ("pipeline1",),
+            },
+            execution_stages=(("pipeline1",), ("pipeline2",)),
+            circular_dependencies=(),
+            external_sources=("external.table1",),
+            total_pipelines=2,
+            total_external_sources=1,
         )
 
-    @patch("lhp.cli.commands.dependencies_command.DependencyOutputManager")
-    @patch("lhp.cli.commands.dependencies_command.DependencyAnalysisService")
-    @patch("lhp.cli.commands.dependencies_command.ProjectConfigLoader")
+    @patch("lhp.cli.commands.dependencies_command.LakehousePlumberApplicationFacade")
     @patch.object(DependenciesCommand, "setup_from_context")
     @patch.object(DependenciesCommand, "ensure_project_root")
     def test_pipeline_filter_with_job_name_raises_error_003(
         self,
         mock_ensure_root,
         mock_setup,
-        mock_config_loader,
-        mock_analyzer_class,
-        mock_output_manager_class,
+        mock_facade_cls,
     ):
         mock_ensure_root.return_value = self.temp_dir
-        mock_analyzer = Mock()
-        mock_analyzer_class.return_value = mock_analyzer
 
-        from lhp.models.config import Action, ActionType, FlowGroup
+        mock_facade = Mock()
+        mock_facade_cls.for_project.return_value = mock_facade
 
-        flowgroups = [
-            FlowGroup(
-                pipeline="bronze_pipeline",
-                flowgroup="fg1",
-                job_name="bronze_job",
-                actions=[
-                    Action(
-                        name="load",
-                        type=ActionType.LOAD,
-                        source="raw.table",
-                        target="v_table",
-                    )
-                ],
+        flowgroups = (
+            _make_flowgroup_view(
+                name="fg1", pipeline="bronze_pipeline", job_name="bronze_job"
             ),
-            FlowGroup(
-                pipeline="silver_pipeline",
-                flowgroup="fg2",
-                job_name="silver_job",
-                actions=[
-                    Action(
-                        name="load",
-                        type=ActionType.LOAD,
-                        source="bronze.table",
-                        target="v_table",
-                    )
-                ],
+            _make_flowgroup_view(
+                name="fg2", pipeline="silver_pipeline", job_name="silver_job"
             ),
-        ]
-        mock_analyzer.get_flowgroups.return_value = flowgroups
+        )
+        mock_facade.inspection.list_flowgroups.return_value = flowgroups
 
         with pytest.raises(LHPError) as exc_info:
             self.command.execute(pipeline="bronze_pipeline")
@@ -350,9 +322,7 @@ class TestDependenciesCommandPipelineFilter:
             or "pipeline" in error.title.lower()
         )
 
-    @patch("lhp.cli.commands.dependencies_command.DependencyOutputManager")
-    @patch("lhp.cli.commands.dependencies_command.DependencyAnalysisService")
-    @patch("lhp.cli.commands.dependencies_command.ProjectConfigLoader")
+    @patch("lhp.cli.commands.dependencies_command.LakehousePlumberApplicationFacade")
     @patch.object(DependenciesCommand, "setup_from_context")
     @patch.object(DependenciesCommand, "ensure_project_root")
     @patch("click.echo")
@@ -361,56 +331,40 @@ class TestDependenciesCommandPipelineFilter:
         mock_echo,
         mock_ensure_root,
         mock_setup,
-        mock_config_loader,
-        mock_analyzer_class,
-        mock_output_manager_class,
+        mock_facade_cls,
     ):
         mock_ensure_root.return_value = self.temp_dir
-        mock_analyzer = Mock()
-        mock_analyzer_class.return_value = mock_analyzer
 
-        mock_output_manager = Mock()
-        mock_output_manager_class.return_value = mock_output_manager
+        mock_facade = Mock()
+        mock_facade_cls.for_project.return_value = mock_facade
 
-        from lhp.models.config import Action, ActionType, FlowGroup
-
-        flowgroups = [
-            FlowGroup(
-                pipeline="bronze_pipeline",
-                flowgroup="fg1",
-                job_name=None,
-                actions=[
-                    Action(
-                        name="load",
-                        type=ActionType.LOAD,
-                        source="raw.table",
-                        target="v_table",
-                    )
-                ],
+        flowgroups = (
+            _make_flowgroup_view(
+                name="fg1", pipeline="bronze_pipeline", job_name=None
             ),
-            FlowGroup(
-                pipeline="silver_pipeline",
-                flowgroup="fg2",
-                job_name=None,
-                actions=[
-                    Action(
-                        name="load",
-                        type=ActionType.LOAD,
-                        source="bronze.table",
-                        target="v_table",
-                    )
-                ],
+            _make_flowgroup_view(
+                name="fg2", pipeline="silver_pipeline", job_name=None
             ),
-        ]
-        mock_analyzer.get_flowgroups.return_value = flowgroups
+        )
+        mock_facade.inspection.list_flowgroups.return_value = flowgroups
 
         result = self.create_mock_analysis_result()
-        mock_analyzer.analyze_dependencies.return_value = result
+        mock_facade.inspection.analyze_dependencies.return_value = result
 
-        generated_files = {"dot": self.temp_dir / "deps.dot"}
-        (self.temp_dir / "deps.dot").touch()
-        mock_output_manager.save_outputs.return_value = generated_files
+        deps_path = self.temp_dir / "deps.dot"
+        deps_path.touch()
+        mock_facade.inspection.save_dependency_outputs.return_value = (
+            DependencyOutputsResult(
+                success=True,
+                entries=(
+                    DependencyOutputEntry(
+                        format_name="dot", label="", path=deps_path
+                    ),
+                ),
+                output_dir=self.temp_dir,
+            )
+        )
 
         self.command.execute(output_format="dot", pipeline="bronze_pipeline")
 
-        mock_analyzer.analyze_dependencies.assert_called_once()
+        mock_facade.inspection.analyze_dependencies.assert_called_once()

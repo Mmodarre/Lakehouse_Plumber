@@ -143,7 +143,6 @@ class CodeGenerationService(BaseCodeGenerationService):
             f"Starting code generation for flowgroup '{fg}' in pipeline '{flowgroup.pipeline}'"
         )
 
-        # 1. Resolve action dependencies
         with perf_timer(f"resolve_dependencies [{fg}]"):
             ordered_actions = self.dependency_resolver.resolve_dependencies(
                 flowgroup.actions
@@ -152,7 +151,6 @@ class CodeGenerationService(BaseCodeGenerationService):
             f"Resolved action ordering: {[a.name for a in ordered_actions]} ({len(ordered_actions)} actions)"
         )
 
-        # 2. Get preset configuration if any
         preset_config = {}
         if flowgroup.presets:
             preset_config = self.preset_manager.resolve_preset_chain(flowgroup.presets)
@@ -160,19 +158,16 @@ class CodeGenerationService(BaseCodeGenerationService):
                 f"Resolved preset chain for flowgroup '{fg}': {flowgroup.presets}"
             )
 
-        # 3. Check for test-only flowgroups when include_tests is False
         if not include_tests:
             non_test_actions = [
                 action for action in ordered_actions if action.type != ActionType.TEST
             ]
             if not non_test_actions:
-                # This is a test-only flowgroup, skip entirely
                 self.logger.info(
                     f"Skipping test-only flowgroup: {fg} (--include-tests not specified)"
                 )
-                return ""  # Return empty string to skip this flowgroup
+                return ""
 
-        # 4. Generate code sections
         with perf_timer(f"generate_action_sections [{fg}]"):
             (
                 generated_sections,
@@ -191,12 +186,10 @@ class CodeGenerationService(BaseCodeGenerationService):
                 auxiliary_files=auxiliary_files,
             )
 
-        # 5-6. Apply secret substitutions and assemble final code.
         # Substitution emits ``__SECRET_scope_key__`` placeholders so Jinja
-        # templates can naively wrap values in Python string literals; this
+        # templates can naively wrap values in Python string literals; the
         # post-pass rewrites whole-string placeholders to bare
-        # ``dbutils.secrets.get(...)`` calls and embedded placeholders to
-        # f-strings.
+        # ``dbutils.secrets.get(...)`` calls and embedded ones to f-strings.
         with perf_timer(f"assemble_code [{fg}]"):
             complete_code = self._secrets.apply(
                 generated_sections, substitution_mgr
@@ -208,10 +201,8 @@ class CodeGenerationService(BaseCodeGenerationService):
                 complete_code,
             )
 
-    # ------------------------------------------------------------------
-    # Public forwarders — preserved as part of the CodeGenerationService
+    # Public forwarders preserved as part of the CodeGenerationService
     # surface for callers that pin to the class. See manifest §5.2.
-    # ------------------------------------------------------------------
 
     def determine_action_subtype(self, action: Action) -> str:
         """Forward to :meth:`ActionDispatcher.determine_action_subtype`."""
@@ -229,12 +220,10 @@ class CodeGenerationService(BaseCodeGenerationService):
         """Forward to :meth:`WriteActionGrouper.create_combined_write_action`."""
         return self._grouping.create_combined_write_action(actions, target_table)
 
-    # ------------------------------------------------------------------
-    # Private-name forwarders — preserved so existing tests that pin to
-    # the previous private surface continue to work. These intentionally
-    # remain underscore-prefixed (they are NOT public API); they delegate
-    # to the canonical implementations on the internal sub-services.
-    # ------------------------------------------------------------------
+    # Private-name forwarders preserved so existing tests that pin to
+    # the previous private surface continue to work. Intentionally
+    # underscore-prefixed (NOT public API); delegate to canonical
+    # implementations on the internal sub-services.
 
     def _extract_source_views_from_action(self, source) -> List[str]:
         """Test-surface forwarder to :meth:`WriteActionGrouper._extract_source_views_from_action`."""

@@ -57,27 +57,22 @@ class ActionDispatcher:
         auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> Tuple[List[str], Set[str], Set[str]]:
         """Generate code sections for all actions."""
-        # Group actions by type while preserving order
         action_groups = defaultdict(list)
         for action in ordered_actions:
             action_groups[action.type].append(action)
 
-        # Initialize collections
         generated_sections = []
         all_imports: Set[str] = set()
         pre_pipeline_statements: Set[str] = set()
 
-        # Add base imports
         all_imports.add("from pyspark import pipelines as dp")
 
-        # Define section headers
         section_headers = {
             ActionType.LOAD: "SOURCE VIEWS",
             ActionType.WRITE: "TARGET TABLES",
             ActionType.TEST: "DATA QUALITY TESTS",
         }
 
-        # Process each action type in order
         action_types = [ActionType.LOAD, ActionType.TRANSFORM, ActionType.WRITE]
         if include_tests:
             action_types.append(ActionType.TEST)
@@ -102,7 +97,6 @@ class ActionDispatcher:
                 continue
 
             if action_type == ActionType.TRANSFORM:
-                # Partition transforms into regular and data quality
                 regular_transforms = [
                     a
                     for a in action_groups[ActionType.TRANSFORM]
@@ -140,7 +134,6 @@ class ActionDispatcher:
                     all_imports.update(imports)
                     pre_pipeline_statements.update(pre_stmts)
             else:
-                # Non-transform action types
                 header_text = section_headers.get(action_type, str(action_type).upper())
                 section_header = f"""
 # {"=" * 76}
@@ -184,7 +177,6 @@ class ActionDispatcher:
         imports: Set[str] = set()
         pre_pipeline_statements: Set[str] = set()
 
-        # Group write actions by target table
         grouped_actions = self._grouping.group_write_actions_by_target(write_actions)
         self.logger.debug(
             f"Grouped {len(write_actions)} write actions into {len(grouped_actions)} target table(s)"
@@ -192,19 +184,16 @@ class ActionDispatcher:
 
         for target_table, actions in grouped_actions.items():
             try:
-                # Use the first action to determine sub-type and get generator
                 first_action = actions[0]
                 sub_type = self.determine_action_subtype(first_action)
                 generator = self.action_registry.get_generator(
                     first_action.type, sub_type
                 )
 
-                # Create a combined action with multiple source views
                 combined_action = self._grouping.create_combined_write_action(
                     actions, target_table
                 )
 
-                # Generate code
                 context = self._context.build(
                     flowgroup,
                     substitution_mgr,
@@ -218,7 +207,6 @@ class ActionDispatcher:
                 action_code = generator.generate(combined_action, context)
                 sections.append(action_code)
 
-                # Collect imports and pre-pipeline statements
                 section_imports, section_pre = self._context.collect_outputs(generator)
                 imports.update(section_imports)
                 pre_pipeline_statements.update(section_pre)

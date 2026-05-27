@@ -55,7 +55,7 @@ class EnhancedSubstitutionManager:
 
     def __init__(
         self,
-        substitution_file: Path = None,
+        substitution_file: Path | None = None,
         env: str = "dev",
         skip_validation: bool = False,
     ):

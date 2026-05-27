@@ -1,6 +1,6 @@
 """Action validators package."""
 
-from .base_validator import BaseActionValidator
+from ._base import BaseActionValidator
 from .cdc_fanin_compatibility_validator import CdcFanInCompatibilityValidator
 from .load_validator import LoadActionValidator
 from .transform_validator import TransformActionValidator

@@ -36,6 +36,7 @@ for the cohesion rationale.
 # (~115L combined) are downstream consumers of `_build_action_graph` output
 # and only meaningful as a sequence; isolating them in a separate file
 # would force the caller to make four imports for one logical step.
+# TODO(Phase 9.5): extract source-extraction + discovery clusters into builder sub-modules once the file-path index can be passed as a parameter without N+1 glue; see LOCAL/REMAINING_WORK.md §9.5.
 
 import logging
 from collections import defaultdict

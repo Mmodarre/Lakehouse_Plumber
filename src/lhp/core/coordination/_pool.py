@@ -1,4 +1,4 @@
-# JUSTIFIED: _pool.py is ~750 lines because cross-pipeline parallel execution
+# JUSTIFIED: _pool.py is ~768 lines because cross-pipeline parallel execution
 # is one cohesive concern that resists further splitting: the worker entry
 # functions (`_generate_one_pipeline`, `_validate_one_fg`), the dispatch
 # helpers (`_dispatch_pipeline_for_generate`, `_process_flowgroup_for_validate`),
@@ -15,6 +15,7 @@
 # executor.py file holds only `PipelineExecutionService` (the
 # orchestrator-facing facade) plus the two type aliases and the
 # `PipelineValidationOutcome` outcome dataclass at ~370L.
+# TODO(Phase 9.1): once the orchestrator decomposition lands, split _pool.py into pool dispatch + worker-state envelopes + per-mode pool runners; see LOCAL/REMAINING_WORK.md §9.
 """Internal pool runners and worker entrypoints for cross-pipeline execution.
 
 This module is the implementation half of

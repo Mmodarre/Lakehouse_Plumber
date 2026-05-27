@@ -7,7 +7,7 @@ code-stamped convention. No Rich rendering; visual presentation lives in
 panel loop).
 """
 
-# JUSTIFIED: types.py sits at ~550 lines because it hosts the full
+# JUSTIFIED: types.py sits at ~574 lines because it hosts the full
 # closed set of LHP domain exception types — the base ``LHPError``
 # (with its plain-text formatter and pickle protocol), the three
 # dual-inheritance ``ValueError``/``FileNotFoundError`` bridges

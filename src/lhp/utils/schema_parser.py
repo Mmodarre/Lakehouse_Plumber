@@ -42,7 +42,7 @@ class SchemaParser:
         self.decimal_pattern = r"DECIMAL\((\d+),(\d+)\)"
 
     def parse_schema_file(
-        self, schema_file_path: Path, spec_dir: Path = None
+        self, schema_file_path: Path, spec_dir: Path | None = None
     ) -> Dict[str, Any]:
         """Parse a YAML schema file.
 
@@ -84,7 +84,7 @@ class SchemaParser:
                     "Verify column definitions have 'name' and 'type' fields",
                 ],
                 context={"file": str(schema_file_path)},
-            )
+            ) from e
 
     def to_struct_type_code(self, schema_data: Dict[str, Any]) -> Tuple[str, List[str]]:
         """Convert schema data to Spark StructType code.

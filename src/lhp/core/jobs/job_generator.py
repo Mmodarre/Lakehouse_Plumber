@@ -5,7 +5,7 @@ This module provides the JobGenerator class that creates Databricks job YAML
 configurations based on pipeline dependency analysis results.
 """
 
-# JUSTIFIED: 850 lines (above the 800L hard cap, pre-existing per CHANGELOG).
+# JUSTIFIED: ~794 lines (just under the 800L hard cap).
 # This module's three internal classes — JobGenerator (the orchestrator that
 # assembles Databricks Asset Bundle job manifests), JobPipeline (a single
 # pipeline-stage abstraction in the generated job), and JobStage (the
@@ -15,6 +15,7 @@ configurations based on pipeline dependency analysis results.
 # flow from JobGenerator down through JobPipeline/JobStage. Slated for split
 # in Week 5+ once the per-pipeline cluster-policy API stabilises. See
 # TARGET §3 for the migration target into 3-file core/jobs/ layout.
+# TODO(Phase 9.5): split JobGenerator / JobPipeline / JobStage into the 3-file core/jobs/ layout (orchestrator + builder + writer) per Target §10; see LOCAL/REMAINING_WORK.md §9.5.
 
 import logging
 from dataclasses import dataclass
@@ -323,7 +324,7 @@ class JobGenerator:
             return project_defaults, job_specific_configs
 
         except yaml.YAMLError as e:
-            self.logger.error(
+            self.logger.exception(
                 f"Invalid YAML in job config file {full_config_path}: {e}"
             )
             raise
@@ -449,7 +450,7 @@ class JobGenerator:
             template = self.jinja_env.get_template("bundle/job_resource.yml.j2")
             return template.render(**context)
         except Exception as e:
-            self.logger.error(f"Failed to render job template: {e}")
+            self.logger.exception(f"Failed to render job template: {e}")
             raise
 
     def _create_job_stages(
@@ -533,7 +534,7 @@ class JobGenerator:
             return file_path
 
         except IOError as e:
-            self.logger.error(f"Failed to write job file to {file_path}: {e}")
+            self.logger.exception(f"Failed to write job file to {file_path}: {e}")
             raise
 
     def generate_jobs_by_name(
@@ -580,7 +581,7 @@ class JobGenerator:
                 )
 
             except Exception as e:
-                self.logger.error(
+                self.logger.exception(
                     f"Failed to render template for job '{job_name}': {e}"
                 )
                 raise
@@ -653,7 +654,7 @@ class JobGenerator:
             return master_yaml
 
         except Exception as e:
-            self.logger.error(f"Failed to render master job template: {e}")
+            self.logger.exception(f"Failed to render master job template: {e}")
             raise
 
     def _build_pipeline_to_job_mapping(
@@ -771,7 +772,7 @@ class JobGenerator:
             )
             return template.render(**context)
         except Exception as e:
-            self.logger.error(f"Failed to render monitoring job template: {e}")
+            self.logger.exception(f"Failed to render monitoring job template: {e}")
             raise
 
     @classmethod

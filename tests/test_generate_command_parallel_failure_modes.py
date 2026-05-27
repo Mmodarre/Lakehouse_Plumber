@@ -19,12 +19,6 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-# ---------------------------------------------------------------------------
-# Fixture-building helpers (intentionally local — no shared setup with the
-# legacy parallel-test file).
-# ---------------------------------------------------------------------------
-
-
 def _build_lhp_project(project_root: Path) -> None:
     """Build a minimal valid LHP project skeleton at ``project_root``.
 

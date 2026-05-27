@@ -42,11 +42,6 @@ except ImportError:  # pragma: no cover - B4 lands this in parallel.
     InitProjectResult = None  # type: ignore[assignment,misc]
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
 _TYPE_HINT_NAMESPACE = {
     "ValidationIssueView": ValidationIssueView,
     "GenerationResponse": GenerationResponse,
@@ -81,14 +76,9 @@ def _json_round_trip(payload: object) -> object:
     return json.loads(json.dumps(payload))
 
 
-# ---------------------------------------------------------------------------
-# Fixtures — one fully-populated instance per DTO.
-#
-# Note: the production default factory for ``Mapping[str, JSONValue]``
-# fields is plain ``dict`` (picklable). The field annotation is
-# ``Mapping``, so any Mapping shape is accepted; one targeted test
-# below explicitly exercises ``MappingProxyType`` acceptance.
-# ---------------------------------------------------------------------------
+# Production default factory for ``Mapping[str, JSONValue]`` fields is plain
+# ``dict`` (picklable). The field annotation is ``Mapping`` so any Mapping
+# shape is accepted; one targeted test below exercises ``MappingProxyType``.
 
 
 @pytest.fixture
@@ -181,11 +171,6 @@ def batch_validation_response(
     )
 
 
-# ---------------------------------------------------------------------------
-# 1. Frozen-check contract — every DTO is @dataclass(frozen=True).
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.unit
 class TestFrozenContract:
     """§4.4 / §9.7: every public DTO must be a frozen dataclass."""
@@ -215,11 +200,6 @@ class TestFrozenContract:
             f"{cls.__name__} must be @dataclass(frozen=True); "
             f"got frozen={params.frozen}"
         )
-
-
-# ---------------------------------------------------------------------------
-# 2. Frozen-mutation contract — attribute assignment raises.
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
@@ -265,11 +245,6 @@ class TestFrozenMutationRaises:
         )
         with pytest.raises(FrozenInstanceError):
             result.success = False  # type: ignore[misc]
-
-
-# ---------------------------------------------------------------------------
-# 3. Pickle round-trip — must survive cross-process traversal.
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
@@ -329,11 +304,6 @@ class TestPickleRoundTrip:
         # Path fields round-trip as Path, not stringified.
         assert isinstance(restored.target_dir, Path)
         assert all(isinstance(p, Path) for p in restored.created_files)
-
-
-# ---------------------------------------------------------------------------
-# 4. JSON-style round-trip via fields — JSONValue-typed maps stay JSON-safe.
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
@@ -414,11 +384,6 @@ class TestJSONRoundTripViaFields:
         stringified = [str(p) for p in result.created_files]
         round_tripped = _json_round_trip(stringified)
         assert round_tripped == [str(p) for p in files]
-
-
-# ---------------------------------------------------------------------------
-# 5. Field-type contract — annotations stay within the §4.8 allow-list.
-# ---------------------------------------------------------------------------
 
 
 _BANNED_FIELD_PATTERNS = {
@@ -542,11 +507,6 @@ class TestFieldTypeContract:
                 f"{cls.__name__}.{name}: resolved type {text!r} carries an "
                 f"LHPError. DTOs must store error_code: str instead."
             )
-
-
-# ---------------------------------------------------------------------------
-# Sanity: the helper methods on response DTOs work as advertised.
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit

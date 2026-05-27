@@ -137,11 +137,6 @@ def test_discover_instances_custom_patterns(tmp_path):
     assert sites == {"apac_sg"}
 
 
-# ----------------------------------------------------------------------
-# Cache wiring and load-error UX in instance discovery
-# ----------------------------------------------------------------------
-
-
 def test_discover_instances_uses_cached_parser_single_load(tmp_path):
     """When wired with a CachingYAMLParser, every unique YAML file is read
     from disk exactly once across the entire blueprint+instance discovery

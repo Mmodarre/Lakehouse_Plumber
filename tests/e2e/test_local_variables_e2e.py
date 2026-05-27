@@ -7,7 +7,7 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from lhp.cli.main import cli
-from lhp.core.coordination import ActionOrchestrator
+from lhp.core.coordination.layers import build_facade_orchestrator
 from lhp.models.config import FlowGroupContext
 from lhp.parsers.yaml_parser import YAMLParser
 from lhp.utils.substitution import EnhancedSubstitutionManager
@@ -54,7 +54,7 @@ class TestLocalVariablesE2E:
         assert "%{entity}" in flowgroup.actions[0].name
         
         # Process the flowgroup with orchestrator
-        orchestrator = ActionOrchestrator(self.project_root, enforce_version=False)
+        orchestrator = build_facade_orchestrator(self.project_root, enforce_version=False)
         substitution_file = self.project_root / "substitutions" / "dev.yaml"
         substitution_mgr = EnhancedSubstitutionManager(substitution_file, env="dev")
         
@@ -110,7 +110,7 @@ actions:
         flowgroups = parser.parse_flowgroups_from_file(bad_file)
         flowgroup = flowgroups[0]
         
-        orchestrator = ActionOrchestrator(self.project_root, enforce_version=False)
+        orchestrator = build_facade_orchestrator(self.project_root, enforce_version=False)
         substitution_file = self.project_root / "substitutions" / "dev.yaml"
         substitution_mgr = EnhancedSubstitutionManager(substitution_file, env="dev")
         

@@ -29,6 +29,7 @@ file-save path and ``export_to_text`` produce identical output.
 # size; once the placeholder text format stabilizes it can be folded
 # into a Jinja template, which is the real long-term path to shrinking
 # this module below 500 lines.
+# TODO(Phase 9.5): fold the text/tree renderer into a Jinja template and split DependencyOutputManager into per-format exporters once the format stabilises; see LOCAL/REMAINING_WORK.md §9.5.
 
 import json
 import logging
@@ -653,7 +654,7 @@ class DependencyOutputManager:
                 generated_files[job_name_key] = job_file
                 self.logger.info(f"Generated job file: {job_file}")
             except IOError as e:
-                self.logger.error(f"Failed to write job file {job_file}: {e}")
+                self.logger.exception(f"Failed to write job file {job_file}: {e}")
                 raise
 
         # Generate master orchestration job (if enabled)
@@ -673,7 +674,7 @@ class DependencyOutputManager:
                 generated_files["_master"] = master_file
                 self.logger.info(f"Generated master job file: {master_file}")
             except IOError as e:
-                self.logger.error(f"Failed to write master job file {master_file}: {e}")
+                self.logger.exception(f"Failed to write master job file {master_file}: {e}")
                 raise
         else:
             self.logger.info(

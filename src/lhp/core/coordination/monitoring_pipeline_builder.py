@@ -15,6 +15,7 @@ A Databricks Workflow job chains: notebook_task (union) → pipeline_task (MVs).
 # action wiring → flowgroup emission) and splitting along any axis would
 # scatter the build invariants across files. Re-evaluate when the bundle
 # manifest assembler reaches feature parity.
+# TODO(Phase 9.1): decompose into MonitoringSqlEmitter + MonitoringFlowgroupBuilder + MonitoringJobWriter as part of the orchestrator bootstrap-service extraction; see LOCAL/REMAINING_WORK.md §9.
 
 import logging
 from dataclasses import dataclass, field

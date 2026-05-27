@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, List
 from ...models.config import Action, ActionType, FlowGroup
 from ...errors import LHPError
 from .config_field_validator import ConfigFieldValidator
-from .base_validator import ValidationError
+from ._base import ValidationError
 
 # NOTE: ``ActionRegistry`` and ``DependencyResolver`` are imported lazily
 # inside ``__init__`` (see below). The submodule path

@@ -153,7 +153,6 @@ class TestBundleManagerE2E:
         """
         pipeline_name = "acmi_edw_bronze"
 
-        # Step 1: Initial generation (plain `lhp generate --env dev`).
         exit_code, output = self.run_bundle_sync()
         assert exit_code == 0, f"Initial generation should succeed: {output}"
 
@@ -172,8 +171,7 @@ class TestBundleManagerE2E:
         # Bump past filesystem mtime resolution (1s on common POSIX FSes).
         time.sleep(1.1)
 
-        # Step 2: Re-run plain `lhp generate --env dev` — the file is wiped
-        # and regenerated on every run.
+        # Re-run: file is wiped and regenerated on every run.
         exit_code, output = self.run_bundle_sync()
 
         # Expected: Resource file is regenerated (newer mtime).
@@ -284,25 +282,6 @@ class TestBundleManagerE2E:
         assert (self.project_root / "resources" / "lhp").exists(), (
             "Bundle sync must materialize resources/lhp directory."
         )
-
-    # ========================================================================
-    # WAVE 1 TDD TESTS - POST-REFACTOR BUNDLE GENERATION BEHAVIOR
-    # ========================================================================
-    #
-    # These tests articulate the DESIRED post-refactor behavior of bundle
-    # generation. They are expected to FAIL against the current Smart-Generation
-    # logic and are intended to drive the Wave 2 implementation.
-    #
-    # Desired behavior under test:
-    #   - `resources/lhp/` is wiped on every `lhp generate` run
-    #   - User-managed resource files outside `resources/lhp/` are preserved
-    #   - `databricks.yml` is never mutated by generation
-    #   - Catalog/schema must come from pipeline_config.yaml; missing config
-    #     raises BundleResourceError and the CLI exits non-zero with stderr
-    #     referencing docs/configure_catalog_schema.rst
-    #   - Every current pipeline gets its resource YAML regenerated on every
-    #     run (mtime moves forward)
-    # ========================================================================
 
     def test_resources_lhp_wiped_on_every_run(self):
         """`resources/lhp/` is wiped on every generate; leftover files are removed.

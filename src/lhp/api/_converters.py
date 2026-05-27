@@ -5,7 +5,7 @@ External callers MUST NOT import from here.
 
 :stability: internal
 """
-# JUSTIFIED: This module is ~680 lines because it co-locates every
+# JUSTIFIED: This module is ~711 lines because it co-locates every
 # internal-type → public-DTO conversion for the inspection / generation
 # / validation API surface. There is one converter per public DTO
 # (FlowgroupView, ActionView, ProjectConfigView, BlueprintView,
@@ -20,6 +20,7 @@ External callers MUST NOT import from here.
 # public-API conversion rules across multiple files, breaking the
 # §1.10 single-import-surface invariant and forcing facade.py to
 # import from four or five sub-paths.
+# TODO(Phase 9.5): split into per-DTO-family converter modules (flowgroup / blueprint / preset / template / processing / dependency / stats / monitoring) once the public DTO surface stabilises; see LOCAL/REMAINING_WORK.md §9.5.
 from __future__ import annotations
 
 from pathlib import Path
@@ -629,11 +630,9 @@ def _flowgroup_file_paths(
     """
     paths: Dict[tuple[str, str], Path] = {}
     for fg in flowgroups:
-        # The orchestrator's underscore-prefixed lookup is intentionally
-        # invoked here — phase C2 of the plan deferred adding a public
-        # ``find_source_yaml_for_flowgroup`` on the orchestrator. This
-        # closure is the single reach-through site; once promoted, this
-        # call switches to the public name.
+        # Intentional underscore-prefixed lookup: this closure is the
+        # single reach-through site until ``find_source_yaml_for_flowgroup``
+        # is promoted on the orchestrator.
         path = orchestrator._find_source_yaml_for_flowgroup(fg)  # type: ignore[attr-defined]
         if path is not None:
             paths[(fg.pipeline, fg.flowgroup)] = path

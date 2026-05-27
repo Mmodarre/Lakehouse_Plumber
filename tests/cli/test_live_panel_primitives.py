@@ -374,7 +374,7 @@ def test_overall_progress_stop_does_not_leave_live_on_stack():
 
 def _make_frame(
     *,
-    seed_phase: str = None,
+    seed_phase: str | None = None,
     seed_record: PipelineRecord = None,
     console_width: int = 80,
 ) -> Panel:

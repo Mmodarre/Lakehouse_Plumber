@@ -55,7 +55,7 @@ class SQLTransformGenerator(BaseActionGenerator):
         return self.render_template("transform/sql.py.j2", template_context)
 
     def _get_sql_query(
-        self, action: Action, spec_dir: Path = None, context: dict = None
+        self, action: Action, spec_dir: Path | None = None, context: dict | None = None
     ) -> str:
         """Get SQL query from action configuration."""
         sql_content = None

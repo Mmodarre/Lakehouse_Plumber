@@ -210,7 +210,7 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
         return self.render_template("load/cloudfiles.py.j2", template_context)
 
     def _process_options(
-        self, options: Dict[str, Any], action_name: str, spec_dir: Path = None
+        self, options: Dict[str, Any], action_name: str, spec_dir: Path | None = None
     ) -> Dict[str, Any]:
         """Process the options field and validate cloudFiles options.
 
@@ -284,7 +284,7 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
         return processed_options
 
     def _process_schema_file(
-        self, schema_file_path: str, spec_dir: Path = None
+        self, schema_file_path: str, spec_dir: Path | None = None
     ) -> Tuple[str, List[str]]:
         """Process a schema file and generate StructType code.
 

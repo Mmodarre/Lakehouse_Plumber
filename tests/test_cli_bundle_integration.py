@@ -121,7 +121,6 @@ bundle:
                 ],
             )
 
-            # The "Bundle support detected" banner was removed in Phase 4;
             # exit_code is the load-bearing behavior signal here.
             assert result.exit_code == 0
         finally:
@@ -147,15 +146,7 @@ bundle:
         result = self.runner.invoke(cli, ["generate", "--help"])
 
         assert result.exit_code == 0
-        # Help-text rendering will change with rich-click; re-pin via
-        # snapshot once Phase 1 lands.
-        assert (
-            "--no-bundle" in result.output
-        )  # SNAPSHOT-TODO: re-target to new Rich output in Phase 1
-        # Help-wording assertion deleted — the previous check was either a
-        # tautology (the source defines ``help="Disable bundle support..."``
-        # verbatim) or a vacuous substring match ("bundle" in lowercased
-        # help text).
+        assert "--no-bundle" in result.output
 
 
 class TestCLIInitBundleCommand:
@@ -211,14 +202,7 @@ class TestCLIInitBundleCommand:
         result = self.runner.invoke(cli, ["init", "--help"])
 
         assert result.exit_code == 0
-        # Help-text rendering will change with rich-click; re-pin via
-        # snapshot once Phase 1 lands.
-        assert (
-            "--no-bundle" in result.output
-        )  # SNAPSHOT-TODO: re-target to new Rich output in Phase 1
-        # Vacuous "bundle" substring assertion deleted — the word appears
-        # in the command docstring and every flag description, so the
-        # check had no behavioral signal.
+        assert "--no-bundle" in result.output
 
     def test_init_bundle_integrates_with_template_fetcher(self):
         """Should use template fetcher to create bundle files."""
@@ -243,10 +227,8 @@ class TestCLIInitBundleCommand:
             result = self.runner.invoke(cli, ["init", "existing_project"])
 
             assert result.exit_code != 0
-            # LHPError rendering will be panelized in Phase 2; the
-            # "already exists" string lives verbatim in the LHPError title
-            # (init_command.py raises LHPFileError code IO-007). Re-pin
-            # this contract via the new render_error_panel snapshot once Phase 2 lands.
+            # "already exists" lives verbatim in the LHPError title
+            # (init_command.py raises LHPFileError code IO-007).
             assert "already exists" in result.output
 
     def test_init_bundle_creates_resources_directory(self):
@@ -509,8 +491,6 @@ actions:
                 ],
             )
 
-            # Should complete successfully with bundle sync.
-            # The "Bundle support detected" banner was removed in Phase 4.
             assert result.exit_code == 0
         finally:
             os.chdir(original_cwd)
@@ -530,7 +510,6 @@ actions:
                 cli, ["--verbose", "generate", "--env", "dev", "--dry-run"]
             )
 
-            # Should complete successfully; bundle banner removed in Phase 4.
             assert result.exit_code == 0
         finally:
             os.chdir(original_cwd)
@@ -546,7 +525,6 @@ actions:
                 ["--verbose", "generate", "--env", "dev", "--no-bundle", "--dry-run"],
             )
 
-            # Should complete successfully; bundle banner removed in Phase 4.
             assert result.exit_code == 0
         finally:
             os.chdir(original_cwd)
@@ -572,8 +550,6 @@ actions:
                 ],
             )
 
-            # Should complete successfully with bundle support.
-            # The "Bundle support detected" banner was removed in Phase 4.
             assert result.exit_code == 0
         finally:
             os.chdir(original_cwd)
@@ -598,14 +574,7 @@ actions:
                 ],
             )
 
-            # Should complete successfully with bundle sync.
-            # The "Bundle support detected" banner was removed in Phase 4.
             assert result.exit_code == 0
-            # "Dry run completed" assertion deleted — the source defines
-            # this string verbatim via ``click.echo("✨ Dry run completed
-            # - no files were written")``. The behavior (dry-run succeeded
-            # without writing files) is covered by the exit_code check
-            # above; verifying the rendered banner adds no signal.
         finally:
             os.chdir(original_cwd)
 
@@ -778,8 +747,6 @@ actions:
                 ],
             )
 
-            # Should complete successfully with bundle sync.
-            # The "Bundle support detected" banner was removed in Phase 4.
             assert result.exit_code == 0
 
     def test_no_bundle_flag_overrides_bundle_project(self):

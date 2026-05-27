@@ -93,7 +93,7 @@ def is_databricks_yml_present(project_root: Path) -> bool:
         return False
     except Exception as e:
         # Handle any other unexpected errors
-        logger.error(
+        logger.exception(
             f"Unexpected error checking for databricks.yml in {project_root}: {e}"
         )
         return False

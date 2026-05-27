@@ -1,3 +1,8 @@
+# JUSTIFIED: Pydantic schema namespace with cross-field validators
+# that share imports; splitting forces either circular-import
+# workarounds or schema-namespace duplication across submodules.
+# TODO(Phase 9.5): decompose by domain (project / action / flowgroup / blueprint / monitoring / test) once Pydantic v2 forward-ref handling is verified
+
 import logging
 import warnings
 from dataclasses import dataclass, field
@@ -11,14 +16,14 @@ warnings.filterwarnings(
     "ignore", message=r".*Field name \"schema\".*shadows an attribute.*"
 )
 
-from pydantic import (  # noqa: E402
+from pydantic import (  # noqa: E402 — must follow warnings.filterwarnings on L15 to suppress 'schema' shadow warning
     BaseModel,
     ConfigDict,
     Field,
     model_validator,
 )
 
-from ..errors import (  # noqa: E402
+from ..errors import (  # noqa: E402 — must follow warnings.filterwarnings on L15 to suppress 'schema' shadow warning
     ErrorCategory,
     LHPValidationError,
 )

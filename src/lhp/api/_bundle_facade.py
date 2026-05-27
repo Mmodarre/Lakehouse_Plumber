@@ -272,6 +272,12 @@ class BundleFacade:
         the terminal response DTO.
 
         :stability: provisional
+        :raises lhp.errors.LHPError: ``LHP-BND-*`` from
+            :class:`BundleResourceError` / :class:`BundleConfigurationError`
+            (resource sync, bundle manifest), plus ``LHP-CFG-*`` and
+            ``LHP-VAL-*`` propagated from the underlying bundle manager.
+            An :class:`ErrorEmitted` event is yielded before the
+            exception escapes (§1.4 stream protocol).
         """
         yield OperationStarted(operation_name="sync_resources", env=env)
         try:
@@ -344,6 +350,9 @@ class BundleFacade:
         than raising.
 
         :stability: provisional
+        :raises: None — failures (including ``LHP-BND-*`` and unexpected
+            exceptions) are surfaced on the result's ``error_code`` and
+            ``issues`` fields (§4.8).
         """
         from lhp.bundle.preflight import validate_catalog_schema
         from lhp.core.coordination.monitoring_pipeline_builder import (
@@ -398,6 +407,9 @@ class BundleFacade:
         yet constructed an orchestrator for the project).
 
         :stability: provisional
+        :raises: None — failures (``LHP-BND-*``, ``LHP-FILE-*``, or
+            unexpected exceptions during scaffolding) are surfaced on
+            the result's ``error_code`` field (§4.8).
         """
         resolved_target = (
             target_dir if target_dir is not None else self._orchestrator.project_root

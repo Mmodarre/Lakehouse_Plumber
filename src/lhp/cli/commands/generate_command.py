@@ -9,6 +9,7 @@
 # for Phase F: extract the monitoring post-processing block (~80L) into
 # a dedicated CLI presenter once the monitoring service exposes a
 # higher-level summary surface.
+# TODO(Phase 9.2): extract monitoring post-processing + Live-frame setup + bundle preflight into cli/presenters/ modules per LOCAL/REMAINING_WORK.md §9.2.
 """Clean Architecture generate command implementation."""
 
 import logging

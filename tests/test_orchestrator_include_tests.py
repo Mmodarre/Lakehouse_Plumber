@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from lhp.core.coordination import ActionOrchestrator
+from lhp.core.coordination.layers import build_facade_orchestrator
 from lhp.models.config import Action, ActionType, FlowGroup
 
 
@@ -40,7 +40,7 @@ project:
         (self.test_dir / "lhp.yaml").write_text(lhp_config)
 
         # Initialize orchestrator
-        self.orchestrator = ActionOrchestrator(self.test_dir)
+        self.orchestrator = build_facade_orchestrator(self.test_dir)
 
     def teardown_method(self):
         """Clean up test environment."""
@@ -91,7 +91,6 @@ project:
             ],
         )
 
-        # Create substitution manager
         substitution_mgr = EnhancedSubstitutionManager(
             self.test_dir / "substitutions" / "test.yaml", "test"
         )
@@ -130,7 +129,6 @@ project:
             ],
         )
 
-        # Create substitution manager
         substitution_mgr = EnhancedSubstitutionManager(
             self.test_dir / "substitutions" / "test.yaml", "test"
         )
@@ -301,7 +299,7 @@ actions:
         )
 
         # Initialize orchestrator
-        self.orchestrator = ActionOrchestrator(self.test_dir)
+        self.orchestrator = build_facade_orchestrator(self.test_dir)
 
     def teardown_method(self):
         """Clean up test environment."""

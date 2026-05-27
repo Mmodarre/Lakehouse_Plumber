@@ -6,7 +6,7 @@ import tempfile
 import yaml
 
 from lhp.models.config import Action, ActionType, TransformType, LoadSourceType, FlowGroup
-from lhp.core.coordination import ActionOrchestrator
+from lhp.core.coordination.layers import build_facade_orchestrator
 from lhp.generators.load.cloudfiles import CloudFilesLoadGenerator
 from lhp.generators.load.delta import DeltaLoadGenerator
 from lhp.generators.transform.data_quality import DataQualityTransformGenerator
@@ -260,7 +260,7 @@ actions:
             (project_root / "substitutions" / "dev.yaml").write_text("environment:\n  catalog: test_catalog")
             
             # Parse the YAML
-            orchestrator = ActionOrchestrator(project_root)
+            orchestrator = build_facade_orchestrator(project_root)
             flowgroup = orchestrator.yaml_parser.parse_flowgroup(yaml_file)
             
             # Verify readMode was parsed correctly
@@ -331,7 +331,7 @@ environment:
             # Generate code (output_dir required to read back content for
             # assertions; payload diet stripped content from the return).
             output_dir = project_root / "generated"
-            orchestrator = ActionOrchestrator(project_root)
+            orchestrator = build_facade_orchestrator(project_root)
             orchestrator.generate_pipeline_by_field(
                 pipeline_field="test_pipeline",
                 env="dev",

@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from lhp.core.coordination import ActionOrchestrator
+from lhp.core.coordination.layers import build_facade_orchestrator
 from lhp.core.validators import ConfigValidator
 from lhp.generators.write.streaming_table import StreamingTableWriteGenerator
 from lhp.models.config import Action, ActionType, FlowGroup
@@ -33,8 +33,8 @@ def _cdc_action(
     catalog: str = "cat",
     schema: str = "sch",
     create_table: bool = True,
-    cdc_overrides: dict = None,
-    target_overrides: dict = None,
+    cdc_overrides: dict | None = None,
+    target_overrides: dict | None = None,
     once: bool = False,
 ) -> Action:
     """Build a CDC write action with a baseline valid cdc_config."""
@@ -106,7 +106,7 @@ def test_two_cdc_actions_one_flowgroup_combine_into_one_file():
         create_table=False,
     )
 
-    orchestrator = ActionOrchestrator(Path("."))
+    orchestrator = build_facade_orchestrator(Path("."), enforce_version=False)
     combined = orchestrator.generator.create_combined_write_action(
         [creator, contributor], "cat.sch.dim_customer"
     )
@@ -161,7 +161,7 @@ def test_cdc_fanin_with_once_backfill():
         once=True,
     )
 
-    orchestrator = ActionOrchestrator(Path("."))
+    orchestrator = build_facade_orchestrator(Path("."), enforce_version=False)
     combined = orchestrator.generator.create_combined_write_action(
         [streaming, backfill], "cat.sch.dim_customer"
     )
@@ -193,7 +193,7 @@ def test_cdc_fanin_per_flow_params_render_correctly():
         },
     )
 
-    orchestrator = ActionOrchestrator(Path("."))
+    orchestrator = build_facade_orchestrator(Path("."), enforce_version=False)
     combined = orchestrator.generator.create_combined_write_action(
         [creator, contributor], "cat.sch.dim_customer"
     )
@@ -223,7 +223,7 @@ def test_cdc_except_column_list_per_flow():
         cdc_overrides={"except_column_list": ["internal_field"]},
     )
 
-    orchestrator = ActionOrchestrator(Path("."))
+    orchestrator = build_facade_orchestrator(Path("."), enforce_version=False)
     combined = orchestrator.generator.create_combined_write_action(
         [creator, contributor], "cat.sch.dim_customer"
     )

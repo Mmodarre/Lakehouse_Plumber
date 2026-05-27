@@ -477,7 +477,7 @@ class OperationalMetadata:
                         "Target type": target_type,
                         "Original error": str(e),
                     },
-                )
+                ) from e
 
         # Filter by target type and build result
         result = {}
@@ -505,7 +505,7 @@ class OperationalMetadata:
                                 "Expression": column_config.expression,
                                 "Error": str(e),
                             },
-                        )
+                        ) from e
 
         return result
 

@@ -35,7 +35,7 @@ class InitTemplateLoader:
         try:
             return self.jinja_env.get_template(template_path)
         except Exception as e:
-            self.logger.error(f"Failed to load template {template_path}: {e}")
+            self.logger.exception(f"Failed to load template {template_path}: {e}")
             raise
 
     def render_template(self, template_path: str, context: InitTemplateContext) -> str:
@@ -63,7 +63,7 @@ class InitTemplateLoader:
             return template.render(**context_dict)
 
         except Exception as e:
-            self.logger.error(f"Failed to render template {template_path}: {e}")
+            self.logger.exception(f"Failed to render template {template_path}: {e}")
             raise
 
     def get_template_files(self, bundle_enabled: bool = False) -> List[str]:
@@ -120,7 +120,7 @@ class InitTemplateLoader:
             return template_files
 
         except Exception as e:
-            self.logger.error(f"Failed to discover template files: {e}")
+            self.logger.exception(f"Failed to discover template files: {e}")
             # Fallback to basic files if discovery fails
             basic_files = [
                 "lhp.yaml.j2",
@@ -170,7 +170,7 @@ class InitTemplateLoader:
             self.logger.debug(f"Copied {copied_count} schema files to {schemas_dir}")
 
         except Exception as e:
-            self.logger.error(f"Failed to copy schemas: {e}")
+            self.logger.exception(f"Failed to copy schemas: {e}")
             # Don't fail the entire init process for schema copy errors
 
     def create_project_files(self, project_path: Path, context: InitTemplateContext):
@@ -239,7 +239,7 @@ class InitTemplateLoader:
                 )
 
             except Exception as e:
-                self.logger.error(
+                self.logger.exception(
                     f"Failed to create file from template {template_file}: {e}"
                 )
                 raise

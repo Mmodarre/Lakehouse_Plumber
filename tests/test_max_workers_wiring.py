@@ -1,9 +1,9 @@
 """Verify the --max-workers CLI flag flows through to the orchestrator.
 
 Asserts:
-  - lhp generate --max-workers N reaches ActionOrchestrator(max_workers=N)
-  - lhp validate --max-workers N reaches ActionOrchestrator(max_workers=N)
-  - ActionOrchestrator(max_workers=N).max_workers == N
+  - lhp generate --max-workers N reaches build_facade_orchestrator(max_workers=N)
+  - lhp validate --max-workers N reaches build_facade_orchestrator(max_workers=N)
+  - build_facade_orchestrator(max_workers=N).max_workers == N
   - None default uses _auto_max_workers()
   - LHP_MAX_WORKERS env var overrides the auto-detect default
 """
@@ -14,13 +14,13 @@ from unittest.mock import patch
 
 import pytest
 
-from lhp.core.coordination import ActionOrchestrator
+from lhp.core.coordination.layers import build_facade_orchestrator
 from lhp.core.coordination.orchestrator import _auto_max_workers
 
 
 @pytest.fixture
 def _bare_project(tmp_path):
-    """Minimal lhp.yaml so ActionOrchestrator can construct."""
+    """Minimal lhp.yaml so build_facade_orchestrator can construct."""
     (tmp_path / "lhp.yaml").write_text(
         "name: test_project\nversion: 1.0\nauthor: test\n"
     )
@@ -34,54 +34,55 @@ def _clean_env(monkeypatch):
 
 
 class TestOrchestratorMaxWorkers:
-    """ActionOrchestrator must honour max_workers passed in.
+    """build_facade_orchestrator must honour max_workers passed in.
 
     The resolution that previously lived in
     ``ParallelFlowgroupProcessor.__init__`` was hoisted into
     ``ActionOrchestrator.__init__``, so the resolved value is now
-    accessible directly via ``orch.max_workers``.
+    accessible directly via ``orch.max_workers`` (the orchestrator
+    returned by ``build_facade_orchestrator``).
     """
 
     def test_explicit_max_workers_propagates_to_orchestrator(self, _bare_project):
-        orch = ActionOrchestrator(
-            project_root=_bare_project, enforce_version=False, max_workers=3
+        orch = build_facade_orchestrator(
+            _bare_project, enforce_version=False, max_workers=3
         )
         assert orch.max_workers == 3
 
     def test_default_max_workers_resolves_via_auto_detect(self, _bare_project):
-        orch = ActionOrchestrator(project_root=_bare_project, enforce_version=False)
+        orch = build_facade_orchestrator(_bare_project, enforce_version=False)
         assert orch.max_workers == _auto_max_workers()
 
     def test_max_workers_one_means_sequential_capable(self, _bare_project):
         """--max-workers 1 must be accepted; the orchestrator stores it as 1."""
-        orch = ActionOrchestrator(
-            project_root=_bare_project, enforce_version=False, max_workers=1
+        orch = build_facade_orchestrator(
+            _bare_project, enforce_version=False, max_workers=1
         )
         assert orch.max_workers == 1
 
     def test_explicit_arg_wins_over_env_var(self, _bare_project, monkeypatch):
         """--max-workers on the CLI must beat LHP_MAX_WORKERS."""
         monkeypatch.setenv("LHP_MAX_WORKERS", "16")
-        orch = ActionOrchestrator(
-            project_root=_bare_project, enforce_version=False, max_workers=2
+        orch = build_facade_orchestrator(
+            _bare_project, enforce_version=False, max_workers=2
         )
         assert orch.max_workers == 2
 
     def test_env_var_used_when_no_explicit_arg(self, _bare_project, monkeypatch):
         monkeypatch.setenv("LHP_MAX_WORKERS", "5")
-        orch = ActionOrchestrator(project_root=_bare_project, enforce_version=False)
+        orch = build_facade_orchestrator(_bare_project, enforce_version=False)
         assert orch.max_workers == 5
 
     def test_env_var_zero_clamps_to_one(self, _bare_project, monkeypatch):
         """LHP_MAX_WORKERS=0 must clamp to 1 (sequential), not disable the pool."""
         monkeypatch.setenv("LHP_MAX_WORKERS", "0")
-        orch = ActionOrchestrator(project_root=_bare_project, enforce_version=False)
+        orch = build_facade_orchestrator(_bare_project, enforce_version=False)
         assert orch.max_workers == 1
 
     def test_invalid_env_var_falls_back_to_auto(self, _bare_project, monkeypatch):
         """Garbage in LHP_MAX_WORKERS logs a warning and falls back to auto-detect."""
         monkeypatch.setenv("LHP_MAX_WORKERS", "not-a-number")
-        orch = ActionOrchestrator(project_root=_bare_project, enforce_version=False)
+        orch = build_facade_orchestrator(_bare_project, enforce_version=False)
         assert orch.max_workers == _auto_max_workers()
 
 

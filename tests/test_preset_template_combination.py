@@ -5,7 +5,8 @@ import tempfile
 from pathlib import Path
 import yaml
 
-from lhp.core.coordination import ActionOrchestrator
+from lhp.api import collect_response
+from lhp.api.facade import LakehousePlumberApplicationFacade
 from tests.helpers import read_generated_pipeline
 
 
@@ -37,15 +38,17 @@ class TestPresetTemplateCombination:
             # Create substitutions
             self._create_substitutions(project_root)
             
-            # Generate code using orchestrator
-            orchestrator = ActionOrchestrator(project_root)
+            # Generate code using facade
+            facade = LakehousePlumberApplicationFacade.for_project(
+                project_root, enforce_version=False
+            )
             generated_files = read_generated_pipeline(
-                orchestrator,
+                facade,
                 pipeline_field="test_pipeline",
                 env="dev",
                 output_dir=project_root / "generated",
             )
-            
+
             # Get generated code
             generated_code = generated_files.get("preset_template_test.py", "")
             
@@ -116,14 +119,16 @@ class TestPresetTemplateCombination:
             self._create_substitutions(project_root)
             
             # Generate code
-            orchestrator = ActionOrchestrator(project_root)
+            facade = LakehousePlumberApplicationFacade.for_project(
+                project_root, enforce_version=False
+            )
             generated_files = read_generated_pipeline(
-                orchestrator,
+                facade,
                 pipeline_field="test_pipeline",
                 env="dev",
                 output_dir=project_root / "generated",
             )
-            
+
             # Get generated code
             generated_code = generated_files.get("preset_only_test.py", "")
             
@@ -165,14 +170,16 @@ class TestPresetTemplateCombination:
             self._create_substitutions(project_root)
             
             # Generate code
-            orchestrator = ActionOrchestrator(project_root)
+            facade = LakehousePlumberApplicationFacade.for_project(
+                project_root, enforce_version=False
+            )
             generated_files = read_generated_pipeline(
-                orchestrator,
+                facade,
                 pipeline_field="test_pipeline",
                 env="dev",
                 output_dir=project_root / "generated",
             )
-            
+
             # Get generated code
             generated_code = generated_files.get("template_only_test.py", "")
             
@@ -259,14 +266,16 @@ class TestPresetTemplateCombination:
             self._create_substitutions(project_root)
             
             # Generate code
-            orchestrator = ActionOrchestrator(project_root)
+            facade = LakehousePlumberApplicationFacade.for_project(
+                project_root, enforce_version=False
+            )
             generated_files = read_generated_pipeline(
-                orchestrator,
+                facade,
                 pipeline_field="test_pipeline",
                 env="dev",
                 output_dir=project_root / "generated",
             )
-            
+
             # Get generated code
             generated_code = generated_files.get("inheritance_test.py", "")
             
@@ -459,9 +468,11 @@ class TestPresetTemplateCombination:
             with open(project_root / 'lhp.yaml', 'w') as f:
                 yaml.dump(lhp_config, f)
             
-            orchestrator = ActionOrchestrator(project_root, enforce_version=False)
+            facade = LakehousePlumberApplicationFacade.for_project(
+                project_root, enforce_version=False
+            )
             result = read_generated_pipeline(
-                orchestrator,
+                facade,
                 pipeline_field='test_pipeline',
                 env='dev',
                 output_dir=project_root / "generated",
@@ -566,9 +577,11 @@ class TestPresetTemplateCombination:
             with open(project_root / 'lhp.yaml', 'w') as f:
                 yaml.dump(lhp_config, f)
             
-            orchestrator = ActionOrchestrator(project_root, enforce_version=False)
+            facade = LakehousePlumberApplicationFacade.for_project(
+                project_root, enforce_version=False
+            )
             result = read_generated_pipeline(
-                orchestrator,
+                facade,
                 pipeline_field='test_pipeline',
                 env='dev',
                 output_dir=project_root / "generated",
@@ -635,13 +648,18 @@ class TestPresetTemplateCombination:
             with open(project_root / 'lhp.yaml', 'w') as f:
                 yaml.dump(lhp_config, f)
             
-            orchestrator = ActionOrchestrator(project_root, enforce_version=False)
-            
-            with pytest.raises(ValueError) as exc_info:
-                orchestrator.generate_pipeline_by_field(
-                    pipeline_field='test_pipeline',
-                    env='dev'
+            facade = LakehousePlumberApplicationFacade.for_project(
+                project_root, enforce_version=False
+            )
+
+            response = collect_response(
+                facade.generation.generate_pipelines(
+                    pipeline_filter='test_pipeline',
+                    env='dev',
+                    output_dir=None,
                 )
-            
-            assert 'non_existent_preset' in str(exc_info.value)
-            assert 'unknown' in str(exc_info.value).lower() or 'not found' in str(exc_info.value).lower()
+            )
+            assert not response.success
+            error_msg = response.error_message or ''
+            assert 'non_existent_preset' in error_msg
+            assert 'unknown' in error_msg.lower() or 'not found' in error_msg.lower()

@@ -115,15 +115,7 @@ actions:
         """Test that CLI help shows --include-tests flag."""
         result = runner.invoke(cli, ["generate", "--help"])
 
-        # Phase 1 will re-render help via rich-click; the contract that
-        # ``--include-tests`` is documented in help text will be re-pinned
-        # via a snapshot once the new renderer lands.
-        assert (
-            "--include-tests" in result.output
-        )  # SNAPSHOT-TODO: re-target to new Rich output in Phase 1
-        # Help-text wording assertion deleted — the source defines this
-        # string verbatim via the ``help="..."`` argument, so the previous
-        # assertion was tautological.
+        assert "--include-tests" in result.output
 
     def test_cli_accepts_include_tests_flag(self, runner, temp_project):
         """Test that CLI generate command accepts --include-tests flag."""

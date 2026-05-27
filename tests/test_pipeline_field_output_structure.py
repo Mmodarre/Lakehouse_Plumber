@@ -15,8 +15,10 @@ import pytest
 import yaml
 from click.testing import CliRunner
 
+from lhp.api.facade import LakehousePlumberApplicationFacade
 from lhp.cli.main import cli
-from lhp.core.coordination import ActionOrchestrator
+from lhp.core.coordination.layers import build_facade_orchestrator
+from tests.helpers import read_generated_pipeline
 
 
 class TestPipelineFieldOutputStructure:
@@ -250,15 +252,23 @@ dev:
         project_root = project_with_pipeline_field_structure
 
         # Generate all pipelines
-        orchestrator = ActionOrchestrator(project_root)
+        facade = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False
+        )
 
         # This should discover all flowgroups and organize by pipeline field
         # Currently this will fail because the system uses directory names
-        generated_files_raw = orchestrator.generate_pipeline_by_field(
-            "raw_ingestions", "dev", project_root / "generated" / "dev"
+        generated_files_raw = read_generated_pipeline(
+            facade,
+            pipeline_field="raw_ingestions",
+            env="dev",
+            output_dir=project_root / "generated" / "dev",
         )
-        generated_files_silver = orchestrator.generate_pipeline_by_field(
-            "silver_transforms", "dev", project_root / "generated" / "dev"
+        generated_files_silver = read_generated_pipeline(
+            facade,
+            pipeline_field="silver_transforms",
+            env="dev",
+            output_dir=project_root / "generated" / "dev",
         )
 
         # Should have 3 files for raw_ingestions pipeline (customer, orders, lineitem)
@@ -456,10 +466,6 @@ dev:
             # Rendering contract is asserted by test_validate_rendering;
             # here we only check that the pipeline name appears in the
             # per-pipeline display section (exit_code 0 covers validity).
-            # The "Total errors: 0" line was removed in the Phase 3b
-            # Rich Table refactor.
-
-    # Should not use directory name
 
     def test_orchestrator_discover_flowgroups_by_pipeline_field(
         self, project_with_pipeline_field_structure
@@ -467,7 +473,9 @@ dev:
         """Test that orchestrator can discover flowgroups by pipeline field across directories."""
         project_root = project_with_pipeline_field_structure
 
-        orchestrator = ActionOrchestrator(project_root)
+        orchestrator = build_facade_orchestrator(
+            project_root, enforce_version=False
+        )
 
         # This method should discover all flowgroups with the given pipeline field
         raw_flowgroups = orchestrator.discover_flowgroups_by_pipeline_field(
@@ -534,7 +542,9 @@ dev:
             yaml.dump(duplicate_flowgroup, f)
 
         # This should fail validation due to duplicate pipeline+flowgroup
-        orchestrator = ActionOrchestrator(project_root)
+        orchestrator = build_facade_orchestrator(
+            project_root, enforce_version=False
+        )
 
         with pytest.raises(
             ValueError, match="(?s)Duplicate.*raw_ingestions.customer_ingestion"

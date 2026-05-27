@@ -77,7 +77,6 @@ class GenerationContextBuilder:
         imports: Set[str] = set()
         pre_pipeline_statements: Set[str] = set()
 
-        # Enhanced import collection - use ImportManager if available
         import_manager = getattr(generator, "get_import_manager", lambda: None)()
         if import_manager:
             consolidated_imports = import_manager.get_consolidated_imports()
@@ -86,7 +85,6 @@ class GenerationContextBuilder:
                 f"Used ImportManager: {len(consolidated_imports)} imports"
             )
         else:
-            # Legacy generator - use simple import collection
             imports.update(generator.imports)
 
         # Collect pre-pipeline statements (e.g. cloudpickle registration for

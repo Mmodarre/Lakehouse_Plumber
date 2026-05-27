@@ -286,12 +286,9 @@ actions:
             cli, ["deps", "--format", "job", "--job-config", "nonexistent.yaml"]
         )
 
-        # Should fail
         assert result.exit_code != 0
-        # The user-facing message that names the missing file is the
-        # LHPError "Job config file not found" panel rendered by
-        # cli_error_boundary; that panel is being restyled in Phase 2.
-        # Re-pin the rendered contract via snapshot once Phase 2 lands.
+        # User-facing message naming the missing file is the LHPError
+        # "Job config file not found" panel rendered by cli_error_boundary.
         assert (
             "nonexistent.yaml" in result.output or "not found" in result.output.lower()
         )

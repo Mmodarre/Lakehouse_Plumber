@@ -2,10 +2,10 @@
 
 from unittest.mock import Mock
 
-from lhp.core.coordination import (
+from lhp.api import (
     GenerationResponse,
     LakehousePlumberApplicationFacade,
-    ValidationIssue,
+    ValidationIssueView,
     ValidationResponse,
 )
 from lhp.models.processing import PipelineDelta
@@ -46,9 +46,9 @@ class TestDataTransferObjects:
         response = ValidationResponse(
             success=False,
             issues=[
-                ValidationIssue(code="", severity="error", title="Error 1"),
-                ValidationIssue(code="", severity="error", title="Error 2"),
-                ValidationIssue(code="", severity="warning", title="Warning 1"),
+                ValidationIssueView(code="", category="VAL", severity="error", title="Error 1"),
+                ValidationIssueView(code="", category="VAL", severity="error", title="Error 2"),
+                ValidationIssueView(code="", category="VAL", severity="warning", title="Warning 1"),
             ],
             validated_pipelines=["pipeline1"],
         )

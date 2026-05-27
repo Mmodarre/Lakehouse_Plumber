@@ -1,3 +1,8 @@
+# JUSTIFIED: YAML parse + cache + schema validation share a single
+# document-tree representation; splitting requires either deep-copy
+# at every boundary or a parser-internal mutability contract.
+# TODO(Phase 9.5): re-evaluate after schema-versioning lands (Phase 11.7)
+
 import logging
 import threading
 from pathlib import Path
@@ -47,7 +52,7 @@ class YAMLParser:
                             "Ensure the file exists and is readable",
                         ],
                         context={"file": str(file_path)},
-                    )
+                    ) from e
                 raise  # Re-raise ValueError as-is for YAML errors
             else:
                 raise LHPConfigError(
@@ -61,7 +66,7 @@ class YAMLParser:
                         "Verify the YAML syntax is correct",
                     ],
                     context={"file": str(file_path)},
-                )
+                ) from e
 
     def _validate_action_types(self, doc: Dict[str, Any], file_path: Path) -> None:
         """Pre-check ``type:`` on every action before Pydantic constructs FlowGroup.

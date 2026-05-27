@@ -353,7 +353,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         return None
 
     def _process_source_function(
-        self, source_function_config: Dict[str, Any], context: Dict[str, Any] = None
+        self, source_function_config: Dict[str, Any], context: Dict[str, Any] | None = None
     ) -> SourceFunctionResult:
         """Process source_function configuration and return function code, name, and parameters.
 
@@ -502,7 +502,7 @@ def my_snapshot_function(latest_version: Optional[int]) -> Optional[Tuple[DataFr
         return (df, 1)
     return None""",
                 context={"File": file_name, "Syntax Error": str(e)},
-            )
+            ) from e
 
         # Find the function node once for both validation and extraction
         func_node = self._find_function_node(tree, function_name)

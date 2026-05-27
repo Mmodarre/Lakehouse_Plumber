@@ -236,7 +236,7 @@ class PythonParser:
         except SyntaxError as e:
             self.logger.warning(f"Could not parse Python code: {e}")
         except Exception as e:
-            self.logger.error(f"Error extracting SQL from Python: {e}")
+            self.logger.exception(f"Error extracting SQL from Python: {e}")
 
         return sql_queries
 
@@ -263,7 +263,7 @@ class PythonParser:
             normalized_code = self._normalize_python_code(python_code)
             tree = ast.parse(normalized_code)
         except Exception as e:
-            self.logger.error(f"Error extracting direct table references: {e}")
+            self.logger.exception(f"Error extracting direct table references: {e}")
             return set()
 
         extractor = _TableExtractor(self)

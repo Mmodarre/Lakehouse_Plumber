@@ -21,6 +21,7 @@
 # Further reduction is tracked as Phase F work: move `discover_all_flowgroups`
 # + monitoring helpers to a `BootstrapService`, split `__init__` into
 # substitution-manager and output-dir sub-builders.
+# TODO(Phase 9.1): extract BootstrapService (discovery + monitoring wiring), split __init__ into substitution-manager + output-dir sub-builders, fold _aggregate_generate_outcomes into executor — target ≤300L per LOCAL/REMAINING_WORK.md §9.1.
 
 import logging
 import os
@@ -188,10 +189,8 @@ class ActionOrchestrator:
 
         self.project_config = self.project_config_loader.load_project_config()
 
-        # Seven typed service attributes (constitution §4.10 + §4.12).
-        # All seven are typed by their ABC. Week 3 Phase B6 finished the
-        # deferral that previously left `dependencies` typed by the concrete
-        # class.
+        # Seven typed service attributes, all typed by their ABC
+        # (constitution §4.10 + §4.12).
         self.discovery: BaseFlowgroupDiscoveryService = FlowgroupDiscoveryService(
             project_root,
             self.project_config_loader,
@@ -250,13 +249,11 @@ class ActionOrchestrator:
             max_workers=self.max_workers,
         )
 
-        # Legacy aliases retained for test compatibility (D2 cleanup).
-        # Orchestrator method bodies use the canonical typed attributes;
-        # `self.processor` / `self.generator` remain pointing at the
-        # `self.processing` / `self.codegen` services because legacy unit
-        # tests (test_cdc_fanin, test_append_flow, test_local_variables_e2e)
-        # still reach in by the old names. These will be removed when those
-        # tests are migrated in a later phase.
+        # Legacy aliases retained for test compatibility: orchestrator method
+        # bodies use the canonical typed attributes; `self.processor` /
+        # `self.generator` remain pointing at `self.processing` / `self.codegen`
+        # because tests (test_cdc_fanin, test_append_flow, test_local_variables_e2e)
+        # still reach in by the old names.
         self.processor = self.processing
         self.generator = self.codegen
         self._formatter = CodeFormatter()
@@ -387,7 +384,7 @@ class ActionOrchestrator:
     def discover_flowgroups_by_pipeline_field(
         self,
         pipeline_field: str,
-        pre_discovered_all_flowgroups: Optional[List[FlowGroup]] = None,
+        pre_discovered_all_flowgroups: Optional[Sequence[FlowGroup]] = None,
     ) -> List[FlowGroup]:
         """Discover flowgroups matching a pipeline field across all directories.
 
@@ -455,7 +452,7 @@ class ActionOrchestrator:
         output_dir: Optional[Path] = None,
         specific_flowgroups: Optional[List[str]] = None,
         include_tests: bool = False,
-        pre_discovered_all_flowgroups: Optional[List[FlowGroup]] = None,
+        pre_discovered_all_flowgroups: Optional[Sequence[FlowGroup]] = None,
         max_workers: Optional[int] = None,
         on_pipeline_complete: Optional[Callable[["PipelineDelta"], None]] = None,
         on_pipeline_start: Optional[Callable[[str], None]] = None,
@@ -526,7 +523,7 @@ class ActionOrchestrator:
         output_dir: Optional[Path],
         specific_flowgroups: Optional[List[str]],
         include_tests: bool,
-        pre_discovered_all_flowgroups: Optional[List[FlowGroup]],
+        pre_discovered_all_flowgroups: Optional[Sequence[FlowGroup]],
         warning_collector: Optional["WarningCollector"],
     ) -> Tuple[PipelineWorkUnit, ...]:
         """Thin delegator to :func:`work_unit_builder.build_generate_work_units`."""
@@ -665,7 +662,7 @@ class ActionOrchestrator:
         env: str,
         pipeline_identifier: str,
         include_tests: bool,
-        specific_flowgroups: List[str] = None,
+        specific_flowgroups: List[str] | None = None,
         use_directory_discovery: bool = False,
         pre_discovered_flowgroups: Optional[List[FlowGroup]] = None,
     ) -> List[FlowGroup]:
@@ -692,7 +689,7 @@ class ActionOrchestrator:
         pipeline_fields: Optional[Sequence[str]] = None,
         env: str,
         include_tests: bool = True,
-        pre_discovered_all_flowgroups: Optional[List[FlowGroup]] = None,
+        pre_discovered_all_flowgroups: Optional[Sequence[FlowGroup]] = None,
         max_workers: Optional[int] = None,
         on_pipeline_complete: Optional[OnValidationComplete] = None,
         warning_collector: Optional["WarningCollector"] = None,
@@ -745,7 +742,7 @@ class ActionOrchestrator:
         *,
         pipeline_fields: Sequence[str],
         env: str,
-        pre_discovered_all_flowgroups: Optional[List[FlowGroup]],
+        pre_discovered_all_flowgroups: Optional[Sequence[FlowGroup]],
         warning_collector: Optional["WarningCollector"],
     ) -> Tuple[PipelineWorkUnit, ...]:
         """Thin delegator to :func:`work_unit_builder.build_validate_work_units`."""

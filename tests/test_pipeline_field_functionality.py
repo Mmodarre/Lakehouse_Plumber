@@ -5,7 +5,8 @@ from pathlib import Path
 
 import yaml
 
-from lhp.core.coordination import ActionOrchestrator
+from lhp.api.facade import LakehousePlumberApplicationFacade
+from tests.helpers import read_generated_pipeline
 
 
 class TestPipelineFieldFunctionality:
@@ -70,14 +71,19 @@ class TestPipelineFieldFunctionality:
                 # Generate code (output_dir required to read back content for
                 # assertions; payload diet stripped content from the return).
                 output_dir = project_root / "generated"
-                orchestrator = ActionOrchestrator(project_root)
-                generated_filenames = orchestrator.generate_pipeline_by_field(
-                    pipeline_field="test", env="dev", output_dir=output_dir
+                facade = LakehousePlumberApplicationFacade.for_project(
+                    project_root, enforce_version=False
+                )
+                generated_files = read_generated_pipeline(
+                    facade,
+                    pipeline_field="test",
+                    env="dev",
+                    output_dir=output_dir,
                 )
 
                 # Get generated code
-                assert len(generated_filenames) == 1
-                code = (output_dir / "test" / generated_filenames[0]).read_text()
+                assert len(generated_files) == 1
+                code = next(iter(generated_files.values()))
 
                 # Verify the fixed behavior where constants have correct values
                 assert (

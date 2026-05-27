@@ -6,9 +6,22 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from lhp.core.coordination.validation_service import ValidationService
 from lhp.core.dependencies.service import DependencyAnalysisService
-from lhp.models.config import Action, ActionType, FlowGroup
+from lhp.models.config import Action, ActionType, FlowGroup, ProjectConfig
 from lhp.errors import ErrorCategory, LHPError
+
+
+def _make_service(project_root):
+    """Construct a DependencyAnalysisService with a real ValidationService.
+
+    Replaces the legacy 2-arg ``(project_root, config_loader)`` form that
+    pre-dated the v0.0.9 refactor; the service now takes an already-loaded
+    ``ProjectConfig`` and a ``ValidationService``.
+    """
+    project_config = ProjectConfig(name="test", version="1.0")
+    validation_service = ValidationService(project_root, project_config)
+    return DependencyAnalysisService(project_root, project_config, validation_service)
 
 
 class TestAnalyzeDependenciesByJob:
@@ -17,7 +30,6 @@ class TestAnalyzeDependenciesByJob:
     def setup_method(self):
         """Set up test fixtures."""
         self.temp_dir = Path(tempfile.mkdtemp())
-        self.mock_config_loader = Mock()
 
     def teardown_method(self):
         """Clean up test fixtures."""
@@ -25,7 +37,7 @@ class TestAnalyzeDependenciesByJob:
 
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     def test_single_job_mode_returns_one_result(
         self, mockget_flowgroups, create_flowgroup
     ):
@@ -38,7 +50,7 @@ class TestAnalyzeDependenciesByJob:
         ]
         mockget_flowgroups.return_value = flowgroups
 
-        analyzer = DependencyAnalysisService(self.temp_dir, self.mock_config_loader)
+        analyzer = _make_service(self.temp_dir)
 
         results, global_result = analyzer.analyze_dependencies_by_job()
 
@@ -47,7 +59,7 @@ class TestAnalyzeDependenciesByJob:
         assert global_result is not None  # Should have global result too
         assert any("orchestration" in key for key in results.keys())
 
-    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     def test_multi_job_mode_returns_multiple(
         self, mockget_flowgroups, create_flowgroup
     ):
@@ -60,7 +72,7 @@ class TestAnalyzeDependenciesByJob:
         ]
         mockget_flowgroups.return_value = flowgroups
 
-        analyzer = DependencyAnalysisService(self.temp_dir, self.mock_config_loader)
+        analyzer = _make_service(self.temp_dir)
 
         results, global_result = analyzer.analyze_dependencies_by_job()
 
@@ -70,14 +82,14 @@ class TestAnalyzeDependenciesByJob:
         assert "bronze_job" in results
         assert "silver_job" in results
 
-    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     def test_validation_raises_LHPError_on_mixed_usage(
         self, mockget_flowgroups, sample_flowgroups_mixed_job_name
     ):
         """Test that job_name validation runs before analysis."""
         mockget_flowgroups.return_value = sample_flowgroups_mixed_job_name
 
-        analyzer = DependencyAnalysisService(self.temp_dir, self.mock_config_loader)
+        analyzer = _make_service(self.temp_dir)
 
         # Should raise LHPError from validator
         with pytest.raises(LHPError) as exc_info:
@@ -85,7 +97,7 @@ class TestAnalyzeDependenciesByJob:
 
         assert exc_info.value.code == "LHP-VAL-002"
 
-    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     def test_grouping_by_job_name_correct(self, mockget_flowgroups, create_flowgroup):
         """Test that flowgroups are correctly grouped by job_name."""
         # Create 6 flowgroups: 3 with job_name=A, 3 with job_name=B
@@ -99,7 +111,7 @@ class TestAnalyzeDependenciesByJob:
         ]
         mockget_flowgroups.return_value = flowgroups
 
-        analyzer = DependencyAnalysisService(self.temp_dir, self.mock_config_loader)
+        analyzer = _make_service(self.temp_dir)
 
         results, global_result = analyzer.analyze_dependencies_by_job()
 
@@ -112,7 +124,7 @@ class TestAnalyzeDependenciesByJob:
         assert results["job_a"].total_pipelines >= 1
         assert results["job_b"].total_pipelines >= 1
 
-    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     def test_backward_compatibility_preserves_behavior(
         self, mockget_flowgroups, create_flowgroup
     ):
@@ -124,10 +136,10 @@ class TestAnalyzeDependenciesByJob:
         ]
         mockget_flowgroups.return_value = flowgroups
 
-        analyzer = DependencyAnalysisService(self.temp_dir, self.mock_config_loader)
+        analyzer = _make_service(self.temp_dir)
 
         # Both methods should work
-        single_result = analyzer.analyze_dependencies()
+        single_result = analyzer.analyze(analyzer._builder.build())
         multi_result, multi_global_result = analyzer.analyze_dependencies_by_job()
 
         # Multi-job should return single result in backward compat mode
@@ -146,7 +158,6 @@ class TestGlobalAndPerJobAnalysis:
     def setup_method(self):
         """Set up test fixtures."""
         self.temp_dir = Path(tempfile.mkdtemp())
-        self.mock_config_loader = Mock()
 
     def teardown_method(self):
         """Clean up test fixtures."""
@@ -154,9 +165,9 @@ class TestGlobalAndPerJobAnalysis:
 
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     @patch(
-        "lhp.core.dependencies.service.DependencyAnalysisService.analyze_dependencies"
+        "lhp.core.dependencies.analyzer.DependencyAnalyzer.analyze"
     )
     def test_global_analysis_runs_first(
         self, mock_analyze, mockget_flowgroups, create_flowgroup
@@ -176,14 +187,14 @@ class TestGlobalAndPerJobAnalysis:
         mock_result.pipeline_dependencies = {}
         mock_analyze.return_value = mock_result
 
-        analyzer = DependencyAnalysisService(self.temp_dir, self.mock_config_loader)
+        analyzer = _make_service(self.temp_dir)
 
         results, global_result = analyzer.analyze_dependencies_by_job()
 
         # analyze_dependencies should be called: 1 for global + 2 for each job = 3 times
         assert mock_analyze.call_count == 3
 
-    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     def test_external_sources_tracked_correctly(
         self, mockget_flowgroups, create_flowgroup
     ):
@@ -203,7 +214,7 @@ class TestGlobalAndPerJobAnalysis:
         ]
         mockget_flowgroups.return_value = flowgroups
 
-        analyzer = DependencyAnalysisService(self.temp_dir, self.mock_config_loader)
+        analyzer = _make_service(self.temp_dir)
 
         results, global_result = analyzer.analyze_dependencies_by_job()
 
@@ -214,14 +225,14 @@ class TestGlobalAndPerJobAnalysis:
         # So bronze.table1 is external to silver_job (cross-job dependency)
         assert "bronze.table1" in results["silver_job"].external_sources
 
-    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     def test_cross_job_sources_logged(
         self, mockget_flowgroups, create_flowgroup, caplog
     ):
         """Test that cross-job dependencies are logged."""
         import logging
 
-        caplog.set_level(logging.INFO, logger="lhp.core.dependencies.analyzer")
+        caplog.set_level(logging.INFO, logger="lhp.core.dependencies.service")
 
         flowgroups = [
             create_flowgroup(
@@ -233,14 +244,14 @@ class TestGlobalAndPerJobAnalysis:
         ]
         mockget_flowgroups.return_value = flowgroups
 
-        analyzer = DependencyAnalysisService(self.temp_dir, self.mock_config_loader)
+        analyzer = _make_service(self.temp_dir)
 
         results, global_result = analyzer.analyze_dependencies_by_job()
 
         # Check for log messages about multi-job analysis
         assert "multi-job" in caplog.text.lower() or "job(s)" in caplog.text.lower()
 
-    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     def test_job_external_vs_global_external(
         self, mockget_flowgroups, create_flowgroup
     ):
@@ -259,7 +270,7 @@ class TestGlobalAndPerJobAnalysis:
         ]
         mockget_flowgroups.return_value = flowgroups
 
-        analyzer = DependencyAnalysisService(self.temp_dir, self.mock_config_loader)
+        analyzer = _make_service(self.temp_dir)
 
         results, global_result = analyzer.analyze_dependencies_by_job()
 
@@ -276,7 +287,6 @@ class TestMultiJobEdgeCases:
     def setup_method(self):
         """Set up test fixtures."""
         self.temp_dir = Path(tempfile.mkdtemp())
-        self.mock_config_loader = Mock()
 
     def teardown_method(self):
         """Clean up test fixtures."""
@@ -284,25 +294,25 @@ class TestMultiJobEdgeCases:
 
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     def test_empty_flowgroups_returns_empty_dict(self, mockget_flowgroups):
         """Test behavior with no flowgroups."""
         mockget_flowgroups.return_value = []
 
-        analyzer = DependencyAnalysisService(self.temp_dir, self.mock_config_loader)
+        analyzer = _make_service(self.temp_dir)
 
         results, global_result = analyzer.analyze_dependencies_by_job()
 
         # Should return empty dict
         assert results == {}
 
-    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     def test_single_flowgroup_with_job_name(self, mockget_flowgroups, create_flowgroup):
         """Test single flowgroup with job_name."""
         flowgroups = [create_flowgroup("bronze_pipeline", "fg1", "bronze_job")]
         mockget_flowgroups.return_value = flowgroups
 
-        analyzer = DependencyAnalysisService(self.temp_dir, self.mock_config_loader)
+        analyzer = _make_service(self.temp_dir)
 
         results, global_result = analyzer.analyze_dependencies_by_job()
 
@@ -310,7 +320,7 @@ class TestMultiJobEdgeCases:
         assert len(results) == 1
         assert "bronze_job" in results
 
-    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     def test_all_same_job_name_single_result(
         self, mockget_flowgroups, create_flowgroup
     ):
@@ -322,7 +332,7 @@ class TestMultiJobEdgeCases:
         ]
         mockget_flowgroups.return_value = flowgroups
 
-        analyzer = DependencyAnalysisService(self.temp_dir, self.mock_config_loader)
+        analyzer = _make_service(self.temp_dir)
 
         results, global_result = analyzer.analyze_dependencies_by_job()
 
@@ -330,7 +340,7 @@ class TestMultiJobEdgeCases:
         assert len(results) == 1
         assert "bronze_job" in results
 
-    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     def test_three_jobs_correct_grouping(self, mockget_flowgroups, create_flowgroup):
         """Test correct grouping with three different jobs."""
         flowgroups = [
@@ -342,7 +352,7 @@ class TestMultiJobEdgeCases:
         ]
         mockget_flowgroups.return_value = flowgroups
 
-        analyzer = DependencyAnalysisService(self.temp_dir, self.mock_config_loader)
+        analyzer = _make_service(self.temp_dir)
 
         results, global_result = analyzer.analyze_dependencies_by_job()
 
@@ -352,7 +362,7 @@ class TestMultiJobEdgeCases:
         assert "silver_job" in results
         assert "gold_job" in results
 
-    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     def test_none_vs_empty_string_job_name(self, mockget_flowgroups, create_flowgroup):
         """Test that None and empty string are handled correctly."""
         flowgroups = [
@@ -361,7 +371,7 @@ class TestMultiJobEdgeCases:
         ]
         mockget_flowgroups.return_value = flowgroups
 
-        analyzer = DependencyAnalysisService(self.temp_dir, self.mock_config_loader)
+        analyzer = _make_service(self.temp_dir)
 
         # Should not raise, should use single-job mode
         results, global_result = analyzer.analyze_dependencies_by_job()

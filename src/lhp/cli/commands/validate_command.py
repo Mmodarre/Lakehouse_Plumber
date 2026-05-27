@@ -1,4 +1,4 @@
-# JUSTIFIED: validate_command.py sits at ~580 lines because it bundles
+# JUSTIFIED: validate_command.py sits at ~664 lines because it bundles
 # argument parsing, Live-frame setup, per-flowgroup result rendering,
 # structured-error display, test reporting, and warning-collector
 # lifecycle — each is a thin CLI adapter but they must share the Live
@@ -6,6 +6,7 @@
 # Live frames. Phase F will extract the per-flowgroup display block
 # (~120L) into a dedicated CLI presenter once the validation outcome
 # carries enough structured metadata for the presenter to be CLI-agnostic.
+# TODO(Phase 9.2): extract per-flowgroup display block and Live-frame setup into cli/presenters/validate_panel.py per LOCAL/REMAINING_WORK.md §9.2.
 """Validate command implementation for LakehousePlumber CLI."""
 
 import importlib

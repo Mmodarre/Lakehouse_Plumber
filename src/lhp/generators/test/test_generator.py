@@ -61,7 +61,7 @@ class TestActionGenerator(BaseActionGenerator):
     # Used by gates that decide whether to call ``_generate_test_sql``.
     _SQL_TEST_TYPES = frozenset(TEST_SQL_TEMPLATES) | frozenset({"schema_match"})
 
-    def __init__(self, config: Dict[str, Any] = None, context: Dict[str, Any] = None):
+    def __init__(self, config: Dict[str, Any] | None = None, context: Dict[str, Any] | None = None):
         """Initialize TestGenerator with config and context."""
         super().__init__()
         self.config = config or {}
@@ -71,7 +71,7 @@ class TestActionGenerator(BaseActionGenerator):
         self.add_import("from pyspark import pipelines as dp")
         self.add_import("from pyspark.sql.functions import *")
 
-    def generate(self, action: Action = None, context: Dict[str, Any] = None) -> str:
+    def generate(self, action: Action = None, context: Dict[str, Any] | None = None) -> str:
         """Generate test code directly without delegation."""
         # Use instance config/context if not provided
         if action:

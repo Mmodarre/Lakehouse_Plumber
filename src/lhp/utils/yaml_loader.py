@@ -109,7 +109,7 @@ def load_yaml_file(
 
 def safe_load_yaml_with_fallback(
     file_path: Union[Path, str],
-    fallback_value: Dict[str, Any] = None,
+    fallback_value: Dict[str, Any] | None = None,
     error_context: Optional[str] = None,
     log_errors: bool = True,
 ) -> Dict[str, Any]:

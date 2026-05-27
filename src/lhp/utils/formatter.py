@@ -97,11 +97,11 @@ class CodeFormatter:
         except Exception as e:
             import traceback
 
-            self.logger.error(f"Black formatting failed: {e}")
-            self.logger.error(f"Black error type: {type(e).__name__}")
-            self.logger.error(f"Black traceback:\n{traceback.format_exc()}")
+            self.logger.exception(f"Black formatting failed: {e}")
+            self.logger.exception(f"Black error type: {type(e).__name__}")
+            self.logger.exception(f"Black traceback:\n{traceback.format_exc()}")
             # Log first 500 chars of code that caused the failure
-            self.logger.error(f"Code snippet (first 500 chars):\n{code[:500]}")
+            self.logger.exception(f"Code snippet (first 500 chars):\n{code[:500]}")
             # Return organized code even if Black fails
             return self.organize_imports(code)
 

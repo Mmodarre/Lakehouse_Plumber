@@ -163,7 +163,7 @@ class PipelineProcessor:
                 generated_filenames=generated_filenames,
             )
         except Exception as exc:
-            logger.error(
+            logger.exception(
                 "PipelineProcessor failed for pipeline %s: %s",
                 self.pipeline_name,
                 type(exc).__name__,
@@ -243,7 +243,7 @@ class PipelineProcessor:
                 auxiliary_files=tuple(ctx_out.auxiliary_files.items()),
             )
         except Exception as exc:
-            logger.error(
+            logger.exception(
                 "Phase A worker failed for flowgroup %s in pipeline %s: %s",
                 fg.flowgroup,
                 fg.pipeline,
@@ -377,7 +377,7 @@ class PipelineProcessor:
                 try:
                     output_file.unlink(missing_ok=True)
                 except OSError as exc:
-                    logger.error(
+                    logger.exception(
                         "Failed to delete empty flowgroup file %s: %s: %s",
                         output_file,
                         type(exc).__name__,

@@ -164,6 +164,11 @@ extend-exclude = '''
 )/
 '''
 
+[tool.ruff]
+extend-exclude = [
+    "tests/fixtures/import_manager/invalid_syntax.py",
+]
+
 [tool.isort]
 profile = "black"
 multi_line_output = 3
@@ -324,4 +329,11 @@ ignore_imports = [
 [tool.mutmut]
 paths_to_mutate = "src/lhp/core/secret_validator.py"
 tests_dir = "tests/"
+
+[tool.vulture]
+# Dead-code detection. See vulture_whitelist.py for triaged false positives.
+# Run: vulture src/lhp/ vulture_whitelist.py --min-confidence 80
+paths = ["src/lhp/", "vulture_whitelist.py"]
+min_confidence = 80
+sort_by_size = true
 
