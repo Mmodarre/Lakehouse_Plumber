@@ -4,16 +4,13 @@ Every public DTO and concrete event in ``lhp.api`` must survive::
 
     instance -> to_dict -> json.dumps -> json.loads -> reconstruct -> ==
 
-Constitution §1.8 mandates this contract; §1.9 requires a contract test
-on each public DTO; §9.22 forbids the per-type dispatch the alternative
-serializer would require — so reconstruction here is also generic
-(walks ``dataclasses.fields`` + resolved type hints), never per-type.
+Constitution §1.8 mandates the contract; §1.9 requires a contract test
+on each public DTO; §9.22 forbids per-type dispatch — so reconstruction
+walks ``dataclasses.fields`` + resolved type hints, never per-type.
 
-``ErrorEmitted`` is intentionally excluded: its ``lhp_error: LHPError``
-field is a live :class:`Exception` instance, the one §9.21 exception to
-the "no exceptions in DTO fields" rule. ``to_dict`` correctly raises
-:class:`TypeError` on it (asserted below) — there is no JSON shape it
-could round-trip into.
+``ErrorEmitted`` is excluded: its ``lhp_error`` field is a live
+:class:`Exception` (the §9.21 exception to the "no exceptions in DTO
+fields" rule); ``to_dict`` correctly raises :class:`TypeError` on it.
 """
 from __future__ import annotations
 
@@ -77,18 +74,8 @@ _TYPE_NS: dict[str, Any] = {
 def _coerce(value: Any, hint: Any) -> Any:
     """Coerce a JSON-loaded value back to the type the field declared.
 
-    Walks the type hint structurally (no class-name dispatch) and:
-    - converts ``str`` -> ``Path`` when the hint is ``Path`` (or
-      ``Optional[Path]``);
-    - converts ``list`` -> ``tuple`` when the hint is ``Tuple[...]``,
-      recursing into the element type;
-    - reconstructs nested dataclass instances when the hint names a
-      ``@dataclass`` class;
-    - recurses through ``Mapping[str, X]`` element types;
-    - unwraps ``Optional[X]`` / ``Union[X, None]`` to ``X`` for
-      non-``None`` values.
-
-    Anything else passes through unchanged.
+    Walks the type hint structurally (no class-name dispatch — §9.22).
+    Unknown shapes pass through unchanged.
     """
     if value is None:
         return None
@@ -96,31 +83,27 @@ def _coerce(value: Any, hint: Any) -> Any:
     origin = get_origin(hint)
     args = get_args(hint)
 
-    # Optional[X] / Union[X, None] -> X for the non-None branch.
     if origin is typing.Union:
         non_none = [a for a in args if a is not type(None)]
         if len(non_none) == 1:
             return _coerce(value, non_none[0])
         return value
 
-    # Path-typed field.
     if hint is Path:
         return Path(value)
 
-    # Tuple[X, ...] or Tuple[X, Y, Z].
     if origin is tuple:
         if len(args) == 2 and args[1] is Ellipsis:
             return tuple(_coerce(v, args[0]) for v in value)
         return tuple(_coerce(v, a) for v, a in zip(value, args, strict=True))
 
-    # Mapping[str, X]. ``isinstance(origin, type)`` guards against
-    # parameterised typing constructs (Literal, Union, etc.) whose
-    # origin is not a real class — ``issubclass`` would raise.
+    # ``isinstance(origin, type)`` guards against parameterised typing
+    # constructs (Literal, Union, …) whose origin is not a real class —
+    # ``issubclass`` would raise on them.
     if isinstance(origin, type) and issubclass(origin, typing.Mapping):
         val_hint = args[1] if len(args) >= 2 else Any
         return {k: _coerce(v, val_hint) for k, v in value.items()}
 
-    # Nested dataclass.
     if isinstance(hint, type) and is_dataclass(hint):
         return _reconstruct(hint, value)
 
@@ -130,18 +113,15 @@ def _coerce(value: Any, hint: Any) -> Any:
 def _reconstruct(cls: type, payload: dict[str, Any]) -> Any:
     """Rebuild a dataclass instance from its ``to_dict`` payload.
 
-    Type-generic: reads ``dataclasses.fields`` + resolved hints and
-    delegates per-field coercion to :func:`_coerce`. No class names
-    appear here.
+    Type-generic — no class names appear (constitution §9.22).
     """
     hints = get_type_hints(cls, localns=_TYPE_NS)
     kwargs = {f.name: _coerce(payload[f.name], hints[f.name]) for f in fields(cls)}
     return cls(**kwargs)
 
 
-# Construct one minimal-but-realistic instance per public DTO / event.
-# Factories use the simplest legal field set so the test isolates the
-# serializer, not the constructors.
+# Minimal-but-legal field sets so the test isolates the serializer,
+# not the constructors.
 _issue = ValidationIssueView(
     code="LHP-VAL-021",
     category="VAL",
@@ -171,8 +151,8 @@ _dep_entry = DependencyOutputEntry(format_name="dot", label="", path=Path("out.d
 
 _INSTANCES = [
     pytest.param(OperationStarted(operation_name="generate", env="dev"), id="OperationStarted"),
-    # OperationCompleted base: ``response: object`` accepts any JSON-shape
-    # value; a primitive keeps the round-trip generic (no per-type fixup).
+    # ``response: object`` accepts any JSON shape; a primitive keeps the
+    # round-trip generic (no per-type fixup).
     pytest.param(OperationCompleted(response="ok"), id="OperationCompleted"),
     pytest.param(
         GenerationCompleted(
@@ -356,9 +336,8 @@ _INSTANCES = [
 
 @pytest.mark.parametrize("instance", _INSTANCES)
 def test_dto_round_trip_via_to_dict(instance: Any) -> None:
-    """Every public DTO / event survives to_dict -> JSON -> reconstruct."""
     payload = to_dict(instance)
-    # The dict form must be JSON-clean — no tuples, no Paths, no enums.
+    # Dict form must be JSON-clean — no tuples, no Paths, no enums.
     rehydrated = json.loads(json.dumps(payload))
     assert rehydrated == payload
     reconstructed = _reconstruct(type(instance), rehydrated)
@@ -366,7 +345,7 @@ def test_dto_round_trip_via_to_dict(instance: Any) -> None:
 
 
 def test_to_dict_raises_typeerror_on_datetime() -> None:
-    """Non-serializable types fail loudly per §9.22 (no silent coercion)."""
+    """Non-serialisable types fail loudly per §9.22 (no silent coercion)."""
     with pytest.raises(TypeError) as exc:
         to_dict(datetime.datetime.now())
     assert "datetime" in str(exc.value).lower()
@@ -374,9 +353,8 @@ def test_to_dict_raises_typeerror_on_datetime() -> None:
 
 def test_to_dict_raises_typeerror_on_error_emitted_live_exception() -> None:
     """``ErrorEmitted`` carries a live :class:`LHPError` (§9.21 exception
-    to §4.8). It cannot JSON-round-trip — confirm ``to_dict`` rejects it
-    rather than coercing silently. Producers must decompose the error
-    into a :class:`ValidationIssueView` before serialising.
+    to §4.8); it cannot JSON-round-trip. Producers must decompose into
+    :class:`ValidationIssueView` before serialising.
     """
     from lhp.api import ErrorEmitted
     from lhp.errors.types import ErrorCategory, LHPError

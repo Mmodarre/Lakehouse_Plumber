@@ -1,20 +1,7 @@
 """Rich Panel renderer for the Rich-free :class:`WarningCollector`.
 
-This module is the CLI-side counterpart to the data class at
-:mod:`lhp.api.callbacks`. The split — DTO in ``lhp.api``, Rich rendering
-in ``lhp.cli`` — exists because constitution §9.6 forbids any ``rich.*``
-import outside ``lhp.cli``, and TARGET §6 places callback DTOs in
-``lhp.api`` so domain code can inject them without reaching into the CLI.
-
-Callers use the function as::
-
-    panel = render_warning_panel(wc)
-    if panel is not None:
-        console.print(panel)
-
-which preserves the no-op-on-empty behavior of the old in-class
-``render(console)`` method without forcing the caller to special-case
-the empty collector.
+CLI-side counterpart to :mod:`lhp.api.callbacks`: constitution §9.6
+forbids any ``rich.*`` import outside ``lhp.cli``.
 """
 from __future__ import annotations
 
@@ -25,12 +12,10 @@ from lhp.api import WarningCollector
 
 
 def render_warning_panel(collector: WarningCollector) -> Panel | None:
-    """Build the end-of-run Rich Panel for a populated ``WarningCollector``.
+    """Build the end-of-run Rich Panel, or ``None`` if collector is empty.
 
-    Returns ``None`` when the collector is empty, so the caller can skip
-    the ``console.print`` call entirely. The title heuristic preserves
-    the long-standing CLI behavior: a single deprecation entry yields
-    ``"⚠ Deprecation Warning"``; anything else yields ``"⚠ Warnings"``.
+    Returning ``None`` lets the caller skip ``console.print`` without
+    special-casing the empty collector.
     """
     entries = collector.as_list()
     if not entries:

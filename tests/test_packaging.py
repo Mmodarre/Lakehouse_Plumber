@@ -63,12 +63,11 @@ def test_wheel_contains_every_template_file(tmp_path: pathlib.Path) -> None:
 
 
 def test_py_typed_marker_ships_with_package() -> None:
-    """PEP 561 marker file ``lhp/py.typed`` must ship with the installed package.
+    """PEP 561 marker ``lhp/py.typed`` must ship with the installed package.
 
-    Downstream type-checkers (mypy, pyright) treat a package as untyped
-    unless this marker is present, even if every public symbol carries
-    annotations. Constitution §1.13 + TARGET §8 require LHP to ship the
-    marker so its public surface is recognised as typed.
+    Without it, mypy/pyright treat the package as untyped even though
+    every public symbol is annotated. Required by constitution §1.13 +
+    TARGET §8.
     """
     import importlib.resources
 

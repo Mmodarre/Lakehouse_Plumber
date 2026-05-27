@@ -1,8 +1,6 @@
 """Render tests for :func:`lhp.cli.warning_panel.render_warning_panel`.
 
-These tests pin the Rich-rendering contract for the WarningCollector
-data class moved to :mod:`lhp.api.callbacks` in Week 7. The data-side
-contract (export, dedup, pickle round-trip, no-rich-in-api) lives in
+Data-side contract (export, dedup, pickle, no-rich-in-api) lives in
 ``tests/api/test_warning_collector_contract.py``.
 """
 
@@ -15,7 +13,6 @@ from lhp.cli.warning_panel import render_warning_panel
 
 
 def _render(collector: WarningCollector) -> str:
-    """Render ``collector`` into a plain-text buffer for assertion."""
     buf = io.StringIO()
     console = Console(file=buf, force_terminal=False, no_color=True, width=80)
     panel = render_warning_panel(collector)
@@ -25,12 +22,10 @@ def _render(collector: WarningCollector) -> str:
 
 
 def test_render_skips_empty() -> None:
-    """render_warning_panel returns None when nothing has been collected."""
     assert render_warning_panel(WarningCollector()) is None
 
 
 def test_render_single_warning_uses_deprecation_title() -> None:
-    """A solo deprecation warning gets the ``Deprecation Warning`` title."""
     collector = WarningCollector()
     collector.add(
         "deprecation",
@@ -44,7 +39,6 @@ def test_render_single_warning_uses_deprecation_title() -> None:
 
 
 def test_render_multiple_warnings_uses_generic_title() -> None:
-    """Two-or-more warnings switch to the plural ``Warnings`` title."""
     collector = WarningCollector()
     collector.add("deprecation", "msg-a")
     collector.add("other", "msg-b")
@@ -57,7 +51,6 @@ def test_render_multiple_warnings_uses_generic_title() -> None:
 
 
 def test_render_single_other_uses_generic_title() -> None:
-    """A solo non-deprecation warning still uses the plural ``Warnings`` title."""
     collector = WarningCollector()
     collector.add("performance", "Slow pipeline detected")
 
@@ -67,11 +60,9 @@ def test_render_single_other_uses_generic_title() -> None:
 
 
 def test_render_dedup_preserves_first_seen_order() -> None:
-    """Insertion order is preserved across re-adds; dedup is silent.
-
-    Assert via the rendered output — ``msg-a`` must appear before
-    ``msg-b`` before ``msg-c``, even though ``msg-a`` was re-added
-    after ``msg-b``.
+    """Order must hold across re-adds: ``msg-a`` is re-added after
+    ``msg-b`` but must still precede it in output. Asserted via the
+    rendered text.
     """
     collector = WarningCollector()
     collector.add("deprecation", "msg-a")
