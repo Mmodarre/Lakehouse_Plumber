@@ -24,7 +24,7 @@ class LakehousePlumberBootstrap:
     scaffolding produces a project root rather than consuming one.
     Stateless — the constructor takes no arguments.
 
-    :stability: provisional
+    :stability: stable
     """
 
     def __init__(self) -> None:

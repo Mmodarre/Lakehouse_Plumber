@@ -94,7 +94,7 @@ def collect_response(events: Iterator[LHPEvent]) -> object:
     base, so this helper does not need to enumerate concrete subclasses
     (the per-type dispatch tuple was retired in C7).
 
-    :stability: provisional
+    :stability: stable
     """
     final_response: object = None
     for event in events:

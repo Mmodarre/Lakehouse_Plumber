@@ -73,6 +73,7 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
+"lhp" = ["py.typed"]
 "lhp.schemas" = ["*.json", "*.md"]
 "lhp.templates" = ["*.j2"]
 "lhp.templates.bundle" = ["*.j2"]

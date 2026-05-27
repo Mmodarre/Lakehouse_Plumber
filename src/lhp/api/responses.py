@@ -60,7 +60,7 @@ class GenerationResponse:
       the failure originated from an :class:`LHPError`. CLI panels
       render from this field alone — no exception instance needed.
 
-    :stability: provisional
+    :stability: stable
     """
 
     success: bool
@@ -114,7 +114,7 @@ class ValidationResponse:
     ``has_errors`` / ``has_warnings`` remain available for predicate
     use.
 
-    :stability: provisional
+    :stability: stable
     """
 
     success: bool

@@ -42,7 +42,7 @@ class LHPEvent:
     Constitution §9.21: ``LHPEvent`` stays a marker; do NOT add
     methods or attributes here. Subclasses carry the payload.
 
-    :stability: experimental
+    :stability: stable
     """
 
     pass
@@ -52,7 +52,7 @@ class LHPEvent:
 class OperationStarted(LHPEvent):
     """First event yielded by any long-running facade operation.
 
-    :stability: provisional
+    :stability: stable
     """
 
     operation_name: str
@@ -75,7 +75,7 @@ class OperationCompleted(LHPEvent):
     intermediate base BELOW the marker is allowed; it does not turn
     ``LHPEvent`` itself into anything other than a marker.
 
-    :stability: provisional
+    :stability: stable
     """
 
     response: object
@@ -85,7 +85,7 @@ class OperationCompleted(LHPEvent):
 class GenerationCompleted(OperationCompleted):
     """Terminal success event for ``GenerationFacade.generate_pipelines``.
 
-    :stability: provisional
+    :stability: stable
     """
 
     response: "BatchGenerationResponse"
@@ -95,7 +95,7 @@ class GenerationCompleted(OperationCompleted):
 class ValidationCompleted(OperationCompleted):
     """Terminal success event for ``ValidationFacade.validate_pipelines``.
 
-    :stability: provisional
+    :stability: stable
     """
 
     response: "BatchValidationResponse"
@@ -122,7 +122,7 @@ class ErrorEmitted(LHPEvent):
     payload renders from ``lhp_error.suggestions`` / ``context`` /
     ``doc_link``.
 
-    :stability: provisional
+    :stability: stable
     """
 
     lhp_error: "LHPError"

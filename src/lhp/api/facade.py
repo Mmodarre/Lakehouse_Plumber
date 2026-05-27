@@ -433,7 +433,7 @@ class LakehousePlumberApplicationFacade:
     The public ``orchestrator`` attribute is intentionally absent
     (§1.10, §9.23); callers must use the sub-facade methods.
 
-    :stability: provisional
+    :stability: stable
     """
 
     def __init__(self, orchestrator: "_Orchestrator") -> None:

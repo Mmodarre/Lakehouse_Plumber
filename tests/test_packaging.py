@@ -60,3 +60,16 @@ def test_wheel_contains_every_template_file(tmp_path: pathlib.Path) -> None:
         f"{len(missing)} template file(s) missing from wheel distribution:\n"
         + "\n".join(f"  - {m}" for m in sorted(missing))
     )
+
+
+def test_py_typed_marker_ships_with_package() -> None:
+    """PEP 561 marker file ``lhp/py.typed`` must ship with the installed package.
+
+    Downstream type-checkers (mypy, pyright) treat a package as untyped
+    unless this marker is present, even if every public symbol carries
+    annotations. Constitution §1.13 + TARGET §8 require LHP to ship the
+    marker so its public surface is recognised as typed.
+    """
+    import importlib.resources
+
+    assert importlib.resources.files("lhp").joinpath("py.typed").is_file()
