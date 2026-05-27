@@ -68,7 +68,7 @@ from lhp.errors import LHPError
 from lhp.utils.performance_timer import perf_timer
 
 if TYPE_CHECKING:
-    from lhp.cli.warning_collector import WarningCollector
+    from .callbacks import WarningCollector
     from lhp.models.config import FlowGroup
 
     # Internal orchestrator type, referenced only as a quoted annotation

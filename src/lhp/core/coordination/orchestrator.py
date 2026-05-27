@@ -41,7 +41,7 @@ from typing import (
 from ...models.config import FlowGroup, FlowGroupContext
 
 if TYPE_CHECKING:
-    from ...cli.warning_collector import WarningCollector
+    from ...api.callbacks import WarningCollector
     from ...generators.python_file_copier import CopiedModuleRecord
     from ...models.processing import PipelineDelta
 

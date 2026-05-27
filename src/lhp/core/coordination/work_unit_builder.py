@@ -27,7 +27,7 @@ from ...models.processing import PipelineWorkUnit
 from ...utils.performance_timer import perf_timer
 
 if TYPE_CHECKING:
-    from ...cli.warning_collector import WarningCollector
+    from ...api.callbacks import WarningCollector
     from ..orchestrator import ActionOrchestrator
 
 

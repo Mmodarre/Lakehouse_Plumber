@@ -201,15 +201,6 @@ name = "Public API and internal modules must not import from CLI"
 type = "forbidden"
 source_modules = ["lhp.api", "lhp.core", "lhp.parsers", "lhp.generators", "lhp.bundle", "lhp.utils", "lhp.models"]
 forbidden_modules = ["lhp.cli"]
-# ``WarningCollector`` lives in ``lhp.cli`` but is injected as a
-# callback into ``lhp.core.coordination`` and ``lhp.api.facade``.
-# Moving it to a non-CLI home is Phase F redesign (likely
-# ``lhp.api`` callbacks).
-ignore_imports = [
-    "lhp.api.facade -> lhp.cli.warning_collector",
-    "lhp.core.coordination.orchestrator -> lhp.cli.warning_collector",
-    "lhp.core.coordination.work_unit_builder -> lhp.cli.warning_collector",
-]
 
 [[tool.importlinter.contracts]]
 name = "CLI must consume public API only, never internal domain modules"

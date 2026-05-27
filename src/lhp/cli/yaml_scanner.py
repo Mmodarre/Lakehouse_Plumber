@@ -18,7 +18,7 @@ import re
 from pathlib import Path
 from typing import Iterable, Optional
 
-from .warning_collector import WarningCollector
+from lhp.api import WarningCollector
 
 # Scans raw YAML BEFORE any substitution pass, so it must reject every
 # non-bare syntax that LHP supports:

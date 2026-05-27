@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from lhp.cli.warning_collector import WarningCollector
+from lhp.api import WarningCollector
 from lhp.cli.yaml_scanner import emit_deprecation_warning_if_needed
 
 

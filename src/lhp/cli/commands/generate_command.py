@@ -27,6 +27,7 @@ from ...api import (
     LakehousePlumberApplicationFacade,
     OperationStarted,
     ProjectConfigView,
+    WarningCollector,
     collect_response,
 )
 from ...errors import ErrorCategory, LHPConfigError, LHPError
@@ -43,7 +44,7 @@ from ..live_panel import (
     render_live_frame,
     rich_handler_attached,
 )
-from ..warning_collector import WarningCollector
+from ..warning_panel import render_warning_panel
 from ..yaml_scanner import emit_deprecation_warning_if_needed
 from .base_command import BaseCommand
 
@@ -473,7 +474,9 @@ class GenerateCommand(BaseCommand):
             # ``rich_handler_attached`` context so the surrounding handler
             # discipline is preserved; the Live frame has already exited
             # so the panel is not redirected into a transient state.
-            warning_collector.render(_console_module.err_console)
+            _panel = render_warning_panel(warning_collector)
+            if _panel is not None:
+                _console_module.err_console.print(_panel)
 
         # Both context managers have exited: stderr stream handlers
         # restored, no Rich Live frame attached, so any raise from here

@@ -20,13 +20,14 @@ from lhp.api import (
     BatchValidationResponse,
     LakehousePlumberApplicationFacade,
     ValidationResponse,
+    WarningCollector,
     collect_response,
 )
 from lhp.errors import ErrorCategory, LHPConfigError, LHPError
 from lhp.utils.exit_codes import ExitCode
 
 from ..error_panel import render_error_panel
-from ..warning_collector import WarningCollector
+from ..warning_panel import render_warning_panel
 from ..yaml_scanner import emit_deprecation_warning_if_needed
 from .base_command import BaseCommand
 
@@ -357,7 +358,9 @@ class ValidateCommand(BaseCommand):
                 # exit code 0 — generate raises ``LHPConfigError-014`` in
                 # the analogous situation, so this is intentionally
                 # asymmetric.
-                warning_collector.render(_console_module.err_console)
+                _panel = render_warning_panel(warning_collector)
+                if _panel is not None:
+                    _console_module.err_console.print(_panel)
                 logger.info("Validate no-op: no pipelines to validate")
                 return None
 
@@ -403,7 +406,9 @@ class ValidateCommand(BaseCommand):
 
             # Render the per-run warning panel (yellow border) after
             # the summary table and per-pipeline panels.
-            warning_collector.render(_console_module.err_console)
+            _panel = render_warning_panel(warning_collector)
+            if _panel is not None:
+                _console_module.err_console.print(_panel)
 
             if (
                 batch_response is not None
