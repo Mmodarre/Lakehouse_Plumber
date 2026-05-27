@@ -56,6 +56,7 @@ from lhp.api.responses import (
     StatsResult,
     ValidationResponse,
 )
+from lhp.api._serialization import to_dict
 from lhp.api.views import (
     ActionView,
     BlueprintInstanceView,
@@ -142,6 +143,7 @@ __all__: list[str] = [
     "ProcessedFlowgroupView",
     "ProjectConfigView",
     "StatsResult",
+    "to_dict",
     "TemplateParameterView",
     "TemplateView",
     "ValidationCompleted",
