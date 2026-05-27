@@ -244,9 +244,7 @@ class TestGenerateCommandExecute:
         mock_facade_instance.state_manager = Mock()
 
         captured: list = []
-        real_cls = __import__(
-            "lhp.cli.warning_collector", fromlist=["WarningCollector"]
-        ).WarningCollector
+        from lhp.api import WarningCollector as real_cls
 
         def _capturing_factory(*args, **kwargs):
             inst = real_cls(*args, **kwargs)
@@ -299,9 +297,7 @@ class TestGenerateCommandExecute:
         mock_facade_instance.state_manager = Mock()
 
         captured: list = []
-        real_cls = __import__(
-            "lhp.cli.warning_collector", fromlist=["WarningCollector"]
-        ).WarningCollector
+        from lhp.api import WarningCollector as real_cls
 
         def _capturing_factory(*args, **kwargs):
             inst = real_cls(*args, **kwargs)

@@ -9,9 +9,8 @@ thread, looking for the same deprecated bare-``{token}`` syntax, and
 recording the warning on a per-run :class:`WarningCollector`.
 
 The helper is intentionally separate from :mod:`lhp.cli.live_panel`
-(rendering) and :mod:`lhp.cli.warning_collector` (accumulation): one
-file per concern, importable from both command modules without a
-cycle.
+(rendering) and :mod:`lhp.api.callbacks` (accumulation): one file
+per concern, importable from both command modules without a cycle.
 """
 
 import re
