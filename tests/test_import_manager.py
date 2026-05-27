@@ -17,7 +17,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from lhp.core.base_generator import BaseActionGenerator
+from lhp.core.registry import BaseActionGenerator
 from lhp.generators.load.custom_datasource import CustomDataSourceLoadGenerator
 from lhp.models.config import Action, ActionType
 from lhp.utils.import_manager import ImportManager, extract_future_imports
@@ -628,7 +628,7 @@ class TestExtractFutureImports:
     """Tests for the AST-based ``extract_future_imports`` helper.
 
     The helper underpins the PEP 236 chokepoint in
-    ``CodeGenerator._assemble_final_code``: any source string passed through
+    ``CodeGenerationService._assemble_final_code``: any source string passed through
     assembly must surrender its ``from __future__`` lines so they can be
     hoisted to the top of the assembled module.
     """
@@ -1008,7 +1008,7 @@ class TestImportNameCollision:
 
     def test_same_name_different_modules_raises(self):
         """``from a import X`` then ``from b import X`` → LHPValidationError."""
-        from lhp.utils.error_formatter import LHPValidationError
+        from lhp.errors import LHPValidationError
 
         mgr = ImportManager()
         mgr.add_import("from a import Conflict")
@@ -1046,7 +1046,7 @@ class TestImportNameCollision:
 
     def test_alias_vs_unaliased_different_names(self):
         """``from a import X`` and ``from b import Y as X`` collide on local name X."""
-        from lhp.utils.error_formatter import LHPValidationError
+        from lhp.errors import LHPValidationError
 
         mgr = ImportManager()
         mgr.add_import("from a import X")

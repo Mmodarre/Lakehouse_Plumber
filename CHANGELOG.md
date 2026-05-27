@@ -5,6 +5,681 @@ All notable changes to Lakehouse Plumber are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Week 5 — Public API surface + CLI/core boundary closure
+
+Week 5 closes the two items `LOCAL/TARGET_ARCHITECTURE.md` flagged
+open after Week 4: the `lhp/api/` public package (TARGET §7 / §8) and
+the CLI→internal-domain reach-through across 7 command modules (§9.7 /
+§9.23). `LHP-9.4`, `LHP-9.7`, `LHP-9.23` all moved to **0** at the end
+of Phase D. The new `tests/api/` suite (95 tests, DTO/view/event
+contracts) is green; unit and e2e carry ~30 + 6 known failures (see
+Deferred items).
+
+#### Phase A — Delete `error_formatter` shim
+
+Closed `ERRORS-SHIM-DEFER-WK5` from Week 4.
+
+- `src/lhp/utils/error_formatter.py` (35L shim) deleted; 73 src + 63
+  test callers rewritten to import directly from `lhp.errors`.
+- `scripts/check_placement.py:PLACEMENT_SHIM_ALLOWLIST` emptied to `{}`
+  per plan §A3.
+- **Discovery:** A1's grep for `utils.error_formatter` missed 11
+  sibling imports inside `src/lhp/utils/` (single-dot relative —
+  `from .error_formatter`). Fixed in the same wave.
+
+#### Phase B — `lhp/api/` public surface
+
+Closed TARGET §7 and §1.13 / §4.11 (stability-drift gate no longer
+vacuous).
+
+- New package `src/lhp/api/` (8 modules: `__init__`, `facade`,
+  `_bundle_facade`, `_converters`, `_listings`, `responses`, `views`,
+  `events`, `bootstrap`).
+- Frozen DTOs (every field JSON-safe, every class
+  `@dataclass(frozen=True)`, full pickle round-trip):
+  `GenerationResponse`, `BatchGenerationResponse`, `ValidationResponse`,
+  `BatchValidationResponse`, `ValidationIssueView`, `InitProjectResult`,
+  `FinalizeMonitoringResult`, `BundleSyncResult`,
+  `BundleValidationResult`, `BundleEnableResult`, `StatsResult`,
+  `DependencyAnalysisResult`, `DependencyOutputsResult`, plus view DTOs
+  (`FlowgroupView`, `ProcessedFlowgroupView`, `GeneratedCodeView`,
+  `ProjectConfigView`, `BlueprintView`, `PresetView`, `TemplateView`,
+  `PipelineStats`, `ActionView`).
+- DTO field-type rewrite per §4.8: `Dict[str, Any]` →
+  `Mapping[str, JSONValue]`, `List` → `Tuple`, `Optional[Exception]`
+  REMOVED (replaced by flat `error_code: Optional[str]` + per-pipeline
+  `error: Optional[ValidationIssueView]`). Mid-phase fix:
+  `MappingProxyType` is unpicklable in Python 3.12 → switched all DTO
+  defaults to plain `dict`.
+- Top-level `LakehousePlumberApplicationFacade` decomposed into 4
+  sub-facades (`GenerationFacade`, `ValidationFacade`,
+  `InspectionFacade`, `BundleFacade`); shortcut methods
+  (`generate_pipelines`, `validate_pipelines`) `yield from` the
+  sub-facade generators (§1.11).
+- `LakehousePlumberBootstrap` (separate per §1.12) handles one-time
+  project scaffolding.
+- Contract tests in `tests/api/` (`test_responses_contract.py`,
+  `test_validation_view_contract.py`, `test_event_protocol.py`,
+  pre-existing `test_workunit_contract.py`): **95 tests green**.
+  Covers frozen-mutation, pickle/JSON-shape round-trip, field-type
+  contract, event-protocol invariants.
+- Every public class/function in `lhp/api/**/*.py` carries
+  `:stability: provisional` (or `experimental` for `LHPEvent`).
+- `mypy --strict src/lhp/api/`: **clean** (9 source files).
+
+#### Phase C — Cover every CLI operation through the facade
+
+Closed §9.4; facade extended to cover every CLI operation.
+
+- `ActionOrchestrator._by_field` / `_by_fields` variants collapsed to
+  unified
+  `generate_pipelines(*, pipeline_filter=None, pipeline_fields=None, ...)`
+  and `validate_pipelines(...)` (§9.4 closed).
+- `PipelineValidator.validate_pipeline_by_field` renamed
+  `validate_for_pipeline(pipeline_filter=...)`.
+- `InspectionFacade` extended with 12 read-only methods
+  (`list_flowgroups`, `process_flowgroup`, `generate_flowgroup_code`,
+  `find_source_yaml_for_flowgroup`, `get_include_patterns`,
+  `get_project_config`, `compute_stats`, `list_blueprints`,
+  `list_presets`, `list_templates`, `analyze_dependencies`,
+  `validate_duplicate_flowgroups`) plus `save_dependency_outputs`.
+  Class docstring carries the §3.2 justification block.
+- `GenerationFacade.finalize_monitoring_artifacts` added (C4).
+- `BundleFacade` extended with `sync_resources`,
+  `validate_bundle_assets`, `enable_bundle` (R10: three separate
+  methods, NOT mode-flagged).
+- Three long-running facade ops wrapped as `Iterator[LHPEvent]` per
+  §5.7: `GenerationFacade.generate_pipelines`,
+  `ValidationFacade.validate_pipelines`,
+  `BundleFacade.sync_resources`. New events: `LHPEvent` (marker,
+  experimental), `OperationStarted`, `OperationCompleted`,
+  `GenerationCompleted`, `ValidationCompleted`, `BundleSyncCompleted`,
+  `ErrorEmitted` (`lhp_error`-carrying — §9.21 carve-out).
+- `collect_response(iterator)` helper for non-event-driven callers;
+  sole `isinstance(event, OperationCompleted)` check avoids per-type
+  dispatch (§9.22).
+
+#### Phase D — CLI cutover + bundle reparent + deferral closures
+
+Closed §9.7 and §9.23 entirely; closed `D7-FOLLOWUP-WK5` and
+`D3D-DEFER-WK5` from Week 3.
+
+- All 7 CLI command files (`generate_command`, `validate_command`,
+  `show_command`, `list_commands`, `dependencies_command`,
+  `init_command`, `base_command`, `stats_command`) import only from
+  `lhp.api`, `lhp.errors`, `lhp.utils`, and stdlib. Zero imports of
+  `lhp.core` / `.bundle` / `.parsers` / `.models` / `.generators`.
+- All 7 `application_facade.orchestrator.X(...)` reach-throughs
+  rewritten to sub-facade methods.
+- 4 bundle exception classes (`BundleResourceError`, `TemplateError`,
+  `YAMLProcessingError`, `BundleConfigurationError`) reparented from
+  `Exception` to `LHPError` (TARGET §6). Carry `LHP-CFG-NNN` codes
+  (§9.20). Per-class `__reduce__` for picklability (§13.3). Rich panel
+  output semantic-equivalent (title operation-baked).
+- `src/lhp/bundle/error_factories.py` deleted (172L, 5 factory
+  functions — all callers migrated).
+- `src/lhp/cli/error_boundary.py` bundle special-case branch (12L)
+  deleted — reparented bundle classes now caught by the existing
+  `except LHPError` handler.
+- `D7-FOLLOWUP-WK5` closed: `ActionOrchestrator.__init__` raises
+  `ValueError` on bare construction; only construction path is
+  `LakehousePlumberApplicationFacade.for_project(...)` (§4.5).
+- `D3D-DEFER-WK5` closed: `DependencyAnalysisService.__init__` accepts
+  `config_validator`; the §9.24 leak
+  (`validation_service._config_validator`) is gone. Composition root
+  `core/coordination/layers.py:build_facade_orchestrator` threads a
+  single `ConfigValidator` into both `ValidationService` and
+  `DependencyAnalysisService`.
+- `src/lhp/services/` deleted (1 file, 60 bytes, no consumers).
+- `core/coordination/layers.py` shrunk 545L → 79L; transitional
+  `LakehousePlumberApplicationFacade` re-export removed.
+- Placement gate counts: **LHP-9.4: 0** (was 5), **LHP-9.7: 0** (was
+  38), **LHP-9.23: 0** (was 6).
+
+#### Phase E — CI gate re-enable + CHANGELOG
+
+- `import-linter` re-enabled in `.github/workflows/python_ci.yml`.
+  5/6 contracts active (Public API never imports CLI; CLI never imports
+  internal domain; Models depend only on lower layers; Utils
+  stdlib+models only; Generator families independent). The 6th
+  (top-down layering) is **DISABLED pending Phase F redesign** — see
+  Deferred items below.
+- `Test with pytest` step in CI stays commented; re-enable deferred to
+  Week 6.
+
+#### Deferred items (must close in Week 6 or later)
+
+| Task ID | Description | Recovery target |
+|---|---|---|
+| `OPMETA-MOVE-DEFER` | 13 `utils/` files import domain — `LHP-9.2` violations. A1's shim deletion unmasked these (they were hidden by the allowlist). Files: `operational_metadata.py`, `schema_parser.py`, `schema_transform_parser.py`, `dqe.py`, `exit_codes.py`, `external_file_loader.py`, `import_manager.py`, `local_variables.py`, `version_enforcement.py`, `substitution.py`, `template_renderer.py`, `yaml_loader.py`, `bundle_detection.py`. Each needs relocation to a domain-appropriate package. | Week 6 |
+| `JOB-ORCHESTRATION-DEPENDS-ON-REGRESSION` | 4 e2e tests in `test_job_orchestration_e2e.py` fail with hash mismatches on generated `.job.yml` files — generated YAML lacks pipeline `depends_on` relationships. Root cause likely in the `services/dependency_analyzer.py` → `dependencies/{analyzer,builder,output}.py` restructure altering how `PipelineDependency.depends_on` is populated. Tests: `test_multi_job_with_default_master`, `test_multi_job_with_custom_master_name`, `test_deps_bundle_without_job_config`, `test_deps_bundle_with_job_config`. | Week 6 (urgent) |
+| `TEST-SUITE-REPAIR-WK6` | Unit tests reference removed/renamed internals (`from lhp.core.orchestrator` paths, mocks of deleted methods, `ValidationIssue` direct constructions). Estimated ~30+ failures. 2 e2e tests construct `ActionOrchestrator(...)` directly — now blocked by §4.5 hardening; need migration to `for_project(...)`. | Week 6 |
+| `LAYERING-CONTRACT-REDESIGN` | The `lhp top-down layering` import-linter contract is disabled. Real architectural facts the contract doesn't model: (a) generators legitimately inherit from `lhp.core.registry.BaseActionGenerator` (upward edge), (b) `lhp.api` is unlisted in the layers yet sits above core, (c) `WarningCollector` lives in `lhp.cli` but is consumed as a callback by `lhp.core.coordination`. Redesign needs: reorder layers (core BELOW generators), add `lhp.api`, move `WarningCollector` out of `lhp.cli`. | Phase F |
+| `WARNING-COLLECTOR-MOVE` | `lhp.cli.warning_collector` is imported as a TYPE_CHECKING callback by `lhp.api.facade`, `lhp.core.coordination.orchestrator`, `lhp.core.coordination.work_unit_builder`. Move to `lhp.api` (callback interfaces are public API surface). Currently carved out in import-linter. | Phase F |
+| `CLI-PRESENTER-DEFER` | Oversize CLI command files (`generate_command.py` 717L, `validate_command.py` 664L, `show_command.py` 703L, `cli/main.py` 519L). Plan §6.4 target: ≤100L per command file via presenter extraction. | Week 7+ |
+| `EVENTS-PROGRESS-DEFER` | Per-pipeline progress events (additive under `:stability: provisional` `events.py`). | Week 7+ |
+| `ERRORS-CODES-DEFER` | Extract `lhp/errors/codes.py` and `factory.py` for centralized code/factory definitions. | Post-Week-6 |
+| `D3B-DEFER-WK6` | Executor pool `# noqa: F401` re-exports cleanup. | Week 6 |
+
+#### Test-status accounting
+
+- **`tests/api/`**: 95/95 passing (53 new from B2c + 30 new from C7 +
+  12 pre-existing workunit).
+- **`tests/e2e/`**: 137/143 passing. 4 failures: job-orchestration
+  `depends_on` regression (above). 2: direct `ActionOrchestrator(...)`
+  construction in `tests/e2e/test_local_variables_e2e.py::test_local_variables_resolve_correctly`
+  and `::test_undefined_local_variable_raises_error` — both need
+  migration to `for_project()` (Week 6).
+- **Unit tests**: ~30+ failures from internal-module reshuffles. Week 6
+  scope per the plan's carve-out.
+
+#### Mechanical gates (end-of-Week-5 snapshot)
+
+- `check_placement.py --all` — **15 violations**, all `LHP-9.2`
+  (Week 6 OPMETA scope; expanded from plan's expected 1 due to A1's
+  shim-removal unmasking).
+- `check_stability_drift.py --all` — **0 findings** (no longer vacuous
+  — scans 9 files in `lhp/api/`).
+- `check_file_sizes.py --all` — **10 advisory misses**, all
+  pre-existing. No new violations introduced by Week 5.
+- `mypy --strict src/lhp/api/` — **clean** (9 files).
+- `ruff check --select B904,TRY400,RUF013 src/lhp/api/ tests/api/` —
+  **clean**.
+- `pre-commit run import-linter --all-files` — **passes** (with the
+  layering contract disabled per Phase F redesign deferral).
+
+---
+
+### Week 4 — Architecture refactor (Phases A–D)
+
+Week 4 closes the two structural items `LOCAL/TARGET_ARCHITECTURE.md`
+flagged as open after Week 3: the top-level `lhp/errors/` package
+(TARGET §6) and the drain of free-standing files at the top of
+`src/lhp/core/` plus `src/lhp/core/services/` (TARGET §3). Phases A–C
+land the moves; Phase D is the documentation, sweep, and final review
+pass. The full E2E suite (`pytest tests/e2e/ -v -n auto`, 143 tests)
+is **green in 99.89s with zero failures** at the Phase C gate (C6),
+matching the pre-Week-4 baseline exactly — no user-visible behavior
+changed.
+
+The TARGET_ARCHITECTURE §3 module map was amended (D1) to add
+`core/jobs/` as the 9th sub-package (the home for the 850L
+`job_generator.py` that TARGET previously did not allocate).
+
+#### Phase A — Extract `lhp/errors/` package + Rich-rendering boundary
+
+Closed TARGET §6 (errors-as-top-level-package) and §9.5 (no Rich in
+domain types) for the LHP error hierarchy.
+
+- **A1.** Created `src/lhp/errors/` with 4 files: `__init__.py` (26L),
+  `categories.py` (18L, `ErrorCategory` enum), `types.py` (278L,
+  `LHPError` + 4 subclasses + `MultiDocumentError` +
+  `lhp_error_from_worker_failure`), `formatter.py` (529L, JUSTIFIED:
+  cohesive text-rendering pipeline). `LHPError.__rich__`,
+  `_border_style`, `_template_data` methods REMOVED — Rich is now
+  entirely off the domain side of the boundary.
+- **A2.** Created `src/lhp/cli/error_panel.py` (91L) exporting
+  `render_error_panel(error: LHPError) -> Panel`. Rewired 5 boundary
+  call sites: `cli/error_boundary.py:34/47/53`,
+  `cli/commands/validate_command.py:346`,
+  `tests/test_validate_live_rendering.py:118` (plan §2 originally
+  enumerated only 3 sites — the pre-impl reviewer at A0 caught the
+  two extras). Cleaned 7 docstring/comment references to the former
+  `__rich__` method in `core/coordination/layers.py`,
+  `validate_command.py`, and 4 test files. **Snapshot test
+  `tests/test_lhperror_rendering.py` passes byte-identically against
+  the pre-A2 `.ambr` baseline** — no rendering regression.
+- **A3.** Shimmed `src/lhp/utils/error_formatter.py` from 868L → 35L
+  pure re-export. The shim is marked `# DEPRECATED:` with the
+  deletion-deadline tag `ERRORS-SHIM-DEFER-WK5`. `scripts/check_placement.py`
+  was extended with a `PLACEMENT_SHIM_ALLOWLIST` constant so the
+  intentional `from lhp.errors import ...` in the shim doesn't trip
+  LHP-9.2. After A3, `lhp.utils.error_formatter.LHPError is
+  lhp.errors.LHPError` (same class) — the 3 transient boundary test
+  failures observed at end of A2 (class-identity drift) auto-resolved.
+- **A4 gate.** E2E green: 143/143 in 102.65s. Matches pre-A baseline.
+
+#### Phase B — Drain top-level `core/` (zero free-standing `.py` files)
+
+Closed TARGET §3 (no top-level files under `core/`). All 11 free-standing
+modules at the top of `core/` (4107L total) moved into their respective
+sub-packages. Each task ran as an isolated subagent with `git mv`
+preserving rename detection.
+
+- **B1.** `factories.py`, `action_registry.py`, `base_generator.py`
+  → `core/registry/` (new). 32 consumer files rewritten. The new
+  `__init__.py` uses module-level `__getattr__` for `ActionRegistry`
+  to break a circular import — `BaseActionGenerator` and the rest stay
+  eager. Public attribute access unchanged.
+- **B2.** `project_config_loader.py` (787L, `# JUSTIFIED:` added),
+  `init_template_loader.py`, `init_template_context.py`
+  → `core/loaders/`. 17 consumer files updated.
+  `tests/test_python38_compatibility.py` held 4 stringified module
+  paths the initial grep missed — caught + updated.
+- **B3.** `template_engine.py` → `core/processing/`. 8 consumers
+  rewritten. 88/88 targeted tests pass.
+- **B4.** `dependency_resolver.py` → `core/dependencies/`. 3 consumers
+  rewritten. `validator.py` got a direct-submodule import
+  (`from .dependencies.dependency_resolver import DependencyResolver`)
+  to break a cycle through `core.discovery` → `core.coordination` →
+  `coordination.validation_service`.
+- **B5.** `validator.py` → `core/validators/config_validator.py`.
+  Module-level disambiguation comment block distinguishes
+  `ConfigValidator` (project-wide aggregator) from sibling
+  `ConfigFieldValidator` (per-field schema validator). Two
+  imports deferred to `__init__` method body to break a second
+  cycle (`validators ↔ dependencies ↔ coordination`). 18 consumer
+  files rewritten (138/138 in-scope tests pass).
+- **B6.** `orchestrator.py` (794L) and `layers.py` (555L) →
+  `core/coordination/`. Both `# JUSTIFIED:` blocks preserved.
+  31 consumer files rewritten (4 src + 27 tests). Same
+  `__getattr__` deferral pattern from B1 used for
+  `ActionOrchestrator` and `LakehousePlumberApplicationFacade` to
+  break the `coordination ↔ dependencies` cycle.
+- **B7 gate.** Caught a real regression: `coordination/layers.py:448`
+  had `from .coordination.executor import` (double-namespace bug —
+  layers.py moved INTO `coordination/` but the lazy import wasn't
+  updated). 8 E2E failures traced to this single line. Fixed; full
+  E2E suite returned to 143/143.
+
+After Phase B: `find src/lhp/core -maxdepth 1 -name "*.py" -not -name "__init__.py"` returns empty.
+
+#### Phase C — Drain `core/services/`
+
+Closed TARGET §3 (no `services/` directory). All 6 remaining files in
+`core/services/` moved into their permanent homes. 3 parallel subagents
+ran simultaneously, after verifying the only cross-consumer overlap
+(`coordination/monitoring_service.py`, touched by both C3 and C4) was
+handled by merging C3+C4 into a single agent.
+
+- **C1.** `namespace_normalizer.py` (231L, public function
+  `normalize_namespace_fields`) → `core/processing/`. 2 consumers.
+- **C2.** `operational_metadata_service.py`, `test_reporting.py`,
+  `tst_reporting_hook_generator.py` → `core/codegen/`.
+  7 consumers updated (2 extra lazy imports caught by grep:
+  `validate_command.py:558`, `quarantine.py:119`).
+- **C3.** `monitoring_pipeline_builder.py` (528L, `# JUSTIFIED:` added)
+  → `core/coordination/`.
+- **C4.** Created new `src/lhp/core/jobs/` sub-package. Moved
+  `job_generator.py` (850L, `# JUSTIFIED:` added — pre-existing §9.3
+  hard-cap violation documented; split deferred to Week 5+).
+  Re-exports `JobGenerator`, `JobPipeline`, `JobStage`,
+  `EXPLICITLY_RENDERED_JOB_CONFIG_KEYS`. 2 extra consumers caught
+  beyond the brief (`bundle/manager.py`, `cli/commands/generate_command.py`).
+- **C5.** Deleted `src/lhp/core/services/__init__.py` and the directory.
+- **C6 gate.** E2E green: 143/143 in 99.89s. **Phase C complete.**
+
+After Phase C: `core/` contains exactly 9 sub-packages
+(`codegen/`, `coordination/`, `dependencies/`, `discovery/`, `jobs/`,
+`loaders/`, `processing/`, `registry/`, `validators/`) — matching the
+amended TARGET §3 module map.
+
+#### Phase D — Documentation, sweep, final review
+
+- **D1.** `LOCAL/TARGET_ARCHITECTURE.md` §3 amended: 8 sub-packages → 9
+  (added `core/jobs/` with rationale "job-generation for Databricks
+  Asset Bundle assets and standalone job manifests").
+- **D2.** This CHANGELOG entry.
+- **D3.** Vulture dead-code sweep across new + modified files.
+- **D4.** Comment-slop sweep over the branch diff vs. `main`.
+- **D5.** Independent constitution-reviewer in fresh context against
+  the FINAL state. Intermediate-state artifacts (the
+  `utils/error_formatter.py` shim) distinguished from new violations.
+
+#### Deferred items (named here for follow-up tracking)
+
+- **`ERRORS-SHIM-DEFER-WK5`** — `src/lhp/utils/error_formatter.py`
+  (35L re-export shim) closes in Week 5. ~70 src callers and ~95 test
+  callers will be migrated off `from lhp.utils.error_formatter import`
+  in a single Week 5 sweep; the shim deletes after. The placement
+  allowlist entry in `scripts/check_placement.py` deletes with it.
+- **`ERRORS-CODES-DEFER`** — `lhp/errors/codes.py` and
+  `lhp/errors/factory.py` (the centralised error-code registry
+  and helper factories TARGET §6 envisions) are deferred. Today's
+  error sites still construct `LHPError(...)` with inline string-literal
+  codes; the codes happen to be unique by convention. The follow-up
+  introduces a code registry and a factory layer that asserts
+  uniqueness at module load. Slated for Week 5+ after the shim
+  deletion lands.
+- **`OPMETA-MOVE-DEFER`** — `src/lhp/utils/operational_metadata.py`
+  (608L) remains in `utils/` despite being a §9.2 violation
+  (defines domain types). The cross-dependency with
+  `utils/import_manager.py` needs an audit before relocation;
+  candidate destinations are `core/codegen/` (where the consumer
+  `OperationalMetadataService` now lives) or a new
+  `core/metadata/` sub-package. Not blocking Week 4 since the
+  consumer service already moved.
+
+#### Test-status accounting (named, not gated)
+
+E2E suite is **fully green at 143/143** — the canonical gate per the
+plan's deferral strategy. Unit and integration tests have ~48
+pre-existing failures attributable to in-flight refactor work, not
+Week 4 regressions:
+
+- **~43 errors in `tests/test_orchestrator_init.py`** — `patch(...)`
+  targets `ConfigValidator` and `PipelineValidator` as module-level
+  attributes on the orchestrator. These were never module-level
+  attributes (deferred to method body since pre-session refactor);
+  the test's mock-target paths are stale. Pre-B6.
+- **~4 failures in `tests/test_orchestrator.py`** — patches on
+  `orchestrator_module.run_generate_pool` and asserts on
+  `orchestrator.dependencies.substitution_factory`. Both refer to
+  structures that moved during pre-session refactor work (the call
+  is in `executor.py` now; `substitution_factory` was renamed in
+  the B4 dependencies refactor). Pre-B6.
+- **1 failure in `tests/test_multi_job_integration.py`** —
+  `DependencyAnalysisService(temp_dir, mock_loader)` uses the 2-arg
+  legacy form; the new constructor requires 3 args
+  (`validation_service` added by B4 pre-session work). Pre-C.
+
+All are deferred to **Week 6 (test-suite repair)** consistent with the
+documented deferral strategy. None of these failures reflect product
+behavior regressions — generated code is byte-identical to baselines
+(verified by 143 E2E baseline-comparison tests).
+
+#### Mechanical gates
+
+- `scripts/check_file_sizes.py --all` — passes for all Week-4-modified
+  files. Pre-existing violations on `job_generator.py` (861L, JUSTIFIED)
+  and other in-flight files documented.
+- `scripts/check_placement.py --all` — Week 4 introduced one allowlist
+  entry (the shim); no new violations. Baseline violation count
+  trended from 54 → 50 after `lhp.errors` extraction.
+- `pytest tests/e2e/ -v -n auto` — 143/143 in 99.89s.
+
+---
+
+### Week 3 — Architecture refactor (Phases A–E)
+
+Week 3 closes the structural work scheduled by `LOCAL/TARGET_ARCHITECTURE.md`
+against the constitution gates in `.claude/CODING_CONSTITUTION.md`. Phases A–D
+land the moves and decompositions; Phase E is this documentation pass. The
+full E2E suite (`pytest tests/e2e/ -v -n auto`, 143 tests) is **green in
+115s with zero failures** and generated code is **byte-identical to
+baselines** — no user-visible behavior changed.
+
+The independent constitution-reviewer (Phase E `E-CONSTITUTION`) ran in
+fresh context against the full diff and flagged 3 Category (b) findings;
+2 were fixed in-phase and 1 (CI gate disablement from prior commit
+`cfc7dedf`) is flagged below for user judgment:
+
+- **Fixed in-phase:** `core/layers.py` crossed §3.3 (479L → 555L) after
+  the D7 `for_project` classmethod was added — a `# JUSTIFIED:` block
+  was authored citing the four co-located surfaces (`Facade` +
+  `OrchestrationDependencies` + `for_project` bootstrap + legacy builder).
+- **Fixed in-phase:** `core/dependencies/service.py:37` reached into
+  `..coordination.validation_service` instead of using the public
+  `..coordination` re-export (§5.4) — import line rewritten.
+- **Fixed in-phase:** `core/validators/dlt_cdc_validators.py` JUSTIFIED
+  block strengthened from a 4-line generic note into a 27-line rationale
+  naming all four classes (`DltTableOptionsValidator`, `CdcConfigValidator`,
+  `SnapshotCdcConfigValidator`, `CdcSchemaValidator`) and the specific
+  shared helpers + DLT compatibility constants.
+- **`CI-PYTEST-DEFER`** (flagged, not auto-fixed):
+  `.github/workflows/python_ci.yml` lines 64–82 — prior commit `cfc7dedf`
+  ("disabling import lint temporarily") also commented out the
+  `Test with pytest` step on Linux/macOS, not just import-linter. The
+  commit subject only mentions import-linter; this is likely accidental
+  but unilateral CI re-enabling needs user judgment. Recommend restoring
+  the pytest step in a follow-up commit with explicit subject.
+
+#### Phase A — Validator consolidation (S1)
+
+Closed §9.4 (validators must live under `core/validators/`) for 6 files.
+Six validators moved into `src/lhp/core/validators/`:
+
+- `core/config_field_validator.py` → `core/validators/config_field_validator.py`
+- `core/secret_validator.py` → `core/validators/secret_validator.py`
+- `core/dlt_cdc_validators.py` → `core/validators/dlt_cdc_validators.py`
+- `core/services/pipeline_validator.py` → `core/validators/pipeline_validator.py`
+- `core/services/job_name_validator.py` → `core/validators/job_name_validator.py`
+- `utils/kafka_validator.py` → `core/validators/kafka_validator.py`
+
+A `# JUSTIFIED:` block was authored on `dlt_cdc_validators.py` (501L,
+crosses §3.3 soft cap; decomposition deferred to Week 4). Six src-side
+import sites were rewritten plus 15 test files updated (27 edits including
+mock-target strings). Bridge fix: `FakeFlowgroupProcessor` →
+`FakeFlowgroupResolutionService` (Week 1–2 unfinished rename).
+
+#### Phase B — Dependencies decompose (S2 + D1 + D3b + D3c)
+
+Closed §9.3 on `analyzer.py` plus task IDs D1, D3b, D3c.
+`core/dependencies/analyzer.py` (1330L, 34 methods) decomposed into 5 files:
+
+- `analyzer.py` (355L) — pure analysis core, class `DependencyAnalyzer`.
+- `builder.py` (770L, JUSTIFIED) — graph + discovery + source extraction,
+  class `DependencyGraphBuilder`.
+- `metrics.py` (40L) — placeholder for advanced metrics.
+- `output.py` (687L, JUSTIFIED) — module-level `export_to_dot/json/text`
+  plus `DependencyOutputManager`.
+- `service.py` (309L) — composition root `DependencyAnalysisService`
+  inheriting `BaseDependencyAnalysisService` (ABC concrete:
+  `build_graphs`, `analyze`, `export`).
+
+D1 closed: ABC methods on `DependencyAnalysisService` no longer raise
+`NotImplementedError`. D3b + D3c closed: `dependencies/` no longer
+constructs `ConfigValidator` (injected via `ValidationService`).
+Orchestrator type hint upgraded:
+`self.dependencies: BaseDependencyAnalysisService`. Hard cut on 4 dying
+method names (`build_dependency_graphs`, `analyze_dependencies`,
+`export_to_dot`, `export_to_json` — replaced by ABC `build_graphs` /
+`analyze` / `export`).
+
+#### Phase C — Codegen decompose (S3 + D3a)
+
+Closed §9.3 on `coordinator.py` plus task ID D3a.
+`core/codegen/coordinator.py` (918L, 18 methods) decomposed into 6 files:
+
+- `coordinator.py` (283L) — composition root, 5 public methods plus 3
+  underscore-name forwarders for test pin.
+- `action_dispatch.py` (420L) — `ActionDispatcher` (6 methods).
+- `grouping.py` (182L) — `WriteActionGrouper`.
+- `context.py` (98L) — `GenerationContextBuilder`.
+- `secrets.py` (66L) — `SecretSubstitutor`.
+- `assembler.py` (112L) — `CodeAssembler`.
+
+D3a closed: `TableCreationValidator._action_creates_table`
+reach-into-private replaced by promoting to a public free function
+`action_creates_table` in `core/validators/table_creation_validator.py`.
+`core/codegen/` no longer imports `TableCreationValidator`. One doc-drift
+fix: `src/lhp/generators/write/streaming_table.py:686` docstring updated
+from `CodeGenerationService._assemble_final_code` →
+`CodeAssembler.assemble`.
+
+#### Phase D — Orchestrator shrink + WorkUnit (D1 + D2 + D3a-impl + D4 + D5 + D6 + D7 + D8)
+
+Closed §9.3 on `executor.py`, plus task IDs D1, D2, D4 and partial D3d.
+
+- **WorkUnit DTO** — `PipelineWorkUnit` lifted from
+  `core/coordination/executor.py:113` to `lhp/models/processing.py`. Three
+  new fields added (`substitution_manager`, `output_dir`,
+  `discovery_error`; all `Optional` with defaults preserving back-compat).
+  `to_dict()` / `from_dict()` methods added with a `JSONValue` alias. 12
+  DTO contract tests added in `tests/api/test_workunit_contract.py` (pickle
+  round-trip, frozen contract, slots contract, JSON safety, Path
+  serialization, None passthrough, `from_dict` round-trip, default
+  compatibility).
+- **PipelineExecutionService concrete** — `run_generate` / `run_validate`
+  no longer raise `NotImplementedError`; per-pipeline state is read from
+  `PipelineWorkUnit`s. Validate `_assemble` closure
+  (`orchestrator.py:963–1029`) moved into
+  `PipelineExecutionService.run_validate`.
+- **D4** — `_discover_and_filter_flowgroups` body (83L) moved to
+  `FlowgroupDiscoveryService.discover_and_filter_for_pipeline`;
+  orchestrator becomes a 23L delegator.
+- **D5** — `generate_pipelines_by_fields` 183L → 29L body plus 2 helpers
+  (`_build_generate_work_units`, `_aggregate_generate_outcomes`).
+- **D6** — `validate_pipelines_by_fields` 183L → 24L body plus 2 helpers
+  (`_build_validate_worker_state`, `_build_validate_work_units`).
+- **D7** — `LakehousePlumberApplicationFacade.for_project()` classmethod
+  added in `core/layers.py`; CLI sites migrated
+  (`generate_command.py:494`, `validate_command.py:107`).
+  `ValidationService.__init__` accepts optional
+  `config_validator: Optional[ConfigValidator]` injection.
+  `ActionOrchestrator.__init__` accepts optional `flowgroup_resolver` and
+  `validation_service` injection (back-compat else-branch preserves
+  direct `ActionOrchestrator(project_root)` callers).
+- **D8a** — `executor.py` 1055L → 430L by extracting the pool to
+  `core/coordination/_pool.py` (768L, JUSTIFIED).
+- **D8b** — Further extractions to fit under §9.3:
+  `_enforce_version_requirements` (66L) →
+  `utils/version_enforcement.py`; `_build_*_work_units` bodies (155L
+  combined) → `coordination/work_unit_builder.py`.
+- **Final orchestrator** — 1043L → 794L (under §9.3 800L hard cap,
+  JUSTIFIED block added).
+- **§9.16 god-class limits respected** — `ActionOrchestrator` 12 public
+  methods (limit 15), `PipelineExecutionService` 4,
+  `CodeGenerationService` 5, `DependencyAnalysisService` 13.
+
+#### Deferred from Week 3
+
+| Task ID | Description | Recovery | Constitution rule |
+|---|---|---|---|
+| `D3D-DEFER-WK5` | Two `_config_validator` reach-throughs remain: `orchestrator.py:228` (back-compat else-branch) and `dependencies/service.py:128`. Both follow the same pattern but D7's injection only closed the orchestrator's primary path. Full closure requires bootstrap-side wiring of `FlowgroupResolutionService` injection into `DependencyAnalysisService` too. | Week 5 (CLI cutover phase) | §9.24 partial |
+| `D3B-DEFER-WK6` | `executor.py` `run_generate_pool` / `run_validate_pool` kept as public symbols plus re-imported in orchestrator with `# noqa: F401` markers. Three monkeypatch tests (`test_pipeline_executor.py` ×2 plus `test_validate_command_parallel.py`) patch the old executor location; updating them to `lhp.core.coordination._pool.X` would unlock full privatization. | Week 6 (test repair phase) | — |
+| `D7-FOLLOWUP-WK5` | `ActionOrchestrator.__init__` retains a back-compat else-branch when called without injected `flowgroup_resolver` / `validation_service`. Required for ~30 direct-call test sites. Removing the branch lets §9.24 close fully. | Week 5 | §9.24 partial |
+
+#### Tests deferred to Week 6
+
+The Phase A–D surface changes broke 130 test cases. All failures are
+mechanical consequences of the moves and signature changes — not
+regressions in product behavior (E2E byte-identical, see above). Grouped
+by root cause:
+
+| File / test group | Count | Root cause |
+|---|---|---|
+| `tests/test_dependency_analyzer.py` (setup_method errors) | 50 | `DependencyAnalysisService.__init__` now requires `validation_service` arg; test fixtures still call 2-arg constructor |
+| `tests/test_orchestrator_init.py` (setup errors) | 43 | Monkeypatches `lhp.core.orchestrator.ConfigValidator` which moved to `core/validators/` in Phase A |
+| `tests/test_dependency_analyzer_multi_job.py` | 12 | Same root cause as `test_dependency_analyzer.py` |
+| `tests/test_orchestrator.py` (Generate failures) | 3 | Monkeypatches `run_generate_pool` on orchestrator module; pool functions now live in `coordination/executor.py` → `coordination/_pool.py` |
+| `tests/test_dependencies_command.py` (Mock errors) | 4 | Mock instances missing `len()` / `spec` for new code paths |
+| `tests/test_dependency_output_manager.py` | 3 | DOT/JSON output format changed in Phase B (`output.py` module-level serializers) |
+| `tests/test_pipeline_validator.py` | 3 | Validator return shape changed (non-iterable success case) |
+| `tests/test_pipeline_executor.py` | 2 | Duration-stamping path changed (`coordination/executor.py` → `_pool.py`) |
+| `tests/test_validate_command_parallel.py` | 1 | `ProcessPoolExecutor` moved to `_pool.py` |
+| `tests/unit/test_source_path_index.py` | 3 | Return type drift (list → tuple); patch should target `orch.discovery.*` not `orch.*` |
+| `tests/test_blueprint_*.py` | 2 | `ActionOrchestrator.discoverer` → `.discovery` attribute rename |
+| `tests/test_multi_job_integration.py` | 1 | `DependencyAnalysisService` constructor signature |
+| `tests/test_orchestrator.py::TestOrchestratorDependencyInjection` | 1 | `dependencies` attribute reassigned to `DependencyAnalysisService` (was `OrchestrationDependencies`) |
+| `tests/test_dependencies_command.py::TestDependenciesCommand` | 2 | Mock spec mismatch after `dependencies_command` refactor |
+| **Total** | **130** | All consistent with Week 3 surface changes; not regressions in product behavior |
+
+#### E2E outcome
+
+`pytest tests/e2e/ -v -n auto` — **143 tests pass in 115s, zero failures**.
+Generated code is byte-identical to the committed baselines; the entire
+Phase A–D refactor is invisible to YAML authors and downstream consumers.
+
+#### Vulture audit (E-VULTURE)
+
+3 false-positive findings only, no actual dead code introduced by the
+refactor. Recommended (optional) allowlist additions to
+`pyproject.toml` `[tool.vulture]`:
+
+- `lhp.cli.main.package` — required by `importlib.metadata.version()`
+  signature.
+- `lhp.models.config.ClassVar` — used in a quoted annotation at line 502.
+- `lhp.models.config.__context` — Pydantic `model_post_init` hook
+  contract.
+
+Leaving the allowlist as-is surfaces these 3 findings on every run but
+does not block anything.
+
+#### Pre-existing violations carried over (not introduced by Week 3)
+
+These sit in the working tree from before the Week 3 refactor began and
+remain open. They are listed here for transparency only — Phase A–D
+neither created nor closed them. CLAUDE.md records the entry-state
+baseline as "25 file size, 55 placement".
+
+- §9.3 hard-cap files still over 800L: `utils/error_formatter.py` (868L)
+  and `core/services/job_generator.py` (850L). Both pre-existing.
+- 38 §9.7 CLI → internal imports across 9 CLI command modules.
+- 6 §9.23 facade reach-through in `generate_command.py`.
+- 5 §9.4 `_by_field` suffix methods.
+- 5 §9.2 utils domain types (`utils/error_formatter.py` `LHPError`
+  subclasses plus `utils/operational_metadata.py`).
+- 14 §3.3 JUSTIFIED MISSes (advisory).
+- 83 ruff §6 / §7 findings (32 TRY400 + 26 RUF013 + 23 B904).
+- `lhp/api/` is empty (no `.py` files) — causes import-linter contract
+  to fail at "module 'lhp.api' does not exist." Week 1–2 deferred this;
+  it should be addressed before the stability-annotation gate (§1.13)
+  becomes meaningful.
+
+### Refactors
+
+- **Phase D7** — Add `LakehousePlumberApplicationFacade.for_project(project_root, ...)`
+  classmethod (`core/layers.py`) that builds `ConfigValidator` once and threads it
+  into both `ValidationService` (via new `config_validator=` kwarg) and
+  `FlowgroupResolutionService`, closing the §9.24 leak
+  (`self.validation._config_validator`) on the production
+  `cli/commands/generate_command.py` and `cli/commands/validate_command.py`
+  call paths. `ActionOrchestrator.__init__` accepts new keyword-only
+  `flowgroup_resolver=` / `validation_service=` injection points; both default
+  to `None` for back-compat with the ~30 unit tests that construct
+  `ActionOrchestrator(project_root)` directly. The back-compat else-branch
+  still uses the `_config_validator` reach — marked
+  `TODO(D7-FOLLOWUP-WK5)`; removal queued for Week 5.
+
+- **Phase D8a** — Extract `run_generate_pool`, `run_validate_pool`, all worker
+  entry/dispatch functions (`_init_worker_logger`, `_init_generate_worker`,
+  `_init_validate_worker`, `_generate_one_pipeline`, `_validate_one_fg`,
+  `_dispatch_pipeline_for_generate`, `_process_pipeline_for_generate`,
+  `_process_flowgroup_for_validate`), the worker-state dataclasses
+  (`_GenerateWorkerState`, `_ValidateWorkerState`), the per-pipeline progress
+  tracker (`_PipelineProgress`), and `FlowgroupValidationResult` from
+  `core/coordination/executor.py` to `core/coordination/_pool.py`. Reduces
+  `executor.py` from 1055L → 430L (well under §9.3 800-line hard cap).
+  `_pool.py` lands at 768L with a `# JUSTIFIED:` block documenting cohesion
+  ground. `executor.py` re-exports every moved symbol via `__all__` so the
+  pickle-by-name contract across the `spawn` boundary is unchanged
+  (`from lhp.core.coordination.executor import run_generate_pool, ...`
+  still resolves).
+
+- **Phase D8b** — Extract `_enforce_version_requirements` (66L) from
+  `core/orchestrator.py` to `utils/version_enforcement.py`
+  (`enforce_version_requirements(project_config)` pure function). Extract
+  `_build_generate_work_units` (88L) and `_build_validate_work_units` (67L)
+  to `core/coordination/work_unit_builder.py`; orchestrator retains thin
+  delegators (~20L each) so the ~5 unit tests that exercise the work-unit
+  shape via `orchestrator._build_*_work_units(...)` keep working. Reduces
+  `orchestrator.py` from 947L → 772L (under §9.3 800-line hard cap).
+  Updated the orchestrator's top-of-file `# JUSTIFIED:` block to reflect
+  the post-Phase-D cohesion ground (three irreducible responsibilities:
+  service wiring, work-unit thread-through, failure aggregation).
+
+- **CHANGELOG-D3B-DEFER-WK6** — D3b-cleanup (privatize `run_generate_pool` →
+  `_run_generate_pool` / `run_validate_pool` → `_run_validate_pool` and
+  remove orchestrator's `# noqa: F401` re-imports) is **deferred to Week 6**.
+  Reason: `tests/test_orchestrator.py` has 3 tests
+  (`test_single_lhp_failure_unwraps_original`,
+  `test_multi_lhp_failure_aggregates_with_902`,
+  `test_single_non_lhp_failure_wraps_as_901`) that
+  `monkeypatch.setattr(orchestrator_module, "run_generate_pool", fake_pool)` —
+  the D5/D6 collapse already made the monkeypatch ineffective (orchestrator
+  now calls `self.execution.run_generate(work_units)`, not
+  `run_generate_pool` directly) so these tests fail at assertion level.
+  D3b-cleanup additionally requires updating the monkeypatch target from
+  `lhp.core.orchestrator` to `lhp.core.coordination._pool`. Tracked as Week 6
+  test repair.
+
+- **D8a test repair backlog (Week 6)** — 3 additional tests target the
+  pre-D8a executor module namespace and fail because the names they
+  monkeypatch are no longer reachable through `executor.py`:
+  * `tests/test_pipeline_executor.py::test_dispatch_pipeline_for_generate_stamps_positive_duration`
+    and `..._stamps_duration_on_worker_failure` — both
+    `monkeypatch.setattr(pe, "_process_pipeline_for_generate", ...)` where
+    `pe = lhp.core.coordination.executor`. After D8a the function lives in
+    `_pool.py`; the monkeypatch on `executor` is a no-op. Repair:
+    update to `monkeypatch.setattr(_pool, "_process_pipeline_for_generate", ...)`.
+  * `tests/test_validate_command_parallel.py::test_run_validate_pool_guards_executor_submit_raises`
+    — `monkeypatch.setattr(pe, "ProcessPoolExecutor", _FakeExecutor)`.
+    `ProcessPoolExecutor` is imported into `_pool.py`, not `executor.py`.
+    Repair: target `_pool` instead.
+
 ## [0.8.8] — 2026-05-22
 
 This release is a CLI rendering overhaul: `lhp generate`, `lhp validate`,

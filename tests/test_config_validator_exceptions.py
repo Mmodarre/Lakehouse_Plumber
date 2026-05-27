@@ -4,7 +4,7 @@ Exception handling tests for ConfigValidator.
 
 import pytest
 from unittest.mock import patch
-from lhp.core.validator import ConfigValidator
+from lhp.core.validators import ConfigValidator
 from lhp.models.config import FlowGroup, Action, ActionType, TransformType
 
 

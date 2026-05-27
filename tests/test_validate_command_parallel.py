@@ -186,8 +186,8 @@ def test_run_validate_pool_guards_executor_submit_raises(monkeypatch):
     """
     from concurrent.futures import Future
 
-    from lhp.core import pipeline_executor as pe
-    from lhp.core.pipeline_executor import (
+    from lhp.core.coordination import executor as pe
+    from lhp.core.coordination.executor import (
         FlowgroupValidationResult,
         PipelineValidationOutcome,
         _ValidateWorkerState,

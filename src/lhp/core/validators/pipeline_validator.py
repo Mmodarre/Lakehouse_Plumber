@@ -1,0 +1,258 @@
+"""Pipeline validation service for LakehousePlumber."""
+
+import logging
+from pathlib import Path
+from typing import List, Optional, Tuple
+
+from ...models.config import FlowGroup
+from ...errors import ErrorCategory, LHPError, LHPValidationError
+from ...utils.substitution import EnhancedSubstitutionManager
+
+
+class PipelineValidator:
+    """
+    Service for validating pipeline configurations and business rules.
+
+    Coordinates existing validation infrastructure and provides pipeline-level
+    validation methods for the orchestration layer.
+    """
+
+    def __init__(
+        self, project_root: Path, config_validator=None, secret_validator=None
+    ):
+        """
+        Initialize pipeline validator.
+
+        Args:
+            project_root: Root directory of the LakehousePlumber project
+            config_validator: Config validator for flowgroup validation
+            secret_validator: Secret validator for secret reference validation
+        """
+        self.project_root = project_root
+        self.config_validator = config_validator
+        self.secret_validator = secret_validator
+        self.logger = logging.getLogger(__name__)
+
+    def validate_for_pipeline(
+        self,
+        pipeline_filter: Optional[str] = None,
+        env: str = "dev",
+        discoverer=None,
+        processor=None,
+    ) -> Tuple[List[str], List[str]]:
+        """
+        Validate pipeline configuration without generating code.
+
+        When ``pipeline_filter`` is supplied, only flowgroups whose
+        ``pipeline`` field equals that value are validated. When it is
+        ``None`` (the default), every flowgroup discoverable by
+        ``discoverer`` is validated.
+
+        Args:
+            pipeline_filter: Optional pipeline field value used to scope
+                validation. ``None`` means validate all flowgroups.
+            env: Environment to validate for.
+            discoverer: FlowgroupDiscoveryService used to enumerate
+                flowgroups. Required — if ``None`` the caller receives a
+                single-element error list explaining the missing
+                dependency.
+            processor: FlowgroupResolutionService for processing
+                flowgroups. Optional; when absent only basic structural
+                validation is run.
+
+        Returns:
+            Tuple of (errors, warnings).
+        """
+        errors: List[str] = []
+        warnings: List[str] = []
+
+        try:
+            # Discover flowgroups — by pipeline field when scoped, otherwise all.
+            if discoverer is None:
+                self.logger.warning("No discoverer provided, cannot validate pipeline")
+                return ["No flowgroup discoverer available"], warnings
+
+            if pipeline_filter is not None:
+                flowgroups = discoverer.discover_flowgroups_by_pipeline_field(
+                    pipeline_filter
+                )
+            else:
+                flowgroups = discoverer.discover_all_flowgroups()
+
+            if not flowgroups:
+                if pipeline_filter is not None:
+                    errors.append(
+                        f"No flowgroups found for pipeline field: {pipeline_filter}"
+                    )
+                else:
+                    errors.append("No flowgroups found")
+                return errors, warnings
+
+            # Load substitution manager
+            substitution_file = self.project_root / "substitutions" / f"{env}.yaml"
+            substitution_mgr = EnhancedSubstitutionManager(substitution_file, env)
+
+            # Validate each flowgroup
+            for flowgroup in flowgroups:
+                try:
+                    if processor:
+                        # Use processor to validate flowgroup (includes templates, presets, substitutions)
+                        processor.process_flowgroup(flowgroup, substitution_mgr)
+                    else:
+                        # Fallback: basic validation without processing
+                        self._validate_flowgroup_basic(flowgroup)
+                    # Note: Validation happens in process_flowgroup method
+
+                except Exception as e:
+                    self.logger.debug(
+                        f"Flowgroup '{flowgroup.flowgroup}' validation failed",
+                        exc_info=True,
+                    )
+                    errors.append(f"Flowgroup '{flowgroup.flowgroup}': {e}")
+
+        except Exception as e:
+            self.logger.debug("Pipeline validation failed", exc_info=True)
+            errors.append(f"Pipeline validation failed: {e}")
+
+        return errors, warnings
+
+    def validate_pipeline_by_directory(
+        self, pipeline_name: str, env: str, discoverer=None, processor=None
+    ) -> Tuple[List[str], List[str]]:
+        """
+        Validate pipeline configuration by directory name without generating code.
+
+        Args:
+            pipeline_name: Name of the pipeline directory to validate
+            env: Environment to validate for
+            discoverer: FlowgroupDiscoveryService service for finding flowgroups
+            processor: FlowgroupResolutionService for processing flowgroups
+
+        Returns:
+            Tuple of (errors, warnings)
+        """
+        errors = []
+        warnings = []
+
+        try:
+            pipeline_dir = self.project_root / "pipelines" / pipeline_name
+
+            # Discover flowgroups in pipeline directory
+            if discoverer:
+                flowgroups = discoverer._legacy_discover_flowgroups_by_dir(pipeline_dir)
+            else:
+                # Fallback for backward compatibility
+                errors.append("No flowgroup discoverer available")
+                return errors, warnings
+
+            # Load substitution manager
+            substitution_file = self.project_root / "substitutions" / f"{env}.yaml"
+            substitution_mgr = EnhancedSubstitutionManager(substitution_file, env)
+
+            # Validate each flowgroup
+            for flowgroup in flowgroups:
+                try:
+                    if processor:
+                        # Use processor to validate flowgroup
+                        processor.process_flowgroup(flowgroup, substitution_mgr)
+                    else:
+                        # Fallback: basic validation
+                        self._validate_flowgroup_basic(flowgroup)
+                    # Validation happens in process_flowgroup
+
+                except Exception as e:
+                    self.logger.debug(
+                        f"Flowgroup '{flowgroup.flowgroup}' validation failed",
+                        exc_info=True,
+                    )
+                    errors.append(f"Flowgroup '{flowgroup.flowgroup}': {e}")
+
+        except Exception as e:
+            self.logger.debug("Pipeline validation failed", exc_info=True)
+            errors.append(f"Pipeline validation failed: {e}")
+
+        return errors, warnings
+
+    def _validate_flowgroup_basic(self, flowgroup: FlowGroup) -> None:
+        """
+        Basic flowgroup validation without full processing.
+
+        Args:
+            flowgroup: FlowGroup to validate
+
+        Raises:
+            ValueError: If validation fails
+        """
+        if self.config_validator:
+            try:
+                errors = self.config_validator.validate_flowgroup(flowgroup)
+                if errors:
+                    raise LHPValidationError(
+                        category=ErrorCategory.VALIDATION,
+                        code_number="009",
+                        title="FlowGroup validation failed",
+                        details="Flowgroup validation failed:\n"
+                        + "\n\n".join(str(e) for e in errors),
+                        suggestions=[
+                            "Check flowgroup configuration for the errors listed above",
+                            "Run 'lhp validate' for detailed diagnostics",
+                        ],
+                        context={
+                            "FlowGroup": flowgroup.flowgroup,
+                            "Error Count": len(errors),
+                        },
+                    )
+            except LHPError:
+                # Re-raise LHPError as-is (it's already well-formatted)
+                raise
+        else:
+            # Minimal validation if no config validator available
+            if not flowgroup.actions:
+                raise LHPValidationError(
+                    category=ErrorCategory.VALIDATION,
+                    code_number="009",
+                    title="Empty flowgroup",
+                    details="Flowgroup must have at least one action.",
+                    suggestions=[
+                        "Add at least one action to the flowgroup",
+                        "Check the flowgroup YAML file for missing actions",
+                    ],
+                    context={"FlowGroup": flowgroup.flowgroup},
+                )
+
+    def validate_action_dependencies(self, actions: List) -> List[str]:
+        """
+        Validate action dependencies and relationships.
+
+        Args:
+            actions: List of actions to validate
+
+        Returns:
+            List of validation errors
+        """
+        if self.config_validator and hasattr(
+            self.config_validator, "dependency_resolver"
+        ):
+            return self.config_validator.dependency_resolver.validate_relationships(
+                actions
+            )
+        return []
+
+    def validate_table_creation_rules(self, actions: List) -> List[str]:
+        """
+        Validate table creation rules for write actions.
+
+        Args:
+            actions: List of actions to validate
+
+        Returns:
+            List of validation errors
+        """
+        if self.config_validator:
+            try:
+                # Use existing validator logic
+                return self.config_validator._validate_table_creation_rules(actions)
+            except AttributeError:
+                # Method might not exist or have different name
+                self.logger.warning("Table creation validation method not available")
+        return []

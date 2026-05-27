@@ -3,7 +3,7 @@
    CDC mode: Optionally create the streaming table (honoring create_table),
    then emit one dp.create_auto_cdc_flow per contributing action.
    Multiple CDC actions targeting the same table combine into this loop via
-   CodeGenerator.create_combined_write_action -> action_metadata.
+   CodeGenerationService.create_combined_write_action -> action_metadata.
 #}
 {% if create_table %}
 # Create the streaming table for CDC

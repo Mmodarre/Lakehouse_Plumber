@@ -9,6 +9,40 @@ from ...models.config import Action, ActionType, FlowGroup, WriteTargetType
 logger = logging.getLogger(__name__)
 
 
+def action_creates_table(action: Action) -> bool:
+    """Return True if this write action creates its target table.
+
+    Public-API counterpart to ``TableCreationValidator._action_creates_table``;
+    used by the codegen ``grouping`` module to pick the table-creator action
+    in a combined-write group without reaching into the validator's private
+    surface.
+
+    Rules (identical to the private predicate):
+    - ``MaterializedView`` write targets always create their table.
+    - ``snapshot_cdc`` mode always creates its table.
+    - Otherwise, falls back to the explicit ``create_table`` field
+      (default True if absent).
+    """
+    if not action.write_target:
+        return False
+
+    if isinstance(action.write_target, dict):
+        write_type = action.write_target.get("type")
+        if write_type == "materialized_view":
+            return True
+        mode = action.write_target.get("mode", "standard")
+        if mode == "snapshot_cdc":
+            return True
+        return action.write_target.get("create_table", True)
+    else:
+        if action.write_target.type == WriteTargetType.MATERIALIZED_VIEW:
+            return True
+        mode = getattr(action.write_target, "mode", "standard")
+        if mode == "snapshot_cdc":
+            return True
+        return action.write_target.create_table
+
+
 class TableCreationValidator:
     """Validator for table creation rules across flowgroups."""
 
@@ -77,7 +111,7 @@ class TableCreationValidator:
                 creator_names = [f"{c['flowgroup']}.{c['action']}" for c in creators]
 
                 # Create a proper LHPError for multiple table creators
-                from ...utils.error_formatter import ErrorCategory, LHPConfigError
+                from ...errors import ErrorCategory, LHPConfigError
 
                 # Build example configuration string
                 parts = table_name.split(".")
@@ -153,28 +187,6 @@ class TableCreationValidator:
         return f"{catalog}.{schema}.{table}"
 
     def _action_creates_table(self, action: Action) -> bool:
-        """Check if an action creates the table (create_table: true)."""
-        if not action.write_target:
-            return False
-
-        # MaterializedView uses @dp.materialized_view() decorator, so it always creates its own table
-        if isinstance(action.write_target, dict):
-            write_type = action.write_target.get("type")
-            if write_type == "materialized_view":
-                return True
-
-            # Snapshot CDC always creates its own table (dp.create_auto_cdc_from_snapshot_flow)
-            mode = action.write_target.get("mode", "standard")
-            if mode == "snapshot_cdc":
-                return True
-            return action.write_target.get("create_table", True)
-        else:
-            # For WriteTarget objects, check type first
-            if action.write_target.type == WriteTargetType.MATERIALIZED_VIEW:
-                return True
-
-            # Snapshot CDC always creates its own table
-            mode = getattr(action.write_target, "mode", "standard")
-            if mode == "snapshot_cdc":
-                return True
-            return action.write_target.create_table
+        """Internal forwarder kept for back-compat — calls module-level
+        ``action_creates_table``."""
+        return action_creates_table(action)

@@ -7,8 +7,8 @@ import logging
 
 import pytest
 
-from lhp.core.services.namespace_normalizer import normalize_namespace_fields
-from lhp.utils.error_formatter import LHPConfigError
+from lhp.core.processing.namespace_normalizer import normalize_namespace_fields
+from lhp.errors import LHPConfigError
 
 
 class TestNormalizeWriteTarget:

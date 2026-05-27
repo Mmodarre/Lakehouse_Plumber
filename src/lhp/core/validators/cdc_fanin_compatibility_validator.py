@@ -18,7 +18,7 @@ from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from ...models.config import Action, ActionType, FlowGroup
-from ...utils.error_formatter import ErrorCategory, LHPConfigError
+from ...errors import ErrorCategory, LHPConfigError
 
 logger = logging.getLogger(__name__)
 

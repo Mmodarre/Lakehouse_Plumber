@@ -15,7 +15,7 @@ Key features:
 from pathlib import Path
 from typing import List, Optional, Union
 
-from .error_formatter import ErrorCategory, ErrorFormatter, LHPFileError
+from ..errors import ErrorCategory, ErrorFormatter, LHPFileError
 
 
 def is_file_path(value: str) -> bool:

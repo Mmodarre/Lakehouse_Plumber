@@ -4,7 +4,7 @@ import pytest
 import tempfile
 import os
 from pathlib import Path
-from lhp.core.orchestrator import ActionOrchestrator
+from lhp.core.coordination import ActionOrchestrator
 from lhp.models.config import FlowGroup, Action, ActionType
 from lhp.generators.test.test_generator import TestActionGenerator
 

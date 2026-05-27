@@ -10,13 +10,16 @@ from io import StringIO
 
 from rich.console import Console
 
-from lhp.utils.error_formatter import ErrorCategory, LHPError
+from lhp.cli.error_panel import render_error_panel
+from lhp.errors import ErrorCategory, LHPError
 
 
 def _render(error: LHPError) -> str:
     """Render an LHPError to plain text using a fixed-width no-color Console."""
     buf = StringIO()
-    Console(file=buf, force_terminal=False, no_color=True, width=80).print(error)
+    Console(file=buf, force_terminal=False, no_color=True, width=80).print(
+        render_error_panel(error)
+    )
     return buf.getvalue()
 
 

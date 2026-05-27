@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from lhp.utils.error_formatter import LHPConfigError, LHPValidationError
+from lhp.errors import LHPConfigError, LHPValidationError
 from lhp.utils.substitution import EnhancedSubstitutionManager, SecretReference
 
 

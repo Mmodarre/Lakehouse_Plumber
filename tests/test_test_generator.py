@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import Mock, patch
 from lhp.generators.test.test_generator import TestActionGenerator
-from lhp.core.base_generator import BaseActionGenerator
+from lhp.core.registry import BaseActionGenerator
 from lhp.models.config import Action, ActionType, TestActionType
 
 

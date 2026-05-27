@@ -14,7 +14,8 @@ from unittest.mock import patch
 
 import pytest
 
-from lhp.core.orchestrator import ActionOrchestrator, _auto_max_workers
+from lhp.core.coordination import ActionOrchestrator
+from lhp.core.coordination.orchestrator import _auto_max_workers
 
 
 @pytest.fixture
@@ -95,7 +96,7 @@ def _patch_detected_cpu_count(value: int):
         return patch.object(os, "process_cpu_count", return_value=value)
     if hasattr(os, "sched_getaffinity"):
         return patch.object(os, "sched_getaffinity", return_value=set(range(value)))
-    return patch("lhp.core.orchestrator.os.cpu_count", return_value=value)
+    return patch("lhp.core.coordination.orchestrator.os.cpu_count", return_value=value)
 
 
 @pytest.mark.unit

@@ -9,7 +9,7 @@ from lhp.utils.yaml_loader import (
     load_yaml_documents_all,
     safe_load_yaml_with_fallback,
 )
-from lhp.utils.error_formatter import MultiDocumentError, LHPError, ErrorCategory
+from lhp.errors import MultiDocumentError, LHPError, ErrorCategory
 
 
 class TestLoadYAMLDocumentsAll:

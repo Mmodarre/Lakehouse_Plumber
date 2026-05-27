@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
-from .error_formatter import ErrorCategory, LHPConfigError, LHPError, LHPValidationError
+from ..errors import ErrorCategory, LHPConfigError, LHPError, LHPValidationError
 
 logger = logging.getLogger(__name__)
 

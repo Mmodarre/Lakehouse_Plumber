@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, Mock, mock_open, patch
 import networkx as nx
 import pytest
 
-from lhp.core.services.dependency_output_manager import DependencyOutputManager
+from lhp.core.dependencies.output import DependencyOutputManager
 from lhp.models.dependencies import (
     DependencyAnalysisResult,
     DependencyGraphs,
@@ -245,7 +245,7 @@ class TestDependencyOutputManager:
         result = self.create_mock_analysis_result()
 
         with patch(
-            "lhp.core.services.dependency_output_manager.JobGenerator",
+            "lhp.core.dependencies.output.JobGenerator",
             return_value=mock_job_generator,
         ):
             self.output_manager._save_job_format(
@@ -267,7 +267,7 @@ class TestDependencyOutputManager:
         custom_name = "custom_orchestration_job"
 
         with patch(
-            "lhp.core.services.dependency_output_manager.JobGenerator",
+            "lhp.core.dependencies.output.JobGenerator",
             return_value=mock_job_generator,
         ):
             self.output_manager._save_job_format(

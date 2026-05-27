@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from lhp.core.services.monitoring_pipeline_builder import (
+from lhp.core.coordination.monitoring_pipeline_builder import (
     DEFAULT_MV_SQL,
     JOBS_STATS_FUNCTION_NAME,
     JOBS_STATS_MODULE_PATH,

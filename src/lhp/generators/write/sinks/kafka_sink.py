@@ -4,7 +4,7 @@ import logging
 from typing import Any, Dict
 
 from ....models.config import Action
-from ....utils.kafka_validator import KafkaOptionsValidator
+from ....core.validators.kafka_validator import KafkaOptionsValidator
 from .base_sink import BaseSinkWriteGenerator
 
 logger = logging.getLogger(__name__)

@@ -1,7 +1,7 @@
 """Tests for ActionRegistry with test action support."""
 
 import pytest
-from lhp.core.action_registry import ActionRegistry
+from lhp.core.registry import ActionRegistry
 from lhp.models.config import ActionType, TestActionType
 from lhp.generators.test.test_generator import TestActionGenerator
 
@@ -44,7 +44,7 @@ class TestActionRegistry:
     
     def test_registry_test_action_invalid_type(self):
         """Test that registry raises error for invalid test type."""
-        from lhp.utils.error_formatter import LHPError
+        from lhp.errors import LHPError
         
         registry = ActionRegistry()
         

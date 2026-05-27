@@ -4,7 +4,7 @@ import logging
 
 import pytest
 
-from lhp.core.secret_validator import SecretValidator
+from lhp.core.validators.secret_validator import SecretValidator
 from lhp.utils.substitution import SecretReference
 
 
@@ -196,7 +196,7 @@ class TestSecretValidator:
             SecretReference(scope="myscope", key="mykey"),
         ]
 
-        with caplog.at_level(logging.WARNING, logger="lhp.core.secret_validator"):
+        with caplog.at_level(logging.WARNING, logger="lhp.core.validators.secret_validator"):
             errors = validator.validate_secret_references(refs)
 
         assert any("Duplicate secret reference" in record.message for record in caplog.records)

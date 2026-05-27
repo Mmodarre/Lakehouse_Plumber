@@ -6,7 +6,7 @@ in error_formatter.py that caused problems on Windows with older Python versions
 """
 
 import pytest
-from lhp.utils.error_formatter import ErrorCategory, LHPError
+from lhp.errors import ErrorCategory, LHPError
 
 
 class TestFStringCompatibility:
@@ -15,12 +15,12 @@ class TestFStringCompatibility:
     def test_error_formatter_import(self):
         """Test that error_formatter can be imported without syntax errors."""
         # This import should work on all supported Python versions (3.8+)
-        from lhp.utils.error_formatter import ErrorFormatter
+        from lhp.errors import ErrorFormatter
         assert ErrorFormatter is not None
 
     def test_unknown_type_with_suggestion_method_exists(self):
         """Test that the problematic method exists and can be called."""
-        from lhp.utils.error_formatter import ErrorFormatter
+        from lhp.errors import ErrorFormatter
         
         # This method contains the f-string that was causing issues
         method = getattr(ErrorFormatter, 'unknown_type_with_suggestion', None)
@@ -28,7 +28,7 @@ class TestFStringCompatibility:
 
     def test_unknown_type_with_suggestion_works(self):
         """Test that the f-string formatting works correctly."""
-        from lhp.utils.error_formatter import ErrorFormatter
+        from lhp.errors import ErrorFormatter
         
         # Test the method that had the problematic f-string
         error = ErrorFormatter.unknown_type_with_suggestion(
@@ -45,7 +45,7 @@ class TestFStringCompatibility:
 
     def test_suggestion_formatting_with_quotes(self):
         """Test the specific f-string pattern that was causing issues."""
-        from lhp.utils.error_formatter import ErrorFormatter
+        from lhp.errors import ErrorFormatter
         
         # Test with values that require quotes in the suggestion
         valid_values = ["test'quote", "normal", "another_one"]
@@ -67,7 +67,7 @@ class TestFStringCompatibility:
 
     def test_empty_suggestions_list(self):
         """Test edge case with empty suggestions (no close matches)."""
-        from lhp.utils.error_formatter import ErrorFormatter
+        from lhp.errors import ErrorFormatter
         
         # Use a value that won't match anything
         error = ErrorFormatter.unknown_type_with_suggestion(
@@ -83,7 +83,7 @@ class TestFStringCompatibility:
 
     def test_various_quote_combinations(self):
         """Test different quote combinations that could cause f-string issues."""
-        from lhp.utils.error_formatter import ErrorFormatter
+        from lhp.errors import ErrorFormatter
         
         # Test values with different quote types
         problematic_values = [
@@ -108,7 +108,7 @@ class TestFStringCompatibility:
 
     def test_validator_f_string_patterns(self):
         """Test that validator.py f-string patterns work correctly."""
-        from lhp.core.validator import ConfigValidator
+        from lhp.core.validators import ConfigValidator
         
         # Test that ConfigValidator can be instantiated without f-string errors
         validator = ConfigValidator()

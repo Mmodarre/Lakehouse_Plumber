@@ -15,7 +15,7 @@ from lhp.bundle.exceptions import (
     TemplateError,
     YAMLProcessingError,
 )
-from lhp.utils.error_formatter import ErrorCategory, LHPError
+from lhp.errors import ErrorCategory, LHPError
 
 
 class TestCreateBundleResourceError:

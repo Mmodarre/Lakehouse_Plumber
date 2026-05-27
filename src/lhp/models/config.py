@@ -18,7 +18,7 @@ from pydantic import (  # noqa: E402
     model_validator,
 )
 
-from ..utils.error_formatter import (  # noqa: E402
+from ..errors import (  # noqa: E402
     ErrorCategory,
     LHPValidationError,
 )

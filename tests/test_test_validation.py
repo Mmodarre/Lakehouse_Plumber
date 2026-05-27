@@ -2,8 +2,8 @@
 
 import pytest
 from lhp.models.config import Action, ActionType, TestActionType, ViolationAction
-from lhp.core.validator import ConfigValidator
-from lhp.utils.error_formatter import LHPError
+from lhp.core.validators import ConfigValidator
+from lhp.errors import LHPError
 
 
 class TestTestActionValidation:

@@ -9,7 +9,7 @@ from unittest.mock import patch, Mock
 from lhp.generators.load.cloudfiles import CloudFilesLoadGenerator
 from lhp.models.config import Action
 from lhp.utils.schema_parser import SchemaParser
-from lhp.utils.error_formatter import LHPError
+from lhp.errors import LHPError
 
 
 class TestCloudFilesOptions:

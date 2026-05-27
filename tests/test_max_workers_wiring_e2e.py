@@ -85,7 +85,7 @@ class TestMaxWorkersWiringEndToEnd:
         # ``max_workers=3``. We don't constrain WHICH invocation if the
         # CLI happens to construct an orchestrator more than once — only
         # that the value reached the constructor at least once.
-        from lhp.core import orchestrator as orchestrator_module
+        from lhp.core.coordination import orchestrator as orchestrator_module
 
         original_init = orchestrator_module.ActionOrchestrator.__init__
         captured_calls: List[Tuple[Tuple[Any, ...], Dict[str, Any]]] = []

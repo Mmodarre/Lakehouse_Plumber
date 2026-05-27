@@ -861,7 +861,7 @@ def test_materialized_view_sql_path_file_not_found():
     import tempfile
     from pathlib import Path
 
-    from lhp.utils.error_formatter import LHPError
+    from lhp.errors import LHPError
 
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)

@@ -246,7 +246,7 @@ class TestCLIInitBundleCommand:
             # LHPError rendering will be panelized in Phase 2; the
             # "already exists" string lives verbatim in the LHPError title
             # (init_command.py raises LHPFileError code IO-007). Re-pin
-            # this contract via the new __rich__ snapshot once Phase 2 lands.
+            # this contract via the new render_error_panel snapshot once Phase 2 lands.
             assert "already exists" in result.output
 
     def test_init_bundle_creates_resources_directory(self):

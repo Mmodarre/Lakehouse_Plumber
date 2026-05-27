@@ -12,7 +12,7 @@ import pytest
 from unittest.mock import Mock, patch
 from pathlib import Path
 
-from lhp.core.base_generator import BaseActionGenerator
+from lhp.core.registry import BaseActionGenerator
 from lhp.models.config import Action, ActionType
 
 

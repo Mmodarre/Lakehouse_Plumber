@@ -16,7 +16,7 @@ import yaml
 from click.testing import CliRunner
 
 from lhp.cli.main import cli
-from lhp.core.orchestrator import ActionOrchestrator
+from lhp.core.coordination import ActionOrchestrator
 
 
 class TestPipelineFieldOutputStructure:

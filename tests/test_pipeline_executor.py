@@ -31,7 +31,7 @@ from typing import Dict, Sequence
 
 import pytest
 
-from lhp.core.pipeline_executor import run_generate_pool
+from lhp.core.coordination.executor import run_generate_pool
 from lhp.models.config import FlowGroupContext
 from lhp.models.processing import PipelineDelta
 
@@ -288,7 +288,7 @@ def test_init_worker_logger_attaches_only_null_handler():
     """After init, root logger has exactly one NullHandler and no stderr handler."""
     import logging
 
-    from lhp.core.pipeline_executor import _init_worker_logger
+    from lhp.core.coordination.executor import _init_worker_logger
 
     root = logging.getLogger()
     original_handlers = list(root.handlers)
@@ -320,7 +320,7 @@ def test_dispatch_pipeline_for_generate_stamps_positive_duration(monkeypatch):
     from pathlib import Path
     from unittest.mock import MagicMock
 
-    from lhp.core import pipeline_executor as pe
+    from lhp.core.coordination import executor as pe
     from lhp.models.processing import PipelineDelta
 
     def _slow_process(**_kwargs):
@@ -358,7 +358,7 @@ def test_dispatch_pipeline_for_generate_stamps_duration_on_worker_failure(
     from pathlib import Path
     from unittest.mock import MagicMock
 
-    from lhp.core import pipeline_executor as pe
+    from lhp.core.coordination import executor as pe
 
     def _slow_failure(**_kwargs):
         time.sleep(0.05)
@@ -393,7 +393,7 @@ def test_dispatch_pipeline_for_generate_empty_short_circuit_zero_duration():
     from pathlib import Path
     from unittest.mock import MagicMock
 
-    from lhp.core import pipeline_executor as pe
+    from lhp.core.coordination import executor as pe
 
     delta = pe._dispatch_pipeline_for_generate(
         "p_missing",

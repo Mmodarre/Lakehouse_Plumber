@@ -2,10 +2,28 @@
 
 import traceback
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional, Sequence
+from pathlib import Path
+from typing import TYPE_CHECKING, Mapping, Optional, Sequence, Tuple, Union
 
 if TYPE_CHECKING:
-    from lhp.utils.error_formatter import LHPError
+    from lhp.models.config import FlowGroupContext
+    from lhp.errors import LHPError
+    from lhp.utils.substitution import EnhancedSubstitutionManager
+
+
+# JSON-safe projection type for ``PipelineWorkUnit.to_dict`` and other telemetry
+# / event-bus surfaces. Locally defined here (rather than under ``lhp/api/``)
+# so the DTOs in this module stay in one place. Constitution §4.8 forbids
+# ``Any`` outside an explicit ``JSONValue`` alias — this is that exemption.
+JSONValue = Union[
+    None,
+    bool,
+    int,
+    float,
+    str,
+    Sequence["JSONValue"],
+    Mapping[str, "JSONValue"],
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,7 +36,7 @@ class PipelineDelta:
     surfaces as ``aggregate_generated_filenames``, and — on failure — the
     exception in two forms.
 
-    For :class:`~lhp.utils.error_formatter.LHPError` instances, the live
+    For :class:`~lhp.errors.LHPError` instances, the live
     exception travels in ``lhp_error`` (pickled via the class's
     :meth:`__reduce__` so subclass identity, ``code``, ``context``,
     ``suggestions`` are preserved verbatim) and the main thread re-raises
@@ -105,7 +123,7 @@ class PipelineDelta:
         worker crashes before t0 is captured) intentionally leave this
         at ``0.0`` — those did not consume measurable worker work-time.
         """
-        from lhp.utils.error_formatter import LHPError  # lazy to avoid cycle
+        from lhp.errors import LHPError  # lazy to avoid cycle
 
         tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
         lhp_err = exc if isinstance(exc, LHPError) else None
@@ -117,4 +135,80 @@ class PipelineDelta:
             error_type=type(exc).__name__,
             error_message=str(exc),
             error_traceback=tb,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class PipelineWorkUnit:
+    """Inputs for one pipeline's execution slice across the worker boundary.
+
+    Carries the per-pipeline data that varies across
+    :class:`PipelineExecutionService` invocations. Heavyweight pool-constant
+    state (worker collaborators, environment, project_root, project_config,
+    include_tests, callbacks, max_workers) is captured constructor-time on
+    :class:`PipelineExecutionService` via :class:`_GenerateWorkerState` /
+    :class:`_ValidateWorkerState`.
+
+    :stability: provisional
+    """
+
+    pipeline_name: str
+    flowgroups: Tuple["FlowGroupContext", ...]
+    substitution_manager: Optional["EnhancedSubstitutionManager"] = None
+    output_dir: Optional[Path] = None
+    discovery_error: Optional[str] = None
+
+    def to_dict(self) -> Mapping[str, JSONValue]:
+        """JSON-safe projection for telemetry / event-bus surfaces.
+
+        Picklability across the spawn boundary uses the frozen-dataclass
+        default; this method is for non-pickle serializations (event-bus
+        payload, structured logging).
+
+        ``substitution_manager`` is intentionally absent from the dict
+        payload (None passthrough only): it is a live collaborator with
+        non-JSON state. ``flowgroups`` projects to the flowgroup-name tuple
+        only. ``output_dir`` is stringified.
+        """
+        return {
+            "pipeline_name": self.pipeline_name,
+            "flowgroup_names": tuple(
+                ctx.flowgroup.flowgroup for ctx in self.flowgroups
+            ),
+            "substitution_manager": None,
+            "output_dir": (
+                str(self.output_dir) if self.output_dir is not None else None
+            ),
+            "discovery_error": self.discovery_error,
+        }
+
+    @classmethod
+    def from_dict(
+        cls,
+        data: Mapping[str, JSONValue],
+        *,
+        flowgroups: Tuple["FlowGroupContext", ...] = (),
+        substitution_manager: Optional["EnhancedSubstitutionManager"] = None,
+    ) -> "PipelineWorkUnit":
+        """Rehydrate a unit from its JSON projection plus live collaborators.
+
+        ``flowgroups`` and ``substitution_manager`` must be supplied
+        explicitly because they cannot round-trip through JSON. This
+        constructor exists for symmetry with :meth:`to_dict` (event-bus
+        replay, fixture tests); production code constructs units directly.
+        Defaults of ``()`` and ``None`` make a fixture round-trip
+        ``cls.from_dict(unit.to_dict())`` valid for the JSON-safe subset.
+        """
+        output_dir_raw = data.get("output_dir")
+        discovery_error_raw = data.get("discovery_error")
+        return cls(
+            pipeline_name=str(data["pipeline_name"]),
+            flowgroups=flowgroups,
+            substitution_manager=substitution_manager,
+            output_dir=(
+                Path(output_dir_raw) if isinstance(output_dir_raw, str) else None
+            ),
+            discovery_error=(
+                str(discovery_error_raw) if discovery_error_raw is not None else None
+            ),
         )

@@ -1,4 +1,4 @@
-"""Tests for FlowgroupProcessor include_tests filtering behavior.
+"""Tests for FlowgroupResolutionService include_tests filtering behavior.
 
 Unit tests verify that include_tests=False filters test actions from flowgroups
 before expensive processing (presets, substitution, validation). Integration tests
@@ -10,19 +10,19 @@ from pathlib import Path
 
 import pytest
 
-from lhp.core.secret_validator import SecretValidator
-from lhp.core.services.flowgroup_processor import FlowgroupProcessor
-from lhp.core.template_engine import TemplateEngine
-from lhp.core.validator import ConfigValidator
+from lhp.core.validators.secret_validator import SecretValidator
+from lhp.core.processing.flowgroup_resolver import FlowgroupResolutionService
+from lhp.core.processing import TemplateEngine
+from lhp.core.validators import ConfigValidator
 from lhp.models.config import Action, ActionType, FlowGroup
 from lhp.presets.preset_manager import PresetManager
-from lhp.utils.error_formatter import LHPValidationError
+from lhp.errors import LHPValidationError
 from lhp.utils.substitution import EnhancedSubstitutionManager
 from tests.helpers import process_unwrap as _process, wrap_in_ctx as _ctx_of
 
 
 from tests.fakes import (
-    FakeFlowgroupProcessor,
+    FakeFlowgroupResolutionService,
     FakeSubstitutionManager,
     FakeTemplate,
     FakeTemplateEngine,
@@ -35,9 +35,9 @@ from tests.fakes import (
 
 @pytest.fixture
 def processor():
-    """Create a FlowgroupProcessor with real dependencies."""
+    """Create a FlowgroupResolutionService with real dependencies."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        yield FlowgroupProcessor(
+        yield FlowgroupResolutionService(
             template_engine=TemplateEngine(),
             preset_manager=PresetManager(presets_dir=Path(tmpdir)),
             config_validator=ConfigValidator(),
@@ -114,13 +114,13 @@ def test_only_flowgroup():
 
 
 # ============================================================================
-# Unit Tests — FlowgroupProcessor.process_flowgroup
+# Unit Tests — FlowgroupResolutionService.process_flowgroup
 # ============================================================================
 
 
 @pytest.mark.unit
 class TestProcessFlowgroupIncludeTests:
-    """Test include_tests filtering in FlowgroupProcessor.process_flowgroup."""
+    """Test include_tests filtering in FlowgroupResolutionService.process_flowgroup."""
 
     def test_filters_test_actions_when_false(
         self, processor, substitution_mgr, mixed_flowgroup
@@ -215,7 +215,7 @@ class TestProcessFlowgroupIncludeTests:
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            processor = FlowgroupProcessor(
+            processor = FlowgroupResolutionService(
                 template_engine=fake_template_engine,
                 preset_manager=PresetManager(presets_dir=Path(tmpdir)),
                 config_validator=ConfigValidator(),
@@ -298,7 +298,7 @@ actions:
 
     def test_validate_skips_test_actions_when_false(self, tmp_path):
         """validate_pipeline_by_field(include_tests=False) skips test action errors."""
-        from lhp.core.orchestrator import ActionOrchestrator
+        from lhp.core.coordination import ActionOrchestrator
 
         self._create_project_with_invalid_test(tmp_path)
         orchestrator = ActionOrchestrator(tmp_path)
@@ -316,7 +316,7 @@ actions:
         Uses a separate orchestrator to avoid shared-state issues with
         discover_all_flowgroups caching.
         """
-        from lhp.core.orchestrator import ActionOrchestrator
+        from lhp.core.coordination import ActionOrchestrator
 
         self._create_project_with_invalid_test(tmp_path)
         orchestrator = ActionOrchestrator(tmp_path)
@@ -336,7 +336,7 @@ actions:
         collaborators can be passed across the spawn boundary in upcoming
         ``initializer=`` plumbing.
         """
-        from lhp.core.pipeline_executor import _process_flowgroup_for_validate
+        from lhp.core.coordination.executor import _process_flowgroup_for_validate
 
         fg = FlowGroup(
             pipeline="test_pipeline",
@@ -350,7 +350,7 @@ actions:
                 ),
             ],
         )
-        fake_processor = FakeFlowgroupProcessor()
+        fake_processor = FakeFlowgroupResolutionService()
         substitution_mgr = FakeSubstitutionManager()
 
         _process_flowgroup_for_validate(

@@ -16,8 +16,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
-from ..core.services.pipeline_config_loader import PipelineConfigLoader
-from ..utils.error_formatter import ErrorCategory, LHPConfigError
+from ..core.loaders.pipeline_config_loader import PipelineConfigLoader
+from ..errors import ErrorCategory, LHPConfigError
 from ..utils.substitution import EnhancedSubstitutionManager
 
 logger = logging.getLogger(__name__)

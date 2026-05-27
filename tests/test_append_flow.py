@@ -151,7 +151,7 @@ def test_streaming_table_single_source():
 
 def test_source_list_validation():
     """Test that source can be a list in write actions."""
-    from lhp.core.validator import ConfigValidator
+    from lhp.core.validators import ConfigValidator
 
     validator = ConfigValidator()
 
@@ -186,7 +186,7 @@ def test_source_list_validation():
 def test_multiple_write_actions_same_table_mixed_once_flags():
     """Test multiple write actions targeting the same table with mixed once flags."""
 
-    from lhp.core.orchestrator import ActionOrchestrator
+    from lhp.core.coordination import ActionOrchestrator
 
     # Create actions with mixed once flags
     streaming_action = Action(
@@ -281,7 +281,7 @@ def test_multiple_write_actions_same_table_mixed_once_flags():
 
 def test_table_creation_validation_multiple_creators():
     """Test that table creation validation catches multiple creators."""
-    from lhp.core.validator import ConfigValidator
+    from lhp.core.validators import ConfigValidator
 
     validator = ConfigValidator()
 
@@ -333,7 +333,7 @@ def test_table_creation_validation_multiple_creators():
 
 def test_table_creation_validation_no_creators():
     """Test that table creation validation catches tables with no creators."""
-    from lhp.core.validator import ConfigValidator
+    from lhp.core.validators import ConfigValidator
 
     validator = ConfigValidator()
 
@@ -411,7 +411,7 @@ def test_backward_compatibility_single_action():
 def test_orchestrator_preserves_table_creation_logic():
     """Test that orchestrator preserves correct table creation logic from validation."""
 
-    from lhp.core.orchestrator import ActionOrchestrator
+    from lhp.core.coordination import ActionOrchestrator
 
     orchestrator = ActionOrchestrator(Path("."))
 

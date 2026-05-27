@@ -14,7 +14,7 @@ from ..models.config import (
     MetadataColumnConfig,
     ProjectOperationalMetadataConfig,
 )
-from ..utils.error_formatter import LHPError, ErrorCategory
+from ..errors import LHPError, ErrorCategory
 
 
 class ImportDetector:

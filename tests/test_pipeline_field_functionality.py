@@ -5,7 +5,7 @@ from pathlib import Path
 
 import yaml
 
-from lhp.core.orchestrator import ActionOrchestrator
+from lhp.core.coordination import ActionOrchestrator
 
 
 class TestPipelineFieldFunctionality:

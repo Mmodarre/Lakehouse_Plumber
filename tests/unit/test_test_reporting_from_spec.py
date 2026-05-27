@@ -6,7 +6,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from lhp.core.services.tst_reporting_hook_generator import (
+from lhp.core.codegen.tst_reporting_hook_generator import (
     HOOK_FILENAME,
     TestReportingHookGenerator,
 )
@@ -17,7 +17,7 @@ from lhp.models.config import (
     ProjectConfig,
     TestReportingConfig,
 )
-from lhp.utils.error_formatter import LHPError
+from lhp.errors import LHPError
 
 
 @pytest.mark.unit

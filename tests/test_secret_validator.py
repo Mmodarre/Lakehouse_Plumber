@@ -1,7 +1,7 @@
 """Tests for secret validation functionality of LakehousePlumber."""
 
 import pytest
-from lhp.core.secret_validator import SecretValidator
+from lhp.core.validators.secret_validator import SecretValidator
 from lhp.utils.substitution import SecretReference
 
 

@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
 
-from lhp.core.services.pipeline_validator import PipelineValidator
+from lhp.core.validators.pipeline_validator import PipelineValidator
 from lhp.models.config import FlowGroup
 
 
@@ -70,7 +70,7 @@ class TestPipelineValidator:
         assert minimal_validator.secret_validator is None
         assert minimal_validator.logger is not None
 
-    @patch('lhp.core.services.pipeline_validator.EnhancedSubstitutionManager')
+    @patch('lhp.core.validators.pipeline_validator.EnhancedSubstitutionManager')
     def test_validate_pipeline_by_field_success_with_processor(self, mock_substitution_manager, validator, mock_flowgroup):
         """Test successful validation by field with discoverer and processor."""
         # Arrange
@@ -108,7 +108,7 @@ class TestPipelineValidator:
         assert errors == ["No flowgroup discoverer available"]
         assert warnings == []
 
-    @patch('lhp.core.services.pipeline_validator.EnhancedSubstitutionManager')
+    @patch('lhp.core.validators.pipeline_validator.EnhancedSubstitutionManager')
     def test_validate_pipeline_by_field_no_flowgroups_found(self, mock_substitution_manager, validator):
         """Test validate_pipeline_by_field when no flowgroups found."""
         # Arrange
@@ -131,7 +131,7 @@ class TestPipelineValidator:
         # processor should not be called since no flowgroups found
         mock_processor.process_flowgroup.assert_not_called()
 
-    @patch('lhp.core.services.pipeline_validator.EnhancedSubstitutionManager')
+    @patch('lhp.core.validators.pipeline_validator.EnhancedSubstitutionManager')
     def test_validate_pipeline_by_field_exception_handling(self, mock_substitution_manager, validator, mock_flowgroup):
         """Test validate_pipeline_by_field exception handling during flowgroup processing."""
         # Arrange
@@ -156,7 +156,7 @@ class TestPipelineValidator:
         assert "Flowgroup 'test_flowgroup': Processing failed" in errors
         assert warnings == []
 
-    @patch('lhp.core.services.pipeline_validator.EnhancedSubstitutionManager')
+    @patch('lhp.core.validators.pipeline_validator.EnhancedSubstitutionManager')
     def test_validate_pipeline_by_directory_success(self, mock_substitution_manager, validator, mock_flowgroup):
         """Test successful validation by directory with discoverer and processor."""
         # Arrange
@@ -196,7 +196,7 @@ class TestPipelineValidator:
         assert errors == ["No flowgroup discoverer available"]
         assert warnings == []
 
-    @patch('lhp.core.services.pipeline_validator.EnhancedSubstitutionManager')
+    @patch('lhp.core.validators.pipeline_validator.EnhancedSubstitutionManager')
     def test_validate_pipeline_by_directory_exception_handling(self, mock_substitution_manager, validator, mock_flowgroup):
         """Test validate_pipeline_by_directory exception handling during flowgroup processing."""
         # Arrange
@@ -312,7 +312,7 @@ class TestPipelineValidator:
         # Assert - should return empty list when no config validator
         assert result == []
 
-    @patch('lhp.core.services.pipeline_validator.EnhancedSubstitutionManager')
+    @patch('lhp.core.validators.pipeline_validator.EnhancedSubstitutionManager')
     def test_validate_pipeline_by_field_without_processor(self, mock_substitution_manager, validator, mock_flowgroup):
         """Test validate_pipeline_by_field without processor using basic validation."""
         # Arrange
@@ -333,7 +333,7 @@ class TestPipelineValidator:
         assert warnings == []
         validator.config_validator.validate_flowgroup.assert_called_once_with(mock_flowgroup)
 
-    @patch('lhp.core.services.pipeline_validator.EnhancedSubstitutionManager')
+    @patch('lhp.core.validators.pipeline_validator.EnhancedSubstitutionManager')
     def test_validate_pipeline_by_field_general_exception(self, mock_substitution_manager, validator):
         """Test validate_pipeline_by_field general exception handling."""
         # Arrange
@@ -353,7 +353,7 @@ class TestPipelineValidator:
         assert "Pipeline validation failed: Discovery failed" in errors
         assert warnings == []
 
-    @patch('lhp.core.services.pipeline_validator.EnhancedSubstitutionManager')
+    @patch('lhp.core.validators.pipeline_validator.EnhancedSubstitutionManager')
     def test_validate_pipeline_by_directory_without_processor(self, mock_substitution_manager, validator, mock_flowgroup):
         """Test validate_pipeline_by_directory without processor using basic validation."""
         # Arrange
@@ -374,7 +374,7 @@ class TestPipelineValidator:
         assert warnings == []
         validator.config_validator.validate_flowgroup.assert_called_once_with(mock_flowgroup)
 
-    @patch('lhp.core.services.pipeline_validator.EnhancedSubstitutionManager')
+    @patch('lhp.core.validators.pipeline_validator.EnhancedSubstitutionManager')
     def test_validate_pipeline_by_directory_general_exception(self, mock_substitution_manager, validator):
         """Test validate_pipeline_by_directory general exception handling."""
         # Arrange

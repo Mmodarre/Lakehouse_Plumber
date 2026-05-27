@@ -516,7 +516,7 @@ class {class_name}(DataSource):
         ``add_pre_pipeline_statement``. Dedup is provided by ``ImportManager``
         (set-based) and the assembler's pre-pipeline statements set.
         """
-        from lhp.core.services.code_generator import CodeGenerator
+        from lhp.core.codegen.coordinator import CodeGenerationService
         from lhp.models.config import FlowGroup
 
         # Two distinct user files exporting two distinct classes.
@@ -604,7 +604,7 @@ class {class_name}(DataSource):
 
     def test_class_name_collision_raises(self, tmp_path):
         """Two actions exporting the same class name from different files → LHPValidationError."""
-        from lhp.utils.error_formatter import LHPValidationError
+        from lhp.errors import LHPValidationError
 
         # Two files both exporting a class named ``Conflict``.
         src_a = tmp_path / "alpha.py"

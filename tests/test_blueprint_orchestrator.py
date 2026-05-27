@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from lhp.core.orchestrator import ActionOrchestrator
+from lhp.core.coordination import ActionOrchestrator
 from lhp.models.config import FlowGroup
 
 pytestmark = pytest.mark.unit

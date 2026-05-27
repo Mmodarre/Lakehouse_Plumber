@@ -1,8 +1,8 @@
 """Test Kafka options validator utility."""
 
 import pytest
-from lhp.utils.kafka_validator import KafkaOptionsValidator
-from lhp.utils.error_formatter import LHPError
+from lhp.core.validators.kafka_validator import KafkaOptionsValidator
+from lhp.errors import LHPError
 
 
 class TestKafkaOptionsValidator:

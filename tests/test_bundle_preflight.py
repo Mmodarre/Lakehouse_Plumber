@@ -15,7 +15,7 @@ from lhp.bundle.preflight import (
     require_pipeline_config_flag,
     validate_catalog_schema,
 )
-from lhp.utils.error_formatter import ErrorCategory, LHPConfigError
+from lhp.errors import ErrorCategory, LHPConfigError
 
 
 # ---------------------------------------------------------------------------

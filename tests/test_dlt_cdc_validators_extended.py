@@ -6,7 +6,7 @@ directly (not via ConfigValidator) to cover uncovered validation paths.
 """
 
 import pytest
-from lhp.core.dlt_cdc_validators import (
+from lhp.core.validators.dlt_cdc_validators import (
     CdcConfigValidator,
     CdcSchemaValidator,
     SnapshotCdcConfigValidator,

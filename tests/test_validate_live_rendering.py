@@ -9,7 +9,7 @@ These tests pin the resulting contract:
 - A single :func:`print_validate_summary_table` table appears AFTER
   Live exits, with one row per pipeline.
 - Each failing pipeline's :class:`LHPError` is rendered as a yellow
-  Rich Panel via :meth:`LHPError.__rich__` AFTER the summary table.
+  Rich Panel via :func:`render_error_panel` AFTER the summary table.
 - No ``=====`` separators leak into the summary cells (the regression
   the structured ``lhp_error`` field on :class:`ValidationIssue`
   prevents).
@@ -21,14 +21,15 @@ from unittest.mock import patch
 from rich.console import Console as RichConsole
 
 import lhp.cli.console as _lhp_console_module
+from lhp.cli.error_panel import render_error_panel
 from lhp.cli.live_panel import PipelineRecord
 from lhp.cli.validate_summary import print_validate_summary_table
-from lhp.core.layers import (
+from lhp.core.coordination import (
     BatchValidationResponse,
     ValidationIssue,
     ValidationResponse,
 )
-from lhp.utils.error_formatter import ErrorCategory, LHPValidationError
+from lhp.errors import ErrorCategory, LHPValidationError
 
 
 def _capture(width: int = 100) -> tuple[StringIO, RichConsole]:
@@ -115,9 +116,11 @@ def test_validate_failure_panel_uses_lhp_error_rich():
         for response in batch_response.pipeline_responses.values():
             for issue in response.issues:
                 if issue.lhp_error is not None:
-                    _lhp_console_module.err_console.print(issue.lhp_error)
+                    _lhp_console_module.err_console.print(
+                        render_error_panel(issue.lhp_error)
+                    )
     out = buf.getvalue()
-    # ``__rich__`` returns a Panel titled ``LHP-VAL-007   <category label>``.
+    # ``render_error_panel`` returns a Panel titled ``LHP-VAL-007   <category label>``.
     assert "LHP-VAL-007" in out
     assert "invalid action reference" in out
     # Yellow Panel border characters present (validation severity → yellow).

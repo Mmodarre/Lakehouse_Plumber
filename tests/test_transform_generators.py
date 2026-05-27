@@ -1489,7 +1489,7 @@ columns:
 
     def test_schema_transform_file_not_found_error(self, tmp_path):
         """Test that missing schema file raises appropriate error."""
-        from lhp.utils.error_formatter import LHPError
+        from lhp.errors import LHPError
 
         generator = SchemaTransformGenerator()
         action = Action(

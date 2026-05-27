@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional
 
-from ..utils.error_formatter import ErrorCategory, LHPValidationError
+from ..errors import ErrorCategory, LHPValidationError
 from ..utils.external_file_loader import resolve_external_file_path
 
 logger = logging.getLogger(__name__)

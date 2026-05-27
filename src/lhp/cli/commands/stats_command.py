@@ -2,13 +2,18 @@
 
 import logging
 from collections import defaultdict
-from pathlib import Path
-from typing import Dict, Iterable, Optional, Sequence, Tuple
+from typing import Dict, Iterable, Mapping, Optional, Sequence, Tuple
 
 from rich.table import Table
 from rich.text import Text
 
-from ...parsers.yaml_parser import YAMLParser
+from lhp.api import (
+    FlowgroupView,
+    LakehousePlumberApplicationFacade,
+    PipelineStats,
+    StatsResult,
+)
+
 from .. import console as _console_module
 from ..render import render_command_header
 from .base_command import BaseCommand
@@ -20,157 +25,122 @@ class StatsCommand(BaseCommand):
     """Pipeline statistics and complexity metrics."""
 
     def execute(self, pipeline: Optional[str] = None) -> None:
-        """Run the stats command for one pipeline or all of them."""
+        """Run the stats command for one pipeline or all of them.
+
+        Routes every domain call through
+        :class:`LakehousePlumberApplicationFacade` so the CLI never
+        touches internal ``lhp.core`` / ``lhp.parsers`` modules
+        (constitution §1.10 / §9.13). When ``pipeline`` is ``None``
+        the global :meth:`InspectionFacade.compute_stats` result is
+        rendered directly; when scoped to a single pipeline the
+        per-flowgroup view tuple from
+        :meth:`InspectionFacade.list_flowgroups` is re-aggregated
+        into a single-pipeline :class:`StatsResult` for uniform
+        rendering downstream.
+        """
         render_command_header("lhp stats")
         self.setup_from_context()
         project_root = self.ensure_project_root()
-        parser = YAMLParser()
 
         logger.debug(f"Stats request: pipeline={pipeline}")
 
-        pipeline_dirs = self._get_pipeline_directories(project_root, pipeline)
-        if not pipeline_dirs:
+        # YAML walk is the only potentially-slow phase; wrap the facade
+        # call in a stderr spinner so stdout stays clean for piping.
+        with _console_module.err_console.status("Analyzing pipelines…"):
+            application_facade = LakehousePlumberApplicationFacade.for_project(
+                project_root
+            )
+
+            if pipeline is None:
+                stats = application_facade.inspection.compute_stats()
+                single_pipeline_breakdown: Tuple[Tuple[str, int], ...] = ()
+            else:
+                flowgroups = application_facade.inspection.list_flowgroups(
+                    pipeline_filter=pipeline
+                )
+                if not flowgroups:
+                    _console_module.err_console.print(
+                        Text.assemble(
+                            ("✗ ", "bold red"),
+                            f"Pipeline '{pipeline}' not found",
+                        )
+                    )
+                    return
+                stats, single_pipeline_breakdown = (
+                    self._aggregate_single_pipeline(pipeline, flowgroups)
+                )
+
+        if stats.pipeline_count == 0:
+            _console_module.err_console.print(
+                Text.assemble(("✗ ", "bold red"), "No pipelines found")
+            )
             return
 
-        total_stats = self._initialize_stats(len(pipeline_dirs))
-
-        include_patterns = self._get_include_patterns(project_root)
-
-        # YAML walk is the only potentially-slow phase; wrap it in a stderr
-        # spinner so stdout stays clean for piping.
-        with _console_module.err_console.status("Analyzing pipelines…"):
-            for pipeline_dir in pipeline_dirs:
-                self._analyze_pipeline(
-                    pipeline_dir,
-                    parser,
-                    include_patterns,
-                    total_stats,
-                    single_pipeline=len(pipeline_dirs) == 1,
-                )
-
         logger.info(
-            f"Stats collected: {total_stats['pipelines']} pipelines, "
-            f"{total_stats['flowgroups']} flowgroups, {total_stats['actions']} actions"
+            f"Stats collected: {stats.pipeline_count} pipelines, "
+            f"{stats.flowgroup_count} flowgroups, {stats.total_actions} actions"
         )
-        self._display_statistics_summary(total_stats)
+        self._display_statistics_summary(
+            stats,
+            single_pipeline_name=pipeline,
+            single_pipeline_breakdown=single_pipeline_breakdown,
+        )
 
-    def _get_pipeline_directories(
-        self, project_root: Path, pipeline: Optional[str]
-    ) -> list[Path]:
-        pipelines_dir = project_root / "pipelines"
-        if not pipelines_dir.exists():
-            _console_module.err_console.print(
-                Text.assemble(("✗ ", "bold red"), "No pipelines directory found")
+    @staticmethod
+    def _aggregate_single_pipeline(
+        pipeline_name: str,
+        flowgroups: Sequence[FlowgroupView],
+    ) -> Tuple[StatsResult, Tuple[Tuple[str, int], ...]]:
+        """Re-aggregate filtered flowgroups into a single-pipeline ``StatsResult``.
+
+        Sub-type granularity (``load_<source>`` / ``transform_<kind>``)
+        is intentionally omitted in single-pipeline mode — the public
+        :class:`FlowgroupView` deliberately summarises actions by type
+        only. The returned breakdown tuple of ``(flowgroup_name,
+        action_count)`` rows powers the inline per-pipeline detail
+        block emitted just above the summary.
+        """
+        action_counts: Dict[str, int] = defaultdict(int)
+        templates_used: set[str] = set()
+        presets_used: set[str] = set()
+        breakdown_rows: list[Tuple[str, int]] = []
+        total_actions = 0
+
+        for fg in flowgroups:
+            fg_actions = (
+                fg.load_action_count
+                + fg.transform_action_count
+                + fg.write_action_count
+                + fg.test_action_count
             )
-            return []
+            total_actions += fg_actions
+            action_counts["load"] += fg.load_action_count
+            action_counts["transform"] += fg.transform_action_count
+            action_counts["write"] += fg.write_action_count
+            if fg.test_action_count:
+                action_counts["test"] += fg.test_action_count
+            if fg.template:
+                templates_used.add(fg.template)
+            for preset in fg.presets:
+                presets_used.add(preset)
+            breakdown_rows.append((fg.name, fg_actions))
 
-        if pipeline:
-            pipeline_dir = pipelines_dir / pipeline
-            if not pipeline_dir.exists():
-                _console_module.err_console.print(
-                    Text.assemble(
-                        ("✗ ", "bold red"),
-                        f"Pipeline '{pipeline}' not found",
-                    )
-                )
-                return []
-            return [pipeline_dir]
-        else:
-            pipeline_dirs = [d for d in pipelines_dir.iterdir() if d.is_dir()]
-            if not pipeline_dirs:
-                _console_module.err_console.print(
-                    Text.assemble(("✗ ", "bold red"), "No pipeline directories found")
-                )
-                return []
-            return pipeline_dirs
-
-    def _initialize_stats(self, pipeline_count: int) -> Dict:
-        return {
-            "pipelines": pipeline_count,
-            "flowgroups": 0,
-            "actions": 0,
-            "load_actions": 0,
-            "transform_actions": 0,
-            "write_actions": 0,
-            "secret_refs": 0,
-            "templates_used": set(),
-            "presets_used": set(),
-            "action_types": defaultdict(int),
-            # Per-pipeline rows captured for the single-pipeline detail block.
-            # Cleared on entry; populated only when ``single_pipeline=True``.
-            "per_pipeline_flowgroups": [],
-            "single_pipeline_name": None,
-            "single_pipeline_action_count": 0,
-        }
-
-    def _analyze_pipeline(
-        self,
-        pipeline_dir: Path,
-        parser: YAMLParser,
-        include_patterns: list[str],
-        total_stats: Dict,
-        single_pipeline: bool = False,
-    ) -> None:
-        pipeline_name = pipeline_dir.name
-        flowgroup_files = self._discover_yaml_files_with_include(
-            pipeline_dir, include_patterns
+        stats = StatsResult(
+            pipeline_count=1,
+            flowgroup_count=len(flowgroups),
+            total_actions=total_actions,
+            action_counts_by_type=dict(action_counts),
+            pipeline_breakdown=(
+                PipelineStats(
+                    pipeline_name=pipeline_name,
+                    flowgroup_count=len(flowgroups),
+                    total_actions=total_actions,
+                ),
+            ),
+            templates_used=tuple(sorted(templates_used)),
+            presets_used=tuple(sorted(presets_used)),
         )
-
-        if single_pipeline:
-            total_stats["single_pipeline_name"] = pipeline_name
-
-        pipeline_actions = 0
-
-        for yaml_file in flowgroup_files:
-            try:
-                flowgroup = parser.parse_flowgroup(yaml_file)
-                total_stats["flowgroups"] += 1
-
-                for action in flowgroup.actions:
-                    total_stats["actions"] += 1
-                    pipeline_actions += 1
-
-                    if action.type.value == "load":
-                        total_stats["load_actions"] += 1
-                    elif action.type.value == "transform":
-                        total_stats["transform_actions"] += 1
-                    elif action.type.value == "write":
-                        total_stats["write_actions"] += 1
-
-                    if action.type.value == "load" and isinstance(action.source, dict):
-                        subtype = action.source.get("type", "unknown")
-                        total_stats["action_types"][f"load_{subtype}"] += 1
-                    elif action.type.value == "transform" and action.transform_type:
-                        total_stats["action_types"][
-                            f"transform_{action.transform_type}"
-                        ] += 1
-
-                if flowgroup.presets:
-                    for preset in flowgroup.presets:
-                        total_stats["presets_used"].add(preset)
-
-                if flowgroup.use_template:
-                    total_stats["templates_used"].add(flowgroup.use_template)
-
-                if single_pipeline:
-                    total_stats["per_pipeline_flowgroups"].append(
-                        (flowgroup.flowgroup, len(flowgroup.actions))
-                    )
-
-            except Exception as e:
-                logger.warning(f"Could not parse {yaml_file}: {e}")
-                # Surface parse failures on stderr so callers piping stdout
-                # still see them.
-                _console_module.err_console.print(
-                    Text.assemble(
-                        ("⚠ ", "bold yellow"),
-                        f"Could not parse {yaml_file}: {e}",
-                    )
-                )
-                continue
-
-        if single_pipeline:
-            total_stats["single_pipeline_action_count"] = pipeline_actions
+        return stats, tuple(breakdown_rows)
 
     # Rendering helpers (inline per STYLE.md §8 — not promoted to render.py).
 
@@ -227,67 +197,98 @@ class StatsCommand(BaseCommand):
             lines.append("\t".join(str(cell) for cell in row))
         _console_module.console.file.write("\n".join(lines) + "\n")
 
-    def _display_statistics_summary(self, total_stats: Dict) -> None:
-        if total_stats.get("single_pipeline_name"):
-            self._display_single_pipeline_detail(total_stats)
+    def _display_statistics_summary(
+        self,
+        stats: StatsResult,
+        *,
+        single_pipeline_name: Optional[str] = None,
+        single_pipeline_breakdown: Tuple[Tuple[str, int], ...] = (),
+    ) -> None:
+        if single_pipeline_name is not None:
+            self._display_single_pipeline_detail(
+                single_pipeline_name,
+                single_pipeline_breakdown,
+                stats.total_actions,
+            )
+
+        load_count = stats.action_counts_by_type.get("load", 0)
+        transform_count = stats.action_counts_by_type.get("transform", 0)
+        write_count = stats.action_counts_by_type.get("write", 0)
 
         # ``Key: value`` lines so non-TTY consumers
         # (``lhp stats | grep Total``) see plain text.
         self._emit_section_header("Summary Statistics")
         self._emit_kv_lines(
             [
-                ("Total pipelines", str(total_stats["pipelines"])),
-                ("Total flowgroups", str(total_stats["flowgroups"])),
-                ("Total actions", str(total_stats["actions"])),
-                ("Load actions", str(total_stats["load_actions"])),
-                ("Transform actions", str(total_stats["transform_actions"])),
-                ("Write actions", str(total_stats["write_actions"])),
+                ("Total pipelines", str(stats.pipeline_count)),
+                ("Total flowgroups", str(stats.flowgroup_count)),
+                ("Total actions", str(stats.total_actions)),
+                ("Load actions", str(load_count)),
+                ("Transform actions", str(transform_count)),
+                ("Write actions", str(write_count)),
             ]
         )
 
-        if total_stats["action_types"]:
+        action_breakdown = self._collect_action_type_breakdown(
+            stats.action_counts_by_type
+        )
+        if action_breakdown:
             self._emit_section_header("Action Type Breakdown")
-            self._emit_kv_lines(
-                [
-                    (action_type, str(count))
-                    for action_type, count in sorted(
-                        total_stats["action_types"].items()
-                    )
-                ]
-            )
+            self._emit_kv_lines(action_breakdown)
 
-        if total_stats["presets_used"]:
+        if stats.presets_used:
             self._emit_section_header("Presets Used")
             self._emit_kv_lines(
-                [("Presets", ", ".join(sorted(total_stats["presets_used"])))]
+                [("Presets", ", ".join(stats.presets_used))]
             )
 
-        if total_stats["templates_used"]:
+        if stats.templates_used:
             self._emit_section_header("Templates Used")
             self._emit_kv_lines(
-                [("Templates", ", ".join(sorted(total_stats["templates_used"])))]
+                [("Templates", ", ".join(stats.templates_used))]
             )
 
-        if total_stats["flowgroups"] > 0:
-            self._display_complexity_metrics(total_stats)
+        if stats.flowgroup_count > 0:
+            self._display_complexity_metrics(stats)
 
-    def _display_single_pipeline_detail(self, total_stats: Dict) -> None:
-        name = total_stats["single_pipeline_name"]
-        self._emit_section_header(f"Pipeline: {name}")
-        if total_stats["per_pipeline_flowgroups"]:
+    @staticmethod
+    def _collect_action_type_breakdown(
+        action_counts_by_type: Mapping[str, int],
+    ) -> list[Tuple[str, str]]:
+        """Surface only sub-type rows (``load_<src>``, ``transform_<kind>``).
+
+        Top-level ``load`` / ``transform`` / ``write`` / ``test`` totals
+        are emitted in the Summary block above; the breakdown panel
+        repeats only the finer-grained sub-type keys that the API
+        layer attaches to :attr:`StatsResult.action_counts_by_type`
+        for the global aggregate.
+        """
+        top_level = {"load", "transform", "write", "test"}
+        return [
+            (action_type, str(count))
+            for action_type, count in sorted(action_counts_by_type.items())
+            if action_type not in top_level
+        ]
+
+    def _display_single_pipeline_detail(
+        self,
+        pipeline_name: str,
+        breakdown: Tuple[Tuple[str, int], ...],
+        total_actions: int,
+    ) -> None:
+        self._emit_section_header(f"Pipeline: {pipeline_name}")
+        if breakdown:
             self._emit_kv_lines(
                 [
                     (f"FlowGroup {fg_name}", f"{action_count} actions")
-                    for fg_name, action_count in total_stats["per_pipeline_flowgroups"]
+                    for fg_name, action_count in breakdown
                 ]
             )
-        self._emit_kv_lines(
-            [("Total actions", str(total_stats["single_pipeline_action_count"]))]
-        )
+        self._emit_kv_lines([("Total actions", str(total_actions))])
 
-    def _display_complexity_metrics(self, total_stats: Dict) -> None:
+    def _display_complexity_metrics(self, stats: StatsResult) -> None:
         """Per STYLE.md §8 the complexity table is an inline one-off."""
-        avg_actions_per_flowgroup = total_stats["actions"] / total_stats["flowgroups"]
+        avg_actions_per_flowgroup = stats.total_actions / stats.flowgroup_count
 
         if avg_actions_per_flowgroup < 3:
             complexity = "Low"

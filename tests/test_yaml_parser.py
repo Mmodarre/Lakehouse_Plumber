@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch, mock_open
 
 from lhp.parsers.yaml_parser import YAMLParser
-from lhp.utils.error_formatter import LHPError, ErrorCategory
+from lhp.errors import LHPError, ErrorCategory
 
 
 class TestYAMLParserErrorHandling:
@@ -90,7 +90,7 @@ class TestYAMLParserErrorHandling:
         """Test that empty files raise MultiDocumentError (new behavior with single-doc validation)."""
         parser = YAMLParser()
         
-        from lhp.utils.error_formatter import MultiDocumentError
+        from lhp.errors import MultiDocumentError
         
         # Create temporary empty file
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
@@ -136,7 +136,7 @@ actions:
                 Path(f.name).unlink()
     
     # Note: test_discover_flowgroups_basic removed - discover_flowgroups() method
-    # has been removed from YAMLParser. Use FlowgroupDiscoverer.discover_flowgroups() instead.
+    # has been removed from YAMLParser. Use FlowgroupDiscoveryService.discover_flowgroups() instead.
     
     def test_parse_file_success_with_null_yaml(self):
         """Test successful parsing of YAML file with null content."""

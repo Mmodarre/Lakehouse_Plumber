@@ -2,16 +2,20 @@
 
 import logging
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import click
 from rich.table import Table
 from rich.text import Text
 
-from ...core.project_config_loader import ProjectConfigLoader
-from ...core.services.dependency_analyzer import DependencyAnalyzer
-from ...core.services.dependency_output_manager import DependencyOutputManager
-from ...utils.error_formatter import ErrorCategory, LHPError
+from ...api import (
+    DependencyAnalysisResult,
+    DependencyOutputEntry,
+    DependencyOutputsResult,
+    FlowgroupView,
+    LakehousePlumberApplicationFacade,
+)
+from ...errors import ErrorCategory, LHPError
 from .. import console as _console_module
 from ..render import render_command_header
 from .base_command import BaseCommand
@@ -56,49 +60,29 @@ class DependenciesCommand(BaseCommand):
             f"blueprint_filter={blueprint_filter}"
         )
 
-        config_loader = ProjectConfigLoader(project_root)
-        analyzer = DependencyAnalyzer(project_root, config_loader)
-        analyzer.set_blueprint_view_mode(
-            expand_blueprints=expand_blueprints, blueprint=blueprint_filter
+        # Route through the §9.24-clean facade bootstrap so every domain
+        # call goes via a sub-facade (no orchestrator reach-through).
+        application_facade = LakehousePlumberApplicationFacade.for_project(
+            project_root
         )
-        output_manager = DependencyOutputManager()
+
+        output_formats = self._parse_output_formats(output_format)
+        output_path = self._resolve_output_path(output_dir, project_root)
 
         if pipeline:
-            flowgroups = self._validate_pipeline_exists(analyzer, pipeline)
-            if any(fg.job_name for fg in flowgroups):
-                raise LHPError(
-                    category=ErrorCategory.VALIDATION,
-                    code_number="003",
-                    title="Pipeline filter not supported with job_name",
-                    details=(
-                        "Cannot use --pipeline filter when job_name is defined in flowgroups.\n\n"
-                        f"You specified: --pipeline {pipeline}\n"
-                        "However, your flowgroups use job_name property which enables multi-job mode.\n\n"
-                        "A single pipeline may span multiple jobs, making filtering ambiguous."
-                    ),
-                    suggestions=[
-                        "Remove the --pipeline filter to analyze all jobs",
-                        "Or remove job_name from flowgroups to use single-job mode",
-                        "Use separate lhp deps runs for different projects if needed",
-                    ],
-                    context={
-                        "Pipeline Filter": pipeline,
-                        "Flowgroups with job_name": len(
-                            [fg for fg in flowgroups if fg.job_name]
-                        ),
-                    },
-                )
+            self._validate_pipeline_exists(application_facade, pipeline)
 
         # Perform dependency analysis -- the graph build is the only
         # potentially-slow phase; wrap it in a stderr spinner so stdout
         # stays clean for piping.
         with _console_module.err_console.status("Building dependency graphs…"):
-            result = analyzer.analyze_dependencies(pipeline_filter=pipeline)
+            result = application_facade.inspection.analyze_dependencies(
+                pipeline_filter=pipeline,
+                expand_blueprints=expand_blueprints,
+                blueprint_filter=blueprint_filter,
+            )
 
         self._display_analysis_summary(result, pipeline)
-
-        output_formats = self._parse_output_formats(output_format)
-        output_path = self._resolve_output_path(output_dir, project_root)
 
         # Announce where files will be written (stderr so stdout stays clean).
         if bundle_output:
@@ -113,18 +97,19 @@ class DependenciesCommand(BaseCommand):
             )
 
         with _console_module.err_console.status("Generating output files…"):
-            generated_files = output_manager.save_outputs(
-                analyzer,
-                result,
-                output_formats,
-                output_path,
-                job_name,
-                job_config_path,
-                bundle_output,
+            outputs = application_facade.inspection.save_dependency_outputs(
+                formats=output_formats,
+                output_dir=output_path,
+                pipeline_filter=pipeline,
+                expand_blueprints=expand_blueprints,
+                blueprint_filter=blueprint_filter,
+                job_name=job_name,
+                job_config_path=job_config_path,
+                bundle_output=bundle_output,
             )
 
         # File paths + sizes go to stdout so callers can pipe/grep them.
-        self._display_generated_files(generated_files)
+        self._display_generated_files(outputs)
 
         if result.execution_stages:
             self._display_execution_order(result)
@@ -142,13 +127,23 @@ class DependenciesCommand(BaseCommand):
         dep_logger = logging.getLogger("lhp.core.services.dependency_analyzer")
         dep_logger.setLevel(logging.DEBUG)
 
-        out_logger = logging.getLogger("lhp.core.services.dependency_output_manager")
+        out_logger = logging.getLogger("lhp.core.dependencies.output")
         out_logger.setLevel(logging.DEBUG)
 
-    def _validate_pipeline_exists(self, analyzer: DependencyAnalyzer, pipeline: str):
-        """Returns the discovered flowgroups so the caller can reuse them."""
-        flowgroups = analyzer.get_flowgroups()
-        available_pipelines = set(fg.pipeline for fg in flowgroups)
+    def _validate_pipeline_exists(
+        self,
+        application_facade: LakehousePlumberApplicationFacade,
+        pipeline: str,
+    ) -> Tuple[FlowgroupView, ...]:
+        """Validate that ``pipeline`` exists and is not in multi-job mode.
+
+        Returns the discovered flowgroup views so the caller may reuse
+        them. Raises :class:`LHPError` with a CLI-friendly message when
+        the pipeline is unknown or when ``job_name`` is in use anywhere
+        in the project (which makes pipeline filtering ambiguous).
+        """
+        flowgroups = application_facade.inspection.list_flowgroups()
+        available_pipelines = {fg.pipeline for fg in flowgroups}
 
         if available_pipelines and pipeline not in available_pipelines:
             raise LHPError(
@@ -169,7 +164,34 @@ class DependenciesCommand(BaseCommand):
                 },
             )
 
-        return flowgroups
+        pipeline_flowgroups = tuple(
+            fg for fg in flowgroups if fg.pipeline == pipeline
+        )
+        if any(fg.job_name for fg in pipeline_flowgroups):
+            raise LHPError(
+                category=ErrorCategory.VALIDATION,
+                code_number="003",
+                title="Pipeline filter not supported with job_name",
+                details=(
+                    "Cannot use --pipeline filter when job_name is defined in flowgroups.\n\n"
+                    f"You specified: --pipeline {pipeline}\n"
+                    "However, your flowgroups use job_name property which enables multi-job mode.\n\n"
+                    "A single pipeline may span multiple jobs, making filtering ambiguous."
+                ),
+                suggestions=[
+                    "Remove the --pipeline filter to analyze all jobs",
+                    "Or remove job_name from flowgroups to use single-job mode",
+                    "Use separate lhp deps runs for different projects if needed",
+                ],
+                context={
+                    "Pipeline Filter": pipeline,
+                    "Flowgroups with job_name": len(
+                        [fg for fg in pipeline_flowgroups if fg.job_name]
+                    ),
+                },
+            )
+
+        return pipeline_flowgroups
 
     def _parse_output_formats(self, output_format: str) -> List[str]:
         valid_formats = {"dot", "json", "text", "job", "all"}
@@ -192,7 +214,11 @@ class DependenciesCommand(BaseCommand):
         else:
             return project_root / ".lhp" / "dependencies"
 
-    def _display_analysis_summary(self, result, pipeline_filter: Optional[str]) -> None:
+    def _display_analysis_summary(
+        self,
+        result: DependencyAnalysisResult,
+        pipeline_filter: Optional[str],
+    ) -> None:
         """Inline header per STYLE.md §8 — not promoted to a shared helper."""
         _console_module.console.print()
         _console_module.console.print(Text("Analysis Summary", style="bold dim"))
@@ -220,33 +246,48 @@ class DependenciesCommand(BaseCommand):
                 )
             )
 
-    def _display_generated_files(self, generated_files: dict) -> None:
-        for format_name, file_path_or_dict in generated_files.items():
-            if isinstance(file_path_or_dict, dict):
+    def _display_generated_files(self, outputs: DependencyOutputsResult) -> None:
+        """Render generated-file paths grouped by format.
+
+        Multi-job runs of the ``job`` format produce one entry per job
+        plus one ``"_master"`` entry; those share a format name and are
+        rendered as a nested group.
+        """
+        by_format: dict[str, List[DependencyOutputEntry]] = {}
+        for entry in outputs.entries:
+            by_format.setdefault(entry.format_name, []).append(entry)
+
+        for format_name, entries in by_format.items():
+            # Single-file outputs collapse to a one-line render; the
+            # ``job`` format may be either single or multi-job (label
+            # populated for multi-job entries).
+            multi = len(entries) > 1 or (
+                len(entries) == 1 and entries[0].label
+            )
+            if multi:
                 _console_module.console.print(
                     f"  {format_name.upper()} (multiple jobs):"
                 )
-                for sub_name, job_path in file_path_or_dict.items():
-                    file_size = job_path.stat().st_size if job_path.exists() else 0
-                    if sub_name == "_master":
+                for entry in entries:
+                    file_size = (
+                        entry.path.stat().st_size if entry.path.exists() else 0
+                    )
+                    if entry.label == "_master":
                         _console_module.console.print(
-                            f"    Master Job: {job_path} ({file_size:,} bytes)"
+                            f"    Master Job: {entry.path} ({file_size:,} bytes)"
                         )
                     else:
                         _console_module.console.print(
-                            f"    {sub_name}: {job_path} ({file_size:,} bytes)"
+                            f"    {entry.label}: {entry.path} ({file_size:,} bytes)"
                         )
             else:
-                file_size = (
-                    file_path_or_dict.stat().st_size
-                    if file_path_or_dict.exists()
-                    else 0
-                )
+                entry = entries[0]
+                file_size = entry.path.stat().st_size if entry.path.exists() else 0
                 _console_module.console.print(
-                    f"  {format_name.upper()}: {file_path_or_dict} ({file_size:,} bytes)"
+                    f"  {format_name.upper()}: {entry.path} ({file_size:,} bytes)"
                 )
 
-    def _display_execution_order(self, result) -> None:
+    def _display_execution_order(self, result: DependencyAnalysisResult) -> None:
         """Inline execution-order table per STYLE.md §8.
 
         Non-TTY branch writes tab-separated rows directly to
@@ -293,7 +334,7 @@ class DependenciesCommand(BaseCommand):
             lines.append("\t".join(row))
         _console_module.console.file.write("\n".join(lines) + "\n")
 
-    def _display_warnings(self, result) -> None:
+    def _display_warnings(self, result: DependencyAnalysisResult) -> None:
         """Display warnings about dependency analysis results.
 
         Warnings go to stderr so they do not contaminate the stdout data
@@ -324,7 +365,7 @@ class DependenciesCommand(BaseCommand):
 
         self._display_info(result)
 
-    def _display_info(self, result) -> None:
+    def _display_info(self, result: DependencyAnalysisResult) -> None:
         """Display informational messages about dependency analysis results.
 
         External-source notices are advisory (not part of the primary data

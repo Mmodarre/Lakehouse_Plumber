@@ -1,12 +1,25 @@
-"""List commands implementation for LakehousePlumber CLI."""
+"""List commands implementation for LakehousePlumber CLI.
+
+Renders ``lhp list-presets``, ``lhp list-templates`` and
+``lhp list-blueprints``. Everything domain-shaped is sourced through
+:class:`lhp.api.LakehousePlumberApplicationFacade` —
+``inspection.list_presets()`` / ``list_templates()`` /
+``list_blueprints(include_instances=...)``. No internal-module imports
+live here per constitution §2 + §9.13.
+"""
 
 import logging
-from pathlib import Path
-from typing import Any, Dict, List, Tuple
 
 from rich.text import Text
 
-from ...parsers.yaml_parser import YAMLParser
+from lhp.api import (
+    BlueprintView,
+    LakehousePlumberApplicationFacade,
+    PresetView,
+    TemplateView,
+)
+from lhp.errors import ErrorCategory, LHPConfigError
+
 from .. import console as _console_module
 from ..render import (
     ColumnSpec,
@@ -30,8 +43,6 @@ class ListCommand(BaseCommand):
         presets_dir = project_root / "presets"
 
         if not presets_dir.exists():
-            from ...utils.error_formatter import ErrorCategory, LHPConfigError
-
             raise LHPConfigError(
                 category=ErrorCategory.CONFIG,
                 code_number="016",
@@ -43,11 +54,10 @@ class ListCommand(BaseCommand):
                 ],
             )
 
-        preset_files = list(presets_dir.glob("*.yaml")) + list(
-            presets_dir.glob("*.yml")
-        )
+        facade = LakehousePlumberApplicationFacade.for_project(project_root)
+        presets = facade.inspection.list_presets()
 
-        if not preset_files:
+        if not presets:
             render_empty_state(
                 "No presets found.",
                 "Create a preset file in the 'presets' directory "
@@ -55,16 +65,14 @@ class ListCommand(BaseCommand):
             )
             return
 
-        presets_info = self._parse_preset_information(preset_files)
-
         rows = [
             (
-                preset["name"],
-                preset["file"],
-                str(preset["version"]),
-                str(preset["extends"] or "-"),
+                preset.name,
+                preset.file_path.name,
+                str(preset.version),
+                str(preset.extends or "-"),
             )
-            for preset in presets_info
+            for preset in presets
         ]
         render_listing_table(
             "Available presets",
@@ -78,7 +86,7 @@ class ListCommand(BaseCommand):
             total_label="presets",
         )
 
-        self._display_preset_descriptions(presets_info)
+        self._display_preset_descriptions(presets)
 
     def list_templates(self) -> None:
         """List all available templates with detailed parameter information."""
@@ -88,8 +96,6 @@ class ListCommand(BaseCommand):
         templates_dir = project_root / "templates"
 
         if not templates_dir.exists():
-            from ...utils.error_formatter import ErrorCategory, LHPConfigError
-
             raise LHPConfigError(
                 category=ErrorCategory.CONFIG,
                 code_number="017",
@@ -101,11 +107,10 @@ class ListCommand(BaseCommand):
                 ],
             )
 
-        template_files = list(templates_dir.glob("*.yaml")) + list(
-            templates_dir.glob("*.yml")
-        )
+        facade = LakehousePlumberApplicationFacade.for_project(project_root)
+        templates = facade.inspection.list_templates()
 
-        if not template_files:
+        if not templates:
             render_empty_state(
                 "No templates found.",
                 "Create a template file in the 'templates' directory "
@@ -113,17 +118,15 @@ class ListCommand(BaseCommand):
             )
             return
 
-        templates_info = self._parse_template_information(template_files)
-
         rows = [
             (
-                template["name"],
-                template["file"],
-                str(template["version"]),
-                str(template["params"]),
-                str(template["actions"]),
+                template.name,
+                template.file_path.name,
+                str(template.version),
+                f"{template.required_parameter_count}/{template.parameter_count}",
+                str(template.action_count),
             )
-            for template in templates_info
+            for template in templates
         ]
         render_listing_table(
             "Available templates",
@@ -138,7 +141,7 @@ class ListCommand(BaseCommand):
             total_label="templates",
         )
 
-        self._display_template_details(template_files)
+        self._display_template_details(templates)
 
         # Usage hint -> stderr (help text, not primary data).
         _console_module.err_console.print(
@@ -159,19 +162,9 @@ class ListCommand(BaseCommand):
         self.setup_from_context()
         project_root = self.ensure_project_root()
 
-        from ...core.project_config_loader import ProjectConfigLoader
-        from ...core.services.blueprint_discoverer import BlueprintDiscoverer
-        from ...parsers.blueprint_parser import BlueprintParser
+        facade = LakehousePlumberApplicationFacade.for_project(project_root)
+        blueprints = facade.inspection.list_blueprints(include_instances=verbose)
 
-        project_config_loader = ProjectConfigLoader(project_root)
-        project_config = project_config_loader.load_project_config()
-
-        discoverer = BlueprintDiscoverer(
-            project_root,
-            project_config=project_config,
-            blueprint_parser=BlueprintParser(),
-        )
-        blueprints = discoverer.discover_blueprints()
         if not blueprints:
             render_empty_state(
                 "No blueprints found.",
@@ -180,24 +173,15 @@ class ListCommand(BaseCommand):
             )
             return
 
-        instances = discoverer.discover_instances(blueprints)
-        instances_by_blueprint: Dict[str, List[Tuple[Any, Path]]] = {
-            name: [] for name in blueprints
-        }
-        for instance, instance_path in instances:
-            instances_by_blueprint.setdefault(instance.blueprint_name, []).append(
-                (instance, instance_path)
-            )
-
         rows = [
             (
-                name,
+                bp.name,
                 str(bp.version),
-                str(len(bp.parameters)),
-                str(len(bp.flowgroups)),
-                str(len(instances_by_blueprint.get(name, []))),
+                str(bp.parameter_count),
+                str(bp.flowgroup_count),
+                str(bp.instance_count),
             )
-            for name, (bp, _path) in sorted(blueprints.items())
+            for bp in blueprints
         ]
         render_listing_table(
             "Blueprints",
@@ -212,159 +196,70 @@ class ListCommand(BaseCommand):
             total_label="blueprints",
         )
 
-        if verbose:
-            from ...core.services.blueprint_expander import BlueprintExpander
+        total_instances = sum(bp.instance_count for bp in blueprints)
 
-            expander = BlueprintExpander()
+        if verbose:
             _console_module.console.print(Text("Verbose:", style="bold dim"))
-            for name, (bp, bp_path) in sorted(blueprints.items()):
+            for bp in blueprints:
                 _console_module.console.print(
                     Text.assemble(
                         ("  ", ""),
-                        (name, "bold"),
-                        (f" ({bp_path}):", "dim"),
+                        (bp.name, "bold"),
+                        (f" ({bp.file_path}):", "dim"),
                     )
                 )
-                for instance, instance_path in instances_by_blueprint.get(name, []):
-                    contexts, _ = expander.expand_single_instance(
-                        instance, instance_path, blueprints
-                    )
-                    pipelines = sorted({ctx.flowgroup.pipeline for ctx in contexts})
+                for instance in bp.instances:
                     _console_module.console.print(
-                        f"    - {instance_path.name}: "
-                        f"{len(contexts)} flowgroup(s) -> pipeline(s) {pipelines}"
+                        f"    - {instance.instance_file_path.name}: "
+                        f"{instance.flowgroup_count} flowgroup(s) -> "
+                        f"pipeline(s) {list(instance.pipelines)}"
                     )
 
-        _console_module.console.print(f"Total instances: {len(instances)}")
+        _console_module.console.print(f"Total instances: {total_instances}")
 
-    def _parse_preset_information(
-        self, preset_files: List[Path]
-    ) -> List[Dict[str, Any]]:
-        parser = YAMLParser()
-        presets_info = []
-
-        for preset_file in sorted(preset_files):
-            try:
-                preset = parser.parse_preset(preset_file)
-                presets_info.append(
-                    {
-                        "name": preset.name,
-                        "file": preset_file.name,
-                        "version": preset.version,
-                        "extends": preset.extends,
-                        "description": preset.description or "No description",
-                    }
-                )
-            except Exception as e:
-                logger.warning(f"Could not parse preset {preset_file}: {e}")
-                from ...utils.error_formatter import LHPError
-
-                error_desc = (
-                    e.title if isinstance(e, LHPError) else f"{type(e).__name__}"
-                )
-                presets_info.append(
-                    {
-                        "name": preset_file.stem,
-                        "file": preset_file.name,
-                        "version": "?",
-                        "extends": "?",
-                        "description": f"Error: {error_desc}",
-                    }
-                )
-
-        return presets_info
-
-    def _parse_template_information(
-        self, template_files: List[Path]
-    ) -> List[Dict[str, Any]]:
-        parser = YAMLParser()
-        templates_info = []
-
-        for template_file in sorted(template_files):
-            try:
-                template = parser.parse_template_raw(template_file)
-                required_params = sum(
-                    1 for p in template.parameters if p.get("required", False)
-                )
-                total_params = len(template.parameters)
-
-                templates_info.append(
-                    {
-                        "name": template.name,
-                        "file": template_file.name,
-                        "version": template.version,
-                        "params": f"{required_params}/{total_params}",
-                        "actions": len(template.actions),
-                        "description": template.description or "No description",
-                    }
-                )
-            except Exception as e:
-                logger.warning(f"Could not parse template {template_file}: {e}")
-                from ...utils.error_formatter import LHPError
-
-                error_desc = (
-                    e.title if isinstance(e, LHPError) else f"{type(e).__name__}"
-                )
-                templates_info.append(
-                    {
-                        "name": template_file.stem,
-                        "file": template_file.name,
-                        "version": "?",
-                        "params": "?",
-                        "actions": "?",
-                        "description": f"Error: {error_desc}",
-                    }
-                )
-
-        return templates_info
-
-    def _display_preset_descriptions(self, presets_info: List[Dict[str, Any]]) -> None:
+    def _display_preset_descriptions(
+        self, presets: "tuple[PresetView, ...]"
+    ) -> None:
         described = [
             preset
-            for preset in presets_info
-            if preset["description"] != "No description"
+            for preset in presets
+            if preset.description and preset.description != "No description"
         ]
         if not described:
             return
         _console_module.console.print(Text("Descriptions", style="bold dim"))
         for preset in described:
-            _console_module.console.print(Text(f"{preset['name']}:", style="bold"))
-            _console_module.console.print(f"   {preset['description']}")
+            _console_module.console.print(Text(f"{preset.name}:", style="bold"))
+            _console_module.console.print(f"   {preset.description}")
 
-    def _display_template_details(self, template_files: List[Path]) -> None:
-        parser = YAMLParser()
-
+    def _display_template_details(
+        self, templates: "tuple[TemplateView, ...]"
+    ) -> None:
         _console_module.console.print(Text("Template Details", style="bold dim"))
-        for template_file in sorted(template_files):
-            try:
-                template = parser.parse_template_raw(template_file)
-                _console_module.console.print(Text(f"{template.name}:", style="bold"))
-                if template.description:
-                    _console_module.console.print(
-                        f"   Description: {template.description}"
-                    )
-
-                if template.parameters:
-                    _console_module.console.print("   Parameters:")
-                    for param in template.parameters:
-                        param_name = param.get("name", "unknown")
-                        param_type = param.get("type", "string")
-                        param_required = (
-                            "required" if param.get("required", False) else "optional"
-                        )
-                        param_desc = param.get("description", "")
-                        default = param.get("default")
-
-                        _console_module.console.print(
-                            f"      - {param_name} ({param_type}, {param_required})"
-                        )
-                        if param_desc:
-                            _console_module.console.print(f"        {param_desc}")
-                        if default is not None:
-                            _console_module.console.print(f"        Default: {default}")
-
-            except Exception as e:
-                logger.debug(
-                    f"Skipping template detail display for {template_file}: {e}"
+        for template in templates:
+            _console_module.console.print(Text(f"{template.name}:", style="bold"))
+            if template.description:
+                _console_module.console.print(
+                    f"   Description: {template.description}"
                 )
-                pass
+
+            if template.parameters:
+                _console_module.console.print("   Parameters:")
+                for param in template.parameters:
+                    param_required = "required" if param.required else "optional"
+                    _console_module.console.print(
+                        f"      - {param.name} ({param.type_}, {param_required})"
+                    )
+                    if param.description:
+                        _console_module.console.print(f"        {param.description}")
+                    if param.default is not None:
+                        _console_module.console.print(
+                            f"        Default: {param.default}"
+                        )
+
+
+# Re-export the View types — the public CLI module imports them above as
+# part of constraining itself to ``lhp.api`` per constitution §2 / §9.13;
+# downstream tests may want to type-check the helpers without re-importing
+# from the api package.
+__all__ = ["ListCommand", "BlueprintView", "PresetView", "TemplateView"]

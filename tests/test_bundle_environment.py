@@ -16,7 +16,7 @@ import pytest
 import yaml
 
 from lhp.bundle.manager import BundleManager
-from lhp.core.services.pipeline_config_loader import PipelineConfigLoader
+from lhp.core.loaders.pipeline_config_loader import PipelineConfigLoader
 
 
 class TestEnvironmentTemplateRendering:

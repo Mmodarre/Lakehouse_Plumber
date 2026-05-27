@@ -8,9 +8,9 @@ and test_test_reporting_hook_generator.py.
 import pytest
 from pydantic import ValidationError
 
-from lhp.core.config_field_validator import ConfigFieldValidator
-from lhp.core.project_config_loader import ProjectConfigLoader
-from lhp.core.services.tst_reporting_hook_generator import (
+from lhp.core.validators.config_field_validator import ConfigFieldValidator
+from lhp.core.loaders import ProjectConfigLoader
+from lhp.core.codegen.tst_reporting_hook_generator import (
     HOOK_FILENAME,
     TestReportingHookGenerator,
 )
@@ -21,7 +21,7 @@ from lhp.models.config import (
     ProjectConfig,
     TestReportingConfig,
 )
-from lhp.utils.error_formatter import LHPError
+from lhp.errors import LHPError
 
 # ============================================================================
 # Helpers (same pattern as existing test_test_reporting_hook_generator.py)

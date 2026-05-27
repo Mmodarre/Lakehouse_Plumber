@@ -1,4 +1,4 @@
-"""Spec-driven unit tests for FlowgroupDiscoverer.register_synthetic_sources (Phase 7).
+"""Spec-driven unit tests for FlowgroupDiscoveryService.register_synthetic_sources (Phase 7).
 
 Synthetic flowgroups must resolve to their blueprint path, and synthetic entries
 must override conflicting on-disk entries when the same (pipeline, flowgroup)
@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from lhp.core.services.flowgroup_discoverer import FlowgroupDiscoverer
+from lhp.core.discovery.flowgroup_discoverer import FlowgroupDiscoveryService
 from lhp.models.config import FlowGroup
 
 pytestmark = pytest.mark.unit
@@ -26,7 +26,7 @@ def test_register_synthetic_sources_populates_index(tmp_path):
         tmp_path / "blueprints" / "erp.yaml",
         "name: erp\nparameters: []\nflowgroups: []\n",
     )
-    disco = FlowgroupDiscoverer(tmp_path)
+    disco = FlowgroupDiscoveryService(tmp_path)
     disco.register_synthetic_sources({("apac_sg_raw", "apac_sg_orders"): bp_path})
     fg = FlowGroup(pipeline="apac_sg_raw", flowgroup="apac_sg_orders", actions=[])
     found = disco.find_source_yaml_for_flowgroup(fg)
@@ -34,7 +34,7 @@ def test_register_synthetic_sources_populates_index(tmp_path):
 
 
 def test_register_synthetic_with_empty_input_is_noop(tmp_path):
-    disco = FlowgroupDiscoverer(tmp_path)
+    disco = FlowgroupDiscoveryService(tmp_path)
     # Should not raise and should not initialize the index.
     disco.register_synthetic_sources({})
     fg = FlowGroup(pipeline="x", flowgroup="y", actions=[])
@@ -64,7 +64,7 @@ actions:
         tmp_path / "blueprints" / "erp.yaml",
         "name: erp\nparameters: []\nflowgroups: []\n",
     )
-    disco = FlowgroupDiscoverer(tmp_path)
+    disco = FlowgroupDiscoveryService(tmp_path)
     # Force eager build of disk index by looking up first.
     fg = FlowGroup(pipeline="shared_pipeline", flowgroup="shared_fg", actions=[])
     pre = disco.find_source_yaml_for_flowgroup(fg)

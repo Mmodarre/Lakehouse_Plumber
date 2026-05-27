@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from ....models.config import Action
-from ....utils.error_formatter import (
+from ....errors import (
     ErrorFormatter,
 )
 from .base_sink import BaseSinkWriteGenerator

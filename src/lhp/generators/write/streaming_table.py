@@ -5,10 +5,10 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, NamedTuple, Optional
 
-from ...core.base_generator import BaseActionGenerator
+from ...core.registry import BaseActionGenerator
 from ...models.config import Action
 from ...utils.dqe import DQEParser
-from ...utils.error_formatter import ErrorCategory, ErrorFormatter, LHPError
+from ...errors import ErrorCategory, ErrorFormatter, LHPError
 from ...utils.external_file_loader import (
     is_file_path,
     load_external_file_text,
@@ -683,10 +683,10 @@ def {function_name}(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, 
             skip_import = False
 
             # __future__ imports must be hoisted to the top of the assembled
-            # module per PEP 236; CodeGenerator._assemble_final_code handles
-            # this centrally. Strip here so the inlined source-function block
-            # does not embed a duplicate the chokepoint would then have to
-            # harvest mid-body.
+            # module per PEP 236; CodeAssembler.assemble (invoked by
+            # CodeGenerationService.generate_flowgroup_code) handles this
+            # centrally. Strip here so the inlined source-function block does
+            # not embed a duplicate the chokepoint would then have to harvest.
             if imp.startswith("from __future__"):
                 skip_import = True
             # Skip base pyspark session imports (these are redundant in DLT)

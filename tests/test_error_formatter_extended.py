@@ -2,7 +2,7 @@
 
 import pytest
 
-from lhp.utils.error_formatter import (
+from lhp.errors import (
     LHPError,
     LHPValidationError,
     LHPConfigError,

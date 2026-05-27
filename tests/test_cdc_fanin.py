@@ -15,11 +15,11 @@ from pathlib import Path
 
 import pytest
 
-from lhp.core.orchestrator import ActionOrchestrator
-from lhp.core.validator import ConfigValidator
+from lhp.core.coordination import ActionOrchestrator
+from lhp.core.validators import ConfigValidator
 from lhp.generators.write.streaming_table import StreamingTableWriteGenerator
 from lhp.models.config import Action, ActionType, FlowGroup
-from lhp.utils.error_formatter import LHPConfigError
+from lhp.errors import LHPConfigError
 
 # ---------------------------------------------------------------------------
 # Helpers

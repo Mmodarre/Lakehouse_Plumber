@@ -3,9 +3,9 @@
 import logging
 from pathlib import Path
 
-from ...core.base_generator import BaseActionGenerator
+from ...core.registry import BaseActionGenerator
 from ...models.config import Action
-from ...utils.error_formatter import ErrorFormatter
+from ...errors import ErrorFormatter
 from ...utils.external_file_loader import load_external_file_text
 
 logger = logging.getLogger(__name__)

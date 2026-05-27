@@ -1,6 +1,6 @@
 """Picklable test fakes for collaborators that cross the worker boundary.
 
-The :mod:`lhp.core.pipeline_executor` workers run in a ``spawn`` child via
+The :mod:`lhp.core.coordination.executor` workers run in a ``spawn`` child via
 ``ProcessPoolExecutor``. Any state captured for or returned from those workers
 is serialised with :mod:`pickle`. ``unittest.mock.MagicMock`` cannot pickle
 cleanly across that boundary, so tests that exercise worker entry points use
@@ -11,7 +11,7 @@ method/attribute surface that the production code under test reads, and no
 more. Calibration:
 
 * Fakes for collaborators owned by this codebase
-  (``FlowgroupProcessor``, ``EnhancedSubstitutionManager``, ...). Mocks are
+  (``FlowgroupResolutionService``, ``EnhancedSubstitutionManager``, ...). Mocks are
   reserved for assertions where the call itself is the contract under test.
 * No diagnostic logging from inside a fake; tests assert on observable state.
 """
@@ -20,7 +20,7 @@ from tests.fakes.processing import (
     CallRecord,
     FakeCodeFormatter,
     FakeCodeGenerator,
-    FakeFlowgroupProcessor,
+    FakeFlowgroupResolutionService,
     FakeProjectConfig,
     FakeSubstitutionManager,
     FakeTemplate,
@@ -31,7 +31,7 @@ __all__ = [
     "CallRecord",
     "FakeCodeFormatter",
     "FakeCodeGenerator",
-    "FakeFlowgroupProcessor",
+    "FakeFlowgroupResolutionService",
     "FakeProjectConfig",
     "FakeSubstitutionManager",
     "FakeTemplate",

@@ -16,9 +16,9 @@ class TestPython38Compatibility:
     def test_files_with_future_annotations_parse_correctly(self):
         """Test that files with __future__ annotations can be parsed by AST."""
         files_with_forward_refs = [
-            "src/lhp/core/validator.py",
-            "src/lhp/core/init_template_context.py",
-            "src/lhp/core/base_generator.py",
+            "src/lhp/core/validators/config_validator.py",
+            "src/lhp/core/loaders/init_template_context.py",
+            "src/lhp/core/registry/base_generator.py",
         ]
 
         for file_path in files_with_forward_refs:
@@ -43,9 +43,9 @@ class TestPython38Compatibility:
     def test_no_quoted_forward_references_remain(self):
         """Test that quoted forward references have been removed from fixed files."""
         files_and_patterns = [
-            ("src/lhp/core/validator.py", ['"WriteTarget"']),
-            ("src/lhp/core/init_template_context.py", ['"InitTemplateContext"']),
-            ("src/lhp/core/base_generator.py", ['"Action"']),
+            ("src/lhp/core/validators/config_validator.py", ['"WriteTarget"']),
+            ("src/lhp/core/loaders/init_template_context.py", ['"InitTemplateContext"']),
+            ("src/lhp/core/registry/base_generator.py", ['"Action"']),
         ]
 
         for file_path, patterns in files_and_patterns:
@@ -96,9 +96,9 @@ class Action: pass
         sys.path.insert(0, "src")
 
         modules_to_test = [
-            "lhp.core.validator",
-            "lhp.core.init_template_context",
-            "lhp.core.base_generator",
+            "lhp.core.validators.config_validator",
+            "lhp.core.loaders.init_template_context",
+            "lhp.core.registry.base_generator",
         ]
 
         for module_name in modules_to_test:
@@ -112,9 +112,9 @@ class Action: pass
     def test_syntax_compatibility_indicators(self):
         """Test that files have proper Python 3.8+ compatibility indicators."""
         files_to_check = [
-            "src/lhp/core/validator.py",
-            "src/lhp/core/init_template_context.py",
-            "src/lhp/core/base_generator.py",
+            "src/lhp/core/validators/config_validator.py",
+            "src/lhp/core/loaders/init_template_context.py",
+            "src/lhp/core/registry/base_generator.py",
         ]
 
         for file_path in files_to_check:
@@ -142,7 +142,7 @@ class Action: pass
 
         # Test orchestrator.py with Tuple annotations
         try:
-            from lhp.core.orchestrator import ActionOrchestrator
+            from lhp.core.coordination import ActionOrchestrator
 
             assert ActionOrchestrator is not None
 
@@ -169,8 +169,8 @@ class Action: pass
             # Test that we can import the full package
             import lhp
             from lhp.cli.main import cli
-            from lhp.core.orchestrator import ActionOrchestrator
-            from lhp.core.validator import ConfigValidator
+            from lhp.core.coordination import ActionOrchestrator
+            from lhp.core.validators import ConfigValidator
 
             assert cli is not None
             assert ActionOrchestrator is not None

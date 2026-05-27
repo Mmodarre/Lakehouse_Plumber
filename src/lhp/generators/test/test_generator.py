@@ -3,9 +3,9 @@
 import logging
 from typing import Any, Dict, List
 
-from lhp.core.base_generator import BaseActionGenerator
+from lhp.core.registry import BaseActionGenerator
 from lhp.models.config import Action
-from lhp.utils.error_formatter import ErrorCategory, LHPValidationError
+from lhp.errors import ErrorCategory, LHPValidationError
 
 logger = logging.getLogger(__name__)
 

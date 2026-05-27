@@ -4,7 +4,7 @@ import pytest
 from pathlib import Path
 import tempfile
 
-from lhp.core.template_engine import TemplateEngine
+from lhp.core.processing import TemplateEngine
 
 
 class TestTemplateSmartDetection:

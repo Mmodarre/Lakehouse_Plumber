@@ -3,7 +3,7 @@
 import pytest
 import tempfile
 from pathlib import Path
-from lhp.core.template_engine import TemplateEngine
+from lhp.core.processing import TemplateEngine
 from lhp.models.config import Template, Action, ActionType, LoadSourceType
 
 

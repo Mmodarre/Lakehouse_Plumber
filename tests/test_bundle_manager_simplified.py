@@ -25,7 +25,7 @@ import pytest
 
 from lhp.bundle.exceptions import BundleResourceError
 from lhp.bundle.manager import BundleManager
-from lhp.utils.error_formatter import LHPConfigError
+from lhp.errors import LHPConfigError
 
 
 # ---------------------------------------------------------------------------

@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 
 from lhp.parsers.yaml_parser import YAMLParser
-from lhp.core.services.flowgroup_discoverer import FlowgroupDiscoverer
+from lhp.core.discovery.flowgroup_discoverer import FlowgroupDiscoveryService
 
 
 class TestSAPParquetMultiFlowgroup:
@@ -125,7 +125,7 @@ flowgroups:
             yaml_file.unlink()
     
     def test_discoverer_with_multi_flowgroup_sap_file(self):
-        """Test FlowgroupDiscoverer with combined SAP file."""
+        """Test FlowgroupDiscoveryService with combined SAP file."""
         with tempfile.TemporaryDirectory() as temp_dir:
             project_root = Path(temp_dir)
             pipelines_dir = project_root / "pipelines" / "01_raw_ingestion" / "SAP"
@@ -150,8 +150,8 @@ flowgroups:
       landing_folder: carrier
 """)
             
-            discoverer = FlowgroupDiscoverer(project_root)
-            flowgroups = discoverer.discover_flowgroups(pipelines_dir)
+            discoverer = FlowgroupDiscoveryService(project_root)
+            flowgroups = discoverer._legacy_discover_flowgroups_by_dir(pipelines_dir)
             
             # Should discover all 3 from single file
             assert len(flowgroups) == 3
@@ -198,8 +198,8 @@ template_parameters:
 """)
             
             # Discover with 3 separate files
-            discoverer = FlowgroupDiscoverer(project_root)
-            flowgroups_separate = discoverer.discover_flowgroups(pipelines_dir)
+            discoverer = FlowgroupDiscoveryService(project_root)
+            flowgroups_separate = discoverer._legacy_discover_flowgroups_by_dir(pipelines_dir)
             
             # Clean up for scenario B
             for f in pipelines_dir.glob("*.yaml"):
@@ -225,7 +225,7 @@ flowgroups:
 """)
             
             # Discover with 1 combined file
-            flowgroups_combined = discoverer.discover_flowgroups(pipelines_dir)
+            flowgroups_combined = discoverer._legacy_discover_flowgroups_by_dir(pipelines_dir)
             
             # Same number of flowgroups discovered
             assert len(flowgroups_separate) == len(flowgroups_combined) == 3

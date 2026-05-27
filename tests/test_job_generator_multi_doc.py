@@ -3,7 +3,7 @@
 import pytest
 from pathlib import Path
 import yaml
-from lhp.core.services.job_generator import JobGenerator
+from lhp.core.jobs.job_generator import JobGenerator
 from lhp.models.dependencies import DependencyAnalysisResult, PipelineDependency
 from unittest.mock import Mock
 
@@ -1122,9 +1122,9 @@ class TestDependencyOutputManagerIntegration:
     
     def test_master_job_skipped_when_disabled(self, tmp_path):
         """Test that master job is not generated when disabled in config."""
-        from lhp.core.services.dependency_output_manager import DependencyOutputManager
-        from lhp.core.services.dependency_analyzer import DependencyAnalyzer
-        from lhp.core.services.job_generator import JobGenerator
+        from lhp.core.dependencies.output import DependencyOutputManager
+        from lhp.core.dependencies.service import DependencyAnalysisService
+        from lhp.core.jobs.job_generator import JobGenerator
         from unittest.mock import patch, Mock
         
         # Create config with master job disabled
@@ -1212,7 +1212,7 @@ max_concurrent_runs: 2
         config_file = config_dir / "job_config.yaml"
         config_file.write_text(config_content)
         
-        from lhp.utils.error_formatter import LHPError
+        from lhp.errors import LHPError
         
         with pytest.raises(LHPError) as exc_info:
             JobGenerator(project_root=tmp_path, config_file_path="config/job_config.yaml")
@@ -1237,7 +1237,7 @@ max_concurrent_runs: 2
         config_file = config_dir / "job_config.yaml"
         config_file.write_text(config_content)
         
-        from lhp.utils.error_formatter import LHPError
+        from lhp.errors import LHPError
         
         with pytest.raises(LHPError) as exc_info:
             JobGenerator(project_root=tmp_path, config_file_path="config/job_config.yaml")
@@ -1264,7 +1264,7 @@ max_concurrent_runs: 3
         config_file = config_dir / "job_config.yaml"
         config_file.write_text(config_content)
         
-        from lhp.utils.error_formatter import LHPError
+        from lhp.errors import LHPError
         
         with pytest.raises(LHPError) as exc_info:
             JobGenerator(project_root=tmp_path, config_file_path="config/job_config.yaml")
@@ -1340,7 +1340,7 @@ max_concurrent_runs: 3
         config_file = config_dir / "job_config.yaml"
         config_file.write_text(config_content)
         
-        from lhp.utils.error_formatter import LHPError
+        from lhp.errors import LHPError
         
         with pytest.raises(LHPError) as exc_info:
             JobGenerator(project_root=tmp_path, config_file_path="config/job_config.yaml")

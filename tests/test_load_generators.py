@@ -98,7 +98,7 @@ class TestLoadGenerators:
         code containing ``__SECRET_scope_key__`` placeholders inside Python
         string literals. The conversion to bare ``dbutils.secrets.get(...)``
         calls (entire-value fields) or f-strings (embedded fields) happens
-        later in `CodeGenerator._apply_secret_substitutions`. End-to-end
+        later in `CodeGenerationService._apply_secret_substitutions`. End-to-end
         emission is verified in
         `tests/test_orchestrator.py::test_flowgroup_with_secret_substitution`
         and `tests/test_integration.py::test_jdbc_source_with_secrets`;

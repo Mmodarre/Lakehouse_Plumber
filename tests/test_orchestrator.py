@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from lhp.core.orchestrator import ActionOrchestrator
+from lhp.core.coordination import ActionOrchestrator
 from tests.helpers import read_generated_pipeline
 
 
@@ -542,7 +542,7 @@ class TestOrchestratorDependencyInjection:
         """Test orchestrator initialization with custom dependencies."""
         from unittest.mock import Mock
 
-        from lhp.core.factories import (
+        from lhp.core.registry import (
             OrchestrationDependencies,
         )
 
@@ -567,7 +567,7 @@ class TestOrchestratorDependencyInjection:
 
     def test_dependency_factories_work(self):
         """Test that dependency factories can create instances."""
-        from lhp.core.factories import (
+        from lhp.core.registry import (
             DefaultSubstitutionFactory,
         )
 
@@ -770,9 +770,9 @@ class TestGeneratePipelinesByFields:
         """When the pool returns one failed delta with a live lhp_error,
         orchestrator re-raises the original LHPError unchanged (preserving
         the original code, not wrapping as LHP-GEN-901 or LHP-VAL-902)."""
-        from lhp.core import orchestrator as orchestrator_module
+        from lhp.core.coordination import orchestrator as orchestrator_module
         from lhp.models.processing import PipelineDelta
-        from lhp.utils.error_formatter import (
+        from lhp.errors import (
             ErrorCategory,
             LHPError,
             LHPValidationError,
@@ -820,9 +820,9 @@ class TestGeneratePipelinesByFields:
         """When the pool returns multiple failed deltas with distinct
         LHPError codes, orchestrator raises LHP-VAL-902 with per-pipeline
         codes surfaced in the context dict."""
-        from lhp.core import orchestrator as orchestrator_module
+        from lhp.core.coordination import orchestrator as orchestrator_module
         from lhp.models.processing import PipelineDelta
-        from lhp.utils.error_formatter import (
+        from lhp.errors import (
             ErrorCategory,
             LHPConfigError,
             LHPError,
@@ -894,9 +894,9 @@ class TestGeneratePipelinesByFields:
         """When the pool returns one failed delta with lhp_error=None
         (a non-LHP worker exception like KeyError), orchestrator wraps
         the failure via lhp_error_from_worker_failure → LHP-GEN-901."""
-        from lhp.core import orchestrator as orchestrator_module
+        from lhp.core.coordination import orchestrator as orchestrator_module
         from lhp.models.processing import PipelineDelta
-        from lhp.utils.error_formatter import LHPError
+        from lhp.errors import LHPError
 
         failed_delta = PipelineDelta(
             pipeline_name="p_alpha",

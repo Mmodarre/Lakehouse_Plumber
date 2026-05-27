@@ -9,14 +9,14 @@ from pathlib import Path
 
 import pytest
 
-from lhp.core.services.blueprint_expander import BlueprintExpander, BlueprintProvenance
+from lhp.core.processing.blueprint_expander import BlueprintExpander, BlueprintProvenance
 from lhp.models.config import (
     Blueprint,
     BlueprintFlowgroupSpec,
     BlueprintInstance,
     BlueprintParameter,
 )
-from lhp.utils.error_formatter import ErrorCategory, LHPError
+from lhp.errors import ErrorCategory, LHPError
 
 pytestmark = pytest.mark.unit
 

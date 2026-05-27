@@ -5,10 +5,10 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 
-from ...core.base_generator import BaseActionGenerator
+from ...core.registry import BaseActionGenerator
 from ...models.config import Action
 from ...utils.dqe import DQEParser
-from ...utils.error_formatter import ErrorFormatter
+from ...errors import ErrorFormatter
 from ...utils.external_file_loader import resolve_external_file_path
 
 logger = logging.getLogger(__name__)

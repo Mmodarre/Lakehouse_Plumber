@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from lhp.core.orchestrator import ActionOrchestrator
+from lhp.core.coordination import ActionOrchestrator
 from tests.helpers import read_generated_pipeline
 
 

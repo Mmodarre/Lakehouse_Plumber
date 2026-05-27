@@ -24,7 +24,7 @@ from lhp.models.config import (
     ProjectOperationalMetadataConfig,
     TransformType,
 )
-from lhp.utils.error_formatter import LHPError
+from lhp.errors import LHPError
 from lhp.utils.operational_metadata import OperationalMetadata
 
 

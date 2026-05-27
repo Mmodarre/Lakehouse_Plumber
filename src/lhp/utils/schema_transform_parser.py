@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 import yaml
 
 from ..parsers.yaml_parser import YAMLParser
-from ..utils.error_formatter import (
+from ..errors import (
     ErrorFormatter,
 )
 

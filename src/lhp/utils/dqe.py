@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple, Union
 
 
-from .error_formatter import ErrorFormatter, LHPError
+from ..errors import ErrorFormatter, LHPError
 
 
 class DQEParser:

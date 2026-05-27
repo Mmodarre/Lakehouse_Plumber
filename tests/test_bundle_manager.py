@@ -343,7 +343,7 @@ class TestBundleManagerFileOperations:
     def test_bundle_manager_error_handling_initialization(self):
         """Should handle initialization errors appropriately."""
         # Test with None project root — raises LHPConfigError (wraps former TypeError)
-        from lhp.utils.error_formatter import LHPConfigError
+        from lhp.errors import LHPConfigError
 
         with pytest.raises(LHPConfigError, match="project_root cannot be None"):
             BundleManager(None)

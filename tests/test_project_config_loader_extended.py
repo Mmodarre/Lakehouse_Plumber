@@ -3,8 +3,8 @@
 import pytest
 from pathlib import Path
 
-from lhp.core.project_config_loader import ProjectConfigLoader
-from lhp.utils.error_formatter import LHPError
+from lhp.core.loaders import ProjectConfigLoader
+from lhp.errors import LHPError
 
 
 class TestLoadProjectConfig:

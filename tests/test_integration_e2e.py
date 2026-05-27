@@ -14,7 +14,7 @@ import pytest
 
 from lhp.bundle.manager import BundleManager
 from lhp.cli.main import cli
-from lhp.core.orchestrator import ActionOrchestrator
+from lhp.core.coordination import ActionOrchestrator
 from lhp.utils.bundle_detection import should_enable_bundle_support
 
 
@@ -217,7 +217,7 @@ resources:
             # User-facing catalog/schema validation is in
             # ``bundle.preflight.validate_catalog_schema`` (LHP-CFG-026).
             from lhp.bundle.exceptions import BundleResourceError
-            from lhp.utils.error_formatter import LHPConfigError
+            from lhp.errors import LHPConfigError
 
             assert isinstance(e, (BundleResourceError, LHPConfigError))
 

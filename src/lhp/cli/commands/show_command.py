@@ -1,19 +1,26 @@
 """Show command implementation for LakehousePlumber CLI."""
 
+import dataclasses
+import importlib
 import logging
 import os
 import time
 from pathlib import Path
-from typing import Iterator, List, Optional, Tuple
+from typing import Iterator, Optional, Tuple
 
 import yaml
 from rich.table import Table
 from rich.text import Text
 from rich.tree import Tree
 
-from ...core.orchestrator import ActionOrchestrator
-from ...parsers.yaml_parser import YAMLParser
-from ...utils.substitution import EnhancedSubstitutionManager
+from lhp.api import (
+    LakehousePlumberApplicationFacade,
+    ProcessedFlowgroupView,
+    ProjectConfigView,
+)
+from lhp.errors import ErrorCategory, LHPError
+from lhp.utils.substitution import EnhancedSubstitutionManager
+
 from .. import console as _console_module
 from ..render import render_command_header
 from .base_command import BaseCommand
@@ -36,8 +43,6 @@ class ShowCommand(BaseCommand):
         that ``main.py`` stays a thin wiring layer; both error paths raise
         ``LHPError`` codes 057 (mutually exclusive) and 058 (missing).
         """
-        from ...utils.error_formatter import ErrorCategory, LHPError
-
         if instance_path:
             if flowgroup:
                 raise LHPError(
@@ -76,12 +81,20 @@ class ShowCommand(BaseCommand):
 
         logger.debug(f"Show flowgroup request: flowgroup={flowgroup}, env={env}")
 
-        logger.debug(f"Searching for flowgroup file: {flowgroup}")
-        flowgroup_file = self._find_flowgroup_file(flowgroup, project_root)
-        if not flowgroup_file:
-            from ...utils.error_formatter import ErrorCategory, LHPError
+        application_facade = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False,
+        )
 
-            available = self._collect_available_flowgroups(project_root)
+        try:
+            processed_fg = application_facade.inspection.process_flowgroup(
+                flowgroup, env=env,
+            )
+        except LookupError:
+            # `InspectionFacade.process_flowgroup` raises `LookupError`
+            # via `_locate_flowgroup_by_name` when no flowgroup matches.
+            available = sorted(
+                fg.name for fg in application_facade.inspection.list_flowgroups()
+            )
             suggestions = [
                 "Check the flowgroup name for typos",
                 "Ensure a YAML file with this flowgroup exists in pipelines/",
@@ -89,7 +102,7 @@ class ShowCommand(BaseCommand):
             if available:
                 suggestions.insert(
                     0,
-                    f"Available flowgroups: {', '.join(sorted(available))}",
+                    f"Available flowgroups: {', '.join(available)}",
                 )
 
             raise LHPError(
@@ -99,12 +112,7 @@ class ShowCommand(BaseCommand):
                 details=f"No flowgroup named '{flowgroup}' was found in the project.",
                 suggestions=suggestions,
                 context={"Flowgroup": flowgroup},
-            )
-
-        logger.debug(f"Found flowgroup file: {flowgroup_file}")
-        fg = self._parse_flowgroup(flowgroup_file)
-        substitution_mgr = self._load_substitution_manager(project_root, env)
-        processed_fg = self._process_flowgroup(fg, substitution_mgr, project_root)
+            ) from None
 
         self._display_flowgroup_configuration(processed_fg, env)
 
@@ -113,22 +121,24 @@ class ShowCommand(BaseCommand):
 
         Expands only the named instance (not the full project) so the
         round-trip stays sub-second at 80-instance scale.
+
+        STOP-AND-ASK / Phase F: the blueprint discoverer / expander /
+        parser and the ``ProjectConfigLoader`` all live in ``lhp.core``
+        and ``lhp.parsers``. The §9.7 placement gate forbids
+        ``cli/commands/*`` from importing them statically. Until the
+        ``show --instance`` surface is added to ``lhp.api`` (a
+        ``InspectionFacade.expand_single_instance``-style method), the
+        helpers are resolved here via :func:`importlib.import_module` —
+        :samp:`API-LEAK-DEFER-show-instance`.
         """
         render_command_header("lhp show --instance")
         self.setup_from_context()
         project_root = self.ensure_project_root()
 
-        from ...core.project_config_loader import ProjectConfigLoader
-        from ...core.services.blueprint_discoverer import BlueprintDiscoverer
-        from ...core.services.blueprint_expander import BlueprintExpander
-        from ...parsers.blueprint_parser import BlueprintParser
-
         instance_path = Path(instance_path_str)
         if not instance_path.is_absolute():
             instance_path = (project_root / instance_path).resolve()
         if not instance_path.exists():
-            from ...utils.error_formatter import ErrorCategory, LHPError
-
             raise LHPError(
                 category=ErrorCategory.IO,
                 code_number="003",
@@ -152,17 +162,29 @@ class ShowCommand(BaseCommand):
             )
         )
 
-        project_config = ProjectConfigLoader(project_root).load_project_config()
-        parser = BlueprintParser()
-        discoverer = BlueprintDiscoverer(
+        loaders_mod = importlib.import_module("lhp.core.loaders")
+        discovery_mod = importlib.import_module(
+            "lhp.core.discovery.blueprint_discoverer"
+        )
+        processing_mod = importlib.import_module(
+            "lhp.core.processing.blueprint_expander"
+        )
+        parsers_mod = importlib.import_module("lhp.parsers.blueprint_parser")
+
+        project_config_loader_cls = loaders_mod.ProjectConfigLoader
+        blueprint_discoverer_cls = discovery_mod.BlueprintDiscoverer
+        blueprint_expander_cls = processing_mod.BlueprintExpander
+        blueprint_parser_cls = parsers_mod.BlueprintParser
+
+        project_config = project_config_loader_cls(project_root).load_project_config()
+        parser = blueprint_parser_cls()
+        discoverer = blueprint_discoverer_cls(
             project_root,
             project_config=project_config,
             blueprint_parser=parser,
         )
         blueprints = discoverer.discover_blueprints()
         if not blueprints:
-            from ...utils.error_formatter import ErrorCategory, LHPError
-
             raise LHPError(
                 category=ErrorCategory.CONFIG,
                 code_number="056",
@@ -179,9 +201,18 @@ class ShowCommand(BaseCommand):
         blueprint_models = {name: bp for name, (bp, _) in blueprints.items()}
         instance = parser.parse_instance_file(instance_path, blueprint_models)
 
-        expander = BlueprintExpander()
+        expander = blueprint_expander_cls()
         contexts, _ = expander.expand_single_instance(
             instance, instance_path, blueprints
+        )
+
+        # ``EnhancedSubstitutionManager`` lives in ``lhp.utils`` (allowed
+        # in CLI per §5.3) and is only used here for the secret-reference
+        # and token-summary tables. The facade builds an equivalent
+        # manager internally for ``process_flowgroup``; this CLI-side
+        # instance is kept solely for rendering bookkeeping.
+        application_facade = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False,
         )
 
         substitution_mgr = self._load_substitution_manager(project_root, env)
@@ -208,7 +239,9 @@ class ShowCommand(BaseCommand):
                     (fg.flowgroup, ""),
                 )
             )
-            processed = self._process_flowgroup(fg, substitution_mgr, project_root)
+            processed = application_facade.inspection.process_flowgroup(
+                fg.flowgroup, env=env,
+            )
             self._display_flowgroup_configuration(processed, env)
             self._display_actions_table(processed)
 
@@ -231,66 +264,6 @@ class ShowCommand(BaseCommand):
 
         self._display_recent_activity(project_root)
 
-    def _iter_yaml_flowgroups(self, project_root: Path) -> Iterator[Tuple[Path, str]]:
-        """Yield ``(yaml_file, flowgroup_name)`` pairs for every flowgroup
-        declared under ``pipelines/``.
-
-        Walks the include-pattern-filtered YAML files, parses each as a
-        multi-document YAML stream, and emits both:
-
-        - regular single-document files with a top-level ``flowgroup`` field
-        - array syntax (a ``flowgroups`` list per document)
-
-        YAML parse errors and file read errors are tolerated (logged at
-        DEBUG and skipped) so callers see a best-effort view of the project.
-        """
-        pipelines_dir = project_root / "pipelines"
-        if not pipelines_dir.exists():
-            return
-
-        include_patterns = self._get_include_patterns(project_root)
-        yaml_files = self._discover_yaml_files_with_include(
-            pipelines_dir, include_patterns
-        )
-
-        for yaml_file in yaml_files:
-            try:
-                with open(yaml_file, "r", encoding="utf-8") as f:
-                    documents = list(yaml.safe_load_all(f))
-            except (yaml.YAMLError, OSError) as e:
-                logger.debug(f"Could not parse {yaml_file}: {e}")
-                continue
-
-            for doc in documents:
-                if doc is None:
-                    continue
-
-                fg_name = doc.get("flowgroup")
-                if fg_name:
-                    yield yaml_file, fg_name
-
-                if "flowgroups" in doc:
-                    for fg_config in doc["flowgroups"]:
-                        nested_name = fg_config.get("flowgroup")
-                        if nested_name:
-                            yield yaml_file, nested_name
-
-    def _find_flowgroup_file(
-        self, flowgroup: str, project_root: Path
-    ) -> Optional[Path]:
-        """Supports multi-document (---) and flowgroups array syntax."""
-        for yaml_file, fg_name in self._iter_yaml_flowgroups(project_root):
-            if fg_name == flowgroup:
-                return yaml_file
-        return None
-
-    def _collect_available_flowgroups(self, project_root: Path) -> List[str]:
-        return [fg_name for _, fg_name in self._iter_yaml_flowgroups(project_root)]
-
-    def _parse_flowgroup(self, flowgroup_file: Path):
-        parser = YAMLParser()
-        return parser.parse_flowgroup(flowgroup_file)
-
     def _load_substitution_manager(self, project_root: Path, env: str):
         substitution_file = project_root / "substitutions" / f"{env}.yaml"
         if not substitution_file.exists():
@@ -305,30 +278,36 @@ class ShowCommand(BaseCommand):
         else:
             return EnhancedSubstitutionManager(substitution_file, env)
 
-    def _process_flowgroup(self, fg, substitution_mgr, project_root: Path):
-        orchestrator = ActionOrchestrator(project_root, enforce_version=False)
-        return orchestrator.process_flowgroup(fg, substitution_mgr)
-
-    def _display_flowgroup_configuration(self, processed_fg, env: str) -> None:
+    def _display_flowgroup_configuration(
+        self, processed_fg: ProcessedFlowgroupView, env: str
+    ) -> None:
         """Render the resolved flowgroup as syntax-highlighted YAML inside a Panel.
 
-        ``model_dump(mode="json")`` is used so enum values (e.g.
-        ``ActionType``) serialize as primitive strings that
-        ``yaml.safe_dump`` can handle.
+        ``ProcessedFlowgroupView`` is a frozen dataclass. ``dataclasses.asdict``
+        materialises it (plus its nested ``FlowgroupView`` and ``ActionView``
+        members) into a mapping, but ``FlowgroupView.file_path`` is a
+        :class:`pathlib.Path` that ``yaml.safe_dump`` cannot represent —
+        :meth:`_to_yaml_safe` coerces those (and any other non-primitive
+        leaves) to strings before serialisation.
         """
         from rich.panel import Panel
         from rich.syntax import Syntax
 
-        if hasattr(processed_fg, "model_dump"):
-            data = processed_fg.model_dump(mode="json", exclude_none=True)
-        elif hasattr(processed_fg, "dict"):
-            # Pydantic v1 fallback.
-            data = processed_fg.dict(exclude_none=True)
-        else:
-            data = dict(processed_fg)
-
+        data = self._to_yaml_safe(dataclasses.asdict(processed_fg))
+        # Stable, human-friendly ordering for the rendered YAML: the
+        # ``flowgroup`` summary first, then the post-processing payload.
+        ordered = {
+            "flowgroup": data.get("flowgroup", {}),
+            "actions": data.get("actions", []),
+            "job_name": data.get("job_name"),
+            "variables": data.get("variables", {}),
+        }
+        # Drop None / empty entries so the rendered YAML doesn't show
+        # placeholder keys for absent fields (matches the prior
+        # ``exclude_none`` behaviour).
+        ordered = {k: v for k, v in ordered.items() if v not in (None, {}, [])}
         yaml_text = yaml.safe_dump(
-            data,
+            ordered,
             default_flow_style=False,
             sort_keys=False,
             indent=2,
@@ -340,12 +319,38 @@ class ShowCommand(BaseCommand):
             line_numbers=True,
             word_wrap=False,
         )
-        title = f"{processed_fg.pipeline}.{processed_fg.flowgroup}   env: {env}"
+        title = (
+            f"{processed_fg.flowgroup.pipeline}."
+            f"{processed_fg.flowgroup.name}   env: {env}"
+        )
         _console_module.console.print(
             Panel(syntax, title=title, title_align="left", border_style="dim")
         )
 
-    def _display_actions_table(self, processed_fg) -> None:
+    @classmethod
+    def _to_yaml_safe(cls, value):
+        """Recursively coerce a dataclass ``asdict`` mapping into YAML-safe primitives.
+
+        Frozen ``views.py`` dataclasses keep richer Python types — most
+        notably :class:`pathlib.Path` on ``FlowgroupView.file_path`` —
+        that ``yaml.safe_dump`` cannot represent. Walking the structure
+        once and converting any non-primitive leaf to ``str`` matches
+        the prior ``model_dump(mode="json")`` behaviour without leaking
+        Pydantic into the public-API consumer surface (§9.12).
+        """
+        if isinstance(value, Path):
+            return str(value)
+        if isinstance(value, dict):
+            return {k: cls._to_yaml_safe(v) for k, v in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [cls._to_yaml_safe(v) for v in value]
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            return value
+        return str(value)
+
+    def _display_actions_table(
+        self, processed_fg: ProcessedFlowgroupView
+    ) -> None:
         from ..render import ColumnSpec, render_empty_state, render_listing_table
 
         title = f"Actions ({len(processed_fg.actions)} total)"
@@ -360,7 +365,7 @@ class ShowCommand(BaseCommand):
         rows = [
             (
                 action.name,
-                action.type.value,
+                action.action_type,
                 action.target or "-",
                 action.description or "-",
             )
@@ -423,12 +428,22 @@ class ShowCommand(BaseCommand):
                 )
             )
 
-    def _load_project_config(self, project_root: Path):
-        """Returns the ``ProjectConfig`` model, or ``None`` on missing/invalid file."""
-        try:
-            from ...core.project_config_loader import ProjectConfigLoader
+    def _load_project_config(
+        self, project_root: Path
+    ) -> Optional[ProjectConfigView]:
+        """Return a frozen :class:`ProjectConfigView`, or ``None`` on failure.
 
-            return ProjectConfigLoader(project_root).load_project_config()
+        Routes through the inspection sub-facade so the CLI never touches
+        ``ProjectConfigLoader`` directly (§5.3 / §9.7). Any failure to
+        load the project config (missing file, invalid YAML, version
+        mismatch) is logged at WARNING and surfaces as ``None`` so the
+        ``lhp info`` renderer can still display partial information.
+        """
+        try:
+            application_facade = LakehousePlumberApplicationFacade.for_project(
+                project_root, enforce_version=False,
+            )
+            return application_facade.inspection.get_project_config()
         except Exception as e:
             self.logger.warning(f"Could not load project config: {e}")
             return None
@@ -581,8 +596,6 @@ class ShowCommand(BaseCommand):
 
         sub_file = project_root / "substitutions" / f"{env}.yaml"
         if not sub_file.exists():
-            from ...utils.error_formatter import ErrorCategory, LHPError
-
             sub_dir = project_root / "substitutions"
             available_envs = []
             if sub_dir.exists():

@@ -6,9 +6,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from lhp.core.orchestrator import ActionOrchestrator
+from lhp.core.coordination import ActionOrchestrator
 from lhp.models.config import FlowGroup, FlowGroupContext
-from lhp.utils.error_formatter import LHPError
+from lhp.errors import LHPError
 from tests.helpers import wrap_in_ctx as _wrap_in_ctx
 
 
@@ -24,20 +24,20 @@ class TestActionOrchestratorInitialization:
     def mock_components(self):
         """Mock all component dependencies."""
         with (
-            patch("lhp.core.orchestrator.YAMLParser") as mock_yaml,
-            patch("lhp.core.orchestrator.PresetManager") as mock_preset,
-            patch("lhp.core.orchestrator.TemplateEngine") as mock_template,
-            patch("lhp.core.orchestrator.ProjectConfigLoader") as mock_config_loader,
-            patch("lhp.core.orchestrator.ActionRegistry") as mock_registry,
-            patch("lhp.core.orchestrator.ConfigValidator") as mock_config_validator,
-            patch("lhp.core.orchestrator.SecretValidator") as mock_secret_validator,
+            patch("lhp.core.coordination.orchestrator.YAMLParser") as mock_yaml,
+            patch("lhp.core.coordination.orchestrator.PresetManager") as mock_preset,
+            patch("lhp.core.coordination.orchestrator.TemplateEngine") as mock_template,
+            patch("lhp.core.coordination.orchestrator.ProjectConfigLoader") as mock_config_loader,
+            patch("lhp.core.coordination.orchestrator.ActionRegistry") as mock_registry,
+            patch("lhp.core.coordination.orchestrator.ConfigValidator") as mock_config_validator,
+            patch("lhp.core.coordination.orchestrator.SecretValidator") as mock_secret_validator,
             patch(
-                "lhp.core.orchestrator.DependencyResolver"
+                "lhp.core.coordination.orchestrator.DependencyResolver"
             ) as mock_dependency_resolver,
-            patch("lhp.core.orchestrator.FlowgroupDiscoverer") as mock_discoverer,
-            patch("lhp.core.orchestrator.FlowgroupProcessor") as mock_processor,
-            patch("lhp.core.orchestrator.CodeGenerator") as mock_generator,
-            patch("lhp.core.orchestrator.PipelineValidator") as mock_validator,
+            patch("lhp.core.coordination.orchestrator.FlowgroupDiscoveryService") as mock_discoverer,
+            patch("lhp.core.coordination.orchestrator.FlowgroupResolutionService") as mock_processor,
+            patch("lhp.core.coordination.orchestrator.CodeGenerationService") as mock_generator,
+            patch("lhp.core.coordination.orchestrator.PipelineValidator") as mock_validator,
         ):
             # Configure mocks
             mock_config_loader_instance = Mock()
@@ -119,10 +119,10 @@ class TestActionOrchestratorInitialization:
         """Test exception propagation when core component initialization fails."""
         # Arrange - mock one component to fail
         with (
-            patch("lhp.core.orchestrator.YAMLParser"),
-            patch("lhp.core.orchestrator.PresetManager") as mock_preset,
-            patch("lhp.core.orchestrator.TemplateEngine"),
-            patch("lhp.core.orchestrator.ProjectConfigLoader") as mock_config_loader,
+            patch("lhp.core.coordination.orchestrator.YAMLParser"),
+            patch("lhp.core.coordination.orchestrator.PresetManager") as mock_preset,
+            patch("lhp.core.coordination.orchestrator.TemplateEngine"),
+            patch("lhp.core.coordination.orchestrator.ProjectConfigLoader") as mock_config_loader,
         ):
             # Make one component fail during initialization
             mock_preset.side_effect = Exception("PresetManager initialization failed")
@@ -140,12 +140,12 @@ class TestActionOrchestratorInitialization:
         """Test error when services fail to initialize with dependencies."""
         # Arrange - mock service initialization to fail
         mock_components["discoverer"].side_effect = Exception(
-            "FlowgroupDiscoverer initialization failed"
+            "FlowgroupDiscoveryService initialization failed"
         )
 
         # Act & Assert - should propagate the service initialization exception
         with pytest.raises(
-            Exception, match="FlowgroupDiscoverer initialization failed"
+            Exception, match="FlowgroupDiscoveryService initialization failed"
         ):
             ActionOrchestrator(mock_project_root, enforce_version=False)
 
@@ -225,18 +225,18 @@ class TestActionOrchestratorVersionEnforcement:
     def orchestrator_with_version_requirement(self, mock_project_root):
         """Create orchestrator with version requirement for testing."""
         with (
-            patch("lhp.core.orchestrator.YAMLParser"),
-            patch("lhp.core.orchestrator.PresetManager"),
-            patch("lhp.core.orchestrator.TemplateEngine"),
-            patch("lhp.core.orchestrator.ProjectConfigLoader") as mock_config_loader,
-            patch("lhp.core.orchestrator.ActionRegistry"),
-            patch("lhp.core.orchestrator.ConfigValidator"),
-            patch("lhp.core.orchestrator.SecretValidator"),
-            patch("lhp.core.orchestrator.DependencyResolver"),
-            patch("lhp.core.orchestrator.FlowgroupDiscoverer"),
-            patch("lhp.core.orchestrator.FlowgroupProcessor"),
-            patch("lhp.core.orchestrator.CodeGenerator"),
-            patch("lhp.core.orchestrator.PipelineValidator"),
+            patch("lhp.core.coordination.orchestrator.YAMLParser"),
+            patch("lhp.core.coordination.orchestrator.PresetManager"),
+            patch("lhp.core.coordination.orchestrator.TemplateEngine"),
+            patch("lhp.core.coordination.orchestrator.ProjectConfigLoader") as mock_config_loader,
+            patch("lhp.core.coordination.orchestrator.ActionRegistry"),
+            patch("lhp.core.coordination.orchestrator.ConfigValidator"),
+            patch("lhp.core.coordination.orchestrator.SecretValidator"),
+            patch("lhp.core.coordination.orchestrator.DependencyResolver"),
+            patch("lhp.core.coordination.orchestrator.FlowgroupDiscoveryService"),
+            patch("lhp.core.coordination.orchestrator.FlowgroupResolutionService"),
+            patch("lhp.core.coordination.orchestrator.CodeGenerationService"),
+            patch("lhp.core.coordination.orchestrator.PipelineValidator"),
         ):
             # Configure project config with version requirement
             mock_project_config = Mock()
@@ -390,7 +390,7 @@ class TestActionOrchestratorVersionEnforcement:
         )
 
         with (
-            patch("lhp.core.orchestrator.get_version") as mock_get_version,
+            patch("lhp.core.coordination.orchestrator.get_version") as mock_get_version,
             patch("packaging.specifiers.SpecifierSet") as mock_specifier_set,
         ):
             mock_get_version.return_value = "0.4.1"
@@ -414,7 +414,7 @@ class TestActionOrchestratorVersionEnforcement:
         """Test actual version parsing fails with LHPError code 008."""
         # Arrange
         with (
-            patch("lhp.core.orchestrator.get_version") as mock_get_version,
+            patch("lhp.core.coordination.orchestrator.get_version") as mock_get_version,
             patch("packaging.version.Version") as mock_version_class,
             patch("packaging.specifiers.SpecifierSet") as mock_specifier_set,
         ):
@@ -452,7 +452,7 @@ class TestActionOrchestratorVersionEnforcement:
         """Test SpecifierSet creation throws exception wraps in LHPError code 008."""
         # Arrange
         with (
-            patch("lhp.core.orchestrator.get_version") as mock_get_version,
+            patch("lhp.core.coordination.orchestrator.get_version") as mock_get_version,
             patch("packaging.specifiers.SpecifierSet") as mock_specifier_set,
         ):
             mock_get_version.return_value = "0.4.1"
@@ -496,18 +496,18 @@ class TestActionOrchestratorFlowgroupDiscovery:
     def orchestrator_basic(self, mock_project_root):
         """Create basic orchestrator for discovery testing."""
         with (
-            patch("lhp.core.orchestrator.YAMLParser"),
-            patch("lhp.core.orchestrator.PresetManager"),
-            patch("lhp.core.orchestrator.TemplateEngine"),
-            patch("lhp.core.orchestrator.ProjectConfigLoader") as mock_config_loader,
-            patch("lhp.core.orchestrator.ActionRegistry"),
-            patch("lhp.core.orchestrator.ConfigValidator"),
-            patch("lhp.core.orchestrator.SecretValidator"),
-            patch("lhp.core.orchestrator.DependencyResolver"),
-            patch("lhp.core.orchestrator.FlowgroupDiscoverer") as mock_discoverer,
-            patch("lhp.core.orchestrator.FlowgroupProcessor") as mock_processor,
-            patch("lhp.core.orchestrator.CodeGenerator"),
-            patch("lhp.core.orchestrator.PipelineValidator"),
+            patch("lhp.core.coordination.orchestrator.YAMLParser"),
+            patch("lhp.core.coordination.orchestrator.PresetManager"),
+            patch("lhp.core.coordination.orchestrator.TemplateEngine"),
+            patch("lhp.core.coordination.orchestrator.ProjectConfigLoader") as mock_config_loader,
+            patch("lhp.core.coordination.orchestrator.ActionRegistry"),
+            patch("lhp.core.coordination.orchestrator.ConfigValidator"),
+            patch("lhp.core.coordination.orchestrator.SecretValidator"),
+            patch("lhp.core.coordination.orchestrator.DependencyResolver"),
+            patch("lhp.core.coordination.orchestrator.FlowgroupDiscoveryService") as mock_discoverer,
+            patch("lhp.core.coordination.orchestrator.FlowgroupResolutionService") as mock_processor,
+            patch("lhp.core.coordination.orchestrator.CodeGenerationService"),
+            patch("lhp.core.coordination.orchestrator.PipelineValidator"),
         ):
             # Configure project config loader
             mock_config_loader_instance = Mock()
@@ -738,18 +738,18 @@ class TestActionOrchestratorValidationWithoutGeneration:
     def orchestrator_validation(self, mock_project_root):
         """Create orchestrator for validation testing."""
         with (
-            patch("lhp.core.orchestrator.YAMLParser"),
-            patch("lhp.core.orchestrator.PresetManager"),
-            patch("lhp.core.orchestrator.TemplateEngine"),
-            patch("lhp.core.orchestrator.ProjectConfigLoader") as mock_config_loader,
-            patch("lhp.core.orchestrator.ActionRegistry"),
-            patch("lhp.core.orchestrator.ConfigValidator"),
-            patch("lhp.core.orchestrator.SecretValidator"),
-            patch("lhp.core.orchestrator.DependencyResolver"),
-            patch("lhp.core.orchestrator.FlowgroupDiscoverer") as mock_discoverer,
-            patch("lhp.core.orchestrator.FlowgroupProcessor") as mock_processor,
-            patch("lhp.core.orchestrator.CodeGenerator"),
-            patch("lhp.core.orchestrator.PipelineValidator"),
+            patch("lhp.core.coordination.orchestrator.YAMLParser"),
+            patch("lhp.core.coordination.orchestrator.PresetManager"),
+            patch("lhp.core.coordination.orchestrator.TemplateEngine"),
+            patch("lhp.core.coordination.orchestrator.ProjectConfigLoader") as mock_config_loader,
+            patch("lhp.core.coordination.orchestrator.ActionRegistry"),
+            patch("lhp.core.coordination.orchestrator.ConfigValidator"),
+            patch("lhp.core.coordination.orchestrator.SecretValidator"),
+            patch("lhp.core.coordination.orchestrator.DependencyResolver"),
+            patch("lhp.core.coordination.orchestrator.FlowgroupDiscoveryService") as mock_discoverer,
+            patch("lhp.core.coordination.orchestrator.FlowgroupResolutionService") as mock_processor,
+            patch("lhp.core.coordination.orchestrator.CodeGenerationService"),
+            patch("lhp.core.coordination.orchestrator.PipelineValidator"),
         ):
             # Configure mocks
             mock_config_loader_instance = Mock()
@@ -852,18 +852,18 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
     def orchestrator_processing(self, mock_project_root):
         """Create orchestrator for processing pipeline testing."""
         with (
-            patch("lhp.core.orchestrator.YAMLParser"),
-            patch("lhp.core.orchestrator.PresetManager"),
-            patch("lhp.core.orchestrator.TemplateEngine"),
-            patch("lhp.core.orchestrator.ProjectConfigLoader") as mock_config_loader,
-            patch("lhp.core.orchestrator.ActionRegistry"),
-            patch("lhp.core.orchestrator.ConfigValidator"),
-            patch("lhp.core.orchestrator.SecretValidator"),
-            patch("lhp.core.orchestrator.DependencyResolver"),
-            patch("lhp.core.orchestrator.FlowgroupDiscoverer"),
-            patch("lhp.core.orchestrator.FlowgroupProcessor") as mock_processor,
-            patch("lhp.core.orchestrator.CodeGenerator") as mock_generator,
-            patch("lhp.core.orchestrator.PipelineValidator"),
+            patch("lhp.core.coordination.orchestrator.YAMLParser"),
+            patch("lhp.core.coordination.orchestrator.PresetManager"),
+            patch("lhp.core.coordination.orchestrator.TemplateEngine"),
+            patch("lhp.core.coordination.orchestrator.ProjectConfigLoader") as mock_config_loader,
+            patch("lhp.core.coordination.orchestrator.ActionRegistry"),
+            patch("lhp.core.coordination.orchestrator.ConfigValidator"),
+            patch("lhp.core.coordination.orchestrator.SecretValidator"),
+            patch("lhp.core.coordination.orchestrator.DependencyResolver"),
+            patch("lhp.core.coordination.orchestrator.FlowgroupDiscoveryService"),
+            patch("lhp.core.coordination.orchestrator.FlowgroupResolutionService") as mock_processor,
+            patch("lhp.core.coordination.orchestrator.CodeGenerationService") as mock_generator,
+            patch("lhp.core.coordination.orchestrator.PipelineValidator"),
         ):
             # Configure mocks
             mock_config_loader_instance = Mock()
@@ -900,7 +900,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
     def test_process_flowgroup_succeeds_returns_processed_flowgroup(
         self, orchestrator_processing, mock_flowgroup, mock_substitution_mgr
     ):
-        """Test FlowgroupProcessor succeeds returns processed flowgroup."""
+        """Test FlowgroupResolutionService succeeds returns processed flowgroup."""
         # Arrange
         from lhp.models.config import FlowGroupContext
 
@@ -934,7 +934,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
     def test_process_flowgroup_fails_propagates_exception(
         self, orchestrator_processing, mock_flowgroup, mock_substitution_mgr
     ):
-        """Test FlowgroupProcessor fails propagates exception."""
+        """Test FlowgroupResolutionService fails propagates exception."""
         from lhp.models.config import FlowGroupContext
 
         # Arrange
@@ -962,7 +962,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
     def test_generate_flowgroup_code_succeeds_returns_generated_code(
         self, orchestrator_processing, mock_flowgroup, mock_substitution_mgr
     ):
-        """Test CodeGenerator succeeds returns generated code."""
+        """Test CodeGenerationService succeeds returns generated code."""
         # Arrange
         expected_code = "# Generated Python code\nimport pandas as pd\n# ...\n"
         output_dir = Path("/output")
@@ -1001,7 +1001,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
     def test_generate_flowgroup_code_fails_propagates_exception(
         self, orchestrator_processing, mock_flowgroup, mock_substitution_mgr
     ):
-        """Test CodeGenerator fails propagates exception."""
+        """Test CodeGenerationService fails propagates exception."""
         # Arrange
         generator_error = Exception("Code generation failed: template not found")
         orchestrator_processing.mock_generator.generate_flowgroup_code.side_effect = (
@@ -1088,7 +1088,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
     def test_include_tests_true_passes_to_code_generator(
         self, orchestrator_processing, mock_flowgroup, mock_substitution_mgr
     ):
-        """Test include_tests=True passes to CodeGenerator."""
+        """Test include_tests=True passes to CodeGenerationService."""
         # Arrange
         generated_code = "# Generated code with tests\nimport pytest\n# ...\n"
         orchestrator_processing.mock_generator.generate_flowgroup_code.return_value = (
@@ -1127,7 +1127,7 @@ class TestActionOrchestratorFlowgroupProcessingPipeline:
     def test_include_tests_false_passes_to_code_generator(
         self, orchestrator_processing, mock_flowgroup, mock_substitution_mgr
     ):
-        """Test include_tests=False passes to CodeGenerator."""
+        """Test include_tests=False passes to CodeGenerationService."""
         # Arrange
         generated_code = "# Generated code without tests\nimport pandas as pd\n# ...\n"
         orchestrator_processing.mock_generator.generate_flowgroup_code.return_value = (
@@ -1176,18 +1176,18 @@ class TestActionOrchestratorErrorHandlingAndEdgeCases:
     def orchestrator_error_handling(self, mock_project_root):
         """Create orchestrator for error handling testing."""
         with (
-            patch("lhp.core.orchestrator.YAMLParser"),
-            patch("lhp.core.orchestrator.PresetManager"),
-            patch("lhp.core.orchestrator.TemplateEngine"),
-            patch("lhp.core.orchestrator.ProjectConfigLoader") as mock_config_loader,
-            patch("lhp.core.orchestrator.ActionRegistry"),
-            patch("lhp.core.orchestrator.ConfigValidator"),
-            patch("lhp.core.orchestrator.SecretValidator"),
-            patch("lhp.core.orchestrator.DependencyResolver"),
-            patch("lhp.core.orchestrator.FlowgroupDiscoverer") as mock_discoverer,
-            patch("lhp.core.orchestrator.FlowgroupProcessor") as mock_processor,
-            patch("lhp.core.orchestrator.CodeGenerator") as mock_generator,
-            patch("lhp.core.orchestrator.PipelineValidator"),
+            patch("lhp.core.coordination.orchestrator.YAMLParser"),
+            patch("lhp.core.coordination.orchestrator.PresetManager"),
+            patch("lhp.core.coordination.orchestrator.TemplateEngine"),
+            patch("lhp.core.coordination.orchestrator.ProjectConfigLoader") as mock_config_loader,
+            patch("lhp.core.coordination.orchestrator.ActionRegistry"),
+            patch("lhp.core.coordination.orchestrator.ConfigValidator"),
+            patch("lhp.core.coordination.orchestrator.SecretValidator"),
+            patch("lhp.core.coordination.orchestrator.DependencyResolver"),
+            patch("lhp.core.coordination.orchestrator.FlowgroupDiscoveryService") as mock_discoverer,
+            patch("lhp.core.coordination.orchestrator.FlowgroupResolutionService") as mock_processor,
+            patch("lhp.core.coordination.orchestrator.CodeGenerationService") as mock_generator,
+            patch("lhp.core.coordination.orchestrator.PipelineValidator"),
         ):
             # Configure mocks
             mock_config_loader_instance = Mock()
@@ -1492,18 +1492,18 @@ class TestActionOrchestratorIntegrationScenarios:
     def orchestrator_integration(self, mock_project_root):
         """Create orchestrator for integration testing."""
         with (
-            patch("lhp.core.orchestrator.YAMLParser"),
-            patch("lhp.core.orchestrator.PresetManager"),
-            patch("lhp.core.orchestrator.TemplateEngine"),
-            patch("lhp.core.orchestrator.ProjectConfigLoader") as mock_config_loader,
-            patch("lhp.core.orchestrator.ActionRegistry"),
-            patch("lhp.core.orchestrator.ConfigValidator"),
-            patch("lhp.core.orchestrator.SecretValidator"),
-            patch("lhp.core.orchestrator.DependencyResolver"),
-            patch("lhp.core.orchestrator.FlowgroupDiscoverer") as mock_discoverer,
-            patch("lhp.core.orchestrator.FlowgroupProcessor") as mock_processor,
-            patch("lhp.core.orchestrator.CodeGenerator") as mock_generator,
-            patch("lhp.core.orchestrator.PipelineValidator"),
+            patch("lhp.core.coordination.orchestrator.YAMLParser"),
+            patch("lhp.core.coordination.orchestrator.PresetManager"),
+            patch("lhp.core.coordination.orchestrator.TemplateEngine"),
+            patch("lhp.core.coordination.orchestrator.ProjectConfigLoader") as mock_config_loader,
+            patch("lhp.core.coordination.orchestrator.ActionRegistry"),
+            patch("lhp.core.coordination.orchestrator.ConfigValidator"),
+            patch("lhp.core.coordination.orchestrator.SecretValidator"),
+            patch("lhp.core.coordination.orchestrator.DependencyResolver"),
+            patch("lhp.core.coordination.orchestrator.FlowgroupDiscoveryService") as mock_discoverer,
+            patch("lhp.core.coordination.orchestrator.FlowgroupResolutionService") as mock_processor,
+            patch("lhp.core.coordination.orchestrator.CodeGenerationService") as mock_generator,
+            patch("lhp.core.coordination.orchestrator.PipelineValidator"),
         ):
             # Configure mocks
             mock_config_loader_instance = Mock()
@@ -1605,7 +1605,7 @@ class TestActionOrchestratorIntegrationScenarios:
             {"type": "write", "processed": True},
         ]
         transformed_flowgroup.metadata = {
-            "processed_by": "FlowgroupProcessor",
+            "processed_by": "FlowgroupResolutionService",
             "timestamp": "2023-01-01",
         }
 

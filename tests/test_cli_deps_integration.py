@@ -12,7 +12,7 @@ import os
 from lhp.cli.main import cli, deps
 from lhp.cli.commands.dependencies_command import DependenciesCommand
 from lhp.models.dependencies import DependencyAnalysisResult, DependencyGraphs, PipelineDependency
-from lhp.utils.error_formatter import LHPError, ErrorCategory
+from lhp.errors import LHPError, ErrorCategory
 import networkx as nx
 
 

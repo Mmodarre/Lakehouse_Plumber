@@ -6,9 +6,8 @@ import pytest
 from jinja2 import Environment
 from jinja2.exceptions import TemplateNotFound
 
-from lhp.core.base_generator import BaseActionGenerator
-from lhp.core.init_template_context import InitTemplateContext
-from lhp.core.init_template_loader import InitTemplateLoader
+from lhp.core.registry import BaseActionGenerator
+from lhp.core.loaders import InitTemplateContext, InitTemplateLoader
 from lhp.utils.template_renderer import (
     TemplateRenderer,
     get_lhp_template_loader,

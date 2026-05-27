@@ -15,7 +15,7 @@ from lhp.models.dependencies import (
     DependencyGraphs,
     PipelineDependency,
 )
-from lhp.utils.error_formatter import ErrorCategory, LHPError
+from lhp.errors import ErrorCategory, LHPError
 
 
 class TestDependenciesCommand:
@@ -63,7 +63,7 @@ class TestDependenciesCommand:
             external_sources=["external.table1"],
         )
 
-    @patch("lhp.cli.commands.dependencies_command.DependencyAnalyzer")
+    @patch("lhp.cli.commands.dependencies_command.DependencyAnalysisService")
     @patch.object(DependenciesCommand, "setup_from_context")
     @patch.object(DependenciesCommand, "ensure_project_root")
     def test_execute_with_pipeline_filter(
@@ -93,7 +93,7 @@ class TestDependenciesCommand:
             pipeline_filter="target_pipeline"
         )
 
-    @patch("lhp.cli.commands.dependencies_command.DependencyAnalyzer")
+    @patch("lhp.cli.commands.dependencies_command.DependencyAnalysisService")
     @patch.object(DependenciesCommand, "setup_from_context")
     @patch.object(DependenciesCommand, "ensure_project_root")
     def test_pipeline_validation_failure(
@@ -126,7 +126,7 @@ class TestDependenciesCommand:
 
         with (
             patch(
-                "lhp.cli.commands.dependencies_command.DependencyAnalyzer"
+                "lhp.cli.commands.dependencies_command.DependencyAnalysisService"
             ) as mock_analyzer_class,
             patch("lhp.cli.commands.dependencies_command.DependencyOutputManager"),
             patch("click.echo"),
@@ -144,8 +144,8 @@ class TestDependenciesCommand:
             dep_logger = Mock()
             out_logger = Mock()
             mock_get_logger.side_effect = lambda name: {
-                "lhp.core.services.dependency_analyzer": dep_logger,
-                "lhp.core.services.dependency_output_manager": out_logger,
+                "lhp.core.dependencies.analyzer": dep_logger,
+                "lhp.core.dependencies.output": out_logger,
             }.get(name, Mock())
 
             self.command.execute(verbose=True)
@@ -215,7 +215,7 @@ class TestDependenciesCommand:
     def test_job_name_parameter_handling(self):
         with (
             patch(
-                "lhp.cli.commands.dependencies_command.DependencyAnalyzer"
+                "lhp.cli.commands.dependencies_command.DependencyAnalysisService"
             ) as mock_analyzer_class,
             patch(
                 "lhp.cli.commands.dependencies_command.DependencyOutputManager"
@@ -292,7 +292,7 @@ class TestDependenciesCommandPipelineFilter:
         )
 
     @patch("lhp.cli.commands.dependencies_command.DependencyOutputManager")
-    @patch("lhp.cli.commands.dependencies_command.DependencyAnalyzer")
+    @patch("lhp.cli.commands.dependencies_command.DependencyAnalysisService")
     @patch("lhp.cli.commands.dependencies_command.ProjectConfigLoader")
     @patch.object(DependenciesCommand, "setup_from_context")
     @patch.object(DependenciesCommand, "ensure_project_root")
@@ -351,7 +351,7 @@ class TestDependenciesCommandPipelineFilter:
         )
 
     @patch("lhp.cli.commands.dependencies_command.DependencyOutputManager")
-    @patch("lhp.cli.commands.dependencies_command.DependencyAnalyzer")
+    @patch("lhp.cli.commands.dependencies_command.DependencyAnalysisService")
     @patch("lhp.cli.commands.dependencies_command.ProjectConfigLoader")
     @patch.object(DependenciesCommand, "setup_from_context")
     @patch.object(DependenciesCommand, "ensure_project_root")

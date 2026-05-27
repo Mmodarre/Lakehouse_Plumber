@@ -2,7 +2,7 @@
 
 import pytest
 
-from lhp.core.services.tst_reporting_hook_generator import (
+from lhp.core.codegen.tst_reporting_hook_generator import (
     HOOK_FILENAME,
     TestReportingHookGenerator,
 )
@@ -271,7 +271,7 @@ class TestTestReportingHookGenerator:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        from lhp.utils.error_formatter import LHPError
+        from lhp.errors import LHPError
 
         with pytest.raises(LHPError, match="not found"):
             gen.generate(

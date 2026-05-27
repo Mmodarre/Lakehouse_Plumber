@@ -3,8 +3,8 @@ import pytest
 from pathlib import Path
 
 from lhp.core.validators import TransformActionValidator
-from lhp.core.action_registry import ActionRegistry
-from lhp.core.config_field_validator import ConfigFieldValidator
+from lhp.core.registry import ActionRegistry
+from lhp.core.validators.config_field_validator import ConfigFieldValidator
 from lhp.models.config import (
     Action, ActionType, TransformType,
     ProjectConfig, ProjectOperationalMetadataConfig, MetadataColumnConfig

@@ -8,11 +8,11 @@ from pathlib import Path
 
 import pytest
 
-from lhp.core.services.blueprint_discoverer import BlueprintDiscoverer
+from lhp.core.discovery.blueprint_discoverer import BlueprintDiscoverer
 from lhp.models.config import ProjectConfig
 from lhp.parsers.blueprint_parser import BlueprintParser
 from lhp.parsers.yaml_parser import CachingYAMLParser, YAMLParser
-from lhp.utils.error_formatter import ErrorCategory, LHPError
+from lhp.errors import ErrorCategory, LHPError
 
 pytestmark = pytest.mark.unit
 

@@ -151,7 +151,7 @@ class ImportManager:
                 existing_bindings = self._extract_from_import_bindings(existing)
                 for name, module in new_bindings.items():
                     if name in existing_bindings and existing_bindings[name] != module:
-                        from .error_formatter import (
+                        from ..errors import (
                             ErrorCategory,
                             LHPValidationError,
                         )

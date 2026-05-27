@@ -14,7 +14,7 @@ import re
 from typing import Any, Dict, List, Union
 
 from ...utils.dqe import DQEParser
-from ...utils.error_formatter import ErrorCategory, LHPError
+from ...errors import ErrorCategory, LHPError
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +116,7 @@ class QuarantineCodeGenerator:
         )
 
         # Collect ALL metadata column names for hash exclusion
-        from ...core.services.operational_metadata_service import (
+        from ...core.codegen.operational_metadata_service import (
             OperationalMetadataService,
         )
 

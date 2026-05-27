@@ -4,7 +4,7 @@ This module is the single source of truth for extracting source references
 from actions. It is used by:
 - Code generators (extract_source_views_from_action, extract_single_source_view)
 - DependencyResolver (extract_action_sources)
-- DependencyAnalyzer (extract_action_sources for explicit source fallback)
+- DependencyAnalysisService (extract_action_sources for explicit source fallback)
 """
 
 import logging
@@ -164,7 +164,7 @@ def extract_action_sources(action: Any) -> List[str]:
     """Extract source names from an action for dependency analysis.
 
     This is the shared extraction function used by both DependencyResolver
-    and DependencyAnalyzer (as explicit source fallback). It handles:
+    and DependencyAnalysisService (as explicit source fallback). It handles:
     - CDC write actions (cdc_config, snapshot_cdc_config)
     - String, list, and dict source formats
     - view/source/sources dict keys

@@ -580,7 +580,7 @@ dev:
 
         from jinja2 import TemplateNotFound, UndefinedError
 
-        from lhp.utils.error_formatter import LHPConfigError
+        from lhp.errors import LHPConfigError
 
         # Test 1: Missing template file — should raise LHPConfigError (wrapping TemplateNotFound)
         with patch.object(
@@ -869,7 +869,7 @@ dev:
 
         # Test 2: Template corruption scenario (missing template file)
         # TemplateNotFound is now wrapped in LHPConfigError by the template renderer
-        from lhp.utils.error_formatter import LHPConfigError
+        from lhp.errors import LHPConfigError
 
         with patch.object(
             self.manager.template_renderer.env, "get_template"

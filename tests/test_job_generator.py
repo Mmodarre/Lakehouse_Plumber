@@ -6,7 +6,7 @@ import networkx as nx
 import pytest
 import yaml
 
-from lhp.core.services.job_generator import JobGenerator
+from lhp.core.jobs.job_generator import JobGenerator
 from lhp.models.dependencies import (
     DependencyAnalysisResult,
     DependencyGraphs,

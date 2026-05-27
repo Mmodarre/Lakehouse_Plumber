@@ -18,7 +18,7 @@ class ExitCode(IntEnum):
     @classmethod
     def from_error_category(cls, category) -> "ExitCode":
         """Map ErrorCategory to ExitCode."""
-        from .error_formatter import ErrorCategory
+        from ..errors import ErrorCategory
 
         mapping = {
             ErrorCategory.VALIDATION: cls.DATA_ERROR,
@@ -34,7 +34,7 @@ class ExitCode(IntEnum):
     @classmethod
     def from_lhp_error(cls, error) -> "ExitCode":
         """Extract exit code from an LHPError instance using its category."""
-        from .error_formatter import LHPError
+        from ..errors import LHPError
 
         if isinstance(error, LHPError):
             return cls.from_error_category(error.category)

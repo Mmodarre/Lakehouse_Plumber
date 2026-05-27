@@ -2,10 +2,10 @@
 
 import pytest
 from pathlib import Path
-from lhp.core.services.dependency_analyzer import DependencyAnalyzer
-from lhp.core.services.job_generator import JobGenerator
+from lhp.core.dependencies.service import DependencyAnalysisService
+from lhp.core.jobs.job_generator import JobGenerator
 from lhp.models.config import FlowGroup, Action, ActionType
-from lhp.utils.error_formatter import LHPError
+from lhp.errors import LHPError
 from unittest.mock import Mock, patch
 import tempfile
 import yaml
@@ -30,13 +30,13 @@ class TestMultiJobWorkflow:
     # 3. test_backward_compat_single_job_no_master - Tests YAML validity, not actual behavior
     # 
     # TODO: Rewrite these tests using real project structures and YAML files instead of mocks
-    @patch('lhp.core.services.dependency_analyzer.DependencyAnalyzer.get_flowgroups')
+    @patch('lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups')
     def test_validation_failure_stops_workflow(self, mockget_flowgroups,
                                                sample_flowgroups_mixed_job_name):
         """Test that validation failure stops the workflow early."""
         mockget_flowgroups.return_value = sample_flowgroups_mixed_job_name
         
-        analyzer = DependencyAnalyzer(self.temp_dir, self.mock_config_loader)
+        analyzer = DependencyAnalysisService(self.temp_dir, self.mock_config_loader)
         
         # Should fail at validation step
         with pytest.raises(LHPError) as exc_info:

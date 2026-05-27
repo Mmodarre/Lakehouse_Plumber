@@ -3,19 +3,19 @@
 import pytest
 import tempfile
 from pathlib import Path
-from lhp.core.services.flowgroup_processor import FlowgroupProcessor
-from lhp.core.template_engine import TemplateEngine
+from lhp.core.processing.flowgroup_resolver import FlowgroupResolutionService
+from lhp.core.processing import TemplateEngine
 from lhp.presets.preset_manager import PresetManager
-from lhp.core.validator import ConfigValidator
-from lhp.core.secret_validator import SecretValidator
+from lhp.core.validators import ConfigValidator
+from lhp.core.validators.secret_validator import SecretValidator
 from lhp.models.config import FlowGroup, Action, ActionType
 from lhp.utils.substitution import EnhancedSubstitutionManager
-from lhp.utils.error_formatter import LHPError
+from lhp.errors import LHPError
 from tests.helpers import wrap_in_ctx as _ctx_of
 
 
 def test_flowgroup_processor_fails_on_unresolved_tokens():
-    """FlowgroupProcessor should raise LHPError for unresolved tokens."""
+    """FlowgroupResolutionService should raise LHPError for unresolved tokens."""
     # Create flowgroup with unresolved token
     flowgroup = FlowGroup(
         pipeline="test_pipeline",
@@ -41,7 +41,7 @@ def test_flowgroup_processor_fails_on_unresolved_tokens():
         config_validator = ConfigValidator()
         secret_validator = SecretValidator()
         
-        processor = FlowgroupProcessor(
+        processor = FlowgroupResolutionService(
             template_engine=template_engine,
             preset_manager=preset_manager,
             config_validator=config_validator,
@@ -59,7 +59,7 @@ def test_flowgroup_processor_fails_on_unresolved_tokens():
 
 
 def test_flowgroup_processor_passes_with_resolved_tokens():
-    """FlowgroupProcessor should not raise unresolved token error when all tokens are resolved."""
+    """FlowgroupResolutionService should not raise unresolved token error when all tokens are resolved."""
     # Create flowgroup with token
     flowgroup = FlowGroup(
         pipeline="test_pipeline",
@@ -86,7 +86,7 @@ def test_flowgroup_processor_passes_with_resolved_tokens():
         config_validator = ConfigValidator()
         secret_validator = SecretValidator()
         
-        processor = FlowgroupProcessor(
+        processor = FlowgroupResolutionService(
             template_engine=template_engine,
             preset_manager=preset_manager,
             config_validator=config_validator,
@@ -109,7 +109,7 @@ def test_flowgroup_processor_passes_with_resolved_tokens():
 
 
 def test_flowgroup_processor_detects_multiple_unresolved_tokens():
-    """FlowgroupProcessor should detect multiple unresolved tokens."""
+    """FlowgroupResolutionService should detect multiple unresolved tokens."""
     # Create flowgroup with multiple unresolved tokens
     flowgroup = FlowGroup(
         pipeline="test_pipeline",
@@ -141,7 +141,7 @@ def test_flowgroup_processor_detects_multiple_unresolved_tokens():
         config_validator = ConfigValidator()
         secret_validator = SecretValidator()
         
-        processor = FlowgroupProcessor(
+        processor = FlowgroupResolutionService(
             template_engine=template_engine,
             preset_manager=preset_manager,
             config_validator=config_validator,
@@ -158,7 +158,7 @@ def test_flowgroup_processor_detects_multiple_unresolved_tokens():
 
 
 def test_flowgroup_processor_resolves_local_variables():
-    """FlowgroupProcessor should resolve local variables before other processing."""
+    """FlowgroupResolutionService should resolve local variables before other processing."""
     # Create flowgroup with local variables
     flowgroup = FlowGroup(
         pipeline="test_pipeline",
@@ -184,7 +184,7 @@ def test_flowgroup_processor_resolves_local_variables():
         config_validator = ConfigValidator()
         secret_validator = SecretValidator()
         
-        processor = FlowgroupProcessor(
+        processor = FlowgroupResolutionService(
             template_engine=template_engine,
             preset_manager=preset_manager,
             config_validator=config_validator,
@@ -207,7 +207,7 @@ def test_flowgroup_processor_resolves_local_variables():
 
 
 def test_flowgroup_processor_fails_on_undefined_local_variable():
-    """FlowgroupProcessor should raise LHPError for undefined local variables."""
+    """FlowgroupResolutionService should raise LHPError for undefined local variables."""
     # Create flowgroup with undefined local variable
     flowgroup = FlowGroup(
         pipeline="test_pipeline",
@@ -233,7 +233,7 @@ def test_flowgroup_processor_fails_on_undefined_local_variable():
         config_validator = ConfigValidator()
         secret_validator = SecretValidator()
         
-        processor = FlowgroupProcessor(
+        processor = FlowgroupResolutionService(
             template_engine=template_engine,
             preset_manager=preset_manager,
             config_validator=config_validator,
@@ -282,7 +282,7 @@ def test_flowgroup_processor_local_vars_before_env_substitution():
         config_validator = ConfigValidator()
         secret_validator = SecretValidator()
         
-        processor = FlowgroupProcessor(
+        processor = FlowgroupResolutionService(
             template_engine=template_engine,
             preset_manager=preset_manager,
             config_validator=config_validator,

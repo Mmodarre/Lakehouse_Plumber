@@ -7,7 +7,7 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from lhp.cli.main import cli
-from lhp.core.orchestrator import ActionOrchestrator
+from lhp.core.coordination import ActionOrchestrator
 from lhp.models.config import FlowGroupContext
 from lhp.parsers.yaml_parser import YAMLParser
 from lhp.utils.substitution import EnhancedSubstitutionManager
@@ -115,7 +115,7 @@ actions:
         substitution_mgr = EnhancedSubstitutionManager(substitution_file, env="dev")
         
         # Should raise error about undefined variable
-        from lhp.utils.error_formatter import LHPError
+        from lhp.errors import LHPError
         ctx_in = FlowGroupContext(flowgroup=flowgroup, source_yaml=None)
         with pytest.raises(LHPError) as exc_info:
             orchestrator.processor.process_flowgroup(ctx_in, substitution_mgr)

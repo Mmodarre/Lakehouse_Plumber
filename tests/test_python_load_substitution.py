@@ -6,7 +6,7 @@ import pytest
 
 from lhp.generators.load.python import PythonLoadGenerator
 from lhp.models.config import Action, ActionType
-from lhp.utils.error_formatter import LHPError
+from lhp.errors import LHPError
 from lhp.utils.substitution import EnhancedSubstitutionManager
 
 
@@ -183,7 +183,7 @@ class TestPythonLoadSubstitution:
 
         Substitution emits sentinel placeholders at the generator layer;
         the post-pass (`SecretCodeGenerator`, invoked from
-        `CodeGenerator._apply_secret_substitutions`) rewrites placeholders
+        `CodeGenerationService._apply_secret_substitutions`) rewrites placeholders
         to bare ``dbutils.secrets.get(...)`` calls or f-strings depending
         on string-literal context. Bare-call form is asserted at the
         integration layer in `tests/test_integration.py`.

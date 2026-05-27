@@ -9,14 +9,14 @@ Two layers of protection are exercised here:
    and trigger ``SyntaxError: from __future__ imports must occur at the
    beginning of the file`` when Lakeflow imports it.
 
-2. ``CodeGenerator._assemble_final_code`` is the chokepoint that hoists
+2. ``CodeGenerationService._assemble_final_code`` is the chokepoint that hoists
    any leftover ``from __future__`` line from the rendered template body
    to the top of the assembled module — defense in depth.
 """
 
 import ast
 
-from lhp.core.services.code_generator import CodeGenerator
+from lhp.core.codegen.coordinator import CodeGenerationService
 from lhp.generators.write.streaming_table import StreamingTableWriteGenerator
 from lhp.models.config import FlowGroup
 
@@ -72,7 +72,7 @@ class TestAssemblyChokepointHoistsFutureFromCompleteCode:
         all_imports = {"from pyspark import pipelines as dp"}
         flowgroup = FlowGroup(pipeline="p_test", flowgroup="fg_test")
 
-        cg = CodeGenerator()
+        cg = CodeGenerationService()
         assembled = cg._assemble_final_code(flowgroup, all_imports, [], complete_code)
 
         # Hard contract: assembled module must parse cleanly.

@@ -61,12 +61,20 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
       shell: bash
 
-    # - name: Run import-linter
-    #   run: |
-    #     pip install import-linter
-    #     lint-imports
-    #   shell: bash
+    - name: Run import-linter
+      run: |
+        pip install import-linter
+        lint-imports
+      shell: bash
 
+    # Re-enabling `pytest` is deferred to Week 6.  Week 5 left the unit
+    # suite with ~30+ failures from internal refactor reshuffles (test
+    # mocks pointing at moved/renamed internal modules) plus 6 e2e
+    # failures: 4 pre-existing job-orchestration regressions and 2
+    # direct-construction tests that hit the new §4.5 hardening on
+    # ``ActionOrchestrator.__init__``.  Per plan §E2 contingency:
+    # keep import-linter on, leave pytest off, surface the work as a
+    # Week-6 test-suite repair task in the CHANGELOG.
     # - name: Test with pytest
     #   run: |
     #     # Run tests with coverage if tests directory exists

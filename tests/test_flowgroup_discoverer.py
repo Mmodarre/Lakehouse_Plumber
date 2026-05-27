@@ -1,14 +1,14 @@
-"""Tests for FlowgroupDiscoverer service with multi-flowgroup support."""
+"""Tests for FlowgroupDiscoveryService service with multi-flowgroup support."""
 
 import pytest
 import tempfile
 from pathlib import Path
 
-from lhp.core.services.flowgroup_discoverer import FlowgroupDiscoverer
+from lhp.core.discovery.flowgroup_discoverer import FlowgroupDiscoveryService
 
 
 class TestFlowgroupDiscovererMultiFlowgroup:
-    """Test FlowgroupDiscoverer with multi-flowgroup files."""
+    """Test FlowgroupDiscoveryService with multi-flowgroup files."""
     
     def test_discover_flowgroups_from_multi_document_file(self):
         """Test discovery returns all flowgroups from multi-document files."""
@@ -42,8 +42,8 @@ actions:
     source: table2
 """)
             
-            discoverer = FlowgroupDiscoverer(project_root)
-            flowgroups = discoverer.discover_flowgroups(pipelines_dir)
+            discoverer = FlowgroupDiscoveryService(project_root)
+            flowgroups = discoverer._legacy_discover_flowgroups_by_dir(pipelines_dir)
             
             assert len(flowgroups) == 3
             flowgroup_names = {fg.flowgroup for fg in flowgroups}
@@ -72,8 +72,8 @@ flowgroups:
       table_name: table3
 """)
             
-            discoverer = FlowgroupDiscoverer(project_root)
-            flowgroups = discoverer.discover_flowgroups(pipelines_dir)
+            discoverer = FlowgroupDiscoveryService(project_root)
+            flowgroups = discoverer._legacy_discover_flowgroups_by_dir(pipelines_dir)
             
             assert len(flowgroups) == 3
             flowgroup_names = {fg.flowgroup for fg in flowgroups}
@@ -131,8 +131,8 @@ flowgroups:
         target: table5
 """)
             
-            discoverer = FlowgroupDiscoverer(project_root)
-            flowgroups = discoverer.discover_flowgroups(pipelines_dir)
+            discoverer = FlowgroupDiscoveryService(project_root)
+            flowgroups = discoverer._legacy_discover_flowgroups_by_dir(pipelines_dir)
             
             assert len(flowgroups) == 5
             flowgroup_names = {fg.flowgroup for fg in flowgroups}
@@ -174,7 +174,7 @@ flowgroups:
   - flowgroup: p2_fg3
 """)
             
-            discoverer = FlowgroupDiscoverer(project_root)
+            discoverer = FlowgroupDiscoveryService(project_root)
             flowgroups = discoverer.discover_all_flowgroups()
             
             assert len(flowgroups) == 5
@@ -204,7 +204,7 @@ pipeline: silver_transform
 flowgroup: silver_brand
 """)
             
-            discoverer = FlowgroupDiscoverer(project_root)
+            discoverer = FlowgroupDiscoveryService(project_root)
             bronze_flowgroups = discoverer.discover_flowgroups_by_pipeline_field('bronze_sap')
             
             assert len(bronze_flowgroups) == 2
@@ -237,7 +237,7 @@ pipeline: test_pipeline
 flowgroup: flowgroup3
 """)
             
-            discoverer = FlowgroupDiscoverer(project_root)
+            discoverer = FlowgroupDiscoveryService(project_root)
             flowgroups_with_paths = discoverer.discover_all_flowgroups_with_paths()
             
             assert len(flowgroups_with_paths) == 3
@@ -276,7 +276,7 @@ pipeline: test_pipeline
 flowgroup: flowgroup3
 """)
             
-            discoverer = FlowgroupDiscoverer(project_root)
+            discoverer = FlowgroupDiscoveryService(project_root)
             summary = discoverer.get_flowgroups_summary()
             
             assert summary['total_flowgroups'] == 3
@@ -313,8 +313,8 @@ actions:
     target: table2
 """)
             
-            discoverer = FlowgroupDiscoverer(project_root)
-            flowgroups = discoverer.discover_flowgroups(pipelines_dir)
+            discoverer = FlowgroupDiscoveryService(project_root)
+            flowgroups = discoverer._legacy_discover_flowgroups_by_dir(pipelines_dir)
             
             assert len(flowgroups) == 2
             flowgroup_names = {fg.flowgroup for fg in flowgroups}

@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 from lhp.models.processing import PipelineDelta
-from lhp.utils.error_formatter import (
+from lhp.errors import (
     ErrorCategory,
     LHPConfigError,
     LHPFileError,

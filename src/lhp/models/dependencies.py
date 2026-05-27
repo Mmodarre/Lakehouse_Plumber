@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 
 import networkx as nx
 
-from ..utils.error_formatter import ErrorCategory, LHPValidationError
+from ..errors import ErrorCategory, LHPValidationError
 
 
 @dataclass

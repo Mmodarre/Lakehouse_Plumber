@@ -4,7 +4,7 @@ import logging
 from abc import abstractmethod
 from typing import Any, Dict, List
 
-from ....core.base_generator import BaseActionGenerator
+from ....core.registry import BaseActionGenerator
 from ....models.config import Action
 
 logger = logging.getLogger(__name__)

@@ -10,7 +10,7 @@ from lhp.utils.external_file_loader import (
     load_external_file_text,
     is_file_path,
 )
-from lhp.utils.error_formatter import LHPError
+from lhp.errors import LHPError
 
 
 class TestIsFilePath:

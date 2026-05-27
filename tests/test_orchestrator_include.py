@@ -64,7 +64,7 @@ include:
         # Expected: Only files matching include patterns should be discovered
         
         # This will be implemented later
-        # from lhp.core.orchestrator import ActionOrchestrator
+        # from lhp.core.coordination import ActionOrchestrator
         # orchestrator = ActionOrchestrator(project_root)
         # 
         # flowgroups = orchestrator._discover_flowgroups(pipeline_dir)
@@ -119,7 +119,7 @@ version: "1.0"
         # Expected: All YAML files should be discovered (backwards compatibility)
         
         # This will be implemented later
-        # from lhp.core.orchestrator import ActionOrchestrator
+        # from lhp.core.coordination import ActionOrchestrator
         # orchestrator = ActionOrchestrator(project_root)
         # 
         # flowgroups = orchestrator._discover_flowgroups(pipeline_dir)
@@ -191,7 +191,7 @@ include:
         # Expected: Only files in bronze directory tree should be discovered
         
         # This will be implemented later
-        # from lhp.core.orchestrator import ActionOrchestrator
+        # from lhp.core.coordination import ActionOrchestrator
         # orchestrator = ActionOrchestrator(project_root)
         # 
         # flowgroups = orchestrator._discover_flowgroups(pipeline_dir)
@@ -266,7 +266,7 @@ include:
         # Expected: Only files matching include patterns should be discovered
         
         # This will be implemented later
-        # from lhp.core.orchestrator import ActionOrchestrator
+        # from lhp.core.coordination import ActionOrchestrator
         # orchestrator = ActionOrchestrator(project_root)
         # 
         # flowgroups = orchestrator.discover_all_flowgroups()
@@ -329,7 +329,7 @@ version: "1.0"
         # Expected: All YAML files should be discovered (backwards compatibility)
         
         # This will be implemented later
-        # from lhp.core.orchestrator import ActionOrchestrator
+        # from lhp.core.coordination import ActionOrchestrator
         # orchestrator = ActionOrchestrator(project_root)
         # 
         # flowgroups = orchestrator.discover_all_flowgroups()
@@ -399,7 +399,7 @@ include:
         # Expected: Only files matching both pipeline field and include patterns
         
         # This will be implemented later
-        # from lhp.core.orchestrator import ActionOrchestrator
+        # from lhp.core.coordination import ActionOrchestrator
         # orchestrator = ActionOrchestrator(project_root)
         # 
         # flowgroups = orchestrator.discover_flowgroups_by_pipeline_field("bronze_layer")
@@ -500,7 +500,7 @@ include:
         # Expected: Files matching either pattern should be discovered
         
         # This will be implemented later
-        # from lhp.core.orchestrator import ActionOrchestrator
+        # from lhp.core.coordination import ActionOrchestrator
         # orchestrator = ActionOrchestrator(project_root)
         # 
         # flowgroups = orchestrator.discover_all_flowgroups()
@@ -557,7 +557,7 @@ include: []
         # Expected: All files should be discovered (empty list = no filtering)
         
         # This will be implemented later
-        # from lhp.core.orchestrator import ActionOrchestrator
+        # from lhp.core.coordination import ActionOrchestrator
         # orchestrator = ActionOrchestrator(project_root)
         # 
         # flowgroups = orchestrator.discover_all_flowgroups()
@@ -611,7 +611,7 @@ include:
         # Expected: No flowgroups should be discovered
         
         # This will be implemented later
-        # from lhp.core.orchestrator import ActionOrchestrator
+        # from lhp.core.coordination import ActionOrchestrator
         # orchestrator = ActionOrchestrator(project_root)
         # 
         # flowgroups = orchestrator.discover_all_flowgroups()
@@ -674,7 +674,7 @@ include:
         # Expected: Only exact case matches should be discovered
         
         # This will be implemented later
-        # from lhp.core.orchestrator import ActionOrchestrator
+        # from lhp.core.coordination import ActionOrchestrator
         # orchestrator = ActionOrchestrator(project_root)
         # 
         # flowgroups = orchestrator.discover_all_flowgroups()
@@ -740,7 +740,7 @@ include:
         # Expected: Files with both extensions should be discovered
         
         # This will be implemented later
-        # from lhp.core.orchestrator import ActionOrchestrator
+        # from lhp.core.coordination import ActionOrchestrator
         # orchestrator = ActionOrchestrator(project_root)
         # 
         # flowgroups = orchestrator.discover_all_flowgroups()
@@ -819,7 +819,7 @@ dev:
         # Expected: Only flowgroups matching include patterns should be processed
         
         # This will be implemented later
-        # from lhp.core.orchestrator import ActionOrchestrator
+        # from lhp.core.coordination import ActionOrchestrator
         # orchestrator = ActionOrchestrator(project_root)
         # 
         # generated_files = orchestrator.generate_pipeline_by_field("bronze_layer", "dev")
@@ -883,7 +883,7 @@ dev:
         # Expected: Only flowgroups matching include patterns should be validated
         
         # This will be implemented later
-        # from lhp.core.orchestrator import ActionOrchestrator
+        # from lhp.core.coordination import ActionOrchestrator
         # orchestrator = ActionOrchestrator(project_root)
         # 
         # errors, warnings = orchestrator.validate_pipeline_by_field("bronze_layer", "dev")

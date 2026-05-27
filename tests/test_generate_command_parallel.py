@@ -208,7 +208,7 @@ def test_run_generate_pool_fires_on_pipeline_start_in_submission_order():
     """on_pipeline_start fires on main thread in submission order before each submit."""
     import threading
 
-    from lhp.core.pipeline_executor import run_generate_pool
+    from lhp.core.coordination.executor import run_generate_pool
 
     main_thread_id = threading.get_ident()
 

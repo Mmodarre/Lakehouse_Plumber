@@ -1,7 +1,7 @@
 """Tests for the base generator framework of LakehousePlumber."""
 
 import pytest
-from lhp.core.base_generator import BaseActionGenerator
+from lhp.core.registry import BaseActionGenerator
 
 
 class TestBaseGenerator:

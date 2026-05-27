@@ -45,7 +45,7 @@ class SkillCommand(BaseCommand):
         skill_md_path = install_dir / "SKILL.md"
 
         if not force and (marker_path.exists() or skill_md_path.exists()):
-            from ...utils.error_formatter import ErrorCategory, LHPFileError
+            from ...errors import ErrorCategory, LHPFileError
 
             raise LHPFileError(
                 category=ErrorCategory.IO,
@@ -92,7 +92,7 @@ class SkillCommand(BaseCommand):
         installed_version = self._read_marker(install_dir)
 
         if installed_version is None:
-            from ...utils.error_formatter import ErrorCategory, LHPFileError
+            from ...errors import ErrorCategory, LHPFileError
 
             raise LHPFileError(
                 category=ErrorCategory.IO,

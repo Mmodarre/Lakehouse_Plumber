@@ -156,7 +156,7 @@ class TestProjectConfigInclude:
         
         # This will be implemented later
         # from lhp.core.project_config_loader import ProjectConfigLoader
-        # from lhp.utils.error_formatter import LHPError
+        # from lhp.errors import LHPError
         # 
         # loader = ProjectConfigLoader(tmp_path)
         # with pytest.raises(LHPError) as exc_info:
@@ -182,7 +182,7 @@ class TestProjectConfigInclude:
         
         # This will be implemented later
         # from lhp.core.project_config_loader import ProjectConfigLoader
-        # from lhp.utils.error_formatter import LHPError
+        # from lhp.errors import LHPError
         # 
         # loader = ProjectConfigLoader(tmp_path)
         # with pytest.raises(LHPError) as exc_info:
@@ -363,7 +363,7 @@ include: [
         
         # This will be implemented later
         # from lhp.core.project_config_loader import ProjectConfigLoader
-        # from lhp.utils.error_formatter import LHPError
+        # from lhp.errors import LHPError
         # 
         # loader = ProjectConfigLoader(tmp_path)
         # with pytest.raises(LHPError) as exc_info:
@@ -471,7 +471,7 @@ class TestProjectConfigIncludeIntegration:
         # Expected: Only included files should be processed
         
         # This will be implemented later
-        # from lhp.core.orchestrator import ActionOrchestrator
+        # from lhp.core.coordination import ActionOrchestrator
         # orchestrator = ActionOrchestrator(tmp_path)
         # 
         # # The orchestrator should use the include patterns from project config
@@ -501,7 +501,7 @@ class TestProjectConfigIncludeIntegration:
         # Expected: Should work as before (include all files)
         
         # This will be implemented later
-        # from lhp.core.orchestrator import ActionOrchestrator
+        # from lhp.core.coordination import ActionOrchestrator
         # orchestrator = ActionOrchestrator(tmp_path)
         # 
         # # Should work with all files when no include field is present

@@ -205,7 +205,7 @@ def test_cdc_mode_string_sequence_by_still_works():
 
 def test_cdc_schema_validation():
     """Test CDC schema validation for required __START_AT and __END_AT columns."""
-    from lhp.core.validator import ConfigValidator
+    from lhp.core.validators import ConfigValidator
     
     validator = ConfigValidator()
     

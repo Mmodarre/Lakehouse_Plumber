@@ -3,9 +3,9 @@
 import logging
 from typing import Any, Dict
 
-from ...core.base_generator import BaseActionGenerator
+from ...core.registry import BaseActionGenerator
 from ...models.config import Action
-from ...utils.error_formatter import ErrorFormatter
+from ...errors import ErrorFormatter
 from .sinks import (
     CustomSinkWriteGenerator,
     DeltaSinkWriteGenerator,

@@ -10,8 +10,8 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from lhp.models.config import EventLogConfig, ProjectConfig
-from lhp.core.project_config_loader import ProjectConfigLoader
-from lhp.utils.error_formatter import LHPError
+from lhp.core.loaders import ProjectConfigLoader
+from lhp.errors import LHPError
 
 
 class TestEventLogConfigModel:

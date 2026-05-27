@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from typing import List, Union
 
 from ...models.config import Action
-from ...utils.error_formatter import LHPError
+from ...errors import LHPError
 
 logger = logging.getLogger(__name__)
 

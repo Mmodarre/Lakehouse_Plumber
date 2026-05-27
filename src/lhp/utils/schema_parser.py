@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple, Union
 
 from ..parsers.yaml_parser import YAMLParser
-from .error_formatter import (
+from ..errors import (
     ErrorCategory,
     ErrorFormatter,
     LHPError,

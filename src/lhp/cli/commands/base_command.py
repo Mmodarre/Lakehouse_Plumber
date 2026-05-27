@@ -46,7 +46,7 @@ class BaseCommand:
         Raises:
             LHPError: If not in a LakehousePlumber project
         """
-        from ...utils.error_formatter import ErrorCategory, LHPError
+        from ...errors import ErrorCategory, LHPError
 
         if self._project_root is None:
             self._project_root = self._find_project_root()
@@ -96,7 +96,7 @@ class BaseCommand:
         Raises:
             LHPFileError: If substitution file doesn't exist
         """
-        from ...utils.error_formatter import ErrorCategory, LHPFileError
+        from ...errors import ErrorCategory, LHPFileError
 
         project_root = self.ensure_project_root()
         substitution_file = project_root / "substitutions" / f"{env}.yaml"
@@ -141,16 +141,18 @@ class BaseCommand:
         Returns the list of YAML include patterns declared in ``lhp.yaml``.
         Returns an empty list when no project config is present, no
         ``include`` field is set, or loading fails (logged as a warning).
+
+        Goes through :class:`LakehousePlumberApplicationFacade` so the
+        CLI never reaches into internal ``lhp.core`` loaders directly
+        (constitution §1.10 / §9.13).
         """
         try:
-            from ...core.project_config_loader import ProjectConfigLoader
+            from lhp.api import LakehousePlumberApplicationFacade
 
-            config_loader = ProjectConfigLoader(project_root)
-            project_config = config_loader.load_project_config()
-
-            if project_config and project_config.include:
-                return project_config.include
-            return []
+            application_facade = LakehousePlumberApplicationFacade.for_project(
+                project_root
+            )
+            return list(application_facade.inspection.get_include_patterns())
         except Exception as e:
             self.logger.warning(
                 f"Could not load project config for include patterns: {e}"

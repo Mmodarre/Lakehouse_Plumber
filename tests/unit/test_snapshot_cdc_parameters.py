@@ -5,13 +5,13 @@ from pathlib import Path
 
 import pytest
 
-from lhp.core.dlt_cdc_validators import SnapshotCdcConfigValidator
+from lhp.core.validators.dlt_cdc_validators import SnapshotCdcConfigValidator
 from lhp.generators.write.streaming_table import (
     SourceFunctionResult,
     StreamingTableWriteGenerator,
 )
 from lhp.models.config import Action, ActionType
-from lhp.utils.error_formatter import LHPError
+from lhp.errors import LHPError
 from lhp.utils.substitution import EnhancedSubstitutionManager
 
 # ---------------------------------------------------------------------------

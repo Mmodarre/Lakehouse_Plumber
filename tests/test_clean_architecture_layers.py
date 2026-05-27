@@ -2,14 +2,14 @@
 
 from unittest.mock import Mock
 
-from lhp.core.layers import (
+from lhp.core.coordination import (
     GenerationResponse,
     LakehousePlumberApplicationFacade,
     ValidationIssue,
     ValidationResponse,
 )
 from lhp.models.processing import PipelineDelta
-from lhp.utils.error_formatter import (
+from lhp.errors import (
     ErrorCategory,
     LHPError,
     LHPFileError,
@@ -66,7 +66,7 @@ class TestFacadeOnDeltaUnwrap:
     :meth:`LakehousePlumberApplicationFacade.generate_pipelines`.
 
     The closure builds the per-pipeline
-    :class:`~lhp.core.layers.GenerationResponse.original_error` from the
+    :class:`~lhp.core.coordination.layers.GenerationResponse.original_error` from the
     worker's :class:`~lhp.models.processing.PipelineDelta`. The contract
     is:
 
@@ -74,7 +74,7 @@ class TestFacadeOnDeltaUnwrap:
        unchanged on ``response.original_error`` (subclass identity + code
        preserved; NO GEN-901 wrap).
     2. ``delta.lhp_error is None`` → the dispatcher
-       :func:`~lhp.utils.error_formatter.lhp_error_from_worker_failure`
+       :func:`~lhp.errors.lhp_error_from_worker_failure`
        synthesizes the right LHPError subclass (preserving
        ``ValueError``/``FileNotFoundError`` dual-inheritance) with
        ``LHP-GEN-901``.

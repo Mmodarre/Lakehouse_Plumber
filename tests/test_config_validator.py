@@ -1,7 +1,7 @@
 """Tests for Configuration Validator - Step 4.4.3."""
 
 import pytest
-from lhp.core.validator import ConfigValidator
+from lhp.core.validators import ConfigValidator
 from lhp.models.config import FlowGroup, Action, ActionType, TransformType
 
 
@@ -996,7 +996,7 @@ class TestConfigValidator:
         import tempfile
         import yaml
         from pathlib import Path
-        from lhp.core.orchestrator import ActionOrchestrator
+        from lhp.core.coordination import ActionOrchestrator
         
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)

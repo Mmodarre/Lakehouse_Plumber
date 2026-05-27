@@ -980,7 +980,7 @@ class TestEventLogE2E:
     def _generate_resource(self, pipeline_name):
         """Generate resource file content via BundleManager with project config."""
         from lhp.bundle.manager import BundleManager
-        from lhp.core.project_config_loader import ProjectConfigLoader
+        from lhp.core.loaders import ProjectConfigLoader
 
         loader = ProjectConfigLoader(self.project_root)
         project_config = loader.load_project_config()
@@ -1105,7 +1105,7 @@ class TestEventLogE2E:
         # Use the comprehensive_cluster_config pipeline which already has
         # event_log defined in the fixtures pipeline_config
         from lhp.bundle.manager import BundleManager
-        from lhp.core.project_config_loader import ProjectConfigLoader
+        from lhp.core.loaders import ProjectConfigLoader
 
         fixture_path = (
             Path(__file__).parent.parent

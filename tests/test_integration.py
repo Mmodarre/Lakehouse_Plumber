@@ -9,7 +9,7 @@ import yaml
 from click.testing import CliRunner
 
 from lhp.cli.main import cli
-from lhp.core.orchestrator import ActionOrchestrator
+from lhp.core.coordination import ActionOrchestrator
 from lhp.models.config import Action, ActionType, FlowGroup
 from lhp.parsers.yaml_parser import YAMLParser
 from tests.helpers import read_generated_pipeline

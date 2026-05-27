@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lhp.core.services.flowgroup_discoverer import FlowgroupDiscoverer
+from lhp.core.discovery.flowgroup_discoverer import FlowgroupDiscoveryService
 from lhp.models.config import FlowGroup
 
 
@@ -39,7 +39,7 @@ class TestFindSourceYamlIndex:
                 "pipeline: p2\nflowgroup: fg_gamma\n"
             )
 
-            discoverer = FlowgroupDiscoverer(root)
+            discoverer = FlowgroupDiscoveryService(root)
 
             assert discoverer.find_source_yaml_for_flowgroup(
                 _make_flowgroup("p1", "fg_alpha")
@@ -61,7 +61,7 @@ class TestFindSourceYamlIndex:
                 "pipeline: p1\nflowgroup: exists\n"
             )
 
-            discoverer = FlowgroupDiscoverer(root)
+            discoverer = FlowgroupDiscoveryService(root)
             result = discoverer.find_source_yaml_for_flowgroup(
                 _make_flowgroup("p1", "does_not_exist")
             )
@@ -81,7 +81,7 @@ class TestFindSourceYamlIndex:
                 "pipeline: p1\nflowgroup: fg3\n"
             )
 
-            discoverer = FlowgroupDiscoverer(root)
+            discoverer = FlowgroupDiscoveryService(root)
             for name in ("fg1", "fg2", "fg3"):
                 assert discoverer.find_source_yaml_for_flowgroup(
                     _make_flowgroup("p1", name)
@@ -103,7 +103,7 @@ class TestFindSourceYamlIndex:
                 "  - flowgroup: a3\n"
             )
 
-            discoverer = FlowgroupDiscoverer(root)
+            discoverer = FlowgroupDiscoveryService(root)
             for name in ("a1", "a2", "a3"):
                 assert discoverer.find_source_yaml_for_flowgroup(
                     _make_flowgroup("p1", name)
@@ -119,7 +119,7 @@ class TestFindSourceYamlIndex:
                 "pipeline: p1\nflowgroup: fg1\n"
             )
 
-            discoverer = FlowgroupDiscoverer(root)
+            discoverer = FlowgroupDiscoveryService(root)
 
             with patch.object(
                 discoverer,
@@ -152,7 +152,7 @@ class TestFindSourceYamlIndex:
                     f"pipeline: p1\nflowgroup: fg{i}\n"
                 )
 
-            discoverer = FlowgroupDiscoverer(root)
+            discoverer = FlowgroupDiscoveryService(root)
             results = {}
             errors = []
 
@@ -204,7 +204,7 @@ class TestEagerIndexPopulation:
                 "pipeline: p1\nflowgroup: fg2\n"
             )
 
-            discoverer = FlowgroupDiscoverer(root)
+            discoverer = FlowgroupDiscoveryService(root)
 
             # Index should not exist yet
             assert discoverer._source_path_index is None
@@ -236,7 +236,7 @@ class TestEagerIndexPopulation:
                 "pipeline: p1\nflowgroup: fg1\n"
             )
 
-            discoverer = FlowgroupDiscoverer(root)
+            discoverer = FlowgroupDiscoveryService(root)
             discoverer.discover_all_flowgroups()
             first_index = discoverer._source_path_index
 
@@ -257,7 +257,7 @@ class TestGetIncludePatternsNoReload:
         mock_loader.load_project_config.return_value = mock_config
 
         with tempfile.TemporaryDirectory() as tmp:
-            discoverer = FlowgroupDiscoverer(
+            discoverer = FlowgroupDiscoveryService(
                 Path(tmp), config_loader=mock_loader
             )
             # __init__ calls load_project_config once
@@ -276,7 +276,7 @@ class TestGetIncludePatternsNoReload:
     def test_get_include_patterns_empty_without_config(self):
         """Returns empty list when no config loader provided."""
         with tempfile.TemporaryDirectory() as tmp:
-            discoverer = FlowgroupDiscoverer(Path(tmp))
+            discoverer = FlowgroupDiscoveryService(Path(tmp))
             assert discoverer.get_include_patterns() == []
 
 
@@ -290,7 +290,7 @@ class TestDiscoverAndFilterPreDiscovered:
             (root / "pipelines").mkdir()
 
             # Create minimal orchestrator with mocked dependencies
-            from lhp.core.orchestrator import ActionOrchestrator
+            from lhp.core.coordination import ActionOrchestrator
 
             orch = ActionOrchestrator(root)
 
@@ -323,7 +323,7 @@ class TestDiscoverAndFilterPreDiscovered:
             root = Path(tmp)
             (root / "pipelines").mkdir()
 
-            from lhp.core.orchestrator import ActionOrchestrator
+            from lhp.core.coordination import ActionOrchestrator
 
             orch = ActionOrchestrator(root)
 

@@ -1,0 +1,15 @@
+╭─ LHP-CFG-025   Configuration Error ──────────────────────────────────────────╮
+│                                                                              │
+│  Bundle configuration error                                                  │
+│                                                                              │
+│  missing bundle name                                                         │
+│                                                                              │
+│  Suggestions                                                                 │
+│    -> Review your databricks.yml configuration                               │
+│    -> Check the Databricks Asset Bundles documentation                       │
+│    -> Run 'lhp validate' to check for configuration issues                   │
+│                                                                              │
+│  More info:                                                                  │
+│  https://lakehouse-plumber.readthedocs.io/en/latest/errors_reference.html    │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯

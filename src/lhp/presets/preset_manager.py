@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from ..models.config import Preset
 from ..parsers.yaml_parser import YAMLParser
-from ..utils.error_formatter import ErrorFormatter
+from ..errors import ErrorFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,7 @@ class PresetManager:
 
         # Cycle detection
         if preset_name in visited:
-            from ..utils.error_formatter import ErrorCategory, LHPConfigError
+            from ..errors import ErrorCategory, LHPConfigError
 
             cycle_path = " -> ".join(list(visited) + [preset_name])
             raise LHPConfigError(

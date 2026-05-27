@@ -3,14 +3,14 @@
 import logging
 from typing import Any, Dict
 
-from ...core.base_generator import BaseActionGenerator
+from ...core.registry import BaseActionGenerator
 from ...models.config import Action
-from ...utils.error_formatter import (
+from ...errors import (
     ErrorCategory,
     ErrorFormatter,
     LHPValidationError,
 )
-from ...utils.kafka_validator import KafkaOptionsValidator
+from ...core.validators.kafka_validator import KafkaOptionsValidator
 
 
 class KafkaLoadGenerator(BaseActionGenerator):

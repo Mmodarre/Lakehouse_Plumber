@@ -3,8 +3,8 @@
 import pytest
 from lhp.models.config import Action, ActionType
 from lhp.generators.test import TestActionGenerator
-from lhp.core.action_registry import ActionRegistry
-from lhp.utils.error_formatter import LHPError
+from lhp.core.registry import ActionRegistry
+from lhp.errors import LHPError
 
 
 class TestTestActionErrorHandling:
@@ -176,7 +176,7 @@ class TestTestActionErrorHandling:
         Previously the generator silently emitted SQL that did not match
         anything in information_schema; the contract is now strict.
         """
-        from lhp.utils.error_formatter import LHPValidationError
+        from lhp.errors import LHPValidationError
 
         generator = TestActionGenerator()
         action = Action(

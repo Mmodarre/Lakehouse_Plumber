@@ -1,9 +1,9 @@
 """Tests for job_name validator."""
 
 import pytest
-from lhp.core.services.job_name_validator import validate_job_names, validate_job_name_format
+from lhp.core.validators.job_name_validator import validate_job_names, validate_job_name_format
 from lhp.models.config import FlowGroup, Action, ActionType
-from lhp.utils.error_formatter import LHPError, ErrorCategory
+from lhp.errors import LHPError, ErrorCategory
 
 
 class TestJobNameFormatValidation:
@@ -161,7 +161,7 @@ class TestJobNameValidationLogging:
     def test_logs_multi_job_success(self, caplog, create_flowgroup):
         """Test that successful validation logs appropriately."""
         import logging
-        caplog.set_level(logging.INFO, logger="lhp.core.services.job_name_validator")
+        caplog.set_level(logging.INFO, logger="lhp.core.validators.job_name_validator")
         
         flowgroups = [
             create_flowgroup("bronze_pipeline", "fg1", "bronze_job"),
@@ -183,7 +183,7 @@ class TestJobNameValidationLogging:
     def test_logs_single_job_mode(self, caplog, create_flowgroup):
         """Test that single-job mode is logged."""
         import logging
-        caplog.set_level(logging.DEBUG, logger="lhp.core.services.job_name_validator")
+        caplog.set_level(logging.DEBUG, logger="lhp.core.validators.job_name_validator")
         
         flowgroups = [
             create_flowgroup("bronze_pipeline", "fg1", None),

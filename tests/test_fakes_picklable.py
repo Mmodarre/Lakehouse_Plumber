@@ -21,7 +21,7 @@ from tests.fakes import (
     CallRecord,
     FakeCodeFormatter,
     FakeCodeGenerator,
-    FakeFlowgroupProcessor,
+    FakeFlowgroupResolutionService,
     FakeProjectConfig,
     FakeSubstitutionManager,
     FakeTemplate,
@@ -40,13 +40,13 @@ class TestFakesPickle:
         assert restored.kwargs == {"x": 1}
 
     def test_fake_flowgroup_processor_pickles(self) -> None:
-        fake = FakeFlowgroupProcessor()
+        fake = FakeFlowgroupResolutionService()
         restored = pickle.loads(pickle.dumps(fake))
-        assert isinstance(restored, FakeFlowgroupProcessor)
+        assert isinstance(restored, FakeFlowgroupResolutionService)
         assert restored.calls == []
 
     def test_fake_flowgroup_processor_pickles_with_call_history(self) -> None:
-        fake = FakeFlowgroupProcessor()
+        fake = FakeFlowgroupResolutionService()
         fake.process_flowgroup("fg", env="dev", include_tests=False)
         restored = pickle.loads(pickle.dumps(fake))
         assert len(restored.calls) == 1

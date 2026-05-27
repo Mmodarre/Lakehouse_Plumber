@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import Union
 
-from .error_formatter import ErrorCategory, LHPConfigError
+from ..errors import ErrorCategory, LHPConfigError
 
 logger = logging.getLogger(__name__)
 

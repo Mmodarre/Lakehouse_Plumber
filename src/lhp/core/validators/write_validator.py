@@ -4,8 +4,8 @@ import logging
 from typing import List
 
 from ...models.config import Action, ActionType, WriteTargetType
-from ...utils.error_formatter import LHPError
-from ..dlt_cdc_validators import (
+from ...errors import LHPError
+from .dlt_cdc_validators import (
     CdcConfigValidator,
     CdcSchemaValidator,
     DltTableOptionsValidator,
@@ -284,7 +284,7 @@ class WriteActionValidator(BaseActionValidator):
         # Validate options using shared validator
         if sink_config.get("options"):
             try:
-                from ...utils.kafka_validator import KafkaOptionsValidator
+                from .kafka_validator import KafkaOptionsValidator
 
                 validator = KafkaOptionsValidator()
                 validator.process_options(

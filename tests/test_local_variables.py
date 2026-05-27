@@ -2,7 +2,7 @@
 
 import pytest
 from lhp.utils.local_variables import LocalVariableResolver
-from lhp.utils.error_formatter import LHPError
+from lhp.errors import LHPError
 
 
 class TestBasicSubstitution:

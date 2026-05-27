@@ -5,7 +5,7 @@ Phase D moved per-pipeline rendering OUT of the Live frame: the inline
 replaced by a single ``print_validate_summary_table`` call after Live
 exits. This test pins the Pipeline / Errors / Warnings columns and the
 status-icon contract; per-failure rich Panels are covered separately
-by ``test_lhperror_rendering`` (the LHPError ``__rich__`` snapshot).
+by ``test_lhperror_rendering`` (the LHPError ``render_error_panel`` snapshot).
 """
 
 from io import StringIO

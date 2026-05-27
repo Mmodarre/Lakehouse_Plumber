@@ -2,9 +2,9 @@
 
 import logging
 
-from ...core.base_generator import BaseActionGenerator
+from ...core.registry import BaseActionGenerator
 from ...models.config import Action
-from ...utils.error_formatter import (
+from ...errors import (
     ErrorCategory,
     LHPValidationError,
 )

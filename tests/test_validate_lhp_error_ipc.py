@@ -25,13 +25,13 @@ import pickle
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from lhp.core.layers import ValidationIssue
-from lhp.core.pipeline_executor import (
+from lhp.core.coordination import ValidationIssue
+from lhp.core.coordination.executor import (
     FlowgroupValidationResult,
     PipelineValidationOutcome,
 )
 from lhp.generators.python_file_copier import PythonFunctionConflictError
-from lhp.utils.error_formatter import (
+from lhp.errors import (
     ErrorCategory,
     LHPError,
     LHPValidationError,
@@ -162,7 +162,7 @@ def test_cdc_fan_in_lhp_error_carries_code():
     :attr:`PipelineValidationOutcome.lhp_errors` (NOT
     :attr:`~PipelineValidationOutcome.errors`).
     """
-    from lhp.core.orchestrator import ActionOrchestrator
+    from lhp.core.coordination import ActionOrchestrator
     from lhp.models.config import FlowGroup
 
     # Build a synthetic flowgroup so the assembler is exercised with a

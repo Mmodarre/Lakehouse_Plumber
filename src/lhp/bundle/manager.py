@@ -9,10 +9,10 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from ..core.services.monitoring_pipeline_builder import (
+from ..core.coordination.monitoring_pipeline_builder import (
     resolve_monitoring_pipeline_name,
 )
-from ..utils.error_formatter import ErrorCategory, LHPConfigError, LHPError
+from ..errors import ErrorCategory, LHPConfigError, LHPError
 from ..utils.performance_timer import perf_timer, record_count
 from ..utils.template_renderer import TemplateRenderer
 from .exceptions import BundleResourceError
@@ -98,7 +98,7 @@ class BundleManager:
 
         self.template_renderer = TemplateRenderer.from_package()
 
-        from ..core.services.pipeline_config_loader import PipelineConfigLoader
+        from ..core.loaders.pipeline_config_loader import PipelineConfigLoader
 
         self.config_loader = PipelineConfigLoader(
             self.project_root,

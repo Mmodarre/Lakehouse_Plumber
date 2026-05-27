@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 import yaml
 
-from lhp.core.orchestrator import ActionOrchestrator
+from lhp.core.coordination import ActionOrchestrator
 from tests.helpers import read_generated_pipeline
 
 

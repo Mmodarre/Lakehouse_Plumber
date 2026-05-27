@@ -11,7 +11,7 @@ Covers:
 import pytest
 import yaml
 
-from lhp.core.services.job_generator import JobGenerator
+from lhp.core.jobs.job_generator import JobGenerator
 
 
 @pytest.mark.unit

@@ -14,7 +14,7 @@ from ..models.config import (
     Blueprint,
     BlueprintInstance,
 )
-from ..utils.error_formatter import (
+from ..errors import (
     ErrorCategory,
     LHPConfigError,
     LHPError,

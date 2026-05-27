@@ -2,8 +2,8 @@
 
 import pytest
 
-from lhp.core.config_field_validator import ConfigFieldValidator
-from lhp.utils.error_formatter import LHPError
+from lhp.core.validators.config_field_validator import ConfigFieldValidator
+from lhp.errors import LHPError
 
 
 class TestUnknownFieldValidation:

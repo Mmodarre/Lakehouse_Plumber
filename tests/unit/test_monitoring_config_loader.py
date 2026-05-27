@@ -4,9 +4,9 @@ import pytest
 from pathlib import Path
 from unittest.mock import patch
 
-from lhp.core.project_config_loader import ProjectConfigLoader
+from lhp.core.loaders import ProjectConfigLoader
 from lhp.models.config import EventLogConfig, MonitoringConfig
-from lhp.utils.error_formatter import LHPError
+from lhp.errors import LHPError
 
 
 # Path (relative to project root / tmp_path) used across tests as the monitoring

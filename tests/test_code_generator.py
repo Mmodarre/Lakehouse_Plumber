@@ -1,4 +1,4 @@
-"""Tests for CodeGenerator service."""
+"""Tests for CodeGenerationService."""
 
 from collections import defaultdict
 from pathlib import Path
@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from lhp.core.services.code_generator import CodeGenerator
+from lhp.core.codegen.coordinator import CodeGenerationService
 from lhp.models.config import Action, ActionType, FlowGroup, TransformType
 
 
@@ -35,8 +35,8 @@ def mock_preset_manager():
 
 @pytest.fixture
 def code_generator(mock_action_registry, mock_dependency_resolver, mock_preset_manager):
-    """Create CodeGenerator instance."""
-    return CodeGenerator(
+    """Create CodeGenerationService instance."""
+    return CodeGenerationService(
         action_registry=mock_action_registry,
         dependency_resolver=mock_dependency_resolver,
         preset_manager=mock_preset_manager,

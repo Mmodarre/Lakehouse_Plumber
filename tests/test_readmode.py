@@ -6,7 +6,7 @@ import tempfile
 import yaml
 
 from lhp.models.config import Action, ActionType, TransformType, LoadSourceType, FlowGroup
-from lhp.core.orchestrator import ActionOrchestrator
+from lhp.core.coordination import ActionOrchestrator
 from lhp.generators.load.cloudfiles import CloudFilesLoadGenerator
 from lhp.generators.load.delta import DeltaLoadGenerator
 from lhp.generators.transform.data_quality import DataQualityTransformGenerator

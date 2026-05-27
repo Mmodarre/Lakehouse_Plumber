@@ -24,8 +24,8 @@ class CallRecord:
     kwargs: dict[str, Any]
 
 
-class FakeFlowgroupProcessor:
-    """Stand-in for :class:`lhp.core.services.flowgroup_processor.FlowgroupProcessor`.
+class FakeFlowgroupResolutionService:
+    """Stand-in for :class:`lhp.core.processing.flowgroup_resolver.FlowgroupResolutionService`.
 
     Records each ``process_flowgroup`` invocation in :attr:`calls` and returns
     the flowgroup it received unchanged. Concrete (non-``Mock``) class so
@@ -83,7 +83,7 @@ class FakeSubstitutionManager:
 class FakeTemplate:
     """Stand-in for :class:`lhp.models.config.Template`.
 
-    Only the attributes consumed by :class:`FlowgroupProcessor.process_flowgroup`
+    Only the attributes consumed by :class:`FlowgroupResolutionService.process_flowgroup`
     (``presets`` and ``actions``) are modelled. Concrete ``@dataclass`` so
     instances pickle.
     """
@@ -123,7 +123,7 @@ class FakeTemplateEngine:
 
 
 class FakeCodeGenerator:
-    """Stand-in for :class:`lhp.core.code_generator.CodeGenerator`.
+    """Stand-in for :class:`lhp.core.codegen.coordinator.CodeGenerationService`.
 
     Worker boundary tests in this package only need a typed,
     constructor-accepting slot. No methods are exercised by the in-scope
@@ -142,7 +142,7 @@ class FakeCodeFormatter:
 class FakeProjectConfig:
     """Stand-in for :class:`lhp.models.config.ProjectConfig`.
 
-    Only fields read inside :class:`lhp.core.pipeline_processor.PipelineProcessor`
+    Only fields read inside :class:`lhp.core.coordination.processor.PipelineProcessor`
     init / dispatch paths are exposed. ``test_reporting`` is the single field
     the processor reads opaquely; default ``None`` matches projects without a
     ``test_reporting`` block.

@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from lhp.parsers.blueprint_parser import BlueprintParser
-from lhp.utils.error_formatter import ErrorCategory, LHPError
+from lhp.errors import ErrorCategory, LHPError
 
 pytestmark = pytest.mark.unit
 

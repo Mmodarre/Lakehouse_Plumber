@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from lhp.core.services.pipeline_config_loader import PipelineConfigLoader
-from lhp.utils.error_formatter import LHPValidationError
+from lhp.core.loaders.pipeline_config_loader import PipelineConfigLoader
+from lhp.errors import LHPValidationError
 
 
 class TestConfigLoading:
@@ -89,7 +89,7 @@ class TestConfigLoading:
 
     def test_invalid_yaml_raises_error(self, tmp_path):
         """LHPConfigError for invalid YAML syntax (wraps yaml.YAMLError)."""
-        from lhp.utils.error_formatter import LHPConfigError
+        from lhp.errors import LHPConfigError
 
         fixture_path = (
             Path(__file__).parent / "fixtures/pipeline_configs/invalid_yaml.yaml"
@@ -509,7 +509,7 @@ serverless: false
         config_file = tmp_path / "pipeline_config.yaml"
         config_file.write_text(config_content)
 
-        from lhp.utils.error_formatter import LHPError
+        from lhp.errors import LHPError
 
         with pytest.raises(LHPError) as exc_info:
             PipelineConfigLoader(tmp_path, config_file_path=str(config_file))
@@ -533,7 +533,7 @@ serverless: false
         config_file = tmp_path / "pipeline_config.yaml"
         config_file.write_text(config_content)
 
-        from lhp.utils.error_formatter import LHPError
+        from lhp.errors import LHPError
 
         with pytest.raises(LHPError) as exc_info:
             PipelineConfigLoader(tmp_path, config_file_path=str(config_file))
@@ -558,7 +558,7 @@ edition: PRO
         config_file = tmp_path / "pipeline_config.yaml"
         config_file.write_text(config_content)
 
-        from lhp.utils.error_formatter import LHPError
+        from lhp.errors import LHPError
 
         with pytest.raises(LHPError) as exc_info:
             PipelineConfigLoader(tmp_path, config_file_path=str(config_file))
@@ -625,7 +625,7 @@ edition: PRO
         config_file = tmp_path / "pipeline_config.yaml"
         config_file.write_text(config_content)
 
-        from lhp.utils.error_formatter import LHPError
+        from lhp.errors import LHPError
 
         with pytest.raises(LHPError) as exc_info:
             PipelineConfigLoader(tmp_path, config_file_path=str(config_file))

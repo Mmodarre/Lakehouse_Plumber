@@ -16,7 +16,7 @@ from click.testing import CliRunner
 
 from lhp.cli.commands.validate_command import ValidateCommand
 from lhp.cli.main import cli
-from lhp.core.orchestrator import ActionOrchestrator
+from lhp.core.coordination import ActionOrchestrator
 
 
 def _bare_project(project_root: Path) -> None:
