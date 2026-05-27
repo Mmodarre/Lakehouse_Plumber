@@ -6,25 +6,12 @@ delegates to. Keeping the orchestrator class name (and the
 service-graph wiring) outside :mod:`lhp.api` enforces the constitutional
 invariant that ``ActionOrchestrator`` is never named inside the public
 API surface (§1.10, §9.13).
-
-The historical
-:class:`LakehousePlumberApplicationFacade` re-export below is a
-transitional alias so internal call sites that still import
-``from lhp.core.coordination import LakehousePlumberApplicationFacade``
-keep resolving. It is removed in Phase D (week5_plan §D11) once the
-CLI cutover lands.
 """
 
 from pathlib import Path
 from typing import Optional
 
-# JUSTIFIED: remaining content is (1) the composition-root helper
-# ``build_facade_orchestrator`` and (2) the transitional re-export of
-# ``LakehousePlumberApplicationFacade`` from :mod:`lhp.api.facade` so
-# internal callers keep importing via ``lhp.core.coordination`` until
-# the Phase D CLI cutover (week5_plan §D11). After D11 this module
-# shrinks to just the composition-root helper.
-# TODO(Phase 9.1): collapse to just build_facade_orchestrator after the Phase D CLI cutover removes the transitional re-export; see LOCAL/REMAINING_WORK.md §9.
+
 
 
 def build_facade_orchestrator(

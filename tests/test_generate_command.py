@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from lhp.cli.commands.generate_command import GenerateCommand
-from lhp.core.coordination import GenerationResponse
+from lhp.api.responses import GenerationResponse
 
 
 @pytest.fixture
@@ -79,7 +79,7 @@ class TestGenerateCommandExecute:
 
     def test_execute_basic_flow(self, generate_command, temp_project):
         """Test basic execute flow."""
-        from lhp.core.coordination import BatchGenerationResponse
+        from lhp.api.responses import BatchGenerationResponse
         from lhp.models.config import FlowGroup
 
         output_dir = temp_project / "generated" / "dev"
@@ -136,7 +136,7 @@ class TestGenerateCommandExecute:
 
     def test_execute_with_dry_run(self, generate_command, temp_project):
         """Test execute with dry-run flag."""
-        from lhp.core.coordination import BatchGenerationResponse
+        from lhp.api.responses import BatchGenerationResponse
         from lhp.models.config import FlowGroup
 
         mock_response = GenerationResponse(
@@ -188,7 +188,7 @@ class TestGenerateCommandExecute:
 
     def test_execute_with_no_bundle(self, generate_command, temp_project):
         """Test execute with no_bundle flag."""
-        from lhp.core.coordination import BatchGenerationResponse
+        from lhp.api.responses import BatchGenerationResponse
         from lhp.models.config import FlowGroup
 
         mock_facade_instance = Mock()
@@ -341,7 +341,7 @@ class TestGenerateCommandExecute:
 
     def test_execute_with_custom_output(self, generate_command, temp_project):
         """Test execute with custom output directory."""
-        from lhp.core.coordination import BatchGenerationResponse
+        from lhp.api.responses import BatchGenerationResponse
         from lhp.models.config import FlowGroup
 
         custom_output = temp_project / "custom_output"

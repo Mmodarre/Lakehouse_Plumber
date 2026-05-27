@@ -24,11 +24,8 @@ import lhp.cli.console as _lhp_console_module
 from lhp.cli.error_panel import render_error_panel
 from lhp.cli.live_panel import PipelineRecord
 from lhp.cli.validate_summary import print_validate_summary_table
-from lhp.core.coordination import (
-    BatchValidationResponse,
-    ValidationIssue,
-    ValidationResponse,
-)
+from lhp.api.responses import BatchValidationResponse, ValidationResponse
+from lhp.api.views import ValidationIssueView
 from lhp.errors import ErrorCategory, LHPValidationError
 
 
@@ -60,7 +57,7 @@ def _build_failing_response() -> BatchValidationResponse:
     failing_response = ValidationResponse(
         success=False,
         issues=[
-            ValidationIssue(
+            ValidationIssueView(
                 code=err.code,
                 severity="error",
                 title=err.title,

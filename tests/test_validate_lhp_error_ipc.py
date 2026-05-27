@@ -25,7 +25,7 @@ import pickle
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from lhp.core.coordination import ValidationIssue
+from lhp.api.views import ValidationIssueView
 from lhp.core.coordination.executor import (
     FlowgroupValidationResult,
     PipelineValidationOutcome,
@@ -75,7 +75,7 @@ def test_lhp_error_survives_worker_to_main_via_validation_issue():
     assert restored.errors == ()
 
     # ValidationIssue rebuild contract from layers._on_outcome.
-    issue = ValidationIssue(
+    issue = ValidationIssueView(
         code=restored.lhp_error.code,
         severity="error",
         title=restored.lhp_error.title,
