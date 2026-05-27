@@ -23,6 +23,7 @@ from __future__ import annotations
 from typing import Iterator
 
 from lhp.api.bootstrap import LakehousePlumberBootstrap
+from lhp.api.callbacks import WarningCollector
 from lhp.api.events import (
     BundleSyncCompleted,
     ErrorEmitted,
@@ -147,5 +148,6 @@ __all__: list[str] = [
     "ValidationFacade",
     "ValidationIssueView",
     "ValidationResponse",
+    "WarningCollector",
     "collect_response",
 ]
