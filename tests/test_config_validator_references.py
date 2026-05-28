@@ -4,7 +4,7 @@ Reference and rule validation tests for ConfigValidator.
 
 import pytest
 from unittest.mock import patch
-from lhp.core.validators import ConfigValidator
+from lhp.core.validators import ConfigValidator, TableCreationValidator
 from lhp.models.config import FlowGroup, Action, ActionType, TransformType
 
 
@@ -149,8 +149,6 @@ class TestConfigValidatorReferences:
         Target lines: 672, 759-760, 763, 770, 785-792
         Tests multiple creators, table name extraction, and action creates table logic.
         """
-        validator = ConfigValidator()
-        
         # Test 1: Multiple table creators (should raise LHPError)
         flowgroups = [
             FlowGroup(
@@ -187,7 +185,7 @@ class TestConfigValidatorReferences:
         
         # Should raise LHPError for multiple creators
         with pytest.raises(Exception) as exc_info:
-            validator.validate_table_creation_rules(flowgroups)
+            TableCreationValidator().validate(flowgroups)
         
         assert "Multiple table creators detected" in str(exc_info.value)
         
@@ -213,7 +211,7 @@ class TestConfigValidatorReferences:
             )
         ]
         
-        errors = validator.validate_table_creation_rules(flowgroups)
+        errors = TableCreationValidator().validate(flowgroups)
         assert any("has no creator" in error for error in errors)
         
         # Test 3: Valid table creation (should NOT error)
@@ -250,7 +248,7 @@ class TestConfigValidatorReferences:
             )
         ]
         
-        errors = validator.validate_table_creation_rules(flowgroups)
+        errors = TableCreationValidator().validate(flowgroups)
         assert len(errors) == 0
 
     def test_template_usage_warning(self):

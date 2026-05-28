@@ -281,9 +281,7 @@ def test_multiple_write_actions_same_table_mixed_once_flags():
 
 def test_table_creation_validation_multiple_creators():
     """Test that table creation validation catches multiple creators."""
-    from lhp.core.validators import ConfigValidator
-
-    validator = ConfigValidator()
+    from lhp.core.validators import TableCreationValidator
 
     # Create two actions that both try to create the same table
     action1 = Action(
@@ -318,7 +316,7 @@ def test_table_creation_validation_multiple_creators():
 
     # Validate table creation rules - should raise LHPError for multiple creators
     try:
-        validator.validate_table_creation_rules([flowgroup])
+        TableCreationValidator().validate([flowgroup])
         # If we get here, validation unexpectedly passed - this is an error
         assert False, "Expected LHPError to be raised for multiple table creators"
     except Exception as e:
@@ -333,9 +331,7 @@ def test_table_creation_validation_multiple_creators():
 
 def test_table_creation_validation_no_creators():
     """Test that table creation validation catches tables with no creators."""
-    from lhp.core.validators import ConfigValidator
-
-    validator = ConfigValidator()
+    from lhp.core.validators import TableCreationValidator
 
     # Create two actions that both have create_table=False
     action1 = Action(
@@ -369,7 +365,7 @@ def test_table_creation_validation_no_creators():
     )
 
     # Validate table creation rules - should return errors for no creators
-    errors = validator.validate_table_creation_rules([flowgroup])
+    errors = TableCreationValidator().validate([flowgroup])
 
     # Should detect no creators (this case returns errors instead of raising exception)
     assert len(errors) == 1

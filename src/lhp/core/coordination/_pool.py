@@ -634,7 +634,7 @@ def run_validate_pool(
     Mirror of :func:`run_generate_pool` for validation — simpler because
     there is no file write or state save, just a cross-flowgroup
     post-barrier hook implemented inside ``assemble_pipeline`` (typically
-    ``validate_cdc_fanin_compatibility``).
+    ``ValidationService.validate_cross_flowgroup``).
 
     The captured ``worker_state`` is pickled once at pool startup and
     delivered to each worker via the ``initializer=`` seam, so the per-task

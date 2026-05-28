@@ -199,6 +199,54 @@ convention).
 
 All three are tracked in `LOCAL/REMAINING_WORK.md §0` largest-modules table; the file-size gate is strict-clean across the repo at 0 violations.
 
+### Problem #8 — §9.24-INTERNAL `ConfigValidator` delegation flatten
+
+Removes the duplicate composition of `TableCreationValidator` and
+`CdcFanInCompatibilityValidator` between `ConfigValidator` (per-flowgroup
+aggregator) and `ValidationService` (coordination layer). After this change
+`ValidationService` is the sole composer of the two cross-flowgroup
+validators; `ConfigValidator` no longer holds the instance attributes,
+delegator methods, or imports for them. The runtime `_dedupe_issues(...)`
+workaround in `ValidationService.validate_flowgroups` is deleted —
+identical issues no longer arise because the duplicate composition is
+gone. Internal-only change; no public API affected.
+
+- **`src/lhp/core/validators/config_validator.py`.** Removed
+  `validate_table_creation_rules` and `validate_cdc_fanin_compatibility`
+  methods, the `self.table_creation_validator` /
+  `self.cdc_fanin_validator` instance attributes, and the
+  `TableCreationValidator` / `CdcFanInCompatibilityValidator` imports.
+  Module-header comment updated to reflect that cross-flowgroup
+  composition lives at the coordination layer (§9.24).
+- **`src/lhp/core/coordination/validation_service.py`.** Removed
+  `_dedupe_issues` static method and its single call-site in
+  `validate_flowgroups` — return is now `tuple(issues)`. Module docstring,
+  class docstring, `__init__` comment block, and `validate_flowgroups`
+  docstring rewritten to drop the §9.24-INTERNAL duplication wording and
+  the Week-3 deferral references. The four `_*_validator_cls` slots are
+  retained as §9.24 surface markers (vulture at 80% confidence did not
+  flag them).
+- **`src/lhp/core/coordination/_pool.py`.** One-line docstring update at
+  the `run_validate_pool` cross-flowgroup post-barrier description —
+  references `ValidationService.validate_cross_flowgroup` rather than the
+  now-removed delegator method name.
+- **Tests migrated off the deleted delegators.** `test_cdc_fanin.py` (10
+  call-sites), `test_config_validator_references.py` (3), and
+  `test_append_flow.py` (2) now invoke `TableCreationValidator().validate(...)`
+  and `CdcFanInCompatibilityValidator().validate(...)` directly.
+  `test_validate_lhp_error_ipc.py::test_cdc_fan_in_lhp_error_carries_code`
+  retargets its mock from `orch.config_validator.validate_cdc_fanin_compatibility`
+  to `orch.validation.validate_cross_flowgroup` (the new
+  `ValidationService` call path).
+
+Mechanical-gate snapshot on the diff: `check_placement`, `check_file_sizes`,
+`check_stability_drift`, `ruff B904/TRY400/RUF013`, and `vulture` on the
+changed files all clean. `mypy --strict src/lhp/api/` baseline-clean for
+the diff (no errors introduced; pre-existing tree-wide errors unchanged).
+Test gate: the four migrated test modules pass 37/37; remaining failures
+in the wider suite are pre-existing baseline drift in files this diff
+does not touch.
+
 ### Phase 7 — `lhp.api` cleanup, first stable wave, py.typed
 
 Phase 7 closes the three transitional shims Week 6 left intact, lands

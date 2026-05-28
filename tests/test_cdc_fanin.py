@@ -16,7 +16,11 @@ from pathlib import Path
 import pytest
 
 from lhp.core.coordination.layers import build_facade_orchestrator
-from lhp.core.validators import ConfigValidator
+from lhp.core.validators import (
+    CdcFanInCompatibilityValidator,
+    ConfigValidator,
+    TableCreationValidator,
+)
 from lhp.generators.write.streaming_table import StreamingTableWriteGenerator
 from lhp.models.config import Action, ActionType, FlowGroup
 from lhp.errors import LHPConfigError
@@ -242,8 +246,6 @@ def test_cdc_except_column_list_per_flow():
 
 def test_cross_flowgroup_cdc_fanin_table_creator_validation():
     """Two CDC actions across two flowgroups: one creator wins, other must be user."""
-    validator = ConfigValidator()
-
     fg_creator = FlowGroup(
         pipeline="p",
         flowgroup="fg_creator",
@@ -268,11 +270,11 @@ def test_cross_flowgroup_cdc_fanin_table_creator_validation():
     )
 
     # Passes with one creator + one contributor.
-    errors = validator.validate_table_creation_rules([fg_creator, fg_contrib])
+    errors = TableCreationValidator().validate([fg_creator, fg_contrib])
     assert errors == []
 
     # Cross-flowgroup fan-in compatibility validator agrees.
-    fanin_errors = validator.validate_cdc_fanin_compatibility([fg_creator, fg_contrib])
+    fanin_errors = CdcFanInCompatibilityValidator().validate([fg_creator, fg_contrib])
     assert fanin_errors == []
 
 
@@ -283,7 +285,6 @@ def test_cross_flowgroup_cdc_fanin_table_creator_validation():
 
 def test_cdc_fanin_mismatch_keys_raises():
     """Mismatched cdc_config.keys across contributors raises LHPConfigError."""
-    validator = ConfigValidator()
     fg = FlowGroup(
         pipeline="p",
         flowgroup="fg",
@@ -303,7 +304,7 @@ def test_cdc_fanin_mismatch_keys_raises():
         ],
     )
     with pytest.raises(LHPConfigError) as exc:
-        validator.validate_cdc_fanin_compatibility([fg])
+        CdcFanInCompatibilityValidator().validate([fg])
     msg = str(exc.value)
     assert "cdc_config.keys" in msg
     assert "fg.write_a" in msg
@@ -312,7 +313,6 @@ def test_cdc_fanin_mismatch_keys_raises():
 
 def test_cdc_fanin_mismatch_scd_type_raises():
     """Mismatched stored_as_scd_type raises LHPConfigError."""
-    validator = ConfigValidator()
     fg = FlowGroup(
         pipeline="p",
         flowgroup="fg",
@@ -332,12 +332,11 @@ def test_cdc_fanin_mismatch_scd_type_raises():
         ],
     )
     with pytest.raises(LHPConfigError):
-        validator.validate_cdc_fanin_compatibility([fg])
+        CdcFanInCompatibilityValidator().validate([fg])
 
 
 def test_cdc_fanin_mismatch_sequence_by_raises():
     """Mismatched sequence_by raises LHPConfigError."""
-    validator = ConfigValidator()
     fg = FlowGroup(
         pipeline="p",
         flowgroup="fg",
@@ -357,12 +356,11 @@ def test_cdc_fanin_mismatch_sequence_by_raises():
         ],
     )
     with pytest.raises(LHPConfigError):
-        validator.validate_cdc_fanin_compatibility([fg])
+        CdcFanInCompatibilityValidator().validate([fg])
 
 
 def test_cdc_fanin_mismatch_partition_columns_raises():
     """Mismatched partition_columns (table-level field) raises LHPConfigError."""
-    validator = ConfigValidator()
     fg = FlowGroup(
         pipeline="p",
         flowgroup="fg",
@@ -382,13 +380,12 @@ def test_cdc_fanin_mismatch_partition_columns_raises():
         ],
     )
     with pytest.raises(LHPConfigError) as exc:
-        validator.validate_cdc_fanin_compatibility([fg])
+        CdcFanInCompatibilityValidator().validate([fg])
     assert "partition_columns" in str(exc.value)
 
 
 def test_cdc_fanin_mismatch_table_properties_raises():
     """Mismatched table_properties raises LHPConfigError."""
-    validator = ConfigValidator()
     fg = FlowGroup(
         pipeline="p",
         flowgroup="fg",
@@ -408,12 +405,11 @@ def test_cdc_fanin_mismatch_table_properties_raises():
         ],
     )
     with pytest.raises(LHPConfigError):
-        validator.validate_cdc_fanin_compatibility([fg])
+        CdcFanInCompatibilityValidator().validate([fg])
 
 
 def test_cdc_fanin_mode_mixing_rejected():
     """CDC + non-CDC actions on same table produces a mode-mix error."""
-    validator = ConfigValidator()
     cdc = _cdc_action("write_cdc", source="v_cdc", create_table=True)
     standard = Action(
         name="write_standard",
@@ -429,7 +425,7 @@ def test_cdc_fanin_mode_mixing_rejected():
     )
     fg = FlowGroup(pipeline="p", flowgroup="fg", actions=[cdc, standard])
 
-    errors = validator.validate_cdc_fanin_compatibility([fg])
+    errors = CdcFanInCompatibilityValidator().validate([fg])
     assert len(errors) == 1
     assert "cannot mix CDC and non-CDC" in errors[0]
     assert "fg.write_cdc" in errors[0]
@@ -438,7 +434,6 @@ def test_cdc_fanin_mode_mixing_rejected():
 
 def test_cdc_fanin_multiple_creators_reuses_existing_check():
     """Two CDC actions both with create_table=True still tripped by TableCreationValidator."""
-    validator = ConfigValidator()
     fg = FlowGroup(
         pipeline="p",
         flowgroup="fg",
@@ -448,7 +443,7 @@ def test_cdc_fanin_multiple_creators_reuses_existing_check():
         ],
     )
     with pytest.raises(Exception) as exc:
-        validator.validate_table_creation_rules([fg])
+        TableCreationValidator().validate([fg])
     assert "Multiple table creators" in str(exc.value)
 
 
@@ -550,7 +545,6 @@ def test_snapshot_cdc_single_action_unchanged():
 
 def test_snapshot_cdc_excluded_from_fanin_validator():
     """snapshot_cdc contributors are invisible to CDC fan-in validator."""
-    validator = ConfigValidator()
     fg = FlowGroup(
         pipeline="p",
         flowgroup="fg",
@@ -573,5 +567,5 @@ def test_snapshot_cdc_excluded_from_fanin_validator():
             )
         ],
     )
-    errors = validator.validate_cdc_fanin_compatibility([fg])
+    errors = CdcFanInCompatibilityValidator().validate([fg])
     assert errors == []

@@ -157,8 +157,8 @@ def test_cdc_fan_in_lhp_error_carries_code():
     """Orchestrator CDC fan-in path lands LHPErrors in ``lhp_errors``.
 
     Unit-level test of the assembler contract: when
-    ``ConfigValidator.validate_cdc_fanin_compatibility`` raises an
-    LHPError, the per-pipeline outcome carries it in
+    ``ValidationService.validate_cross_flowgroup`` raises an LHPError, the
+    per-pipeline outcome carries it in
     :attr:`PipelineValidationOutcome.lhp_errors` (NOT
     :attr:`~PipelineValidationOutcome.errors`).
     """
@@ -181,10 +181,8 @@ def test_cdc_fan_in_lhp_error_carries_code():
     )
 
     orch = ActionOrchestrator.__new__(ActionOrchestrator)
-    orch.config_validator = MagicMock()
-    orch.config_validator.validate_cdc_fanin_compatibility = MagicMock(
-        side_effect=cdc_err
-    )
+    orch.validation = MagicMock()
+    orch.validation.validate_cross_flowgroup = MagicMock(side_effect=cdc_err)
     orch.logger = MagicMock()
 
     # Re-create the assembler closure's behaviour with a single
@@ -208,7 +206,7 @@ def test_cdc_fan_in_lhp_error_carries_code():
             lhp_errors_acc.append(result.lhp_error)
 
     try:
-        orch.config_validator.validate_cdc_fanin_compatibility([fg])
+        orch.validation.validate_cross_flowgroup([fg])
     except LHPError as e:
         lhp_errors_acc.append(e)
 

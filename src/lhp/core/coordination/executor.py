@@ -321,8 +321,8 @@ class PipelineExecutionService(BasePipelineExecutionService):
             # the ``=====`` border in the per-pipeline summary table.
             try:
                 with perf_timer(
-                    f"validate_cdc_fanin_compatibility [{pipeline_name}]",
-                    category="validate_cdc_fanin_compatibility",
+                    f"validate_cross_flowgroup [{pipeline_name}]",
+                    category="validate_cross_flowgroup",
                 ):
                     # §9.24: routed through the public ValidationService surface.
                     cross_result = validation_service.validate_cross_flowgroup(

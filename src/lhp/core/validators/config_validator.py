@@ -12,12 +12,13 @@ from .config_field_validator import ConfigFieldValidator
 
 # Distinct from the sibling :class:`.config_field_validator.ConfigFieldValidator`,
 # which performs strict per-field schema validation on individual
-# configuration objects. ``ConfigValidator`` is the higher-level aggregator
-# that composes action / structural / reference validators
-# (LoadActionValidator, TransformActionValidator, WriteActionValidator,
-# TestActionValidator, CdcFanInCompatibilityValidator,
-# TableCreationValidator, etc.) to validate an entire project's flowgroup
-# graph end to end.
+# configuration objects. ``ConfigValidator`` is the per-flowgroup aggregator
+# that composes the action validators (LoadActionValidator,
+# TransformActionValidator, WriteActionValidator, TestActionValidator) to
+# validate one flowgroup's actions end to end. Cross-flowgroup validators
+# (TableCreationValidator, CdcFanInCompatibilityValidator) are composed
+# exclusively by :class:`...coordination.validation_service.ValidationService`
+# where the full flowgroup set is available (§9.24).
 
 
 # NOTE: ``ActionRegistry`` and ``DependencyResolver`` are imported lazily
@@ -34,9 +35,7 @@ from .config_field_validator import ConfigFieldValidator
 logger = logging.getLogger(__name__)
 
 from . import (
-    CdcFanInCompatibilityValidator,
     LoadActionValidator,
-    TableCreationValidator,
     TestActionValidator,
     TransformActionValidator,
     WriteActionValidator,
@@ -82,8 +81,6 @@ class ConfigValidator:
         self.test_validator = TestActionValidator(
             self.action_registry, self.field_validator
         )
-        self.table_creation_validator = TableCreationValidator()
-        self.cdc_fanin_validator = CdcFanInCompatibilityValidator()
 
     def validate_flowgroup(self, flowgroup: FlowGroup) -> List[ValidationError]:
         """Validate flowgroups and actions.
@@ -243,37 +240,6 @@ class ConfigValidator:
                     sources.extend(value)
 
         return sources
-
-    def validate_table_creation_rules(self, flowgroups: List[FlowGroup]) -> List[str]:
-        """Validate table creation rules across the entire pipeline.
-
-        Delegates to TableCreationValidator for the actual validation logic.
-
-        Args:
-            flowgroups: List of all flowgroups in the pipeline
-
-        Returns:
-            List of validation error messages
-        """
-        return self.table_creation_validator.validate(flowgroups)
-
-    def validate_cdc_fanin_compatibility(
-        self, flowgroups: List[FlowGroup]
-    ) -> List[str]:
-        """Validate compatibility across CDC actions sharing a target.
-
-        Delegates to CdcFanInCompatibilityValidator. Mismatches on shared
-        fields surface as ``LHPConfigError`` (raised from the delegate);
-        mode-mixing between CDC and non-CDC contributors returns plain error
-        strings in the result list.
-
-        Args:
-            flowgroups: List of all flowgroups in the pipeline
-
-        Returns:
-            List of validation error messages
-        """
-        return self.cdc_fanin_validator.validate(flowgroups)
 
     def validate_duplicate_pipeline_flowgroup(
         self, flowgroups: List[FlowGroup]

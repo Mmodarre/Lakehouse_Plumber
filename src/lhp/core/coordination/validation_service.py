@@ -1,17 +1,17 @@
 """Single external validation surface (§9.24).
 
-Composes :class:`ConfigValidator` (``core/validator.py``) and the
-action/compatibility validators under ``core/validators/``. Per
+Composes :class:`ConfigValidator` (``core/validators/config_validator.py``)
+and the action/compatibility validators under ``core/validators/``. Per
 constitution §9.24, every external caller — :class:`ActionOrchestrator`,
 the CLI via the application facade, and worker subprocesses — must route
-through this class. No other module outside ``core/validator.py`` and
-``core/validators/`` may import those modules directly.
+through this class. No other module outside ``core/validators/`` may
+import those modules directly.
 
-Internal duplication BETWEEN :class:`ConfigValidator` (which already
-composes the action validators internally) and the standalone
-``core/validators/`` classes (e.g. overlapping CDC fan-in checks) is a
-known §9.24-INTERNAL violation. The external surface — this class — is
-exactly one; untangling the internal redundancy is deferred.
+This class is the sole composer of the cross-flowgroup validators
+(:class:`TableCreationValidator`,
+:class:`CdcFanInCompatibilityValidator`). :class:`ConfigValidator` sees
+one flowgroup at a time and therefore does not — and must not — delegate
+to them.
 
 Caller contract:
 
@@ -27,7 +27,7 @@ workers can carry an instance across the ``spawn`` boundary.
 """
 
 from pathlib import Path
-from typing import List, Optional, Sequence, Set, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 from lhp.api.views import ValidationIssueView
 from lhp.core.coordination._interfaces import (
@@ -52,15 +52,16 @@ class ValidationService(BaseValidationService):
     """Single external validation surface.
 
     Wraps :class:`ConfigValidator` plus every action/compatibility validator
-    in ``core/validators/`` behind two methods. External callers MUST go
-    through this class — per §9.24, direct imports of ``core/validator.py``
-    or ``core/validators/*`` from anywhere else are prohibited.
+    in ``core/validators/`` behind a small public surface. External callers
+    MUST go through this class — per §9.24, direct imports of
+    ``core/validators/*`` from anywhere else are prohibited.
 
-    The constructor holds explicit references to each action/compatibility
-    validator class to make the §9.24 surface contract visible at the type
-    level, even though :class:`ConfigValidator` already composes the
-    per-flowgroup action validators internally. The duplication is a known
-    §9.24-INTERNAL violation; see module docstring.
+    Cross-flowgroup validators (:class:`TableCreationValidator`,
+    :class:`CdcFanInCompatibilityValidator`) are composed exclusively here.
+    The action validator class slots held in :meth:`__init__` exist so
+    external code never needs to import those class names directly —
+    :class:`ConfigValidator` composes the live action validator instances
+    with its own constructor args.
 
     :stability: provisional
     """
@@ -99,20 +100,16 @@ class ValidationService(BaseValidationService):
         else:
             self._config_validator = ConfigValidator(project_root, project_config)
 
-        # Held to make the §9.24 surface explicit at this layer. The first
-        # four are also instantiated inside ConfigValidator with different
-        # constructor args (registries, field validators, project paths);
-        # this slot exists only so external code never needs to import the
-        # class names directly.
+        # Action validator class slots — held only so external callers never
+        # need to import these names directly. ConfigValidator composes the
+        # live instances with its own constructor args (registries, field
+        # validators, project paths).
         self._load_validator_cls = LoadActionValidator
         self._transform_validator_cls = TransformActionValidator
         self._write_validator_cls = WriteActionValidator
         self._test_validator_cls = TestActionValidator
 
-        # Cross-flowgroup validators. Owned here AND inside ConfigValidator;
-        # ConfigValidator's copies remain only because
-        # validate_table_creation_rules / validate_cdc_fanin_compatibility
-        # delegate to them.
+        # Cross-flowgroup validators — single composition site (§9.24).
         self._table_creation_validator = TableCreationValidator()
         self._fanin_validator = CdcFanInCompatibilityValidator()
 
@@ -131,12 +128,8 @@ class ValidationService(BaseValidationService):
            validators internally.
         2. Cross-flowgroup compatibility checks via
            :class:`TableCreationValidator` and
-           :class:`CdcFanInCompatibilityValidator` — invoked here directly
-           rather than through ``ConfigValidator`` to keep the §9.24 surface
-           obvious.
-        3. Dedup workaround for §9.24-INTERNAL violations (see module
-           docstring). Same (code, severity, title, details, pipeline_name)
-           tuple appearing twice is collapsed to a single issue.
+           :class:`CdcFanInCompatibilityValidator` — composed exclusively
+           here (§9.24); :class:`ConfigValidator` does not delegate to them.
 
         Args:
             flowgroups: All flowgroups to validate.
@@ -144,8 +137,7 @@ class ValidationService(BaseValidationService):
                 whose ``pipeline`` field equals this value.
 
         Returns:
-            Deduplicated tuple of :class:`ValidationIssueView`. Empty
-            tuple on success.
+            Tuple of :class:`ValidationIssueView`. Empty tuple on success.
         """
         target_flowgroups: List[FlowGroup] = (
             [fg for fg in flowgroups if fg.pipeline == pipeline_filter]
@@ -193,11 +185,7 @@ class ValidationService(BaseValidationService):
         except LHPError as exc:
             issues.append(self._issue_from_lhp_error(exc, location=pipeline_filter))
 
-        # Dedup workaround: once ConfigValidator stops delegating to
-        # TableCreationValidator / CdcFanInCompatibilityValidator internally,
-        # the dedup pass will become unnecessary and should be removed
-        # alongside the duplicate composition.
-        return self._dedupe_issues(issues)
+        return tuple(issues)
 
     def validate_duplicates(self, flowgroups: Sequence[FlowGroup]) -> None:
         """Raise :class:`LHPValidationError` if duplicate pipeline+flowgroup pairs exist.
@@ -308,31 +296,3 @@ class ValidationService(BaseValidationService):
             doc_link=exc.doc_link,
         )
 
-    @staticmethod
-    def _dedupe_issues(
-        issues: Sequence[ValidationIssueView],
-    ) -> Tuple[ValidationIssueView, ...]:
-        """Collapse identical issues using a fully-qualified key tuple.
-
-        The key includes ``code``, ``severity``, ``title``, ``details``,
-        and ``pipeline_name`` — the identity-bearing subset of the
-        :class:`ValidationIssueView` surface. ``suggestions``,
-        ``context``, ``doc_link``, and ``flowgroup_name`` are incidental
-        to identity and are dropped from the key; the first occurrence
-        wins.
-        """
-        seen: Set[Tuple[str, str, str, Optional[str], Optional[str]]] = set()
-        deduped: List[ValidationIssueView] = []
-        for issue in issues:
-            key = (
-                issue.code,
-                issue.severity,
-                issue.title,
-                issue.details,
-                issue.pipeline_name,
-            )
-            if key in seen:
-                continue
-            seen.add(key)
-            deduped.append(issue)
-        return tuple(deduped)
