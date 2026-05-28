@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from lhp.core.discovery.flowgroup_discoverer import FlowgroupDiscoveryService
-from lhp.models.config import FlowGroup
+from lhp.models import FlowGroup
 
 
 def _make_flowgroup(pipeline: str, name: str) -> FlowGroup:

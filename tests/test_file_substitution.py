@@ -11,7 +11,7 @@ from lhp.generators.load.sql import SQLLoadGenerator
 from lhp.generators.transform.python import PythonTransformGenerator
 from lhp.generators.transform.sql import SQLTransformGenerator
 from lhp.generators.write.streaming_table import StreamingTableWriteGenerator
-from lhp.models.config import Action, ActionType, FlowGroup
+from lhp.models import Action, ActionType, FlowGroup
 
 
 class TestSnapshotCDCFunctionSubstitution:
@@ -795,7 +795,7 @@ def enrich_customers(df: DataFrame, spark, parameters) -> DataFrame:
         ``custom_python_functions/`` next to the generated pipeline file.
         Verify the resulting copied file has tokens resolved.
         """
-        from lhp.models.config import FlowGroup
+        from lhp.models import FlowGroup
 
         # Create a custom datasource source file with substitution tokens.
         source_file = tmp_path / "api_source.py"

@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from ..models.config import Preset
+from lhp.models import Preset
 from ..parsers.yaml_parser import YAMLParser
 from ..errors import ErrorFormatter
 

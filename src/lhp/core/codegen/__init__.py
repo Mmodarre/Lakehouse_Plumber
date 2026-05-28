@@ -1,7 +1,7 @@
 from lhp.core.codegen.coordinator import CodeGenerationService
 from lhp.core.codegen.imports import ImportManager, extract_future_imports
 from lhp.core.codegen.operational_metadata import (
-    OperationalMetadata,
+    OperationalMetadataCatalog,
     OperationalMetadataService,
 )
 from lhp.core.codegen.secret_code_generator import SecretCodeGenerator
@@ -12,7 +12,7 @@ from lhp.core.codegen.tst_reporting_hook_generator import TestReportingHookGener
 __all__ = [
     "CodeGenerationService",
     "ImportManager",
-    "OperationalMetadata",
+    "OperationalMetadataCatalog",
     "OperationalMetadataService",
     "SecretCodeGenerator",
     "TemplateRenderer",

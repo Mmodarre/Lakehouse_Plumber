@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 from jinja2 import Environment
 
 from ...errors import ErrorCategory, LHPError
-from ...models.config import ActionType, FlowGroup, ProjectConfig
+from lhp.models import ActionType, FlowGroup, ProjectConfig
 from ...utils.file_header import build_lhp_source_header, write_normalized
 from ..processing.substitution import EnhancedSubstitutionManager
 from .formatter import CodeFormatter

@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from lhp.core.discovery.blueprint_discoverer import BlueprintDiscoverer
-from lhp.models.config import ProjectConfig
+from lhp.models import ProjectConfig
 from lhp.parsers.blueprint_parser import BlueprintParser
 from lhp.parsers.yaml_parser import CachingYAMLParser, YAMLParser
 from lhp.errors import ErrorCategory, LHPError
@@ -205,7 +205,7 @@ def test_blueprint_discoverer_emits_warning_on_load_errors(tmp_path, caplog):
     assert sites == {"apac_sg"}
 
     # Filter to *this* logger; unrelated WARNINGs (e.g. deprecation messages
-    # from lhp.models.config) are noise for this assertion.
+    # from the legacy "lhp.models.config" logger) are noise for this assertion.
     warnings = [
         r
         for r in caplog.records

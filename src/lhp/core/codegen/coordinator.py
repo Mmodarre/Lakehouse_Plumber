@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Tuple
 
 from ...errors import ErrorCategory, LHPError, LHPValidationError
 from ...generators.python_file_copier import CopiedModuleRecord
-from ...models.config import Action, ActionType, FlowGroup
+from lhp.models import Action, ActionType, FlowGroup
 from ...utils.performance_timer import perf_timer
 from ..coordination._interfaces import BaseCodeGenerationService
 from ..processing.substitution import EnhancedSubstitutionManager

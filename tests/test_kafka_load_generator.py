@@ -2,7 +2,7 @@
 
 import pytest
 from lhp.generators.load.kafka import KafkaLoadGenerator
-from lhp.models.config import Action
+from lhp.models import Action
 
 
 class TestKafkaLoadGenerator:
@@ -236,7 +236,7 @@ class TestKafkaLoadGenerator:
     def test_operational_metadata_integration(self):
         """Test operational metadata integration with proper project config."""
         # Create a project config with operational metadata definitions
-        from lhp.models.config import FlowGroup, ProjectConfig, ProjectOperationalMetadataConfig, MetadataColumnConfig
+        from lhp.models import FlowGroup, ProjectConfig, ProjectOperationalMetadataConfig, MetadataColumnConfig
         
         project_config = ProjectConfig(
             name="test_project",

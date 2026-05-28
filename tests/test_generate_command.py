@@ -80,7 +80,7 @@ class TestGenerateCommandExecute:
     def test_execute_basic_flow(self, generate_command, temp_project):
         """Test basic execute flow."""
         from lhp.api.responses import BatchGenerationResponse
-        from lhp.models.config import FlowGroup
+        from lhp.models import FlowGroup
 
         output_dir = temp_project / "generated" / "dev"
         output_dir.mkdir(parents=True)
@@ -137,7 +137,7 @@ class TestGenerateCommandExecute:
     def test_execute_with_dry_run(self, generate_command, temp_project):
         """Test execute with dry-run flag."""
         from lhp.api.responses import BatchGenerationResponse
-        from lhp.models.config import FlowGroup
+        from lhp.models import FlowGroup
 
         mock_response = GenerationResponse(
             success=True,
@@ -189,7 +189,7 @@ class TestGenerateCommandExecute:
     def test_execute_with_no_bundle(self, generate_command, temp_project):
         """Test execute with no_bundle flag."""
         from lhp.api.responses import BatchGenerationResponse
-        from lhp.models.config import FlowGroup
+        from lhp.models import FlowGroup
 
         mock_facade_instance = Mock()
         mock_facade_instance.orchestrator.discover_all_flowgroups.return_value = [
@@ -338,7 +338,7 @@ class TestGenerateCommandExecute:
     def test_execute_with_custom_output(self, generate_command, temp_project):
         """Test execute with custom output directory."""
         from lhp.api.responses import BatchGenerationResponse
-        from lhp.models.config import FlowGroup
+        from lhp.models import FlowGroup
 
         custom_output = temp_project / "custom_output"
 

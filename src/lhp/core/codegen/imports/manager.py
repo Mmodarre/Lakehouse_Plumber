@@ -20,8 +20,8 @@ from lhp.core.codegen.imports.categorizer import (
     is_wildcard_import,
     sort_imports,
 )
+from lhp.core.codegen.imports.detector import ImportDetector
 from lhp.core.codegen.imports.resolver import resolve_conflicts
-from lhp.core.codegen.operational_metadata import ImportDetector
 
 
 class ImportManager:

@@ -19,7 +19,7 @@ from lhp.api._converters import _blueprint_to_view
 from lhp.api.views import BlueprintInstanceView, BlueprintView
 
 if TYPE_CHECKING:
-    from lhp.models.config import Blueprint
+    from lhp.models import Blueprint
 
 
 def _build_blueprint_views(

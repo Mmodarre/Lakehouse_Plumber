@@ -10,7 +10,7 @@ import pytest
 from lhp.core.processing.substitution import EnhancedSubstitutionManager
 from lhp.generators.write.sink import SinkWriteGenerator
 from lhp.generators.write.sinks import ForEachBatchSinkWriteGenerator
-from lhp.models.config import (
+from lhp.models import (
     Action,
     ActionType,
     FlowGroup,

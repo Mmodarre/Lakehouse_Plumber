@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from ...errors import ErrorCategory, LHPError, LHPValidationError
-from ...models.config import Blueprint, BlueprintInstance, ProjectConfig
+from lhp.models import Blueprint, BlueprintInstance, ProjectConfig
 from ...parsers.blueprint_parser import BlueprintParser
 from ...parsers.yaml_loader import load_yaml_documents_all
 from ...utils.file_pattern_matcher import discover_files_with_patterns

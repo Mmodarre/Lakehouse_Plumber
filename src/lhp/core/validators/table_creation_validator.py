@@ -4,7 +4,7 @@ import logging
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Union
 
-from ...models.config import Action, ActionType, FlowGroup, WriteTargetType
+from lhp.models import Action, ActionType, FlowGroup, WriteTargetType
 
 logger = logging.getLogger(__name__)
 

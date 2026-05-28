@@ -1,7 +1,6 @@
-"""Operational metadata: column resolution + import detection for codegen."""
+"""Operational metadata: column resolution for codegen."""
 
-from .detector import ImportDetector
-from .metadata import OperationalMetadata
+from .metadata import OperationalMetadataCatalog
 from .service import OperationalMetadataService
 
-__all__ = ["ImportDetector", "OperationalMetadata", "OperationalMetadataService"]
+__all__ = ["OperationalMetadataCatalog", "OperationalMetadataService"]

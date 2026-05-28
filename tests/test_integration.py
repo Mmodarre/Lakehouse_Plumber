@@ -10,7 +10,7 @@ from click.testing import CliRunner
 
 from lhp.api import LakehousePlumberApplicationFacade
 from lhp.cli.main import cli
-from lhp.models.config import Action, ActionType, FlowGroup
+from lhp.models import Action, ActionType, FlowGroup
 from lhp.parsers.yaml_parser import YAMLParser
 from tests.helpers import read_generated_pipeline
 

@@ -4,7 +4,7 @@ import pytest
 
 from lhp.core.dependencies import DependencyResolver
 from lhp.core.validators import ConfigValidator
-from lhp.models.config import Action, ActionType, FlowGroup, TransformType
+from lhp.models import Action, ActionType, FlowGroup, TransformType
 
 
 class TestDependencyResolver:

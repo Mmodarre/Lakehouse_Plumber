@@ -10,7 +10,7 @@ from lhp.generators.write import (
     MaterializedViewWriteGenerator,
     StreamingTableWriteGenerator,
 )
-from lhp.models.config import Action, ActionType
+from lhp.models import Action, ActionType
 
 
 class TestWriteGenerators:

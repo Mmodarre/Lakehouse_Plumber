@@ -5,26 +5,29 @@ This module provides the JobGenerator class that creates Databricks job YAML
 configurations based on pipeline dependency analysis results.
 """
 
-# JUSTIFIED: ~794 lines (just under the 800L hard cap).
-# This module's three internal classes — JobGenerator (the orchestrator that
-# assembles Databricks Asset Bundle job manifests), JobPipeline (a single
-# pipeline-stage abstraction in the generated job), and JobStage (the
-# per-pipeline job-stage block emitted to job.yml) — form one cohesive
-# code-generation pipeline. Splitting them would scatter the assembly
-# contract across files and obscure how cluster/library/dependency policies
-# flow from JobGenerator down through JobPipeline/JobStage.
-# TODO(Phase 9.5): split JobGenerator / JobPipeline / JobStage into the 3-file core/jobs/ layout (orchestrator + builder + writer) per Target §10; see LOCAL/REMAINING_WORK.md §9.5.
-
 import logging
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
-import yaml
-
-from ...errors import ErrorCategory, LHPFileError, LHPValidationError
+from ...errors import ErrorCategory, LHPValidationError
 from ...models.dependencies import DependencyAnalysisResult
 from ...utils.yaml_filters import dict_to_yaml
+from ..loaders import JobConfigLoader
+from .job_builder import (
+    JobPipeline,
+    JobStage,
+    analyze_cross_job_dependencies,
+    build_job_stages,
+    build_pipeline_to_job_mapping,
+)
+from .job_writer import write_job_yaml
+
+__all__ = [
+    "EXPLICITLY_RENDERED_JOB_CONFIG_KEYS",
+    "JobGenerator",
+    "JobPipeline",
+    "JobStage",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -56,24 +59,6 @@ EXPLICITLY_RENDERED_JOB_CONFIG_KEYS = frozenset(
         "master_job_name",
     }
 )
-
-
-@dataclass
-class JobPipeline:
-    """Represents a pipeline in a job context with dependency information."""
-
-    name: str
-    depends_on: List[str]
-    stage: int
-
-
-@dataclass
-class JobStage:
-    """Represents a job execution stage with pipelines."""
-
-    stage_number: int
-    pipelines: List[JobPipeline]
-    is_parallel: bool
 
 
 class JobGenerator:
@@ -142,186 +127,13 @@ class JobGenerator:
         self.logger = logger
 
         # Load and merge job configuration (used by the `deps` orchestration-job flow)
-        self.project_defaults, self.job_specific_configs = self._load_job_config(
+        self.project_defaults, self.job_specific_configs = JobConfigLoader().load(
             project_root, config_file_path
         )
         # For backward compatibility, store merged defaults as job_config
         self.job_config = self._deep_merge_dicts(
             self.DEFAULT_JOB_CONFIG.copy(), self.project_defaults
         )
-
-    def _load_job_config(
-        self,
-        project_root: Optional[Path] = None,
-        config_file_path: Optional[str] = None,
-    ) -> Tuple[Dict[str, Any], Dict[str, Dict[str, Any]]]:
-        """
-        Load user's custom job config with multi-document support.
-
-        Supports two formats:
-        1. Single document (backward compatible): Returns as project_defaults
-        2. Multi-document:
-           - First document with 'project_defaults' key → global defaults
-           - Subsequent documents with 'job_name' key → job-specific configs
-
-        Args:
-            project_root: Root directory of the project
-            config_file_path: Custom config file path (relative to project_root)
-
-        Returns:
-            Tuple of (project_defaults, job_specific_configs_dict)
-
-        Raises:
-            FileNotFoundError: If specified config file doesn't exist
-            yaml.YAMLError: If config file has invalid YAML syntax
-        """
-        if project_root is None:
-            return {}, {}
-
-        if config_file_path:
-            full_config_path = project_root / config_file_path
-            if not full_config_path.exists():
-                raise LHPFileError(
-                    category=ErrorCategory.IO,
-                    code_number="001",
-                    title="Job config file not found",
-                    details=f"Job config file not found: {config_file_path} (looking in {project_root})",
-                    suggestions=[
-                        f"Ensure the file exists at: {full_config_path}",
-                        "Check the file path for typos",
-                        "Create the job config file if it doesn't exist",
-                    ],
-                    context={
-                        "File Path": str(config_file_path),
-                        "Project Root": str(project_root),
-                    },
-                )
-        else:
-            full_config_path = project_root / "templates" / "bundle" / "job_config.yaml"
-            if not full_config_path.exists():
-                self.logger.debug(
-                    f"No custom job config found at {full_config_path}, using defaults"
-                )
-                return {}, {}
-
-        try:
-            with open(full_config_path, "r", encoding="utf-8") as f:
-                documents = list(yaml.safe_load_all(f))
-
-            documents = [doc for doc in documents if doc is not None]
-
-            if not documents:
-                self.logger.debug(
-                    f"Empty config file at {full_config_path}, using defaults"
-                )
-                return {}, {}
-
-            if len(documents) == 1:
-                doc = documents[0]
-                if "project_defaults" in doc:
-                    self.logger.info(f"Loaded project_defaults from {full_config_path}")
-                    return doc["project_defaults"], {}
-                else:
-                    # Legacy single-doc format — treat entire doc as project_defaults
-                    self.logger.info(
-                        f"Loaded single-document job config from {full_config_path}"
-                    )
-                    return doc, {}
-
-            project_defaults = {}
-            job_specific_configs = {}
-            seen_job_names = set()
-            first_seen = {}  # Track which document first defined each job_name
-
-            for idx, doc in enumerate(documents):
-                if "project_defaults" in doc:
-                    project_defaults = doc["project_defaults"]
-                    self.logger.info(f"Loaded project_defaults from document {idx+1}")
-
-                elif "job_name" in doc:
-                    job_names_raw = doc["job_name"]
-
-                    # Normalize to list (support both string and list)
-                    if isinstance(job_names_raw, str):
-                        job_names = [job_names_raw]
-                    elif isinstance(job_names_raw, list):
-                        job_names = job_names_raw
-                    else:
-                        self.logger.warning(
-                            f"Document {idx+1} has invalid job_name type: {type(job_names_raw)}. "
-                            f"Expected string or list. Skipping."
-                        )
-                        continue
-
-                    if not job_names:
-                        from ...errors import LHPError
-
-                        raise LHPError(
-                            category=ErrorCategory.VALIDATION,
-                            code_number="003",
-                            title="Empty job_name list",
-                            details=(
-                                f"Document {idx+1} in {full_config_path} has an empty job_name list. "
-                                f"At least one job name is required."
-                            ),
-                            suggestions=[
-                                "Add at least one job name to the list",
-                                "Use 'job_name: my_job' for a single job",
-                                "Use 'job_name: [job1, job2]' for multiple jobs",
-                            ],
-                        )
-
-                    job_config = {k: v for k, v in doc.items() if k != "job_name"}
-
-                    for job_name in job_names:
-                        if job_name in seen_job_names:
-                            from ...errors import LHPError
-
-                            raise LHPError(
-                                category=ErrorCategory.VALIDATION,
-                                code_number="004",
-                                title="Duplicate job_name",
-                                details=(
-                                    f"job_name '{job_name}' in document {idx+1} was already defined "
-                                    f"in document {first_seen[job_name]}. Each job_name must be unique "
-                                    f"across all documents in {full_config_path}."
-                                ),
-                                suggestions=[
-                                    f"Remove the duplicate '{job_name}' from one of the documents",
-                                    "Ensure each job_name appears only once in the entire config file",
-                                    "If you want to override a config, use the same job_name with different values",
-                                ],
-                                context={
-                                    "duplicate_job_name": job_name,
-                                    "first_defined_in_document": first_seen[job_name],
-                                    "duplicate_in_document": idx + 1,
-                                },
-                            )
-
-                        seen_job_names.add(job_name)
-                        first_seen[job_name] = idx + 1
-
-                        # Deep copy config for each job to ensure independence
-                        from copy import deepcopy
-
-                        job_specific_configs[job_name] = deepcopy(job_config)
-                        self.logger.info(
-                            f"Loaded job-specific config for '{job_name}' from document {idx+1}"
-                        )
-
-                else:
-                    self.logger.warning(
-                        f"Document {idx+1} in {full_config_path} has neither 'project_defaults' "
-                        f"nor 'job_name' key - skipping"
-                    )
-
-            return project_defaults, job_specific_configs
-
-        except yaml.YAMLError as e:
-            self.logger.exception(
-                f"Invalid YAML in job config file {full_config_path}: {e}"
-            )
-            raise
 
     @staticmethod
     def _deep_merge_dicts(
@@ -429,7 +241,7 @@ class JobGenerator:
         if not job_name:
             job_name = f"{project_name}_orchestration"
 
-        job_stages = self._create_job_stages(dependency_result)
+        job_stages = build_job_stages(dependency_result, job_name)
 
         context = {
             "project_name": project_name,
@@ -446,47 +258,6 @@ class JobGenerator:
         except Exception as e:
             self.logger.exception(f"Failed to render job template: {e}")
             raise
-
-    def _create_job_stages(
-        self, dependency_result: DependencyAnalysisResult
-    ) -> List[JobStage]:
-        """
-        Transform dependency execution stages into job stages with pipeline information.
-
-        Args:
-            dependency_result: Dependency analysis results
-
-        Returns:
-            List of JobStage objects with pipeline and dependency information
-        """
-        job_stages = []
-        self.logger.debug(
-            f"Creating {len(dependency_result.execution_stages)} job stage(s) from dependency analysis"
-        )
-
-        for stage_idx, stage_pipelines in enumerate(dependency_result.execution_stages):
-            stage_number = stage_idx + 1
-            is_parallel = len(stage_pipelines) > 1
-
-            # Sort pipelines for deterministic output
-            pipelines = []
-            for pipeline_name in sorted(stage_pipelines):
-                pipeline_info = dependency_result.pipeline_dependencies.get(
-                    pipeline_name
-                )
-                depends_on = sorted(pipeline_info.depends_on) if pipeline_info else []
-
-                job_pipeline = JobPipeline(
-                    name=pipeline_name, depends_on=depends_on, stage=stage_number
-                )
-                pipelines.append(job_pipeline)
-
-            job_stage = JobStage(
-                stage_number=stage_number, pipelines=pipelines, is_parallel=is_parallel
-            )
-            job_stages.append(job_stage)
-
-        return job_stages
 
     def save_job_to_file(
         self,
@@ -518,18 +289,7 @@ class JobGenerator:
         else:
             file_path = output_path
 
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-
-        try:
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write(job_content)
-
-            self.logger.info(f"Generated job file: {file_path}")
-            return file_path
-
-        except IOError as e:
-            self.logger.exception(f"Failed to write job file to {file_path}: {e}")
-            raise
+        return write_job_yaml(job_content, file_path)
 
     def generate_jobs_by_name(
         self,
@@ -555,7 +315,7 @@ class JobGenerator:
             self.logger.info(f"Generating job YAML for: {job_name}")
 
             job_config = self.get_job_config_for_job(job_name)
-            job_stages = self._create_job_stages(dep_result)
+            job_stages = build_job_stages(dep_result, job_name)
 
             context = {
                 "project_name": project_name,
@@ -630,8 +390,8 @@ class JobGenerator:
 
         self.logger.info(f"Generating master orchestration job: {master_job_name}")
 
-        pipeline_to_job = self._build_pipeline_to_job_mapping(job_results)
-        jobs_info = self._analyze_cross_job_dependencies_from_global(
+        pipeline_to_job = build_pipeline_to_job_mapping(job_results)
+        jobs_info = analyze_cross_job_dependencies(
             job_results, pipeline_to_job, global_result
         )
 
@@ -650,85 +410,6 @@ class JobGenerator:
         except Exception as e:
             self.logger.exception(f"Failed to render master job template: {e}")
             raise
-
-    def _build_pipeline_to_job_mapping(
-        self, job_results: Dict[str, DependencyAnalysisResult]
-    ) -> Dict[str, str]:
-        """Build mapping of pipeline name to job name.
-
-        Args:
-            job_results: Dictionary mapping job names to their analysis results
-
-        Returns:
-            Dictionary mapping pipeline names to job names
-
-        Example:
-            {"acmi_edw_raw": "j_one", "acmi_edw_bronze": "j_two"}
-        """
-        pipeline_to_job = {}
-        for job_name, result in job_results.items():
-            for pipeline_name in result.pipeline_dependencies.keys():
-                pipeline_to_job[pipeline_name] = job_name
-        return pipeline_to_job
-
-    def _analyze_cross_job_dependencies_from_global(
-        self,
-        job_results: Dict[str, DependencyAnalysisResult],
-        pipeline_to_job: Dict[str, str],
-        global_result: DependencyAnalysisResult,
-    ) -> Dict[str, Dict[str, Any]]:
-        """Determine which jobs depend on other jobs using global pipeline dependencies.
-
-        Uses the global dependency analysis to identify which pipelines depend on which,
-        then maps those pipeline dependencies to job-level dependencies.
-
-        Args:
-            job_results: Individual job analysis results
-            pipeline_to_job: Mapping of pipeline name to job name
-            global_result: Global analysis with complete pipeline dependency graph
-
-        Returns:
-            Dictionary mapping job names to their metadata including depends_on list
-
-        Example:
-            {
-                "j_one": {"depends_on": [], "pipeline_count": 1},
-                "j_two": {"depends_on": ["j_one"], "pipeline_count": 1},
-                "j_three": {"depends_on": ["j_two"], "pipeline_count": 1}
-            }
-        """
-        jobs_info = {}
-
-        for job_name, job_result in job_results.items():
-            depends_on_jobs = set()
-
-            job_pipelines = set(job_result.pipeline_dependencies.keys())
-
-            for pipeline_name in job_pipelines:
-                if pipeline_name in global_result.pipeline_dependencies:
-                    global_pipeline_dep = global_result.pipeline_dependencies[
-                        pipeline_name
-                    ]
-
-                    for upstream_pipeline in global_pipeline_dep.depends_on:
-                        upstream_job = pipeline_to_job.get(upstream_pipeline)
-
-                        # If upstream pipeline belongs to a different job, add dependency
-                        if upstream_job and upstream_job != job_name:
-                            depends_on_jobs.add(upstream_job)
-                            self.logger.debug(
-                                f"Job '{job_name}' depends on job '{upstream_job}' "
-                                f"(pipeline '{pipeline_name}' → '{upstream_pipeline}')"
-                            )
-
-            jobs_info[job_name] = {
-                "depends_on": sorted(
-                    list(depends_on_jobs)
-                ),  # Sort for deterministic output
-                "pipeline_count": len(job_pipelines),
-            }
-
-        return jobs_info
 
     def generate_monitoring_job(
         self,

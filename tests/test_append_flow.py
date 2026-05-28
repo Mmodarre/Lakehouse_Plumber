@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 from lhp.generators.write.streaming_table import StreamingTableWriteGenerator
-from lhp.models.config import Action, FlowGroup
+from lhp.models import Action, FlowGroup
 
 
 def test_streaming_table_with_multiple_sources():

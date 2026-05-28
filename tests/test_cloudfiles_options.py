@@ -9,7 +9,7 @@ import yaml
 
 from lhp.errors import LHPError
 from lhp.generators.load.cloudfiles import CloudFilesLoadGenerator
-from lhp.models.config import Action
+from lhp.models import Action
 from lhp.parsers.schema_parser import SchemaParser
 
 

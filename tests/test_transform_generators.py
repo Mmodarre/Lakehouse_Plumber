@@ -14,7 +14,7 @@ from lhp.generators.transform import (
     SQLTransformGenerator,
     TempTableTransformGenerator,
 )
-from lhp.models.config import (
+from lhp.models import (
     Action,
     ActionType,
     FlowGroup,
@@ -1586,7 +1586,7 @@ active: BOOLEAN
         generator = SchemaTransformGenerator()
 
         # Mock project config with metadata columns
-        from lhp.models.config import (
+        from lhp.models import (
             MetadataColumnConfig,
             ProjectConfig,
             ProjectOperationalMetadataConfig,
@@ -1859,7 +1859,7 @@ class TestDataQualityQuarantine:
 
     def test_data_quality_quarantine_operational_metadata(self, tmp_path):
         """Metadata columns should appear in final output view."""
-        from lhp.models.config import (
+        from lhp.models import (
             MetadataColumnConfig,
             ProjectConfig,
             ProjectOperationalMetadataConfig,

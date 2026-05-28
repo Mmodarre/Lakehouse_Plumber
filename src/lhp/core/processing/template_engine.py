@@ -6,8 +6,8 @@ from typing import Any, Dict, List, Optional, Set
 
 from jinja2 import Environment
 
-from ...models.config import Action
-from ...models.config import Template as TemplateModel
+from lhp.models import Action
+from lhp.models import Template as TemplateModel
 from ...parsers.yaml_parser import YAMLParser
 from ...errors import (
     ErrorCategory,

@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from lhp.models.config import (
+from lhp.models import (
     EventLogConfig,
     MonitoringConfig,
     MonitoringMaterializedViewConfig,

@@ -4,7 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from lhp.models.config import Action
+from lhp.models import Action
 from lhp.utils.source_extractor import (
     extract_action_sources,
     extract_cdc_sources,

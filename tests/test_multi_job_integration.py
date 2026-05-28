@@ -5,7 +5,7 @@ from pathlib import Path
 from lhp.core.coordination.validation_service import ValidationService
 from lhp.core.dependencies.service import DependencyAnalysisService
 from lhp.core.jobs.job_generator import JobGenerator
-from lhp.models.config import FlowGroup, Action, ActionType, ProjectConfig
+from lhp.models import FlowGroup, Action, ActionType, ProjectConfig
 from lhp.errors import LHPError
 from unittest.mock import Mock, patch
 import tempfile

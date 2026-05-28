@@ -16,7 +16,7 @@ from lhp.core.processing.substitution import EnhancedSubstitutionManager
 from lhp.core.validators import ConfigValidator
 from lhp.core.validators.secret_validator import SecretValidator
 from lhp.errors import LHPValidationError
-from lhp.models.config import Action, ActionType, FlowGroup
+from lhp.models import Action, ActionType, FlowGroup
 from lhp.presets.preset_manager import PresetManager
 from tests.fakes import (
     FakeFlowgroupResolutionService,

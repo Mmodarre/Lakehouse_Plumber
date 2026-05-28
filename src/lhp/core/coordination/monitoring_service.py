@@ -13,7 +13,7 @@ from typing import Optional, Sequence
 from lhp.core.coordination._interfaces import BaseMonitoringFinalizerService
 from lhp.core.registry import OrchestrationDependencies
 from lhp.errors import ErrorCategory, LHPError, LHPFileError
-from lhp.models.config import FlowGroup, ProjectConfig
+from lhp.models import FlowGroup, ProjectConfig
 from lhp.utils.file_header import write_normalized
 
 from .monitoring_pipeline_builder import (

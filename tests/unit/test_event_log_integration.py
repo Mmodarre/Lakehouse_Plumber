@@ -13,7 +13,7 @@ from pathlib import Path
 import yaml
 
 from lhp.bundle.manager import BundleManager
-from lhp.models.config import EventLogConfig, ProjectConfig
+from lhp.models import EventLogConfig, ProjectConfig
 
 
 class TestEventLogIntegration:

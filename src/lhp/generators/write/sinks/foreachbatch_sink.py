@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict
 
-from ....models.config import Action
+from lhp.models import Action
 from ....errors import (
     ErrorFormatter,
 )

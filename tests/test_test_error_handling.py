@@ -1,7 +1,7 @@
 """Tests for Test action error handling."""
 
 import pytest
-from lhp.models.config import Action, ActionType
+from lhp.models import Action, ActionType
 from lhp.generators.test import TestActionGenerator
 from lhp.core.registry import ActionRegistry
 from lhp.errors import LHPError

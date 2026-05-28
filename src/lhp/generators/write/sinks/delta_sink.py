@@ -3,7 +3,7 @@
 import logging
 from typing import Any, Dict
 
-from ....models.config import Action
+from lhp.models import Action
 from .base_sink import BaseSinkWriteGenerator
 
 logger = logging.getLogger(__name__)

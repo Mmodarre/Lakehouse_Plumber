@@ -13,7 +13,7 @@ from unittest.mock import Mock, patch
 from pathlib import Path
 
 from lhp.core.registry import BaseActionGenerator
-from lhp.models.config import Action, ActionType
+from lhp.models import Action, ActionType
 
 
 class ConcreteBaseActionGenerator(BaseActionGenerator):

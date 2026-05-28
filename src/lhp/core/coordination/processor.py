@@ -23,7 +23,7 @@ from ..codegen.test_reporting import generate_test_reporting_hook
 from .validation_service import ValidationService
 
 if TYPE_CHECKING:
-    from ...models.config import FlowGroup, FlowGroupContext, ProjectConfig
+    from lhp.models import FlowGroup, FlowGroupContext, ProjectConfig
     from ..codegen.coordinator import CodeGenerationService
     from ..codegen.formatter import CodeFormatter
     from ..processing.flowgroup_resolver import FlowgroupResolutionService

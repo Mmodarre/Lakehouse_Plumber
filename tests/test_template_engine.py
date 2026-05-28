@@ -4,7 +4,7 @@ import pytest
 import tempfile
 from pathlib import Path
 from lhp.core.processing import TemplateEngine
-from lhp.models.config import Template, Action, ActionType, LoadSourceType
+from lhp.models import Template, Action, ActionType, LoadSourceType
 
 
 class TestTemplateEngine:

@@ -8,7 +8,7 @@ import pytest
 
 from lhp.core.coordination.validation_service import ValidationService
 from lhp.core.dependencies.service import DependencyAnalysisService
-from lhp.models.config import Action, ActionType, FlowGroup, ProjectConfig
+from lhp.models import Action, ActionType, FlowGroup, ProjectConfig
 from lhp.errors import ErrorCategory, LHPError
 
 

@@ -7,7 +7,7 @@ from typing import Any, Dict
 
 from ....core.loaders.external_file_loader import load_external_file_text
 from ....errors import ErrorFormatter
-from ....models.config import Action
+from lhp.models import Action
 from ...python_file_copier import copy_user_module_for_pipeline
 from .base_sink import BaseSinkWriteGenerator
 

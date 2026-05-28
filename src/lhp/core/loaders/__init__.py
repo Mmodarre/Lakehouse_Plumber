@@ -3,6 +3,7 @@
 Public re-exports:
 - PipelineConfigLoader  loads pipeline-config.yml files
 - ProjectConfigLoader   loads lhp.yaml + .lhp.local.yaml (project root)
+- JobConfigLoader       loads orchestration-job config YAML (multi-doc)
 - InitTemplateLoader    discovers / instantiates init templates
 - InitTemplateContext   DTO for init-template rendering context
 - External-file helpers (resolve_external_file_path, load_external_file_text, is_file_path)
@@ -16,6 +17,7 @@ from .external_file_loader import (
 )
 from .init_template_context import InitTemplateContext
 from .init_template_loader import InitTemplateLoader
+from .job_config_loader import JobConfigLoader
 from .pipeline_config_loader import PipelineConfigLoader
 from .project_config_loader import ProjectConfigLoader
 from .version_enforcement import enforce_version_requirements
@@ -23,6 +25,7 @@ from .version_enforcement import enforce_version_requirements
 __all__ = [
     "InitTemplateContext",
     "InitTemplateLoader",
+    "JobConfigLoader",
     "PipelineConfigLoader",
     "ProjectConfigLoader",
     "enforce_version_requirements",

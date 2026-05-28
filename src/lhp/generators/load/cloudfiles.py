@@ -11,7 +11,7 @@ from ...core.loaders.external_file_loader import (
 )
 from ...core.registry import BaseActionGenerator
 from ...errors import ErrorCategory, ErrorFormatter, LHPError, LHPValidationError
-from ...models.config import Action
+from lhp.models import Action
 from ...parsers.schema_parser import SchemaParser
 
 

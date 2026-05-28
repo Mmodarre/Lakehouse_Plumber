@@ -4,7 +4,7 @@ Write target validation tests for ConfigValidator.
 
 import pytest
 from lhp.core.validators import ConfigValidator
-from lhp.models.config import Action, ActionType
+from lhp.models import Action, ActionType
 
 
 class TestConfigValidatorWriteTargets:

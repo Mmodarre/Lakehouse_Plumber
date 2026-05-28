@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from lhp.models.config import (
+from lhp.models import (
     Action,
     ActionType,
     FlowGroup,

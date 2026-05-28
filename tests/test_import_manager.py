@@ -25,7 +25,7 @@ from lhp.core.codegen.imports.categorizer import (
 )
 from lhp.core.registry import BaseActionGenerator
 from lhp.generators.load.custom_datasource import CustomDataSourceLoadGenerator
-from lhp.models.config import Action, ActionType
+from lhp.models import Action, ActionType
 
 
 class TestImportManagerBasics:

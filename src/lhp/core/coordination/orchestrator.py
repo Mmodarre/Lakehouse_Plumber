@@ -34,7 +34,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence, Tuple
 
-from ...models.config import FlowGroup, FlowGroupContext
+from lhp.models import FlowGroup, FlowGroupContext
 
 if TYPE_CHECKING:
     from ...api.callbacks import WarningCollector

@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
 
 from lhp.core.validators.pipeline_validator import PipelineValidator
-from lhp.models.config import FlowGroup
+from lhp.models import FlowGroup
 
 
 class TestPipelineValidator:

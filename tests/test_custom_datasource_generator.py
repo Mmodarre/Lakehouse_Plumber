@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from lhp.generators.load.custom_datasource import CustomDataSourceLoadGenerator
-from lhp.models.config import Action, ActionType, FlowGroup
+from lhp.models import Action, ActionType, FlowGroup
 
 
 class TestCustomDataSourceGenerator:
@@ -345,7 +345,7 @@ class TestCustomDataSourcePEP236:
     """
 
     def _generate_with_output_dir(self, tmp_path, custom_source_text):
-        from lhp.models.config import FlowGroup
+        from lhp.models import FlowGroup
 
         custom_source_file = tmp_path / "future_source.py"
         custom_source_file.write_text(custom_source_text)
@@ -517,7 +517,7 @@ class {class_name}(DataSource):
         (set-based) and the assembler's pre-pipeline statements set.
         """
         from lhp.core.codegen.coordinator import CodeGenerationService
-        from lhp.models.config import FlowGroup
+        from lhp.models import FlowGroup
 
         # Two distinct user files exporting two distinct classes.
         src_a = tmp_path / "source_a.py"

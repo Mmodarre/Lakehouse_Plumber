@@ -3,7 +3,7 @@
 import re
 import logging
 from typing import List
-from ...models.config import FlowGroup
+from lhp.models import FlowGroup
 from ...errors import LHPError, ErrorCategory
 
 logger = logging.getLogger(__name__)

@@ -193,7 +193,7 @@ site_id: SG001
 """,
     )
     # Reset dedupe state so this test is independent of others.
-    from lhp.models.config import BlueprintInstance
+    from lhp.models import BlueprintInstance
 
     BlueprintInstance._legacy_warned_paths.clear()
     caplog.set_level(logging.WARNING, logger="lhp.models.config")

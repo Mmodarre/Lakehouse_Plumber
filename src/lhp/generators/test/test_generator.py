@@ -9,7 +9,7 @@ from typing import Any, Dict, List
 
 from lhp.core.registry import BaseActionGenerator
 from lhp.errors import ErrorCategory, LHPValidationError
-from lhp.models.config import Action
+from lhp.models import Action
 
 logger = logging.getLogger(__name__)
 

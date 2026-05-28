@@ -274,7 +274,7 @@ def configure_test_logging():
 @pytest.fixture
 def create_flowgroup():
     """Factory fixture to create FlowGroup with minimal valid structure."""
-    from lhp.models.config import Action, ActionType, FlowGroup
+    from lhp.models import Action, ActionType, FlowGroup
 
     def _create(
         pipeline: str,

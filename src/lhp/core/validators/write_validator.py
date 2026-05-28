@@ -3,7 +3,7 @@
 import logging
 from typing import List
 
-from ...models.config import Action, ActionType, WriteTargetType
+from lhp.models import Action, ActionType, WriteTargetType
 from ...errors import LHPError
 from .dlt_cdc_validators import (
     CdcConfigValidator,

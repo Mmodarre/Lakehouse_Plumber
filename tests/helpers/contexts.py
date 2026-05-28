@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from lhp.models.config import FlowGroup, FlowGroupContext
+from lhp.models import FlowGroup, FlowGroupContext
 
 
 def wrap_in_ctx(fg: Any, source_yaml: Any = None) -> FlowGroupContext:

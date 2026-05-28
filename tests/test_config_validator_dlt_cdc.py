@@ -4,7 +4,7 @@ DLT table options and CDC configuration tests for ConfigValidator.
 
 import pytest
 from lhp.core.validators import ConfigValidator
-from lhp.models.config import Action, ActionType
+from lhp.models import Action, ActionType
 
 
 class TestConfigValidatorDltCdc:

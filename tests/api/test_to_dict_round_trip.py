@@ -48,7 +48,9 @@ from lhp.api import (
     PresetView,
     ProcessedFlowgroupView,
     ProjectConfigView,
+    SecretReferenceView,
     StatsResult,
+    SubstitutionView,
     TemplateParameterView,
     TemplateView,
     ValidationCompleted,
@@ -331,6 +333,19 @@ _INSTANCES = [
         id="TemplateView",
     ),
     pytest.param(PipelineStats(pipeline_name="p1", flowgroup_count=2, total_actions=4), id="PipelineStats"),
+    pytest.param(SecretReferenceView(scope="kv", key="db_url"), id="SecretReferenceView"),
+    pytest.param(
+        SubstitutionView(
+            env="dev",
+            tokens={"catalog": "dev_catalog", "schema": "main"},
+            secret_references=(
+                SecretReferenceView(scope="kv", key="db_url"),
+                SecretReferenceView(scope="kv", key="api_token"),
+            ),
+            default_secret_scope="kv",
+        ),
+        id="SubstitutionView",
+    ),
 ]
 
 

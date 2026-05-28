@@ -10,7 +10,7 @@ from lhp.core.codegen.tst_reporting_hook_generator import (
     HOOK_FILENAME,
     TestReportingHookGenerator,
 )
-from lhp.models.config import (
+from lhp.models import (
     Action,
     ActionType,
     FlowGroup,

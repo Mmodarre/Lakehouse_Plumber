@@ -8,7 +8,7 @@ from ...core.loaders.external_file_loader import resolve_external_file_path
 from ...core.processing.dqe import DQEParser
 from ...core.registry import BaseActionGenerator
 from ...errors import ErrorFormatter
-from ...models.config import Action
+from lhp.models import Action
 
 logger = logging.getLogger(__name__)
 

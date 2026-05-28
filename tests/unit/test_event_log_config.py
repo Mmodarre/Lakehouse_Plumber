@@ -9,7 +9,7 @@ import pytest
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from lhp.models.config import EventLogConfig, ProjectConfig
+from lhp.models import EventLogConfig, ProjectConfig
 from lhp.core.loaders import ProjectConfigLoader
 from lhp.errors import LHPError
 

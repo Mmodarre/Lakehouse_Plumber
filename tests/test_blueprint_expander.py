@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from lhp.core.processing.blueprint_expander import BlueprintExpander, BlueprintProvenance
-from lhp.models.config import (
+from lhp.models import (
     Blueprint,
     BlueprintFlowgroupSpec,
     BlueprintInstance,

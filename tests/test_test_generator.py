@@ -6,7 +6,7 @@ import pytest
 
 from lhp.core.registry import BaseActionGenerator
 from lhp.generators.test.test_generator import TestActionGenerator
-from lhp.models.config import Action, ActionType, TestActionType
+from lhp.models import Action, ActionType, TestActionType
 
 
 class TestTestActionGenerator:

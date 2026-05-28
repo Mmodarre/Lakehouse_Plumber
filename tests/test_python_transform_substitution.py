@@ -7,7 +7,7 @@ import pytest
 
 from lhp.core.processing.substitution import EnhancedSubstitutionManager
 from lhp.generators.transform.python import PythonTransformGenerator
-from lhp.models.config import Action, ActionType, FlowGroup
+from lhp.models import Action, ActionType, FlowGroup
 
 
 class TestPythonTransformSubstitution:

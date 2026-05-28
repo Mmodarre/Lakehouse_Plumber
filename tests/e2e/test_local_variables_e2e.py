@@ -10,7 +10,7 @@ from click.testing import CliRunner
 from lhp.cli.main import cli
 from lhp.core.coordination.layers import build_facade_orchestrator
 from lhp.core.processing.substitution import EnhancedSubstitutionManager
-from lhp.models.config import FlowGroupContext
+from lhp.models import FlowGroupContext
 from lhp.parsers.yaml_parser import YAMLParser
 
 

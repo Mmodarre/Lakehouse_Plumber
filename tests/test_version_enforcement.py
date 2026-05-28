@@ -7,7 +7,7 @@ from pathlib import Path
 
 from lhp.api.facade import LakehousePlumberApplicationFacade
 from lhp.errors import LHPError
-from lhp.models.config import ProjectConfig
+from lhp.models import ProjectConfig
 
 
 class TestVersionEnforcement:

@@ -9,15 +9,16 @@ two dependency-output paths.
 
 :stability: internal
 """
-# JUSTIFIED: This module's :class:`InspectionFacade` exposes twelve
-# public methods (§3.2 cap is ten), explicitly enumerated in the class
-# docstring to satisfy the constitution's exception clause. The methods
-# are cohesive — all read-only project introspection — and splitting
-# further would fracture a single semantic group across multiple
-# facades. Heavy DTO-conversion bodies live in
+# JUSTIFIED: This module's :class:`InspectionFacade` exposes fourteen
+# public methods (§3.2 requires justification at 10–15; hard cap at 15),
+# explicitly enumerated in the class docstring to satisfy the
+# constitution's exception clause. The methods are cohesive — all
+# read-only project introspection plus the two dependency-output paths
+# — and splitting further would fracture a single semantic group across
+# multiple facades. Heavy DTO-conversion bodies live in
 # :mod:`lhp.api._converters`; what remains is the per-method delegation
 # surface plus the dependency-output enumeration path.
-# TODO(Phase 9.5): trim or split InspectionFacade's twelve methods into sub-facades grouped by DTO family once the inspection surface stabilises; see LOCAL/REMAINING_WORK.md §9.5.
+# TODO(INSPECTION-FACADE-SPLIT): trim or split InspectionFacade's fourteen methods into sub-facades grouped by DTO family once the inspection surface stabilises; see LOCAL/REMAINING_WORK.md §9.5.
 from __future__ import annotations
 
 import logging
@@ -62,6 +63,8 @@ from lhp.api.views import (
     PresetView,
     ProcessedFlowgroupView,
     ProjectConfigView,
+    SecretReferenceView,
+    SubstitutionView,
     TemplateView,
 )
 
@@ -74,8 +77,9 @@ if TYPE_CHECKING:
 class InspectionFacade:
     """Inspection / read-only operations on a constructed project.
 
-    Twelve public methods grouped by responsibility — inspection-style
-    read-only / informational operations:
+    Fourteen public methods grouped by responsibility — inspection-style
+    read-only / informational operations plus the two dependency-output
+    paths:
 
     - ``list_flowgroups``
     - ``process_flowgroup``
@@ -88,7 +92,9 @@ class InspectionFacade:
     - ``list_presets``
     - ``list_templates``
     - ``analyze_dependencies``
+    - ``save_dependency_outputs``
     - ``validate_duplicate_flowgroups``
+    - ``build_substitution_view``
 
     All return frozen DTOs from :mod:`lhp.api.views` /
     :mod:`lhp.api.responses`. No method mutates state; this facade is
@@ -405,6 +411,67 @@ class InspectionFacade:
             success=True,
             entries=tuple(entries),
             output_dir=output_dir,
+        )
+
+    def build_substitution_view(self, env: str) -> SubstitutionView:
+        """Build a frozen view of the resolved substitution context for ``env``.
+
+        Constructs an :class:`EnhancedSubstitutionManager` for the
+        named environment (falling back to an empty manager when the
+        ``substitutions/<env>.yaml`` file is absent — same convention
+        as :meth:`process_flowgroup`) and projects its state onto a
+        :class:`SubstitutionView`:
+
+        - ``tokens`` — fully-expanded mappings, flattened to strings.
+          Internal nested ``dict`` / ``list`` values (used by
+          prefix/suffix rules) are coerced to ``str`` since DTO
+          fields must be flat per §4.8.
+        - ``secret_references`` — every observed
+          ``${secret:scope/key}`` reference, sorted by
+          ``(scope, key)`` for deterministic ordering.
+        - ``default_secret_scope`` — the configured fallback scope or
+          ``None``.
+
+        Note: ``secret_references`` is populated only when the manager
+        has actually run ``substitute_yaml`` over some payload. A
+        freshly-constructed manager has an empty set; this method
+        returns that empty state when the manager has not yet
+        processed any data.
+
+        :stability: provisional
+        :raises lhp.errors.LHPError: ``LHP-CFG-*`` from substitution-file
+            loading (YAML parse failures, malformed structure). A
+            missing substitution file is not an error — an empty
+            manager is constructed instead.
+        """
+        from lhp.core.processing.substitution import EnhancedSubstitutionManager
+
+        manager: EnhancedSubstitutionManager = _build_substitution_manager_for_env(
+            self._orchestrator.project_root, env
+        )
+
+        # ``manager.mappings`` is annotated ``Dict[str, str]`` on the
+        # internal class, but the YAML loader can store nested
+        # ``dict``/``list`` values when prefix/suffix rules are used
+        # (see substitution.py lines 155, 169). ``str(value)`` is a
+        # no-op for actual strings and collapses nested rule objects
+        # to a flat repr — DTO fields must be flat per §4.8.
+        tokens: Dict[str, str] = {
+            key: str(value) for key, value in manager.mappings.items()
+        }
+
+        sorted_refs = sorted(
+            manager.secret_references, key=lambda r: (r.scope, r.key)
+        )
+        secret_views: Tuple[SecretReferenceView, ...] = tuple(
+            SecretReferenceView(scope=ref.scope, key=ref.key) for ref in sorted_refs
+        )
+
+        return SubstitutionView(
+            env=env,
+            tokens=tokens,
+            secret_references=secret_views,
+            default_secret_scope=manager.default_secret_scope,
         )
 
     def validate_duplicate_flowgroups(

@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import yaml
 
-from lhp.models.config import Action, ActionType, TransformType, LoadSourceType, FlowGroup
+from lhp.models import Action, ActionType, TransformType, LoadSourceType, FlowGroup
 from lhp.core.coordination.layers import build_facade_orchestrator
 from lhp.generators.load.cloudfiles import CloudFilesLoadGenerator
 from lhp.generators.load.delta import DeltaLoadGenerator

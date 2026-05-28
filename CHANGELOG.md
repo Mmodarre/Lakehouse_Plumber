@@ -7,6 +7,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase 9.5 — Loader / model decomposition + Phase-8 sub-package finalization
+
+Phase 9.5 closes the largest single remaining file-size debt and finalizes the
+four Phase-8 `*-DEFER` markers. `src/lhp/models/config.py` (596L, 27 classes
+across 7 domains) is split into ten underscore-prefixed sub-modules and
+deleted outright; `src/lhp/models` becomes the canonical import path. The
+`core/jobs/job_generator.py` god module (789L) is decomposed across a new
+`JobConfigLoader` (config-loading concern lifted into `core/loaders/` per
+§2.4), a stateless `job_builder.py` module (graph-traversal helpers as
+free functions per §3.7), and a one-function `job_writer.py` (disk I/O).
+`core/loaders/project_config_loader.py` (798L — **two lines from the §9.3
+800L hard cap**) splits into five `_*_config_parser.py` helper modules with
+the coordinator class shrinking to 207L. The four open Phase-8 DEFER markers
+all close: `ImportDetector` moves to `core/codegen/imports/`, `OperationalMetadata`
+renames hard to `OperationalMetadataCatalog` with its two helper modules
+inlined as methods, and the LHP side of the substitution-view migration lands
+(`SubstitutionView` + `SecretReferenceView` DTOs at `:stability: provisional`,
+new `InspectionFacade.build_substitution_view(env)` method, runtime
+`DeprecationWarning` wired for the `EnhancedSubstitutionManager` re-export).
+All mechanical gates remain green; full non-e2e test suite shows the
+pre-existing 44-failure baseline unchanged, +21 new SubstitutionView contract
+tests + 2 new canonical-round-trip parametrized cases → **3016 passed**.
+
+- **`models/config.py` deleted; ten underscore-prefixed sub-modules created.** 27 classes redistributed across `_enums.py` (7 enums, 63L), `_quarantine.py` (12L), `_test_reporting.py` (15L), `_operational_metadata.py` (4 models, 40L), `_monitoring.py` (3 models, 53L), `_project.py` (27L), `_action.py` (WriteTarget + Action, 168L), `_flowgroup.py` (FlowGroup + FlowGroupContext, 33L), `_template.py` (Template + Preset, 36L), `_blueprint.py` (4 models incl. `BlueprintInstance._normalize_syntax`, 179L). All sub-modules ≤200L. `models/__init__.py` carries explicit `__all__` (27 names) and the `warnings.filterwarnings(...)` for the `schema` field-shadowing rule. No back-compat shim — Path 1 (§5.4 full compliance) per the locked decision.
+- **165 import sites migrated.** Every `from lhp.models.config import X` (and the three-dot / four-dot / two-dot / one-dot relative-import variants) rewritten to `from lhp.models import X` across 73 src files + 92 test files. The grep enumeration intentionally widened to capture four-dot relative forms (`from ....models.config`) that the original plan's regex missed — found in `core/codegen/operational_metadata/` and `generators/write/sinks/`. `src/lhp/core/codegen/__init__.py`'s `__all__` and `tests/test_blueprint_discoverer.py:208` (a comment with the literal substring) were also updated. The `"lhp.models.config"` logger name in `_blueprint.py` was **intentionally kept** — three caplog-based tests in `test_blueprint_use_syntax.py` / `test_blueprint_parser.py` subscribe to that stable identifier across the Phase A1 split; a same-line rationale comment now documents the choice in source per §6.6.
+- **`JobConfigLoader` extracted to `core/loaders/job_config_loader.py` (206L).** `JobGenerator._load_job_config` (172L) and `_deep_merge_dicts` (18L) leave `JobGenerator`; the loader class exposes a single public `load(project_root, config_file_path) → (project_defaults, job_specific_configs)` method that owns the multi-document `yaml.safe_load_all` parsing. `JobGenerator.__init__` now calls `JobConfigLoader().load(...)`. `_deep_merge_dicts` stays on `JobGenerator` (still called by `get_job_config_for_job` and `resolve_monitoring_job_config`, plus six tests in `test_job_generator_multi_doc.py`). Satisfies §2.4 (configuration loaders live in `core/loaders/`).
+- **`job_builder.py` (171L) + `job_writer.py` (42L) extracted as stateless modules.** Graph-traversal helpers `build_job_stages`, `build_pipeline_to_job_mapping`, `analyze_cross_job_dependencies` move out as module-level free functions per §3.7, alongside the `JobPipeline` / `JobStage` dataclasses. The I/O primitive `write_job_yaml(yaml_string, output_path) → Path` lives in its own one-function module. `JobGenerator.save_job_to_file` retains its dir-vs-file path resolution (filename-convention concern stays with the orchestrator) and delegates the actual write to `write_job_yaml`. The two §3.7-violating wrappers (`_build_pipeline_to_job_mapping`, `_analyze_cross_job_dependencies_from_global`) initially kept on `JobGenerator` for `TestHelperMethodsCoverage` compatibility were subsequently removed per E5 review; the 8 call sites in `tests/test_job_generator_multi_doc.py` now invoke the module functions directly.
+- **`core/jobs/job_generator.py`: 789L → 470L** (−319L, no `# JUSTIFIED:` block needed). `core/jobs/__init__.py` extended with new exports.
+- **`project_config_loader.py`: 798L → 207L** via five new helper modules. `_event_log_config_parser.py` (93L), `_monitoring_config_parser.py` (274L), `_test_reporting_config_parser.py` (72L), `_operational_metadata_config_parser.py` (142L), `_include_patterns_parser.py` (108L). `ProjectConfigLoader` keeps `__init__`, `load_project_config`, `_parse_project_config` (now a ~50L orchestrator), and `get_operational_metadata_config`. Two thin wrappers (`_parse_monitoring_config`, `_validate_monitoring_config`) retained on the class purely so 25 existing direct call sites in `test_monitoring_config_loader.py` continue to pass without test-body changes; logic lives in `_monitoring_config_parser.py`. Hidden coupling discovered during extraction: `_validate_monitoring_config` had a `self.project_root` dependency at the old L581 — solved by adding `project_root: Path` as a third parameter on the module function, with the wrapper injecting `self.project_root` so the public test signature stays identical.
+- **`ImportDetector` relocated to `core/codegen/imports/`.** Closes `IMPORT-DETECTOR-PLACEMENT-DEFER`. File moved via `git mv` (134L, body unchanged). Two consumers updated: `manager.py` (intra-package `from .detector import ImportDetector`), `metadata.py` (sibling-package `from ..imports import ImportDetector`). `tests/test_operational_metadata_selection.py` (5 in-function imports) also updated.
+- **`OperationalMetadata` → `OperationalMetadataCatalog` (hard rename).** Closes `OPMETA-RENAME-DEFER`. No back-compat alias (internal class per §1.7). The `Subject Noun` form `OperationalMetadataCatalog` fits §4.10 naming (catalog/state-holder, not a service); `OperationalMetadataService` (the wrapper, already conforming) was **not** renamed. Six consumers updated, including the top-level `src/lhp/core/codegen/__init__.py` re-export and a `:class:` docstring reference in `detector.py` that the original plan's expected-list missed.
+- **Two helper modules inlined into `OperationalMetadataCatalog`.** Closes `OPMETA-§3.7-CONSOLIDATE-DEFER`. `_column_resolution.py` (195L) and `_sql_adaptation.py` (150L) deleted; their six module-level functions (`get_selected_columns`, `_get_available_columns`, `_extract_column_names`, `_validate_target_type`, `adapt_expressions_for_imports`, `_adapt_expression_for_wildcard`) become `self`-bound methods on `OperationalMetadataCatalog`. `meta.x` mutations become normal `self.x`. The class file lands at **395L** (under the 400L target per §3.3). One test patch path migrated: `lhp.core.codegen.operational_metadata._column_resolution.logger` → `...metadata.logger`. Four JSON-schema references to `OperationalMetadataSelection` in `flowgroup.schema.json` correctly **left untouched** — they reference a different (still-extant) Pydantic class.
+- **`SubstitutionView` + `SecretReferenceView` public DTOs added; `InspectionFacade.build_substitution_view(env)` method added.** Closes the **LHP-side** of `OPMETA-SVC-VIEW-DEFER`; the CLI-consumer migration carries over under a new `OPMETA-SVC-VIEW-CLI-DEFER` marker for the CLI rewrite. Both DTOs are frozen dataclasses per §4.5 with `:stability: provisional`; field types stick to flat `Mapping[str, str]` / `Tuple[SecretReferenceView, ...]` per §4.8 (no nested `Dict[str, Dict[...]]`). The facade method docstring lists `:raises lhp.errors.LHPError: LHP-CFG-*` per §4.7. Internally flattens `EnhancedSubstitutionManager.mappings` to `Dict[str, str]` via `str(value)` and sorts secret references by `(scope, key)` for determinism. 21 contract tests in `tests/api/test_substitution_view_contract.py` cover JSON round-trip, pickle round-trip, frozen check, and field-type contract per §8.3. Two additional `pytest.param(...)` entries in `tests/api/test_to_dict_round_trip.py::_INSTANCES` cover the canonical `to_dict()` path per §1.9.
+- **`EnhancedSubstitutionManager` re-export at `:stability: deprecated` with runtime `DeprecationWarning`.** Per §6.4 (shim + warning + removal version). PEP 562 module-level `__getattr__` in `lhp/api/__init__.py` intercepts attribute access and emits `warnings.warn("EnhancedSubstitutionManager is deprecated; use InspectionFacade.build_substitution_view instead. Removal planned for v1.0.0.", DeprecationWarning, stacklevel=2)`. The direct top-level import was deliberately removed — PEP 562 only fires for names not in module globals. Removal planned for **v1.0.0**.
+- **`InspectionFacade` method-count drift corrected.** The class now exposes **14** public methods (was documented as "Thirteen" in the docstring + "thirteen … (§3.2 cap is ten)" in the `# JUSTIFIED:` block). Both edited: `save_dependency_outputs` added to the enumerated bullet list; the JUSTIFIED block now correctly cites "§3.2 requires justification at 10–15; hard cap at 15" and lists "fourteen public methods" in both prose and the inner TODO marker.
+- **Module-level logger added to `_blueprint.py` per §7.1.** New `logger = logging.getLogger(__name__)` at module scope; the `_legacy_logger = logging.getLogger("lhp.models.config")` also lifted to module scope with a same-line rationale comment per §6.6 documenting why the literal-string name is preserved (three caplog-based tests).
+- **`vulture_whitelist.py` updated.** One stale entry comment migrated: `models.config.ProjectConfig._legacy_warned_paths` → `models._blueprint.BlueprintInstance._legacy_warned_paths` (reflecting both the file-move and the actual class location — the prior comment had two errors, file path and class name).
+
+#### Phase 9.5 — Mechanical-gate snapshot at end of phase
+
+| Gate | Pre-Phase-9.5 | End of Phase 9.5 |
+|---|---:|---:|
+| `wc -l src/lhp/models/config.py` | 596 | **deleted** |
+| `wc -l src/lhp/core/jobs/job_generator.py` | 789 | **470** (−319L) |
+| `wc -l src/lhp/core/loaders/project_config_loader.py` | 798 | **207** (−591L; two lines from §9.3 hard cap) |
+| `wc -l src/lhp/core/codegen/operational_metadata/metadata.py` | 204 | **395** (+191L; helpers absorbed, both helper files deleted) |
+| `wc -l src/lhp/core/jobs/job_builder.py` | n/a | **171** (new) |
+| `wc -l src/lhp/core/jobs/job_writer.py` | n/a | **42** (new) |
+| `wc -l src/lhp/core/loaders/job_config_loader.py` | n/a | **206** (new) |
+| `wc -l src/lhp/core/loaders/_event_log_config_parser.py` | n/a | **93** (new) |
+| `wc -l src/lhp/core/loaders/_monitoring_config_parser.py` | n/a | **274** (new) |
+| `wc -l src/lhp/core/loaders/_test_reporting_config_parser.py` | n/a | **72** (new) |
+| `wc -l src/lhp/core/loaders/_operational_metadata_config_parser.py` | n/a | **142** (new) |
+| `wc -l src/lhp/core/loaders/_include_patterns_parser.py` | n/a | **108** (new) |
+| `check_placement.py --all` | 0 | **0** |
+| `check_file_sizes.py --all` | 0 | **0** |
+| `check_stability_drift.py --all` | 0 | **0** |
+| `ruff check --select B904,TRY400,RUF013 src/ tests/` | 0 | **0** |
+| `mypy --strict src/lhp/api/` | clean (12 files) | clean (12 files) |
+| `lint-imports` | 5 kept, 0 broken | **5 kept, 0 broken** |
+| `vulture src/lhp/ vulture_whitelist.py --min-confidence 80` | 0 | **0** |
+| `pytest tests/ --ignore=tests/e2e` (deselect one pre-existing) | 44 failed / 2993 passed | **44 failed / 3016 passed** (+21 SubstitutionView contract + 2 canonical round-trip) |
+
+#### Phase 9.5 — DEFER markers closed
+
+- `IMPORT-DETECTOR-PLACEMENT-DEFER` — `ImportDetector` moved to `core/codegen/imports/`.
+- `OPMETA-RENAME-DEFER` — `OperationalMetadata` → `OperationalMetadataCatalog`.
+- `OPMETA-§3.7-CONSOLIDATE-DEFER` — `_column_resolution.py` + `_sql_adaptation.py` inlined as methods.
+- `OPMETA-SVC-VIEW-DEFER` (LHP side) — `SubstitutionView` + facade method landed. The CLI-consumer migration carries over under the new `OPMETA-SVC-VIEW-CLI-DEFER` marker.
+
 ### Phase 9.1 — Orchestrator decomposition (8th typed service + free-function aggregator)
 
 Phase 9.1 extracts `FlowgroupBootstrapService` from `ActionOrchestrator` as the

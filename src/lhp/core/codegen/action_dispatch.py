@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Set, Tuple
 
 from ...errors import ErrorCategory, LHPError, LHPValidationError
 from ...generators.python_file_copier import CopiedModuleRecord
-from ...models.config import Action, ActionType, FlowGroup, TransformType
+from lhp.models import Action, ActionType, FlowGroup, TransformType
 from ..processing.substitution import EnhancedSubstitutionManager
 
 if TYPE_CHECKING:

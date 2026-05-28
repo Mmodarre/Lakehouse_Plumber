@@ -5,7 +5,7 @@ import pytest
 from lhp.core.validators import LoadActionValidator
 from lhp.core.registry import ActionRegistry
 from lhp.core.validators.config_field_validator import ConfigFieldValidator
-from lhp.models.config import Action
+from lhp.models import Action
 
 
 class TestKafkaActionValidator:

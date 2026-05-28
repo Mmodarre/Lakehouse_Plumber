@@ -3,7 +3,7 @@
 import logging
 
 from ...core.registry import BaseActionGenerator
-from ...models.config import Action
+from lhp.models import Action
 from ...errors import (
     ErrorCategory,
     LHPValidationError,

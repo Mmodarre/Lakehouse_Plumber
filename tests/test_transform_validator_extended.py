@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from lhp.core.validators.transform_validator import TransformActionValidator
-from lhp.models.config import Action, ActionType, TransformType
+from lhp.models import Action, ActionType, TransformType
 
 
 def _make_validator(project_root=None, project_config=None):

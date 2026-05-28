@@ -163,7 +163,7 @@ def test_cdc_fan_in_lhp_error_carries_code():
     :attr:`~PipelineValidationOutcome.errors`).
     """
     from lhp.core.coordination import ActionOrchestrator
-    from lhp.models.config import FlowGroup
+    from lhp.models import FlowGroup
 
     # Build a synthetic flowgroup so the assembler is exercised with a
     # non-empty pipeline (the empty-pipeline branch short-circuits).

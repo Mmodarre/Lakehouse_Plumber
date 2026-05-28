@@ -2,7 +2,7 @@
 
 import pytest
 from pydantic import ValidationError
-from lhp.models.config import WriteTarget, WriteTargetType
+from lhp.models import WriteTarget, WriteTargetType
 
 
 class TestForEachBatchSinkModel:

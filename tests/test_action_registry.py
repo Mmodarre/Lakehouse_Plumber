@@ -2,7 +2,7 @@
 
 import pytest
 from lhp.core.registry import ActionRegistry
-from lhp.models.config import ActionType, TestActionType
+from lhp.models import ActionType, TestActionType
 from lhp.generators.test.test_generator import TestActionGenerator
 
 

@@ -4,6 +4,10 @@ import pytest
 from pathlib import Path
 import yaml
 from lhp.core.jobs.job_generator import JobGenerator
+from lhp.core.jobs.job_builder import (
+    analyze_cross_job_dependencies,
+    build_pipeline_to_job_mapping,
+)
 from lhp.models.dependencies import DependencyAnalysisResult, PipelineDependency
 from unittest.mock import Mock
 
@@ -774,7 +778,7 @@ class TestHelperMethodsCoverage:
         """Test _build_pipeline_to_job_mapping with empty job_results."""
         generator = JobGenerator()
         
-        mapping = generator._build_pipeline_to_job_mapping({})
+        mapping = build_pipeline_to_job_mapping({})
         
         assert mapping == {}
     
@@ -787,7 +791,7 @@ class TestHelperMethodsCoverage:
         
         job_results = {"empty_job": job_result}
         
-        mapping = generator._build_pipeline_to_job_mapping(job_results)
+        mapping = build_pipeline_to_job_mapping(job_results)
         
         assert mapping == {}
     
@@ -808,7 +812,7 @@ class TestHelperMethodsCoverage:
         
         job_results = {"job1": job1, "job2": job2}
         
-        mapping = generator._build_pipeline_to_job_mapping(job_results)
+        mapping = build_pipeline_to_job_mapping(job_results)
         
         assert mapping == {
             "pipeline_a": "job1",
@@ -836,7 +840,7 @@ class TestHelperMethodsCoverage:
         job_results = {"test_job": job_result}
         pipeline_to_job = {"pipeline1": "test_job", "pipeline_missing": "test_job"}
         
-        jobs_info = generator._analyze_cross_job_dependencies_from_global(
+        jobs_info = analyze_cross_job_dependencies(
             job_results, pipeline_to_job, global_result
         )
         
@@ -862,7 +866,7 @@ class TestHelperMethodsCoverage:
         # pipeline1 not in mapping
         pipeline_to_job = {"pipeline2": "test_job"}
         
-        jobs_info = generator._analyze_cross_job_dependencies_from_global(
+        jobs_info = analyze_cross_job_dependencies(
             job_results, pipeline_to_job, global_result
         )
         
@@ -892,7 +896,7 @@ class TestHelperMethodsCoverage:
             "pipeline2": "same_job"
         }
         
-        jobs_info = generator._analyze_cross_job_dependencies_from_global(
+        jobs_info = analyze_cross_job_dependencies(
             job_results, pipeline_to_job, global_result
         )
         
@@ -926,7 +930,7 @@ class TestHelperMethodsCoverage:
             "pipeline_c": "job3"
         }
         
-        jobs_info = generator._analyze_cross_job_dependencies_from_global(
+        jobs_info = analyze_cross_job_dependencies(
             job_results, pipeline_to_job, global_result
         )
         
@@ -960,7 +964,7 @@ class TestHelperMethodsCoverage:
             "pipeline_final": "job_final"
         }
         
-        jobs_info = generator._analyze_cross_job_dependencies_from_global(
+        jobs_info = analyze_cross_job_dependencies(
             job_results, pipeline_to_job, global_result
         )
         

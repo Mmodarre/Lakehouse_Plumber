@@ -9,7 +9,7 @@ import pytest
 import yaml
 
 from lhp.core.validators.transform_validator import TransformActionValidator
-from lhp.models.config import Action, ActionType, QuarantineConfig, TransformType
+from lhp.models import Action, ActionType, QuarantineConfig, TransformType
 
 
 @pytest.fixture

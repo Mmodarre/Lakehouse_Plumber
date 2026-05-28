@@ -15,7 +15,7 @@ from ..errors import (
     LHPError,
     LHPValidationError,
 )
-from ..models.config import ActionType, FlowGroup, Preset, Template
+from lhp.models import ActionType, FlowGroup, Preset, Template
 from .yaml_loader import load_yaml_documents_all, load_yaml_file
 
 _CacheValueT = TypeVar("_CacheValueT")

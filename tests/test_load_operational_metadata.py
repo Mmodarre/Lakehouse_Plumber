@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 import pytest
 import yaml
 
-from lhp.core.codegen.operational_metadata import OperationalMetadata
+from lhp.core.codegen.operational_metadata import OperationalMetadataCatalog
 from lhp.errors import LHPError
 from lhp.generators.load import (
     CloudFilesLoadGenerator,
@@ -16,7 +16,7 @@ from lhp.generators.load import (
     SQLLoadGenerator,
 )
 from lhp.generators.transform import SchemaTransformGenerator
-from lhp.models.config import (
+from lhp.models import (
     Action,
     ActionType,
     FlowGroup,
@@ -83,7 +83,7 @@ class TestLoadOperationalMetadata:
 
     def test_view_target_type_validation(self):
         """Test that 'view' is accepted as valid applies_to target type."""
-        operational_metadata = OperationalMetadata(
+        operational_metadata = OperationalMetadataCatalog(
             project_config=self.project_config.operational_metadata
         )
 
@@ -394,7 +394,7 @@ class TestLoadOperationalMetadata:
 
         # Should not raise error, should generate warning
         with patch(
-            "lhp.core.codegen.operational_metadata._column_resolution.logger"
+            "lhp.core.codegen.operational_metadata.metadata.logger"
         ) as mock_logger:
             code = generator.generate(action, self.context)
 

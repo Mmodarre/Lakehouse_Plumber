@@ -17,7 +17,7 @@ import logging
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from ...models.config import Action, ActionType, FlowGroup
+from lhp.models import Action, ActionType, FlowGroup
 from ...errors import ErrorCategory, LHPConfigError
 
 logger = logging.getLogger(__name__)

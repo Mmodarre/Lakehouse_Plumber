@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from ...errors import ErrorCategory, LHPValidationError
-from ...models.config import (
+from lhp.models import (
     Blueprint,
     BlueprintFlowgroupSpec,
     BlueprintInstance,

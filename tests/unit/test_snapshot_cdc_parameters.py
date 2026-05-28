@@ -12,7 +12,7 @@ from lhp.generators.write.streaming_table import (
     SourceFunctionResult,
     StreamingTableWriteGenerator,
 )
-from lhp.models.config import Action, ActionType
+from lhp.models import Action, ActionType
 
 # ---------------------------------------------------------------------------
 # Fixtures

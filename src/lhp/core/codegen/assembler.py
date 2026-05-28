@@ -6,7 +6,7 @@
 import logging
 from typing import List, Set
 
-from ...models.config import FlowGroup
+from lhp.models import FlowGroup
 from .imports import ImportManager, extract_future_imports
 
 

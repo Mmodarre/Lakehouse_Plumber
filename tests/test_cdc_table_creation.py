@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 
 from lhp.generators.write.streaming_table import StreamingTableWriteGenerator
-from lhp.models.config import Action, ActionType
+from lhp.models import Action, ActionType
 
 def test_cdc_mode_creates_table_and_flow():
     """Test that CDC mode generates both table creation and CDC flow."""

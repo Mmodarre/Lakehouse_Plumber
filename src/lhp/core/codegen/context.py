@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
 
 from ...generators.python_file_copier import CopiedModuleRecord
-from ...models.config import FlowGroup
+from lhp.models import FlowGroup
 from ..processing.substitution import EnhancedSubstitutionManager
 
 

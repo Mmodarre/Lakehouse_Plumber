@@ -3,7 +3,7 @@
 import logging
 from typing import List
 
-from ...models.config import Action, ActionType, TransformType
+from lhp.models import Action, ActionType, TransformType
 from ._base import BaseActionValidator
 
 logger = logging.getLogger(__name__)

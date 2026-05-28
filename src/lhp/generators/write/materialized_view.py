@@ -10,7 +10,7 @@ from ...core.loaders.external_file_loader import (
 )
 from ...core.registry import BaseActionGenerator
 from ...errors import ErrorCategory, ErrorFormatter, LHPValidationError
-from ...models.config import Action
+from lhp.models import Action
 from ...parsers.schema_parser import SchemaParser
 
 logger = logging.getLogger(__name__)

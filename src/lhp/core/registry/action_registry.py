@@ -30,7 +30,7 @@ from ...generators.write import (
     SinkWriteGenerator,
     StreamingTableWriteGenerator,
 )
-from ...models.config import (
+from lhp.models import (
     ActionType,
     LoadSourceType,
     TestActionType,

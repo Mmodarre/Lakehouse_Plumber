@@ -53,7 +53,7 @@ if TYPE_CHECKING:
     from lhp.core.coordination.executor import PipelineValidationOutcome
     from lhp.core.processing.substitution import EnhancedSubstitutionManager
     from lhp.errors import LHPError
-    from lhp.models.config import (
+    from lhp.models import (
         Action,
         Blueprint,
         FlowGroup,

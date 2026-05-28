@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from ...errors import ErrorCategory, LHPError, LHPValidationError
-from ...models.config import FlowGroup
+from lhp.models import FlowGroup
 from ..processing.substitution import EnhancedSubstitutionManager
 
 

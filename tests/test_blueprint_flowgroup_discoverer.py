@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from lhp.core.discovery.flowgroup_discoverer import FlowgroupDiscoveryService
-from lhp.models.config import FlowGroup
+from lhp.models import FlowGroup
 
 pytestmark = pytest.mark.unit
 

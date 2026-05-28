@@ -18,7 +18,7 @@ import ast
 
 from lhp.core.codegen.coordinator import CodeGenerationService
 from lhp.generators.write.source_function_loader import _extract_function_code
-from lhp.models.config import FlowGroup
+from lhp.models import FlowGroup
 
 
 class TestExtractFunctionCodeStripsFuture:

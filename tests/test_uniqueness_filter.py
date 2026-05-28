@@ -3,7 +3,7 @@
 import pytest
 
 from lhp.generators.test import TestActionGenerator
-from lhp.models.config import Action, ActionType
+from lhp.models import Action, ActionType
 
 
 class TestUniquenessFilter:

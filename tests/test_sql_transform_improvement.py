@@ -3,7 +3,7 @@
 import pytest
 from pathlib import Path
 from lhp.generators.transform.sql import SQLTransformGenerator
-from lhp.models.config import Action
+from lhp.models import Action
 
 
 def test_sql_transform_generates_clean_code():

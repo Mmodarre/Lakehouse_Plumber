@@ -2,7 +2,7 @@
 
 import pytest
 from lhp.core.validators import ConfigValidator
-from lhp.models.config import FlowGroup, Action, ActionType, TransformType
+from lhp.models import FlowGroup, Action, ActionType, TransformType
 
 
 class TestConfigValidator:
@@ -316,7 +316,7 @@ class TestConfigValidator:
                 
                 # Test that generator raises appropriate error during file copying
                 from lhp.generators.transform.python import PythonTransformGenerator
-                from lhp.models.config import FlowGroup
+                from lhp.models import FlowGroup
                 
                 generator = PythonTransformGenerator()
                 context = {

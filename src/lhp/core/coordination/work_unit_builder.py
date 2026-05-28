@@ -22,7 +22,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional, Sequence, Tuple
 
-from ...models.config import FlowGroup
+from lhp.models import FlowGroup
 from ...models.processing import PipelineWorkUnit
 from ...utils.performance_timer import perf_timer
 

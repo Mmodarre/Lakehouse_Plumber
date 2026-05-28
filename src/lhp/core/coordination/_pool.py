@@ -76,14 +76,14 @@ from typing import (
     Tuple,
 )
 
-from ...models.config import FlowGroupContext
+from lhp.models import FlowGroupContext
 from ...models.processing import PipelineDelta
 from ...utils.performance_timer import perf_timer
 from ._interfaces import BaseCodeGenerationService, BaseFlowgroupResolutionService
 
 if TYPE_CHECKING:
     from ...errors import LHPError
-    from ...models.config import ProjectConfig
+    from lhp.models import ProjectConfig
     from ..codegen.formatter import CodeFormatter
     from ..processing.substitution import EnhancedSubstitutionManager
     from .processor import ProcessingContext

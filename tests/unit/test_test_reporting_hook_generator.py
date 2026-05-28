@@ -7,7 +7,7 @@ from lhp.core.codegen.tst_reporting_hook_generator import (
     TestReportingHookGenerator,
 )
 from lhp.core.processing.substitution import EnhancedSubstitutionManager
-from lhp.models.config import (
+from lhp.models import (
     Action,
     ActionType,
     FlowGroup,

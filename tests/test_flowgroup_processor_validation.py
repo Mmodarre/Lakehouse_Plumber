@@ -11,7 +11,7 @@ from lhp.core.processing.substitution import EnhancedSubstitutionManager
 from lhp.core.validators import ConfigValidator
 from lhp.core.validators.secret_validator import SecretValidator
 from lhp.errors import LHPError
-from lhp.models.config import Action, ActionType, FlowGroup
+from lhp.models import Action, ActionType, FlowGroup
 from lhp.presets.preset_manager import PresetManager
 from tests.helpers import wrap_in_ctx as _ctx_of
 

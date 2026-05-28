@@ -6,7 +6,7 @@ from pathlib import Path
 from ...core.loaders.external_file_loader import load_external_file_text
 from ...core.registry import BaseActionGenerator
 from ...errors import ErrorFormatter
-from ...models.config import Action
+from lhp.models import Action
 
 logger = logging.getLogger(__name__)
 

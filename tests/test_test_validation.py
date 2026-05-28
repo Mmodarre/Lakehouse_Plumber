@@ -1,7 +1,7 @@
 """Tests for Test action validation."""
 
 import pytest
-from lhp.models.config import Action, ActionType, TestActionType, ViolationAction
+from lhp.models import Action, ActionType, TestActionType, ViolationAction
 from lhp.core.validators import ConfigValidator
 from lhp.errors import LHPError
 

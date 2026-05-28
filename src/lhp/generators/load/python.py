@@ -3,7 +3,7 @@
 import logging
 
 from ...core.registry import BaseActionGenerator
-from ...models.config import Action
+from lhp.models import Action
 from ...errors import ErrorFormatter
 from ..python_file_copier import copy_user_module_for_pipeline
 

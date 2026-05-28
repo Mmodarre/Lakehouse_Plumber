@@ -29,7 +29,7 @@ Specialized validators for DLT table options and CDC configurations.
 import logging
 from typing import Any, Dict, List
 
-from ...models.config import Action
+from lhp.models import Action
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,7 @@ import pytest
 from lhp.core.processing.substitution import EnhancedSubstitutionManager
 from lhp.errors import LHPError
 from lhp.generators.load.python import PythonLoadGenerator
-from lhp.models.config import Action, ActionType
+from lhp.models import Action, ActionType
 
 
 @pytest.fixture
@@ -432,7 +432,7 @@ class TestPythonLoadHardError:
     def test_dry_run_returns_leaf_name(self, tmp_path):
         """With output_dir=None and a real .py file, helper returns the stem
         and the import line uses that stem (matches TRANSFORM dry-run)."""
-        from lhp.models.config import FlowGroup
+        from lhp.models import FlowGroup
 
         loader_dir = tmp_path / "loaders"
         loader_dir.mkdir()

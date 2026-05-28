@@ -4,7 +4,7 @@ import logging
 from typing import Any, Dict
 
 from ...core.registry import BaseActionGenerator
-from ...models.config import Action
+from lhp.models import Action
 from ...errors import ErrorFormatter
 from .sinks import (
     CustomSinkWriteGenerator,

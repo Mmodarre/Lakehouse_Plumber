@@ -280,3 +280,54 @@ class PipelineStats:
     pipeline_name: str
     flowgroup_count: int
     total_actions: int
+
+
+@dataclass(frozen=True)
+class SecretReferenceView:
+    """A single ``${secret:scope/key}`` reference resolved by substitution.
+
+    Frozen projection of the internal :class:`SecretReference` value
+    object produced by :class:`EnhancedSubstitutionManager`. Carries
+    only the resolved ``scope`` (after any ``secret_scopes`` alias
+    lookup) and the secret ``key`` — both are JSON-safe strings.
+
+    :stability: provisional
+    """
+
+    scope: str
+    key: str
+
+
+@dataclass(frozen=True)
+class SubstitutionView:
+    """Read-only view of the resolved substitution context for an environment.
+
+    Frozen projection of the internal
+    :class:`EnhancedSubstitutionManager` state after token expansion
+    and YAML loading. Captures the four pieces of information CLI and
+    external consumers need to inspect substitutions for a given
+    environment:
+
+    - ``env`` — the environment name the manager was constructed for.
+    - ``tokens`` — fully-expanded ``${token}`` mappings as JSON-safe
+      key/value pairs. Internal manager values that are nested
+      ``dict`` / ``list`` objects (used by prefix/suffix rules) are
+      flattened to strings via ``str(...)`` before exposure, since
+      DTO fields must be flat per §4.8.
+    - ``secret_references`` — every ``${secret:scope/key}`` reference
+      the manager has observed, as a sorted, deduplicated tuple.
+    - ``default_secret_scope`` — the configured fallback scope used
+      when a ``${secret:key}`` reference omits the scope segment;
+      ``None`` if no default is configured.
+
+    The view contains no ``mappings`` for nested rule objects and no
+    ``prefix_suffix_rules`` — those are internal implementation
+    details and not part of the public substitution surface.
+
+    :stability: provisional
+    """
+
+    env: str
+    tokens: Mapping[str, str]
+    secret_references: Tuple[SecretReferenceView, ...] = ()
+    default_secret_scope: Optional[str] = None

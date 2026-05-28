@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from lhp.parsers.yaml_parser import YAMLParser, CachingYAMLParser
-from lhp.models.config import FlowGroup
+from lhp.models import FlowGroup
 
 
 @pytest.fixture

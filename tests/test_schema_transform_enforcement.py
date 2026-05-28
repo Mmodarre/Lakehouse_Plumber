@@ -1,7 +1,7 @@
 """Tests for schema transform enforcement modes (strict vs permissive)."""
 
 import pytest
-from lhp.models.config import Action, ActionType, TransformType, ProjectConfig, ProjectOperationalMetadataConfig, MetadataColumnConfig
+from lhp.models import Action, ActionType, TransformType, ProjectConfig, ProjectOperationalMetadataConfig, MetadataColumnConfig
 from lhp.generators.transform.schema import SchemaTransformGenerator
 
 

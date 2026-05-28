@@ -3,7 +3,7 @@
 import logging
 from typing import List
 
-from ...models.config import Action, ActionType, LoadSourceType
+from lhp.models import Action, ActionType, LoadSourceType
 from ...errors import LHPError
 from ._base import BaseActionValidator, ValidationError
 

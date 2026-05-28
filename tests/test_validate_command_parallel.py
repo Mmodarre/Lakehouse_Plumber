@@ -170,7 +170,7 @@ class _FakeValidateFlowGroup:
 
 
 def _ctx_validate(fg: "_FakeValidateFlowGroup"):
-    from lhp.models.config import FlowGroupContext
+    from lhp.models import FlowGroupContext
 
     return FlowGroupContext(flowgroup=fg, source_yaml=None)
 

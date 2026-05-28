@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, Mock
 import pytest
 
 from lhp.core.codegen.coordinator import CodeGenerationService
-from lhp.models.config import Action, ActionType, FlowGroup, TransformType
+from lhp.models import Action, ActionType, FlowGroup, TransformType
 
 
 @pytest.fixture

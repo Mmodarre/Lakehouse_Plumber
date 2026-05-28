@@ -3,7 +3,7 @@
 import logging
 from typing import Any, Dict
 
-from ....models.config import Action
+from lhp.models import Action
 from ....core.validators.kafka_validator import KafkaOptionsValidator
 from .base_sink import BaseSinkWriteGenerator
 

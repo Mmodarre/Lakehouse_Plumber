@@ -1,37 +1,31 @@
 """Project configuration loader for LakehousePlumber.
 
 Loads project-level configuration from lhp.yaml including operational metadata definitions.
+Sub-config parsing/validation lives in `_*_config_parser.py` modules in this package;
+this class is a thin coordinator that wires them together.
 """
 
-# JUSTIFIED: project-config loading is a single cohesive responsibility:
-# parsing lhp.yaml + .lhp.local.yaml, resolving substitution tokens, normalising
-# environment vars, validating include patterns, expanding env-specific
-# overrides, and producing a fully resolved ProjectConfig. Splitting along any
-# axis (parsing, validation, substitution, env-merge) would scatter the
-# loader's invariants across files and create import-cycle pressure with
-# pipeline_config_loader and init_template_loader (see ProjectConfigLoader's
-# single-pass resolver design). Re-evaluate when env-merge migrates to a
-# dedicated config-resolution service (TARGET §4 follow-up).
-# TODO(Phase 9.5): split by concern (paths + substitutions + monitoring + env-merge) per LOCAL/REMAINING_WORK.md §9.5.
-
 import logging
-import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-
-_SUBSTITUTION_TOKEN_PATTERN = re.compile(r"\$\{[^}]+\}")
+from typing import Any, Dict, Optional
 
 from ...errors import ErrorCategory, LHPError
-from ...models.config import (
+from lhp.models import (
     EventLogConfig,
-    MetadataColumnConfig,
-    MetadataPresetConfig,
     MonitoringConfig,
-    MonitoringMaterializedViewConfig,
     ProjectConfig,
     ProjectOperationalMetadataConfig,
     TestReportingConfig,
 )
+
+from ._event_log_config_parser import parse_event_log_config
+from ._include_patterns_parser import parse_include_patterns
+from ._monitoring_config_parser import (
+    _validate_monitoring_config as _validate_monitoring_config_impl,
+    parse_monitoring_config,
+)
+from ._operational_metadata_config_parser import parse_operational_metadata_config
+from ._test_reporting_config_parser import parse_test_reporting_config
 
 
 class ProjectConfigLoader:
@@ -43,11 +37,7 @@ class ProjectConfigLoader:
         self.config_file = project_root / "lhp.yaml"
 
     def load_project_config(self) -> Optional[ProjectConfig]:
-        """Load project configuration from lhp.yaml.
-
-        Returns:
-            ProjectConfig if file exists and is valid, None otherwise
-        """
+        """Load project configuration from lhp.yaml. Returns ``None`` if absent or empty."""
         if not self.config_file.exists():
             self.logger.info(
                 f"No project configuration file found at {self.config_file}"
@@ -69,7 +59,6 @@ class ProjectConfigLoader:
                 )
                 return None
 
-            # Parse the configuration
             project_config = self._parse_project_config(config_data)
 
             self.logger.info(f"Loaded project configuration from {self.config_file}")
@@ -80,7 +69,6 @@ class ProjectConfigLoader:
             error_msg = str(e)
             self.logger.exception(f"Project configuration loading failed: {error_msg}")
 
-            # Determine if it's a YAML syntax error or file error
             if "Invalid YAML" in error_msg:
                 raise LHPError(
                     category=ErrorCategory.CONFIG,
@@ -112,62 +100,39 @@ class ProjectConfigLoader:
             ) from e
 
     def _parse_project_config(self, config_data: Dict[str, Any]) -> ProjectConfig:
-        """Parse raw configuration data into ProjectConfig model.
-
-        Args:
-            config_data: Raw configuration data from YAML
-
-        Returns:
-            Parsed ProjectConfig
-        """
-        # Extract operational metadata configuration
+        """Parse raw configuration data into ProjectConfig model."""
         operational_metadata_config = None
         if "operational_metadata" in config_data:
-            operational_metadata_config = self._parse_operational_metadata_config(
+            operational_metadata_config = parse_operational_metadata_config(
                 config_data["operational_metadata"]
             )
 
-        # Parse and validate include patterns
-        include_patterns = None
-        if "include" in config_data:
-            include_patterns = self._parse_include_patterns(config_data["include"])
+        # blueprint_include / instance_include reuse the same shape/pattern
+        # validation as `include`; defaults are applied at discovery time
+        # inside BlueprintDiscoverer (one source of truth there).
+        (
+            include_patterns,
+            blueprint_include_patterns,
+            instance_include_patterns,
+        ) = parse_include_patterns(config_data)
 
-        # Parse blueprint_include / instance_include patterns. Reuses
-        # `_parse_include_patterns` for shape and pattern validation; defaults
-        # are applied at discovery time inside BlueprintDiscoverer (one
-        # source of truth there).
-        blueprint_include_patterns: Optional[List[str]] = None
-        if "blueprint_include" in config_data:
-            blueprint_include_patterns = self._parse_include_patterns(
-                config_data["blueprint_include"]
-            )
-
-        instance_include_patterns: Optional[List[str]] = None
-        if "instance_include" in config_data:
-            instance_include_patterns = self._parse_include_patterns(
-                config_data["instance_include"]
-            )
-
-        # Parse event_log configuration
         event_log_config = None
         if "event_log" in config_data:
-            event_log_config = self._parse_event_log_config(config_data["event_log"])
+            event_log_config = parse_event_log_config(config_data["event_log"])
 
-        # Parse monitoring configuration
+        # monitoring is cross-validated against event_log
         monitoring_config = None
         if "monitoring" in config_data:
             monitoring_config = self._parse_monitoring_config(
                 config_data["monitoring"], event_log_config
             )
 
-        # Parse test_reporting configuration
         test_reporting_config = None
         if "test_reporting" in config_data:
-            test_reporting_config = self._parse_test_reporting_config(
+            test_reporting_config = parse_test_reporting_config(
                 config_data["test_reporting"]
             )
 
-        # Create project config
         project_config = ProjectConfig(
             name=config_data.get("name", "unnamed_project"),
             version=config_data.get("version", "1.0"),
@@ -186,612 +151,27 @@ class ProjectConfigLoader:
 
         return project_config
 
-    def _parse_include_patterns(self, include_data: Any) -> List[str]:
-        """Parse and validate include patterns from configuration.
-
-        Args:
-            include_data: Raw include data from YAML
-
-        Returns:
-            List of validated include patterns
-
-        Raises:
-            LHPError: If include patterns are invalid
-        """
-        # Validate that include is a list
-        if not isinstance(include_data, list):
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="003",
-                title="Invalid include field type",
-                details=f"Include field must be a list of strings, got {type(include_data).__name__}",
-                suggestions=[
-                    "Change include to a list format: include: ['*.yaml', 'bronze_*.yaml']",
-                    "Use array syntax in YAML with proper indentation",
-                ],
-            )
-
-        # Validate each pattern
-        validated_patterns = []
-        for i, pattern in enumerate(include_data):
-            if not isinstance(pattern, str):
-                raise LHPError(
-                    category=ErrorCategory.CONFIG,
-                    code_number="004",
-                    title="Invalid include pattern type",
-                    details=f"Include pattern at index {i} must be a string, got {type(pattern).__name__}",
-                    suggestions=[
-                        "Ensure all include patterns are strings",
-                        "Quote patterns if they contain special characters",
-                    ],
-                )
-
-            # Validate pattern format
-            if not self._validate_include_pattern(pattern):
-                raise LHPError(
-                    category=ErrorCategory.CONFIG,
-                    code_number="005",
-                    title="Invalid include pattern",
-                    details=f"Include pattern '{pattern}' is not a valid glob pattern",
-                    suggestions=[
-                        "Use valid glob patterns like '*.yaml', 'bronze_*.yaml', 'dir/**/*.yaml'",
-                        "Avoid empty patterns or invalid regex characters",
-                        "Check pattern syntax for proper glob format",
-                    ],
-                )
-
-            validated_patterns.append(pattern)
-
-        return validated_patterns
-
-    def _parse_event_log_config(self, event_log_data: Any) -> EventLogConfig:
-        """Parse event_log configuration from lhp.yaml.
-
-        Args:
-            event_log_data: Raw event_log data from YAML
-
-        Returns:
-            Parsed EventLogConfig
-
-        Raises:
-            LHPError: If event_log configuration is invalid
-        """
-        if not isinstance(event_log_data, dict):
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="006",
-                title="Invalid event_log configuration",
-                details=f"event_log must be a mapping, got {type(event_log_data).__name__}",
-                suggestions=[
-                    "Define event_log as a YAML mapping with keys: enabled, catalog, schema, name_prefix, name_suffix",
-                    "Example: event_log:\\n  catalog: my_catalog\\n  schema: _meta",
-                ],
-            )
-
-        try:
-            config = EventLogConfig(
-                enabled=event_log_data.get("enabled", True),
-                catalog=event_log_data.get("catalog"),
-                schema=event_log_data.get("schema"),
-                name_prefix=event_log_data.get("name_prefix", ""),
-                name_suffix=event_log_data.get("name_suffix", ""),
-            )
-        except Exception as e:
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="006",
-                title="Error parsing event_log configuration",
-                details=f"Failed to parse event_log configuration: {e}",
-                suggestions=[
-                    "Check event_log field types: enabled (bool), catalog (string), schema (string)",
-                    "name_prefix and name_suffix must be strings",
-                ],
-            ) from e
-
-        self._validate_event_log_config(config)
-        return config
-
-    def _validate_event_log_config(self, config: EventLogConfig) -> None:
-        """Validate event_log configuration.
-
-        If enabled, both catalog and schema must be provided.
-
-        Args:
-            config: EventLogConfig to validate
-
-        Raises:
-            LHPError: If enabled but catalog or schema missing
-        """
-        if not config.enabled:
-            return
-
-        if not config.catalog or not config.schema_:
-            missing = []
-            if not config.catalog:
-                missing.append("catalog")
-            if not config.schema_:
-                missing.append("schema")
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="007",
-                title="Incomplete event_log configuration",
-                details=(
-                    f"event_log is enabled but missing required fields: {', '.join(missing)}. "
-                    f"Both 'catalog' and 'schema' are required when event_log is enabled."
-                ),
-                suggestions=[
-                    "Add the missing fields to event_log in lhp.yaml",
-                    "Or set 'enabled: false' to disable project-level event logging",
-                    "Example: event_log:\\n  catalog: my_catalog\\n  schema: _meta",
-                ],
-            )
-
+    # Instance-method wrappers so unit tests can patch these on the class.
     def _parse_monitoring_config(
         self,
         monitoring_data: Any,
         event_log_config: Optional[EventLogConfig],
     ) -> MonitoringConfig:
-        """Parse monitoring configuration from lhp.yaml.
-
-        Handles `monitoring: {}` (all defaults) and explicit configuration.
-
-        Args:
-            monitoring_data: Raw monitoring data from YAML
-            event_log_config: Parsed event_log config (for cross-validation)
-
-        Returns:
-            Parsed MonitoringConfig
-
-        Raises:
-            LHPError: If monitoring configuration is invalid
-        """
-        # Handle monitoring: {} (empty dict = all defaults)
-        if monitoring_data is None:
-            monitoring_data = {}
-
-        if not isinstance(monitoring_data, dict):
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="008",
-                title="Invalid monitoring configuration",
-                details=f"monitoring must be a mapping, got {type(monitoring_data).__name__}",
-                suggestions=[
-                    "Define monitoring as a YAML mapping",
-                    "Example: monitoring:\n  pipeline_name: my_monitor",
-                    "Use 'monitoring: {}' for all defaults",
-                ],
-            )
-
-        # Parse materialized_views list
-        mv_configs = None
-        raw_mvs = monitoring_data.get("materialized_views")
-        if raw_mvs is not None:
-            if not isinstance(raw_mvs, list):
-                raise LHPError(
-                    category=ErrorCategory.CONFIG,
-                    code_number="008",
-                    title="Invalid monitoring materialized_views",
-                    details="materialized_views must be a list of view definitions",
-                    suggestions=[
-                        "Define materialized_views as a YAML list",
-                        "Example:\n  materialized_views:\n    - name: events_summary\n      sql: 'SELECT ...'",
-                    ],
-                )
-            mv_configs = []
-            for mv_data in raw_mvs:
-                if not isinstance(mv_data, dict):
-                    raise LHPError(
-                        category=ErrorCategory.CONFIG,
-                        code_number="008",
-                        title="Invalid materialized view entry",
-                        details=f"Each materialized_view must be a mapping, got {type(mv_data).__name__}",
-                        suggestions=[
-                            "Define each view with at least a 'name' field",
-                            "Example:\n  - name: events_summary\n    sql: 'SELECT ...'",
-                        ],
-                    )
-                mv_configs.append(
-                    MonitoringMaterializedViewConfig(
-                        name=mv_data.get("name", ""),
-                        sql=mv_data.get("sql"),
-                        sql_path=mv_data.get("sql_path"),
-                    )
-                )
-
-        try:
-            config = MonitoringConfig(
-                enabled=monitoring_data.get("enabled", True),
-                pipeline_name=monitoring_data.get("pipeline_name"),
-                catalog=monitoring_data.get("catalog"),
-                schema=monitoring_data.get("schema"),
-                streaming_table=monitoring_data.get(
-                    "streaming_table", "all_pipelines_event_log"
-                ),
-                checkpoint_path=monitoring_data.get("checkpoint_path", ""),
-                job_config_path=monitoring_data.get("job_config_path"),
-                max_concurrent_streams=monitoring_data.get(
-                    "max_concurrent_streams", 10
-                ),
-                materialized_views=mv_configs,
-                enable_job_monitoring=monitoring_data.get(
-                    "enable_job_monitoring", False
-                ),
-            )
-        except Exception as e:
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="008",
-                title="Error parsing monitoring configuration",
-                details=f"Failed to parse monitoring configuration: {e}",
-                suggestions=[
-                    "Check monitoring field types: enabled (bool), pipeline_name (string)",
-                    "catalog and schema must be strings",
-                ],
-            ) from e
-
-        self._validate_monitoring_config(config, event_log_config)
-        return config
-
-    def _parse_test_reporting_config(
-        self, test_reporting_data: Any
-    ) -> TestReportingConfig:
-        """Parse test_reporting configuration from lhp.yaml.
-
-        Args:
-            test_reporting_data: Raw test_reporting data from YAML
-
-        Returns:
-            Parsed TestReportingConfig
-
-        Raises:
-            LHPError: If test_reporting configuration is invalid
-        """
-        if not isinstance(test_reporting_data, dict):
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="009",
-                title="Invalid test_reporting configuration",
-                details=f"test_reporting must be a mapping, got {type(test_reporting_data).__name__}",
-                suggestions=[
-                    "Define test_reporting as a YAML mapping with keys: module_path, function_name",
-                    "Example: test_reporting:\n  module_path: src/my_publisher.py\n  function_name: publish_results",
-                ],
-            )
-
-        # Validate required fields
-        missing = []
-        if "module_path" not in test_reporting_data:
-            missing.append("module_path")
-        if "function_name" not in test_reporting_data:
-            missing.append("function_name")
-
-        if missing:
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="009",
-                title="Incomplete test_reporting configuration",
-                details=f"test_reporting is missing required fields: {', '.join(missing)}",
-                suggestions=[
-                    "Add the missing fields to test_reporting in lhp.yaml",
-                    "Required: module_path (path to provider Python file), function_name (callable name)",
-                    "Example: test_reporting:\n  module_path: src/my_publisher.py\n  function_name: publish_results",
-                ],
-            )
-
-        try:
-            return TestReportingConfig(
-                module_path=test_reporting_data["module_path"],
-                function_name=test_reporting_data["function_name"],
-                config_file=test_reporting_data.get("config_file"),
-            )
-        except Exception as e:
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="009",
-                title="Error parsing test_reporting configuration",
-                details=f"Failed to parse test_reporting configuration: {e}",
-                suggestions=[
-                    "Check test_reporting field types: module_path (string), function_name (string)",
-                    "config_file is optional and must be a string path",
-                ],
-            ) from e
+        return parse_monitoring_config(
+            monitoring_data, event_log_config, self.project_root
+        )
 
     def _validate_monitoring_config(
         self,
         config: MonitoringConfig,
         event_log_config: Optional[EventLogConfig],
     ) -> None:
-        """Validate monitoring configuration.
-
-        Checks:
-        - If enabled, event_log must be present and enabled
-        - If enabled, checkpoint_path must be set
-        - If enabled, job_config_path must be set and point to an existing file
-        - MV names must be unique
-        - MVs must not specify both sql and sql_path
-
-        Args:
-            config: MonitoringConfig to validate
-            event_log_config: Project-level event log config
-
-        Raises:
-            LHPError: If validation fails
-        """
-        if not config.enabled:
-            return
-
-        # Monitoring requires event_log to be present and enabled
-        if not event_log_config or not event_log_config.enabled:
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="008",
-                title="Monitoring requires event_log",
-                details=(
-                    "monitoring is enabled but event_log is either missing or disabled. "
-                    "The monitoring pipeline needs event_log tables to function."
-                ),
-                suggestions=[
-                    "Add an event_log section to lhp.yaml with catalog and schema",
-                    "Or set 'monitoring: { enabled: false }' to disable monitoring",
-                    "Example:\n  event_log:\n    catalog: my_catalog\n    schema: _meta",
-                ],
-            )
-
-        # checkpoint_path is required when monitoring is enabled
-        if not config.checkpoint_path:
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="008",
-                title="Monitoring checkpoint_path is required",
-                details=(
-                    "monitoring.checkpoint_path must be set when monitoring is enabled. "
-                    "Each streaming query needs a unique checkpoint directory."
-                ),
-                suggestions=[
-                    "Add checkpoint_path to your monitoring config in lhp.yaml",
-                    "Example:\n  monitoring:\n    checkpoint_path: "
-                    "/Volumes/catalog/schema/checkpoints/event_logs",
-                ],
-            )
-
-        # job_config_path is required when monitoring is enabled
-        if not config.job_config_path:
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="008",
-                title="Monitoring job_config_path is required",
-                details=(
-                    "monitoring.job_config_path must be set when monitoring is enabled. "
-                    "It points to a dedicated YAML file describing the monitoring "
-                    "workflow job (cluster, tags, notifications, schedule, etc.)."
-                ),
-                suggestions=[
-                    "Add job_config_path to your monitoring config in lhp.yaml",
-                    "Example:\n  monitoring:\n    job_config_path: "
-                    "config/monitoring_job_config.yaml",
-                    "Run 'lhp init <project>' to scaffold a starter config file",
-                ],
-            )
-
-        # Defer the existence check when the path contains substitution tokens
-        # (e.g. ${env}). Tokens can only be resolved once the CLI selects an
-        # environment — orchestrator.finalize_monitoring_artifacts re-checks
-        # existence after substitution.
-        if not _SUBSTITUTION_TOKEN_PATTERN.search(config.job_config_path):
-            job_config_file = self.project_root / config.job_config_path
-            if not job_config_file.is_file():
-                raise LHPError(
-                    category=ErrorCategory.CONFIG,
-                    code_number="008",
-                    title="Monitoring job_config file not found",
-                    details=(
-                        f"monitoring.job_config_path points to '{config.job_config_path}', "
-                        f"but no file exists at {job_config_file}."
-                    ),
-                    suggestions=[
-                        "Create the file at the configured path",
-                        "Or update monitoring.job_config_path to a valid location",
-                        "Paths are resolved relative to the project root",
-                    ],
-                )
-
-        # Validate materialized views
-        if config.materialized_views:
-            seen_names: Dict[str, int] = {}
-            for i, mv in enumerate(config.materialized_views):
-                # Name is required
-                if not mv.name:
-                    raise LHPError(
-                        category=ErrorCategory.CONFIG,
-                        code_number="008",
-                        title="Materialized view missing name",
-                        details=f"Materialized view at index {i} has no 'name' field",
-                        suggestions=[
-                            "Add a 'name' field to each materialized view",
-                            "Example:\n  - name: events_summary\n    sql: 'SELECT ...'",
-                        ],
-                    )
-
-                # Unique names
-                if mv.name in seen_names:
-                    raise LHPError(
-                        category=ErrorCategory.CONFIG,
-                        code_number="008",
-                        title="Duplicate materialized view name",
-                        details=(
-                            f"Materialized view name '{mv.name}' appears at "
-                            f"index {seen_names[mv.name]} and {i}"
-                        ),
-                        suggestions=[
-                            "Each materialized view must have a unique name",
-                        ],
-                    )
-                seen_names[mv.name] = i
-
-                # Cannot specify both sql and sql_path
-                if mv.sql and mv.sql_path:
-                    raise LHPError(
-                        category=ErrorCategory.CONFIG,
-                        code_number="008",
-                        title="Ambiguous materialized view SQL source",
-                        details=(
-                            f"Materialized view '{mv.name}' specifies both 'sql' and 'sql_path'. "
-                            f"Only one is allowed."
-                        ),
-                        suggestions=[
-                            "Use 'sql' for inline SQL or 'sql_path' for external file, not both",
-                        ],
-                    )
-
-    def _validate_include_pattern(self, pattern: str) -> bool:
-        """Validate a single include pattern.
-
-        Args:
-            pattern: The pattern to validate
-
-        Returns:
-            True if pattern is valid, False otherwise
-        """
-        # Import here to avoid circular imports
-        from ...utils.file_pattern_matcher import validate_pattern
-
-        return validate_pattern(pattern)
-
-    def _parse_operational_metadata_config(
-        self, metadata_config: Dict[str, Any]
-    ) -> ProjectOperationalMetadataConfig:
-        """Parse operational metadata configuration.
-
-        Args:
-            metadata_config: Raw operational metadata configuration
-
-        Returns:
-            Parsed ProjectOperationalMetadataConfig
-        """
-        # Parse column definitions
-        columns = {}
-        if "columns" in metadata_config:
-            for col_name, col_config in metadata_config["columns"].items():
-                try:
-                    # Ensure col_config is a dict
-                    if isinstance(col_config, str):
-                        # Simple string expression - convert to full config
-                        col_config = {"expression": col_config}
-                    elif not isinstance(col_config, dict):
-                        raise ValueError(
-                            f"Column configuration must be dict or string, got {type(col_config)}"
-                        )
-
-                    # Parse column configuration
-                    columns[col_name] = MetadataColumnConfig(
-                        expression=col_config.get("expression", ""),
-                        description=col_config.get("description"),
-                        applies_to=col_config.get(
-                            "applies_to", ["streaming_table", "materialized_view"]
-                        ),
-                        additional_imports=col_config.get("additional_imports"),
-                        enabled=col_config.get("enabled", True),
-                    )
-
-                except Exception as e:
-                    error_msg = f"Error parsing column '{col_name}' in operational metadata: {e}"
-                    self.logger.exception(error_msg)
-                    raise LHPError(
-                        category=ErrorCategory.CONFIG,
-                        code_number="003",
-                        title="Invalid operational metadata column configuration",
-                        details=error_msg,
-                        suggestions=[
-                            "Check column configuration structure",
-                            "Ensure 'expression' field is provided",
-                            "Verify applies_to is a list of valid target types",
-                        ],
-                    ) from e
-
-        # Parse preset definitions
-        presets = {}
-        if "presets" in metadata_config:
-            for preset_name, preset_config in metadata_config["presets"].items():
-                try:
-                    if isinstance(preset_config, list):
-                        # Simple list of column names
-                        preset_config = {"columns": preset_config}
-                    elif not isinstance(preset_config, dict):
-                        raise ValueError(
-                            f"Preset configuration must be dict or list, got {type(preset_config)}"
-                        )
-
-                    presets[preset_name] = MetadataPresetConfig(
-                        columns=preset_config.get("columns", []),
-                        description=preset_config.get("description"),
-                    )
-
-                except Exception as e:
-                    error_msg = f"Error parsing preset '{preset_name}' in operational metadata: {e}"
-                    self.logger.exception(error_msg)
-                    raise LHPError(
-                        category=ErrorCategory.CONFIG,
-                        code_number="004",
-                        title="Invalid operational metadata preset configuration",
-                        details=error_msg,
-                        suggestions=[
-                            "Check preset configuration structure",
-                            "Ensure 'columns' field is a list of column names",
-                            "Verify all referenced columns are defined",
-                        ],
-                    ) from e
-
-        # Parse defaults
-        defaults = metadata_config.get("defaults", {})
-
-        # Create operational metadata config
-        operational_metadata_config = ProjectOperationalMetadataConfig(
-            columns=columns,
-            presets=presets if presets else None,
-            defaults=defaults if defaults else None,
-        )
-
-        # Validate preset references
-        self._validate_preset_references(operational_metadata_config)
-
-        return operational_metadata_config
-
-    def _validate_preset_references(self, config: ProjectOperationalMetadataConfig):
-        """Validate that preset references point to defined columns.
-
-        Args:
-            config: Operational metadata configuration to validate
-        """
-        if not config.presets:
-            return
-
-        defined_columns = set(config.columns.keys())
-
-        for preset_name, preset_config in config.presets.items():
-            for column_name in preset_config.columns:
-                if column_name not in defined_columns:
-                    error_msg = f"Preset '{preset_name}' references undefined column '{column_name}'"
-                    self.logger.error(error_msg)
-                    raise LHPError(
-                        category=ErrorCategory.CONFIG,
-                        code_number="005",
-                        title="Invalid preset column reference",
-                        details=error_msg,
-                        suggestions=[
-                            f"Define column '{column_name}' in operational_metadata.columns",
-                            f"Remove '{column_name}' from preset '{preset_name}'",
-                            "Check for typos in column names",
-                        ],
-                    )
+        _validate_monitoring_config_impl(config, event_log_config, self.project_root)
 
     def get_operational_metadata_config(
         self,
     ) -> Optional[ProjectOperationalMetadataConfig]:
-        """Get operational metadata configuration from project config.
-
-        Returns:
-            ProjectOperationalMetadataConfig if available, None otherwise
-        """
+        """Return the project's operational metadata config, or ``None`` if absent."""
         project_config = self.load_project_config()
         if project_config and project_config.operational_metadata:
             return project_config.operational_metadata

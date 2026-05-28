@@ -1,7 +1,7 @@
 """Test sink action validation."""
 
 import pytest
-from lhp.models.config import Action, ActionType
+from lhp.models import Action, ActionType
 from lhp.core.validators import WriteActionValidator
 from lhp.core.registry import ActionRegistry
 from lhp.core.validators.config_field_validator import ConfigFieldValidator

@@ -15,8 +15,8 @@ Expected outcome: 0 findings.
 package
 
 # Used as a stringified forward-reference ("ClassVar[Set[str]]") on
-# models.config.ProjectConfig._legacy_warned_paths; vulture does not parse
-# string annotations.
+# models._blueprint.BlueprintInstance._legacy_warned_paths; vulture does not
+# parse string annotations.
 ClassVar
 
 # Pydantic's BaseModel.model_post_init() hook requires the second positional

@@ -3,12 +3,12 @@
 import logging
 from typing import TYPE_CHECKING, Any, Dict
 
-from .metadata import OperationalMetadata
+from .metadata import OperationalMetadataCatalog
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from ....models.config import Action
+    from lhp.models import Action
 
 
 class OperationalMetadataService:
@@ -29,7 +29,7 @@ class OperationalMetadataService:
     ):
         """Get operational metadata configuration AND required imports in one call.
 
-        Uses a single OperationalMetadata instance to ensure consistent
+        Uses a single OperationalMetadataCatalog instance to ensure consistent
         expression adaptation and import detection.
 
         Args:
@@ -49,7 +49,7 @@ class OperationalMetadataService:
         )
 
         # Initialize operational metadata handler (single instance)
-        operational_metadata = OperationalMetadata(
+        operational_metadata = OperationalMetadataCatalog(
             project_config=(
                 project_config.operational_metadata if project_config else None
             )
@@ -92,7 +92,7 @@ class OperationalMetadataService:
 
         Combines built-in defaults with any project-defined columns.
         """
-        operational_metadata = OperationalMetadata(
+        operational_metadata = OperationalMetadataCatalog(
             project_config=(
                 project_config.operational_metadata if project_config else None
             )

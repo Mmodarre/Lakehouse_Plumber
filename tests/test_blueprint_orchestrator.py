@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from lhp.core.coordination.layers import build_facade_orchestrator
-from lhp.models.config import FlowGroup
+from lhp.models import FlowGroup
 
 pytestmark = pytest.mark.unit
 

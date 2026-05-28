@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from lhp.models.config import FlowGroupContext
+from lhp.models import FlowGroupContext
 from lhp.models.processing import PipelineWorkUnit
 
 
@@ -103,7 +103,7 @@ class TestPipelineWorkUnitContract:
 
     def test_to_dict_flowgroup_names_projection(self):
         """flowgroups: Tuple[FlowGroupContext, ...] projects to a name tuple."""
-        from lhp.models.config import FlowGroup
+        from lhp.models import FlowGroup
 
         fg = FlowGroup(
             pipeline="bronze",

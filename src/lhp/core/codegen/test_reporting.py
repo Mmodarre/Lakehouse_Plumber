@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional
 
 if TYPE_CHECKING:
-    from ...models.config import FlowGroup, ProjectConfig
+    from lhp.models import FlowGroup, ProjectConfig
     from ..processing.substitution import EnhancedSubstitutionManager
 
 

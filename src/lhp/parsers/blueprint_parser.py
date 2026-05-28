@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from ..errors import ErrorCategory, LHPConfigError, LHPError, LHPValidationError
-from ..models.config import Blueprint, BlueprintInstance
+from lhp.models import Blueprint, BlueprintInstance
 from .yaml_loader import load_yaml_documents_all
 
 if TYPE_CHECKING:

@@ -4,7 +4,7 @@ import logging
 from collections import defaultdict, deque
 from typing import Dict, List, Optional, Tuple
 
-from ...models.config import Action, ActionType
+from lhp.models import Action, ActionType
 from ...errors import (
     ErrorCategory,
     LHPValidationError,

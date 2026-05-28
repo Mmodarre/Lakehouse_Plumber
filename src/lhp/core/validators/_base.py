@@ -4,7 +4,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import List, Union
 
-from ...models.config import Action
+from lhp.models import Action
 from ...errors import LHPError
 
 logger = logging.getLogger(__name__)

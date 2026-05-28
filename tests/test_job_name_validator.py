@@ -2,7 +2,7 @@
 
 import pytest
 from lhp.core.validators.job_name_validator import validate_job_names, validate_job_name_format
-from lhp.models.config import FlowGroup, Action, ActionType
+from lhp.models import FlowGroup, Action, ActionType
 from lhp.errors import LHPError, ErrorCategory
 
 

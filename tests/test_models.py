@@ -1,7 +1,7 @@
 """Tests for core data models of LakehousePlumber."""
 
 import pytest
-from lhp.models.config import ActionType, LoadSourceType, TransformType, WriteTargetType, Action, FlowGroup, Template, Preset, TestActionType, ViolationAction
+from lhp.models import ActionType, LoadSourceType, TransformType, WriteTargetType, Action, FlowGroup, Template, Preset, TestActionType, ViolationAction
 
 
 class TestModels:

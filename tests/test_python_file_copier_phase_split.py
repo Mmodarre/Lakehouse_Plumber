@@ -44,7 +44,7 @@ def temp_dir():
 
 @pytest.fixture
 def flowgroup():
-    from lhp.models.config import FlowGroup
+    from lhp.models import FlowGroup
 
     return FlowGroup(pipeline="p_test", flowgroup="fg_test")
 
@@ -87,7 +87,7 @@ class TestComputeCopyRecord:
         source_file.write_text("X = 1\n")
         custom_dir = temp_dir / "custom_python_functions"
 
-        from lhp.models.config import FlowGroup
+        from lhp.models import FlowGroup
 
         state_mgr = MagicMock()
         compute_copy_record(

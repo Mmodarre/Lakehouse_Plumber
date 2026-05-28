@@ -6,7 +6,7 @@ from pathlib import Path
 from lhp.generators.transform.sql import SQLTransformGenerator
 from lhp.generators.transform.data_quality import DataQualityTransformGenerator
 from lhp.generators.transform.temp_table import TempTableTransformGenerator
-from lhp.models.config import Action, FlowGroup, ProjectConfig, ProjectOperationalMetadataConfig, MetadataColumnConfig
+from lhp.models import Action, FlowGroup, ProjectConfig, ProjectOperationalMetadataConfig, MetadataColumnConfig
 
 
 class TestTransformOperationalMetadata:

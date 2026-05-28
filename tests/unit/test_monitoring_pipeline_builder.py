@@ -14,7 +14,7 @@ from lhp.core.coordination.monitoring_pipeline_builder import (
     MonitoringBuildResult,
     MonitoringPipelineBuilder,
 )
-from lhp.models.config import (
+from lhp.models import (
     ActionType,
     EventLogConfig,
     FlowGroup,

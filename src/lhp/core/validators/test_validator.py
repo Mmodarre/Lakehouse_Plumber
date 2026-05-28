@@ -3,7 +3,7 @@
 import logging
 from typing import List
 
-from ...models.config import Action, TestActionType
+from lhp.models import Action, TestActionType
 
 logger = logging.getLogger(__name__)
 

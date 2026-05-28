@@ -12,7 +12,7 @@ import logging
 from typing import Any, Dict
 
 from ...errors import LHPError, LHPValidationError
-from ...models.config import ActionType, FlowGroup, FlowGroupContext
+from lhp.models import ActionType, FlowGroup, FlowGroupContext
 from ...utils.performance_timer import perf_timer
 from ..coordination._interfaces import BaseFlowgroupResolutionService
 from .local_variables import LocalVariableResolver

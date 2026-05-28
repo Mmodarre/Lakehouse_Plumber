@@ -10,7 +10,7 @@ from lhp.generators.load import (
     PythonLoadGenerator,
     SQLLoadGenerator,
 )
-from lhp.models.config import Action, ActionType, FlowGroup
+from lhp.models import Action, ActionType, FlowGroup
 
 
 class TestLoadGenerators:

@@ -6,7 +6,7 @@ import logging
 from typing import TYPE_CHECKING, List
 
 from ...errors import LHPError
-from ...models.config import Action, ActionType, FlowGroup
+from lhp.models import Action, ActionType, FlowGroup
 from ._base import ValidationError
 from .config_field_validator import ConfigFieldValidator
 

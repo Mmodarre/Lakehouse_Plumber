@@ -1,7 +1,7 @@
 """Import detection for PySpark expressions used in operational metadata.
 
 Provides AST-based detection (with regex fallback) of the imports required to
-make a given PySpark expression compile. Used by :class:`OperationalMetadata`
+make a given PySpark expression compile. Used by :class:`OperationalMetadataCatalog`
 to attach the right ``from pyspark...`` imports to generated code.
 """
 

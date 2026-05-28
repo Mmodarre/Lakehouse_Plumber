@@ -1,7 +1,7 @@
 """Tests for Test action SQL optimizations."""
 
 import pytest
-from lhp.models.config import Action, ActionType
+from lhp.models import Action, ActionType
 from lhp.generators.test import TestActionGenerator
 
 

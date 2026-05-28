@@ -5,7 +5,7 @@ from pathlib import Path
 from lhp.core.validators import TransformActionValidator
 from lhp.core.registry import ActionRegistry
 from lhp.core.validators.config_field_validator import ConfigFieldValidator
-from lhp.models.config import (
+from lhp.models import (
     Action, ActionType, TransformType,
     ProjectConfig, ProjectOperationalMetadataConfig, MetadataColumnConfig
 )

@@ -8,7 +8,7 @@ import yaml
 from jinja2 import Environment
 
 if TYPE_CHECKING:
-    from ...models.config import Action
+    from lhp.models import Action
     from ..codegen.imports.manager import ImportManager
 
 

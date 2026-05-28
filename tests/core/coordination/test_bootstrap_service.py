@@ -15,7 +15,7 @@ from lhp.core.coordination._interfaces import (
 from lhp.core.coordination.bootstrap_service import FlowgroupBootstrapService
 from lhp.core.coordination.monitoring_pipeline_builder import MonitoringBuildResult
 from lhp.core.processing.blueprint_expander import BlueprintProvenance
-from lhp.models.config import Blueprint, BlueprintInstance, FlowGroup, FlowGroupContext
+from lhp.models import Blueprint, BlueprintInstance, FlowGroup, FlowGroupContext
 
 
 class _FakeDiscovery(BaseFlowgroupDiscoveryService):

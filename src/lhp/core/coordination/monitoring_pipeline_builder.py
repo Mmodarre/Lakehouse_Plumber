@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from ...errors import ErrorCategory, LHPError
-from ...models.config import (
+from lhp.models import (
     Action,
     ActionType,
     FlowGroup,

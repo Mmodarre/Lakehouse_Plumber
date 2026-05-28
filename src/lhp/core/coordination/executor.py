@@ -49,7 +49,7 @@ from ...errors import (
     LHPValidationError,
     lhp_error_from_worker_failure,
 )
-from ...models.config import FlowGroupContext
+from lhp.models import FlowGroupContext
 from ...models.processing import PipelineDelta, PipelineWorkUnit
 from ...utils.performance_timer import perf_timer
 from ._interfaces import BasePipelineExecutionService

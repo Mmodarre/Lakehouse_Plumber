@@ -11,7 +11,7 @@ from rich.console import Console as RichConsole
 
 import lhp.cli.console as _lhp_console_module
 from lhp.cli.commands.show_command import ShowCommand
-from lhp.models.config import Action, ActionType, FlowGroup
+from lhp.models import Action, ActionType, FlowGroup
 
 
 def _render(processed_fg: FlowGroup, env: str) -> str:

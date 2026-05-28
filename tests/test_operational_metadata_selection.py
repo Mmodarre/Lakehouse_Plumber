@@ -6,8 +6,8 @@ from typing import Any, Dict
 
 import pytest
 
-from lhp.core.codegen.operational_metadata import OperationalMetadata
-from lhp.models.config import (
+from lhp.core.codegen.operational_metadata import OperationalMetadataCatalog
+from lhp.models import (
     Action,
     ActionType,
     FlowGroup,
@@ -84,7 +84,7 @@ class TestOperationalMetadataSelection:
     @pytest.fixture
     def metadata_handler(self, sample_project_config):
         """Operational metadata handler with sample config."""
-        return OperationalMetadata(project_config=sample_project_config)
+        return OperationalMetadataCatalog(project_config=sample_project_config)
 
     @pytest.fixture
     def sample_flowgroup(self):
@@ -1148,7 +1148,7 @@ class TestOperationalMetadataSelection:
 
     def test_simple_function_import_detection(self, metadata_handler):
         """Test AST import detection for simple PySpark functions."""
-        from lhp.core.codegen.operational_metadata import ImportDetector
+        from lhp.core.codegen.imports import ImportDetector
 
         detector = ImportDetector(strategy="ast")
 
@@ -1169,7 +1169,7 @@ class TestOperationalMetadataSelection:
 
     def test_complex_expression_import_detection(self, metadata_handler):
         """Test AST import detection for complex PySpark expressions."""
-        from lhp.core.codegen.operational_metadata import ImportDetector
+        from lhp.core.codegen.imports import ImportDetector
 
         detector = ImportDetector(strategy="ast")
 
@@ -1205,7 +1205,7 @@ class TestOperationalMetadataSelection:
 
     def test_custom_function_import_detection(self, metadata_handler):
         """Test that custom functions don't get automatic imports (require explicit config)."""
-        from lhp.core.codegen.operational_metadata import ImportDetector
+        from lhp.core.codegen.imports import ImportDetector
 
         detector = ImportDetector(strategy="ast")
 
@@ -1317,7 +1317,7 @@ class TestOperationalMetadataSelection:
 
     def test_udf_import_detection(self, metadata_handler):
         """Test that UDF-related functions get correct imports."""
-        from lhp.core.codegen.operational_metadata import ImportDetector
+        from lhp.core.codegen.imports import ImportDetector
 
         detector = ImportDetector(strategy="ast")
 
@@ -1353,7 +1353,7 @@ class TestOperationalMetadataSelection:
 
     def test_fallback_regex_detection(self, metadata_handler):
         """Test that malformed expressions fall back to regex detection."""
-        from lhp.core.codegen.operational_metadata import ImportDetector
+        from lhp.core.codegen.imports import ImportDetector
 
         detector = ImportDetector(strategy="ast")
 
@@ -1589,7 +1589,7 @@ class TestOperationalMetadataSelection:
     def test_no_project_config_backward_compatibility(self, metadata_handler):
         """Test behavior when no project config exists (fallback to hardcoded defaults)."""
         # Create metadata handler without project config
-        metadata_handler_no_config = OperationalMetadata(project_config=None)
+        metadata_handler_no_config = OperationalMetadataCatalog(project_config=None)
 
         preset_config = {
             "operational_metadata": [

@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, List, Literal, Mapping, Optional, Sequence, Tuple
 
 from ...generators.python_file_copier import CopiedModuleRecord
-from ...models.config import FlowGroup, FlowGroupContext
+from lhp.models import FlowGroup, FlowGroupContext
 from ...models.dependencies import DependencyAnalysisResult, DependencyGraphs
 from ...models.processing import PipelineDelta
 from ..processing.substitution import EnhancedSubstitutionManager as SubstitutionManager

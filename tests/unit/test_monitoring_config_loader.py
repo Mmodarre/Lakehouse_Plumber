@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from lhp.core.loaders import ProjectConfigLoader
-from lhp.models.config import EventLogConfig, MonitoringConfig
+from lhp.models import EventLogConfig, MonitoringConfig
 from lhp.errors import LHPError
 
 
@@ -241,7 +241,7 @@ class TestValidateMonitoringConfig:
         loader._validate_monitoring_config(config, event_log)
 
     def test_duplicate_mv_names_raises(self, loader):
-        from lhp.models.config import MonitoringMaterializedViewConfig
+        from lhp.models import MonitoringMaterializedViewConfig
 
         config = MonitoringConfig(
             enabled=True,
@@ -257,7 +257,7 @@ class TestValidateMonitoringConfig:
             loader._validate_monitoring_config(config, event_log)
 
     def test_mv_with_both_sql_and_sql_path_raises(self, loader):
-        from lhp.models.config import MonitoringMaterializedViewConfig
+        from lhp.models import MonitoringMaterializedViewConfig
 
         config = MonitoringConfig(
             enabled=True,
@@ -274,7 +274,7 @@ class TestValidateMonitoringConfig:
             loader._validate_monitoring_config(config, event_log)
 
     def test_mv_missing_name_raises(self, loader):
-        from lhp.models.config import MonitoringMaterializedViewConfig
+        from lhp.models import MonitoringMaterializedViewConfig
 
         config = MonitoringConfig(
             enabled=True,
@@ -289,7 +289,7 @@ class TestValidateMonitoringConfig:
             loader._validate_monitoring_config(config, event_log)
 
     def test_unique_mv_names_pass(self, loader):
-        from lhp.models.config import MonitoringMaterializedViewConfig
+        from lhp.models import MonitoringMaterializedViewConfig
 
         config = MonitoringConfig(
             enabled=True,

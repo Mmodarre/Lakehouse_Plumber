@@ -23,7 +23,7 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Literal, Optional, Sequence, Tuple
 
-from ...models.config import FlowGroup, ProjectConfig
+from lhp.models import FlowGroup, ProjectConfig
 from ...models.dependencies import (
     DependencyAnalysisResult,
     DependencyGraphs,

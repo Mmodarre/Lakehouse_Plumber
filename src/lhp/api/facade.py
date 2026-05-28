@@ -71,7 +71,7 @@ from lhp.errors import LHPError
 from lhp.utils.performance_timer import perf_timer
 
 if TYPE_CHECKING:
-    from lhp.models.config import FlowGroup
+    from lhp.models import FlowGroup
 
     from .callbacks import WarningCollector
 

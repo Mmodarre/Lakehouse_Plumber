@@ -11,7 +11,7 @@ from lhp.core.validators.dlt_cdc_validators import (
     CdcSchemaValidator,
     SnapshotCdcConfigValidator,
 )
-from lhp.models.config import Action, ActionType
+from lhp.models import Action, ActionType
 
 
 class TestCdcConfigValidatorDirect:

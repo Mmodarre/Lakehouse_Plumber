@@ -5,7 +5,7 @@ import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from ...models.config import FlowGroup
+from lhp.models import FlowGroup
 from ...parsers.yaml_parser import YAMLParser
 from ...errors import (
     ErrorCategory,

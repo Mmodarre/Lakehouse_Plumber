@@ -15,7 +15,7 @@ from lhp.generators.write.sinks import (
     DeltaSinkWriteGenerator,
     KafkaSinkWriteGenerator,
 )
-from lhp.models.config import (
+from lhp.models import (
     Action,
     ActionType,
     FlowGroup,
@@ -730,7 +730,7 @@ class MyCustomDataSink:
             },
         )
 
-        from lhp.models.config import FlowGroup
+        from lhp.models import FlowGroup
 
         flowgroup = FlowGroup(pipeline="p_test", flowgroup="fg_test")
         output_dir = tmp_path / "generated"
@@ -900,7 +900,7 @@ class TestCustomSinkPEP236:
         shutil.rmtree(self.temp_dir)
 
     def _generate_with_output_dir(self, sink_text):
-        from lhp.models.config import FlowGroup
+        from lhp.models import FlowGroup
 
         sink_dir = self.project_root / "sinks"
         sink_dir.mkdir(exist_ok=True)

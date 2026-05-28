@@ -22,7 +22,7 @@ from lhp.core.validators import (
     TableCreationValidator,
 )
 from lhp.generators.write.streaming_table import StreamingTableWriteGenerator
-from lhp.models.config import Action, ActionType, FlowGroup
+from lhp.models import Action, ActionType, FlowGroup
 from lhp.errors import LHPConfigError
 
 # ---------------------------------------------------------------------------

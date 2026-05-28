@@ -45,7 +45,7 @@ from lhp.core.validators.test_validator import TestActionValidator
 from lhp.core.validators.transform_validator import TransformActionValidator
 from lhp.core.validators.write_validator import WriteActionValidator
 from lhp.errors import ErrorCategory, LHPError, LHPValidationError
-from lhp.models.config import FlowGroup, ProjectConfig
+from lhp.models import FlowGroup, ProjectConfig
 
 
 class ValidationService(BaseValidationService):

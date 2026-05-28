@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from lhp.core.coordination.layers import build_facade_orchestrator
-from lhp.models.config import Action, ActionType, FlowGroup
+from lhp.models import Action, ActionType, FlowGroup
 
 
 class TestOrchestratorIncludeTests:

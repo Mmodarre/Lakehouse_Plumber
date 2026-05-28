@@ -32,7 +32,7 @@ from typing import Dict, Sequence
 import pytest
 
 from lhp.core.coordination.executor import run_generate_pool
-from lhp.models.config import FlowGroupContext
+from lhp.models import FlowGroupContext
 from lhp.models.processing import PipelineDelta
 
 
