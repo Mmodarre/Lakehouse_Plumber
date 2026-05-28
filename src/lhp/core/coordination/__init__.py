@@ -20,6 +20,7 @@ break pickle-by-name across the process boundary.
 
 from typing import TYPE_CHECKING, Any
 
+from lhp.core.coordination.bootstrap_service import FlowgroupBootstrapService
 from lhp.core.coordination.executor import (
     FlowgroupValidationResult,
     OnValidationComplete,
@@ -59,6 +60,7 @@ def __getattr__(name: str) -> Any:
 
 __all__ = [
     "ActionOrchestrator",
+    "FlowgroupBootstrapService",
     "FlowgroupValidationResult",
     "MonitoringBuildResult",
     "MonitoringFinalizerService",

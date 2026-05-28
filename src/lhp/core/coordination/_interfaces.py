@@ -1,6 +1,6 @@
 """Service ABCs for the LHP coordination layer.
 
-Defines the seven internal service contracts the :class:`ActionOrchestrator`
+Defines the eight internal service contracts the :class:`ActionOrchestrator`
 composes. Each ABC is the load-bearing seam between the orchestrator and one
 concrete implementation; the orchestrator type-hints these ABCs so future
 re-wires (test doubles, alternate transports, future plugin surfaces) only
@@ -300,4 +300,39 @@ class BaseMonitoringFinalizerService(ABC):
     @abstractmethod
     def cleanup_artifacts(self, env: str, output_dir: Path) -> None:
         """Remove stale monitoring artifacts (notebook, job resource, generated dirs)."""
+        raise NotImplementedError
+
+
+class BaseFlowgroupBootstrapService(ABC):
+    """Bootstraps the on-disk flowgroup set into typed contexts.
+
+    Owns the discovery → blueprint expansion → monitoring chain and the
+    synthetic-context provenance table that records, for each discovered
+    flowgroup, whether it was synthesised (e.g. by a blueprint) and what
+    auxiliary Python files and source YAML it came with.
+    :meth:`make_context` is the public lookup into that table, used by the
+    orchestrator (and worker code) to wrap a :class:`FlowGroup` in its
+    :class:`FlowGroupContext` envelope without re-running discovery.
+
+    :stability: provisional
+    """
+
+    @abstractmethod
+    def discover_all_flowgroups(self) -> List[FlowGroup]:
+        """Discover every flowgroup on disk, expand blueprints, attach monitoring.
+
+        Side effects: populates the service's internal synthetic-context
+        table (consulted by :meth:`make_context`) and refreshes the
+        monitoring view owned by the service.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def make_context(self, fg: FlowGroup) -> FlowGroupContext:
+        """Wrap ``fg`` in its :class:`FlowGroupContext` envelope.
+
+        Looks up provenance (synthetic flag, auxiliary files, source YAML)
+        accumulated by :meth:`discover_all_flowgroups`; falls back to a
+        non-synthetic, empty-provenance envelope when no entry is found.
+        """
         raise NotImplementedError

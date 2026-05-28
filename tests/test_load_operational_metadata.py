@@ -394,13 +394,13 @@ class TestLoadOperationalMetadata:
 
         # Should not raise error, should generate warning
         with patch(
-            "lhp.core.codegen.operational_metadata.metadata.logging.getLogger"
+            "lhp.core.codegen.operational_metadata._column_resolution.logger"
         ) as mock_logger:
             code = generator.generate(action, self.context)
 
             # Check that warning was logged
-            mock_logger.return_value.warning.assert_called()
-            warning_calls = mock_logger.return_value.warning.call_args_list
+            mock_logger.warning.assert_called()
+            warning_calls = mock_logger.warning.call_args_list
             assert any(
                 "unknown metadata columns" in str(call) for call in warning_calls
             )

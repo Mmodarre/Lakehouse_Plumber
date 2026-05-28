@@ -1,27 +1,36 @@
-"""Main orchestration for LakehousePlumber pipeline generation."""
+"""Main orchestration for LakehousePlumber pipeline generation.
 
-# JUSTIFIED: Orchestrator sits at ~770 lines because it carries three
-# irreducible responsibilities that resist further extraction:
-# (1) constructor wiring of seven ABC-typed collaborator services (~170L,
-# including the §9.24 injection branch + 30-line back-compat construction
-# for direct `ActionOrchestrator(project_root)` test callers) — inlining is
-# intentional, the alternative is a separate `BootstrapService` that exists
-# only to call seven constructors;
-# (2) the work-unit builder helpers `_build_generate_work_units` and
-# `_build_validate_work_units` — now thin delegators (~40L combined) to
-# `coordination/work_unit_builder.py`, but the orchestrator must still
-# thread main-process-only `_synthetic_contexts` state through
-# `_make_context` calls into the spawn-boundary envelope;
-# (3) `_aggregate_generate_outcomes` (~50L) — the failure-bucketing
-# single-failure/multi-failure/re-raise branches are load-bearing for the
-# CLI's structured-Panel display contract and don't isolate cleanly.
-# Under the §9.3 800-line hard cap.
-# TODO(Phase 9.1): extract BootstrapService (discovery + monitoring wiring), split __init__ into substitution-manager + output-dir sub-builders, fold _aggregate_generate_outcomes into executor — target ≤300L per LOCAL/REMAINING_WORK.md §9.1.
+:class:`ActionOrchestrator` is the composition root wiring eight
+ABC-typed collaborator services (discovery, flowgroup resolution,
+validation, code generation, dependency analysis, monitoring,
+execution, bootstrap) and exposing ten public methods to callers
+(CLI commands and :class:`LakehousePlumberApplicationFacade`).
+
+§3.2 justification — the ten methods land in the 10–15 range
+requiring module-docstring rationale; each is the narrowest surface
+for its responsibility and none composes another:
+``get_include_patterns`` (discovery glob pass-through);
+``discover_flowgroups`` (single-pipeline read);
+``discover_all_flowgroups`` (full discovery + blueprint expansion +
+monitoring, delegates to bootstrap); ``finalize_monitoring_artifacts``
+(end-of-run notebook/job write); ``discover_flowgroups_by_pipeline_field``
+(CLI surface for ``lhp show``); ``validate_duplicate_pipeline_flowgroup_combinations``
+(duplicate-key guard); ``generate_pipelines`` (batch generate; hands to
+:class:`PipelineExecutionService`); ``process_flowgroup`` (per-flowgroup
+resolution wrapper for per-action CLI); ``generate_flowgroup_code``
+(per-flowgroup code-gen wrapper for per-action CLI); ``validate_pipelines``
+(batch validate; hands to :class:`PipelineExecutionService`).
+"""
+
+# JUSTIFIED: Constructor wires eight ABC-typed collaborator services
+# inline (~170L) per §4.10/§4.12, including the §9.24 injection branch
+# and back-compat construction for direct `ActionOrchestrator(project_root)`
+# test callers at tests/test_orchestrator.py:607.
+# Under §9.3's 800-line hard cap.
 
 import logging
 import os
 from collections import defaultdict
-from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence, Tuple
 
@@ -32,17 +41,10 @@ if TYPE_CHECKING:
     from ...generators.python_file_copier import CopiedModuleRecord
     from ...models.processing import PipelineDelta
 
-from ...errors import (
-    ErrorCategory,
-    LHPError,
-    LHPValidationError,
-    lhp_error_from_worker_failure,
-)
 from ...models.processing import PipelineWorkUnit
 from ...parsers.blueprint_parser import BlueprintParser
 from ...parsers.yaml_parser import CachingYAMLParser, YAMLParser
 from ...presets.preset_manager import PresetManager
-from ...utils.file_header import write_normalized
 from ...utils.formatter import CodeFormatter
 from ...utils.performance_timer import perf_timer
 from ...utils.version import (  # noqa: F401 — re-export for tests that monkeypatch `orchestrator.get_version`
@@ -55,12 +57,13 @@ from ..discovery.flowgroup_discoverer import FlowgroupDiscoveryService
 from ..loaders import ProjectConfigLoader
 from ..loaders.version_enforcement import enforce_version_requirements
 from ..processing import TemplateEngine
-from ..processing.blueprint_expander import BlueprintExpander, BlueprintProvenance
+from ..processing.blueprint_expander import BlueprintExpander
 from ..processing.substitution import EnhancedSubstitutionManager
 from ..registry import ActionRegistry, OrchestrationDependencies
 from ..validators import ConfigValidator
 from ..validators.secret_validator import SecretValidator
 from ._interfaces import (
+    BaseFlowgroupBootstrapService,
     BaseCodeGenerationService,
     BaseDependencyAnalysisService,
     BaseFlowgroupDiscoveryService,
@@ -69,10 +72,12 @@ from ._interfaces import (
     BasePipelineExecutionService,
     BaseValidationService,
 )
+from .bootstrap_service import FlowgroupBootstrapService
 from .executor import (  # noqa: F401 — kept for tests that monkeypatch the symbol
     OnValidationComplete,
     PipelineExecutionService,
     PipelineValidationOutcome,
+    aggregate_generate_outcomes,
     _GenerateWorkerState,
     _ValidateWorkerState,
     run_generate_pool,
@@ -120,6 +125,7 @@ class ActionOrchestrator:
         flowgroup_resolver: Optional[BaseFlowgroupResolutionService] = None,
         validation_service: Optional[BaseValidationService] = None,
         config_validator: Optional[ConfigValidator] = None,
+        bootstrap_service: Optional[BaseFlowgroupBootstrapService] = None,
     ):
         """Initialize orchestrator.
 
@@ -143,6 +149,13 @@ class ActionOrchestrator:
                 ``ConfigValidator`` instance is shared across the
                 process. When ``None``, ``DependencyAnalysisService``
                 falls back to constructing its own.
+            bootstrap_service: Pre-built :class:`FlowgroupBootstrapService`
+                injected by the composition root. Owns the
+                discovery → blueprint expansion → monitoring chain and
+                the synthetic-context provenance table. When ``None``,
+                the orchestrator constructs one inline from its
+                ``discovery`` / ``blueprint_discoverer`` /
+                ``blueprint_expander`` / ``monitoring`` collaborators.
 
         Raises:
             ValueError: If ``flowgroup_resolver`` or ``validation_service``
@@ -174,7 +187,7 @@ class ActionOrchestrator:
 
         self.project_config = self.project_config_loader.load_project_config()
 
-        # Seven typed service attributes, all typed by their ABC
+        # Typed service attributes, all typed by their ABC
         # (constitution §4.10 + §4.12).
         self.discovery: BaseFlowgroupDiscoveryService = FlowgroupDiscoveryService(
             project_root,
@@ -191,7 +204,6 @@ class ActionOrchestrator:
             caching_yaml_parser=self._cached_yaml_parser,
         )
         self.blueprint_expander = BlueprintExpander()
-        self._synthetic_contexts: Dict[Tuple[str, str], FlowGroupContext] = {}
 
         self.validation: BaseValidationService = validation_service
         self.processing: BaseFlowgroupResolutionService = flowgroup_resolver
@@ -233,6 +245,13 @@ class ActionOrchestrator:
         self.execution: BasePipelineExecutionService = PipelineExecutionService(
             max_workers=self.max_workers,
         )
+        self.bootstrap: BaseFlowgroupBootstrapService = bootstrap_service or FlowgroupBootstrapService(
+            discovery=self.discovery,
+            blueprint_discoverer=self.blueprint_discoverer,
+            blueprint_expander=self.blueprint_expander,
+            monitoring=self.monitoring,
+            logger=self.logger,
+        )
 
         # Legacy aliases retained for test compatibility: orchestrator method
         # bodies use the canonical typed attributes; `self.processor` /
@@ -242,8 +261,6 @@ class ActionOrchestrator:
         self.processor = self.processing
         self.generator = self.codegen
         self._formatter = CodeFormatter()
-
-        self._monitoring_result = None
 
         self._pipeline_slice_cache: Dict[str, List[FlowGroup]] = {}
         self._pipeline_slice_cache_id: Optional[int] = None
@@ -286,72 +303,13 @@ class ActionOrchestrator:
         return self.discovery._legacy_discover_flowgroups_by_dir(pipeline_dir)  # type: ignore[attr-defined]
 
     def discover_all_flowgroups(self) -> List[FlowGroup]:
-        """Discover disk-sourced flowgroups, then expand blueprints and monitoring.
+        """Discover disk-sourced flowgroups, expand blueprints, attach monitoring.
 
-        Side effects: populates ``self._synthetic_contexts`` and refreshes
-        ``self._monitoring_result`` from the monitoring service's last build.
+        Delegates to :class:`FlowgroupBootstrapService`; preserved on the orchestrator
+        surface for ``_inspection_facade.py`` reach-through compatibility.
         """
-        with perf_timer("discover_all_flowgroups [orchestrator]"):
-            flowgroups = list(self.discovery.discover_flowgroups(pipeline_filter=None))
+        return self.bootstrap.discover_all_flowgroups()
 
-        with perf_timer(
-            "Blueprint expansion",
-            phase=True,
-            parent_phase="Pipeline discovery",
-        ):
-            blueprint_ctxs, provenance = self._expand_blueprints()
-        flowgroups.extend(ctx.flowgroup for ctx in blueprint_ctxs)
-        self._synthetic_contexts = {
-            (ctx.flowgroup.pipeline, ctx.flowgroup.flowgroup): ctx
-            for ctx in blueprint_ctxs
-        }
-        if provenance:
-            self.discovery.register_synthetic_sources(  # type: ignore[attr-defined]
-                {key: prov.blueprint_path for key, prov in provenance.items()}
-            )
-
-        self._build_monitoring(flowgroups)
-        if self._monitoring_result and self._monitoring_result.context is not None:
-            monitoring_ctx = self._monitoring_result.context
-            flowgroups.append(monitoring_ctx.flowgroup)
-            self._synthetic_contexts[
-                (monitoring_ctx.flowgroup.pipeline, monitoring_ctx.flowgroup.flowgroup)
-            ] = monitoring_ctx
-        return flowgroups
-
-    def _expand_blueprints(
-        self,
-    ) -> Tuple[List[FlowGroupContext], Dict[Tuple[str, str], BlueprintProvenance]]:
-        """Discover and expand blueprints + instances into synthetic FlowGroupContexts.
-
-        Returns an empty result when no blueprint or instance files are present
-        in the project (the entire feature is fully opt-in via file presence).
-        """
-        blueprints = self.blueprint_discoverer.discover_blueprints()
-        if not blueprints:
-            return [], {}
-
-        instances = self.blueprint_discoverer.discover_instances(blueprints)
-        if not instances:
-            self.logger.info(
-                f"Found {len(blueprints)} blueprint(s) but no instance files; "
-                "blueprint expansion produces no flowgroups."
-            )
-            return [], {}
-
-        return self.blueprint_expander.expand(blueprints, instances)
-
-    def _build_monitoring(self, discovered_flowgroups: List[FlowGroup]):
-        """Build monitoring artifacts via the monitoring service.
-
-        Delegates to ``self.monitoring.build_flowgroup``; the service stashes
-        the full :class:`MonitoringBuildResult` on its own ``last_build_result``
-        property, which the orchestrator mirrors onto ``self._monitoring_result``
-        for callers that read it directly.
-        """
-        self.monitoring.build_flowgroup(discovered_flowgroups)
-        self._monitoring_result = self.monitoring.last_build_result  # type: ignore[attr-defined]
-        return self._monitoring_result
 
     def finalize_monitoring_artifacts(self, env: str, output_dir: Path) -> None:
         """Reconcile monitoring artifacts: clean stale, write current.
@@ -485,7 +443,7 @@ class ActionOrchestrator:
             include_tests=include_tests,
             worker_state=self._build_generate_worker_state(env, include_tests),
         )
-        return self._aggregate_generate_outcomes(
+        return aggregate_generate_outcomes(
             self.execution.run_generate(work_units)
         )
 
@@ -529,78 +487,13 @@ class ActionOrchestrator:
             warning_collector=warning_collector,
         )
 
-    def _aggregate_generate_outcomes(
-        self,
-        deltas: Sequence["PipelineDelta"],
-    ) -> Dict[str, tuple[str, ...]]:
-        """Bucket deltas; raise the appropriate aggregate error on any failure.
-
-        Single-failure: re-raise the live :class:`LHPError` from the worker
-        (preserves structured display) or rebuild one via
-        :func:`lhp_error_from_worker_failure` when the worker raised a
-        non-LHP exception. Multi-failure: synthesize :class:`LHPValidationError`
-        ``902`` listing each failing pipeline's error code/title.
-        """
-        successful = [d for d in deltas if d.success]
-        failed = [d for d in deltas if not d.success]
-
-        if failed:
-            if len(failed) == 1:
-                d = failed[0]
-                if d.lhp_error is not None:
-                    raise d.lhp_error
-                raise lhp_error_from_worker_failure(
-                    pipeline_name=d.pipeline_name,
-                    error_type=d.error_type or "UnknownError",
-                    error_message=d.error_message or "(no message)",
-                    error_traceback=d.error_traceback or "",
-                )
-            by_pipeline: Dict[str, str] = {}
-            for d in failed:
-                if d.lhp_error is not None:
-                    by_pipeline[d.pipeline_name] = (
-                        f"{d.lhp_error.code} ({d.lhp_error.title})"
-                    )
-                else:
-                    by_pipeline[d.pipeline_name] = (
-                        f"{d.error_type or 'UnknownError'} (non-LHP exception)"
-                    )
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="902",
-                title=f"{len(failed)} pipeline(s) failed",
-                details=(
-                    f"{len(failed)} of {len(failed) + len(successful)} pipelines "
-                    f"failed during generation. See per-pipeline rows in the "
-                    f"summary table for full diagnostics."
-                ),
-                context={"failure_count": len(failed), **by_pipeline},
-                suggestions=[
-                    "Inspect the summary table above for per-pipeline status",
-                    "Run 'lhp validate' for detailed per-flowgroup diagnostics",
-                ],
-            )
-
-        return {delta.pipeline_name: delta.generated_filenames for delta in successful}
-
     def _find_source_yaml_for_flowgroup(self, flowgroup: FlowGroup) -> Optional[Path]:
         """Find the source YAML for a flowgroup (multi-doc / array supported)."""
         return self.discovery.find_source_yaml_for_flowgroup(flowgroup)  # type: ignore[attr-defined]
 
     def _make_context(self, fg: FlowGroup) -> FlowGroupContext:
-        """Wrap a FlowGroup in its FlowGroupContext for the worker boundary.
-
-        Looks up synthetic provenance (synthetic flag, auxiliary_files) from
-        `self._synthetic_contexts`; disk-sourced flowgroups get default values.
-        Source YAML is resolved via the FlowgroupDiscoveryService (threading.Lock'd
-        index — must run on the main process before spawn).
-        """
-        source_yaml = self._find_source_yaml_for_flowgroup(fg)
-        if self._synthetic_contexts:
-            existing = self._synthetic_contexts.get((fg.pipeline, fg.flowgroup))
-            if existing is not None:
-                return replace(existing, flowgroup=fg, source_yaml=source_yaml)
-        return FlowGroupContext(flowgroup=fg, source_yaml=source_yaml)
+        """Delegates to :class:`FlowgroupBootstrapService`."""
+        return self.bootstrap.make_context(fg)
 
     def process_flowgroup(
         self,

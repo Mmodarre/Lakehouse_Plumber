@@ -18,6 +18,11 @@ from unittest.mock import Mock, patch
 import pytest
 
 from lhp.core.codegen.imports import ImportManager, extract_future_imports
+from lhp.core.codegen.imports.categorizer import (
+    categorize_import,
+    extract_module_name,
+    is_wildcard_import,
+)
 from lhp.core.registry import BaseActionGenerator
 from lhp.generators.load.custom_datasource import CustomDataSourceLoadGenerator
 from lhp.models.config import Action, ActionType
@@ -842,7 +847,7 @@ class TestUtilityMethods:
         self.manager = ImportManager()
 
     def test_extract_module_name(self):
-        """Test _extract_module_name helper method."""
+        """Test extract_module_name helper function."""
         test_cases = [
             ("import os", "os"),
             ("from pathlib import Path", "pathlib"),
@@ -852,11 +857,11 @@ class TestUtilityMethods:
         ]
 
         for import_stmt, expected in test_cases:
-            result = self.manager._extract_module_name(import_stmt)
+            result = extract_module_name(import_stmt)
             assert result == expected
 
     def test_is_wildcard_import(self):
-        """Test _is_wildcard_import helper method."""
+        """Test is_wildcard_import helper function."""
         wildcard_cases = [
             ("from pyspark.sql.functions import *", True),
             ("from os import *", True),
@@ -865,11 +870,11 @@ class TestUtilityMethods:
         ]
 
         for import_stmt, expected in wildcard_cases:
-            result = self.manager._is_wildcard_import(import_stmt)
+            result = is_wildcard_import(import_stmt)
             assert result == expected
 
     def test_categorize_import(self):
-        """Test _categorize_import helper method."""
+        """Test categorize_import helper function."""
         categorization_cases = [
             ("import os", "standard"),
             ("from pathlib import Path", "standard"),
@@ -881,7 +886,7 @@ class TestUtilityMethods:
         ]
 
         for import_stmt, expected in categorization_cases:
-            result = self.manager._categorize_import(import_stmt)
+            result = categorize_import(import_stmt)
             assert result == expected
 
     def test_stats_and_debug_info(self):

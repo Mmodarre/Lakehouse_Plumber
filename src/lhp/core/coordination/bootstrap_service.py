@@ -18,15 +18,15 @@ from ...utils.performance_timer import perf_timer
 from ..discovery.blueprint_discoverer import BlueprintDiscoverer
 from ..processing.blueprint_expander import BlueprintExpander, BlueprintProvenance
 from ._interfaces import (
-    BaseBootstrapService,
+    BaseFlowgroupBootstrapService,
     BaseFlowgroupDiscoveryService,
     BaseMonitoringFinalizerService,
 )
 from .monitoring_pipeline_builder import MonitoringBuildResult
 
 
-class BootstrapService(BaseBootstrapService):
-    """Concrete :class:`BaseBootstrapService`."""
+class FlowgroupBootstrapService(BaseFlowgroupBootstrapService):
+    """Concrete :class:`BaseFlowgroupBootstrapService`."""
 
     def __init__(
         self,
@@ -66,7 +66,7 @@ class BootstrapService(BaseBootstrapService):
             for ctx in blueprint_ctxs
         }
         if provenance:
-            self._discovery.register_synthetic_sources(  # type: ignore[attr-defined]
+            self._discovery.register_synthetic_sources(  # type: ignore[attr-defined]  # concrete-only method; ABC narrows surface to discover_flowgroups
                 {key: prov.blueprint_path for key, prov in provenance.items()}
             )
 
@@ -127,5 +127,5 @@ class BootstrapService(BaseBootstrapService):
         for callers that read it directly.
         """
         self._monitoring.build_flowgroup(discovered_flowgroups)
-        self._monitoring_result = self._monitoring.last_build_result  # type: ignore[attr-defined]
+        self._monitoring_result = self._monitoring.last_build_result  # type: ignore[attr-defined]  # concrete-only property; ABC narrows surface to build_flowgroup
         return self._monitoring_result

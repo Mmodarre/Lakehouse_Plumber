@@ -34,7 +34,7 @@ def test_no_blueprints_expand_returns_empty(tmp_path):
     must return ([], {}) without error."""
     _bootstrap_project(tmp_path)
     orch = build_facade_orchestrator(tmp_path, enforce_version=False)
-    contexts, provenance = orch._expand_blueprints()
+    contexts, provenance = orch.bootstrap._expand_blueprints()
     assert contexts == []
     assert provenance == {}
 
@@ -116,7 +116,7 @@ flowgroups:
         "blueprint: erp\nsite_name: apac_sg\n",
     )
     orch = build_facade_orchestrator(tmp_path, enforce_version=False)
-    contexts, provenance = orch._expand_blueprints()
+    contexts, provenance = orch.bootstrap._expand_blueprints()
     assert len(contexts) == 1
     assert contexts[0].synthetic is True
     assert ("apac_sg_raw", "apac_sg_orders") in provenance

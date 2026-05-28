@@ -44,6 +44,11 @@ from typing import (
     TypeAlias,
 )
 
+from ...errors import (
+    ErrorCategory,
+    LHPValidationError,
+    lhp_error_from_worker_failure,
+)
 from ...models.config import FlowGroupContext
 from ...models.processing import PipelineDelta, PipelineWorkUnit
 from ...utils.performance_timer import perf_timer
@@ -80,6 +85,7 @@ __all__ = [
     "PipelineExecutionService",
     "PipelineValidationOutcome",
     "ValidationAssembler",
+    "aggregate_generate_outcomes",
     "_GenerateWorkerState",
     "_ValidateWorkerState",
     "_dispatch_pipeline_for_generate",
@@ -429,3 +435,57 @@ class PipelineExecutionService(BasePipelineExecutionService):
                 self._validate_worker_state,
                 include_tests=include_tests,
             )
+
+
+def aggregate_generate_outcomes(
+    deltas: Sequence["PipelineDelta"],
+) -> Dict[str, tuple[str, ...]]:
+    """Bucket deltas; raise the appropriate aggregate error on any failure.
+
+    Single-failure: re-raise the live :class:`LHPError` from the worker
+    (preserves structured display) or rebuild one via
+    :func:`lhp_error_from_worker_failure` when the worker raised a
+    non-LHP exception. Multi-failure: synthesize :class:`LHPValidationError`
+    ``902`` listing each failing pipeline's error code/title.
+    """
+    successful = [d for d in deltas if d.success]
+    failed = [d for d in deltas if not d.success]
+
+    if failed:
+        if len(failed) == 1:
+            d = failed[0]
+            if d.lhp_error is not None:
+                raise d.lhp_error
+            raise lhp_error_from_worker_failure(
+                pipeline_name=d.pipeline_name,
+                error_type=d.error_type or "UnknownError",
+                error_message=d.error_message or "(no message)",
+                error_traceback=d.error_traceback or "",
+            )
+        by_pipeline: Dict[str, str] = {}
+        for d in failed:
+            if d.lhp_error is not None:
+                by_pipeline[d.pipeline_name] = (
+                    f"{d.lhp_error.code} ({d.lhp_error.title})"
+                )
+            else:
+                by_pipeline[d.pipeline_name] = (
+                    f"{d.error_type or 'UnknownError'} (non-LHP exception)"
+                )
+        raise LHPValidationError(
+            category=ErrorCategory.VALIDATION,
+            code_number="902",
+            title=f"{len(failed)} pipeline(s) failed",
+            details=(
+                f"{len(failed)} of {len(failed) + len(successful)} pipelines "
+                f"failed during generation. See per-pipeline rows in the "
+                f"summary table for full diagnostics."
+            ),
+            context={"failure_count": len(failed), **by_pipeline},
+            suggestions=[
+                "Inspect the summary table above for per-pipeline status",
+                "Run 'lhp validate' for detailed per-flowgroup diagnostics",
+            ],
+        )
+
+    return {delta.pipeline_name: delta.generated_filenames for delta in successful}
