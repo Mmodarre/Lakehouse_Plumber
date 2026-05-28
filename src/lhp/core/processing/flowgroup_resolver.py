@@ -122,16 +122,18 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
                     f"Template '{flowgroup.use_template}' expanded into {len(template_actions)} action(s)"
                 )
                 # Add template actions to existing actions
-                flowgroup.actions.extend(template_actions)
+                flowgroup = flowgroup.model_copy(update={
+                    "actions": [*flowgroup.actions, *template_actions]
+                })
 
         # Filter test actions when include_tests=False
         # Placed after template expansion so template-generated test actions are also caught
         tests_were_filtered = False
         if not include_tests:
             pre_filter_count = len(flowgroup.actions)
-            flowgroup.actions = [
-                a for a in flowgroup.actions if a.type != ActionType.TEST
-            ]
+            flowgroup = flowgroup.model_copy(update={
+                "actions": [a for a in flowgroup.actions if a.type != ActionType.TEST]
+            })
             filtered_count = pre_filter_count - len(flowgroup.actions)
             if filtered_count > 0:
                 tests_were_filtered = True

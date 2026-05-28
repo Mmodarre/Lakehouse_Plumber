@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase 9.6 — JOB-ORCHESTRATION-DEPENDS-ON fix
+
+**Root cause.** `FlowgroupResolutionService.process_flowgroup(...)` mutated the
+cached input `FlowGroup` via `flowgroup.actions.extend(template_actions)` and
+`flowgroup.actions = [...]`. The cache (`CachingYAMLParser._cache`) returns
+`FlowGroup` instances by reference; the second `get_flowgroups(...)` call
+during master-job assembly (`DependencyAnalysisService.analyze_multi_job_dependencies`
+→ `DependencyGraphBuilder.get_flowgroups`) saw bloated flowgroups, and the
+dependency analyzer dropped legitimate edges as apparent cycles. Generated
+`.job.yml` files for multi-job projects shipped with empty `depends_on:`
+arrays.
+
+**Fix.** Replaced both in-place mutations with shallow
+`flowgroup.model_copy(update={"actions": [...]})` rebinds in
+`src/lhp/core/processing/flowgroup_resolver.py`. Cache stays clean across
+calls. Constitution alignment: §3.5 (stateless where possible) and §4.4
+(mutable value objects discouraged in internal code) — the resolver now
+operates as a value-returning transform.
+
+**Closes.** `JOB-ORCHESTRATION-DEPENDS-ON-DEFER-WK6`. Lifts §12bis cluster
+`DESELECT_E2E_K` (4 e2e tests now pass without baseline edits). §12bis
+deadline list shrinks from 6 clusters to 5.
+
+**Architectural note.** The `_analyze_pipeline_dependencies(job_graphs)`
+re-analysis added in Week 6 (`src/lhp/core/dependencies/analyzer.py:166`)
+stays — it is semantically correct cleanup independent of the cache fix.
+The original Week 6 diagnosis (post-hoc per-job partitioning as the root
+cause) is preserved in the previous CHANGELOG entry as historical context.
+
+**Tests.** Added focused unit-level regression test at
+`tests/core/processing/test_flowgroup_resolver_cache_isolation.py` that
+asserts the input `FlowGroup` instance is byte-identical after
+`process_flowgroup(...)`. Verified to fail if either mutation site is
+reverted.
+
 ### Phase 9.5 — Loader / model decomposition + Phase-8 sub-package finalization
 
 Phase 9.5 closes the largest single remaining file-size debt and finalizes the

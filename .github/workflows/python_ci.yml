@@ -174,20 +174,6 @@ jobs:
           --deselect tests/test_dependency_output_manager.py \
           --deselect tests/test_python38_compatibility.py::TestPython38Compatibility::test_tuple_type_annotations_compatibility"
 
-        # ---- E2E GROUP — JOB-ORCHESTRATION-DEPENDS-ON-DEFER-WK6 ----
-        # 4 e2e tests where master-job depends_on renders incorrectly. Root
-        # cause: shared mutable state in CachingYAMLParser._cache; deferred
-        # alongside caching+resolution-service consolidation (Phase 7).
-        # OWNER: @mmodarre
-        # ISSUE: https://github.com/Mmodarre/Lakehouse_Plumber/issues/wk6-job-orchestration-depends-on
-        # EXPIRY: 2026-08-01
-        # REDUCED-GATE: pytest tests/e2e/ -k "test_multi_job_with_default_master or test_multi_job_with_custom_master_name or test_deps_bundle_without_job_config or test_deps_bundle_with_job_config" --collect-only
-        DESELECT_E2E_K=" \
-          and not test_multi_job_with_default_master \
-          and not test_multi_job_with_custom_master_name \
-          and not test_deps_bundle_without_job_config \
-          and not test_deps_bundle_with_job_config"
-
         if [ -d "tests" ]; then
           # Unit + integration suite
           pytest tests/ --ignore=tests/e2e \
@@ -196,7 +182,6 @@ jobs:
 
           # E2E suite
           pytest tests/e2e -n auto \
-            -k "True $DESELECT_E2E_K" \
             --cov --cov-append --cov-branch --cov-report=xml \
             --cov-fail-under=40 \
             --junitxml=junit-e2e.xml -o junit_family=legacy
