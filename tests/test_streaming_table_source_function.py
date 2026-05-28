@@ -2,7 +2,7 @@
 
 Two layers of protection are exercised here:
 
-1. ``StreamingTableWriteGenerator._extract_function_code`` strips
+1. ``source_function_loader._extract_function_code`` strips
    ``from __future__`` lines from the inlined block. Without this, a
    user's snapshot-source file's future import would land mid-body of the
    generated module — beneath ``from pyspark import pipelines as dp`` —
@@ -17,7 +17,7 @@ Two layers of protection are exercised here:
 import ast
 
 from lhp.core.codegen.coordinator import CodeGenerationService
-from lhp.generators.write.streaming_table import StreamingTableWriteGenerator
+from lhp.generators.write.source_function_loader import _extract_function_code
 from lhp.models.config import FlowGroup
 
 
@@ -34,9 +34,8 @@ class TestExtractFunctionCodeStripsFuture:
             "    return None\n"
         )
         tree = ast.parse(source)
-        gen = StreamingTableWriteGenerator()
 
-        extracted = gen._extract_function_code(source, tree, "my_snapshot")
+        extracted = _extract_function_code(source, tree, "my_snapshot")
 
         # __future__ removed; the body and surviving imports preserved.
         assert "from __future__" not in extracted

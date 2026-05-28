@@ -11,7 +11,8 @@ import tomllib
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .performance_timer import perf_timer
+from ...errors import ErrorCategory, LHPConfigError
+from ...utils.performance_timer import perf_timer
 
 
 def _read_black_config() -> Dict[str, Any]:
@@ -75,6 +76,7 @@ class CodeFormatter:
         try:
             # Try to use Black programmatically
             import black
+            from black.parsing import InvalidInput
 
             # Format with Black using project configuration
             mode = black.Mode(
@@ -94,16 +96,32 @@ class CodeFormatter:
         except ImportError:
             self.logger.warning("Black not available, trying command line")
             return self._format_with_black_cli(code, line_length)
-        except Exception as e:
-            import traceback
-
-            self.logger.exception(f"Black formatting failed: {e}")
-            self.logger.exception(f"Black error type: {type(e).__name__}")
-            self.logger.exception(f"Black traceback:\n{traceback.format_exc()}")
-            # Log first 500 chars of code that caused the failure
-            self.logger.exception(f"Code snippet (first 500 chars):\n{code[:500]}")
-            # Return organized code even if Black fails
-            return self.organize_imports(code)
+        except InvalidInput as e:
+            # Black IS installed; the source we generated is not valid
+            # Python. Surface that as an actionable LHP error rather than
+            # silently shipping unformatted code to disk — the prior
+            # behavior masked generator/template bugs.
+            raise LHPConfigError(
+                category=ErrorCategory.CONFIG,
+                code_number="031",
+                title="Generated source failed Black parsing",
+                details=(
+                    f"LHP produced Python source code that Black could not parse: {e}. "
+                    "This is almost certainly a bug in an LHP generator or template — "
+                    "the generator emitted syntactically invalid Python."
+                ),
+                suggestions=[
+                    "File a bug report against LHP with the failing flowgroup YAML",
+                    "Inspect the un-formatted generated code (turn on DEBUG logging) "
+                    "to see what Black was given",
+                    "If you're authoring a custom template or a snapshot-CDC source_function, "
+                    "verify the embedded Python parses with `python -m py_compile`",
+                ],
+                context={
+                    "Black error": str(e),
+                    "First 500 chars of generated code": code[:500],
+                },
+            ) from e
 
     def _format_with_black_cli(self, code: str, line_length: int) -> str:
         """Format code using Black CLI.

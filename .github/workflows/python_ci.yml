@@ -67,11 +67,12 @@ jobs:
         lint-imports
       shell: bash
 
-    - name: Run constitution gates (file-size, placement, stability-drift)
+    - name: Run constitution gates (file-size, placement, stability-drift, codegen-inline)
       run: |
         python scripts/check_file_sizes.py --all
         python scripts/check_stability_drift.py --all
         python scripts/check_placement.py --all
+        python scripts/check_codegen_inline.py --all
       shell: bash
 
     - name: Type-check public API surface (mypy --strict)

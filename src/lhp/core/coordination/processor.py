@@ -24,8 +24,8 @@ from .validation_service import ValidationService
 
 if TYPE_CHECKING:
     from ...models.config import FlowGroup, FlowGroupContext, ProjectConfig
-    from ...utils.formatter import CodeFormatter
     from ..codegen.coordinator import CodeGenerationService
+    from ..codegen.formatter import CodeFormatter
     from ..processing.flowgroup_resolver import FlowgroupResolutionService
     from ..processing.substitution import EnhancedSubstitutionManager
 

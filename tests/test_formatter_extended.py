@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 
-from lhp.utils.formatter import (
+from lhp.core.codegen.formatter import (
     CodeFormatter,
     _read_black_config,
     format_code,
@@ -24,7 +24,9 @@ class TestCodeFormatterFormatCode:
         formatter = CodeFormatter()
         code = "x = 1\n"
 
-        with patch.object(formatter, "_format_with_black_cli", return_value=code) as mock_cli:
+        with patch.object(
+            formatter, "_format_with_black_cli", return_value=code
+        ) as mock_cli:
             # Make the `import black` inside format_code raise ImportError.
             # The function does `import black` then `black.format_str(...)`.
             # Patching `black.format_str` to raise ImportError simulates the
@@ -36,32 +38,38 @@ class TestCodeFormatterFormatCode:
 
             mock_cli.assert_called_once_with(code, 88)
 
-    def test_black_runtime_exception_falls_back_to_organize_imports(self):
-        """When Black raises a runtime exception, format_code falls back to organize_imports."""
+    def test_black_invalid_input_raises_lhp_config_error(self):
+        """When Black raises InvalidInput, format_code raises LHPConfigError(031).
+
+        The previous behavior silently fell back to organize_imports, which
+        masked generator/template bugs that emit unparseable Python. The new
+        contract surfaces InvalidInput as an actionable LHP error.
+        """
+        from black.parsing import InvalidInput
+
+        from lhp.errors import LHPConfigError
+
         formatter = CodeFormatter()
         code = "import os\nimport sys\n\nx = 1\n"
 
-        with patch("black.format_str", side_effect=Exception("Black internal error")):
-            result = formatter.format_code(code)
+        with patch("black.format_str", side_effect=InvalidInput("parse error")):
+            with pytest.raises(LHPConfigError) as exc_info:
+                formatter.format_code(code)
 
-        # Should fall back to organize_imports, preserving imports and code
-        assert "import os" in result
-        assert "import sys" in result
-        assert "x = 1" in result
+        assert exc_info.value.code_number == "031"
 
-    def test_black_runtime_exception_with_custom_line_length(self):
-        """Fallback to organize_imports respects the fact that Black failed gracefully."""
+    def test_black_generic_runtime_exception_propagates(self):
+        """Generic exceptions from Black propagate; there is no catch-all fallback.
+
+        Only InvalidInput is converted to LHPConfigError. Any other Black
+        runtime exception is a bug we want to see, not silently mask.
+        """
         formatter = CodeFormatter()
         code = "import sys\nimport os\n\nprint('hello')\n"
 
         with patch("black.format_str", side_effect=ValueError("parse error")):
-            result = formatter.format_code(code, line_length=120)
-
-        # organize_imports sorts stdlib: os before sys
-        lines = result.strip().split("\n")
-        os_idx = next(i for i, l in enumerate(lines) if "import os" in l)
-        sys_idx = next(i for i, l in enumerate(lines) if "import sys" in l)
-        assert os_idx < sys_idx
+            with pytest.raises(ValueError, match="parse error"):
+                formatter.format_code(code, line_length=120)
 
 
 class TestFormatWithBlackCli:
@@ -96,7 +104,7 @@ class TestFormatWithBlackCli:
                 f.write(formatted_code)
             return mock_result
 
-        with patch("lhp.utils.formatter.subprocess.run", side_effect=fake_run):
+        with patch("lhp.core.codegen.formatter.subprocess.run", side_effect=fake_run):
             result = formatter._format_with_black_cli(code, 88)
 
         assert result == formatted_code
@@ -110,15 +118,19 @@ class TestFormatWithBlackCli:
         mock_result.returncode = 1
         mock_result.stderr = "error: cannot format"
 
-        with patch("lhp.utils.formatter.tempfile.NamedTemporaryFile") as mock_tmp:
+        with patch(
+            "lhp.core.codegen.formatter.tempfile.NamedTemporaryFile"
+        ) as mock_tmp:
             mock_file = MagicMock()
             mock_file.__enter__ = MagicMock(return_value=mock_file)
             mock_file.__exit__ = MagicMock(return_value=False)
             mock_file.name = "/tmp/fakefile.py"
             mock_tmp.return_value = mock_file
 
-            with patch("lhp.utils.formatter.subprocess.run", return_value=mock_result):
-                with patch("lhp.utils.formatter.Path.unlink"):
+            with patch(
+                "lhp.core.codegen.formatter.subprocess.run", return_value=mock_result
+            ):
+                with patch("lhp.core.codegen.formatter.Path.unlink"):
                     result = formatter._format_with_black_cli(code, 88)
 
         assert result == code
@@ -129,7 +141,10 @@ class TestFormatWithBlackCli:
         code = "y = 2\n"
 
         # Raise after the temp file is successfully created (so temp_file is assigned).
-        with patch("lhp.utils.formatter.subprocess.run", side_effect=RuntimeError("no black binary")):
+        with patch(
+            "lhp.core.codegen.formatter.subprocess.run",
+            side_effect=RuntimeError("no black binary"),
+        ):
             result = formatter._format_with_black_cli(code, 88)
 
         assert result == code
@@ -143,7 +158,10 @@ class TestFormatWithBlackCli:
         formatter = CodeFormatter()
         code = "y = 2\n"
 
-        with patch("lhp.utils.formatter.tempfile.NamedTemporaryFile", side_effect=OSError("disk full")):
+        with patch(
+            "lhp.core.codegen.formatter.tempfile.NamedTemporaryFile",
+            side_effect=OSError("disk full"),
+        ):
             with pytest.raises(UnboundLocalError):
                 formatter._format_with_black_cli(code, 88)
 

@@ -1,12 +1,7 @@
 """Test action generator for Lakehouse Plumber.
 
-# JUSTIFIED: test_generator.py is ~510 lines because one generator emits
-# the full row_count / uniqueness / referential_integrity / column_range /
-# all_lookups_found / completeness test families with their SQL templates
-# and Pydantic spec validation in one file.
-# Decomposition target: extract the per-test-type SQL templates into
-# ``generators/test/templates/`` and reduce this file to the dispatcher.
-# TODO(Phase 9.3): see LOCAL/REMAINING_WORK.md §0 — generator template extraction.
+Dispatcher — validates Action config, builds the per-test-type render
+context, delegates to a Jinja2 template under ``templates/test/``.
 """
 
 import logging
@@ -20,55 +15,9 @@ logger = logging.getLogger(__name__)
 
 
 class TestActionGenerator(BaseActionGenerator):
-    """Generator for test actions using existing transform infrastructure."""
+    """Generator for test actions — dispatches to per-test-type templates."""
 
     __test__ = False  # Tell pytest this is not a test class
-
-    # SQL templates for each test type
-    TEST_SQL_TEMPLATES = {
-        "row_count": """
-            SELECT * FROM
-              (SELECT COUNT(*) AS source_count FROM {source[0]}),
-              (SELECT COUNT(*) AS target_count FROM {source[1]})
-        """,
-        "uniqueness": """
-            SELECT {columns}, COUNT(*) as duplicate_count
-            FROM {source}
-            GROUP BY {columns}
-            HAVING COUNT(*) > 1
-        """,
-        "referential_integrity": """
-            SELECT
-              s.*,
-              r.{ref_col} as ref_{ref_col}
-            FROM {source} s
-            LEFT JOIN {reference} r ON {join_condition}
-        """,
-        "completeness": """
-            SELECT {columns}
-            FROM {source}
-        """,
-        "range": """
-            SELECT {column}
-            FROM {source}
-        """,
-        "all_lookups_found": """
-            SELECT
-              s.*,
-              l.{lookup_result} as lookup_{lookup_result}
-            FROM {source} s
-            LEFT JOIN {lookup_table} l ON {join_condition}
-        """,
-        # NOTE: ``schema_match`` is intentionally NOT a templated entry here —
-        # its SQL needs to inject a catalog into both the FROM clause and three
-        # WHERE-clause columns, per source/reference table, which a single
-        # ``str.format()`` cannot do without ambiguity. The SQL is built inline
-        # in ``_generate_test_sql`` from the parsed 3-part FQN.
-    }
-
-    # Test types that have associated SQL generation logic (templated or inline).
-    # Used by gates that decide whether to call ``_generate_test_sql``.
-    _SQL_TEST_TYPES = frozenset(TEST_SQL_TEMPLATES) | frozenset({"schema_match"})
 
     def __init__(
         self,
@@ -87,7 +36,7 @@ class TestActionGenerator(BaseActionGenerator):
     def generate(
         self, action: Action = None, context: Dict[str, Any] | None = None
     ) -> str:
-        """Generate test code directly without delegation."""
+        """Generate test code by dispatching to per-test-type Jinja2 template."""
         # Use instance config/context if not provided
         if action:
             # Convert Action to config dict
@@ -96,7 +45,6 @@ class TestActionGenerator(BaseActionGenerator):
         if context is None:
             context = self.context
 
-        # Get test type
         test_type = self.config.get("test_type", "row_count")
         target = self.config.get("target", f"tmp_test_{self.config.get('name')}")
         logger.debug(
@@ -107,159 +55,63 @@ class TestActionGenerator(BaseActionGenerator):
             f"Test '{self.config.get('name')}': on_violation='{on_violation}', source={self.config.get('source')}"
         )
 
-        # Build SQL if needed
-        sql = None
-        if test_type in self._SQL_TEST_TYPES:
-            sql = self._generate_test_sql(test_type)
-        elif test_type == "custom_sql":
-            sql = self.config.get("sql")
-        elif test_type == "custom_expectations":
-            # For custom expectations, just pass through the source
-            source = self.config.get("source")
-            if isinstance(source, list):
-                source = source[0] if source else "source_table"
-            sql = f"SELECT * FROM {source}"
+        render_context = self._build_render_context(test_type, context)
+        return self.render_template(f"test/{test_type}.py.j2", render_context)
 
-        # Build expectations
-        expectations = self._build_expectations(test_type)
+    def _build_render_context(
+        self, test_type: str, context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Build the template-render context dict for the given test type.
 
-        # Generate the complete code
-        code_parts = []
-
-        # Add imports only if not being used through orchestrator
-        # (orchestrator adds imports at file level)
-        if not context or "flowgroup" not in context:
-            # Standalone mode - add imports
-            code_parts.append("from pyspark import pipelines as dp")
-            code_parts.append("from pyspark.sql.functions import *")
-            code_parts.append("")
+        Produces all common keys (add_imports, target, description,
+        fail_expectations, drop_expectations, warn_expectations) plus the
+        per-test-type-specific fields each template expects.
+        """
+        target = self.config.get("target", f"tmp_test_{self.config.get('name')}")
+        description = self.config.get("description", f"Test: {test_type}")
+        # In standalone mode (no flowgroup), the template prepends imports.
+        # In orchestrator mode, imports are added at file-level so we skip them.
+        add_imports = not context or "flowgroup" not in context
 
         # Group expectations by violation action
-        fail_expectations = {}
-        warn_expectations = {}
-        drop_expectations = {}
-
+        expectations = self._build_expectations(test_type)
+        fail_expectations: Dict[str, str] = {}
+        drop_expectations: Dict[str, str] = {}
+        warn_expectations: Dict[str, str] = {}
         for exp in expectations:
             name = exp["name"]
             expression = exp["expression"]
             violation = exp.get("on_violation", "fail")
-
             if violation == "fail":
                 fail_expectations[name] = expression
-            elif violation == "warn":
-                warn_expectations[name] = expression
             elif violation == "drop":
                 drop_expectations[name] = expression
+            elif violation == "warn":
+                warn_expectations[name] = expression
 
-        # Add decorators
-        if fail_expectations:
-            exp_str = ", ".join([f'"{k}": "{v}"' for k, v in fail_expectations.items()])
-            code_parts.append(f"@dp.expect_all_or_fail({{{exp_str}}})")
-        if drop_expectations:
-            exp_str = ", ".join([f'"{k}": "{v}"' for k, v in drop_expectations.items()])
-            code_parts.append(f"@dp.expect_all_or_drop({{{exp_str}}})")
-        if warn_expectations:
-            exp_str = ", ".join([f'"{k}": "{v}"' for k, v in warn_expectations.items()])
-            code_parts.append(f"@dp.expect_all({{{exp_str}}})")
-
-        # Add temporary table decorator
-        description = self.config.get("description", f"Test: {test_type}")
-        code_parts.append(
-            f'@dp.table(name="{target}", comment="{description}", temporary=True)'
-        )
-
-        # Add function definition
-        code_parts.append(f"def {target}():")
-        code_parts.append(f'    """{description}"""')
-
-        # Add SQL execution if we have SQL
-        if sql:
-            # Clean up SQL formatting
-            sql_lines = sql.strip().split("\n")
-            sql_formatted = "\n".join(
-                [
-                    f"        {line}" if i > 0 else line.strip()
-                    for i, line in enumerate(sql_lines)
-                ]
-            )
-            code_parts.append(f'    return spark.sql("""')
-            code_parts.append(f"        {sql_formatted}")
-            code_parts.append(f'    """)')
-        else:
-            # For expectations-only tests, just return the source
-            source = self.config.get("source")
-            if isinstance(source, list):
-                source = source[0] if source else "source_table"
-            code_parts.append(f'    return spark.table("{source}")')
-
-        return "\n".join(code_parts)
-
-    def _build_transform_config(self, test_type: str) -> Dict[str, Any]:
-        """Convert test config to transform config."""
-        config = {
-            "name": self.config.get("name"),
-            "type": "transform",
-            "transform_type": (
-                "sql" if test_type != "custom_expectations" else "data_quality"
-            ),
-            "source": self.config.get("source"),
-            "target": self.config.get("target", f"tmp_test_{self.config.get('name')}"),
+        ctx: Dict[str, Any] = {
+            "add_imports": add_imports,
+            "target": target,
+            "description": description,
+            "fail_expectations": fail_expectations,
+            "drop_expectations": drop_expectations,
+            "warn_expectations": warn_expectations,
         }
 
-        # Add SQL based on test type
-        if test_type in self._SQL_TEST_TYPES:
-            config["sql"] = self._generate_test_sql(test_type)
-        elif test_type == "custom_sql":
-            config["sql"] = self.config.get("sql")
-
-        # Add expectations
-        expectations = self._build_expectations(test_type)
-        if expectations:
-            config["expectations"] = expectations
-
-        return config
-
-    def _generate_test_sql(self, test_type: str) -> str:
-        """Generate SQL for specific test type."""
-        # schema_match is built inline (not from TEST_SQL_TEMPLATES) — see note
-        # on the class-level template dict.
-        if test_type == "schema_match":
-            return self._build_schema_match_sql()
-
-        template = self.TEST_SQL_TEMPLATES.get(test_type)
-        if not template:
-            return ""
-
-        # Format the template based on test type
+        # Per-test-type-specific fields
         if test_type == "row_count":
             source = self.config.get("source", [])
-            if len(source) >= 2:
-                return template.format(source=source)
-
+            ctx["source_table_0"] = source[0] if len(source) >= 1 else ""
+            ctx["source_table_1"] = source[1] if len(source) >= 2 else ""
         elif test_type == "uniqueness":
-            columns = self.config.get("columns", [])
             source = self.config.get("source")
             if isinstance(source, list):
                 source = source[0] if source else "source_table"
-            columns_str = ", ".join(columns) if columns else "id"
-
-            # Handle optional filter for uniqueness tests (e.g., Type 2 dimensions)
-            filter_clause = self.config.get("filter", "") if self.config else ""
-            filter_clause = filter_clause.strip() if filter_clause else ""
-            if filter_clause:
-                # Create SQL with WHERE clause
-                sql = f"""
-            SELECT {columns_str}, COUNT(*) as duplicate_count
-            FROM {source}
-            WHERE {filter_clause}
-            GROUP BY {columns_str}
-            HAVING COUNT(*) > 1
-        """
-                return sql.strip()
-            else:
-                # No filter - use original template
-                return template.format(columns=columns_str, source=source)
-
+            columns = self.config.get("columns", [])
+            ctx["source"] = source
+            ctx["columns_str"] = ", ".join(columns) if columns else "id"
+            filter_clause = self.config.get("filter", "") or ""
+            ctx["filter_clause"] = filter_clause.strip()
         elif test_type == "referential_integrity":
             source = self.config.get("source")
             if isinstance(source, list):
@@ -267,58 +119,70 @@ class TestActionGenerator(BaseActionGenerator):
             reference = self.config.get("reference", "reference_table")
             source_cols = self.config.get("source_columns", ["id"])
             ref_cols = self.config.get("reference_columns", ["id"])
-
-            join_conditions = []
-            for s_col, r_col in zip(source_cols, ref_cols):
-                join_conditions.append(f"s.{s_col} = r.{r_col}")
-
-            return template.format(
-                source=source,
-                reference=reference,
-                ref_col=ref_cols[0] if ref_cols else "id",
-                join_condition=" AND ".join(join_conditions),
-            )
-
+            join_conditions = [
+                f"s.{s_col} = r.{r_col}" for s_col, r_col in zip(source_cols, ref_cols)
+            ]
+            ctx["source"] = source
+            ctx["reference"] = reference
+            ctx["ref_col"] = ref_cols[0] if ref_cols else "id"
+            ctx["join_condition"] = " AND ".join(join_conditions)
         elif test_type == "completeness":
             source = self.config.get("source")
             if isinstance(source, list):
                 source = source[0] if source else "source_table"
             required_columns = self.config.get("required_columns", [])
-            if required_columns:
-                columns = ", ".join(required_columns)
-            else:
-                columns = "*"  # Fallback to * if no columns specified
-            return template.format(source=source, columns=columns)
-
+            ctx["source"] = source
+            ctx["columns"] = ", ".join(required_columns) if required_columns else "*"
         elif test_type == "range":
             source = self.config.get("source")
             if isinstance(source, list):
                 source = source[0] if source else "source_table"
-            column = self.config.get(
-                "column", "*"
-            )  # Fallback to * if no column specified
-            return template.format(source=source, column=column)
-
+            ctx["source"] = source
+            ctx["column"] = self.config.get("column", "*")
         elif test_type == "all_lookups_found":
             source = self.config.get("source")
             if isinstance(source, list):
                 source = source[0] if source else "source_table"
-            lookup_table = self.config.get("lookup_table", "lookup_table")
             lookup_cols = self.config.get("lookup_columns", ["id"])
             result_cols = self.config.get("lookup_result_columns", ["result"])
-
-            join_conditions = []
-            for col in lookup_cols:
-                join_conditions.append(f"s.{col} = l.{col}")
-
-            return template.format(
-                source=source,
-                lookup_table=lookup_table,
-                lookup_result=result_cols[0] if result_cols else "result",
-                join_condition=" AND ".join(join_conditions),
+            join_conditions = [f"s.{col} = l.{col}" for col in lookup_cols]
+            ctx["source"] = source
+            ctx["lookup_table"] = self.config.get("lookup_table", "lookup_table")
+            ctx["lookup_result"] = result_cols[0] if result_cols else "result"
+            ctx["join_condition"] = " AND ".join(join_conditions)
+        elif test_type == "schema_match":
+            source = self.config.get("source")
+            if isinstance(source, list):
+                source = source[0] if source else ""
+            reference = self.config.get("reference")
+            src_catalog, src_schema, src_table = self._parse_three_part_fqn(
+                source, "source"
             )
+            ref_catalog, ref_schema, ref_table = self._parse_three_part_fqn(
+                reference, "reference"
+            )
+            ctx["src_catalog"] = src_catalog
+            ctx["src_schema"] = src_schema
+            ctx["src_table"] = src_table
+            ctx["ref_catalog"] = ref_catalog
+            ctx["ref_schema"] = ref_schema
+            ctx["ref_table"] = ref_table
+        elif test_type == "custom_sql":
+            ctx["sql"] = self.config.get("sql", "")
+            # ``source`` is the pre-refactor fallback target — when no ``sql``
+            # is supplied, the template emits ``return spark.table(<source>)``
+            # (byte-matching the pre-Phase-9.3 generator's behaviour).
+            source = self.config.get("source")
+            if isinstance(source, list):
+                source = source[0] if source else "source_table"
+            ctx["source"] = source
+        elif test_type == "custom_expectations":
+            source = self.config.get("source")
+            if isinstance(source, list):
+                source = source[0] if source else "source_table"
+            ctx["source"] = source
 
-        return template
+        return ctx
 
     def _parse_three_part_fqn(self, value: Any, field: str) -> tuple:
         """Parse and validate a 3-part Unity Catalog FQN.
@@ -372,59 +236,6 @@ class TestActionGenerator(BaseActionGenerator):
                 },
             )
         return parts[0], parts[1], parts[2]
-
-    def _build_schema_match_sql(self) -> str:
-        """Build the schema_match comparison SQL inline.
-
-        Each CTE queries its own catalog's ``information_schema.columns`` —
-        robust against source and reference living in different catalogs,
-        while remaining byte-identical to the baseline when they share one.
-
-        Indentation is tuned to the post-processing in ``generate``: line 0 is
-        stripped and prefixed with 8 spaces; subsequent lines keep their
-        original leading whitespace and also receive an 8-space prefix.
-        """
-        source = self.config.get("source")
-        if isinstance(source, list):
-            source = source[0] if source else ""
-        reference = self.config.get("reference")
-        src_catalog, src_schema, src_table = self._parse_three_part_fqn(
-            source, "source"
-        )
-        ref_catalog, ref_schema, ref_table = self._parse_three_part_fqn(
-            reference, "reference"
-        )
-        return f"""
-            WITH source_schema AS (
-              SELECT column_name, data_type, ordinal_position
-              FROM {src_catalog}.information_schema.columns
-              WHERE table_catalog = '{src_catalog}'
-                AND table_schema = '{src_schema}'
-                AND table_name = '{src_table}'
-            ),
-            reference_schema AS (
-              SELECT column_name, data_type, ordinal_position
-              FROM {ref_catalog}.information_schema.columns
-              WHERE table_catalog = '{ref_catalog}'
-                AND table_schema = '{ref_schema}'
-                AND table_name = '{ref_table}'
-            ),
-            schema_diff AS (
-              SELECT
-                COALESCE(s.column_name, r.column_name) as column_name,
-                s.data_type as source_type,
-                r.data_type as reference_type,
-                CASE
-                  WHEN s.column_name IS NULL THEN 'missing_in_source'
-                  WHEN r.column_name IS NULL THEN 'extra_in_source'
-                  WHEN s.data_type != r.data_type THEN 'type_mismatch'
-                  ELSE 'match'
-                END as status
-              FROM source_schema s
-              FULL OUTER JOIN reference_schema r ON s.column_name = r.column_name
-            )
-            SELECT * FROM schema_diff WHERE status != 'match'
-        """
 
     def _build_expectations(self, test_type: str) -> List[Dict[str, Any]]:
         """Build expectations based on test type."""

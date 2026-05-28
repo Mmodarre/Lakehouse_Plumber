@@ -14,8 +14,8 @@ from jinja2 import Environment
 from ...errors import ErrorCategory, LHPError
 from ...models.config import ActionType, FlowGroup, ProjectConfig
 from ...utils.file_header import build_lhp_source_header, write_normalized
-from ...utils.formatter import CodeFormatter
 from ..processing.substitution import EnhancedSubstitutionManager
+from .formatter import CodeFormatter
 from .template_renderer import get_lhp_template_loader
 
 logger = logging.getLogger(__name__)

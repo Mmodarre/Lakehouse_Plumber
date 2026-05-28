@@ -45,12 +45,12 @@ from ...models.processing import PipelineWorkUnit
 from ...parsers.blueprint_parser import BlueprintParser
 from ...parsers.yaml_parser import CachingYAMLParser, YAMLParser
 from ...presets.preset_manager import PresetManager
-from ...utils.formatter import CodeFormatter
 from ...utils.performance_timer import perf_timer
 from ...utils.version import (  # noqa: F401 — re-export for tests that monkeypatch `orchestrator.get_version`
     get_version,
 )
 from ..codegen.coordinator import CodeGenerationService
+from ..codegen.formatter import CodeFormatter
 from ..dependencies import DependencyAnalysisService, DependencyResolver
 from ..discovery.blueprint_discoverer import BlueprintDiscoverer
 from ..discovery.flowgroup_discoverer import FlowgroupDiscoveryService
@@ -63,9 +63,9 @@ from ..registry import ActionRegistry, OrchestrationDependencies
 from ..validators import ConfigValidator
 from ..validators.secret_validator import SecretValidator
 from ._interfaces import (
-    BaseFlowgroupBootstrapService,
     BaseCodeGenerationService,
     BaseDependencyAnalysisService,
+    BaseFlowgroupBootstrapService,
     BaseFlowgroupDiscoveryService,
     BaseFlowgroupResolutionService,
     BaseMonitoringFinalizerService,
@@ -77,9 +77,9 @@ from .executor import (  # noqa: F401 — kept for tests that monkeypatch the sy
     OnValidationComplete,
     PipelineExecutionService,
     PipelineValidationOutcome,
-    aggregate_generate_outcomes,
     _GenerateWorkerState,
     _ValidateWorkerState,
+    aggregate_generate_outcomes,
     run_generate_pool,
     run_validate_pool,
 )
@@ -245,12 +245,15 @@ class ActionOrchestrator:
         self.execution: BasePipelineExecutionService = PipelineExecutionService(
             max_workers=self.max_workers,
         )
-        self.bootstrap: BaseFlowgroupBootstrapService = bootstrap_service or FlowgroupBootstrapService(
-            discovery=self.discovery,
-            blueprint_discoverer=self.blueprint_discoverer,
-            blueprint_expander=self.blueprint_expander,
-            monitoring=self.monitoring,
-            logger=self.logger,
+        self.bootstrap: BaseFlowgroupBootstrapService = (
+            bootstrap_service
+            or FlowgroupBootstrapService(
+                discovery=self.discovery,
+                blueprint_discoverer=self.blueprint_discoverer,
+                blueprint_expander=self.blueprint_expander,
+                monitoring=self.monitoring,
+                logger=self.logger,
+            )
         )
 
         # Legacy aliases retained for test compatibility: orchestrator method
@@ -309,7 +312,6 @@ class ActionOrchestrator:
         surface for ``_inspection_facade.py`` reach-through compatibility.
         """
         return self.bootstrap.discover_all_flowgroups()
-
 
     def finalize_monitoring_artifacts(self, env: str, output_dir: Path) -> None:
         """Reconcile monitoring artifacts: clean stale, write current.
@@ -443,9 +445,7 @@ class ActionOrchestrator:
             include_tests=include_tests,
             worker_state=self._build_generate_worker_state(env, include_tests),
         )
-        return aggregate_generate_outcomes(
-            self.execution.run_generate(work_units)
-        )
+        return aggregate_generate_outcomes(self.execution.run_generate(work_units))
 
     def _build_generate_worker_state(
         self,

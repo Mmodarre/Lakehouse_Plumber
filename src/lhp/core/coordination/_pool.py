@@ -84,7 +84,7 @@ from ._interfaces import BaseCodeGenerationService, BaseFlowgroupResolutionServi
 if TYPE_CHECKING:
     from ...errors import LHPError
     from ...models.config import ProjectConfig
-    from ...utils.formatter import CodeFormatter
+    from ..codegen.formatter import CodeFormatter
     from ..processing.substitution import EnhancedSubstitutionManager
     from .processor import ProcessingContext
 

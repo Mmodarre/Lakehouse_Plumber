@@ -62,6 +62,12 @@ repos:
         files: \.py$
         exclude: ^(tests/e2e/fixtures/|src/lhp/resources/)
 
+      - id: check-codegen-inline
+        name: Constitution §9.14 — no inline f-string codegen >20 lines in generators/
+        entry: python scripts/check_codegen_inline.py
+        language: system
+        files: ^src/lhp/generators/.*\.py$
+
       - id: check-stability-drift
         name: "Constitution §1.13/§4.11 — stability annotations on lhp.api"
         entry: python scripts/check_stability_drift.py

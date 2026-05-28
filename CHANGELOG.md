@@ -7,6 +7,138 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase 9.1 — Orchestrator decomposition (8th typed service + free-function aggregator)
+
+Phase 9.1 extracts `FlowgroupBootstrapService` from `ActionOrchestrator` as the
+8th typed service (§4.10 / §4.12), moves `_aggregate_generate_outcomes` to
+`core/coordination/executor.py` as a module-level free function per §3.7,
+rewrites the orchestrator's `# JUSTIFIED:` block to reflect the new shape, and
+updates `TARGET_ARCHITECTURE.md` §4 + §9 to document the 8th typed service.
+`ActionOrchestrator` is down from 748L → 641L (−107L). All mechanical gates
+remain green; full non-e2e test suite delta is **+0 new failures** vs Week-8
+close (45 failed / 2984 passed, identical baseline; the 4 Week-8 mock-patch
+regressions are closed by T0).
+
+- **8th typed service.** New ABC `BaseFlowgroupBootstrapService` added to `core/coordination/_interfaces.py` with two abstract methods: `discover_all_flowgroups()` and `make_context(fg)`. Concrete `FlowgroupBootstrapService` lives in `core/coordination/bootstrap_service.py` (131L). Owns the discovery → blueprint expansion → monitoring chain, the synthetic-context provenance table, and the cached monitoring build result. Wired into `ActionOrchestrator.__init__` as `self.bootstrap: BaseFlowgroupBootstrapService = bootstrap_service or FlowgroupBootstrapService(...)` via the §9.24 injection pattern (keyword-only kwarg, default `None`, inline construction from existing collaborators when omitted).
+- **4 method bodies moved out of `ActionOrchestrator`.** `discover_all_flowgroups` (34L) and `_make_context` (15L) → service methods; orchestrator-side remains as 1-line delegators (preserved on the orchestrator surface bit-for-bit for the 16 pre-existing `_inspection_facade.py` reach-throughs — Phase 9.2 owns the redesign). `_expand_blueprints` (22L) and `_build_monitoring` (12L) → DELETED from orchestrator outright (no orphans, no delegators); `tests/test_blueprint_orchestrator.py` 2 call sites rewritten from `orch._expand_blueprints()` → `orch.bootstrap._expand_blueprints()`.
+- **`_synthetic_contexts` + `_monitoring_result` ownership.** Both state attributes migrated from orchestrator to `FlowgroupBootstrapService`. Grep confirms 0 references to either name in `orchestrator.py` after the move; consumers go through the typed service.
+- **`aggregate_generate_outcomes` free function (§3.7).** `_aggregate_generate_outcomes` (53L, verified `self`-free) moved from `ActionOrchestrator` to `core/coordination/executor.py` as a module-level free function. Renamed without leading underscore. Added to `executor.py` `__all__`. The orchestrator method DELETED entirely (no forwarder — verified 0 test references). Caller in `generate_pipelines` updated. Contingency `outcomes.py` extraction NOT triggered (`executor.py` lands at 491L, under the 500L threshold).
+- **Constructor builder extraction (T-D) skipped.** The plan's T-D (`_build_substitution_manager` + `_resolve_output_dir`) was not actionable: those constructions don't live in `ActionOrchestrator.__init__` (verified by grep — they're invoked per-action from `core/coordination/work_unit_builder.py`). Skipped per user direction (2026-05-28); constructor remains well-factored at ~150L with the 8 typed-service block as the irreducible residual cost.
+- **`# JUSTIFIED:` block rewritten.** Old block (15 lines, referencing the now-extracted aggregator + the now-relocated `_synthetic_contexts` state) replaced with a 5-line block citing typed-service wiring (§4.10/§4.12) as the residual cost and naming the back-compat construction at `tests/test_orchestrator.py:607` (still using `ActionOrchestrator(project_root, ...)` positional construction). Stale `TODO(Phase 9.1)` at line 19 DELETED.
+- **Module docstring extended (§3.2 method-count justification).** `ActionOrchestrator` has 10 public methods (10–15 range requiring module-docstring justification). New 23-line module docstring enumerates the 10 with one-line rationale each. The `# JUSTIFIED:` block at lines 25–29 is preserved within `check_file_sizes.py`'s 30-line detection window.
+- **`TARGET_ARCHITECTURE.md` updated.** §4 (line 116) extended with `bootstrap: FlowgroupBootstrapService` bullet in the typed-service list. §9 lists `core/coordination/bootstrap_service.py` as the 8th typed service held by the orchestrator. No new sub-package introduced.
+- **6 unit tests in `tests/core/coordination/test_bootstrap_service.py` (new file).** 3 cover ABC subclass + instantiation + `make_context` paths (synthetic lookup + fallback). 3 cover `discover_all_flowgroups` paths (empty disk + no blueprints, blueprint expansion populating `_synthetic_contexts` + `register_synthetic_sources` call, monitoring context appended). Tests use small `_FakeDiscovery(BaseFlowgroupDiscoveryService)` + `_FakeMonitoring(BaseMonitoringFinalizerService)` + plain `_FakeBlueprintDiscoverer` / `_FakeBlueprintExpander` classes (per §8.8 "no mocking what you own — use typed-interface fakes") instead of `MagicMock(spec=...)`.
+- **4 Week-8 mock-patch test regressions closed (T0).** Tests in `tests/test_import_manager.py::TestUtilityMethods` rewritten to call module-level `extract_module_name` / `is_wildcard_import` / `categorize_import` from `lhp.core.codegen.imports.categorizer` (these were methods on `ImportManager` before Week 8's holding-block decomposition). Test in `tests/test_load_operational_metadata.py::TestLoadOperationalMetadata::test_unknown_metadata_column_warning` rewritten to patch `_column_resolution.logger` directly — the Week-8 module-level `logger = logging.getLogger(__name__)` binding makes the original `logging.getLogger` factory patch ineffective (decision recorded per the "no silent test fixes" rule).
+- **5 stale imports cleaned (§6.1).** F401 violations introduced when extraction T-B/T-C moved method bodies — `replace`, `ErrorCategory`, `LHPValidationError`, `lhp_error_from_worker_failure`, `BlueprintProvenance` — removed from `orchestrator.py`. Also swept 2 pre-existing unused imports (`LHPError`, `write_normalized` from v0.0.9 refactor) as collateral cleanup.
+- **2 `# type: ignore[attr-defined]` rationales added (§6.7).** Both lines in `bootstrap_service.py` (calls to concrete-only `register_synthetic_sources` / `last_build_result` whose ABC narrows the surface) now carry same-line rationale comments.
+- **ABC + concrete renamed for §4.10 conformance.** `BaseBootstrapService` → `BaseFlowgroupBootstrapService` and `BootstrapService` → `FlowgroupBootstrapService` to fit the `Base<Subject><Verb>Service` pattern (Subject=Flowgroup, Verb=Bootstrap). Mirrors the precedent `BaseFlowgroupDiscoveryService` ↔ `FlowgroupDiscoveryService`. 5 files touched.
+
+#### Phase 9.1 — Mechanical-gate snapshot at end of Week 9
+
+| Gate | Pre-Phase-9.1 (end of Week 8) | End of Phase 9.1 |
+|---|---:|---:|
+| `wc -l src/lhp/core/coordination/orchestrator.py` | 748 | **641** (−107L; `# JUSTIFIED:` block trimmed to 5 lines) |
+| `wc -l src/lhp/core/coordination/executor.py` | 431 | **491** (+60L; aggregator absorbed; under 500L threshold) |
+| `wc -l src/lhp/core/coordination/bootstrap_service.py` | n/a | **131** (new file) |
+| `wc -l src/lhp/core/coordination/_interfaces.py` | 303 | **338** (+35L; 8th ABC added) |
+| `check_placement.py --all` | 0 | **0** |
+| `check_file_sizes.py --all` | 0 | **0** |
+| `check_stability_drift.py --all` | 0 | **0** |
+| `ruff check --select B904,TRY400,RUF013 src/ tests/` | 0 | **0** |
+| `mypy --strict src/lhp/api/` | clean (12 files) | clean (12 files) |
+| `lint-imports` | 5 kept, 0 broken | **5 kept, 0 broken** |
+| `vulture src/lhp/ vulture_whitelist.py --min-confidence 80` | 0 | **0** |
+| `pytest tests/api/` | 135/135 | **135/135** |
+| `pytest tests/core/coordination/` | n/a | **6/6** (3 ABC/instantiation + `make_context` paths + 3 `discover_all_flowgroups` paths) |
+| `pytest tests/ --ignore=tests/e2e` | 49 failed, 2977 passed | **45 failed, 2984 passed** (−4 failures via T0; +3 new tests pass) |
+| `pytest tests/e2e/ -n auto` | 139 passed, 4 deferred | (not re-run in Phase 9.1 work; expected unchanged) |
+
+#### Phase 9.1 — Constitution-reviewer (T-E5) findings — all resolved
+
+The T-E5 constitution-reviewer pass returned 2 BLOCKER, 4 SHOULD-FIX, 2 NIT. All resolved before close:
+
+- **B1 — §6.1** (5 stale imports left behind by extraction): fixed via `ruff check --select F401 --fix`; 5 imports removed plus 2 pre-existing unused (`LHPError`, `write_normalized`) swept as collateral.
+- **B2 — §6.7** (2 `# type: ignore[attr-defined]` without rationale): fixed; both lines in `bootstrap_service.py` carry same-line rationale describing why the ABC narrows the surface.
+- **S1 — §3.2** (method-count justification missing): fixed; orchestrator module docstring extended to enumerate the 10 public methods.
+- **S2 — §10** (`TARGET_ARCHITECTURE.md` not updated): fixed; §4 + §9 extended with the 8th typed service entry.
+- **S3 — §8.8** (test uses `MagicMock(spec=ABC)` for LHP-owned services): fixed; replaced with `_FakeDiscovery` / `_FakeMonitoring` / `_FakeBlueprintDiscoverer` / `_FakeBlueprintExpander` classes.
+- **S4 — §8.1** (`discover_all_flowgroups` no direct unit test): fixed; 3 new unit tests cover empty / blueprint-expansion / monitoring-attachment paths.
+- **N1 — §4.10** (`BaseBootstrapService` no verb segment): fixed; renamed to `BaseFlowgroupBootstrapService` + concrete to `FlowgroupBootstrapService`.
+- **N2** (orphan blank line at orchestrator.py:476): fixed; 3 blank lines (including trailing whitespace) collapsed to a single blank.
+
+Second reviewer pass skipped at user direction; mechanical gates re-verified all-green post-fix.
+
+#### Phase 9.1 — Deferred items
+
+- **T-D constructor builder extraction (skipped at 2026-05-28).** Plan estimated extracting `_build_substitution_manager` + `_resolve_output_dir` from `ActionOrchestrator.__init__`. Verification showed neither construction lives in `__init__` — both happen per-action from `work_unit_builder.py`. Skipped per user direction. Constructor lands at ~150L; the 8-typed-service wiring is documented in the rewritten `# JUSTIFIED:` block as the irreducible residual cost.
+- **Phase 9.2 inspection-facade redesign (target: Phase 9.2).** 16 pre-existing `_inspection_facade.py` reach-throughs (`discover_all_flowgroups`, `_find_source_yaml_for_flowgroup`, etc.) preserved bit-for-bit in Phase 9.1. Orchestrator-side delegators kept exactly to maintain this contract. Phase 9.2 owns the redesign.
+- **`test_discover_all_flowgroups_includes_blueprint_expansions` (pre-existing failure preserved).** Failing on the base commit (references `orch.discoverer` which doesn't exist on the v0.9.0 branch). Confirmed pre-existing via `git stash` + re-run against `c63b33a5`. Not blocking Phase 9.1; not introduced by Phase 9.1.
+
+### Phase 9.3 — generator template extraction & §9.14 mechanical gate
+
+Phase 9.3 brings the two largest generator files under the 500-line constitutional
+threshold via two orthogonal extractions, replaces a silent black-formatter
+fallback with a real `LHPConfigError`, and introduces a new §9.14 mechanical gate
+that bans long inline f-string code-emission blocks in `generators/`. All
+mechanical gates remain green; E2E baselines are byte-identical (139 passed, 4
+pre-existing `DESELECT_E2E_K` deferrals unchanged, expiry 2026-08-01).
+
+- **Refactor** (target architecture §"Summary" #10):
+  - `src/lhp/generators/write/streaming_table.py` reduced from 722 → 333 lines by
+    extracting the snapshot-CDC `source_function` loader into a sibling
+    `src/lhp/generators/write/source_function_loader.py` (345L). The duplicate
+    3-path candidate-file search was consolidated with the existing
+    `core/loaders/external_file_loader.py` utilities — no more reimplemented
+    file-loading logic (constitution §6.5).
+  - `src/lhp/generators/test/test_generator.py` reduced from 525 → 337 lines by
+    extracting nine per-test-type Jinja2 templates under
+    `src/lhp/templates/test/` (one `.py.j2` per test type). The generator now
+    validates Action config, builds a render context, and delegates to
+    `render_template(f"test/{test_type}.py.j2", context)`. The 30-line inline
+    `_build_schema_match_sql` f-string and the `TEST_SQL_TEMPLATES` class dict
+    are gone.
+- **Changed**:
+  - `CodeFormatter` (relocated to `src/lhp/core/codegen/formatter.py` from
+    `lhp/utils/formatter.py` — `utils/` no longer contains domain types per
+    constitution §2.2 / target architecture line 167) now raises
+    `LHPConfigError` (code `031`, category `CONFIG`) on
+    `black.parsing.InvalidInput`. Previously: silent fallback that returned
+    organize-imports-only output, masking generator bugs by shipping
+    syntactically-invalid Python to consumers' repos. **Behavior change** for
+    any consumer that relied on the silent fallback (none expected). All 6
+    importers updated to the new path.
+- **Added**:
+  - `scripts/check_codegen_inline.py` — mechanical gate for constitution §9.14
+    / target architecture §"Summary" #10. AST-walks every file under
+    `src/lhp/generators/` and flags any `ast.JoinedStr` whose
+    `end_lineno - lineno > 20`. Wired into `.pre-commit-config.yaml`,
+    `.github/workflows/python_ci.yml`, `.claude/settings.json` (PostToolUse +
+    Stop), and `scripts/check_baseline_gates.sh` (strict, zero baseline
+    tolerance).
+  - Nine new templates under `src/lhp/templates/test/`: `row_count.py.j2`,
+    `uniqueness.py.j2`, `referential_integrity.py.j2`, `completeness.py.j2`,
+    `range.py.j2`, `all_lookups_found.py.j2`, `schema_match.py.j2`,
+    `custom_sql.py.j2`, `custom_expectations.py.j2`.
+- **Removed**:
+  - `# JUSTIFIED:` blocks from `streaming_table.py` and `test_generator.py` —
+    both files now satisfy the ≤500-line threshold without justification, and
+    the underlying Phase-9.3 TODOs are done.
+  - Five tests referencing now-removed private symbols
+    (`_build_transform_config`, `_generate_test_sql`,
+    `_uniqueness_sql_generation_with_filter`,
+    `_uniqueness_sql_generation_without_filter`, `_filter_with_empty_string`).
+    All assertions were structural ("class has method named X" or "returns
+    expected raw SQL string") rather than behavioural; equivalent coverage is
+    provided by the byte-identical E2E baseline diff for `tests/e2e/fixtures/
+    testing_project/generated_baseline_with_tests/12_test_actions/*.py`.
+- **Deferred** (`DESELECT-E-DEFER-9.3`):
+  - The 3-test `DESELECT_E` cluster in `.github/workflows/python_ci.yml`
+    (lines 170-175) is NOT re-enabled in Phase 9.3. Investigation confirmed
+    those tests assert on mock call counts / import success / formatter
+    logic — unrelated to the generator-template output stability that this
+    chunk addressed. Re-enablement remains tracked under the existing
+    `OWNER/ISSUE/EXPIRY` cluster (expiry 2026-08-01).
+
 ### Phase 8 — `utils/` evacuation + decomp of two oversize files
 
 Phase 8 evacuates 14 domain-aware files out of `src/lhp/utils/` into their

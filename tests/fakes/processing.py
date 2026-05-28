@@ -133,7 +133,7 @@ class FakeCodeGenerator:
 
 
 class FakeCodeFormatter:
-    """Stand-in for :class:`lhp.utils.formatter.CodeFormatter`.
+    """Stand-in for :class:`lhp.core.codegen.formatter.CodeFormatter`.
 
     See :class:`FakeCodeGenerator` for the deliberate empty-surface rationale.
     """

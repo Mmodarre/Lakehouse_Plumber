@@ -42,6 +42,11 @@ fi
 
 python scripts/check_stability_drift.py --all || exit 2
 
+# §9.14 — no inline f-string codegen >20 lines in generators/. Strict
+# (no baseline tolerance) because this gate landed alongside Phase 9.3
+# which already eliminates every pre-existing violation.
+python scripts/check_codegen_inline.py --all || exit 2
+
 if command -v ruff >/dev/null 2>&1; then
   ruff check --select B904,TRY400,RUF013 src/ tests/ || exit 2
 fi
