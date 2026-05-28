@@ -4,7 +4,7 @@ import logging
 import re
 from typing import Dict, Any, List
 
-from ..errors import LHPError, ErrorCategory
+from ...errors import LHPError, ErrorCategory
 
 
 class LocalVariableResolver:

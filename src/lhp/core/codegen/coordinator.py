@@ -12,12 +12,12 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Tuple
 
+from ...errors import ErrorCategory, LHPError, LHPValidationError
 from ...generators.python_file_copier import CopiedModuleRecord
 from ...models.config import Action, ActionType, FlowGroup
-from ...errors import ErrorCategory, LHPError, LHPValidationError
 from ...utils.performance_timer import perf_timer
-from ...utils.substitution import EnhancedSubstitutionManager
 from ..coordination._interfaces import BaseCodeGenerationService
+from ..processing.substitution import EnhancedSubstitutionManager
 from .action_dispatch import ActionDispatcher
 from .assembler import CodeAssembler
 from .context import GenerationContextBuilder
@@ -101,7 +101,9 @@ class CodeGenerationService(BaseCodeGenerationService):
             source_yaml=source_yaml,
             env=env,
             include_tests=include_tests,
-            phase_a_records=list(phase_a_records) if phase_a_records is not None else None,
+            phase_a_records=(
+                list(phase_a_records) if phase_a_records is not None else None
+            ),
             auxiliary_files=auxiliary_files,
         )
 
@@ -191,9 +193,7 @@ class CodeGenerationService(BaseCodeGenerationService):
         # post-pass rewrites whole-string placeholders to bare
         # ``dbutils.secrets.get(...)`` calls and embedded ones to f-strings.
         with perf_timer(f"assemble_code [{fg}]"):
-            complete_code = self._secrets.apply(
-                generated_sections, substitution_mgr
-            )
+            complete_code = self._secrets.apply(generated_sections, substitution_mgr)
             return self._assembler.assemble(
                 flowgroup,
                 all_imports,

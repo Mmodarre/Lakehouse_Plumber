@@ -1,26 +1,21 @@
 """Main orchestration for LakehousePlumber pipeline generation."""
 
-# JUSTIFIED: Orchestrator post-Phase-D sits at ~770 lines because it carries
-# three irreducible responsibilities that resist further extraction in Week 3:
+# JUSTIFIED: Orchestrator sits at ~770 lines because it carries three
+# irreducible responsibilities that resist further extraction:
 # (1) constructor wiring of seven ABC-typed collaborator services (~170L,
-# including the D7 §9.24 injection branch + 30-line back-compat construction
+# including the §9.24 injection branch + 30-line back-compat construction
 # for direct `ActionOrchestrator(project_root)` test callers) — inlining is
 # intentional, the alternative is a separate `BootstrapService` that exists
 # only to call seven constructors;
 # (2) the work-unit builder helpers `_build_generate_work_units` and
 # `_build_validate_work_units` — now thin delegators (~40L combined) to
-# `coordination/work_unit_builder.py` (extracted in D8b), but the
-# orchestrator must still thread main-process-only `_synthetic_contexts`
-# state through `_make_context` calls into the spawn-boundary envelope;
+# `coordination/work_unit_builder.py`, but the orchestrator must still
+# thread main-process-only `_synthetic_contexts` state through
+# `_make_context` calls into the spawn-boundary envelope;
 # (3) `_aggregate_generate_outcomes` (~50L) — the failure-bucketing
 # single-failure/multi-failure/re-raise branches are load-bearing for the
 # CLI's structured-Panel display contract and don't isolate cleanly.
-# D8b extractions: `_enforce_version_requirements` → `utils/version_enforcement.py`
-# (~60L saved), `_build_*_work_units` bodies → `coordination/work_unit_builder.py`
-# (~130L saved). Net: 947L → 772L (under the §9.3 800-line hard cap).
-# Further reduction is tracked as Phase F work: move `discover_all_flowgroups`
-# + monitoring helpers to a `BootstrapService`, split `__init__` into
-# substitution-manager and output-dir sub-builders.
+# Under the §9.3 800-line hard cap.
 # TODO(Phase 9.1): extract BootstrapService (discovery + monitoring wiring), split __init__ into substitution-manager + output-dir sub-builders, fold _aggregate_generate_outcomes into executor — target ≤300L per LOCAL/REMAINING_WORK.md §9.1.
 
 import logging
@@ -28,15 +23,7 @@ import os
 from collections import defaultdict
 from dataclasses import replace
 from pathlib import Path
-from typing import (
-    TYPE_CHECKING,
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Sequence,
-    Tuple,
-)
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence, Tuple
 
 from ...models.config import FlowGroup, FlowGroupContext
 
@@ -45,23 +32,34 @@ if TYPE_CHECKING:
     from ...generators.python_file_copier import CopiedModuleRecord
     from ...models.processing import PipelineDelta
 
-from ...parsers.blueprint_parser import BlueprintParser
-from ...parsers.yaml_parser import CachingYAMLParser, YAMLParser
-from ...presets.preset_manager import PresetManager
 from ...errors import (
     ErrorCategory,
     LHPError,
     LHPValidationError,
     lhp_error_from_worker_failure,
 )
+from ...models.processing import PipelineWorkUnit
+from ...parsers.blueprint_parser import BlueprintParser
+from ...parsers.yaml_parser import CachingYAMLParser, YAMLParser
+from ...presets.preset_manager import PresetManager
 from ...utils.file_header import write_normalized
 from ...utils.formatter import CodeFormatter
 from ...utils.performance_timer import perf_timer
-from ...utils.substitution import EnhancedSubstitutionManager
-from ...utils.version import get_version  # noqa: F401 — re-export for tests that monkeypatch `orchestrator.get_version`
-from ...utils.version_enforcement import enforce_version_requirements
-from ..registry import ActionRegistry
+from ...utils.version import (  # noqa: F401 — re-export for tests that monkeypatch `orchestrator.get_version`
+    get_version,
+)
 from ..codegen.coordinator import CodeGenerationService
+from ..dependencies import DependencyAnalysisService, DependencyResolver
+from ..discovery.blueprint_discoverer import BlueprintDiscoverer
+from ..discovery.flowgroup_discoverer import FlowgroupDiscoveryService
+from ..loaders import ProjectConfigLoader
+from ..loaders.version_enforcement import enforce_version_requirements
+from ..processing import TemplateEngine
+from ..processing.blueprint_expander import BlueprintExpander, BlueprintProvenance
+from ..processing.substitution import EnhancedSubstitutionManager
+from ..registry import ActionRegistry, OrchestrationDependencies
+from ..validators import ConfigValidator
+from ..validators.secret_validator import SecretValidator
 from ._interfaces import (
     BaseCodeGenerationService,
     BaseDependencyAnalysisService,
@@ -71,30 +69,17 @@ from ._interfaces import (
     BasePipelineExecutionService,
     BaseValidationService,
 )
-from ...models.processing import PipelineWorkUnit
-from .executor import (
+from .executor import (  # noqa: F401 — kept for tests that monkeypatch the symbol
     OnValidationComplete,
     PipelineExecutionService,
     PipelineValidationOutcome,
     _GenerateWorkerState,
     _ValidateWorkerState,
-    run_generate_pool,  # noqa: F401 — kept for tests that monkeypatch the symbol
-    run_validate_pool,  # noqa: F401 — kept for tests that monkeypatch the symbol
+    run_generate_pool,
+    run_validate_pool,
 )
 from .monitoring_service import MonitoringFinalizerService
-from .work_unit_builder import (
-    build_generate_work_units,
-    build_validate_work_units,
-)
-from ..dependencies import DependencyAnalysisService, DependencyResolver
-from ..discovery.blueprint_discoverer import BlueprintDiscoverer
-from ..discovery.flowgroup_discoverer import FlowgroupDiscoveryService
-from ..registry import OrchestrationDependencies
-from ..processing.blueprint_expander import BlueprintExpander, BlueprintProvenance
-from ..loaders import ProjectConfigLoader
-from ..validators import ConfigValidator
-from ..validators.secret_validator import SecretValidator
-from ..processing import TemplateEngine
+from .work_unit_builder import build_generate_work_units, build_validate_work_units
 
 
 def _auto_max_workers() -> int:
@@ -277,7 +262,7 @@ class ActionOrchestrator:
             self.logger.info("No project configuration found, using defaults")
 
     def _enforce_version_requirements(self) -> None:
-        """Enforce ``required_lhp_version`` via :mod:`utils.version_enforcement`.
+        """Enforce ``required_lhp_version`` via :mod:`core.loaders.version_enforcement`.
 
         ``get_version()`` is looked up via this module's namespace so tests
         that ``patch('lhp.core.coordination.orchestrator.get_version', ...)`` still take
@@ -289,7 +274,6 @@ class ActionOrchestrator:
         )
 
     def get_include_patterns(self) -> List[str]:
-        """Get include patterns from project configuration."""
         return list(self.discovery.get_include_patterns())
 
     def discover_flowgroups(self, pipeline_dir: Path) -> List[FlowGroup]:
@@ -311,7 +295,9 @@ class ActionOrchestrator:
             flowgroups = list(self.discovery.discover_flowgroups(pipeline_filter=None))
 
         with perf_timer(
-            "Blueprint expansion", phase=True, parent_phase="Pipeline discovery",
+            "Blueprint expansion",
+            phase=True,
+            parent_phase="Pipeline discovery",
         ):
             blueprint_ctxs, provenance = self._expand_blueprints()
         flowgroups.extend(ctx.flowgroup for ctx in blueprint_ctxs)
@@ -378,7 +364,6 @@ class ActionOrchestrator:
         self.monitoring.finalize_artifacts(env, output_dir)
 
     def _cleanup_monitoring_artifacts(self, env: str, output_dir: Path) -> None:
-        """Delegate cleanup to the monitoring service."""
         self.monitoring.cleanup_artifacts(env, output_dir)
 
     def discover_flowgroups_by_pipeline_field(
@@ -394,7 +379,8 @@ class ActionOrchestrator:
         """
         if pre_discovered_all_flowgroups is not None:
             return [
-                fg for fg in pre_discovered_all_flowgroups
+                fg
+                for fg in pre_discovered_all_flowgroups
                 if fg.pipeline == pipeline_field
             ]
         with perf_timer(f"discover_by_pipeline_field [{pipeline_field}]"):
@@ -483,26 +469,31 @@ class ActionOrchestrator:
             f"Starting batch pipeline generation: {len(effective_fields)} pipeline(s) for env: {env}"
         )
         work_units = self._build_generate_work_units(
-            pipeline_fields=effective_fields, env=env, output_dir=output_dir,
-            specific_flowgroups=specific_flowgroups, include_tests=include_tests,
+            pipeline_fields=effective_fields,
+            env=env,
+            output_dir=output_dir,
+            specific_flowgroups=specific_flowgroups,
+            include_tests=include_tests,
             pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
             warning_collector=warning_collector,
         )
         self.execution.configure_generate(
             max_workers=max_workers if max_workers is not None else self.max_workers,
-            on_pipeline_start=on_pipeline_start, on_pipeline_complete=on_pipeline_complete,
-            environment=env, include_tests=include_tests,
+            on_pipeline_start=on_pipeline_start,
+            on_pipeline_complete=on_pipeline_complete,
+            environment=env,
+            include_tests=include_tests,
             worker_state=self._build_generate_worker_state(env, include_tests),
         )
-        return self._aggregate_generate_outcomes(self.execution.run_generate(work_units))
-
+        return self._aggregate_generate_outcomes(
+            self.execution.run_generate(work_units)
+        )
 
     def _build_generate_worker_state(
         self,
         env: str,
         include_tests: bool,
     ) -> _GenerateWorkerState:
-        """Construct the pool-constant collaborator capture for generate workers."""
         return _GenerateWorkerState(
             processor=self.processing,
             code_generator=self.codegen,
@@ -654,7 +645,9 @@ class ActionOrchestrator:
             source_yaml=source_yaml,
             env=env,
             include_tests=include_tests,
-            phase_a_records=tuple(phase_a_records) if phase_a_records is not None else None,
+            phase_a_records=(
+                tuple(phase_a_records) if phase_a_records is not None else None
+            ),
         )
 
     def _discover_and_filter_flowgroups(
@@ -716,21 +709,21 @@ class ActionOrchestrator:
 
         self._invalidate_pipeline_slice_cache()
         work_units = self._build_validate_work_units(
-            pipeline_fields=effective_fields, env=env,
+            pipeline_fields=effective_fields,
+            env=env,
             pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
             warning_collector=warning_collector,
         )
         self.execution.configure_validate(
             max_workers=max_workers if max_workers is not None else self.max_workers,
-            include_tests=include_tests, validation_service=self.validation,
+            include_tests=include_tests,
+            validation_service=self.validation,
             on_pipeline_complete=on_pipeline_complete,
             worker_state=self._build_validate_worker_state(include_tests),
         )
         return list(self.execution.run_validate(work_units))
 
-
     def _build_validate_worker_state(self, include_tests: bool) -> _ValidateWorkerState:
-        """Construct the pool-constant collaborator capture for validate workers."""
         return _ValidateWorkerState(
             processor=self.processing,
             substitution_managers={},

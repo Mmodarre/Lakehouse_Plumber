@@ -6,8 +6,8 @@ import pytest
 
 from lhp.bundle.exceptions import BundleResourceError, TemplateError
 from lhp.cli.error_boundary import cli_error_boundary
+from lhp.cli.exit_codes import ExitCode
 from lhp.errors import ErrorCategory, LHPError
-from lhp.utils.exit_codes import ExitCode
 
 
 class TestCliErrorBoundary:

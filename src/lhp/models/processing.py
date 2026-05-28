@@ -6,9 +6,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Mapping, Optional, Sequence, Tuple, Union
 
 if TYPE_CHECKING:
-    from lhp.models.config import FlowGroupContext
+    from lhp.core.processing.substitution import EnhancedSubstitutionManager
     from lhp.errors import LHPError
-    from lhp.utils.substitution import EnhancedSubstitutionManager
+    from lhp.models.config import FlowGroupContext
 
 
 # JSON-safe projection type for ``PipelineWorkUnit.to_dict`` and other telemetry

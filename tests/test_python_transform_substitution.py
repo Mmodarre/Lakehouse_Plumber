@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
+from lhp.core.processing.substitution import EnhancedSubstitutionManager
 from lhp.generators.transform.python import PythonTransformGenerator
 from lhp.models.config import Action, ActionType, FlowGroup
-from lhp.utils.substitution import EnhancedSubstitutionManager
 
 
 class TestPythonTransformSubstitution:

@@ -7,6 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase 8 — `utils/` evacuation + decomp of two oversize files
+
+Phase 8 evacuates 14 domain-aware files out of `src/lhp/utils/` into their
+proper homes (`parsers/`, `core/loaders/`, `core/processing/`,
+`core/codegen/`, `bundle/`, `cli/`) and decomposes the two pre-existing
+`§3.3`-violating files (`utils/import_manager.py` 541L and
+`utils/operational_metadata.py` 608L) into sub-packages — closing both size
+violations via real decomposition (Option A, zero new `# JUSTIFIED:` blocks
+on the decomposed files). After Phase 8 the placement gate is at **0**
+violations (was 15) and the file-size gate is at **0** (was 5 — Phase 8
+decomposed 2, and added `# JUSTIFIED:` + `TODO(Phase 9.X)` blocks on the
+remaining 3 Phase-9.2 / 9.3 deferral files per the existing Phase-6
+convention).
+
+- **`parsers/` (closes 3 `LHP-9.2`).** `utils/schema_parser.py`, `utils/schema_transform_parser.py`, `utils/yaml_loader.py` relocated to `src/lhp/parsers/`. 21 importers rewritten (16 src + 5 test). `parsers/__init__.py` populated with `SchemaParser`, `SchemaTransformParser`, `load_yaml_documents_all`, `load_yaml_file`, `safe_load_yaml_with_fallback`.
+- **`core/loaders/` (closes 2 `LHP-9.2`).** `utils/external_file_loader.py`, `utils/version_enforcement.py` relocated to `src/lhp/core/loaders/`. 15 importers rewritten. `core/loaders/__init__.py` extended with `is_file_path`, `load_external_file_text`, `resolve_external_file_path`, `enforce_version_requirements`.
+- **`core/processing/` (closes 3 `LHP-9.2`).** `utils/dqe.py`, `utils/local_variables.py`, `utils/substitution.py` relocated to `src/lhp/core/processing/`. 53 importers rewritten (22 src + 31 test, including 4 logger-name strings in `caplog.at_level(logger=...)`). `core/processing/__init__.py` extended with `DQEParser`, `EnhancedSubstitutionManager`, `LocalVariableResolver`, `SecretReference`. `FlowgroupResolutionService` moved to a PEP-562 `__getattr__` lazy entry to break a `processing → coordination._interfaces → coordination/__init__ → monitoring_service → registry` cycle that the move otherwise triggers through `registry.factories.EnhancedSubstitutionManager` import.
+- **`core/codegen/secret_code_generator.py` (closes 1 `LHP-9.2`).** `utils/secret_code_generator.py` relocated; its internal `from .substitution import SecretReference` rewired to `from ..processing.substitution import SecretReference`. `core/codegen/__init__.py` re-exports `SecretCodeGenerator`.
+- **`core/codegen/template_renderer.py` (closes 1 `LHP-9.2`).** `utils/template_renderer.py` relocated. 8 importers rewritten. `core/codegen/__init__.py` re-exports `TemplateRenderer`. Exposed a second cycle (`registry → base_generator → codegen/__init__ → coordinator → generators.load.cloudfiles → registry`) — closed by deferring `from ..codegen.template_renderer import get_lhp_template_loader` from `base_generator.py` module-top to `__init__`-local. `core/coordination/_interfaces.py` line 33 import path updated `...utils.substitution` → `..processing.substitution` (one-line, surgical — no structural edit).
+- **`core/codegen/imports/` sub-package (closes `import_manager.py` §3.3 + 1 `LHP-9.2`).** `utils/import_manager.py` (541L) decomposed into `manager.py` (256L, `ImportManager` facade), `resolver.py` (142L, pure functions `resolve_conflicts` / `detect_submodule_conflicts`), `categorizer.py` (176L, `extract_module_name` / `categorize_import` / `sort_imports` / `extract_future_imports` + `STANDARD_MODULES` constant), and `__init__.py` (6L re-exports). `ImportManager` methods call module-level helpers (not service classes) per §5.5. All 4 files ≤ 256L (target ≤ 300L, hard cap < 500L). 4 importers rewritten.
+- **`core/codegen/operational_metadata/` sub-package (closes `operational_metadata.py` §3.3 + 2 `LHP-9.2`).** `utils/operational_metadata.py` (608L) AND the existing `core/codegen/operational_metadata_service.py` (~100L) consolidated into one 6-file sub-package: `detector.py` (134L, `ImportDetector` + `FunctionCallVisitor`), `metadata.py` (204L, `OperationalMetadata` class shell + delegators), `_sql_adaptation.py` (147L, module-level wildcard adapters), `_column_resolution.py` (192L, module-level selectors), `service.py` (100L, `OperationalMetadataService` migrated verbatim), and `__init__.py` (7L). All 6 files ≤ 204L. 6 importers rewritten across `core/codegen/__init__.py`, `core/codegen/imports/manager.py`, `core/registry/base_generator.py`, `generators/transform/quarantine.py`, plus 2 tests.
+- **`bundle/detection.py` (closes 1 `LHP-9.2`).** `utils/bundle_detection.py` relocated to `src/lhp/bundle/detection.py`. 4 importers rewritten (1 src + 3 test, including a `@patch` decorator string). `bundle/__init__.py` re-exports `should_enable_bundle_support`, `is_databricks_yml_present`.
+- **`cli/exit_codes.py` (closes 2 `LHP-9.2`).** `utils/exit_codes.py` relocated to `src/lhp/cli/exit_codes.py`. 9 importers rewritten (2 src + 7 test). `cli/__init__.py` populated and re-exports `ExitCode`. Also fixed a late-surfacing leftover at `cli/error_boundary.py:9` (still pointing at `..utils.exit_codes`).
+- **`LHP-9.7` remediation via `lhp.api`.** Two LHP-9.7 violations surfaced when the substitution + bundle-detection moves shifted util-paths into domain-paths inside CLI commands: `generate_command.py:34` (now `from ...bundle.detection`) and `show_command.py:22` (now `from lhp.core.processing.substitution`). Closed by re-exporting `should_enable_bundle_support` and `EnhancedSubstitutionManager` through `lhp.api` (both at `:stability: provisional` — `EnhancedSubstitutionManager` is recorded as a transitional re-export pending a proper `InspectionFacade.build_substitution_view(env) -> SubstitutionView` DTO in Phase 9.2; see Deferred items). CLI imports now route through `lhp.api` per §5.3.
+- **`pyproject.toml` carve-outs.** Removed 2 dead `ignore_imports` entries from contract 5 (`utils.schema_parser → parsers.yaml_parser`, `utils.schema_transform_parser → parsers.yaml_parser`) and the 3 `filterwarnings` deprecation suppressions for `lhp.utils.operational_metadata`, `lhp.utils.schema_parser`, `lhp.utils.schema_transform_parser` — the named paths no longer exist on disk. Added 1 new `ignore_imports` entry to the "Models must not depend on higher layers" contract: `lhp.models.processing -> lhp.core.processing.substitution` (TYPE_CHECKING-only forward reference, no runtime coupling; Phase 10.2 will swap for a Protocol defined in `lhp.models`).
+- **Pre-existing oversize files annotated.** `cli/commands/show_command.py` (~714L), `generators/write/streaming_table.py` (711L), `generators/test/test_generator.py` (510L) received `# JUSTIFIED:` blocks with `# TODO(Phase 9.2 / 9.3):` pointers per the Phase-6 "TODO(Phase 9.X)" convention. File-size gate now reports **0** violations.
+- **Baseline + CI gate updates.** `scripts/check_baseline_gates.sh` renamed `WK6_FILE_SIZE_BASELINE=5` / `WK6_PLACEMENT_BASELINE=15` → `WK8_FILE_SIZE_BASELINE=0` / `WK8_PLACEMENT_BASELINE=0` (both at zero — gate behaves identically to the original strict configuration; the regression-only wrapper stays for future-proofing). `.github/workflows/python_ci.yml`: removed the obsolete `check_placement` §12bis warn-only cluster (placement is now 0; the step is enforced strictly).
+- **`tests/vulture_whitelist.py` (new).** 4 entries pinning false positives: `package` (signature param of importlib.metadata.version fallback stub), `ClassVar` (used in stringified forward annotation), `__context` (Pydantic `model_post_init` lifecycle hook param), `_InternalDepResult` (TYPE_CHECKING re-import referenced as stringified forward-ref). Old single-source root `vulture_whitelist.py` retained (it's the one wired into `[tool.vulture]`); the temporary `tests/` variant was removed before merge to avoid drift.
+- **Comment-slop cleanup (E3).** 29 files cleaned: stripped phase/wave/step labels (`# Phase D8`, `# Week 3`, `# per B4`, `# Step 1/2/3`), section dividers (`# === UTILITY METHODS ===`, `# --- helpers ---`), trivial docstrings (`"""Initialize the monitoring finalizer service."""`), and restatement comments. Load-bearing comments preserved: `# JUSTIFIED:` markers, cycle-fix rationales, `:stability:` annotations, bounded `TODO(Phase 9.X)` pointers, algorithm explanations.
+
+#### Phase 8 — Mechanical-gate snapshot at end of Week 8
+
+| Gate | Pre-Phase-8 | End of Phase 8 |
+|---|---:|---:|
+| `check_placement.py --all` | 15 (all `LHP-9.2` in `utils/`) | **0** |
+| `check_file_sizes.py --all` | 5 | **0** (2 decomposed; 3 carry `# JUSTIFIED:` + Phase-9.X pointers) |
+| `check_stability_drift.py --all` | 0 | **0** |
+| `ruff check --select B904,TRY400,RUF013` | 0 | **0** |
+| `mypy --strict src/lhp/api/` | clean (12 files) | clean (12 files) |
+| `lint-imports` | 5 kept, 0 broken | **5 kept, 0 broken** |
+| `vulture src/lhp/ vulture_whitelist.py --min-confidence 80` | 0 | **0** |
+| `pytest tests/api/` | 135/135 | **135/135** |
+| `pytest tests/e2e/ -n auto` | 139 passed, 4 failed (`JOB-ORCHESTRATION-DEPENDS-ON-DEFER-WK6`) | **139 passed, 4 failed** (same 4 deferrals) |
+| `find src/lhp/utils -maxdepth 1 -name "*.py" -not -name "__init__.py" \| wc -l` | 23 | **9** (genuinely-generic files only) |
+
+#### Phase 8 — Deferred items
+
+- **`OPMETA-SVC-VIEW-DEFER` (target: Phase 9.2).** `EnhancedSubstitutionManager` is re-exported from `lhp.api` as `:stability: provisional` so `show_command.py` can route its substitution-introspection panels through `lhp.api` per §5.3. The class is mutable and has methods without `:raises:` blocks (§4.7). Proper Phase-9.2 remediation: add a frozen `SubstitutionView` DTO + `InspectionFacade.build_substitution_view(project_root, env) -> SubstitutionView` method, rewire `show_command.py`'s `_load_substitution_manager` / `_display_secret_references` / `_display_substitution_summary` to consume the DTO, then remove `EnhancedSubstitutionManager` from `lhp.api.__all__`.
+- **`IMPORT-DETECTOR-PLACEMENT-DEFER` (target: Phase 9.X).** `ImportDetector` lives in `core/codegen/operational_metadata/detector.py` but is a generic PySpark AST-based import analyzer also consumed by `core/codegen/imports/manager.py:24`. Constitution-reviewer flagged that the placement leaks "operational_metadata is the home of generic import detection" into the package contract. Proper remediation: move to `core/codegen/imports/detector.py` so both `manager.py` and the `OperationalMetadata` class import from `imports/`. Out of Week-8 scope (would re-touch B2b's sub-package and C2b's consolidation in the same PR).
+- **`OPMETA-RENAME-DEFER` (target: Phase 9.X).** `OperationalMetadata` (the class — column-catalog holder + state container) breaks §4.10's naming-table conventions: no verb suffix, no `Service`, no `View`. Reads like "operational metadata" the noun, not a typed object. Proper remediation: rename to `OperationalMetadataCatalog` (or `OperationalMetadataState`) at the class definition site and propagate across all 6 importers in the sub-package. Out of Week-8 scope; tracked here for the Phase-9.X public-symbol audit.
+- **`OPMETA-§3.7-CONSOLIDATE-DEFER` (target: Phase 9.X).** `_sql_adaptation.py` and `_column_resolution.py` contain module-level helpers that take `OperationalMetadata` as a `meta` first parameter and mutate its state (`meta._adapted_project_columns = ...`, `meta.default_columns[k] = ...`). This is a borderline §3.7 smell — the decomposition was forced by §3.3's 300L target on the 466-line `OperationalMetadata` class. Acceptable as transitional scaffolding; the consolidation back into `OperationalMetadata` methods (which would land it at ~340L, still under §3.3) is queued when the class next needs editing.
+
+#### Phase 8 — Pre-existing oversize files (now annotated)
+
+- **`cli/commands/show_command.py` (~714L).** Now carries `# JUSTIFIED:` + `# TODO(Phase 9.2):` pointer. CLI presenter extraction will reduce to ≤100L per the target architecture.
+- **`generators/test/test_generator.py` (510L).** Now carries `# JUSTIFIED:` + `# TODO(Phase 9.3):` pointer. Per-test-type SQL templates will be extracted to `generators/test/templates/`.
+- **`generators/write/streaming_table.py` (711L).** Now carries `# JUSTIFIED:` + `# TODO(Phase 9.3):` pointer. Per-mode templates (DDL / append_flow / cdc / snapshot / sinks) will be extracted to `generators/write/streaming/`.
+
+All three are tracked in `LOCAL/REMAINING_WORK.md §0` largest-modules table; the file-size gate is strict-clean across the repo at 0 violations.
+
 ### Phase 7 — `lhp.api` cleanup, first stable wave, py.typed
 
 Phase 7 closes the three transitional shims Week 6 left intact, lands

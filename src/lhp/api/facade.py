@@ -7,6 +7,7 @@ root lives in :mod:`lhp.core.coordination.layers`.
 
 :stability: provisional
 """
+
 # JUSTIFIED: This module defines the public facade composition surface
 # as a single cohesive entry point. Two sub-facade classes
 # (Generation, Validation) plus the top-level
@@ -41,14 +42,6 @@ from typing import (
 )
 
 from lhp.api._bundle_facade import BundleFacade as BundleFacade  # re-export (§1.10)
-from lhp.api._inspection_facade import InspectionFacade as InspectionFacade  # re-export (§1.10)
-from lhp.api.events import (
-    ErrorEmitted,
-    GenerationCompleted,
-    LHPEvent,
-    OperationStarted,
-    ValidationCompleted,
-)
 from lhp.api._converters import (
     _build_generation_batch_failure,
     _build_generation_batch_success,
@@ -56,6 +49,16 @@ from lhp.api._converters import (
     _delta_to_generation_response,
     _finalize_monitoring_to_result,
     _outcome_to_validation_response,
+)
+from lhp.api._inspection_facade import (
+    InspectionFacade as InspectionFacade,  # re-export (§1.10)
+)
+from lhp.api.events import (
+    ErrorEmitted,
+    GenerationCompleted,
+    LHPEvent,
+    OperationStarted,
+    ValidationCompleted,
 )
 from lhp.api.responses import (
     BatchGenerationResponse,
@@ -68,8 +71,9 @@ from lhp.errors import LHPError
 from lhp.utils.performance_timer import perf_timer
 
 if TYPE_CHECKING:
-    from .callbacks import WarningCollector
     from lhp.models.config import FlowGroup
+
+    from .callbacks import WarningCollector
 
     # Internal orchestrator type, referenced only as a quoted annotation
     # below; never named directly in the public API surface (§1.10,
@@ -193,7 +197,9 @@ class GenerationFacade:
             with perf_timer(f"facade.generate_pipelines [{len(pipeline_fields)}]"):
                 self._orchestrator.generate_pipelines(
                     pipeline_filter=pipeline_filter,
-                    pipeline_fields=list(pipeline_fields) if pipeline_filter is None else None,
+                    pipeline_fields=(
+                        list(pipeline_fields) if pipeline_filter is None else None
+                    ),
                     env=env,
                     output_dir=output_dir,
                     specific_flowgroups=specific_flowgroups,
@@ -218,7 +224,6 @@ class GenerationFacade:
             else:
                 self._logger.exception("Batch pipeline generation failed")
             return _build_generation_batch_failure(pipeline_responses, exc)
-
 
     def finalize_monitoring_artifacts(
         self, env: str, output_dir: Path
@@ -246,9 +251,7 @@ class GenerationFacade:
                     monitoring_pipeline_path=None,
                     event_log_table_created=False,
                 )
-            monitoring_dir = (
-                self._orchestrator.project_root / "monitoring" / env
-            )
+            monitoring_dir = self._orchestrator.project_root / "monitoring" / env
             notebook_path: Optional[Path] = (
                 monitoring_dir / "union_event_logs.py"
                 if monitoring_dir.exists()
@@ -262,9 +265,7 @@ class GenerationFacade:
             from lhp.errors import LHPError
 
             if isinstance(exc, LHPError):
-                self._logger.debug(
-                    f"Monitoring finalization failed: {exc.code}"
-                )
+                self._logger.debug(f"Monitoring finalization failed: {exc.code}")
             else:
                 self._logger.exception("Monitoring finalization failed")
             return _finalize_monitoring_to_result(
@@ -381,7 +382,9 @@ class ValidationFacade:
             with perf_timer(f"facade.validate_pipelines [{len(pipeline_fields)}]"):
                 self._orchestrator.validate_pipelines(
                     pipeline_filter=pipeline_filter,
-                    pipeline_fields=list(pipeline_fields) if pipeline_filter is None else None,
+                    pipeline_fields=(
+                        list(pipeline_fields) if pipeline_filter is None else None
+                    ),
                     env=env,
                     include_tests=include_tests,
                     pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
@@ -389,9 +392,7 @@ class ValidationFacade:
                     on_pipeline_complete=_on_outcome,
                     warning_collector=warning_collector,
                 )
-            return _build_validation_batch(
-                pipeline_responses, tuple(pipeline_fields)
-            )
+            return _build_validation_batch(pipeline_responses, tuple(pipeline_fields))
         except Exception as exc:
             from lhp.errors import LHPError
 
@@ -405,14 +406,6 @@ class ValidationFacade:
             return _build_validation_batch(
                 pipeline_responses, tuple(pipeline_fields), exc=exc
             )
-
-
-# ``InspectionFacade`` is implemented in
-# :mod:`lhp.api._inspection_facade` and ``BundleFacade`` in
-# :mod:`lhp.api._bundle_facade` — both private modules — to keep this
-# composition module under the §3.3 size budget. The re-exports near
-# the top of this file preserve the single public import path
-# (``from lhp.api import InspectionFacade, BundleFacade``).
 
 
 class LakehousePlumberApplicationFacade:
@@ -480,7 +473,7 @@ class LakehousePlumberApplicationFacade:
         )
         return cls(orchestrator)
 
-    # ----- shortcut delegations (§1.11) -----
+    # Shortcut delegations — §1.11.
     def generate_pipelines(
         self,
         *,

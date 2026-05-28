@@ -2,7 +2,8 @@
 
 import logging
 from typing import List, Optional, Set
-from ...utils.substitution import SecretReference
+
+from ..processing.substitution import SecretReference
 
 
 class SecretValidator:

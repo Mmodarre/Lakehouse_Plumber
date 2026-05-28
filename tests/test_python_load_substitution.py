@@ -4,10 +4,10 @@ from pathlib import Path
 
 import pytest
 
+from lhp.core.processing.substitution import EnhancedSubstitutionManager
+from lhp.errors import LHPError
 from lhp.generators.load.python import PythonLoadGenerator
 from lhp.models.config import Action, ActionType
-from lhp.errors import LHPError
-from lhp.utils.substitution import EnhancedSubstitutionManager
 
 
 @pytest.fixture

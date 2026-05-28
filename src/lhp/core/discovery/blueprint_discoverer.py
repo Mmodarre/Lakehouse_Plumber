@@ -12,16 +12,12 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
+from ...errors import ErrorCategory, LHPError, LHPValidationError
 from ...models.config import Blueprint, BlueprintInstance, ProjectConfig
 from ...parsers.blueprint_parser import BlueprintParser
-from ...errors import (
-    ErrorCategory,
-    LHPError,
-    LHPValidationError,
-)
+from ...parsers.yaml_loader import load_yaml_documents_all
 from ...utils.file_pattern_matcher import discover_files_with_patterns
 from ...utils.performance_timer import perf_timer, record_count
-from ...utils.yaml_loader import load_yaml_documents_all
 
 if TYPE_CHECKING:
     from ...parsers.yaml_parser import CachingYAMLParser
@@ -53,9 +49,7 @@ class BlueprintDiscoverer:
         )
         self.logger = logging.getLogger(__name__)
 
-    def _load_documents(
-        self, path: Path, error_context: str
-    ) -> List[Dict[str, Any]]:
+    def _load_documents(self, path: Path, error_context: str) -> List[Dict[str, Any]]:
         """Load all YAML documents from ``path``, routing through the cache
         when one was wired at construction time.
         """
@@ -170,9 +164,7 @@ class BlueprintDiscoverer:
                         path, error_context=f"instance candidate {path}"
                     )
                 except LHPError as e:
-                    self.logger.debug(
-                        f"Could not load instance candidate {path}: {e}"
-                    )
+                    self.logger.debug(f"Could not load instance candidate {path}: {e}")
                     skipped_load_errors.append(path)
                     continue
 

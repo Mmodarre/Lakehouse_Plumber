@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from ...errors import ErrorCategory, LHPError
 from ...models.config import (
     Action,
     ActionType,
@@ -30,9 +31,8 @@ from ...models.config import (
     MonitoringConfig,
     ProjectConfig,
 )
-from ...errors import ErrorCategory, LHPError
-from ...utils.external_file_loader import load_external_file_text
-from ...utils.template_renderer import TemplateRenderer
+from ..codegen.template_renderer import TemplateRenderer
+from ..loaders.external_file_loader import load_external_file_text
 
 logger = logging.getLogger(__name__)
 

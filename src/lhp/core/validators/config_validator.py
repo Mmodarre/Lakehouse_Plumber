@@ -2,6 +2,14 @@
 
 from __future__ import annotations
 
+import logging
+from typing import TYPE_CHECKING, List
+
+from ...errors import LHPError
+from ...models.config import Action, ActionType, FlowGroup
+from ._base import ValidationError
+from .config_field_validator import ConfigFieldValidator
+
 # Distinct from the sibling :class:`.config_field_validator.ConfigFieldValidator`,
 # which performs strict per-field schema validation on individual
 # configuration objects. ``ConfigValidator`` is the higher-level aggregator
@@ -11,19 +19,12 @@ from __future__ import annotations
 # TableCreationValidator, etc.) to validate an entire project's flowgroup
 # graph end to end.
 
-import logging
-from typing import TYPE_CHECKING, List
-
-from ...models.config import Action, ActionType, FlowGroup
-from ...errors import LHPError
-from .config_field_validator import ConfigFieldValidator
-from ._base import ValidationError
 
 # NOTE: ``ActionRegistry`` and ``DependencyResolver`` are imported lazily
 # inside ``__init__`` (see below). The submodule path
-# ``lhp.core.dependencies.dependency_resolver`` is preserved per B4 (do not
-# collapse to the package-level ``..dependencies`` import). Module-level
-# imports here would close cycles via:
+# ``lhp.core.dependencies.dependency_resolver`` must NOT be collapsed to
+# the package-level ``..dependencies`` import. Module-level imports here
+# would close cycles via:
 #   - validators -> registry -> generators.load -> validators.kafka_validator
 #   - config_validator -> dependencies/__init__ -> dependencies.service ->
 #     coordination/__init__ -> coordination.validation_service ->
@@ -55,8 +56,8 @@ class ConfigValidator:
         # imports ``core.validators.kafka_validator`` -- a sibling in this
         # package. ``DependencyResolver`` lives in ``core.dependencies``
         # whose ``__init__`` pulls in the discovery / coordination chain.
-        from ..registry import ActionRegistry
         from ..dependencies.dependency_resolver import DependencyResolver
+        from ..registry import ActionRegistry
 
         self.logger = logging.getLogger(__name__)
         self.project_root = project_root

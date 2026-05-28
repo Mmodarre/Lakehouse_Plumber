@@ -381,9 +381,9 @@ class TestCLIInitBundleCommand:
 
             # LHP subdirectory should be empty initially
             lhp_contents = list(resources_lhp_dir.iterdir())
-            assert len(lhp_contents) == 0, (
-                f"LHP resources directory should be empty, found: {lhp_contents}"
-            )
+            assert (
+                len(lhp_contents) == 0
+            ), f"LHP resources directory should be empty, found: {lhp_contents}"
 
 
 class TestCLIGenerateBundleIntegration:
@@ -462,7 +462,7 @@ actions:
         )
 
     @patch("lhp.bundle.manager.BundleManager")
-    @patch("lhp.utils.bundle_detection.should_enable_bundle_support")
+    @patch("lhp.bundle.detection.should_enable_bundle_support")
     def test_generate_calls_bundle_sync_when_enabled(
         self, mock_bundle_detection, mock_bundle_manager_class
     ):

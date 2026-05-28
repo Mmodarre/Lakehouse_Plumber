@@ -5,17 +5,17 @@ External callers MUST NOT import from here.
 
 :stability: internal
 """
+
 # JUSTIFIED: This module is ~711 lines because it co-locates every
 # internal-type → public-DTO conversion for the inspection / generation
 # / validation API surface. There is one converter per public DTO
 # (FlowgroupView, ActionView, ProjectConfigView, BlueprintView,
 # PresetView, TemplateView, ProcessedFlowgroupView,
 # DependencyAnalysisResult, StatsResult, FinalizeMonitoringResult)
-# plus the response-aggregators from Phase B (generation / validation
-# deltas) plus inspection helpers (_locate_flowgroup_by_name,
-# _build_substitution_manager_for_env, _flowgroup_file_paths,
-# _duplicates_to_validation_response) plus the C4 monitoring result
-# builder. Bundle-specific converters (C5) live in
+# plus the generation/validation response-aggregators plus inspection
+# helpers (_locate_flowgroup_by_name, _build_substitution_manager_for_env,
+# _flowgroup_file_paths, _duplicates_to_validation_response) plus the
+# monitoring result builder. Bundle-specific converters live in
 # :mod:`lhp.api._bundle_facade`. Splitting further would scatter the
 # public-API conversion rules across multiple files, breaking the
 # §1.10 single-import-surface invariant and forcing facade.py to
@@ -51,6 +51,7 @@ from lhp.api.views import (
 
 if TYPE_CHECKING:
     from lhp.core.coordination.executor import PipelineValidationOutcome
+    from lhp.core.processing.substitution import EnhancedSubstitutionManager
     from lhp.errors import LHPError
     from lhp.models.config import (
         Action,
@@ -60,11 +61,8 @@ if TYPE_CHECKING:
         ProjectConfig,
         Template,
     )
-    from lhp.models.dependencies import (
-        DependencyAnalysisResult as _InternalDepResult,
-    )
+    from lhp.models.dependencies import DependencyAnalysisResult as _InternalDepResult
     from lhp.models.processing import PipelineDelta
-    from lhp.utils.substitution import EnhancedSubstitutionManager
 
 
 def _lhp_error_to_issue_view(
@@ -152,9 +150,7 @@ def _outcome_to_validation_response(
     """
     issues: List[ValidationIssueView] = []
     for lhp_err in outcome.lhp_errors:
-        issues.append(
-            _lhp_error_to_issue_view(lhp_err, pipeline_name=outcome.pipeline)
-        )
+        issues.append(_lhp_error_to_issue_view(lhp_err, pipeline_name=outcome.pipeline))
     for err in outcome.errors:
         issues.append(
             ValidationIssueView(
@@ -493,9 +489,7 @@ def _dependency_result_to_view(
         name: tuple(dep.depends_on)
         for name, dep in internal.pipeline_dependencies.items()
     }
-    execution_stages = tuple(
-        tuple(stage) for stage in internal.execution_stages
-    )
+    execution_stages = tuple(tuple(stage) for stage in internal.execution_stages)
     circular = tuple(tuple(cycle) for cycle in internal.circular_dependencies)
     return DependencyAnalysisResult(
         pipeline_dependencies=pipeline_deps,
@@ -591,7 +585,7 @@ def _build_substitution_manager_for_env(
     manager is returned so callers can still process flowgroups that
     do not reference env tokens.
     """
-    from lhp.utils.substitution import EnhancedSubstitutionManager
+    from lhp.core.processing.substitution import EnhancedSubstitutionManager
 
     substitution_file = project_root / "substitutions" / f"{env}.yaml"
     if not substitution_file.exists():
@@ -599,9 +593,7 @@ def _build_substitution_manager_for_env(
     return EnhancedSubstitutionManager(substitution_file, env)
 
 
-def _locate_flowgroup_by_name(
-    orchestrator: object, flowgroup_name: str
-) -> "FlowGroup":
+def _locate_flowgroup_by_name(orchestrator: object, flowgroup_name: str) -> "FlowGroup":
     """Locate the first flowgroup by name across the project, or raise.
 
     Discovery is unfiltered (walks every pipeline directory). Raises
@@ -613,9 +605,7 @@ def _locate_flowgroup_by_name(
     for fg in flowgroups:
         if fg.flowgroup == flowgroup_name:
             return fg
-    raise LookupError(
-        f"Flowgroup '{flowgroup_name}' not found in project."
-    )
+    raise LookupError(f"Flowgroup '{flowgroup_name}' not found in project.")
 
 
 def _flowgroup_file_paths(
@@ -637,7 +627,6 @@ def _flowgroup_file_paths(
         if path is not None:
             paths[(fg.pipeline, fg.flowgroup)] = path
     return paths
-
 
 
 def _lhp_error_code_and_message(exc: BaseException) -> tuple[Optional[str], str]:
@@ -683,28 +672,3 @@ def _finalize_monitoring_to_result(
         error_message=message,
         error_code=code,
     )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -1,9 +1,9 @@
 """Project ``required_lhp_version`` enforcement.
 
-Extracted from :class:`ActionOrchestrator` in Phase D8b so the
-orchestrator stays under the §9.3 800-line hard cap. The check is
-pure-function over the loaded :class:`ProjectConfig` and the current
-installed version; no orchestrator state is touched.
+Extracted from :class:`ActionOrchestrator` so the orchestrator stays
+under the §9.3 800-line hard cap. The check is pure-function over the
+loaded :class:`ProjectConfig` and the current installed version; no
+orchestrator state is touched.
 
 :stability: internal
 """
@@ -14,8 +14,8 @@ import logging
 import os
 from typing import Any, Optional
 
-from ..errors import ErrorCategory, LHPError
-from .version import get_version
+from ...errors import ErrorCategory, LHPError
+from ...utils.version import get_version
 
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ def enforce_version_requirements(
     module namespace so the existing tests that
     ``patch('lhp.core.coordination.orchestrator.get_version', ...)`` still take effect.
     When ``None`` (the default — internal callers that need no test seam),
-    we look up the version via :func:`utils.version.get_version`.
+    we look up the version via :func:`lhp.utils.version.get_version`.
     """
     if not project_config or not project_config.required_lhp_version:
         return

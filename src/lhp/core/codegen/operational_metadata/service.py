@@ -3,12 +3,12 @@
 import logging
 from typing import TYPE_CHECKING, Any, Dict
 
-from ...utils.operational_metadata import OperationalMetadata
+from .metadata import OperationalMetadata
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from ...models.config import Action
+    from ....models.config import Action
 
 
 class OperationalMetadataService:

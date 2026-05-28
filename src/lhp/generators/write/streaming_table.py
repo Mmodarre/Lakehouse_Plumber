@@ -1,20 +1,29 @@
-"""Streaming table write generator"""
+"""Streaming table write generator.
+
+# JUSTIFIED: streaming_table.py is ~711 lines because one generator covers
+# both the streaming-table DDL emission AND the append-flow / CDC / snapshot
+# / sink-binding template orchestration with their parameter validation.
+# Decomposition target: extract the per-mode templates and parameter
+# validators into siblings under ``generators/write/streaming/`` (DDL,
+# append_flow, cdc, snapshot, sinks) and reduce this file to the dispatcher.
+# TODO(Phase 9.3): see LOCAL/REMAINING_WORK.md §0 — generator template extraction.
+"""
 
 import ast
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, NamedTuple, Optional
 
-from ...core.registry import BaseActionGenerator
-from ...models.config import Action
-from ...utils.dqe import DQEParser
-from ...errors import ErrorCategory, ErrorFormatter, LHPError
-from ...utils.external_file_loader import (
+from ...core.loaders.external_file_loader import (
     is_file_path,
     load_external_file_text,
     resolve_external_file_path,
 )
-from ...utils.schema_parser import SchemaParser
+from ...core.processing.dqe import DQEParser
+from ...core.registry import BaseActionGenerator
+from ...errors import ErrorCategory, ErrorFormatter, LHPError
+from ...models.config import Action
+from ...parsers.schema_parser import SchemaParser
 
 logger = logging.getLogger(__name__)
 
@@ -166,8 +175,8 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
                 dqe_parser.parse_expectations(expectations)
             )
 
-        # NOTE: Operational metadata support removed from write actions
-        # Metadata should be added at load level and flow through naturally
+        # Metadata is added at load level and flows through naturally — write
+        # actions intentionally have no operational-metadata columns of their own.
         metadata_columns = {}
         flowgroup = context.get("flowgroup")
 
@@ -353,7 +362,9 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         return None
 
     def _process_source_function(
-        self, source_function_config: Dict[str, Any], context: Dict[str, Any] | None = None
+        self,
+        source_function_config: Dict[str, Any],
+        context: Dict[str, Any] | None = None,
     ) -> SourceFunctionResult:
         """Process source_function configuration and return function code, name, and parameters.
 
@@ -441,7 +452,7 @@ snapshot_cdc_config:
 2. Add your function:
    from typing import Optional, Tuple
    from pyspark.sql import DataFrame
-   
+
    def your_function_name(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, int]]:
        # Your snapshot logic here
        if latest_version is None:

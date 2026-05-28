@@ -7,11 +7,9 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
 import yaml
 from jinja2 import Environment
 
-from ...utils.template_renderer import get_lhp_template_loader
-
 if TYPE_CHECKING:
     from ...models.config import Action
-    from ...utils.import_manager import ImportManager
+    from ..codegen.imports.manager import ImportManager
 
 
 class BaseActionGenerator(ABC):
@@ -26,7 +24,7 @@ class BaseActionGenerator(ABC):
         self._import_manager: Optional["ImportManager"] = None
 
         if self._use_import_manager:
-            from ...utils.import_manager import ImportManager
+            from ..codegen.imports.manager import ImportManager
 
             self._import_manager = ImportManager()
 
@@ -36,8 +34,9 @@ class BaseActionGenerator(ABC):
         # ``register_pickle_by_value`` for custom data sources/sinks.
         self._pre_pipeline_statements: List[str] = []
 
-        # Template setup: PackageLoader works for editable installs, wheels,
-        # and zipapps; no dependence on filesystem-path math from __file__.
+        # Deferred to avoid registry → codegen → generators → registry cycle.
+        from ..codegen.template_renderer import get_lhp_template_loader
+
         self.env = Environment(  # nosec B701 — generates Python, not HTML
             loader=get_lhp_template_loader(),
             trim_blocks=True,
@@ -133,9 +132,7 @@ class BaseActionGenerator(ABC):
         Returns:
             Tuple of (add_metadata: bool, metadata_columns: dict)
         """
-        from ..codegen.operational_metadata_service import (
-            OperationalMetadataService,
-        )
+        from ..codegen.operational_metadata import OperationalMetadataService
 
         flowgroup = context.get("flowgroup")
         preset_config = context.get("preset_config", {})

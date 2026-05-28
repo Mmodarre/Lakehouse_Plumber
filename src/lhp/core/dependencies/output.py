@@ -37,8 +37,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from ...models.dependencies import DependencyAnalysisResult, DependencyGraphs
 from ...errors import ErrorCategory, LHPConfigError
+from ...models.dependencies import DependencyAnalysisResult, DependencyGraphs
 from ..jobs.job_generator import JobGenerator
 
 if TYPE_CHECKING:
@@ -181,9 +181,7 @@ def _generate_text_representation(result: DependencyAnalysisResult) -> str:
         lines.append(f"  Stage: {dep.stage if dep.stage is not None else 'N/A'}")
         lines.append(f"  Can run parallel: {dep.can_run_parallel}")
         if dep.external_sources:
-            lines.append(
-                f"  External sources: {', '.join(dep.external_sources[:5])}"
-            )
+            lines.append(f"  External sources: {', '.join(dep.external_sources[:5])}")
             if len(dep.external_sources) > 5:
                 lines.append(f"    ... and {len(dep.external_sources) - 5} more")
         lines.append("")
@@ -226,9 +224,7 @@ def _generate_dependency_tree_text(
 
     # Find root pipelines (no dependencies)
     root_pipelines = [
-        name
-        for name, dep in result.pipeline_dependencies.items()
-        if not dep.depends_on
+        name for name, dep in result.pipeline_dependencies.items() if not dep.depends_on
     ]
 
     if not root_pipelines:
@@ -502,7 +498,10 @@ class DependencyOutputManager:
             raise IOError(f"Cannot create output directory {directory}: {e}") from e
 
     def _save_dot_format(
-        self, analyzer: "DependencyAnalysisService", graphs: DependencyGraphs, target_dir: Path
+        self,
+        analyzer: "DependencyAnalysisService",
+        graphs: DependencyGraphs,
+        target_dir: Path,
     ) -> Path:
         """Save DOT format files for both pipeline and flowgroup levels."""
         # Save pipeline-level dependencies
@@ -657,12 +656,9 @@ class DependencyOutputManager:
                 self.logger.exception(f"Failed to write job file {job_file}: {e}")
                 raise
 
-        # Generate master orchestration job (if enabled)
         if job_generator.should_generate_master_job():
-            # Get master job name (custom or auto-generated)
             master_job_name = job_generator.get_master_job_name(project_name)
 
-            # Generate with global result
             master_yaml = job_generator.generate_master_job(
                 job_results, master_job_name, project_name, global_result=global_result
             )
@@ -674,7 +670,9 @@ class DependencyOutputManager:
                 generated_files["_master"] = master_file
                 self.logger.info(f"Generated master job file: {master_file}")
             except IOError as e:
-                self.logger.exception(f"Failed to write master job file {master_file}: {e}")
+                self.logger.exception(
+                    f"Failed to write master job file {master_file}: {e}"
+                )
                 raise
         else:
             self.logger.info(

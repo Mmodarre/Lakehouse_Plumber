@@ -4,9 +4,9 @@ import logging
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from ...models.config import FlowGroup
 from ...errors import ErrorCategory, LHPError, LHPValidationError
-from ...utils.substitution import EnhancedSubstitutionManager
+from ...models.config import FlowGroup
+from ..processing.substitution import EnhancedSubstitutionManager
 
 
 class PipelineValidator:

@@ -4,12 +4,11 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List
 
-
+from ...core.loaders.external_file_loader import resolve_external_file_path
+from ...core.processing.dqe import DQEParser
 from ...core.registry import BaseActionGenerator
-from ...models.config import Action
-from ...utils.dqe import DQEParser
 from ...errors import ErrorFormatter
-from ...utils.external_file_loader import resolve_external_file_path
+from ...models.config import Action
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +154,7 @@ class DataQualityTransformGenerator(BaseActionGenerator):
 
         if expectations_file:
             # Use common utility for path resolution
-            from ...utils.yaml_loader import load_yaml_file
+            from ...parsers.yaml_loader import load_yaml_file
 
             project_root = spec_dir or Path.cwd()
             resolved_path = resolve_external_file_path(

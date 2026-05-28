@@ -17,10 +17,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-# ---------------------------------------------------------------------------
-# Module-level state
-# ---------------------------------------------------------------------------
-
 _enabled: bool = False
 _start_wall_clock: Optional[str] = None
 _perf_logger: logging.Logger = logging.getLogger("lhp.perf")
@@ -48,9 +44,7 @@ class PerfSummary:
         with self._lock:
             self._phase_timings[phase] = duration
 
-    def record_sub_phase(
-        self, parent: str, phase: str, duration: float
-    ) -> None:
+    def record_sub_phase(self, parent: str, phase: str, duration: float) -> None:
         """Record a sub-phase that nests inside ``parent`` (thread-safe).
 
         Sub-phases are rendered indented under their parent in the summary and
@@ -58,9 +52,7 @@ class PerfSummary:
         their parent's duration.
         """
         with self._lock:
-            self._sub_phase_timings.setdefault(parent, []).append(
-                (phase, duration)
-            )
+            self._sub_phase_timings.setdefault(parent, []).append((phase, duration))
 
     def record_count(self, name: str, value: int) -> None:
         """Record a project-shape count for the summary header (thread-safe).
@@ -95,9 +87,7 @@ class PerfSummary:
             phase_timings = dict(self._phase_timings)
             timings = {k: list(v) for k, v in self._timings.items()}
             counts = dict(self._counts)
-            sub_phase_timings = {
-                k: list(v) for k, v in self._sub_phase_timings.items()
-            }
+            sub_phase_timings = {k: list(v) for k, v in self._sub_phase_timings.items()}
 
         # Project shape (counts)
         if counts:
@@ -112,17 +102,11 @@ class PerfSummary:
             lines.append("[PERF] Phase breakdown:")
             for phase, elapsed in phase_timings.items():
                 pct = (elapsed / total_phase * 100) if total_phase > 0 else 0
-                lines.append(
-                    f"[PERF]   {phase:<35s} {elapsed:>8.3f}s  ({pct:>5.1f}%)"
-                )
+                lines.append(f"[PERF]   {phase:<35s} {elapsed:>8.3f}s  ({pct:>5.1f}%)")
                 # Render any sub-phases indented under this parent
                 for sub_name, sub_elapsed in sub_phase_timings.get(phase, []):
-                    lines.append(
-                        f"[PERF]     ↳ {sub_name:<31s} {sub_elapsed:>8.3f}s"
-                    )
-            lines.append(
-                f"[PERF]   {'Total':<35s} {total_phase:>8.3f}s"
-            )
+                    lines.append(f"[PERF]     ↳ {sub_name:<31s} {sub_elapsed:>8.3f}s")
+            lines.append(f"[PERF]   {'Total':<35s} {total_phase:>8.3f}s")
             lines.append("[PERF]")
 
         # Per-category aggregate stats
@@ -200,11 +184,6 @@ class PerfSummary:
 _summary = PerfSummary()
 
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-
-
 def enable_perf_timing(project_root: Optional[Path] = None) -> None:
     """Enable performance timing and configure perf.log output.
 
@@ -229,9 +208,7 @@ def enable_perf_timing(project_root: Optional[Path] = None) -> None:
     if project_root is not None:
         log_dir = project_root / ".lhp" / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
-        handler = logging.FileHandler(
-            log_dir / "perf.log", mode="w", encoding="utf-8"
-        )
+        handler = logging.FileHandler(log_dir / "perf.log", mode="w", encoding="utf-8")
         handler.setLevel(logging.DEBUG)
         handler.setFormatter(logging.Formatter("%(asctime)s - %(message)s"))
         _perf_logger.addHandler(handler)

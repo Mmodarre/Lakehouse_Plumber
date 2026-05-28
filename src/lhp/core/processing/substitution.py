@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
-from ..errors import ErrorCategory, LHPConfigError, LHPError, LHPValidationError
+from ...errors import ErrorCategory, LHPConfigError, LHPError, LHPValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,10 @@ class SecretReference:
 
 
 class EnhancedSubstitutionManager:
-    """Enhanced substitution manager with YAML and secret support."""
+    """Enhanced substitution manager with YAML and secret support.
+
+    :stability: provisional
+    """
 
     # Regex patterns for token matching.
     # DEFAULT_TOKEN_PATTERN intentionally has no lookbehind/lookahead guards
@@ -104,7 +107,7 @@ class EnhancedSubstitutionManager:
     def _load_config_from_file(self, file_path: Path, env: str):
         """Load tokens, secrets, and rules from YAML file."""
         try:
-            from .yaml_loader import load_yaml_file
+            from lhp.parsers.yaml_loader import load_yaml_file
 
             config = load_yaml_file(file_path, error_context="substitution file")
         except LHPError:

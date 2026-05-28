@@ -7,7 +7,7 @@ import logging
 from typing import List, Set
 
 from ...models.config import FlowGroup
-from ...utils.import_manager import ImportManager, extract_future_imports
+from .imports import ImportManager, extract_future_imports
 
 
 class CodeAssembler:

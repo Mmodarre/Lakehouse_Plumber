@@ -1,8 +1,8 @@
 """Single external validation surface (§9.24).
 
 Composes :class:`ConfigValidator` (``core/validator.py``) and the
-action/compatibility validators under ``core/validators/``. Per constitution
-§9.24, after Week 1-2 every external caller — :class:`ActionOrchestrator`,
+action/compatibility validators under ``core/validators/``. Per
+constitution §9.24, every external caller — :class:`ActionOrchestrator`,
 the CLI via the application facade, and worker subprocesses — must route
 through this class. No other module outside ``core/validator.py`` and
 ``core/validators/`` may import those modules directly.
@@ -11,14 +11,14 @@ Internal duplication BETWEEN :class:`ConfigValidator` (which already
 composes the action validators internally) and the standalone
 ``core/validators/`` classes (e.g. overlapping CDC fan-in checks) is a
 known §9.24-INTERNAL violation. The external surface — this class — is
-exactly one; untangling the internal redundancy is deferred to Week 3.
+exactly one; untangling the internal redundancy is deferred.
 
 Caller contract:
 
 * MAY call :meth:`validate_flowgroups`, :meth:`validate_duplicates`, and
   :meth:`validate_cross_flowgroup`.
-* MAY NOT (after Phase D) import anything from ``lhp.core.validators/*``
-  (including ``ConfigValidator``) directly.
+* MAY NOT import anything from ``lhp.core.validators/*`` (including
+  ``ConfigValidator``) directly.
 
 The class is picklable so :class:`concurrent.futures.ProcessPoolExecutor`
 workers can carry an instance across the ``spawn`` boundary.
@@ -44,12 +44,8 @@ from lhp.core.validators.table_creation_validator import TableCreationValidator
 from lhp.core.validators.test_validator import TestActionValidator
 from lhp.core.validators.transform_validator import TransformActionValidator
 from lhp.core.validators.write_validator import WriteActionValidator
+from lhp.errors import ErrorCategory, LHPError, LHPValidationError
 from lhp.models.config import FlowGroup, ProjectConfig
-from lhp.errors import (
-    ErrorCategory,
-    LHPError,
-    LHPValidationError,
-)
 
 
 class ValidationService(BaseValidationService):
@@ -58,7 +54,7 @@ class ValidationService(BaseValidationService):
     Wraps :class:`ConfigValidator` plus every action/compatibility validator
     in ``core/validators/`` behind two methods. External callers MUST go
     through this class — per §9.24, direct imports of ``core/validator.py``
-    or ``core/validators/*`` from anywhere else are prohibited after Phase D.
+    or ``core/validators/*`` from anywhere else are prohibited.
 
     The constructor holds explicit references to each action/compatibility
     validator class to make the §9.24 surface contract visible at the type
@@ -119,8 +115,6 @@ class ValidationService(BaseValidationService):
         # delegate to them.
         self._table_creation_validator = TableCreationValidator()
         self._fanin_validator = CdcFanInCompatibilityValidator()
-
-    # --- BaseValidationService implementations ------------------------------
 
     def validate_flowgroups(
         self,
@@ -185,9 +179,7 @@ class ValidationService(BaseValidationService):
             table_errors = self._table_creation_validator.validate(target_flowgroups)
             for err in table_errors:
                 issues.append(
-                    self._issue_from_validation_error(
-                        err, location=pipeline_filter
-                    )
+                    self._issue_from_validation_error(err, location=pipeline_filter)
                 )
         except LHPError as exc:
             issues.append(self._issue_from_lhp_error(exc, location=pipeline_filter))
@@ -196,9 +188,7 @@ class ValidationService(BaseValidationService):
             cdc_errors = self._fanin_validator.validate(target_flowgroups)
             for err in cdc_errors:
                 issues.append(
-                    self._issue_from_validation_error(
-                        err, location=pipeline_filter
-                    )
+                    self._issue_from_validation_error(err, location=pipeline_filter)
                 )
         except LHPError as exc:
             issues.append(self._issue_from_lhp_error(exc, location=pipeline_filter))
@@ -214,7 +204,7 @@ class ValidationService(BaseValidationService):
 
         Mirrors :meth:`ActionOrchestrator.validate_duplicate_pipeline_flowgroup_combinations`
         verbatim — same error code, title, suggestions, and context — so the
-        Phase D orchestrator pass-through is a one-line delegation.
+        orchestrator pass-through is a one-line delegation.
         """
         errors = self._config_validator.validate_duplicate_pipeline_flowgroup(
             list(flowgroups)
@@ -233,7 +223,6 @@ class ValidationService(BaseValidationService):
                 ],
                 context={"Duplicates": len(errors)},
             )
-
 
     def validate_cross_flowgroup(
         self,
@@ -280,8 +269,6 @@ class ValidationService(BaseValidationService):
             table_creation_errors=table_errors,
             cdc_fanin_errors=cdc_errors,
         )
-
-    # --- helpers ------------------------------------------------------------
 
     @staticmethod
     def _issue_from_validation_error(

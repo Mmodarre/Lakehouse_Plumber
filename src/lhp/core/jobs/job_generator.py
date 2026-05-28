@@ -12,9 +12,7 @@ configurations based on pipeline dependency analysis results.
 # per-pipeline job-stage block emitted to job.yml) — form one cohesive
 # code-generation pipeline. Splitting them would scatter the assembly
 # contract across files and obscure how cluster/library/dependency policies
-# flow from JobGenerator down through JobPipeline/JobStage. Slated for split
-# in Week 5+ once the per-pipeline cluster-policy API stabilises. See
-# TARGET §3 for the migration target into 3-file core/jobs/ layout.
+# flow from JobGenerator down through JobPipeline/JobStage.
 # TODO(Phase 9.5): split JobGenerator / JobPipeline / JobStage into the 3-file core/jobs/ layout (orchestrator + builder + writer) per Target §10; see LOCAL/REMAINING_WORK.md §9.5.
 
 import logging
@@ -24,12 +22,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
+from ...errors import ErrorCategory, LHPFileError, LHPValidationError
 from ...models.dependencies import DependencyAnalysisResult
-from ...errors import (
-    ErrorCategory,
-    LHPFileError,
-    LHPValidationError,
-)
 from ...utils.yaml_filters import dict_to_yaml
 
 logger = logging.getLogger(__name__)
@@ -118,7 +112,7 @@ class JobGenerator:
 
         if template_dir is None:
             # Default: load templates from the installed lhp package.
-            from ...utils.template_renderer import get_lhp_template_loader
+            from ..codegen.template_renderer import get_lhp_template_loader
 
             loader = get_lhp_template_loader()
         else:

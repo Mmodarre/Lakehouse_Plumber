@@ -4,10 +4,10 @@ import logging
 import re
 from pathlib import Path
 
+from ...core.loaders.external_file_loader import load_external_file_text
 from ...core.registry import BaseActionGenerator
-from ...models.config import Action
 from ...errors import ErrorFormatter
-from ...utils.external_file_loader import load_external_file_text
+from ...models.config import Action
 from ..python_file_copier import copy_user_module_for_pipeline
 
 

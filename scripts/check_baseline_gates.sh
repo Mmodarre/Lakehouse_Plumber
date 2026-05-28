@@ -1,41 +1,42 @@
 #!/usr/bin/env bash
-# Regression-only constitution gates for the Week-7 refactor window.
+# Regression-only constitution gates for the Week-8 refactor window.
 #
-# Phase 7 carries two transitional violation pools per plan §7:
-#   * 5 file-size violations  (§3.3 / §9.3) — owned by Phase 9.
-#   * 15 placement violations (§2 / §9.2)   — owned by Phase 8.
+# Week 8 end-state per plan §7:
+#   * 3 file-size violations (§3.3 / §9.3) — Phase-9 deferrals
+#     (CLI presenter extraction + generator-template extraction).
+#   * 0 placement violations (§2 / §9.2) — Phase 8 closed the pool.
 #
-# This script blocks a commit only on a REGRESSION above those Week-6
-# baselines; the absolute pool is allowed to persist until Phase 8/9
-# closes it. The remaining gates (stability-drift, ruff B904/TRY400/
-# RUF013, import-linter, tests/api/ contract tests) stay strict
-# (zero tolerance).
+# This script blocks a commit only on a REGRESSION above those Week-8
+# baselines; the file-size pool is allowed to persist at 3 until the
+# Phase-9 deferrals land. The remaining gates (stability-drift, ruff
+# B904/TRY400/RUF013, import-linter, tests/api/ contract tests) stay
+# strict (zero tolerance).
 #
-# Once Phase 8 + Phase 9 land, set both baselines to 0 and the gate
-# behaves identically to the original strict configuration.
+# Once the Phase-9 deferrals land, set the file-size baseline to 0 and
+# the gate behaves identically to the original strict configuration.
 
 set -u
 
-WK6_FILE_SIZE_BASELINE=5
-WK6_PLACEMENT_BASELINE=15
+WK8_FILE_SIZE_BASELINE=0
+WK8_PLACEMENT_BASELINE=0
 
 echo '[lhp] running pre-commit constitution gates...' >&2
 
 fs_out=$(python scripts/check_file_sizes.py --all 2>&1)
 fs_count=$(printf '%s\n' "$fs_out" | sed -n 's/^\[check_file_sizes\] \([0-9][0-9]*\) violation.*/\1/p')
 [ -z "$fs_count" ] && fs_count=0
-if [ "$fs_count" -gt "$WK6_FILE_SIZE_BASELINE" ]; then
+if [ "$fs_count" -gt "$WK8_FILE_SIZE_BASELINE" ]; then
   printf '%s\n' "$fs_out" >&2
-  echo "[lhp] file-size REGRESSION: $fs_count > $WK6_FILE_SIZE_BASELINE (Week-6 baseline, plan §7)" >&2
+  echo "[lhp] file-size REGRESSION: $fs_count > $WK8_FILE_SIZE_BASELINE (Week-8 baseline, plan §7)" >&2
   exit 2
 fi
 
 pl_out=$(python scripts/check_placement.py --all 2>&1)
 pl_count=$(printf '%s\n' "$pl_out" | sed -n 's/^\[check_placement\] \([0-9][0-9]*\) violation.*/\1/p')
 [ -z "$pl_count" ] && pl_count=0
-if [ "$pl_count" -gt "$WK6_PLACEMENT_BASELINE" ]; then
+if [ "$pl_count" -gt "$WK8_PLACEMENT_BASELINE" ]; then
   printf '%s\n' "$pl_out" >&2
-  echo "[lhp] placement REGRESSION: $pl_count > $WK6_PLACEMENT_BASELINE (Week-6 baseline, plan §7)" >&2
+  echo "[lhp] placement REGRESSION: $pl_count > $WK8_PLACEMENT_BASELINE (Week-8 baseline, plan §7)" >&2
   exit 2
 fi
 

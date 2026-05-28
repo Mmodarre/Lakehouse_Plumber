@@ -69,7 +69,7 @@ actions:
       type: sql
       sql: "SELECT * FROM raw_{{ table_name }}"
     target: v_{{ table_name }}
-    
+
   - name: save_{{ table_name }}
     type: write
     source: v_{{ table_name }}
@@ -123,7 +123,7 @@ actions:
       type: sql
       sql: "SELECT * FROM test_source"
     target: v_test_data
-    
+
   - name: save_test_data
     type: write
     source: v_test_data
@@ -190,7 +190,7 @@ actions: []
 
             # Validation failures raise SystemExit(DATA_ERROR) from the
             # validate command after the summary is rendered.
-            from lhp.utils.exit_codes import ExitCode
+            from lhp.cli.exit_codes import ExitCode
 
             assert result.exit_code == ExitCode.DATA_ERROR
 
@@ -331,7 +331,7 @@ actions:
       driver: "org.postgresql.Driver"
       table: "customers"
     target: v_customers
-    
+
   - name: save_customers
     type: write
     source: v_customers
@@ -358,7 +358,7 @@ actions:
 
     def test_no_project_root(self, runner):
         """Test commands when not in a project directory."""
-        from lhp.utils.exit_codes import ExitCode
+        from lhp.cli.exit_codes import ExitCode
 
         with runner.isolated_filesystem():
             # Try to validate without being in a project

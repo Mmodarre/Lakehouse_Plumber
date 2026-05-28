@@ -10,13 +10,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-
-from ...errors import (
-    ErrorCategory,
-    LHPError,
-    LHPFileError,
-    LHPValidationError,
-)
+from ...errors import ErrorCategory, LHPError, LHPFileError, LHPValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +128,7 @@ class PipelineConfigLoader:
         self.logger.info(f"Loading pipeline config from: {config_path}")
 
         # Load all YAML documents (including empty ones for project_defaults handling)
-        from ...utils.yaml_loader import load_yaml_documents_all
+        from ...parsers.yaml_loader import load_yaml_documents_all
 
         documents = load_yaml_documents_all(
             config_path, error_context="pipeline configuration"

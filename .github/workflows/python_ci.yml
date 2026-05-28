@@ -20,7 +20,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         python-version: ["3.12"]
-    
+
     env:
       LHP_DISABLE_ANALYTICS: 1
 
@@ -71,15 +71,7 @@ jobs:
       run: |
         python scripts/check_file_sizes.py --all
         python scripts/check_stability_drift.py --all
-        # check_placement currently has 15 known baseline violations that
-        # Phase 8 will resolve via utils/ evacuation. The gate is run for
-        # visibility but not blocking until that wave lands. §12bis cluster
-        # below documents the carve-out per the constitution amendment.
-        # OWNER: @mmodarre
-        # ISSUE: https://github.com/Mmodarre/Lakehouse_Plumber/issues/wk6-fixup-placement-baseline
-        # EXPIRY: 2026-08-01
-        # REDUCED-GATE: python scripts/check_placement.py --all
-        python scripts/check_placement.py --all || echo "::warning::placement baseline violations (Phase 8 scope)"
+        python scripts/check_placement.py --all
       shell: bash
 
     - name: Type-check public API surface (mypy --strict)
@@ -256,7 +248,7 @@ jobs:
   # Windows-specific e2e tests using native PowerShell
   test-e2e-windows:
     runs-on: windows-latest
-    
+
     env:
       LHP_DISABLE_ANALYTICS: 1
 
@@ -356,10 +348,10 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ["3.11", "3.12", "3.13"]
-    
+
     env:
       LHP_DISABLE_ANALYTICS: 1
-    
+
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 

@@ -23,9 +23,7 @@ Specialized validators for DLT table options and CDC configurations.
 # requires either duplicating ~40L of shared `_get_cdc_mode` / `_check_keys`
 # helpers per file, or routing them through a fifth `_cdc_helpers.py` module
 # that the four files all import — re-introducing the same compile-time
-# coupling at a higher import-graph cost. Decomposition deferred to Week 4
-# alongside the broader `core/validators/` reorganization (which would
-# rationalize all 4 classes into `core/validators/dlt/` sub-package).
+# coupling at a higher import-graph cost.
 # TODO(Phase 9.4): sort the four CDC validators into core/validators/compatibility/ when the action/pipeline/field/compatibility taxonomy lands; see LOCAL/REMAINING_WORK.md §9.4.
 
 import logging

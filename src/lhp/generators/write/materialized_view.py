@@ -3,19 +3,15 @@
 import logging
 from pathlib import Path
 
-from ...core.registry import BaseActionGenerator
-from ...models.config import Action
-from ...errors import (
-    ErrorCategory,
-    ErrorFormatter,
-    LHPValidationError,
-)
-from ...utils.external_file_loader import (
+from ...core.loaders.external_file_loader import (
     is_file_path,
     load_external_file_text,
     resolve_external_file_path,
 )
-from ...utils.schema_parser import SchemaParser
+from ...core.registry import BaseActionGenerator
+from ...errors import ErrorCategory, ErrorFormatter, LHPValidationError
+from ...models.config import Action
+from ...parsers.schema_parser import SchemaParser
 
 logger = logging.getLogger(__name__)
 
@@ -135,8 +131,8 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
         if not sql_query:
             source_view = self._extract_source_view(action.source)
 
-        # NOTE: Operational metadata support removed from write actions
-        # Metadata should be added at load level and flow through naturally
+        # Metadata is added at load level and flows through naturally — write
+        # actions intentionally have no operational-metadata columns of their own.
         metadata_columns = {}
         flowgroup = context.get("flowgroup")
 

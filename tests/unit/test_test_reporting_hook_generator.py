@@ -6,6 +6,7 @@ from lhp.core.codegen.tst_reporting_hook_generator import (
     HOOK_FILENAME,
     TestReportingHookGenerator,
 )
+from lhp.core.processing.substitution import EnhancedSubstitutionManager
 from lhp.models.config import (
     Action,
     ActionType,
@@ -13,7 +14,6 @@ from lhp.models.config import (
     ProjectConfig,
     TestReportingConfig,
 )
-from lhp.utils.substitution import EnhancedSubstitutionManager
 
 
 def _make_project_config(

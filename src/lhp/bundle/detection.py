@@ -33,6 +33,8 @@ def should_enable_bundle_support(
 
     Raises:
         LHPConfigError: If project_root is None
+
+    :stability: provisional
     """
     if project_root is None:
         raise LHPConfigError(

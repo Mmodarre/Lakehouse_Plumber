@@ -12,17 +12,14 @@ from typing import Optional, Sequence
 
 from lhp.core.coordination._interfaces import BaseMonitoringFinalizerService
 from lhp.core.registry import OrchestrationDependencies
+from lhp.errors import ErrorCategory, LHPError, LHPFileError
+from lhp.models.config import FlowGroup, ProjectConfig
+from lhp.utils.file_header import write_normalized
+
 from .monitoring_pipeline_builder import (
     MonitoringBuildResult,
     MonitoringPipelineBuilder,
 )
-from lhp.models.config import FlowGroup, ProjectConfig
-from lhp.errors import (
-    ErrorCategory,
-    LHPError,
-    LHPFileError,
-)
-from lhp.utils.file_header import write_normalized
 
 
 class MonitoringFinalizerService(BaseMonitoringFinalizerService):
@@ -44,7 +41,6 @@ class MonitoringFinalizerService(BaseMonitoringFinalizerService):
         pipeline_config_path: Optional[str] = None,
         logger: Optional[logging.Logger] = None,
     ) -> None:
-        """Initialize the monitoring finalizer service."""
         self.project_config = project_config
         self.project_root = project_root
         self.dependencies = dependencies
@@ -127,7 +123,7 @@ class MonitoringFinalizerService(BaseMonitoringFinalizerService):
             self._last_build_result.template_context
         )
 
-        from lhp.utils.template_renderer import TemplateRenderer
+        from lhp.core.codegen.template_renderer import TemplateRenderer
 
         renderer = TemplateRenderer.from_package()
         notebook_content = renderer.render_template(

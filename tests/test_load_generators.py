@@ -2,6 +2,7 @@
 
 import pytest
 
+from lhp.core.processing.substitution import EnhancedSubstitutionManager
 from lhp.generators.load import (
     CloudFilesLoadGenerator,
     DeltaLoadGenerator,
@@ -10,7 +11,6 @@ from lhp.generators.load import (
     SQLLoadGenerator,
 )
 from lhp.models.config import Action, ActionType, FlowGroup
-from lhp.utils.substitution import EnhancedSubstitutionManager
 
 
 class TestLoadGenerators:

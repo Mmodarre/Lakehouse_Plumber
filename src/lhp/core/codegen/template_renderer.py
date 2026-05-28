@@ -18,8 +18,8 @@ from jinja2 import (
 )
 from jinja2.exceptions import TemplateNotFound
 
-from ..errors import ErrorCategory, ErrorFormatter, LHPConfigError
-from .yaml_filters import dict_to_yaml
+from ...errors import ErrorCategory, ErrorFormatter, LHPConfigError
+from ...utils.yaml_filters import dict_to_yaml
 
 logger = logging.getLogger(__name__)
 

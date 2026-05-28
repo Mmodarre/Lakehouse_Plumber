@@ -164,9 +164,9 @@ class TransformActionValidator(BaseActionValidator):
 
         from pathlib import Path
 
-        from ...utils.dqe import DQEParser
-        from ...utils.external_file_loader import resolve_external_file_path
-        from ...utils.yaml_loader import load_yaml_file
+        from ...parsers.yaml_loader import load_yaml_file
+        from ..loaders.external_file_loader import resolve_external_file_path
+        from ..processing.dqe import DQEParser
 
         try:
             resolved_path = resolve_external_file_path(
@@ -315,7 +315,7 @@ class TransformActionValidator(BaseActionValidator):
         # Parse the schema configuration
         from pathlib import Path
 
-        from ...utils.schema_transform_parser import SchemaTransformParser
+        from ...parsers.schema_transform_parser import SchemaTransformParser
 
         parser = SchemaTransformParser()
         schema_config = {}

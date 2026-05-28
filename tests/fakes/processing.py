@@ -44,7 +44,7 @@ class FakeFlowgroupResolutionService:
 
 
 class FakeSubstitutionManager:
-    """Stand-in for :class:`lhp.utils.substitution.EnhancedSubstitutionManager`.
+    """Stand-in for :class:`lhp.core.processing.substitution.EnhancedSubstitutionManager`.
 
     Exposes the attributes the production code reads on workers:
 

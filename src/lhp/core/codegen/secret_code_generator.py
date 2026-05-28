@@ -4,7 +4,7 @@ import logging
 import re
 from typing import Dict, List, Set, Tuple
 
-from .substitution import SecretReference
+from ..processing.substitution import SecretReference
 
 logger = logging.getLogger(__name__)
 

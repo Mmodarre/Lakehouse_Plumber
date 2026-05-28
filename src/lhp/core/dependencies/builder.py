@@ -45,9 +45,9 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple
 
 import networkx as nx
 
+from ...errors import ErrorCategory, LHPError
 from ...models.config import Action, ActionType, FlowGroup, FlowGroupContext
 from ...models.dependencies import DependencyGraphs
-from ...errors import ErrorCategory, LHPError
 from ...utils.source_extractor import extract_action_sources
 from ..discovery.blueprint_discoverer import BlueprintDiscoverer
 from ..discovery.flowgroup_discoverer import FlowgroupDiscoveryService
@@ -191,7 +191,7 @@ class DependencyGraphBuilder:
         flowgroup; per-flowgroup processing errors fall back to the raw
         flowgroup so the dependency graph never crashes on a single bad file.
         """
-        from ...utils.substitution import EnhancedSubstitutionManager
+        from ..processing.substitution import EnhancedSubstitutionManager
 
         substitution_mgr = EnhancedSubstitutionManager(
             substitution_file=None,
@@ -200,9 +200,10 @@ class DependencyGraphBuilder:
         )
 
         processed: List[FlowGroup] = []
-        for fg, yaml_file_path in (
-            self.flowgroup_discoverer.discover_all_flowgroups_with_paths()
-        ):
+        for (
+            fg,
+            yaml_file_path,
+        ) in self.flowgroup_discoverer.discover_all_flowgroups_with_paths():
             processed.append(self._process_one(fg, yaml_file_path, substitution_mgr))
 
         try:

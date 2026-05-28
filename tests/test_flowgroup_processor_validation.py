@@ -1,16 +1,18 @@
 """Tests for flowgroup processor validation integration."""
 
-import pytest
 import tempfile
 from pathlib import Path
-from lhp.core.processing.flowgroup_resolver import FlowgroupResolutionService
+
+import pytest
+
 from lhp.core.processing import TemplateEngine
-from lhp.presets.preset_manager import PresetManager
+from lhp.core.processing.flowgroup_resolver import FlowgroupResolutionService
+from lhp.core.processing.substitution import EnhancedSubstitutionManager
 from lhp.core.validators import ConfigValidator
 from lhp.core.validators.secret_validator import SecretValidator
-from lhp.models.config import FlowGroup, Action, ActionType
-from lhp.utils.substitution import EnhancedSubstitutionManager
 from lhp.errors import LHPError
+from lhp.models.config import Action, ActionType, FlowGroup
+from lhp.presets.preset_manager import PresetManager
 from tests.helpers import wrap_in_ctx as _ctx_of
 
 
@@ -25,14 +27,14 @@ def test_flowgroup_processor_fails_on_unresolved_tokens():
                 name="test_action",
                 type=ActionType.LOAD,
                 source={"type": "cloudfiles", "path": "s3://{missing_bucket}/data"},
-                target="v_test"
+                target="v_test",
             )
-        ]
+        ],
     )
-    
+
     # Substitution manager with no mappings
     substitution_mgr = EnhancedSubstitutionManager()
-    
+
     # Create processor with required dependencies
     # Use a temporary empty directory for presets
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -40,18 +42,18 @@ def test_flowgroup_processor_fails_on_unresolved_tokens():
         preset_manager = PresetManager(presets_dir=Path(tmpdir))
         config_validator = ConfigValidator()
         secret_validator = SecretValidator()
-        
+
         processor = FlowgroupResolutionService(
             template_engine=template_engine,
             preset_manager=preset_manager,
             config_validator=config_validator,
-            secret_validator=secret_validator
+            secret_validator=secret_validator,
         )
-        
+
         # Should raise LHPError with CONFIG category and code 010
         with pytest.raises(LHPError) as exc_info:
             processor.process_flowgroup(_ctx_of(flowgroup), substitution_mgr)
-        
+
         error = exc_info.value
         assert error.code == "LHP-CFG-010"
         assert "Unresolved substitution tokens" in str(error)
@@ -68,16 +70,20 @@ def test_flowgroup_processor_passes_with_resolved_tokens():
             Action(
                 name="test_action",
                 type=ActionType.LOAD,
-                source={"type": "cloudfiles", "path": "s3://{bucket}/data", "format": "parquet"},
-                target="v_test"
+                source={
+                    "type": "cloudfiles",
+                    "path": "s3://{bucket}/data",
+                    "format": "parquet",
+                },
+                target="v_test",
             )
-        ]
+        ],
     )
-    
+
     # Substitution manager with mapping
     substitution_mgr = EnhancedSubstitutionManager()
     substitution_mgr.mappings = {"bucket": "my-bucket"}
-    
+
     # Create processor with required dependencies
     # Use a temporary empty directory for presets
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -85,14 +91,14 @@ def test_flowgroup_processor_passes_with_resolved_tokens():
         preset_manager = PresetManager(presets_dir=Path(tmpdir))
         config_validator = ConfigValidator()
         secret_validator = SecretValidator()
-        
+
         processor = FlowgroupResolutionService(
             template_engine=template_engine,
             preset_manager=preset_manager,
             config_validator=config_validator,
-            secret_validator=secret_validator
+            secret_validator=secret_validator,
         )
-        
+
         # Should raise a validation/config error, but NOT LHPError for unresolved tokens
         try:
             processed = processor.process_flowgroup(
@@ -100,7 +106,9 @@ def test_flowgroup_processor_passes_with_resolved_tokens():
             ).flowgroup
         except LHPError as e:
             # If LHPError is raised, it should NOT be about unresolved tokens
-            assert e.code != "LHP-CFG-010", "Should not raise unresolved token error when tokens are resolved"
+            assert (
+                e.code != "LHP-CFG-010"
+            ), "Should not raise unresolved token error when tokens are resolved"
             # Config validation error is expected since we don't have a complete flowgroup
         except ValueError:
             # Config validation error is expected since we don't have a complete flowgroup
@@ -119,20 +127,20 @@ def test_flowgroup_processor_detects_multiple_unresolved_tokens():
                 name="test_action1",
                 type=ActionType.LOAD,
                 source={"type": "cloudfiles", "path": "s3://{bucket1}/data"},
-                target="v_test1"
+                target="v_test1",
             ),
             Action(
                 name="test_action2",
                 type=ActionType.LOAD,
                 source={"type": "cloudfiles", "path": "s3://{bucket2}/logs"},
-                target="v_test2"
-            )
-        ]
+                target="v_test2",
+            ),
+        ],
     )
-    
+
     # Substitution manager with no mappings
     substitution_mgr = EnhancedSubstitutionManager()
-    
+
     # Create processor with required dependencies
     # Use a temporary empty directory for presets
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -140,18 +148,18 @@ def test_flowgroup_processor_detects_multiple_unresolved_tokens():
         preset_manager = PresetManager(presets_dir=Path(tmpdir))
         config_validator = ConfigValidator()
         secret_validator = SecretValidator()
-        
+
         processor = FlowgroupResolutionService(
             template_engine=template_engine,
             preset_manager=preset_manager,
             config_validator=config_validator,
-            secret_validator=secret_validator
+            secret_validator=secret_validator,
         )
-        
+
         # Should raise LHPError mentioning both tokens
         with pytest.raises(LHPError) as exc_info:
             processor.process_flowgroup(_ctx_of(flowgroup), substitution_mgr)
-        
+
         error_str = str(exc_info.value)
         assert "bucket1" in error_str
         assert "bucket2" in error_str
@@ -168,35 +176,39 @@ def test_flowgroup_processor_resolves_local_variables():
             Action(
                 name="load_%{table}",
                 type=ActionType.LOAD,
-                source={"type": "cloudfiles", "path": "s3://bucket/data", "format": "parquet"},
-                target="v_%{table}_%{schema}"
+                source={
+                    "type": "cloudfiles",
+                    "path": "s3://bucket/data",
+                    "format": "parquet",
+                },
+                target="v_%{table}_%{schema}",
             )
-        ]
+        ],
     )
-    
+
     # Substitution manager (not needed for local vars)
     substitution_mgr = EnhancedSubstitutionManager()
-    
+
     # Create processor with required dependencies
     with tempfile.TemporaryDirectory() as tmpdir:
         template_engine = TemplateEngine()
         preset_manager = PresetManager(presets_dir=Path(tmpdir))
         config_validator = ConfigValidator()
         secret_validator = SecretValidator()
-        
+
         processor = FlowgroupResolutionService(
             template_engine=template_engine,
             preset_manager=preset_manager,
             config_validator=config_validator,
-            secret_validator=secret_validator
+            secret_validator=secret_validator,
         )
-        
+
         # Process flowgroup
         try:
             processed = processor.process_flowgroup(
                 _ctx_of(flowgroup), substitution_mgr
             ).flowgroup
-            
+
             # Verify local variables were resolved
             assert processed.actions[0].name == "load_customers"
             assert processed.actions[0].target == "v_customers_bronze"
@@ -217,33 +229,37 @@ def test_flowgroup_processor_fails_on_undefined_local_variable():
             Action(
                 name="load_%{undefined}",
                 type=ActionType.LOAD,
-                source={"type": "cloudfiles", "path": "s3://bucket/data", "format": "parquet"},
-                target="v_test"
+                source={
+                    "type": "cloudfiles",
+                    "path": "s3://bucket/data",
+                    "format": "parquet",
+                },
+                target="v_test",
             )
-        ]
+        ],
     )
-    
+
     # Substitution manager
     substitution_mgr = EnhancedSubstitutionManager()
-    
+
     # Create processor with required dependencies
     with tempfile.TemporaryDirectory() as tmpdir:
         template_engine = TemplateEngine()
         preset_manager = PresetManager(presets_dir=Path(tmpdir))
         config_validator = ConfigValidator()
         secret_validator = SecretValidator()
-        
+
         processor = FlowgroupResolutionService(
             template_engine=template_engine,
             preset_manager=preset_manager,
             config_validator=config_validator,
-            secret_validator=secret_validator
+            secret_validator=secret_validator,
         )
-        
+
         # Should raise LHPError with CFG-011
         with pytest.raises(LHPError) as exc_info:
             processor.process_flowgroup(_ctx_of(flowgroup), substitution_mgr)
-        
+
         error = exc_info.value
         assert error.code == "LHP-CFG-011"
         assert "Undefined local variable" in error.title
@@ -264,37 +280,37 @@ def test_flowgroup_processor_local_vars_before_env_substitution():
                 source={
                     "type": "delta",
                     "database": "{catalog}.{schema}",  # Env tokens
-                    "table": "%{entity}"  # Local var
+                    "table": "%{entity}",  # Local var
                 },
-                target="v_%{entity}"
+                target="v_%{entity}",
             )
-        ]
+        ],
     )
-    
+
     # Substitution manager with env tokens
     substitution_mgr = EnhancedSubstitutionManager()
     substitution_mgr.mappings = {"catalog": "main", "schema": "bronze"}
-    
+
     # Create processor with required dependencies
     with tempfile.TemporaryDirectory() as tmpdir:
         template_engine = TemplateEngine()
         preset_manager = PresetManager(presets_dir=Path(tmpdir))
         config_validator = ConfigValidator()
         secret_validator = SecretValidator()
-        
+
         processor = FlowgroupResolutionService(
             template_engine=template_engine,
             preset_manager=preset_manager,
             config_validator=config_validator,
-            secret_validator=secret_validator
+            secret_validator=secret_validator,
         )
-        
+
         # Process flowgroup
         try:
             processed = processor.process_flowgroup(
                 _ctx_of(flowgroup), substitution_mgr
             ).flowgroup
-            
+
             # Verify local vars resolved and env tokens resolved
             assert processed.actions[0].name == "load_customer"
             assert processed.actions[0].target == "v_customer"
@@ -307,4 +323,3 @@ def test_flowgroup_processor_local_vars_before_env_substitution():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-

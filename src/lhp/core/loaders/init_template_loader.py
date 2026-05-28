@@ -14,7 +14,6 @@ class InitTemplateLoader:
     """Loader for project initialization templates."""
 
     def __init__(self):
-        """Initialize the template loader."""
         self.logger = logging.getLogger(__name__)
 
         # PackageLoader uses importlib.util.find_spec (PEP 451) internally,

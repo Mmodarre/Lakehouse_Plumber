@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional
 
+from ..core.loaders.external_file_loader import resolve_external_file_path
 from ..errors import ErrorCategory, LHPValidationError
-from ..utils.external_file_loader import resolve_external_file_path
 
 logger = logging.getLogger(__name__)
 
@@ -234,9 +234,9 @@ def compute_copy_record(
     if inline_source is not None:
         original_content = inline_source
     else:
-        assert source_file is not None, (
-            "compute_copy_record requires either source_file or inline_source"
-        )
+        assert (
+            source_file is not None
+        ), "compute_copy_record requires either source_file or inline_source"
         original_content = source_file.read_text()
 
     substitution_mgr = context.get("substitution_manager")
@@ -343,12 +343,11 @@ def copy_user_module_for_pipeline(
 
     custom_functions_dir = output_dir / "custom_python_functions"
 
-    # Phase A collect mode: when the caller supplies a phase_a_records
-    # list on the context, append a CopiedModuleRecord and let Phase B
-    # replay it later — no disk write, no state mutation here.
-    # When the carrier is absent (test-only direct generator drives),
-    # compute and apply immediately: file is written but state is not
-    # tracked from this path.
+    # When the caller supplies a phase_a_records list on the context, append
+    # a CopiedModuleRecord and let the replay step handle disk writes — no
+    # disk write, no state mutation here. When the carrier is absent
+    # (test-only direct generator drives), compute and apply immediately:
+    # file is written but state is not tracked from this path.
     record = compute_copy_record(
         source_file,
         module_path,

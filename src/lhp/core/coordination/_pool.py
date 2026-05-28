@@ -79,16 +79,13 @@ from typing import (
 from ...models.config import FlowGroupContext
 from ...models.processing import PipelineDelta
 from ...utils.performance_timer import perf_timer
-from ._interfaces import (
-    BaseCodeGenerationService,
-    BaseFlowgroupResolutionService,
-)
+from ._interfaces import BaseCodeGenerationService, BaseFlowgroupResolutionService
 
 if TYPE_CHECKING:
-    from ...models.config import ProjectConfig
     from ...errors import LHPError
+    from ...models.config import ProjectConfig
     from ...utils.formatter import CodeFormatter
-    from ...utils.substitution import EnhancedSubstitutionManager
+    from ..processing.substitution import EnhancedSubstitutionManager
     from .processor import ProcessingContext
 
 

@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional
 
 _SUBSTITUTION_TOKEN_PATTERN = re.compile(r"\$\{[^}]+\}")
 
+from ...errors import ErrorCategory, LHPError
 from ...models.config import (
     EventLogConfig,
     MetadataColumnConfig,
@@ -31,7 +32,6 @@ from ...models.config import (
     ProjectOperationalMetadataConfig,
     TestReportingConfig,
 )
-from ...errors import ErrorCategory, LHPError
 
 
 class ProjectConfigLoader:
@@ -55,7 +55,7 @@ class ProjectConfigLoader:
             return None
 
         try:
-            from ...utils.yaml_loader import load_yaml_file
+            from ...parsers.yaml_loader import load_yaml_file
 
             config_data = load_yaml_file(
                 self.config_file,

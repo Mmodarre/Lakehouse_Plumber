@@ -15,25 +15,25 @@ Key features:
 from pathlib import Path
 from typing import List, Optional, Union
 
-from ..errors import ErrorCategory, ErrorFormatter, LHPFileError
+from ...errors import ErrorCategory, ErrorFormatter, LHPFileError
 
 
 def is_file_path(value: str) -> bool:
     """Detect if a string is a file path vs inline content.
-    
+
     This heuristic is used primarily by cloudFiles.schemaHints which accepts
     both inline DDL and file paths in a single parameter (matching Databricks API).
-    
+
     Detection criteria:
     - Has file extension: .yaml, .yml, .json, .ddl, .sql
     - Has path separator: / or \\
-    
+
     Args:
         value: String to check
-        
+
     Returns:
         True if value appears to be a file path, False for inline content
-        
+
     Examples:
         >>> is_file_path("schemas/customer.yaml")
         True

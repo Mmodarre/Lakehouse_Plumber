@@ -6,6 +6,8 @@ from unittest.mock import Mock, patch
 import pytest
 import yaml
 
+from lhp.core.codegen.operational_metadata import OperationalMetadata
+from lhp.errors import LHPError
 from lhp.generators.load import (
     CloudFilesLoadGenerator,
     DeltaLoadGenerator,
@@ -24,8 +26,6 @@ from lhp.models.config import (
     ProjectOperationalMetadataConfig,
     TransformType,
 )
-from lhp.errors import LHPError
-from lhp.utils.operational_metadata import OperationalMetadata
 
 
 class TestLoadOperationalMetadata:
@@ -393,7 +393,9 @@ class TestLoadOperationalMetadata:
         )
 
         # Should not raise error, should generate warning
-        with patch("lhp.utils.operational_metadata.logging.getLogger") as mock_logger:
+        with patch(
+            "lhp.core.codegen.operational_metadata.metadata.logging.getLogger"
+        ) as mock_logger:
             code = generator.generate(action, self.context)
 
             # Check that warning was logged
@@ -461,7 +463,7 @@ age: int
         # 2. Transform should preserve metadata (user responsibility for SQL)
         # This is what user would write in SQL transform
         transform_sql = """
-        SELECT 
+        SELECT
             customer_id,
             UPPER(name) as name_upper,
             email,

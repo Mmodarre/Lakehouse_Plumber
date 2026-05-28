@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from lhp.core.processing.substitution import EnhancedSubstitutionManager
 from lhp.generators.write.sink import SinkWriteGenerator
 from lhp.generators.write.sinks import (
     BaseSinkWriteGenerator,
@@ -22,7 +23,6 @@ from lhp.models.config import (
     ProjectConfig,
     ProjectOperationalMetadataConfig,
 )
-from lhp.utils.substitution import EnhancedSubstitutionManager
 
 
 class TestBaseSinkWriteGenerator:

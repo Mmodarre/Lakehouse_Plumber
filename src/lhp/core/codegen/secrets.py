@@ -6,7 +6,7 @@
 import logging
 from typing import List
 
-from ...utils.substitution import EnhancedSubstitutionManager
+from ..processing.substitution import EnhancedSubstitutionManager
 
 
 class SecretSubstitutor:
@@ -50,7 +50,7 @@ class SecretSubstitutor:
         # Python (bare calls or f-strings). Pull references from the
         # substitution manager — it is the canonical source.
         try:
-            from ...utils.secret_code_generator import SecretCodeGenerator
+            from .secret_code_generator import SecretCodeGenerator
 
             secret_generator = SecretCodeGenerator()
             complete_code = secret_generator.generate_python_code(

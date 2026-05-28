@@ -14,9 +14,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional, Sequence, Tuple
 
+from ...errors import ErrorCategory, LHPValidationError
 from ...generators.python_file_copier import CopiedModuleRecord, PythonFileCopier
 from ...models.processing import PipelineDelta
-from ...errors import ErrorCategory, LHPValidationError
 from ...utils.file_header import write_normalized
 from ...utils.performance_timer import perf_timer
 from ..codegen.test_reporting import generate_test_reporting_hook
@@ -25,9 +25,9 @@ from .validation_service import ValidationService
 if TYPE_CHECKING:
     from ...models.config import FlowGroup, FlowGroupContext, ProjectConfig
     from ...utils.formatter import CodeFormatter
-    from ...utils.substitution import EnhancedSubstitutionManager
     from ..codegen.coordinator import CodeGenerationService
     from ..processing.flowgroup_resolver import FlowgroupResolutionService
+    from ..processing.substitution import EnhancedSubstitutionManager
 
 
 logger = logging.getLogger(__name__)

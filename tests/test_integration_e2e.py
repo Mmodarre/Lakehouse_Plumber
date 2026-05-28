@@ -13,9 +13,9 @@ from pathlib import Path
 import pytest
 
 from lhp.api import LakehousePlumberApplicationFacade, collect_response
+from lhp.bundle.detection import should_enable_bundle_support
 from lhp.bundle.manager import BundleManager
 from lhp.cli.main import cli
-from lhp.utils.bundle_detection import should_enable_bundle_support
 
 
 class TestEndToEndBundleWorkflow:
@@ -561,13 +561,9 @@ actions:
                         output_dir=None,
                     )
                 )
-                pipeline_response = batch.pipeline_responses.get(
-                    f"pipeline_{i:02d}"
-                )
+                pipeline_response = batch.pipeline_responses.get(f"pipeline_{i:02d}")
                 generated_files = (
-                    pipeline_response.generated_filenames
-                    if pipeline_response
-                    else ()
+                    pipeline_response.generated_filenames if pipeline_response else ()
                 )
                 assert len(generated_files) > 0
 

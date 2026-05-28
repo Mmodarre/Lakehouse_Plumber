@@ -3,9 +3,7 @@
 # structured-error display, test reporting, and warning-collector
 # lifecycle — each is a thin CLI adapter but they must share the Live
 # panel and warning collector. Splitting along concerns risks duplicated
-# Live frames. Phase F will extract the per-flowgroup display block
-# (~120L) into a dedicated CLI presenter once the validation outcome
-# carries enough structured metadata for the presenter to be CLI-agnostic.
+# Live frames.
 # TODO(Phase 9.2): extract per-flowgroup display block and Live-frame setup into cli/presenters/validate_panel.py per LOCAL/REMAINING_WORK.md §9.2.
 """Validate command implementation for LakehousePlumber CLI."""
 
@@ -23,8 +21,8 @@ from lhp.api import (
     WarningCollector,
     collect_response,
 )
+from lhp.cli.exit_codes import ExitCode
 from lhp.errors import ErrorCategory, LHPConfigError, LHPError
-from lhp.utils.exit_codes import ExitCode
 
 from ..error_panel import render_error_panel
 from ..warning_panel import render_warning_panel
@@ -151,7 +149,8 @@ class ValidateCommand(BaseCommand):
         # Route through the §9.24-clean facade bootstrap so every domain
         # call goes via a sub-facade (no orchestrator reach-through).
         application_facade = LakehousePlumberApplicationFacade.for_project(
-            project_root, max_workers=max_workers,
+            project_root,
+            max_workers=max_workers,
         )
 
         records: Dict[str, PipelineRecord] = {}
@@ -295,11 +294,7 @@ class ValidateCommand(BaseCommand):
                                 # inline failure line; ``—`` covers plain
                                 # string failures with no LHP code attached.
                                 first_code = next(
-                                    (
-                                        i.code
-                                        for i in response.issues
-                                        if i.code
-                                    ),
+                                    (i.code for i in response.issues if i.code),
                                     None,
                                 )
                                 rec.error_code = first_code
@@ -410,10 +405,7 @@ class ValidateCommand(BaseCommand):
             if _panel is not None:
                 _console_module.err_console.print(_panel)
 
-            if (
-                batch_response is not None
-                and batch_response.error_code is not None
-            ):
+            if batch_response is not None and batch_response.error_code is not None:
                 logger.warning(
                     f"Batch validation raised: {batch_response.error_message}"
                 )
@@ -464,12 +456,11 @@ class ValidateCommand(BaseCommand):
         - If both populations are non-empty, run cross-file expansion so codes
           044, 045 and 055 surface here rather than mid-generation.
 
-        STOP-AND-ASK / Phase F: the blueprint discoverer / expander /
-        parser and the ``ProjectConfigLoader`` all live in ``lhp.core``
-        and ``lhp.parsers``. The §9.7 placement gate forbids
-        ``cli/commands/*`` from importing them statically. Until the
-        validation surface is added to ``lhp.api``, the helpers are
-        resolved here via :func:`importlib.import_module` —
+        The blueprint discoverer / expander / parser and the
+        ``ProjectConfigLoader`` all live in ``lhp.core`` and ``lhp.parsers``.
+        The §9.7 placement gate forbids ``cli/commands/*`` from importing them
+        statically, so the helpers are resolved here via
+        :func:`importlib.import_module` —
         :samp:`API-LEAK-DEFER-blueprint-validate`.
         All errors are raised as ``LHPError`` and formatted by the
         existing CLI error boundary.
@@ -590,18 +581,15 @@ class ValidateCommand(BaseCommand):
         the not-configured path while still distinguishing "configured +
         clean" (``[]``) from "not configured" (``None``).
 
-        STOP-AND-ASK / Phase F: the underlying test-reporting validator
-        lives in ``lhp.core.codegen.tst_reporting_hook_generator`` and
-        has no public-API equivalent. Until ``lhp.api`` grows a
-        ``validation.validate_test_reporting(...)`` surface (Phase F),
-        this helper resolves the generator and the project-config
-        loader via :func:`importlib.import_module` rather than a static
+        The underlying test-reporting validator lives in
+        ``lhp.core.codegen.tst_reporting_hook_generator`` and has no
+        public-API equivalent. The generator and project-config loader are
+        resolved via :func:`importlib.import_module` rather than a static
         ``from`` import — that keeps the placement gate green (§9.7
         forbids static absolute / relative imports from internal
-        ``core`` modules in CLI files) while preserving the
-        file-existence behaviour that
-        :class:`tests.e2e.test_test_reporting_spec_e2e.TC-21b` pins.
-        Tracked as :samp:`API-LEAK-DEFER-tst-reporting`.
+        ``core`` modules in CLI files) while preserving the file-existence
+        behaviour that :class:`tests.e2e.test_test_reporting_spec_e2e.TC-21b`
+        pins. Tracked as :samp:`API-LEAK-DEFER-tst-reporting`.
         """
         config_view = application_facade.inspection.get_project_config()
         if not config_view.has_test_reporting:
@@ -627,8 +615,6 @@ class ValidateCommand(BaseCommand):
         # The ``include_tests`` extended check walks flowgroups for
         # ``test_id`` — left disabled here. The file-existence check
         # (which TC-21b pins) runs regardless of ``include_tests``.
-        # Phase F will route this via ``lhp.api`` and restore the deep
-        # check by surfacing test-id-bearing flowgroups via a view.
         processed_flowgroups = None if not include_tests else []
 
         generator = generator_cls(project_config, project_root)

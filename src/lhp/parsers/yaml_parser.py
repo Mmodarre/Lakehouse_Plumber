@@ -1,15 +1,13 @@
 # JUSTIFIED: YAML parse + cache + schema validation share a single
 # document-tree representation; splitting requires either deep-copy
 # at every boundary or a parser-internal mutability contract.
-# TODO(Phase 9.5): re-evaluate after schema-versioning lands (Phase 11.7)
+# TODO(Phase 9.5): re-evaluate after schema-versioning lands
 
 import logging
 import threading
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar
 
-
-from ..models.config import ActionType, FlowGroup, Preset, Template
 from ..errors import (
     ErrorCategory,
     ErrorFormatter,
@@ -17,7 +15,8 @@ from ..errors import (
     LHPError,
     LHPValidationError,
 )
-from ..utils.yaml_loader import load_yaml_documents_all, load_yaml_file
+from ..models.config import ActionType, FlowGroup, Preset, Template
+from .yaml_loader import load_yaml_documents_all, load_yaml_file
 
 _CacheValueT = TypeVar("_CacheValueT")
 
@@ -126,8 +125,8 @@ class YAMLParser:
         Raises:
             ValueError: For duplicate flowgroup names, mixed syntax, or parsing errors
         """
-        from ..utils.yaml_loader import load_yaml_documents_all
         from .blueprint_parser import BlueprintParser
+        from .yaml_loader import load_yaml_documents_all
 
         try:
             documents = load_yaml_documents_all(
@@ -302,7 +301,7 @@ class YAMLParser:
         multiple flowgroups (via --- separator or flowgroups array), use
         parse_flowgroups_from_file() instead.
         """
-        from ..utils.yaml_loader import load_yaml_documents_all
+        from .yaml_loader import load_yaml_documents_all
 
         # Check if file contains multiple flowgroups
         try:

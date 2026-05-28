@@ -17,10 +17,10 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from lhp.core.codegen.imports import ImportManager, extract_future_imports
 from lhp.core.registry import BaseActionGenerator
 from lhp.generators.load.custom_datasource import CustomDataSourceLoadGenerator
 from lhp.models.config import Action, ActionType
-from lhp.utils.import_manager import ImportManager, extract_future_imports
 
 
 class TestImportManagerBasics:

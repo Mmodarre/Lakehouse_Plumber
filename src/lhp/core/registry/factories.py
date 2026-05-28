@@ -1,10 +1,10 @@
 """Factory interfaces for dependency injection in LakehousePlumber orchestrator."""
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from abc import ABC, abstractmethod
 
-from ...utils.substitution import EnhancedSubstitutionManager
+from ..processing.substitution import EnhancedSubstitutionManager
 
 
 class SubstitutionFactory(ABC):

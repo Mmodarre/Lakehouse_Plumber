@@ -17,8 +17,8 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from ..core.loaders.pipeline_config_loader import PipelineConfigLoader
+from ..core.processing.substitution import EnhancedSubstitutionManager
 from ..errors import ErrorCategory, LHPConfigError
-from ..utils.substitution import EnhancedSubstitutionManager
 
 logger = logging.getLogger(__name__)
 

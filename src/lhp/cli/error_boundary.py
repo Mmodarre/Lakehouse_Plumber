@@ -6,9 +6,9 @@ from functools import wraps
 from typing import Callable
 
 from ..errors import LHPError
-from ..utils.exit_codes import ExitCode
 from . import console as _console_module
 from .error_panel import render_error_panel
+from .exit_codes import ExitCode
 
 logger = logging.getLogger(__name__)
 

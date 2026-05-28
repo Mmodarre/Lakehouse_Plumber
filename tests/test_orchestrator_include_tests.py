@@ -68,7 +68,7 @@ project:
 
     def test_generate_flowgroup_code_skips_tests_when_false(self):
         """Test that _generate_flowgroup_code skips TEST actions when include_tests=False."""
-        from lhp.utils.substitution import EnhancedSubstitutionManager
+        from lhp.core.processing.substitution import EnhancedSubstitutionManager
 
         # Create flowgroup with mixed actions including TEST
         flowgroup = FlowGroup(
@@ -106,7 +106,7 @@ project:
 
     def test_generate_flowgroup_code_includes_tests_when_true(self):
         """Test that _generate_flowgroup_code includes TEST actions when include_tests=True."""
-        from lhp.utils.substitution import EnhancedSubstitutionManager
+        from lhp.core.processing.substitution import EnhancedSubstitutionManager
 
         # Create flowgroup with mixed actions including TEST
         flowgroup = FlowGroup(
@@ -146,7 +146,7 @@ project:
 
     def test_mixed_flowgroup_filtering(self):
         """Test flowgroup with both TEST and non-TEST actions respects include_tests flag."""
-        from lhp.utils.substitution import EnhancedSubstitutionManager
+        from lhp.core.processing.substitution import EnhancedSubstitutionManager
 
         # Create flowgroup with mixed actions
         flowgroup = FlowGroup(
@@ -211,7 +211,7 @@ project:
 
     def test_test_only_flowgroup_behavior(self):
         """Test that test-only flowgroups are skipped entirely when include_tests=False."""
-        from lhp.utils.substitution import EnhancedSubstitutionManager
+        from lhp.core.processing.substitution import EnhancedSubstitutionManager
 
         # Create test-only flowgroup
         flowgroup = FlowGroup(

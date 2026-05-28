@@ -4,15 +4,11 @@ import logging
 from pathlib import Path
 from typing import Any, Dict
 
+from ...core.loaders.external_file_loader import resolve_external_file_path
 from ...core.registry import BaseActionGenerator
+from ...errors import ErrorCategory, ErrorFormatter, LHPValidationError
 from ...models.config import Action
-from ...errors import (
-    ErrorCategory,
-    ErrorFormatter,
-    LHPValidationError,
-)
-from ...utils.external_file_loader import resolve_external_file_path
-from ...utils.schema_transform_parser import SchemaTransformParser
+from ...parsers.schema_transform_parser import SchemaTransformParser
 
 logger = logging.getLogger(__name__)
 

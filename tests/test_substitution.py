@@ -6,8 +6,11 @@ from unittest.mock import patch
 
 import pytest
 
+from lhp.core.processing.substitution import (
+    EnhancedSubstitutionManager,
+    SecretReference,
+)
 from lhp.errors import LHPConfigError, LHPValidationError
-from lhp.utils.substitution import EnhancedSubstitutionManager, SecretReference
 
 
 class TestEnhancedSubstitutionManager:
@@ -246,7 +249,7 @@ class TestSubstitutionErrorPaths:
         mgr = EnhancedSubstitutionManager()
 
         with patch(
-            "lhp.utils.yaml_loader.load_yaml_file",
+            "lhp.parsers.yaml_loader.load_yaml_file",
             side_effect=RuntimeError("file corrupted"),
         ):
             with pytest.raises(LHPConfigError) as exc_info:

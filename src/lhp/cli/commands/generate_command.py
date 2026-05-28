@@ -5,10 +5,7 @@
 # concern is a thin adapter over the public facade (no business logic),
 # but the adapters must coexist here to share the Live panel and
 # warning-collector lifecycle. Splitting along concerns risks N+1 Live
-# frames or duplicated warning collectors. Further reduction is queued
-# for Phase F: extract the monitoring post-processing block (~80L) into
-# a dedicated CLI presenter once the monitoring service exposes a
-# higher-level summary surface.
+# frames or duplicated warning collectors.
 # TODO(Phase 9.2): extract monitoring post-processing + Live-frame setup + bundle preflight into cli/presenters/ modules per LOCAL/REMAINING_WORK.md §9.2.
 """Clean Architecture generate command implementation."""
 
@@ -29,9 +26,9 @@ from ...api import (
     ProjectConfigView,
     WarningCollector,
     collect_response,
+    should_enable_bundle_support,
 )
 from ...errors import ErrorCategory, LHPConfigError, LHPError
-from ...utils.bundle_detection import should_enable_bundle_support
 from ...utils.performance_timer import log_perf_summary, perf_timer
 from ..generate_summary import print_summary_table
 from ..live_panel import (
@@ -221,9 +218,7 @@ class GenerateCommand(BaseCommand):
 
                     phase_tracker.start("Discovering")
                     with perf_timer("Pipeline discovery", phase=True):
-                        all_flowgroups = (
-                            application_facade.inspection.list_flowgroups()
-                        )
+                        all_flowgroups = application_facade.inspection.list_flowgroups()
                         duplicate_response = (
                             application_facade.inspection.validate_duplicate_flowgroups(
                                 all_flowgroups
@@ -357,7 +352,9 @@ class GenerateCommand(BaseCommand):
                         phase=True,
                     ):
                         try:
-                            for event in application_facade.generation.generate_pipelines(
+                            for (
+                                event
+                            ) in application_facade.generation.generate_pipelines(
                                 pipeline_fields=pipelines_to_generate,
                                 env=env,
                                 output_dir=output_dir if not dry_run else None,
@@ -396,7 +393,10 @@ class GenerateCommand(BaseCommand):
                     if deferred_error is not None:
                         phase_tracker.complete("Generation", success=False)
                         live.update(_render())
-                    elif batch_response is not None and not batch_response.is_successful():
+                    elif (
+                        batch_response is not None
+                        and not batch_response.is_successful()
+                    ):
                         phase_tracker.complete("Generation", success=False)
                         live.update(_render())
                     elif batch_response is not None:
@@ -563,9 +563,7 @@ class GenerateCommand(BaseCommand):
         on ``not dry_run`` — this method assumes both checks have run.
         """
         sync_result = collect_response(
-            application_facade.bundle.sync_resources(
-                env, output_dir, wipe=True
-            )
+            application_facade.bundle.sync_resources(env, output_dir, wipe=True)
         )
         # ``collect_response`` returns ``object``; narrow for attribute
         # access. ``BundleSyncCompleted.response`` is a ``BundleSyncResult``
@@ -609,10 +607,9 @@ def _require_pipeline_config_flag(
     is on but no ``--pipeline-config`` flag was supplied. Without that
     flag, pipeline config loading would fall back to empty defaults and
     every pipeline would fail catalog/schema validation later — so we
-    surface the actionable error up-front, before any wipes occur. The
-    inline check replaces the legacy
-    ``lhp.bundle.preflight.require_pipeline_config_flag`` import per the
-    §5 boundary cutover (Phase D1).
+    surface the actionable error up-front, before any wipes occur. Inlined
+    here per the §5 boundary cutover (CLI can't import from
+    ``lhp.bundle.preflight``).
     """
     if not bundle_enabled or pipeline_config_path:
         return

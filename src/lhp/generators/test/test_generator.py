@@ -1,11 +1,20 @@
-"""Test action generator for Lakehouse Plumber."""
+"""Test action generator for Lakehouse Plumber.
+
+# JUSTIFIED: test_generator.py is ~510 lines because one generator emits
+# the full row_count / uniqueness / referential_integrity / column_range /
+# all_lookups_found / completeness test families with their SQL templates
+# and Pydantic spec validation in one file.
+# Decomposition target: extract the per-test-type SQL templates into
+# ``generators/test/templates/`` and reduce this file to the dispatcher.
+# TODO(Phase 9.3): see LOCAL/REMAINING_WORK.md §0 — generator template extraction.
+"""
 
 import logging
 from typing import Any, Dict, List
 
 from lhp.core.registry import BaseActionGenerator
-from lhp.models.config import Action
 from lhp.errors import ErrorCategory, LHPValidationError
+from lhp.models.config import Action
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +27,7 @@ class TestActionGenerator(BaseActionGenerator):
     # SQL templates for each test type
     TEST_SQL_TEMPLATES = {
         "row_count": """
-            SELECT * FROM 
+            SELECT * FROM
               (SELECT COUNT(*) AS source_count FROM {source[0]}),
               (SELECT COUNT(*) AS target_count FROM {source[1]})
         """,
@@ -29,7 +38,7 @@ class TestActionGenerator(BaseActionGenerator):
             HAVING COUNT(*) > 1
         """,
         "referential_integrity": """
-            SELECT 
+            SELECT
               s.*,
               r.{ref_col} as ref_{ref_col}
             FROM {source} s
@@ -44,8 +53,8 @@ class TestActionGenerator(BaseActionGenerator):
             FROM {source}
         """,
         "all_lookups_found": """
-            SELECT 
-              s.*, 
+            SELECT
+              s.*,
               l.{lookup_result} as lookup_{lookup_result}
             FROM {source} s
             LEFT JOIN {lookup_table} l ON {join_condition}
@@ -61,7 +70,11 @@ class TestActionGenerator(BaseActionGenerator):
     # Used by gates that decide whether to call ``_generate_test_sql``.
     _SQL_TEST_TYPES = frozenset(TEST_SQL_TEMPLATES) | frozenset({"schema_match"})
 
-    def __init__(self, config: Dict[str, Any] | None = None, context: Dict[str, Any] | None = None):
+    def __init__(
+        self,
+        config: Dict[str, Any] | None = None,
+        context: Dict[str, Any] | None = None,
+    ):
         """Initialize TestGenerator with config and context."""
         super().__init__()
         self.config = config or {}
@@ -71,7 +84,9 @@ class TestActionGenerator(BaseActionGenerator):
         self.add_import("from pyspark import pipelines as dp")
         self.add_import("from pyspark.sql.functions import *")
 
-    def generate(self, action: Action = None, context: Dict[str, Any] | None = None) -> str:
+    def generate(
+        self, action: Action = None, context: Dict[str, Any] | None = None
+    ) -> str:
         """Generate test code directly without delegation."""
         # Use instance config/context if not provided
         if action:

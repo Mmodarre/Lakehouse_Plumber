@@ -11,12 +11,12 @@ import dataclasses
 import logging
 from typing import Any, Dict
 
-from ...models.config import ActionType, FlowGroup, FlowGroupContext
 from ...errors import LHPError, LHPValidationError
-from ...utils.local_variables import LocalVariableResolver
+from ...models.config import ActionType, FlowGroup, FlowGroupContext
 from ...utils.performance_timer import perf_timer
-from ...utils.substitution import EnhancedSubstitutionManager
 from ..coordination._interfaces import BaseFlowgroupResolutionService
+from .local_variables import LocalVariableResolver
+from .substitution import EnhancedSubstitutionManager
 
 
 class FlowgroupResolutionService(BaseFlowgroupResolutionService):

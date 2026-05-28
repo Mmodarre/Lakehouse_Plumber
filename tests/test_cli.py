@@ -58,7 +58,7 @@ class TestCLI:
 
     def test_init_existing_lhp_yaml(self, runner, temp_project):
         """Test init when lhp.yaml already exists in CWD."""
-        from lhp.utils.exit_codes import ExitCode
+        from lhp.cli.exit_codes import ExitCode
 
         with runner.isolated_filesystem(temp_dir=temp_project):
             Path("lhp.yaml").write_text("name: existing\n")
@@ -87,7 +87,7 @@ class TestCLI:
 
     def test_validate_not_in_project(self, runner):
         """Test validate when not in a project directory."""
-        from lhp.utils.exit_codes import ExitCode
+        from lhp.cli.exit_codes import ExitCode
 
         result = runner.invoke(cli, ["validate"])
 
@@ -109,7 +109,7 @@ class TestCLI:
             result = runner.invoke(cli, ["validate"])
 
             # LHP-CFG-014 raised when no flowgroups discovered.
-            from lhp.utils.exit_codes import ExitCode
+            from lhp.cli.exit_codes import ExitCode
 
             assert result.exit_code == ExitCode.CONFIG_ERROR
             assert "LHP-CFG-014" in result.output
@@ -220,9 +220,9 @@ class TestCLI:
                 ],
             )
 
-            assert result.exit_code == 0, (
-                f"Unexpected failure; output:\n{result.output}"
-            )
+            assert (
+                result.exit_code == 0
+            ), f"Unexpected failure; output:\n{result.output}"
             # Dry-run must not materialize bundle resource files.
             assert not (Path("resources") / "lhp").exists() or not any(
                 (Path("resources") / "lhp").iterdir()
@@ -614,7 +614,7 @@ description = "Test package"
             result = runner.invoke(cli, ["generate", "--env", "dev", "--no-bundle"])
 
             # LHP-CFG-014 raised when no flowgroups discovered.
-            from lhp.utils.exit_codes import ExitCode
+            from lhp.cli.exit_codes import ExitCode
 
             assert result.exit_code == ExitCode.CONFIG_ERROR
             assert "LHP-CFG-014" in result.output

@@ -111,9 +111,6 @@ filterwarnings = [
     # Phase 1 deprecation shims (architecture streamline). Removable after the
     # earliest minor-version window — see each shim's module docstring.
     "ignore:lhp.core.base_generator is deprecated:DeprecationWarning",
-    "ignore:lhp.utils.operational_metadata is deprecated:DeprecationWarning",
-    "ignore:lhp.utils.schema_parser is deprecated:DeprecationWarning",
-    "ignore:lhp.utils.schema_transform_parser is deprecated:DeprecationWarning",
     # Phase 4: ``TestActionView`` is a public DTO in lhp.api.views whose
     # name happens to match pytest's class-collection heuristic. The
     # constructor signature differs from a test class so pytest already
@@ -193,7 +190,7 @@ strict_equality = true
 
 [[tool.mypy.overrides]]
 module = "tests.*"
-disallow_untyped_defs = false 
+disallow_untyped_defs = false
 [tool.importlinter]
 root_packages = ["lhp"]
 
@@ -288,20 +285,20 @@ name = "Models must not depend on higher layers"
 type = "forbidden"
 source_modules = ["lhp.models"]
 forbidden_modules = ["lhp.cli", "lhp.bundle", "lhp.core", "lhp.generators", "lhp.parsers", "lhp.presets", "lhp.api"]
+# TYPE_CHECKING-only edge. ``PipelineWorkUnit`` annotates an optional
+# ``EnhancedSubstitutionManager`` field that ``to_dict`` deliberately omits
+# (the manager has non-JSON state). No runtime coupling. Phase 10.2's mypy
+# --strict expansion will swap this for a Protocol defined in ``lhp.models``
+# and remove the edge entirely.
+ignore_imports = [
+    "lhp.models.processing -> lhp.core.processing.substitution",
+]
 
 [[tool.importlinter.contracts]]
 name = "Utils must depend only on stdlib (and at most models)"
 type = "forbidden"
 source_modules = ["lhp.utils"]
 forbidden_modules = ["lhp.cli", "lhp.bundle", "lhp.core", "lhp.generators", "lhp.parsers", "lhp.presets", "lhp.api"]
-# Week 5 unmasked the pre-existing `lhp.utils` → `lhp.parsers` coupling
-# in the two schema-parser modules. Relocation is Week 6 scope
-# (OPMETA-MOVE-DEFER expanded). The carve-out keeps the layering gate
-# green until those files are moved out of `utils/`.
-ignore_imports = [
-    "lhp.utils.schema_parser -> lhp.parsers.yaml_parser",
-    "lhp.utils.schema_transform_parser -> lhp.parsers.yaml_parser",
-]
 
 [[tool.importlinter.contracts]]
 name = "Generator families must not import each other directly"
@@ -328,4 +325,3 @@ tests_dir = "tests/"
 paths = ["src/lhp/", "vulture_whitelist.py"]
 min_confidence = 80
 sort_by_size = true
-

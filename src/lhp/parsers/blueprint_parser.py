@@ -10,17 +10,9 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from ..models.config import (
-    Blueprint,
-    BlueprintInstance,
-)
-from ..errors import (
-    ErrorCategory,
-    LHPConfigError,
-    LHPError,
-    LHPValidationError,
-)
-from ..utils.yaml_loader import load_yaml_documents_all
+from ..errors import ErrorCategory, LHPConfigError, LHPError, LHPValidationError
+from ..models.config import Blueprint, BlueprintInstance
+from .yaml_loader import load_yaml_documents_all
 
 if TYPE_CHECKING:
     from .yaml_parser import CachingYAMLParser
@@ -35,9 +27,7 @@ class BlueprintParser:
         self.logger = logging.getLogger(__name__)
         self.caching_yaml_parser = caching_yaml_parser
 
-    def _load_documents(
-        self, path: Path, error_context: str
-    ) -> List[Dict[str, Any]]:
+    def _load_documents(self, path: Path, error_context: str) -> List[Dict[str, Any]]:
         """Load all YAML documents from ``path``, routing through the cache
         when one was wired at construction time.
         """
@@ -59,9 +49,7 @@ class BlueprintParser:
         Raises:
             LHPConfigError: If the file is empty, multi-document, or fails Pydantic validation.
         """
-        documents = self._load_documents(
-            path, error_context=f"blueprint file {path}"
-        )
+        documents = self._load_documents(path, error_context=f"blueprint file {path}")
 
         if not documents:
             raise LHPConfigError(

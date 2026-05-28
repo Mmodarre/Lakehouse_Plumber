@@ -1,5 +1,11 @@
-"""Action validators package."""
+"""Action validators package.
 
+# isort: skip_file -- the import order below is load-bearing: ConfigValidator
+# does ``from . import LoadActionValidator, ...`` and would hit a partially-
+# initialized-module ImportError if isort moved it ahead of its dependencies.
+"""
+
+# isort: skip_file
 from ._base import BaseActionValidator
 from .cdc_fanin_compatibility_validator import CdcFanInCompatibilityValidator
 from .load_validator import LoadActionValidator

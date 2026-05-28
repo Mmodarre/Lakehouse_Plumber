@@ -18,10 +18,12 @@ the terminal response DTO.
 
 :stability: provisional
 """
+
 from __future__ import annotations
 
 from typing import Iterator
 
+from lhp.api._serialization import to_dict
 from lhp.api.bootstrap import LakehousePlumberBootstrap
 from lhp.api.callbacks import WarningCollector
 from lhp.api.events import (
@@ -56,7 +58,6 @@ from lhp.api.responses import (
     StatsResult,
     ValidationResponse,
 )
-from lhp.api._serialization import to_dict
 from lhp.api.views import (
     ActionView,
     BlueprintInstanceView,
@@ -71,6 +72,8 @@ from lhp.api.views import (
     TemplateView,
     ValidationIssueView,
 )
+from lhp.bundle.detection import should_enable_bundle_support
+from lhp.core.processing.substitution import EnhancedSubstitutionManager
 
 
 def collect_response(events: Iterator[LHPEvent]) -> object:
@@ -103,9 +106,7 @@ def collect_response(events: Iterator[LHPEvent]) -> object:
     if final_response is None:
         # Stream ended without a terminal Completed event — should not
         # happen on the success path; investigate the producer.
-        raise RuntimeError(
-            "LHPEvent stream ended without a terminal Completed event"
-        )
+        raise RuntimeError("LHPEvent stream ended without a terminal Completed event")
     return final_response
 
 
@@ -123,6 +124,7 @@ __all__: list[str] = [
     "DependencyAnalysisResult",
     "DependencyOutputEntry",
     "DependencyOutputsResult",
+    "EnhancedSubstitutionManager",
     "ErrorEmitted",
     "FinalizeMonitoringResult",
     "FlowgroupView",
@@ -142,6 +144,7 @@ __all__: list[str] = [
     "PresetView",
     "ProcessedFlowgroupView",
     "ProjectConfigView",
+    "should_enable_bundle_support",
     "StatsResult",
     "to_dict",
     "TemplateParameterView",

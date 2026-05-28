@@ -11,12 +11,12 @@ from typing import Any, Dict, List, Optional
 
 from jinja2 import Environment
 
-from ...models.config import ActionType, FlowGroup, ProjectConfig
 from ...errors import ErrorCategory, LHPError
+from ...models.config import ActionType, FlowGroup, ProjectConfig
 from ...utils.file_header import build_lhp_source_header, write_normalized
 from ...utils.formatter import CodeFormatter
-from ...utils.substitution import EnhancedSubstitutionManager
-from ...utils.template_renderer import get_lhp_template_loader
+from ..processing.substitution import EnhancedSubstitutionManager
+from .template_renderer import get_lhp_template_loader
 
 logger = logging.getLogger(__name__)
 
@@ -200,7 +200,7 @@ class TestReportingHookGenerator:
                 ],
             )
 
-        from ...utils.yaml_loader import load_yaml_file
+        from ...parsers.yaml_loader import load_yaml_file
 
         data = load_yaml_file(
             config_path,

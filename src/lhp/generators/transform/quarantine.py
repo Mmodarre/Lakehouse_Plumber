@@ -13,7 +13,7 @@ import logging
 import re
 from typing import Any, Dict, List, Union
 
-from ...utils.dqe import DQEParser
+from ...core.processing.dqe import DQEParser
 from ...errors import ErrorCategory, LHPError
 
 logger = logging.getLogger(__name__)
@@ -116,9 +116,7 @@ class QuarantineCodeGenerator:
         )
 
         # Collect ALL metadata column names for hash exclusion
-        from ...core.codegen.operational_metadata_service import (
-            OperationalMetadataService,
-        )
+        from ...core.codegen.operational_metadata import OperationalMetadataService
 
         service = OperationalMetadataService()
         project_config = flowgroup_config.get("project_config")

@@ -30,7 +30,7 @@ from ...generators.python_file_copier import CopiedModuleRecord
 from ...models.config import FlowGroup, FlowGroupContext
 from ...models.dependencies import DependencyAnalysisResult, DependencyGraphs
 from ...models.processing import PipelineDelta
-from ...utils.substitution import EnhancedSubstitutionManager as SubstitutionManager
+from ..processing.substitution import EnhancedSubstitutionManager as SubstitutionManager
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,12 +58,14 @@ class CrossFlowgroupCheckResult:
         """True if any cross-flowgroup error was reported."""
         return bool(self.table_creation_errors or self.cdc_fanin_errors)
 
+
 if TYPE_CHECKING:
     # ``ValidationIssueView`` lives in :mod:`lhp.api.views` — the frozen
     # public projection of an internal validation outcome (Phase B2b).
     # Importing under TYPE_CHECKING keeps this ABC decoupled from the
     # runtime import order.
     from lhp.api.views import ValidationIssueView
+
     # PipelineValidationOutcome currently lives in `core/coordination/executor.py`;
     # it will move to `models/processing.py` (or `lhp/api/`) once the public DTO
     # surface is consolidated. Importing under TYPE_CHECKING avoids freezing

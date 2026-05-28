@@ -1,8 +1,8 @@
 """Builders for :class:`PipelineWorkUnit` sequences (generate + validate).
 
-Extracted from :class:`ActionOrchestrator` in Phase D8b so the
-orchestrator stays under the §9.3 800-line hard cap. The builders
-remain ``ActionOrchestrator``-aware (they call back into
+Extracted from :class:`ActionOrchestrator` so the orchestrator stays
+under the §9.3 800-line hard cap. The builders remain
+``ActionOrchestrator``-aware (they call back into
 ``self._make_context``, ``self._discover_and_filter_flowgroups``,
 ``self._lookup_pipeline_slice`` — main-process-only helpers that own
 the ``_synthetic_contexts`` mutable dict — see manifest §10 risk #1)
@@ -99,8 +99,10 @@ def build_generate_work_units(
             f"create_substitution_manager [{pipeline_field}]",
             category="create_substitution_manager",
         ):
-            sub_mgr = orchestrator._orchestration_dependencies.create_substitution_manager(
-                substitution_file, env
+            sub_mgr = (
+                orchestrator._orchestration_dependencies.create_substitution_manager(
+                    substitution_file, env
+                )
             )
         if warning_collector is not None and sub_mgr.has_deprecated_bare_tokens:
             warning_collector.add(
@@ -146,16 +148,20 @@ def build_validate_work_units(
     for pipeline_field in pipeline_fields:
         try:
             flowgroups = orchestrator.discover_flowgroups_by_pipeline_field(
-                pipeline_field, pre_discovered_all_flowgroups=all_flowgroups,
+                pipeline_field,
+                pre_discovered_all_flowgroups=all_flowgroups,
             )
         except Exception as e:  # noqa: BLE001 — caller-facing discovery error
             orchestrator.logger.debug(
-                f"Pipeline '{pipeline_field}' discovery failed", exc_info=True,
+                f"Pipeline '{pipeline_field}' discovery failed",
+                exc_info=True,
             )
             units.append(
                 PipelineWorkUnit(
-                    pipeline_name=pipeline_field, flowgroups=(),
-                    substitution_manager=None, output_dir=None,
+                    pipeline_name=pipeline_field,
+                    flowgroups=(),
+                    substitution_manager=None,
+                    output_dir=None,
                     discovery_error=f"Pipeline validation failed: {e}",
                 )
             )
@@ -165,8 +171,10 @@ def build_validate_work_units(
         if not flowgroups:
             units.append(
                 PipelineWorkUnit(
-                    pipeline_name=pipeline_field, flowgroups=contexts,
-                    substitution_manager=None, output_dir=None,
+                    pipeline_name=pipeline_field,
+                    flowgroups=contexts,
+                    substitution_manager=None,
+                    output_dir=None,
                 )
             )
             continue
@@ -182,8 +190,10 @@ def build_validate_work_units(
             )
         units.append(
             PipelineWorkUnit(
-                pipeline_name=pipeline_field, flowgroups=contexts,
-                substitution_manager=sub_mgr, output_dir=None,
+                pipeline_name=pipeline_field,
+                flowgroups=contexts,
+                substitution_manager=sub_mgr,
+                output_dir=None,
             )
         )
     return tuple(units)

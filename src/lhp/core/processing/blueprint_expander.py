@@ -29,6 +29,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+from ...errors import ErrorCategory, LHPValidationError
 from ...models.config import (
     Blueprint,
     BlueprintFlowgroupSpec,
@@ -36,12 +37,8 @@ from ...models.config import (
     FlowGroup,
     FlowGroupContext,
 )
-from ...errors import (
-    ErrorCategory,
-    LHPValidationError,
-)
-from ...utils.local_variables import LocalVariableResolver
 from ...utils.performance_timer import perf_timer, record_count
+from .local_variables import LocalVariableResolver
 
 # Matches any `${...}` token (env or secret). Both kinds are forbidden inside
 # `pipeline`/`flowgroup` strings because they resolve at Step 3, after the

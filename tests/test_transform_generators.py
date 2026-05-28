@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from lhp.generators.python_file_copier import PythonFunctionConflictError
 from lhp.generators.transform import (
     DataQualityTransformGenerator,
     PythonTransformGenerator,
@@ -13,7 +14,6 @@ from lhp.generators.transform import (
     SQLTransformGenerator,
     TempTableTransformGenerator,
 )
-from lhp.generators.python_file_copier import PythonFunctionConflictError
 from lhp.models.config import (
     Action,
     ActionType,
@@ -1049,9 +1049,9 @@ def merge_data_sources(dataframes, spark, parameters):
             (generators_dir / "data_generator.py").write_text("""
 def generate_reference_data(spark, parameters):
     from pyspark.sql import Row
-    
+
     data_type = parameters.get("data_type", "lookup")
-    
+
     if data_type == "lookup":
         data = [
             Row(id=1, name="Category A", active=True),
@@ -1062,13 +1062,13 @@ def generate_reference_data(spark, parameters):
         data = [
             Row(id=1, value="Default Value"),
         ]
-    
+
     return spark.createDataFrame(data)
 
 def generate_test_data(spark, parameters):
     count = parameters.get("count", 100)
     from pyspark.sql import functions as F
-    
+
     # Generate test data
     df = spark.range(count).select(
         F.col("id").alias("test_id"),
@@ -2016,7 +2016,7 @@ class TestDQEParserQuarantine:
 
     def test_get_all_expectations_as_drop_list_format(self):
         """List format: all expectations coerced to single drop dict."""
-        from lhp.utils.dqe import DQEParser
+        from lhp.core.processing.dqe import DQEParser
 
         parser = DQEParser()
         expectations = [
@@ -2043,7 +2043,7 @@ class TestDQEParserQuarantine:
 
     def test_get_all_expectations_as_drop_dict_format(self):
         """Dict format: all expectations coerced to single drop dict."""
-        from lhp.utils.dqe import DQEParser
+        from lhp.core.processing.dqe import DQEParser
 
         parser = DQEParser()
         expectations = {
@@ -2060,7 +2060,7 @@ class TestDQEParserQuarantine:
 
     def test_get_all_expectations_as_drop_mixed_actions(self):
         """All action types are flattened regardless of failureAction."""
-        from lhp.utils.dqe import DQEParser
+        from lhp.core.processing.dqe import DQEParser
 
         parser = DQEParser()
         expectations = [

@@ -3,10 +3,10 @@
 import logging
 from pathlib import Path
 
+from ...core.loaders.external_file_loader import load_external_file_text
 from ...core.registry import BaseActionGenerator
-from ...models.config import Action
 from ...errors import ErrorFormatter
-from ...utils.external_file_loader import load_external_file_text
+from ...models.config import Action
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,10 @@ class SQLLoadGenerator(BaseActionGenerator):
         return self.render_template("load/sql.py.j2", template_context)
 
     def _get_sql_query(
-        self, source_config: dict, spec_dir: Path | None = None, context: dict | None = None
+        self,
+        source_config: dict,
+        spec_dir: Path | None = None,
+        context: dict | None = None,
     ) -> str:
         """Extract SQL query from configuration."""
         sql_content = None

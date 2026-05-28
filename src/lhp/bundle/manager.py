@@ -14,12 +14,12 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+from ..core.codegen.template_renderer import TemplateRenderer
 from ..core.coordination.monitoring_pipeline_builder import (
     resolve_monitoring_pipeline_name,
 )
 from ..errors import ErrorCategory, LHPConfigError, LHPError
 from ..utils.performance_timer import perf_timer, record_count
-from ..utils.template_renderer import TemplateRenderer
 from .exceptions import BundleResourceError
 
 logger = logging.getLogger(__name__)
@@ -122,7 +122,7 @@ class BundleManager:
 
         substitution_file = self.project_root / "substitutions" / f"{env}.yaml"
         if substitution_file.exists():
-            from ..utils.substitution import EnhancedSubstitutionManager
+            from ..core.processing.substitution import EnhancedSubstitutionManager
 
             sub_mgr: Optional[Any] = EnhancedSubstitutionManager(substitution_file, env)
         else:
@@ -394,8 +394,6 @@ class BundleManager:
             "bundle/pipeline_resource.yml.j2", context
         )
 
-    # === UTILITY METHODS ===
-
     def _safe_directory_create(
         self, directory: Path, error_context: str = "directory"
     ) -> None:
@@ -455,8 +453,6 @@ class BundleManager:
             error_msg = f"{operation} failed for pipeline '{pipeline_name}': {error}"
 
         return BundleResourceError(error_msg, error)
-
-    # === MAIN WORKFLOW METHODS ===
 
     def _setup_sync_environment(self, output_dir: Path) -> List[Path]:
         """Ensure resources/lhp/ exists and return the current pipeline dirs."""

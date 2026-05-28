@@ -61,8 +61,6 @@ class _TableExtractor(ast.NodeVisitor):
         self._scopes: List[_Scope] = [_Scope(kind="module")]
         self.tables: Set[str] = set()
 
-    # ---- scope management ----
-
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         self._in_scope("function", node)
 
@@ -76,8 +74,6 @@ class _TableExtractor(ast.NodeVisitor):
         self._scopes.append(_Scope(kind=kind))
         self.generic_visit(node)
         self._scopes.pop()
-
-    # ---- binding collection ----
 
     def visit_Assign(self, node: ast.Assign) -> None:
         """Collect bindings from ``a = "x"``, ``a = b = "x"``, ``a, b = "x", "y"``."""
@@ -136,8 +132,6 @@ class _TableExtractor(ast.NodeVisitor):
             rendered = self._parser._process_f_string(node)
             return frozenset({rendered}) if rendered else frozenset()
         return frozenset()
-
-    # ---- reference resolution ----
 
     def visit_Call(self, node: ast.Call) -> None:
         values = self._parser._extract_table_from_call(

@@ -1,14 +1,11 @@
 """Dependency analysis core: pure topological / cycle / external-source analysis.
 
-The historical ``DependencyAnalysisService`` class — which composed
-discovery + processing + graph construction + analysis + export — has been
-decomposed (Phase B of the Week 3 refactor):
+This module hosts only the pure analysis core (``DependencyAnalyzer``).
+The dependency-analysis surface is split across:
 
 - composition root → ``service.py`` (``DependencyAnalysisService``)
 - discovery + graph construction → ``builder.py`` (``DependencyGraphBuilder``)
 - DOT/JSON/text serialization → ``output.py`` (module-level functions)
-
-This module now hosts only the pure analysis core (``DependencyAnalyzer``).
 """
 
 import logging
@@ -36,7 +33,6 @@ class DependencyAnalyzer:
     """
 
     def __init__(self) -> None:
-        """Construct an analyzer. Stateless — no setup required."""
         self.logger = logging.getLogger(__name__)
 
     def analyze(self, graphs: DependencyGraphs) -> DependencyAnalysisResult:

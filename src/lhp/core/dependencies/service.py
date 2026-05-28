@@ -36,10 +36,10 @@ from ..coordination import ValidationService
 from ..coordination._interfaces import BaseDependencyAnalysisService
 from ..discovery.blueprint_discoverer import BlueprintDiscoverer
 from ..discovery.flowgroup_discoverer import FlowgroupDiscoveryService
-from ..processing.blueprint_expander import BlueprintExpander
-from ..processing.flowgroup_resolver import FlowgroupResolutionService
 from ..loaders import ProjectConfigLoader
 from ..processing import TemplateEngine
+from ..processing.blueprint_expander import BlueprintExpander
+from ..processing.flowgroup_resolver import FlowgroupResolutionService
 from ..validators import ConfigValidator
 from ..validators.secret_validator import SecretValidator
 from . import output
@@ -55,11 +55,9 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
     (topological / cycle analysis), a metrics service (placeholders), and
     uses ``output.export_to_*`` for serialization.
 
-    The constructor signature is the new 3-arg form (``project_root``,
-    ``project_config``, ``validation_service``). External callers
-    (orchestrator, CLI) construct the validation service first and pass
-    it in; the legacy 2-arg ``(project_root, config_loader)`` form is
-    removed by Phase B6's hard cut.
+    The constructor takes ``(project_root, project_config,
+    validation_service)``. External callers (orchestrator, CLI) construct
+    the validation service first and pass it in.
 
     :stability: provisional
     """
@@ -112,9 +110,7 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
             self._project_config_loader,
             yaml_parser=self._cached_yaml_parser,
         )
-        blueprint_parser = BlueprintParser(
-            caching_yaml_parser=self._cached_yaml_parser
-        )
+        blueprint_parser = BlueprintParser(caching_yaml_parser=self._cached_yaml_parser)
         blueprint_discoverer = BlueprintDiscoverer(
             project_root,
             project_config=project_config,
@@ -153,8 +149,6 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         )
         self._analyzer = DependencyAnalyzer()
 
-    # --- BaseDependencyAnalysisService ABC implementations ------------------
-
     def build_graphs(self, flowgroups: Sequence[FlowGroup]) -> DependencyGraphs:
         """Build action/flowgroup/pipeline dependency graphs from a flowgroup set.
 
@@ -183,8 +177,6 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         if format == "text":
             return output.export_to_text(result)
         raise ValueError(f"Unknown format: {format!r}")
-
-    # --- Ancillary methods (called by CLI / output.py) ----------------------
 
     def get_project_name(self) -> str:
         """Get the project name from lhp.yaml configuration.
@@ -264,9 +256,7 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         self.logger.info(
             f"Step 2: Partitioning global result by {len(job_groups)} job group(s)"
         )
-        job_results = self._analyzer.partition_result_by_job(
-            global_result, flowgroups
-        )
+        job_results = self._analyzer.partition_result_by_job(global_result, flowgroups)
 
         self.logger.info(
             f"Multi-job analysis complete: {len(job_results)} job(s), "
@@ -283,9 +273,7 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         """Partition a global dependency analysis result by ``job_name``."""
         return self._analyzer.partition_result_by_job(global_result, flowgroups)
 
-    def get_flowgroups(
-        self, pipeline_filter: Optional[str] = None
-    ) -> List[FlowGroup]:
+    def get_flowgroups(self, pipeline_filter: Optional[str] = None) -> List[FlowGroup]:
         """Get flowgroups, optionally filtered by pipeline."""
         return self._builder.get_flowgroups(pipeline_filter)
 
@@ -301,16 +289,6 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         """Get pipeline execution order using topological sorting."""
         return self._analyzer.get_execution_order(graphs)
 
-    def detect_circular_dependencies(
-        self, graphs: DependencyGraphs
-    ) -> List[List[str]]:
+    def detect_circular_dependencies(self, graphs: DependencyGraphs) -> List[List[str]]:
         """Detect circular dependencies at all graph levels."""
         return self._analyzer.detect_circular_dependencies(graphs)
-
-    # --- Metrics forwards ---------------------------------------------------
-
-    
-
-    
-
-    

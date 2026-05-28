@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
 
 from ...generators.python_file_copier import CopiedModuleRecord
 from ...models.config import FlowGroup
-from ...utils.substitution import EnhancedSubstitutionManager
+from ..processing.substitution import EnhancedSubstitutionManager
 
 
 class GenerationContextBuilder:
@@ -62,9 +62,9 @@ class GenerationContextBuilder:
             # populated by generators for legacy callers that read from
             # the context dict.
             "secret_references": set(),
-            # Phase A collect carrier: when present, copy_user_module_for_pipeline
-            # appends CopiedModuleRecord entries here instead of writing to disk,
-            # so Phase B can replay the writes on the main thread.
+            # When present, ``copy_user_module_for_pipeline`` appends
+            # CopiedModuleRecord entries here instead of writing to disk, so
+            # writes can be replayed on the main thread.
             "phase_a_records": phase_a_records,
             # Inline auxiliary Python modules carried on the FlowGroupContext
             # (e.g. monitoring's jobs_stats_loader.py). Read by

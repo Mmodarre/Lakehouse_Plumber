@@ -1,4 +1,12 @@
-"""Show command implementation for LakehousePlumber CLI."""
+"""Show command implementation for LakehousePlumber CLI.
+
+# JUSTIFIED: show_command.py is ~714 lines because the resolved-config
+# display layer hosts header/substitution/action panels + project-summary
+# tables in one file. Decomposition target: extract the panel renderers
+# into ``src/lhp/cli/presenters/show_*.py`` and reduce this file to a
+# Click callback + facade dispatch + a few lines of glue.
+# TODO(Phase 9.2): see LOCAL/REMAINING_WORK.md §0 — CLI presenter extraction.
+"""
 
 import dataclasses
 import importlib
@@ -14,12 +22,12 @@ from rich.text import Text
 from rich.tree import Tree
 
 from lhp.api import (
+    EnhancedSubstitutionManager,
     LakehousePlumberApplicationFacade,
     ProcessedFlowgroupView,
     ProjectConfigView,
 )
 from lhp.errors import ErrorCategory, LHPError
-from lhp.utils.substitution import EnhancedSubstitutionManager
 
 from .. import console as _console_module
 from ..render import render_command_header
@@ -82,12 +90,14 @@ class ShowCommand(BaseCommand):
         logger.debug(f"Show flowgroup request: flowgroup={flowgroup}, env={env}")
 
         application_facade = LakehousePlumberApplicationFacade.for_project(
-            project_root, enforce_version=False,
+            project_root,
+            enforce_version=False,
         )
 
         try:
             processed_fg = application_facade.inspection.process_flowgroup(
-                flowgroup, env=env,
+                flowgroup,
+                env=env,
             )
         except LookupError:
             # `InspectionFacade.process_flowgroup` raises `LookupError`
@@ -122,13 +132,11 @@ class ShowCommand(BaseCommand):
         Expands only the named instance (not the full project) so the
         round-trip stays sub-second at 80-instance scale.
 
-        STOP-AND-ASK / Phase F: the blueprint discoverer / expander /
-        parser and the ``ProjectConfigLoader`` all live in ``lhp.core``
-        and ``lhp.parsers``. The §9.7 placement gate forbids
-        ``cli/commands/*`` from importing them statically. Until the
-        ``show --instance`` surface is added to ``lhp.api`` (a
-        ``InspectionFacade.expand_single_instance``-style method), the
-        helpers are resolved here via :func:`importlib.import_module` —
+        The blueprint discoverer / expander / parser and the
+        ``ProjectConfigLoader`` all live in ``lhp.core`` and ``lhp.parsers``.
+        The §9.7 placement gate forbids ``cli/commands/*`` from importing them
+        statically, so the helpers are resolved here via
+        :func:`importlib.import_module` —
         :samp:`API-LEAK-DEFER-show-instance`.
         """
         render_command_header("lhp show --instance")
@@ -206,13 +214,14 @@ class ShowCommand(BaseCommand):
             instance, instance_path, blueprints
         )
 
-        # ``EnhancedSubstitutionManager`` lives in ``lhp.utils`` (allowed
-        # in CLI per §5.3) and is only used here for the secret-reference
-        # and token-summary tables. The facade builds an equivalent
-        # manager internally for ``process_flowgroup``; this CLI-side
-        # instance is kept solely for rendering bookkeeping.
+        # ``EnhancedSubstitutionManager`` is re-exported by ``lhp.api``
+        # (allowed in CLI per §5.3) and is only used here for the
+        # secret-reference and token-summary tables. The facade builds an
+        # equivalent manager internally for ``process_flowgroup``; this
+        # CLI-side instance is kept solely for rendering bookkeeping.
         application_facade = LakehousePlumberApplicationFacade.for_project(
-            project_root, enforce_version=False,
+            project_root,
+            enforce_version=False,
         )
 
         substitution_mgr = self._load_substitution_manager(project_root, env)
@@ -240,7 +249,8 @@ class ShowCommand(BaseCommand):
                 )
             )
             processed = application_facade.inspection.process_flowgroup(
-                fg.flowgroup, env=env,
+                fg.flowgroup,
+                env=env,
             )
             self._display_flowgroup_configuration(processed, env)
             self._display_actions_table(processed)
@@ -348,9 +358,7 @@ class ShowCommand(BaseCommand):
             return value
         return str(value)
 
-    def _display_actions_table(
-        self, processed_fg: ProcessedFlowgroupView
-    ) -> None:
+    def _display_actions_table(self, processed_fg: ProcessedFlowgroupView) -> None:
         from ..render import ColumnSpec, render_empty_state, render_listing_table
 
         title = f"Actions ({len(processed_fg.actions)} total)"
@@ -428,9 +436,7 @@ class ShowCommand(BaseCommand):
                 )
             )
 
-    def _load_project_config(
-        self, project_root: Path
-    ) -> Optional[ProjectConfigView]:
+    def _load_project_config(self, project_root: Path) -> Optional[ProjectConfigView]:
         """Return a frozen :class:`ProjectConfigView`, or ``None`` on failure.
 
         Routes through the inspection sub-facade so the CLI never touches
@@ -441,7 +447,8 @@ class ShowCommand(BaseCommand):
         """
         try:
             application_facade = LakehousePlumberApplicationFacade.for_project(
-                project_root, enforce_version=False,
+                project_root,
+                enforce_version=False,
             )
             return application_facade.inspection.get_project_config()
         except Exception as e:

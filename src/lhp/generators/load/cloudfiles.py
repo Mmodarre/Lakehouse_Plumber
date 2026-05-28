@@ -4,20 +4,15 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-from ...core.registry import BaseActionGenerator
-from ...models.config import Action
-from ...errors import (
-    ErrorCategory,
-    ErrorFormatter,
-    LHPError,
-    LHPValidationError,
-)
-from ...utils.external_file_loader import (
+from ...core.loaders.external_file_loader import (
     is_file_path,
     load_external_file_text,
     resolve_external_file_path,
 )
-from ...utils.schema_parser import SchemaParser
+from ...core.registry import BaseActionGenerator
+from ...errors import ErrorCategory, ErrorFormatter, LHPError, LHPValidationError
+from ...models.config import Action
+from ...parsers.schema_parser import SchemaParser
 
 
 class CloudFilesLoadGenerator(BaseActionGenerator):

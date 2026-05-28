@@ -11,7 +11,7 @@ import logging
 
 import yaml
 
-from lhp.utils.substitution import EnhancedSubstitutionManager
+from lhp.core.processing.substitution import EnhancedSubstitutionManager
 
 
 def _write_substitution_file(path, mapping):
@@ -66,7 +66,7 @@ def test_no_logger_warning_emitted_from_substitution(tmp_path, caplog) -> None:
     processes (NullHandler-only); the orchestrator now consults the
     per-instance bool flag and forwards a single warning to the
     per-run :class:`WarningCollector`. There must be no remaining
-    ``logger.warning`` emission from ``lhp.utils.substitution`` for
+    ``logger.warning`` emission from ``lhp.core.processing.substitution`` for
     deprecation.
     """
     sub_file = _write_substitution_file(
@@ -77,7 +77,7 @@ def test_no_logger_warning_emitted_from_substitution(tmp_path, caplog) -> None:
         },
     )
 
-    with caplog.at_level(logging.WARNING, logger="lhp.utils.substitution"):
+    with caplog.at_level(logging.WARNING, logger="lhp.core.processing.substitution"):
         manager = EnhancedSubstitutionManager(substitution_file=sub_file, env="dev")
         # Trigger an additional substitution pass to ensure no warning
         # emits when the manager's user-facing methods are called.
@@ -86,7 +86,8 @@ def test_no_logger_warning_emitted_from_substitution(tmp_path, caplog) -> None:
     deprecation_records = [
         r
         for r in caplog.records
-        if r.name == "lhp.utils.substitution" and "deprecat" in r.message.lower()
+        if r.name == "lhp.core.processing.substitution"
+        and "deprecat" in r.message.lower()
     ]
     assert deprecation_records == []
     # And the per-instance flag is set, which is the supported signal.

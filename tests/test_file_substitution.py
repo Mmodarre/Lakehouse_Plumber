@@ -5,13 +5,13 @@ from pathlib import Path
 
 import pytest
 
+from lhp.core.processing.substitution import EnhancedSubstitutionManager
 from lhp.generators.load.custom_datasource import CustomDataSourceLoadGenerator
 from lhp.generators.load.sql import SQLLoadGenerator
 from lhp.generators.transform.python import PythonTransformGenerator
 from lhp.generators.transform.sql import SQLTransformGenerator
 from lhp.generators.write.streaming_table import StreamingTableWriteGenerator
 from lhp.models.config import Action, ActionType, FlowGroup
-from lhp.utils.substitution import EnhancedSubstitutionManager
 
 
 class TestSnapshotCDCFunctionSubstitution:
@@ -31,16 +31,16 @@ from pyspark.sql import DataFrame
 def next_snapshot_and_version(latest_snapshot_version: Optional[int]) -> Optional[Tuple[DataFrame, int]]:
     if latest_snapshot_version is None:
         df = spark.sql('''
-            SELECT * FROM {catalog}.{bronze_schema}.part 
+            SELECT * FROM {catalog}.{bronze_schema}.part
             WHERE snapshot_id = (SELECT min(snapshot_id) FROM {catalog}.{bronze_schema}.part)
         ''')
-        
+
         min_snapshot_id = spark.sql('''
             SELECT min(snapshot_id) as min_id FROM {catalog}.{bronze_schema}.part
         ''').collect()[0].min_id
-        
+
         return (df, min_snapshot_id)
-    
+
     return None
 """)
             function_file = f.name
@@ -119,14 +119,14 @@ def next_snapshot_with_secrets(latest_version: Optional[int]) -> Optional[Tuple[
     # Use secrets for database connection
     catalog = "${secret:db_config/catalog}"
     bronze_schema = "${secret:db_config/bronze_schema}"
-    
+
     if latest_version is None:
         df = spark.sql(f'''
-            SELECT * FROM {catalog}.{bronze_schema}.part 
+            SELECT * FROM {catalog}.{bronze_schema}.part
             WHERE snapshot_id = 1
         ''')
         return (df, 1)
-    
+
     return None
 """)
             function_file = f.name
@@ -206,15 +206,15 @@ from pyspark.sql import DataFrame
 def next_snapshot_mixed(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, int]]:
     # Mix of tokens and secrets
     api_key = "${secret:api/key}"
-    
+
     if latest_version is None:
         df = spark.sql(f'''
-            SELECT * FROM {catalog}.{bronze_schema}.part 
+            SELECT * FROM {catalog}.{bronze_schema}.part
             WHERE snapshot_id = 1
             AND source = '{environment}'
         ''')
         return (df, 1)
-    
+
     return None
 """)
             function_file = f.name
@@ -291,11 +291,11 @@ from pyspark.sql import DataFrame
 def next_snapshot_plain(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, int]]:
     if latest_version is None:
         df = spark.sql('''
-            SELECT * FROM raw.customer_snapshots 
+            SELECT * FROM raw.customer_snapshots
             WHERE snapshot_id = 1
         ''')
         return (df, 1)
-    
+
     return None
 """)
             function_file = f.name
@@ -358,13 +358,13 @@ class TestSQLFileSubstitution:
         # Create a temporary SQL file with substitution variables
         with tempfile.NamedTemporaryFile(mode="w", suffix=".sql", delete=False) as f:
             f.write("""
-            SELECT 
+            SELECT
                 customer_id,
                 customer_name,
                 email,
                 '{environment}' as source_env
             FROM {catalog}.{bronze_schema}.customers
-            WHERE 
+            WHERE
                 active = true
                 AND created_date >= '{start_date}'
             """)
@@ -439,14 +439,14 @@ class TestSQLFileSubstitution:
         # Create a temporary SQL file with substitution variables
         with tempfile.NamedTemporaryFile(mode="w", suffix=".sql", delete=False) as f:
             f.write("""
-            SELECT 
+            SELECT
                 c.customer_id,
                 UPPER(TRIM(c.customer_name)) as customer_name,
                 LOWER(TRIM(c.email)) as email,
                 c.created_date,
                 '{pipeline_version}' as version
             FROM {staging_view} c
-            WHERE 
+            WHERE
                 c.email IS NOT NULL
                 AND c.created_date >= '{cutoff_date}'
             """)
@@ -526,7 +526,7 @@ class TestSQLFileSubstitution:
         # Create a temporary SQL file with secret references
         with tempfile.NamedTemporaryFile(mode="w", suffix=".sql", delete=False) as f:
             f.write("""
-            SELECT 
+            SELECT
                 customer_id,
                 customer_name,
                 '${secret:env_config/environment}' as env_name,
@@ -607,13 +607,13 @@ class TestSQLFileSubstitution:
         # Create a SQL file without any substitution variables
         with tempfile.NamedTemporaryFile(mode="w", suffix=".sql", delete=False) as f:
             f.write("""
-            SELECT 
+            SELECT
                 customer_id,
                 customer_name,
                 email,
                 'production' as environment
             FROM raw.customers
-            WHERE 
+            WHERE
                 active = true
                 AND created_date >= '2024-01-01'
             """)
@@ -676,18 +676,18 @@ from pyspark.sql.functions import col, lit
 
 def enrich_customers(df: DataFrame, spark, parameters) -> DataFrame:
     '''Enrich customer data with environment-specific values.'''
-    
+
     # Add environment-specific columns
     enriched_df = df.withColumn("environment", lit("{environment}"))
     enriched_df = enriched_df.withColumn("catalog_name", lit("{catalog}"))
     enriched_df = enriched_df.withColumn("processing_date", lit("{processing_date}"))
-    
+
     # Apply business rule based on environment
     if "{environment}" == "prod":
         enriched_df = enriched_df.withColumn("priority", lit("high"))
     else:
         enriched_df = enriched_df.withColumn("priority", lit("normal"))
-    
+
     return enriched_df
 """)
             python_file = f.name

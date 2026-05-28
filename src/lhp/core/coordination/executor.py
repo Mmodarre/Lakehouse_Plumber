@@ -50,10 +50,9 @@ from ...utils.performance_timer import perf_timer
 from ._interfaces import BasePipelineExecutionService
 from ._pool import (
     FlowgroupValidationResult,
-    _GenerateWorkerState,
-    _ValidateWorkerState,
     _dispatch_pipeline_for_generate,
     _generate_one_pipeline,
+    _GenerateWorkerState,
     _init_generate_worker,
     _init_validate_worker,
     _init_worker_logger,
@@ -61,13 +60,14 @@ from ._pool import (
     _process_flowgroup_for_validate,
     _process_pipeline_for_generate,
     _validate_one_fg,
+    _ValidateWorkerState,
     run_generate_pool,
     run_validate_pool,
 )
 
 if TYPE_CHECKING:
     from ...errors import LHPError
-    from ...utils.substitution import EnhancedSubstitutionManager
+    from ..processing.substitution import EnhancedSubstitutionManager
     from .validation_service import ValidationService
 
 
@@ -143,20 +143,19 @@ class PipelineExecutionService(BasePipelineExecutionService):
     (pipeline name + flowgroup contexts).
 
     .. note::
-       **Week 1-2 ABC-contract stubs.** :meth:`run_generate` and
-       :meth:`run_validate` exist to satisfy the
-       :class:`BasePipelineExecutionService` interface, and they work for the
-       minimal :class:`PipelineWorkUnit` shape they were designed for. The
-       orchestrator's ``generate_pipelines`` and
-       ``validate_pipelines`` paths still call
-       :func:`run_generate_pool` / :func:`run_validate_pool` directly because
-       they need per-call collaborators (environment, output dirs, substitution
-       managers, callbacks) that the current ``PipelineWorkUnit`` DTO does not
-       carry. Collapsing those orchestrator paths through this facade is a
-       Week 3 deliverable: it requires extending :class:`PipelineWorkUnit` to
-       carry the per-call execution context (or splitting it into a
-       constructor-time + per-call DTO pair). Until that DTO formalization
-       lands, these methods stay as ABC-contract stubs.
+       **ABC-contract stubs.** :meth:`run_generate` and :meth:`run_validate`
+       exist to satisfy the :class:`BasePipelineExecutionService` interface,
+       and they work for the minimal :class:`PipelineWorkUnit` shape they
+       were designed for. The orchestrator's ``generate_pipelines`` and
+       ``validate_pipelines`` paths still call :func:`run_generate_pool` /
+       :func:`run_validate_pool` directly because they need per-call
+       collaborators (environment, output dirs, substitution managers,
+       callbacks) that the current ``PipelineWorkUnit`` DTO does not carry.
+       Collapsing those orchestrator paths through this facade requires
+       extending :class:`PipelineWorkUnit` to carry the per-call execution
+       context (or splitting it into a constructor-time + per-call DTO
+       pair). Until that DTO formalization lands, these methods stay as
+       ABC-contract stubs.
 
     :stability: provisional
     """
@@ -325,7 +324,9 @@ class PipelineExecutionService(BasePipelineExecutionService):
                     )
                     cdc_errors = cross_result.cdc_fanin_errors
                 errors.extend(cdc_errors)
-            except Exception as e:  # noqa: BLE001 — LHPError caught for structured display
+            except (
+                Exception
+            ) as e:  # noqa: BLE001 — LHPError caught for structured display
                 from ...errors import LHPError as _LHPError
 
                 if isinstance(e, _LHPError):

@@ -8,10 +8,10 @@ from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Set, Tuple
 
+from ...errors import ErrorCategory, LHPError, LHPValidationError
 from ...generators.python_file_copier import CopiedModuleRecord
 from ...models.config import Action, ActionType, FlowGroup, TransformType
-from ...errors import ErrorCategory, LHPError, LHPValidationError
-from ...utils.substitution import EnhancedSubstitutionManager
+from ..processing.substitution import EnhancedSubstitutionManager
 
 if TYPE_CHECKING:
     from .context import GenerationContextBuilder

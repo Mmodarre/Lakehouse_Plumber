@@ -10,23 +10,22 @@ from pathlib import Path
 
 import pytest
 
-from lhp.core.validators.secret_validator import SecretValidator
-from lhp.core.processing.flowgroup_resolver import FlowgroupResolutionService
 from lhp.core.processing import TemplateEngine
+from lhp.core.processing.flowgroup_resolver import FlowgroupResolutionService
+from lhp.core.processing.substitution import EnhancedSubstitutionManager
 from lhp.core.validators import ConfigValidator
+from lhp.core.validators.secret_validator import SecretValidator
+from lhp.errors import LHPValidationError
 from lhp.models.config import Action, ActionType, FlowGroup
 from lhp.presets.preset_manager import PresetManager
-from lhp.errors import LHPValidationError
-from lhp.utils.substitution import EnhancedSubstitutionManager
-from tests.helpers import process_unwrap as _process, wrap_in_ctx as _ctx_of
-
-
 from tests.fakes import (
     FakeFlowgroupResolutionService,
     FakeSubstitutionManager,
     FakeTemplate,
     FakeTemplateEngine,
 )
+from tests.helpers import process_unwrap as _process
+from tests.helpers import wrap_in_ctx as _ctx_of
 
 # ============================================================================
 # Fixtures

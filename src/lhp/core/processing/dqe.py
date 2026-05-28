@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple, Union
 
 
-from ..errors import ErrorFormatter, LHPError
+from ...errors import ErrorFormatter, LHPError
 
 
 class DQEParser:
@@ -118,7 +118,7 @@ class DQEParser:
                 file_type="expectations file",
             )
 
-        from .yaml_loader import load_yaml_file
+        from lhp.parsers.yaml_loader import load_yaml_file
 
         try:
             data = load_yaml_file(expectations_file, error_context="expectations file")

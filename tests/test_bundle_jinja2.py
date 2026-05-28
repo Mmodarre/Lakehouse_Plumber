@@ -363,7 +363,7 @@ class TestBundleJinja2Templates:
     def test_template_engine_integration(self):
         """Should integrate properly with bundle manager's Jinja2 environment via composition."""
         # Verify BundleManager uses composition with TemplateRenderer
-        from lhp.utils.template_renderer import TemplateRenderer
+        from lhp.core.codegen.template_renderer import TemplateRenderer
 
         assert hasattr(self.manager, "template_renderer")
         assert isinstance(self.manager.template_renderer, TemplateRenderer)

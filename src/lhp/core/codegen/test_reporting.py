@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, List, Optional
 
 if TYPE_CHECKING:
     from ...models.config import FlowGroup, ProjectConfig
-    from ...utils.substitution import EnhancedSubstitutionManager
+    from ..processing.substitution import EnhancedSubstitutionManager
 
 
 logger = logging.getLogger(__name__)

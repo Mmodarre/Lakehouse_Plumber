@@ -13,7 +13,7 @@ panel loop).
 # dual-inheritance ``ValueError``/``FileNotFoundError`` bridges
 # (``LHPValidationError``/``LHPConfigError``/``LHPFileError``), the
 # worker-side reconstruction helper, ``MultiDocumentError``, and the
-# four reparented bundle exceptions (Phase D8: ``BundleResourceError``,
+# four reparented bundle exceptions (``BundleResourceError``,
 # ``TemplateError``, ``YAMLProcessingError``, ``BundleConfigurationError``).
 # Each class is small, but they form one cohesive class hierarchy and
 # splitting them across multiple files (`types_bundle.py`,
@@ -21,9 +21,8 @@ panel loop).
 # that domain types live under ``lhp.errors`` as one logical unit and
 # (b) create import-ordering hazards for the ``__reduce__`` /
 # ``_WORKER_ERROR_TYPE_TO_LHP_CLASS`` registry that resolves by class
-# name across the spawn boundary. Phase D9 will collapse the legacy
-# ``bundle.error_factories`` factory layer; until then the inline
-# ``__init__`` legacy-attribute preservation is load-bearing for
+# name across the spawn boundary. The inline ``__init__``
+# legacy-attribute preservation is load-bearing for
 # ``convert_bundle_error``'s ``getattr`` paths.
 
 from __future__ import annotations
