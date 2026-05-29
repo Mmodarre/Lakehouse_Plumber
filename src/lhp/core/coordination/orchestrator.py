@@ -37,8 +37,7 @@ from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence, Tupl
 from lhp.models import FlowGroup, FlowGroupContext
 
 if TYPE_CHECKING:
-    from ...api.callbacks import WarningCollector
-    from ...generators.python_file_copier import CopiedModuleRecord
+    from ..python_file_copier import CopiedModuleRecord
     from ...models.processing import PipelineDelta
 
 from ...models.processing import PipelineWorkUnit
@@ -62,7 +61,7 @@ from ..processing.substitution import EnhancedSubstitutionManager
 from ..registry import ActionRegistry, OrchestrationDependencies
 from ..validators import ConfigValidator
 from ..validators.secret_validator import SecretValidator
-from ._interfaces import (
+from .._interfaces import (
     BaseCodeGenerationService,
     BaseDependencyAnalysisService,
     BaseFlowgroupBootstrapService,
@@ -71,6 +70,7 @@ from ._interfaces import (
     BaseMonitoringFinalizerService,
     BasePipelineExecutionService,
     BaseValidationService,
+    BaseWarningCollector,
 )
 from .bootstrap_service import FlowgroupBootstrapService
 from .executor import (  # noqa: F401 — kept for tests that monkeypatch the symbol
@@ -402,7 +402,7 @@ class ActionOrchestrator:
         max_workers: Optional[int] = None,
         on_pipeline_complete: Optional[Callable[["PipelineDelta"], None]] = None,
         on_pipeline_start: Optional[Callable[[str], None]] = None,
-        warning_collector: Optional["WarningCollector"] = None,
+        warning_collector: Optional[BaseWarningCollector] = None,
     ) -> Dict[str, tuple[str, ...]]:
         """Build work units, hand to PipelineExecutionService.run_generate, aggregate.
 
@@ -473,7 +473,7 @@ class ActionOrchestrator:
         specific_flowgroups: Optional[List[str]],
         include_tests: bool,
         pre_discovered_all_flowgroups: Optional[Sequence[FlowGroup]],
-        warning_collector: Optional["WarningCollector"],
+        warning_collector: Optional[BaseWarningCollector],
     ) -> Tuple[PipelineWorkUnit, ...]:
         """Thin delegator to :func:`work_unit_builder.build_generate_work_units`."""
         return build_generate_work_units(
@@ -578,7 +578,7 @@ class ActionOrchestrator:
         pre_discovered_all_flowgroups: Optional[Sequence[FlowGroup]] = None,
         max_workers: Optional[int] = None,
         on_pipeline_complete: Optional[OnValidationComplete] = None,
-        warning_collector: Optional["WarningCollector"] = None,
+        warning_collector: Optional[BaseWarningCollector] = None,
     ) -> List[PipelineValidationOutcome]:
         """Build work units, hand to PipelineExecutionService.run_validate.
 
@@ -629,7 +629,7 @@ class ActionOrchestrator:
         pipeline_fields: Sequence[str],
         env: str,
         pre_discovered_all_flowgroups: Optional[Sequence[FlowGroup]],
-        warning_collector: Optional["WarningCollector"],
+        warning_collector: Optional[BaseWarningCollector],
     ) -> Tuple[PipelineWorkUnit, ...]:
         """Thin delegator to :func:`work_unit_builder.build_validate_work_units`."""
         return build_validate_work_units(

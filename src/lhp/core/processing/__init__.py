@@ -34,7 +34,7 @@ def __getattr__(name: str) -> Any:
     # §5.4-compatible lazy resolution: imports through the package init are
     # endorsed, so deferring one entry to module-level __getattr__ (PEP 562)
     # preserves the public surface contract while breaking an import cycle:
-    # flowgroup_resolver → coordination._interfaces → coordination/__init__.py
+    # flowgroup_resolver → core._interfaces → coordination/__init__.py
     # → monitoring_service → core.registry, which is mid-init when
     # registry.factories triggers the chain via core.processing.substitution.
     if name == "FlowgroupResolutionService":

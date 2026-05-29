@@ -17,7 +17,7 @@ from lhp.models import FlowGroup, FlowGroupContext
 from ...utils.performance_timer import perf_timer
 from ..discovery.blueprint_discoverer import BlueprintDiscoverer
 from ..processing.blueprint_expander import BlueprintExpander, BlueprintProvenance
-from ._interfaces import (
+from .._interfaces import (
     BaseFlowgroupBootstrapService,
     BaseFlowgroupDiscoveryService,
     BaseMonitoringFinalizerService,

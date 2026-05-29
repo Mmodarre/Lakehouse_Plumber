@@ -327,3 +327,63 @@ class TestFlatFieldRoundTrip:
         # And the asdict output is JSON-safe (tuple → list at this step).
         round_tripped = json.loads(json.dumps(d))
         assert round_tripped["suggestions"] == ["fix x", "fix y"]
+
+
+@pytest.mark.unit
+class TestValidationErrorToIssueView:
+    """``_validation_error_to_issue_view`` — the single mapping path from the
+    internal ``ValidationError`` union (``Union[str, LHPError]``) returned by
+    ``ValidationService.validate_flowgroups`` to the public DTO.
+
+    It replaces the two ``_issue_from_*`` statics that previously lived in
+    ``core/coordination/validation_service.py`` (closing the §9.24 duplication
+    and severing the ``core → api`` edge). Both union branches are pinned here.
+    """
+
+    def test_str_branch_projects_unstructured_issue(self) -> None:
+        from lhp.api._converters import _validation_error_to_issue_view
+
+        view = _validation_error_to_issue_view(
+            "discovery failed for foo", pipeline_name="bronze", flowgroup_name="fg1"
+        )
+        assert view.code == ""
+        assert view.category == "VAL"
+        assert view.severity == "error"
+        assert view.title == "discovery failed for foo"
+        assert view.pipeline_name == "bronze"
+        assert view.flowgroup_name == "fg1"
+
+    def test_lhp_error_branch_delegates_to_structured_mapping(self) -> None:
+        from lhp.api._converters import (
+            _lhp_error_to_issue_view,
+            _validation_error_to_issue_view,
+        )
+        from lhp.errors import ErrorCategory, LHPError
+
+        err = LHPError(
+            category=ErrorCategory.GENERAL,
+            code_number="999",
+            title="boom",
+            details="something broke",
+        )
+        view = _validation_error_to_issue_view(
+            err, pipeline_name="silver", flowgroup_name="fg2"
+        )
+        # Structured branch: non-empty code, category mirrors ErrorCategory —
+        # NOT the empty-code "VAL" projection of the str branch.
+        assert view.code != ""
+        assert view.category != "VAL"
+        assert view.title == "boom"
+        # The dispatcher returns exactly what the structured mapper produces.
+        assert view == _lhp_error_to_issue_view(
+            err, pipeline_name="silver", flowgroup_name="fg2"
+        )
+
+    def test_severity_passthrough_on_str_branch(self) -> None:
+        from lhp.api._converters import _validation_error_to_issue_view
+
+        view = _validation_error_to_issue_view(
+            "a recoverable warning", severity="warning"
+        )
+        assert view.severity == "warning"
+        assert view.category == "VAL"

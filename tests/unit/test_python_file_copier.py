@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from lhp.generators.python_file_copier import (
+from lhp.core.python_file_copier import (
     PythonFileCopier,
     PythonFunctionConflictError,
 )

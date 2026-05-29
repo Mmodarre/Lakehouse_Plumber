@@ -10,9 +10,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Set, Tuple
 
+from lhp.core._interfaces import BaseWarningCollector
+
 
 @dataclass
-class WarningCollector:
+class WarningCollector(BaseWarningCollector):
     """Per-run accumulator for non-fatal warnings, deduplicated by key.
 
     Dedup is by ``(category, message)`` so helpers can call :meth:`add`

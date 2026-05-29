@@ -2,7 +2,7 @@
 
 Applies presets, templates, and substitutions to a single flowgroup. This is
 the canonical concrete implementation of
-:class:`lhp.core.coordination._interfaces.BaseFlowgroupResolutionService`.
+:class:`lhp.core._interfaces.BaseFlowgroupResolutionService`.
 
 :stability: provisional
 """
@@ -14,7 +14,7 @@ from typing import Any, Dict
 from ...errors import LHPError, LHPValidationError
 from lhp.models import ActionType, FlowGroup, FlowGroupContext
 from ...utils.performance_timer import perf_timer
-from ..coordination._interfaces import BaseFlowgroupResolutionService
+from .._interfaces import BaseFlowgroupResolutionService
 from .local_variables import LocalVariableResolver
 from .substitution import EnhancedSubstitutionManager
 

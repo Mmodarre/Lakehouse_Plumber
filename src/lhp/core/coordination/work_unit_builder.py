@@ -25,9 +25,9 @@ from typing import TYPE_CHECKING, List, Optional, Sequence, Tuple
 from lhp.models import FlowGroup
 from ...models.processing import PipelineWorkUnit
 from ...utils.performance_timer import perf_timer
+from .._interfaces import BaseWarningCollector
 
 if TYPE_CHECKING:
-    from ...api.callbacks import WarningCollector
     from ..orchestrator import ActionOrchestrator
 
 
@@ -40,7 +40,7 @@ def build_generate_work_units(
     specific_flowgroups: Optional[List[str]],
     include_tests: bool,
     pre_discovered_all_flowgroups: Optional[List[FlowGroup]],
-    warning_collector: Optional["WarningCollector"],
+    warning_collector: Optional[BaseWarningCollector],
 ) -> Tuple[PipelineWorkUnit, ...]:
     """Per-pipeline slice → context wrap → output dir → substitution manager.
 
@@ -127,7 +127,7 @@ def build_validate_work_units(
     pipeline_fields: Sequence[str],
     env: str,
     pre_discovered_all_flowgroups: Optional[List[FlowGroup]],
-    warning_collector: Optional["WarningCollector"],
+    warning_collector: Optional[BaseWarningCollector],
 ) -> Tuple[PipelineWorkUnit, ...]:
     """Discover per-pipeline slices; emit work units with discovery error or substitution manager.
 

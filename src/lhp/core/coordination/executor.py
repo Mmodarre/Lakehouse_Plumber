@@ -52,7 +52,7 @@ from ...errors import (
 from lhp.models import FlowGroupContext
 from ...models.processing import PipelineDelta, PipelineWorkUnit
 from ...utils.performance_timer import perf_timer
-from ._interfaces import BasePipelineExecutionService
+from .._interfaces import BasePipelineExecutionService
 from ._pool import (
     FlowgroupValidationResult,
     _dispatch_pipeline_for_generate,

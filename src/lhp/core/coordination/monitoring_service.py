@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 from typing import Optional, Sequence
 
-from lhp.core.coordination._interfaces import BaseMonitoringFinalizerService
+from lhp.core._interfaces import BaseMonitoringFinalizerService
 from lhp.core.registry import OrchestrationDependencies
 from lhp.errors import ErrorCategory, LHPError, LHPFileError
 from lhp.models import FlowGroup, ProjectConfig

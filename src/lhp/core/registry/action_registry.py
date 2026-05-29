@@ -4,32 +4,6 @@ import logging
 from typing import Dict, Type
 
 from .base_generator import BaseActionGenerator
-
-# Import all generators
-from ...generators.load import (
-    CloudFilesLoadGenerator,
-    CustomDataSourceLoadGenerator,
-    DeltaLoadGenerator,
-    JDBCLoadGenerator,
-    KafkaLoadGenerator,
-    PythonLoadGenerator,
-    SQLLoadGenerator,
-)
-from ...generators.test import (
-    TestActionGenerator,
-)
-from ...generators.transform import (
-    DataQualityTransformGenerator,
-    PythonTransformGenerator,
-    SchemaTransformGenerator,
-    SQLTransformGenerator,
-    TempTableTransformGenerator,
-)
-from ...generators.write import (
-    MaterializedViewWriteGenerator,
-    SinkWriteGenerator,
-    StreamingTableWriteGenerator,
-)
 from lhp.models import (
     ActionType,
     LoadSourceType,
@@ -46,6 +20,29 @@ from ...errors import (
 logger = logging.getLogger(__name__)
 
 
+# Generator classes are registered by lhp.generators.registration (wired in
+# at the composition root) rather than imported here — core must not import
+# generators (layering: generators sits ABOVE core).
+_REGISTERED_GENERATORS: Dict[str, Dict[object, Type[BaseActionGenerator]]] = {
+    "load": {},
+    "transform": {},
+    "write": {},
+    "test": {},
+}
+
+
+def register_generators(
+    category: str, mapping: Dict[object, Type[BaseActionGenerator]]
+) -> None:
+    """Register a category's action-type -> generator-class mapping.
+
+    Called by ``lhp.generators.registration``. Idempotent (later calls update).
+    """
+    if category not in _REGISTERED_GENERATORS:
+        raise ValueError(f"Unknown generator category: {category!r}")
+    _REGISTERED_GENERATORS[category].update(mapping)
+
+
 class ActionRegistry:
     """Registry for action generators."""
 
@@ -60,48 +57,12 @@ class ActionRegistry:
         self._initialize_generators()
 
     def _initialize_generators(self):
-        """Initialize generator mappings."""
+        """Initialize generator mappings from the module-level registry."""
         logger.debug("Initializing action generator registry")
-        # Load generators
-        self._load_generators = {
-            LoadSourceType.CLOUDFILES: CloudFilesLoadGenerator,
-            LoadSourceType.DELTA: DeltaLoadGenerator,
-            LoadSourceType.SQL: SQLLoadGenerator,
-            LoadSourceType.JDBC: JDBCLoadGenerator,
-            LoadSourceType.PYTHON: PythonLoadGenerator,
-            LoadSourceType.CUSTOM_DATASOURCE: CustomDataSourceLoadGenerator,
-            LoadSourceType.KAFKA: KafkaLoadGenerator,
-        }
-
-        # Transform generators
-        self._transform_generators = {
-            TransformType.SQL: SQLTransformGenerator,
-            TransformType.DATA_QUALITY: DataQualityTransformGenerator,
-            TransformType.SCHEMA: SchemaTransformGenerator,
-            TransformType.PYTHON: PythonTransformGenerator,
-            TransformType.TEMP_TABLE: TempTableTransformGenerator,
-        }
-
-        # Write generators
-        self._write_generators = {
-            WriteTargetType.STREAMING_TABLE: StreamingTableWriteGenerator,
-            WriteTargetType.MATERIALIZED_VIEW: MaterializedViewWriteGenerator,
-            WriteTargetType.SINK: SinkWriteGenerator,
-        }
-
-        # Test generators - all test types use the same generator
-        # The generator will handle different test types internally
-        self._test_generators = {
-            TestActionType.ROW_COUNT: TestActionGenerator,
-            TestActionType.UNIQUENESS: TestActionGenerator,
-            TestActionType.REFERENTIAL_INTEGRITY: TestActionGenerator,
-            TestActionType.COMPLETENESS: TestActionGenerator,
-            TestActionType.RANGE: TestActionGenerator,
-            TestActionType.SCHEMA_MATCH: TestActionGenerator,
-            TestActionType.ALL_LOOKUPS_FOUND: TestActionGenerator,
-            TestActionType.CUSTOM_SQL: TestActionGenerator,
-            TestActionType.CUSTOM_EXPECTATIONS: TestActionGenerator,
-        }
+        self._load_generators = dict(_REGISTERED_GENERATORS["load"])
+        self._transform_generators = dict(_REGISTERED_GENERATORS["transform"])
+        self._write_generators = dict(_REGISTERED_GENERATORS["write"])
+        self._test_generators = dict(_REGISTERED_GENERATORS["test"])
 
         logger.debug(
             f"Registry initialized: {len(self._load_generators)} load, "

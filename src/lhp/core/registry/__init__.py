@@ -9,7 +9,12 @@ Public re-exports:
 
 Internal helpers stay in their respective modules.
 """
-# Eager re-exports (lightweight; no transitive imports of per-action generators)
+# Eager re-exports. ActionRegistry no longer imports the per-action generator
+# families (load/transform/write/test) — those are registered into the core
+# registry from the ``generators`` layer (ABOVE ``core``) via
+# ``lhp.generators.registration``. The former circular import is gone, so the
+# eager re-export here is safe.
+from .action_registry import ActionRegistry, register_generators
 from .base_generator import BaseActionGenerator
 from .factories import (
     DefaultSubstitutionFactory,
@@ -17,22 +22,11 @@ from .factories import (
     SubstitutionFactory,
 )
 
-# Lazy re-export of ActionRegistry: importing it eagerly would pull in every
-# per-action generator (load/transform/write/test), and those generators
-# import BaseActionGenerator from this package — causing a circular import
-# when a consumer first touches `lhp.core.registry` via a generator path.
-# Deferring to module-level __getattr__ (PEP 562) keeps the public attribute
-# contract intact while breaking the cycle.
-def __getattr__(name):
-    if name == "ActionRegistry":
-        from .action_registry import ActionRegistry
-        return ActionRegistry
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
 __all__ = [
     "ActionRegistry",
     "BaseActionGenerator",
     "DefaultSubstitutionFactory",
     "OrchestrationDependencies",
     "SubstitutionFactory",
+    "register_generators",
 ]

@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase 9.7 — Layering contract redesign V2
+
+**Closes `LAYERING-CONTRACT-REDESIGN-V2`.** The `import-linter` top-down
+layering contract was a silent no-op: it lived in `pyproject.toml` under the
+non-canonical table name `[[tool.importlinter.contracts.disabled-layering]]`,
+which `import-linter` does not read. It is now re-enabled under the canonical
+`[[tool.importlinter.contracts]]` name and reordered to match the real
+dependency directions. **Result: 6 contracts kept, 0 broken, 1 carve-out.**
+
+**Reorder.** `lhp.generators` now sits **above** `lhp.core` — the per-action
+generators inherit from `BaseActionGenerator` in `lhp.core.registry`, so the
+16 `generators → core.registry` carve-outs plus the 1
+`generators.load.kafka → core.validators.kafka_validator` carve-out are now
+legal downward edges and have been removed. `lhp.presets` and `lhp.parsers`
+are core's *dependencies*, so they sit **below** `core` (`presets` above
+`parsers` because `presets` imports it); `lhp.errors` sits **below**
+`lhp.models` because `models` imports `errors`. `lhp.api` is declared as a
+single public layer above `core`.
+
+**`core → api` decoupling (makes the single-`api`-layer ordering hold).**
+`ValidationService.validate_flowgroups()` now returns the internal
+`ValidationError` union instead of constructing the public
+`ValidationIssueView`; public-DTO construction moved to `api/_converters.py`
+(via the new `_validation_error_to_issue_view` helper), removing a §9.24-style
+duplication of the error→view mapping. A `BaseWarningCollector` ABC was added
+to `core/_interfaces.py` so `core` types against the abstraction;
+`api.callbacks.WarningCollector` now inherits it. After this, `core` imports
+`api` in **zero** places (runtime or `TYPE_CHECKING`).
+
+**`core → generators` decoupling (breaks the registry cycle).** Putting
+`generators` above `core` exposed the reverse edge — `core` imported
+`generators` in 10 places, a true cycle. Two changes eliminate it:
+`generators/python_file_copier.py` (a shared file-copy utility that already
+imported `core.loaders`) moved to `core/python_file_copier.py`; and
+`ActionRegistry` is now a passive registry populated by the new
+`lhp.generators.registration` module (which self-registers every family),
+triggered once at the composition root in `lhp/__init__.py`. `core` no longer
+imports `generators` at all. The now-empty `action_registry → generators.*`
+carve-outs were removed from the generator-family independence contract.
+
+**`_interfaces.py` relocation.** `core/coordination/_interfaces.py` →
+`core/_interfaces.py`: the service ABCs are a core-layer concern, not specific
+to the coordination sub-package.
+
+**Surviving carve-out (1).** `lhp.models.processing → lhp.core.processing.substitution`
+— a `TYPE_CHECKING`-only forward ref for `EnhancedSubstitutionManager`. Closed
+in Phase 10.2 (Protocol move pending), documented inline in `pyproject.toml`.
+
 ### Phase 9.6 — JOB-ORCHESTRATION-DEPENDS-ON fix
 
 **Root cause.** `FlowgroupResolutionService.process_flowgroup(...)` mutated the
@@ -373,7 +421,7 @@ marker. Six commits on `v0.9.0---LHP-Architecture-refactor`.
 
 #### Phase 7 — Deferred items
 
-- **`LAYERING-CONTRACT-REDESIGN-V2`** (target: Week 8). Wave 3 (Task C — re-enable top-down layering with `lhp.core.registry` BELOW `lhp.generators`) fired the R1 fallback. C1 audit surfaced ≥11 unexpected upward edges that exceed C3's 3-file fix budget: (a) 4 `lhp.core.coordination -> lhp.api` edges via `TYPE_CHECKING`-only imports (lint-imports does not distinguish TYPE_CHECKING); (b) 4 worker-package edges into `lhp.core.coordination._interfaces` — the `_interfaces` module would need to move to a shared parent (`lhp.core/_interfaces.py`) to eliminate them, which conflates with Phase 8's `utils/` evacuation; (c) 1 `lhp.core.registry -> lhp.core.codegen` edge on `OperationalMetadataService`; (d) 1 `lhp.generators -> lhp.core.codegen` edge (quarantine transform); (e) 1 `lhp.presets -> lhp.parsers` upward edge. `pyproject.toml` layering contract is unchanged from the Week-6 baseline (the disabled-layering block stays disabled, retaining its 17 generator→registry carve-outs as documentation). The 3 warning_collector carve-outs on the "no CLI from domain" contract are removed in the WarningCollector move.
+- **`LAYERING-CONTRACT-REDESIGN-V2`** — ✅ **CLOSED** (see *Phase 9.7 — Layering contract redesign V2* above). The contract is re-enabled (6 kept, 0 broken, 1 carve-out); `generators` sits above `core`, `core` no longer imports `api` or `generators`, and `_interfaces.py` moved to `core/`. Original deferral rationale retained below for history. Wave 3 (Task C — re-enable top-down layering with `lhp.core.registry` BELOW `lhp.generators`) fired the R1 fallback. C1 audit surfaced ≥11 unexpected upward edges that exceed C3's 3-file fix budget: (a) 4 `lhp.core.coordination -> lhp.api` edges via `TYPE_CHECKING`-only imports (lint-imports does not distinguish TYPE_CHECKING); (b) 4 worker-package edges into `lhp.core.coordination._interfaces` — the `_interfaces` module would need to move to a shared parent (`lhp.core/_interfaces.py`) to eliminate them, which conflates with Phase 8's `utils/` evacuation; (c) 1 `lhp.core.registry -> lhp.core.codegen` edge on `OperationalMetadataService`; (d) 1 `lhp.generators -> lhp.core.codegen` edge (quarantine transform); (e) 1 `lhp.presets -> lhp.parsers` upward edge. `pyproject.toml` layering contract is unchanged from the Week-6 baseline (the disabled-layering block stays disabled, retaining its 17 generator→registry carve-outs as documentation). The 3 warning_collector carve-outs on the "no CLI from domain" contract are removed in the WarningCollector move.
 - **`WARNING-COLLECTOR-RICH-LAZY-V2`** (target: Week 8 if needed). R2 fallback did NOT fire — no lazy `__rich__` delegator was required on the new `WarningCollector`. Listed here because the plan reserved the tag; downstream cleanup may close it.
 - **NIT — §4.10 naming-table amendment.** The `*Collector` suffix used by `WarningCollector` does not match any defined kind in the constitution §4.10 naming table (DTO / Sub-DTO / Event / Validator / Service / Coordinator). A future amendment should either rename to `WarningCallback` or add a `Callback` row to §4.10.
 - **NIT — §3.4 module-underscore convention.** `src/lhp/api/_serialization.py` follows the existing repo pattern (`_listings.py`, `_inspection_facade.py`, `_converters.py`, `_bundle_facade.py`) of underscore-prefixed modules whose contents are publicly re-exported by `lhp.api.__init__`. Worth a §11 definition addition in a future constitution amendment to make the pattern explicit.

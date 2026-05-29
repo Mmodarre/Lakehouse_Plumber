@@ -1,7 +1,7 @@
 """Dependency analysis composition root.
 
 Implements :class:`BaseDependencyAnalysisService` (the canonical ABC under
-``coordination/_interfaces.py``) by composing two internal collaborators:
+``core/_interfaces.py``) by composing two internal collaborators:
 
 - :class:`DependencyGraphBuilder` — discovery, source extraction, graph construction.
 - :class:`DependencyAnalyzer` — pure topological / cycle / external-source analysis.
@@ -33,7 +33,7 @@ from ...parsers.blueprint_parser import BlueprintParser
 from ...parsers.yaml_parser import CachingYAMLParser, YAMLParser
 from ...presets.preset_manager import PresetManager
 from ..coordination import ValidationService
-from ..coordination._interfaces import BaseDependencyAnalysisService
+from .._interfaces import BaseDependencyAnalysisService
 from ..discovery.blueprint_discoverer import BlueprintDiscoverer
 from ..discovery.flowgroup_discoverer import FlowgroupDiscoveryService
 from ..loaders import ProjectConfigLoader

@@ -14,7 +14,7 @@ class SubstitutionFactory(ABC):
     :class:`abc.ABC` (not :class:`typing.Protocol`) so that wiring
     failures surface as :class:`TypeError` at construction rather than
     as :class:`AttributeError` on first call. Mirrors the ABC style of
-    :mod:`lhp.core.coordination._interfaces`.
+    :mod:`lhp.core._interfaces`.
     """
 
     @abstractmethod

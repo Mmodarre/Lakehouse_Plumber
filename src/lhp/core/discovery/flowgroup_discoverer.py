@@ -13,7 +13,7 @@ from ...errors import (
     LHPFileError,
 )
 from ...utils.performance_timer import perf_timer
-from ..coordination._interfaces import BaseFlowgroupDiscoveryService
+from .._interfaces import BaseFlowgroupDiscoveryService
 
 
 class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):

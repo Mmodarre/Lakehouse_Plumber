@@ -52,6 +52,7 @@ from lhp.api.views import (
 if TYPE_CHECKING:
     from lhp.core.coordination.executor import PipelineValidationOutcome
     from lhp.core.processing.substitution import EnhancedSubstitutionManager
+    from lhp.core.validators._base import ValidationError
     from lhp.errors import LHPError
     from lhp.models import (
         Action,
@@ -87,6 +88,49 @@ def _lhp_error_to_issue_view(
         suggestions=tuple(lhp_err.suggestions or ()),
         context=dict(lhp_err.context or {}),
         doc_link=lhp_err.doc_link,
+    )
+
+
+def _validation_error_to_issue_view(
+    err: "ValidationError",
+    *,
+    pipeline_name: Optional[str] = None,
+    flowgroup_name: Optional[str] = None,
+    severity: Literal["error", "warning"] = "error",
+) -> ValidationIssueView:
+    """Project an internal :data:`ValidationError` onto a public view.
+
+    The internal union (``Union[str, LHPError]``) has two branches:
+
+    * :class:`LHPError` — delegated to :func:`_lhp_error_to_issue_view`,
+      which decomposes the structured payload (code, category,
+      suggestions, context, doc link).
+    * plain ``str`` — a discovery / cross-flowgroup error message with no
+      structured payload, projected with an empty ``code`` and the
+      generic ``"VAL"`` category.
+
+    This is the single public mapping path from the value type returned by
+    :meth:`ValidationService.validate_flowgroups` to the public DTO; it
+    replaces the two ``_issue_from_*`` statics that previously lived in
+    ``core/coordination/validation_service.py`` (closing a §9.24-style
+    duplication and severing the ``core`` → ``api`` edge).
+    """
+    from lhp.errors import LHPError
+
+    if isinstance(err, LHPError):
+        return _lhp_error_to_issue_view(
+            err,
+            pipeline_name=pipeline_name,
+            flowgroup_name=flowgroup_name,
+            severity=severity,
+        )
+    return ValidationIssueView(
+        code="",
+        category="VAL",
+        severity=severity,
+        title=str(err),
+        pipeline_name=pipeline_name,
+        flowgroup_name=flowgroup_name,
     )
 
 

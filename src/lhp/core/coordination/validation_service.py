@@ -29,8 +29,7 @@ workers can carry an instance across the ``spawn`` boundary.
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
-from lhp.api.views import ValidationIssueView
-from lhp.core.coordination._interfaces import (
+from lhp.core._interfaces import (
     BaseValidationService,
     CrossFlowgroupCheckResult,
 )
@@ -118,7 +117,7 @@ class ValidationService(BaseValidationService):
         flowgroups: Sequence[FlowGroup],
         *,
         pipeline_filter: Optional[str] = None,
-    ) -> Tuple[ValidationIssueView, ...]:
+    ) -> Tuple[ValidationError, ...]:
         """Return all validation issues across the given flowgroups.
 
         Composition order:
@@ -131,13 +130,20 @@ class ValidationService(BaseValidationService):
            :class:`CdcFanInCompatibilityValidator` — composed exclusively
            here (§9.24); :class:`ConfigValidator` does not delegate to them.
 
+        Returns the raw internal :data:`ValidationError` union
+        (``Union[str, LHPError]``). Public-DTO projection onto
+        :class:`lhp.api.views.ValidationIssueView` is the API layer's
+        responsibility (:func:`lhp.api._converters._validation_error_to_issue_view`),
+        keeping the ``core`` → ``api`` dependency edge severed.
+
         Args:
             flowgroups: All flowgroups to validate.
             pipeline_filter: If supplied, restrict every check to flowgroups
                 whose ``pipeline`` field equals this value.
 
         Returns:
-            Tuple of :class:`ValidationIssueView`. Empty tuple on success.
+            Tuple of :data:`ValidationError` (string or :class:`LHPError`).
+            Empty tuple on success.
         """
         target_flowgroups: List[FlowGroup] = (
             [fg for fg in flowgroups if fg.pipeline == pipeline_filter]
@@ -145,7 +151,7 @@ class ValidationService(BaseValidationService):
             else list(flowgroups)
         )
 
-        issues: List[ValidationIssueView] = []
+        errors: List[ValidationError] = []
 
         # Per-flowgroup checks (also covers per-action validation
         # through ConfigValidator's internal dispatch).
@@ -154,38 +160,27 @@ class ValidationService(BaseValidationService):
                 fg_errors = self._config_validator.validate_flowgroup(fg)
             except LHPError as exc:
                 # ConfigValidator.validate_action re-raises LHPError from
-                # field-validation (see validator.py:148). Wrap it as an
-                # issue so the surface stays uniform.
-                issues.append(self._issue_from_lhp_error(exc, location=fg.flowgroup))
+                # field-validation (see validator.py:148). Collect it so the
+                # surface stays uniform.
+                errors.append(exc)
                 continue
 
-            for err in fg_errors:
-                issues.append(
-                    self._issue_from_validation_error(err, location=fg.flowgroup)
-                )
+            errors.extend(fg_errors)
 
         # Cross-flowgroup checks (whole-set, after pipeline_filter).
         # Both validators return List[str]; CdcFanInCompatibilityValidator may
         # additionally raise LHPError for shared-field mismatches.
         try:
-            table_errors = self._table_creation_validator.validate(target_flowgroups)
-            for err in table_errors:
-                issues.append(
-                    self._issue_from_validation_error(err, location=pipeline_filter)
-                )
+            errors.extend(self._table_creation_validator.validate(target_flowgroups))
         except LHPError as exc:
-            issues.append(self._issue_from_lhp_error(exc, location=pipeline_filter))
+            errors.append(exc)
 
         try:
-            cdc_errors = self._fanin_validator.validate(target_flowgroups)
-            for err in cdc_errors:
-                issues.append(
-                    self._issue_from_validation_error(err, location=pipeline_filter)
-                )
+            errors.extend(self._fanin_validator.validate(target_flowgroups))
         except LHPError as exc:
-            issues.append(self._issue_from_lhp_error(exc, location=pipeline_filter))
+            errors.append(exc)
 
-        return tuple(issues)
+        return tuple(errors)
 
     def validate_duplicates(self, flowgroups: Sequence[FlowGroup]) -> None:
         """Raise :class:`LHPValidationError` if duplicate pipeline+flowgroup pairs exist.
@@ -256,43 +251,5 @@ class ValidationService(BaseValidationService):
         return CrossFlowgroupCheckResult(
             table_creation_errors=table_errors,
             cdc_fanin_errors=cdc_errors,
-        )
-
-    @staticmethod
-    def _issue_from_validation_error(
-        err: ValidationError, *, location: Optional[str]
-    ) -> ValidationIssueView:
-        """Adapt a ``Union[str, LHPError]`` validator output into a ``ValidationIssueView``."""
-        if isinstance(err, LHPError):
-            return ValidationService._issue_from_lhp_error(err, location=location)
-        return ValidationIssueView(
-            code="",
-            category="VAL",
-            severity="error",
-            title=str(err),
-            pipeline_name=location,
-        )
-
-    @staticmethod
-    def _issue_from_lhp_error(
-        exc: LHPError, *, location: Optional[str]
-    ) -> ValidationIssueView:
-        """Adapt a live :class:`LHPError` into a ``ValidationIssueView``.
-
-        Decomposes the exception's payload into the flat fields of the
-        frozen public view (§4.8) — the live exception instance is not
-        retained.
-        """
-        return ValidationIssueView(
-            code=exc.code,
-            category=exc.category.value,
-            severity="error",
-            title=exc.title,
-            details=exc.details or None,
-            pipeline_name=location,
-            flowgroup_name=None,
-            suggestions=tuple(exc.suggestions or ()),
-            context=dict(exc.context or {}),
-            doc_link=exc.doc_link,
         )
 

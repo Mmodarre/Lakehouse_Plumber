@@ -1277,7 +1277,7 @@ class TestBundleManagerE2E:
         print("✅ Phase 2: Created source files for conflict scenario")
 
         # Phase 3: Test conflict detection using PythonFileCopier (new architecture)
-        from lhp.generators.python_file_copier import (
+        from lhp.core.python_file_copier import (
             PythonFileCopier,
             PythonFunctionConflictError,
         )

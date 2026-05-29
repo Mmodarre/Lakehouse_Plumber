@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional, Sequence, Tuple
 
 from ...errors import ErrorCategory, LHPValidationError
-from ...generators.python_file_copier import CopiedModuleRecord, PythonFileCopier
+from ..python_file_copier import CopiedModuleRecord, PythonFileCopier
 from ...models.processing import PipelineDelta
 from ...utils.file_header import write_normalized
 from ...utils.performance_timer import perf_timer

@@ -26,11 +26,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Literal, Mapping, Optional, Sequence, Tuple
 
-from ...generators.python_file_copier import CopiedModuleRecord
+from .python_file_copier import CopiedModuleRecord
 from lhp.models import FlowGroup, FlowGroupContext
-from ...models.dependencies import DependencyAnalysisResult, DependencyGraphs
-from ...models.processing import PipelineDelta
-from ..processing.substitution import EnhancedSubstitutionManager as SubstitutionManager
+from ..models.dependencies import DependencyAnalysisResult, DependencyGraphs
+from ..models.processing import PipelineDelta
+from .processing.substitution import EnhancedSubstitutionManager as SubstitutionManager
+from .validators._base import ValidationError
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,17 +61,11 @@ class CrossFlowgroupCheckResult:
 
 
 if TYPE_CHECKING:
-    # ``ValidationIssueView`` lives in :mod:`lhp.api.views` — the frozen
-    # public projection of an internal validation outcome (Phase B2b).
-    # Importing under TYPE_CHECKING keeps this ABC decoupled from the
-    # runtime import order.
-    from lhp.api.views import ValidationIssueView
-
     # PipelineValidationOutcome currently lives in `core/coordination/executor.py`;
     # it will move to `models/processing.py` (or `lhp/api/`) once the public DTO
     # surface is consolidated. Importing under TYPE_CHECKING avoids freezing
     # that destination here.
-    from .executor import PipelineValidationOutcome
+    from .coordination.executor import PipelineValidationOutcome
 
 
 class BaseFlowgroupDiscoveryService(ABC):
@@ -145,8 +140,14 @@ class BaseValidationService(ABC):
         flowgroups: Sequence[FlowGroup],
         *,
         pipeline_filter: Optional[str] = None,
-    ) -> Tuple["ValidationIssueView", ...]:
-        """Return all validation issues across the given flowgroups."""
+    ) -> Tuple[ValidationError, ...]:
+        """Return all validation issues across the given flowgroups.
+
+        Returns the raw internal :data:`ValidationError` union
+        (``Union[str, LHPError]``); projection onto the public
+        :class:`lhp.api.views.ValidationIssueView` is the API layer's
+        responsibility, keeping ``core`` free of any ``api`` import.
+        """
         raise NotImplementedError
 
     @abstractmethod
@@ -335,4 +336,20 @@ class BaseFlowgroupBootstrapService(ABC):
         accumulated by :meth:`discover_all_flowgroups`; falls back to a
         non-synthetic, empty-provenance envelope when no entry is found.
         """
+        raise NotImplementedError
+
+
+class BaseWarningCollector(ABC):
+    """Sink for non-fatal warnings surfaced during generation/validation.
+
+    Lets ``core`` code accept a warning sink without importing the concrete
+    :class:`lhp.api.callbacks.WarningCollector` (which inherits this ABC),
+    keeping the ``core`` → ``api`` dependency edge severed.
+
+    :stability: provisional
+    """
+
+    @abstractmethod
+    def add(self, category: str, message: str) -> None:
+        """Record a warning under the given category."""
         raise NotImplementedError

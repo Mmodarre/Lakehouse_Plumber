@@ -50,11 +50,12 @@ class ConfigValidator:
 
     def __init__(self, project_root=None, project_config=None):
         # Local imports to break the cold-import cycles documented at the
-        # top of this module. ``ActionRegistry`` lives in ``core.registry``
-        # which transitively imports ``lhp.generators``; ``generators.load.kafka``
-        # imports ``core.validators.kafka_validator`` -- a sibling in this
-        # package. ``DependencyResolver`` lives in ``core.dependencies``
-        # whose ``__init__`` pulls in the discovery / coordination chain.
+        # top of this module. ``DependencyResolver`` lives in
+        # ``core.dependencies`` whose ``__init__`` pulls in the discovery /
+        # coordination chain. (``ActionRegistry`` no longer imports
+        # ``lhp.generators`` — generators register into it from the
+        # composition root — so it is decoupled, but kept local here
+        # alongside ``DependencyResolver`` for consistency.)
         from ..dependencies.dependency_resolver import DependencyResolver
         from ..registry import ActionRegistry
 

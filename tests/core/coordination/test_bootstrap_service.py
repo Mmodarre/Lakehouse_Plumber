@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from lhp.core.coordination._interfaces import (
+from lhp.core._interfaces import (
     BaseFlowgroupBootstrapService,
     BaseFlowgroupDiscoveryService,
     BaseMonitoringFinalizerService,

@@ -79,7 +79,7 @@ from typing import (
 from lhp.models import FlowGroupContext
 from ...models.processing import PipelineDelta
 from ...utils.performance_timer import perf_timer
-from ._interfaces import BaseCodeGenerationService, BaseFlowgroupResolutionService
+from .._interfaces import BaseCodeGenerationService, BaseFlowgroupResolutionService
 
 if TYPE_CHECKING:
     from ...errors import LHPError
