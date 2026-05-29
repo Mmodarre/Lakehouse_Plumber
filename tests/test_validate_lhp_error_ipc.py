@@ -30,7 +30,7 @@ from lhp.core.coordination.executor import (
     FlowgroupValidationResult,
     PipelineValidationOutcome,
 )
-from lhp.core.python_file_copier import PythonFunctionConflictError
+from lhp.errors import PythonFunctionConflictError
 from lhp.errors import (
     ErrorCategory,
     LHPError,

@@ -2,7 +2,7 @@
 
 import pytest
 
-from lhp.generators.test import TestActionGenerator
+from lhp.generators.test import UniquenessTestGenerator
 from lhp.models import Action, ActionType
 
 
@@ -68,8 +68,8 @@ class TestUniquenessFilter:
             on_violation="fail",
         )
 
-        generator = TestActionGenerator()
-        code = generator.generate(action=action)
+        generator = UniquenessTestGenerator()
+        code = generator.generate(action=action, context={})
 
         # Verify generated code
         assert "from pyspark import pipelines as dp" in code

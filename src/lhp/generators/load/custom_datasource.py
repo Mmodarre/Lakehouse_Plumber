@@ -8,7 +8,7 @@ from ...core.loaders.external_file_loader import load_external_file_text
 from ...core.registry import BaseActionGenerator
 from ...errors import ErrorFormatter
 from lhp.models import Action
-from ...core.python_file_copier import copy_user_module_for_pipeline
+from lhp.core.codegen import copy_user_module_for_pipeline
 
 
 class CustomDataSourceLoadGenerator(BaseActionGenerator):

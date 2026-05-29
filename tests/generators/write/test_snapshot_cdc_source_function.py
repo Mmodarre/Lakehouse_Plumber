@@ -1,7 +1,7 @@
 """Unit tests for the snapshot-CDC source-function loader.
 
 These tests cover the module-level helpers in
-``lhp.generators.write.source_function_loader`` directly, without going
+``lhp.generators.write.snapshot_cdc_source_function`` directly, without going
 through the StreamingTableWriteGenerator. End-to-end coverage of the
 loader through the generator lives in
 ``tests/unit/test_snapshot_cdc_parameters.py``.
@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from lhp.errors import LHPError
-from lhp.generators.write.source_function_loader import (
+from lhp.generators.write.snapshot_cdc_source_function import (
     SourceFunctionResult,
     _extract_function_code,
     _validate_function_parameters,

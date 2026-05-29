@@ -167,6 +167,50 @@ class LHPValidationError(LHPError, ValueError):
     pass
 
 
+class PythonFunctionConflictError(LHPValidationError):
+    """Raised when different Python source files would create same destination file."""
+
+    def __init__(self, destination: str, existing_source: str, new_source: str):
+        self.destination = destination
+        self.existing_source = existing_source
+        self.new_source = new_source
+
+        super().__init__(
+            category=ErrorCategory.VALIDATION,
+            code_number="019",
+            title="Python function naming conflict",
+            details=(
+                f"Two different Python source files would create the same destination file.\n"
+                f"  Existing: {existing_source} -> {destination}\n"
+                f"  New:      {new_source} -> {destination}"
+            ),
+            suggestions=[
+                "Rename one of the Python functions",
+                "Move functions to different directories",
+                "Update YAML module_path to use a different name",
+            ],
+            context={
+                "Destination": destination,
+                "Existing source": existing_source,
+                "New source": new_source,
+            },
+        )
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        # Override the parent ``LHPError.__reduce__`` (which reconstructs
+        # with the 8-arg base ``__init__`` signature) so this subclass's
+        # custom 3-arg ``__init__(destination, existing_source,
+        # new_source)`` survives the spawn-pool pickle round-trip.
+        # Without this override, ``PipelineDelta.lhp_error`` cannot ship
+        # this subclass across the worker→main boundary and the original
+        # LHP-VAL-019 error is silently replaced by an unpickling
+        # ``TypeError`` on the parent side.
+        return (
+            self.__class__,
+            (self.destination, self.existing_source, self.new_source),
+        )
+
+
 class LHPConfigError(LHPError, ValueError):
     """LHPError subclass for configuration errors.
 

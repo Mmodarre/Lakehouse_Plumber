@@ -9,7 +9,7 @@ from ...errors import (
     ErrorFormatter,
     LHPValidationError,
 )
-from ...core.python_file_copier import copy_user_module_for_pipeline
+from lhp.core.codegen import copy_user_module_for_pipeline
 
 logger = logging.getLogger(__name__)
 

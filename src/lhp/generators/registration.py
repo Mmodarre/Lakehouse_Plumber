@@ -29,7 +29,17 @@ from lhp.generators.write import (
     SinkWriteGenerator,
     StreamingTableWriteGenerator,
 )
-from lhp.generators.test import TestActionGenerator
+from lhp.generators.test import (
+    AllLookupsFoundTestGenerator,
+    CompletenessTestGenerator,
+    CustomExpectationsTestGenerator,
+    CustomSqlTestGenerator,
+    RangeTestGenerator,
+    ReferentialIntegrityTestGenerator,
+    RowCountTestGenerator,
+    SchemaMatchTestGenerator,
+    UniquenessTestGenerator,
+)
 
 
 def register_all() -> None:
@@ -67,15 +77,15 @@ def register_all() -> None:
     register_generators(
         "test",
         {
-            TestActionType.ROW_COUNT: TestActionGenerator,
-            TestActionType.UNIQUENESS: TestActionGenerator,
-            TestActionType.REFERENTIAL_INTEGRITY: TestActionGenerator,
-            TestActionType.COMPLETENESS: TestActionGenerator,
-            TestActionType.RANGE: TestActionGenerator,
-            TestActionType.SCHEMA_MATCH: TestActionGenerator,
-            TestActionType.ALL_LOOKUPS_FOUND: TestActionGenerator,
-            TestActionType.CUSTOM_SQL: TestActionGenerator,
-            TestActionType.CUSTOM_EXPECTATIONS: TestActionGenerator,
+            TestActionType.ROW_COUNT: RowCountTestGenerator,
+            TestActionType.UNIQUENESS: UniquenessTestGenerator,
+            TestActionType.REFERENTIAL_INTEGRITY: ReferentialIntegrityTestGenerator,
+            TestActionType.COMPLETENESS: CompletenessTestGenerator,
+            TestActionType.RANGE: RangeTestGenerator,
+            TestActionType.SCHEMA_MATCH: SchemaMatchTestGenerator,
+            TestActionType.ALL_LOOKUPS_FOUND: AllLookupsFoundTestGenerator,
+            TestActionType.CUSTOM_SQL: CustomSqlTestGenerator,
+            TestActionType.CUSTOM_EXPECTATIONS: CustomExpectationsTestGenerator,
         },
     )
 

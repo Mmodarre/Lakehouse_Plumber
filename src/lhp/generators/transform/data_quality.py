@@ -1,13 +1,14 @@
 """Data quality transformation generator."""
 
 import logging
+import re
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 
 from ...core.loaders.external_file_loader import resolve_external_file_path
 from ...core.processing.dqe import DQEParser
 from ...core.registry import BaseActionGenerator
-from ...errors import ErrorFormatter
+from ...errors import ErrorCategory, ErrorFormatter, LHPError
 from lhp.models import Action
 
 logger = logging.getLogger(__name__)
@@ -64,10 +65,7 @@ class DataQualityTransformGenerator(BaseActionGenerator):
         dq_mode = getattr(action, "mode", None) or "dqe"
 
         if dq_mode == "quarantine":
-            from .quarantine import QuarantineCodeGenerator
-
-            quarantine_gen = QuarantineCodeGenerator(self)
-            return quarantine_gen.generate(action, expectations, flowgroup_config)
+            return self._generate_quarantine_mode(action, expectations, flowgroup_config)
         else:
             return self._generate_dqe_mode(action, expectations, flowgroup_config)
 
@@ -125,6 +123,101 @@ class DataQualityTransformGenerator(BaseActionGenerator):
         }
 
         return self.render_template("transform/data_quality.py.j2", template_context)
+
+    def _generate_quarantine_mode(
+        self,
+        action,
+        expectations: Union[List[Dict], Dict[str, Any]],
+        flowgroup_config: Dict[str, Any],
+    ) -> str:
+        """Generate quarantine mode code with DLQ recycling."""
+        logger.debug(f"Generating quarantine mode for action '{action.name}'")
+
+        self.add_import("from delta.tables import DeltaTable")
+        self.add_import("from pyspark.sql import functions as F")
+        self.add_import("from pyspark.sql.types import MapType, StringType")
+        self.add_import("from pyspark.sql.window import Window")
+
+        quarantine_config = action.quarantine
+        if isinstance(quarantine_config, dict):
+            dlq_table = quarantine_config.get("dlq_table", "")
+            source_table = quarantine_config.get("source_table", "")
+        else:
+            dlq_table = quarantine_config.dlq_table
+            source_table = quarantine_config.source_table
+
+        dlq_outbox_table = dlq_table + "_outbox"
+
+        # Parse ALL expectations as drop — DQEParser is the single owner
+        all_expectations = self.dqe_parser.get_all_expectations_as_drop(expectations)
+
+        # Filter out _rescued_data expectations for recycled path
+        recycled_expectations = {
+            k: v for k, v in all_expectations.items() if "_rescued_data" not in v
+        }
+
+        # Defensive check (validator should catch this first)
+        if not all_expectations:
+            raise LHPError(
+                category=ErrorCategory.VALIDATION,
+                code_number="014",
+                title="Quarantine mode requires at least one expectation",
+                details=(
+                    f"Action '{action.name}' has mode='quarantine' but "
+                    f"the expectations file contains no rules."
+                ),
+                suggestions=[
+                    "Add at least one expectation to the expectations file.",
+                    "Or remove mode='quarantine' to use standard DQE mode.",
+                ],
+            )
+
+        # Sanitize source view for use as a Python identifier
+        source_view = self._extract_source_view(action.source)
+        safe_source_view = re.sub(r"[^a-zA-Z0-9_]", "_", source_view)
+
+        inverse_filter = "NOT ({})".format(
+            " AND ".join(f"({rule})" for rule in all_expectations.values())
+        )
+
+        failed_rule_data = [
+            {"name": name, "rule": rule} for name, rule in all_expectations.items()
+        ]
+
+        add_operational_metadata, metadata_columns = (
+            self._get_operational_metadata(action, flowgroup_config)
+        )
+
+        from ...core.codegen.operational_metadata import OperationalMetadataService
+
+        service = OperationalMetadataService()
+        project_config = flowgroup_config.get("project_config")
+        hash_exclude_columns = sorted(
+            service.get_all_metadata_column_names(project_config)
+        )
+
+        template_context = {
+            "target_view": action.target,
+            "source_view": source_view,
+            "safe_source_view": safe_source_view,
+            "description": (
+                action.description or f"Data quality checks for {action.source}"
+            ),
+            "expectations": all_expectations,
+            "inverse_filter": inverse_filter,
+            "failed_rule_data": failed_rule_data,
+            "dlq_table": dlq_table,
+            "source_table": source_table,
+            "dlq_outbox_table": dlq_outbox_table,
+            "recycled_expectations": recycled_expectations,
+            "add_operational_metadata": add_operational_metadata,
+            "metadata_columns": metadata_columns,
+            "hash_exclude_columns": hash_exclude_columns,
+        }
+
+        return self.render_template(
+            "transform/data_quality_quarantine.py.j2", template_context
+        )
 
     def _extract_source_view(self, source) -> str:
         """Extract source view name from source configuration."""

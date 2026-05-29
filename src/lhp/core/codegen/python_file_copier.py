@@ -6,8 +6,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional
 
-from .loaders.external_file_loader import resolve_external_file_path
-from ..errors import ErrorCategory, LHPValidationError
+from ...errors import (
+    ErrorCategory,
+    LHPValidationError,
+    PythonFunctionConflictError,
+)
+from ..loaders.external_file_loader import resolve_external_file_path
 
 logger = logging.getLogger(__name__)
 
@@ -28,50 +32,6 @@ class CopiedModuleRecord:
     custom_functions_dir: Path
 
 
-class PythonFunctionConflictError(LHPValidationError):
-    """Raised when different Python source files would create same destination file."""
-
-    def __init__(self, destination: str, existing_source: str, new_source: str):
-        self.destination = destination
-        self.existing_source = existing_source
-        self.new_source = new_source
-
-        super().__init__(
-            category=ErrorCategory.VALIDATION,
-            code_number="019",
-            title="Python function naming conflict",
-            details=(
-                f"Two different Python source files would create the same destination file.\n"
-                f"  Existing: {existing_source} -> {destination}\n"
-                f"  New:      {new_source} -> {destination}"
-            ),
-            suggestions=[
-                "Rename one of the Python functions",
-                "Move functions to different directories",
-                "Update YAML module_path to use a different name",
-            ],
-            context={
-                "Destination": destination,
-                "Existing source": existing_source,
-                "New source": new_source,
-            },
-        )
-
-    def __reduce__(self):
-        # Override the parent ``LHPError.__reduce__`` (which reconstructs
-        # with the 8-arg base ``__init__`` signature) so this subclass's
-        # custom 3-arg ``__init__(destination, existing_source,
-        # new_source)`` survives the spawn-pool pickle round-trip.
-        # Without this override, ``PipelineDelta.lhp_error`` cannot ship
-        # this subclass across the worker→main boundary and the original
-        # LHP-VAL-019 error is silently replaced by an unpickling
-        # ``TypeError`` on the parent side.
-        return (
-            self.__class__,
-            (self.destination, self.existing_source, self.new_source),
-        )
-
-
 class PythonFileCopier:
     """Per-worker file-copy coordinator with intra-pipeline dedup.
 
@@ -86,7 +46,7 @@ class PythonFileCopier:
     not double-track state.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the copier with empty registry and lock."""
         self._copied_files: Dict[str, str] = {}  # dest_path -> source_path
         self._lock = threading.Lock()
@@ -226,7 +186,7 @@ def compute_copy_record(
         A :class:`CopiedModuleRecord` describing the planned copy. The
         record's ``dest_path`` is ``custom_functions_dir / f"{stem}.py"``.
     """
-    from ..utils.file_header import build_lhp_source_header
+    from ...utils.file_header import build_lhp_source_header
 
     module_name = Path(module_path).stem
     dest_file = custom_functions_dir / f"{module_name}.py"

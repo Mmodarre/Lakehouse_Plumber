@@ -5,7 +5,7 @@ import logging
 from ...core.registry import BaseActionGenerator
 from lhp.models import Action
 from ...errors import ErrorFormatter
-from ...core.python_file_copier import copy_user_module_for_pipeline
+from lhp.core.codegen import copy_user_module_for_pipeline
 
 
 class PythonLoadGenerator(BaseActionGenerator):

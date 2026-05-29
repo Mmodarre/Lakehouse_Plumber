@@ -150,7 +150,7 @@ def test_pipeline_delta_pickle_with_python_function_conflict_error():
     would attempt the 8-arg base reconstruction and unpickling would raise
     ``TypeError`` — silently collapsing the original LHP-VAL-019 error into
     a non-LHP wrap on the parent side)."""
-    from lhp.core.python_file_copier import PythonFunctionConflictError
+    from lhp.errors import PythonFunctionConflictError
 
     err = PythonFunctionConflictError(
         destination="dest.py",

@@ -37,7 +37,7 @@ from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence, Tupl
 from lhp.models import FlowGroup, FlowGroupContext
 
 if TYPE_CHECKING:
-    from ..python_file_copier import CopiedModuleRecord
+    from ..codegen.python_file_copier import CopiedModuleRecord
     from ...models.processing import PipelineDelta
 
 from ...models.processing import PipelineWorkUnit

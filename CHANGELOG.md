@@ -7,6 +7,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase 9.8 — `generators/` cleanup (integrated onto the layering contract)
+
+**Summary.** Four placement/responsibility fixes in `generators/`, re-applied
+on top of the now-active top-down layering contract (Phase 9.7). Templates are
+unchanged and generated output is **byte-stable** — the full e2e suite
+(143 tests, incl. the test-action, quarantine, builtin-sink and python-load
+baselines) passes unmodified.
+
+- **A1 — copier relocation + exception split.** `python_file_copier.py` (a
+  file-write coordinator, not a per-action generator) moves from `generators/`
+  to `core/codegen/python_file_copier.py` (§2.3). Its domain exception
+  `PythonFunctionConflictError` (LHP-VAL-019) splits out to
+  `lhp/errors/types.py` and is exported from `lhp/errors` (§2.2). All importers
+  retargeted to `lhp.core.codegen` / `lhp.errors`. The new edges
+  (`generators.{load,transform,write} → core.codegen`) are **legal downward
+  edges** under the active contract — no carve-out required.
+
+- **B1 — snapshot source-function module renamed in place.**
+  `generators/write/source_function_loader.py` is renamed to
+  `generators/write/snapshot_cdc_source_function.py` and **kept in
+  `generators/write/`**. It performs DLT-aware source transformation plus
+  CodeAssembler coordination — it is write-generator support, not a §2.4 config
+  loader. Its `… → core.loaders.external_file_loader` import is a legal
+  downward edge. (This deliberately **reverts** the pre-layering plan to move
+  the module into `parsers/`, which would have created an illegal
+  `parsers → core` upward edge.)
+
+- **C1 — quarantine collapse.** `transform/quarantine.py` — a parasitic class
+  holding a `_parent` reference and reaching into its private methods (a §5
+  boundary violation) — collapses into
+  `DataQualityTransformGenerator._generate_quarantine_mode`; the file is
+  deleted. Public API of the data-quality generator is unchanged.
+
+- **D1 — test god-class split.** `test/test_generator.py` (a 336-line god-class
+  with instance state and dual 9-way `if/elif` ladders) splits into
+  `BaseTestActionGenerator(ABC)` plus nine stateless leaf generators
+  (§3.1 / §3.5 / §3.6). The `TestActionType → generator` mapping is expressed
+  in the `generators/registration.py` composition root (nine distinct
+  entries). `core/registry/action_registry.py` is **left unchanged** — the
+  empty-registry + zero-arg-instantiation pattern from Phase 9.7 already fits
+  the nine-leaf design, so no `core → generators` edge is reintroduced.
+
+Net architectural debt **decreases**: a top-level `core/` file is removed, a
+private-method reach-through is eliminated, and a god-class is replaced by
+stateless leaves.
+
+**Tests.** Test-action tests migrate to mirror source under
+`tests/generators/test/` (§8.2); the `python_file_copier` tests relocate to
+`tests/core/codegen/` and the snapshot source-function test is renamed
+alongside its module. No baselines or templates were changed.
+
+**Deferred (out of scope for this integration; tracked for follow-up).**
+
+- **`CODEGEN-MODULE-COUNT-DEFER`.** Relocating the copier grows `core/codegen/`
+  past the aspirational module count in `TARGET_ARCHITECTURE.md` §273. The
+  copier's placement is constitutionally correct (§2.3); reconciling §273's
+  target number is a separate target-doc pass, not this integration.
+
+- **Pre-existing branch debt.** Any file-size / placement items belonging to
+  the larger v0.9.0 architecture PR are left untouched. This integration does
+  not increase them (all of `check_file_sizes`, `check_placement`,
+  `check_stability_drift` remain at 0 violations) and in fact reduces structural
+  debt as noted above.
+
 ### Phase 9.7 — Layering contract redesign V2
 
 **Closes `LAYERING-CONTRACT-REDESIGN-V2`.** The `import-linter` top-down

@@ -14,7 +14,7 @@ from ...core.registry import BaseActionGenerator
 from ...errors import ErrorFormatter
 from lhp.models import Action
 from ...parsers.schema_parser import SchemaParser
-from .source_function_loader import SourceFunctionResult, load_source_function
+from .snapshot_cdc_source_function import SourceFunctionResult, load_source_function
 
 logger = logging.getLogger(__name__)
 

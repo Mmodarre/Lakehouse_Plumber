@@ -7,10 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from lhp.core.python_file_copier import (
-    PythonFileCopier,
-    PythonFunctionConflictError,
-)
+from lhp.core.codegen import PythonFileCopier
+from lhp.errors import PythonFunctionConflictError
 
 
 class TestPythonFileCopier:

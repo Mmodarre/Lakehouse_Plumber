@@ -28,7 +28,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from lhp.core.python_file_copier import (
+from lhp.core.codegen import (
     CopiedModuleRecord,
     PythonFileCopier,
     compute_copy_record,

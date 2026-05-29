@@ -6,12 +6,24 @@ import os
 from pathlib import Path
 from lhp.core.coordination import ActionOrchestrator
 from lhp.models import FlowGroup, Action, ActionType
-from lhp.generators.test.test_generator import TestActionGenerator
+from lhp.core.registry import ActionRegistry
+from lhp.generators.test import UniquenessTestGenerator
+
+# Each test type now resolves to its own stateless leaf generator. These tests
+# obtain the correct leaf via the registry (keyed by the action's test_type) and
+# drive it with the stateless ``generate(action, context)`` contract.
+registry = ActionRegistry()
+
+
+def _generate(action, context):
+    """Resolve the leaf for this action's test_type and generate its code."""
+    generator = registry.get_generator(ActionType.TEST, action.test_type)
+    return generator.generate(action=action, context=context)
 
 
 class TestTestActionIntegration:
     """Integration tests for test actions."""
-    
+
     def test_row_count_end_to_end(self):
         """Test ROW_COUNT test type generates correct code end-to-end."""
         # Create test action
@@ -25,11 +37,10 @@ class TestTestActionIntegration:
             tolerance=0,
             description='Ensure no records lost during transformation'
         )
-        
+
         # Generate code
-        generator = TestActionGenerator()
-        code = generator.generate(action=action, context={'pipeline': 'test_pipeline'})
-        
+        code = _generate(action, context={'pipeline': 'test_pipeline'})
+
         # Verify code contains expected elements
         assert 'from pyspark import pipelines as dp' in code
         assert '@dp.temporary_view(' in code or '@dp.table(' in code
@@ -40,12 +51,12 @@ class TestTestActionIntegration:
         assert 'target_count' in code
         assert 'raw.customers' in code
         assert 'bronze.customers' in code
-        
+
         # Verify expectations
         assert '@dp.expect_all_or_fail' in code or '@dp.expect_or_fail' in code
         assert 'row_count_match' in code
         assert 'abs(source_count - target_count) <= 0' in code
-    
+
     def test_uniqueness_end_to_end(self):
         """Test UNIQUENESS test type generates correct code end-to-end."""
         action = Action(
@@ -57,22 +68,21 @@ class TestTestActionIntegration:
             on_violation='fail',
             description='Validate customer_id uniqueness'
         )
-        
+
         # Generate code
-        generator = TestActionGenerator()
-        code = generator.generate(action=action, context={'pipeline': 'test_pipeline'})
-        
+        code = _generate(action, context={'pipeline': 'test_pipeline'})
+
         # Verify SQL
         assert 'SELECT customer_id, COUNT(*)' in code
         assert 'duplicate_count' in code
         assert 'FROM bronze.customers' in code
         assert 'GROUP BY customer_id' in code
         assert 'HAVING COUNT(*) > 1' in code
-        
+
         # Verify expectations
         assert 'no_duplicates' in code
         assert 'duplicate_count == 0' in code
-    
+
     def test_referential_integrity_end_to_end(self):
         """Test REFERENTIAL_INTEGRITY test type generates correct code."""
         action = Action(
@@ -85,20 +95,19 @@ class TestTestActionIntegration:
             reference_columns=['customer_id'],
             on_violation='fail'
         )
-        
-        generator = TestActionGenerator()
-        code = generator.generate(action=action, context={})
-        
+
+        code = _generate(action, context={})
+
         # Verify SQL
         assert 'LEFT JOIN' in code
         assert 'orders' in code
         assert 'customers' in code
         assert 's.customer_id = r.customer_id' in code
-        
+
         # Verify expectations
         assert 'referential_integrity' in code
         assert 'ref_customer_id IS NOT NULL' in code
-    
+
     def test_completeness_end_to_end(self):
         """Test COMPLETENESS test type generates correct code."""
         action = Action(
@@ -109,24 +118,23 @@ class TestTestActionIntegration:
             required_columns=['email', 'phone', 'address'],
             on_violation='warn'
         )
-        
-        generator = TestActionGenerator()
-        code = generator.generate(action=action, context={})
-        
+
+        code = _generate(action, context={})
+
         # Verify SQL - should select only required columns
         assert 'SELECT email, phone, address' in code
         assert 'FROM customers' in code
-        
+
         # Verify expectations
         assert 'required_fields_complete' in code
         assert 'email IS NOT NULL' in code
         assert 'phone IS NOT NULL' in code
         assert 'address IS NOT NULL' in code
         assert ' AND ' in code  # Columns should be joined with AND
-        
+
         # Should use warn, not fail
         assert '@dp.expect_all(' in code or '@dp.expect(' in code
-    
+
     def test_range_end_to_end(self):
         """Test RANGE test type generates correct code."""
         action = Action(
@@ -139,19 +147,18 @@ class TestTestActionIntegration:
             max_value='2024-12-31',
             on_violation='fail'
         )
-        
-        generator = TestActionGenerator()
-        code = generator.generate(action=action, context={})
-        
+
+        code = _generate(action, context={})
+
         # Verify SQL - should select only the tested column
         assert 'SELECT order_date' in code
         assert 'FROM orders' in code
-        
+
         # Verify expectations
         assert 'value_in_range' in code
         assert "order_date >= '2020-01-01'" in code
         assert "order_date <= '2024-12-31'" in code
-    
+
     def test_all_lookups_found_end_to_end(self):
         """Test ALL_LOOKUPS_FOUND test type generates correct code."""
         action = Action(
@@ -164,21 +171,20 @@ class TestTestActionIntegration:
             lookup_result_columns=['customer_sk'],
             on_violation='fail'
         )
-        
-        generator = TestActionGenerator()
-        code = generator.generate(action=action, context={})
-        
+
+        code = _generate(action, context={})
+
         # Verify SQL
         assert 'LEFT JOIN' in code
         assert 'orders' in code
         assert 'customer_dim' in code
         assert 's.customer_id = l.customer_id' in code
         assert 'lookup_customer_sk' in code
-        
+
         # Verify expectations
         assert 'all_lookups_found' in code
         assert 'lookup_customer_sk IS NOT NULL' in code
-    
+
     def test_schema_match_end_to_end(self):
         """SCHEMA_MATCH must accept 3-part FQNs and emit catalog-qualified SQL."""
         action = Action(
@@ -190,8 +196,7 @@ class TestTestActionIntegration:
             on_violation='fail'
         )
 
-        generator = TestActionGenerator()
-        code = generator.generate(action=action, context={})
+        code = _generate(action, context={})
 
         # Verify SQL — must be catalog-qualified and split into a 3-part predicate.
         assert 'cat.information_schema.columns' in code
@@ -208,7 +213,7 @@ class TestTestActionIntegration:
         # Verify expectations
         assert 'schemas_match' in code
         assert 'false' in code  # Fails if any schema difference exists
-    
+
     def test_custom_sql_end_to_end(self):
         """Test CUSTOM_SQL test type generates correct code."""
         action = Action(
@@ -217,7 +222,7 @@ class TestTestActionIntegration:
             test_type='custom_sql',
             source='orders',
             sql='''
-                SELECT 
+                SELECT
                     customer_id,
                     SUM(order_total) as total_spent,
                     COUNT(*) as order_count
@@ -238,21 +243,20 @@ class TestTestActionIntegration:
                 }
             ]
         )
-        
-        generator = TestActionGenerator()
-        code = generator.generate(action=action, context={})
-        
+
+        code = _generate(action, context={})
+
         # Verify custom SQL is used
         assert 'SUM(order_total)' in code
         assert 'GROUP BY customer_id' in code
         assert 'HAVING SUM(order_total) > 1000000' in code
-        
+
         # Verify both expectations
         assert 'high_value_customer_orders' in code
         assert 'order_count >= 10' in code
         assert 'spending_threshold' in code
         assert 'total_spent <= 5000000' in code
-    
+
     def test_custom_expectations_end_to_end(self):
         """Test CUSTOM_EXPECTATIONS test type generates correct code."""
         action = Action(
@@ -273,16 +277,15 @@ class TestTestActionIntegration:
                 }
             ]
         )
-        
-        generator = TestActionGenerator()
-        code = generator.generate(action=action, context={})
-        
+
+        code = _generate(action, context={})
+
         # Should use data quality generator (no SQL, just expectations)
         assert 'valid_email' in code
         assert 'email RLIKE' in code
         assert 'valid_phone' in code
         assert 'REGEXP_REPLACE' in code
-    
+
     def test_flowgroup_with_test_actions(self):
         """Test that flowgroups can contain test actions."""
         flowgroup = FlowGroup(
@@ -306,11 +309,11 @@ class TestTestActionIntegration:
                 )
             ]
         )
-        
+
         # Verify flowgroup can be created with test actions
         assert len(flowgroup.actions) == 2
         assert all(action.type == ActionType.TEST for action in flowgroup.actions)
-    
+
     def test_tolerance_in_row_count(self):
         """Test that tolerance parameter works in row_count tests."""
         action = Action(
@@ -321,13 +324,12 @@ class TestTestActionIntegration:
             tolerance=10,
             on_violation='fail'
         )
-        
-        generator = TestActionGenerator()
-        code = generator.generate(action=action, context={})
-        
+
+        code = _generate(action, context={})
+
         # Verify tolerance is used in expectation
         assert 'abs(source_count - target_count) <= 10' in code
-    
+
     def test_default_target_naming(self):
         """Test that default target naming follows v_test_<name> pattern."""
         action = Action(
@@ -336,17 +338,15 @@ class TestTestActionIntegration:
             test_type='row_count',
             source=['a', 'b']
         )
-        
-        generator = TestActionGenerator()
-        
+
         # Generate code first (which sets self.config)
-        code = generator.generate(action=action, context={})
-        
+        code = _generate(action, context={})
+
         # Verify default target naming (updated to tmp_test_)
         assert 'tmp_test_my_test' in code
         assert '@dp.table(name="tmp_test_my_test"' in code
         assert 'temporary=True' in code
-    
+
     def test_on_violation_defaults_to_fail(self):
         """Test that on_violation defaults to 'fail' when not specified."""
         action = Action(
@@ -357,13 +357,15 @@ class TestTestActionIntegration:
             columns=['id']
             # on_violation not specified
         )
-        
-        generator = TestActionGenerator()
-        expectations = generator._build_expectations('uniqueness')
-        
-        # Should default to 'fail'
-        assert expectations[0]['on_violation'] == 'fail'
-    
+
+        code = UniquenessTestGenerator().generate(action=action, context={})
+
+        # With on_violation unspecified, the expectation must route through the
+        # FAIL bucket (@dp.expect_all_or_fail), not drop or warn.
+        assert '@dp.expect_all_or_fail({"no_duplicates": "duplicate_count == 0"})' in code
+        assert '@dp.expect_all_or_drop(' not in code
+        assert '@dp.expect_all(' not in code
+
     def test_generates_temporary_table(self):
         """Test that test actions generate temporary tables instead of views."""
         action = Action(
@@ -373,15 +375,14 @@ class TestTestActionIntegration:
             source=['source_table', 'target_table'],
             on_violation='fail'
         )
-        
-        generator = TestActionGenerator()
-        code = generator.generate(action=action, context={})
-        
+
+        code = _generate(action, context={})
+
         # Should generate temporary table, not view
         assert '@dp.table(' in code
         assert 'temporary=True' in code
         assert '@dp.temporary_view(' not in code
-        
+
         # Should still have expectations and function
         assert '@dp.expect_all_or_fail' in code
         assert 'def tmp_test_test_temp_table():' in code

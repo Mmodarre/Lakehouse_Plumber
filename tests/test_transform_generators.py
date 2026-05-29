@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from lhp.core.python_file_copier import PythonFunctionConflictError
+from lhp.errors import PythonFunctionConflictError
 from lhp.generators.transform import (
     DataQualityTransformGenerator,
     PythonTransformGenerator,
@@ -440,7 +440,7 @@ def clean_data(df, spark, parameters):
             output_dir = tmpdir_path / "generated"
 
             # Create Python file copier for conflict detection (simulates orchestrator behavior)
-            from lhp.core.python_file_copier import PythonFileCopier
+            from lhp.core.codegen import PythonFileCopier
 
             python_copier = PythonFileCopier()
 
@@ -687,7 +687,7 @@ def process_customers(df, spark, parameters):
             ]
 
             # Create Python file copier for conflict detection
-            from lhp.core.python_file_copier import PythonFileCopier
+            from lhp.core.codegen import PythonFileCopier
 
             python_copier = PythonFileCopier()
 
@@ -1222,7 +1222,7 @@ def transform_customers(df, spark, parameters):
 """)
 
             # Create Python file copier for conflict detection
-            from lhp.core.python_file_copier import PythonFileCopier
+            from lhp.core.codegen import PythonFileCopier
 
             python_copier = PythonFileCopier()
 

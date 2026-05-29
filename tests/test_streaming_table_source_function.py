@@ -2,7 +2,7 @@
 
 Two layers of protection are exercised here:
 
-1. ``source_function_loader._extract_function_code`` strips
+1. ``snapshot_cdc_source_function._extract_function_code`` strips
    ``from __future__`` lines from the inlined block. Without this, a
    user's snapshot-source file's future import would land mid-body of the
    generated module — beneath ``from pyspark import pipelines as dp`` —
@@ -17,7 +17,7 @@ Two layers of protection are exercised here:
 import ast
 
 from lhp.core.codegen.coordinator import CodeGenerationService
-from lhp.generators.write.source_function_loader import _extract_function_code
+from lhp.generators.write.snapshot_cdc_source_function import _extract_function_code
 from lhp.models import FlowGroup
 
 

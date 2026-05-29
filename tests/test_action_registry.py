@@ -3,7 +3,7 @@
 import pytest
 from lhp.core.registry import ActionRegistry
 from lhp.models import ActionType, TestActionType
-from lhp.generators.test.test_generator import TestActionGenerator
+from lhp.generators.test import RowCountTestGenerator, UniquenessTestGenerator
 
 
 class TestActionRegistry:
@@ -15,10 +15,10 @@ class TestActionRegistry:
         
         # Test that get_generator works with TEST action
         generator = registry.get_generator(ActionType.TEST, sub_type='row_count')
-        
-        # Verify we get a TestActionGenerator instance
+
+        # Each test type now resolves to its own distinct leaf generator.
         assert generator is not None
-        assert isinstance(generator, TestActionGenerator)
+        assert isinstance(generator, RowCountTestGenerator)
     
     def test_registry_test_action_fields(self):
         """Test that registry defines required and optional fields for test action."""
@@ -40,7 +40,7 @@ class TestActionRegistry:
         
         # Test with string sub_type (should convert to TestActionType enum)
         generator = registry.get_generator(ActionType.TEST, sub_type='uniqueness')
-        assert isinstance(generator, TestActionGenerator)
+        assert isinstance(generator, UniquenessTestGenerator)
     
     def test_registry_test_action_invalid_type(self):
         """Test that registry raises error for invalid test type."""
