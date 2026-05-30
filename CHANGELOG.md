@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Stage 1 — Discovery Efficiency — read-once / parse-once per invocation
+
+**Summary.** Flowgroup discovery is now **read-once-per-invocation** and each
+pipeline YAML is **parsed once**. Previously `lhp validate` / `lhp generate`
+ran flowgroup discovery up to **4×** per invocation and re-read every
+`pipelines/**/*.yaml` file **twice** (once for the flowgroup pass, once for the
+blueprint-instance pass). Discovery is now memoized at the bootstrap boundary
+and the two passes share a parsed-document cache. This is a **pure-latency**
+change — no behavioral or output differences.
+
+**Changed (performance).**
+
+- **Discovery is memoized at the bootstrap boundary; the two passes share a
+  parsed-document cache.** On a ~4000-flowgroup project, `validate` wall time
+  dropped from **~43.7 s to ~7.7 s** (the redundant instance re-read pass
+  dropped from ~5.4 s to ~0.3 s).
+- **The shared document cache now sizes itself to the discovery working set**,
+  so the parse-once behavior holds on projects with more files than the cache's
+  previous fixed ceiling — which had silently caused the instance pass to
+  re-read every file on large projects.
+
+**Deferred (decided; tracked for follow-up).**
+
+- **Phase-2 mechanism (DECIDED).** Elected the **per-invocation shared
+  parsed-document cache** (spec option "b2") over the **unified discovery pass**
+  (spec option "b1"). b1, which aligns with the eventual `core/discovery/`
+  target architecture, is **deferred** — it would rewrite discovery control
+  flow for what is a pure-latency goal.
+- **`DISCOVERY-DAEMON-DEFER`.** The cross-invocation discovery index (spec §7)
+  is **deferred** to a future stage; this work optimizes within a single
+  invocation only.
+- **`invalidate_discovery_cache()` (spec D4) intentionally NOT added.** Within
+  one invocation there is no mutation of the on-disk flowgroup set, and wiring
+  invalidation at the orchestrator entry points would force a second full disk
+  discovery, defeating the memoization. The invalidation primitive will be
+  introduced alongside the first mutating caller in a later stage. When it is
+  added, it must reset all three atomically-coupled fields produced by
+  `discover_all_flowgroups` — `_discovery_cache`, `_synthetic_contexts`, and
+  `_monitoring_result` — not `_discovery_cache` alone; a tuple-only reset would
+  re-introduce the D2 desync hazard the memo is built to avoid.
+
 ### Validation consolidation — `validate` and `generate` share one preflight path
 
 **Summary.** `lhp validate` and `lhp generate` no longer carry duplicate

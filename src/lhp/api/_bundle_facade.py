@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterator, List, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Iterator, Optional, Sequence
 
 from lhp.api.events import (
     BundleSyncCompleted,
@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     # Internal orchestrator type, referenced only as a quoted annotation
     # below; never named directly in the public API surface (§1.10, §9.13).
     _Orchestrator = Any
+    from lhp.models import FlowGroup
 
 
 def _lhp_error_code_and_message(exc: BaseException) -> tuple[Optional[str], str]:
@@ -368,7 +369,9 @@ class BundleFacade:
             )
         try:
             with perf_timer("facade.validate_bundle_assets"):
-                flowgroups: List[Any] = self._orchestrator.discover_all_flowgroups()
+                flowgroups: Sequence["FlowGroup"] = (
+                    self._orchestrator.discover_all_flowgroups()
+                )
                 pipeline_names = sorted({fg.pipeline for fg in flowgroups})
                 monitoring_name: Optional[str] = (
                     resolve_monitoring_pipeline_name(project_config)

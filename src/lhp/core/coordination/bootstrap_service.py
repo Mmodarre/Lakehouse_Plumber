@@ -44,13 +44,27 @@ class FlowgroupBootstrapService(BaseFlowgroupBootstrapService):
         self._logger = logger
         self._synthetic_contexts: Dict[Tuple[str, str], FlowGroupContext] = {}
         self._monitoring_result: Optional[MonitoringBuildResult] = None
+        # Invocation-scoped discovery memo. Precedent in this codebase:
+        # ``ActionOrchestrator._pipeline_slice_cache``. Deliberate divergence:
+        # that precedent caches a *mutable dict* used only internally, whereas
+        # this result is handed across the public facade, so immutability is
+        # load-bearing here -- hence a frozen ``Tuple`` returned by identity
+        # rather than a mutable list (guards the aliasing hazard of 149de1dd).
+        self._discovery_cache: Optional[Tuple[FlowGroup, ...]] = None
 
-    def discover_all_flowgroups(self) -> List[FlowGroup]:
+    def discover_all_flowgroups(self) -> Tuple[FlowGroup, ...]:
         """Discover disk-sourced flowgroups, then expand blueprints and monitoring.
 
         Side effects: populates ``self._synthetic_contexts`` and refreshes
         ``self._monitoring_result`` from the monitoring service's last build.
+        Memoized for the invocation (see ``self._discovery_cache``): the list
+        and these side-effect fields are produced atomically by the first
+        (miss) call; subsequent calls early-return the cached tuple, leaving
+        the side-effect fields untouched from that first call.
         """
+        if self._discovery_cache is not None:
+            return self._discovery_cache
+
         with perf_timer("discover_all_flowgroups [orchestrator]"):
             flowgroups = list(self._discovery.discover_flowgroups(pipeline_filter=None))
 
@@ -77,7 +91,8 @@ class FlowgroupBootstrapService(BaseFlowgroupBootstrapService):
             self._synthetic_contexts[
                 (monitoring_ctx.flowgroup.pipeline, monitoring_ctx.flowgroup.flowgroup)
             ] = monitoring_ctx
-        return flowgroups
+        self._discovery_cache = tuple(flowgroups)
+        return self._discovery_cache
 
     def make_context(self, fg: FlowGroup) -> FlowGroupContext:
         """Wrap a FlowGroup in its FlowGroupContext for the worker boundary.

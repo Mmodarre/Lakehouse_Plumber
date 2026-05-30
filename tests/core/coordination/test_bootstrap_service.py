@@ -204,7 +204,7 @@ def test_discover_all_flowgroups_returns_empty_when_no_disk_flowgroups_no_bluepr
 
     result = service.discover_all_flowgroups()
 
-    assert result == []
+    assert result == ()
     assert discovery.register_calls == []
     assert service._synthetic_contexts == {}
     assert service._monitoring_result is None
@@ -256,7 +256,7 @@ def test_discover_all_flowgroups_populates_synthetic_contexts_from_blueprint_exp
 
     result = service.discover_all_flowgroups()
 
-    assert result == [synthetic_fg]
+    assert result == (synthetic_fg,)
     assert service._synthetic_contexts == {
         (synthetic_fg.pipeline, synthetic_fg.flowgroup): synthetic_ctx
     }
@@ -290,9 +290,113 @@ def test_discover_all_flowgroups_appends_monitoring_flowgroup_when_monitoring_re
 
     result = service.discover_all_flowgroups()
 
-    assert result == [monitoring_fg]
+    assert result == (monitoring_fg,)
     assert service._monitoring_result is monitoring_result
     assert service._synthetic_contexts == {
         (monitoring_fg.pipeline, monitoring_fg.flowgroup): monitoring_ctx
     }
     assert monitoring.build_calls == [()]
+
+
+@pytest.mark.unit
+def test_discover_all_flowgroups_caches_result_and_preserves_side_effects_on_hit() -> (
+    None
+):
+    """The second call early-returns the memoized tuple without re-running disk
+    discovery, and the ``_synthetic_contexts`` / ``_monitoring_result`` side
+    effects produced on the first (miss) call remain populated after the second
+    (cache-hit) call.
+
+    This guards the D2 desync hazard: a cache hit must NOT silently drop the
+    side-effect fields that downstream consumers read off ``self``.
+    """
+    disk_fg = FlowGroup(pipeline="p", flowgroup="disk", actions=[])
+
+    synthetic_fg = FlowGroup(pipeline="p", flowgroup="syn", actions=[])
+    synthetic_ctx = FlowGroupContext(
+        flowgroup=synthetic_fg, source_yaml=None, synthetic=True
+    )
+    blueprint_path = Path("/tmp/bp.yaml")
+    instance_path = Path("/tmp/instance.yaml")
+    blueprint = Blueprint(name="bp", flowgroups=[])
+    blueprint_dict: Dict[str, Tuple[Blueprint, Path]] = {
+        "bp": (blueprint, blueprint_path)
+    }
+    instance = BlueprintInstance(blueprint="bp")
+    instances = [(instance, instance_path)]
+    provenance = {
+        (synthetic_fg.pipeline, synthetic_fg.flowgroup): BlueprintProvenance(
+            blueprint_name="bp",
+            blueprint_path=blueprint_path,
+            instance_path=instance_path,
+            flowgroup=synthetic_fg,
+            spec_index=0,
+        )
+    }
+
+    monitoring_fg = FlowGroup(pipeline="monitoring", flowgroup="mon", actions=[])
+    monitoring_ctx = FlowGroupContext(
+        flowgroup=monitoring_fg, source_yaml=None, synthetic=True
+    )
+    monitoring_result = MonitoringBuildResult(
+        context=monitoring_ctx,
+        template_context={},
+        eligible_pipelines=[],
+        pipeline_name="monitoring",
+    )
+
+    discovery = _FakeDiscovery(flowgroups=(disk_fg,))
+    blueprint_discoverer = _FakeBlueprintDiscoverer(
+        blueprints=blueprint_dict, instances=instances
+    )
+    blueprint_expander = _FakeBlueprintExpander(
+        contexts=[synthetic_ctx], provenance=provenance
+    )
+    monitoring = _FakeMonitoring(build_result=monitoring_result)
+
+    service = _make_service(
+        discovery=discovery,
+        blueprint_discoverer=blueprint_discoverer,
+        blueprint_expander=blueprint_expander,
+        monitoring=monitoring,
+    )
+
+    first = service.discover_all_flowgroups()
+
+    # Snapshot the side-effect fields produced on the first (miss) call.
+    expected_synthetic_contexts = {
+        (synthetic_fg.pipeline, synthetic_fg.flowgroup): synthetic_ctx,
+        (monitoring_fg.pipeline, monitoring_fg.flowgroup): monitoring_ctx,
+    }
+    assert first == (disk_fg, synthetic_fg, monitoring_fg)
+    assert service._synthetic_contexts == expected_synthetic_contexts
+    assert service._monitoring_result is monitoring_result
+    assert discovery.discover_calls == [None]
+
+    second = service.discover_all_flowgroups()
+
+    # The inner disk discovery ran exactly once across the two boundary calls:
+    # the 2nd call early-returns and never reaches discover_flowgroups.
+    assert discovery.discover_calls == [None]
+    assert second == first
+
+    # Side effects produced on the first call persist on ``self`` after the
+    # cache-hit call (the D2 guarantee) and are unchanged.
+    assert service._synthetic_contexts == expected_synthetic_contexts
+    assert service._monitoring_result is monitoring_result
+
+
+@pytest.mark.unit
+def test_discover_all_flowgroups_returns_same_immutable_tuple_by_identity() -> None:
+    """Two calls return the SAME immutable tuple object by identity, and the
+    returned value is a real ``tuple`` (no in-place mutation API)."""
+    disk_fg = FlowGroup(pipeline="p", flowgroup="disk", actions=[])
+    svc = _make_service(discovery=_FakeDiscovery(flowgroups=(disk_fg,)))
+
+    a = svc.discover_all_flowgroups()
+    b = svc.discover_all_flowgroups()
+
+    assert a is b
+    assert isinstance(a, tuple)
+    with pytest.raises(AttributeError):
+        a.append(disk_fg)  # type: ignore[attr-defined]  # tuple has no .append

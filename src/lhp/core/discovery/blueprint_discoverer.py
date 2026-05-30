@@ -152,6 +152,15 @@ class BlueprintDiscoverer:
                 f"{self.project_root}"
             )
 
+            # Defensive cache-warming hint. In the common case this instance
+            # glob is the same pipelines/**/*.yaml set the flowgroup pass
+            # already reserved, so this is a no-op monotonic max. But if a
+            # project configures a larger instance-include set, reserving it
+            # here prevents the instance pass from evicting the flowgroup
+            # pass's warmed entries and re-reading files from disk.
+            if self.caching_yaml_parser is not None:
+                self.caching_yaml_parser.reserve_capacity(len(files))
+
             blueprint_models: Dict[str, Blueprint] = {
                 name: bp for name, (bp, _) in blueprints.items()
             }

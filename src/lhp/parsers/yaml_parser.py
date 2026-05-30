@@ -27,6 +27,13 @@ class YAMLParser:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
 
+    def reserve_capacity(self, n: int) -> None:
+        """No-op: a non-caching parser has no cache to size.
+
+        Present so callers can size any parser uniformly without a
+        capability check. The caching subclass overrides this.
+        """
+
     def parse_file(self, file_path: Path) -> Dict[str, Any]:
         """Parse a single YAML file."""
         self.logger.debug(f"Parsing YAML file: {file_path}")
@@ -125,7 +132,6 @@ class YAMLParser:
         Raises:
             ValueError: For duplicate flowgroup names, mixed syntax, or parsing errors
         """
-        from .blueprint_parser import BlueprintParser
         from .yaml_loader import load_yaml_documents_all
 
         try:
@@ -136,6 +142,23 @@ class YAMLParser:
             # Re-raise with better context
             raise
 
+        return self._flowgroups_from_documents(documents, file_path)
+
+    def _flowgroups_from_documents(
+        self, documents: List[Dict], file_path: Path
+    ) -> List[FlowGroup]:
+        """Build FlowGroups from already-loaded YAML documents.
+
+        Args:
+            documents: YAML documents loaded from ``file_path``
+            file_path: Path the documents were loaded from (for error context)
+
+        Returns:
+            List of FlowGroup objects
+
+        Raises:
+            ValueError: For duplicate flowgroup names, mixed syntax, or parsing errors
+        """
         if not documents:
             raise LHPConfigError(
                 category=ErrorCategory.CONFIG,
@@ -149,6 +172,8 @@ class YAMLParser:
                 ],
                 context={"file": str(file_path)},
             )
+
+        from .blueprint_parser import BlueprintParser
 
         is_multi_doc = len(documents) > 1
         self.logger.debug(
@@ -404,6 +429,37 @@ class CachingYAMLParser:
         self._hits: int = 0
         self._misses: int = 0
 
+    def reserve_capacity(self, n: int) -> None:
+        """Raise the shared cache ceiling to hold a known bounded working set.
+
+        This is a cache-warming size hint, not a hard resize. A single
+        discovery pass globs a known, finite set of ``pipelines/**/*.yaml``
+        files and then loads each one twice — once in the flowgroup pass and
+        once in the instance pass. If the default ``_max_cache_size`` is below
+        that file count, the first pass evicts its own warmed entries before
+        the second pass reaches them, so the second pass re-reads every file
+        from disk. Reserving the working-set size up front keeps every entry
+        resident across both passes.
+
+        The ceiling is SHARED by both sub-caches (``_documents_cache`` for raw
+        documents and ``_cache`` for built FlowGroups), so reserving ``n`` lets
+        each independently hold the full working set — a small, bounded extra
+        memory cost proportional to the file count.
+
+        Grow-only and idempotent: the cap can only ever increase
+        (``max(current, n)``). This is load-bearing because the parser is a
+        single shared instance and BOTH discovery passes call this method with
+        their own glob size; a monotonic ``max`` guarantees that two reserves
+        with different ``n`` can never shrink the ceiling mid-workload. The FIFO
+        eviction in :meth:`_cached_load` is unaffected and still guards against
+        unbounded growth beyond the reserved size.
+
+        Args:
+            n: Number of entries the caller intends to load in one workload.
+        """
+        with self._lock:
+            self._max_cache_size = max(self._max_cache_size, n)
+
     def _cached_load(
         self,
         path: Path,
@@ -449,11 +505,24 @@ class CachingYAMLParser:
             return result
 
     def parse_flowgroups_from_file(self, path: Path) -> List[FlowGroup]:
-        """Parse flowgroups with caching based on file mtime."""
+        """Parse flowgroups with caching based on file mtime.
+
+        On a ``_cache`` miss the documents are obtained via
+        ``load_documents_all`` so the raw read is shared with (and
+        populates) ``_documents_cache``; the instance pass then hits that
+        same entry instead of reading the file a second time. The finished
+        ``List[FlowGroup]`` is still cached in ``_cache`` to avoid rebuilding
+        FlowGroup objects on a repeat flowgroup parse.
+        """
         return self._cached_load(
             path,
             self._cache,
-            lambda: self._parser.parse_flowgroups_from_file(path),
+            lambda: self._parser._flowgroups_from_documents(
+                self.load_documents_all(
+                    path, error_context=f"flowgroup file {path}"
+                ),
+                path,
+            ),
             label="Flowgroup",
         )
 

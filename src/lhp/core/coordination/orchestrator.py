@@ -305,7 +305,7 @@ class ActionOrchestrator:
         """
         return self.discovery._legacy_discover_flowgroups_by_dir(pipeline_dir)  # type: ignore[attr-defined]
 
-    def discover_all_flowgroups(self) -> List[FlowGroup]:
+    def discover_all_flowgroups(self) -> Tuple[FlowGroup, ...]:
         """Discover disk-sourced flowgroups, expand blueprints, attach monitoring.
 
         Delegates to :class:`FlowgroupBootstrapService`; preserved on the orchestrator

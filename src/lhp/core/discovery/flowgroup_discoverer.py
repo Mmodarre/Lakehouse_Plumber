@@ -364,6 +364,14 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
             yaml_files.extend(pipelines_dir.rglob("*.yaml"))
             yaml_files.extend(pipelines_dir.rglob("*.yml"))
 
+        # Cache-warming hint: this pass and the instance pass both load every
+        # discovered file, so reserve the full working set up front to keep the
+        # shared CachingYAMLParser from evicting its own warmed entries before
+        # the second pass reads them. Safe on any parser: the non-caching base
+        # YAMLParser implements reserve_capacity as a no-op (no ceiling to
+        # manage), so no capability check is needed.
+        self.yaml_parser.reserve_capacity(len(yaml_files))
+
         for yaml_file in yaml_files:
             # Use parse_flowgroups_from_file() to support multi-flowgroup files
             file_flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)

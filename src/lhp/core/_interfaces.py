@@ -302,7 +302,7 @@ class BaseFlowgroupBootstrapService(ABC):
     """
 
     @abstractmethod
-    def discover_all_flowgroups(self) -> List[FlowGroup]:
+    def discover_all_flowgroups(self) -> Tuple[FlowGroup, ...]:
         """Discover every flowgroup on disk, expand blueprints, attach monitoring.
 
         Side effects: populates the service's internal synthetic-context

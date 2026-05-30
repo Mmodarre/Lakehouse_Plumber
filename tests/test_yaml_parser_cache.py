@@ -47,16 +47,17 @@ class TestCachingYAMLParser:
         """Test that second read of same file hits cache."""
         parser = CachingYAMLParser()
         
-        # First read - should be cache miss
+        # First read - cold parse records two misses: one for the flowgroup
+        # sub-cache and one for the now-shared documents sub-cache.
         flowgroups1 = parser.parse_flowgroups_from_file(temp_yaml_file)
         assert len(flowgroups1) == 1
-        assert parser._misses == 1
+        assert parser._misses == 2
         assert parser._hits == 0
-        
-        # Second read - should be cache hit
+
+        # Second read - should be cache hit (no descent into documents cache)
         flowgroups2 = parser.parse_flowgroups_from_file(temp_yaml_file)
         assert len(flowgroups2) == 1
-        assert parser._misses == 1
+        assert parser._misses == 2
         assert parser._hits == 1
         
         # Verify same objects returned (from cache)
@@ -66,41 +67,41 @@ class TestCachingYAMLParser:
         """Test that cache is invalidated when file is modified."""
         parser = CachingYAMLParser()
         
-        # First read
+        # First read - cold parse records two misses (flowgroup + documents)
         flowgroups1 = parser.parse_flowgroups_from_file(temp_yaml_file)
-        assert parser._misses == 1
+        assert parser._misses == 2
         assert parser._hits == 0
-        
+
         # Modify file (change mtime)
         time.sleep(0.01)  # Ensure different mtime
         with open(temp_yaml_file, 'a') as f:
             f.write("\n# Modified\n")
-        
-        # Second read after modification - should be cache miss
+
+        # Second read after modification - another cold parse, two more misses
         flowgroups2 = parser.parse_flowgroups_from_file(temp_yaml_file)
-        assert parser._misses == 2
+        assert parser._misses == 4
         assert parser._hits == 0
     
     def test_cache_stats(self, temp_yaml_file):
         """Test cache statistics reporting."""
         parser = CachingYAMLParser()
         
-        # Read once
+        # Read once - cold parse records two misses (flowgroup + documents)
         parser.parse_flowgroups_from_file(temp_yaml_file)
         stats = parser.get_cache_stats()
         assert stats['hits'] == 0
-        assert stats['misses'] == 1
-        assert stats['total'] == 1
+        assert stats['misses'] == 2
+        assert stats['total'] == 2
         assert stats['hit_rate_percent'] == 0.0
         assert stats['cache_size'] == 1
-        
-        # Read again (cache hit)
+
+        # Read again (cache hit) - one hit on top of the two cold misses
         parser.parse_flowgroups_from_file(temp_yaml_file)
         stats = parser.get_cache_stats()
         assert stats['hits'] == 1
-        assert stats['misses'] == 1
-        assert stats['total'] == 2
-        assert stats['hit_rate_percent'] == 50.0
+        assert stats['misses'] == 2
+        assert stats['total'] == 3
+        assert stats['hit_rate_percent'] == 33.3
         assert stats['cache_size'] == 1
     
     def test_cache_clear(self, temp_yaml_file):
@@ -148,6 +149,93 @@ actions:
             for temp_file in temp_files:
                 if temp_file.exists():
                     temp_file.unlink()
+
+    def test_reserve_capacity_grows_only(self):
+        """reserve_capacity raises the cap monotonically and is idempotent.
+
+        The parser is a single shared instance and both discovery passes call
+        reserve_capacity with their own glob size; a monotonic max guarantees a
+        later, smaller reserve can never shrink the ceiling mid-workload.
+        """
+        parser = CachingYAMLParser(max_cache_size=10)
+        assert parser._max_cache_size == 10
+
+        # Grow: reserving above the current cap raises it.
+        parser.reserve_capacity(15)
+        assert parser._max_cache_size == 15
+
+        # Grow-only: a smaller reserve is a no-op, not a shrink.
+        parser.reserve_capacity(5)
+        assert parser._max_cache_size == 15
+
+        # Idempotent: reserving the same value again leaves it unchanged.
+        parser.reserve_capacity(15)
+        assert parser._max_cache_size == 15
+
+    def test_reserve_capacity_prevents_eviction(self):
+        """With the working set reserved, no entry is evicted and no file is
+        read twice — the production fix reproduced at the unit level.
+
+        Starts below the working set (cap 10 < 15 files) so that WITHOUT the
+        reserve the documents sub-cache would evict on the 11th distinct file.
+        After reserving 15, all 15 distinct files stay resident
+        (documents_cache_size == 15) and each file is physically read exactly
+        once even on a repeat load pass.
+        """
+        from unittest.mock import patch
+
+        import lhp.parsers.yaml_parser as yaml_parser_module
+
+        parser = CachingYAMLParser(max_cache_size=10)
+        parser.reserve_capacity(15)
+        assert parser._max_cache_size == 15
+
+        # Spy on the physical read (the binding the active read path uses;
+        # see tests/core/discovery/test_single_parse_pass.py). wraps= keeps
+        # real parsing so behavior is unchanged.
+        real_load = yaml_parser_module.load_yaml_documents_all
+        read_counter: dict = {}
+
+        def counting_load(file_path, *args, **kwargs):
+            key = str(Path(file_path).resolve())
+            read_counter[key] = read_counter.get(key, 0) + 1
+            return real_load(file_path, *args, **kwargs)
+
+        temp_files = []
+        try:
+            for i in range(15):
+                with tempfile.NamedTemporaryFile(
+                    mode="w", suffix=".yaml", delete=False
+                ) as f:
+                    f.write(f"flowgroup: fg_{i}\npipeline: pl\nactions: []\n")
+                    temp_path = Path(f.name)
+                    temp_files.append(temp_path)
+
+            with patch.object(
+                yaml_parser_module,
+                "load_yaml_documents_all",
+                side_effect=counting_load,
+            ):
+                # First pass over all 15 files populates the documents cache.
+                for temp_file in temp_files:
+                    parser.load_documents_all(temp_file)
+                # Second pass: with no eviction, every file is a cache hit and
+                # is NOT read from disk again.
+                for temp_file in temp_files:
+                    parser.load_documents_all(temp_file)
+
+            # No eviction: the documents sub-cache holds the full working set.
+            stats = parser.get_cache_stats()
+            assert stats["documents_cache_size"] == 15
+
+            # Each distinct file was physically read exactly once across both
+            # passes (the cap-10 default would have evicted and re-read).
+            assert len(read_counter) == 15
+            assert all(count == 1 for count in read_counter.values()), read_counter
+        finally:
+            for temp_file in temp_files:
+                if temp_file.exists():
+                    temp_file.unlink()
     
     def test_delegation_to_base_parser(self, temp_yaml_file):
         """Test that other methods are delegated to base parser."""
@@ -188,10 +276,12 @@ actions:
         assert len(errors) == 0
         assert len(results) == 10
 
-        # Verify cache stats show hits (thread-safe operations)
+        # Verify cache stats show hits (thread-safe operations).
+        # 10 threads over one file = 1 cold parse (2 misses: flowgroup +
+        # documents) + 9 flowgroup-cache hits = 11 counter events.
         stats = parser.get_cache_stats()
-        assert stats['total'] == 10
-        assert stats['hits'] + stats['misses'] == 10
+        assert stats['total'] == 11
+        assert stats['hits'] + stats['misses'] == 11
 
     # ------------------------------------------------------------------
     # load_documents_all (raw-document sub-cache)
