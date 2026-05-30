@@ -105,8 +105,11 @@ class TestCLI:
             # Create dev.yaml for testing by copying the template
             shutil.copy("substitutions/dev.yaml.tmpl", "substitutions/dev.yaml")
 
-            # Run validate
-            result = runner.invoke(cli, ["validate"])
+            # Run validate. This test exercises non-bundle behavior; ``lhp init``
+            # scaffolds ``databricks.yml``, which auto-enables bundle support and
+            # would otherwise require ``--pipeline-config`` (LHP-CFG-023), so pass
+            # ``--no-bundle`` to opt out.
+            result = runner.invoke(cli, ["validate", "--no-bundle"])
 
             # LHP-CFG-014 raised when no flowgroups discovered.
             from lhp.cli.exit_codes import ExitCode
@@ -301,7 +304,7 @@ class TestCLI:
                 yaml.dump(flowgroup_content, f)
 
             # Run validate
-            result = runner.invoke(cli, ["validate", "--env", "dev"])
+            result = runner.invoke(cli, ["validate", "--env", "dev", "--no-bundle"])
 
             assert result.exit_code == 0
 
@@ -480,7 +483,9 @@ class TestCLI:
                 yaml.dump(flowgroup_content, f)
 
             # Run validate
-            result = runner.invoke(cli, ["validate", "--env", "dev", "--verbose"])
+            result = runner.invoke(
+                cli, ["validate", "--env", "dev", "--verbose", "--no-bundle"]
+            )
 
             assert result.exit_code == 0
 

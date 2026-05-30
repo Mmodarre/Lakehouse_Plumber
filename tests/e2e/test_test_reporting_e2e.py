@@ -89,7 +89,17 @@ class TestTestReportingE2E:
     def run_validate_with_tests(self) -> tuple:
         """Run 'lhp validate --env dev --include-tests'. Returns (exit_code, output)."""
         runner = CliRunner()
-        result = runner.invoke(cli, ["validate", "--env", "dev", "--include-tests"])
+        result = runner.invoke(
+            cli,
+            [
+                "validate",
+                "--env",
+                "dev",
+                "--include-tests",
+                "--pipeline-config",
+                "config/pipeline_config.yaml",
+            ],
+        )
         return result.exit_code, result.output
 
     def _compare_file_hashes(self, file1: Path, file2: Path) -> str:
@@ -222,7 +232,8 @@ class TestTestReportingE2E:
     def test_validate_with_include_tests(self):
         """Validate command succeeds with valid test reporting config."""
         exit_code, output = self.run_validate_with_tests()
+        # The test-reporting validate success line (formerly a Rich
+        # ``✓ test_reporting`` banner) was removed, so only the exit code
+        # is asserted here — matching the sibling
+        # ``test_tc20_validate_with_include_tests_succeeds``.
         assert exit_code == 0, f"Validation failed: {output}"
-        # Post-Phase-3b the test-reporting validate signal renders as a
-        # Rich ``✓ test_reporting`` line instead of the prior banner.
-        assert "test_reporting" in output and "✓" in output

@@ -54,6 +54,7 @@ from lhp.api import (
 )
 from lhp.errors.categories import ErrorCategory
 from lhp.errors.types import LHPError
+from lhp.models import FlowGroup
 
 
 _FIXTURE_PATH = (
@@ -229,6 +230,51 @@ class TestGeneratePipelinesProtocol:
         assert exc_info.value.code == "LHP-GEN-999"
         assert isinstance(collected[-1], ErrorEmitted)
         assert collected[-1].lhp_error is injected
+
+    def test_generate_preflight_failure_emits_one_error_then_raises(
+        self, project_facade, output_dir
+    ):
+        """A project-level preflight failure (§9.24) must surface on the
+        generate stream as exactly ONE ``ErrorEmitted`` followed by a raise.
+
+        The failure is a genuine duplicate ``(pipeline, flowgroup)`` fed
+        through ``pre_discovered_all_flowgroups`` so the REAL
+        ``_run_project_preflight`` runs end-to-end (duplicate check ->
+        ``LHP-VAL-009``); no bundle is involved (the call site hardcodes
+        ``bundle_enabled=False``). This also pins the placement contract:
+        the preflight surfacing lives in the OUTER ``generate_pipelines``
+        generator, BEFORE the ``_do_generate_pipelines`` delegation whose
+        ``except Exception -> return failure`` body would otherwise SWALLOW
+        the raise — if it were mis-placed there, no ``ErrorEmitted`` would
+        be observed here.
+        """
+        facade, _ = project_facade
+        duplicate_flowgroups = [
+            FlowGroup(pipeline="dup_pipeline", flowgroup="dup_fg"),
+            FlowGroup(pipeline="dup_pipeline", flowgroup="dup_fg"),
+        ]
+        collected: list[LHPEvent] = []
+        gen = facade.generation.generate_pipelines(
+            pipeline_fields=(),
+            env="dev",
+            output_dir=output_dir,
+            pre_discovered_all_flowgroups=duplicate_flowgroups,
+        )
+        with pytest.raises(LHPError) as exc_info:
+            for event in gen:
+                collected.append(event)
+
+        # Exactly one ErrorEmitted, and it precedes the raise (it is the
+        # last event the generator yielded before propagating the error).
+        error_events = [e for e in collected if isinstance(e, ErrorEmitted)]
+        assert len(error_events) == 1
+        assert isinstance(collected[-1], ErrorEmitted)
+        # No terminal GenerationCompleted on the failure path.
+        assert not any(isinstance(e, GenerationCompleted) for e in collected)
+        # The duplicate preflight reconstructs an LHP-VAL-009 error, and the
+        # same instance is carried on the emitted event then raised.
+        assert exc_info.value.code == "LHP-VAL-009"
+        assert collected[-1].lhp_error is exc_info.value
 
     def test_generate_pipelines_returns_fresh_generator_per_call(
         self, project_facade, output_dir

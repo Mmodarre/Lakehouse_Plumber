@@ -7,6 +7,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Validation consolidation — `validate` and `generate` share one preflight path
+
+**Summary.** `lhp validate` and `lhp generate` no longer carry duplicate
+validation logic. Per CODING_CONSTITUTION §9.24 (no duplicate validation
+logic), both commands now route structural and project-level preflight checks
+through a single shared path. The user-visible consequence is that
+`lhp validate` becomes **symmetric** with `lhp generate` — it catches the same
+structural defect classes the generator would have caught — and a small number
+of generate-only checks are promoted onto the shared path. This consolidation
+introduced **zero production regressions** and the full e2e suite is green.
+
+**Changed (user-visible behavior).**
+
+- **`lhp validate` is now symmetric with `lhp generate`.** It catches the same
+  structural defect classes the generator does — several of which were
+  previously **generate-only**: table-creation "no creator"
+  (`LHP-VAL-009`), duplicate `(pipeline, flowgroup)` (`LHP-VAL-009`),
+  blueprint/instance errors (`LHP-VAL-041` family), test-reporting
+  file-existence (`LHP-CFG-032`), and bundle catalog/schema preflight
+  (`LHP-CFG-026`).
+- **CDC fan-in failures in `lhp validate` now render as structured
+  diagnostics** — an error code plus a suggestions panel — instead of the
+  legacy stringified, `=====`-bordered text.
+- **`lhp generate` now runs the test-reporting file-existence check
+  independent of `--include-tests`.** A project with a missing test-reporting
+  provider file that previously generated will now **fail** generation
+  (`LHP-CFG-032`), regardless of whether `--include-tests` was passed.
+- **`lhp validate` gained `--no-bundle` and `--pipeline-config` / `-pc`.** Like
+  `lhp generate`, it now **requires** `-pc` on a project containing
+  `databricks.yml` (otherwise it fails with `LHP-CFG-023`).
+- **A failed-preflight `lhp generate` run no longer wipes
+  `generated/<env>/`.** When generation fails preflight (duplicate
+  `(pipeline, flowgroup)`, missing test-reporting provider, or bundle
+  catalog/schema), the output directory is now left untouched — the
+  `generated/<env>/` wipe moved to **after** the preflight gate.
+- **`lhp validate` no longer prints the `✓ test_reporting`
+  success-confirmation line.** The shared preflight surfaces failures only,
+  consistent with `lhp generate`.
+
+**Added.**
+
+- **New error code `LHP-CFG-032`** — test-reporting provider/config file not
+  found (project preflight). Raised by both `lhp validate` and `lhp generate`.
+
+**Removed.**
+
+- **`ValidationService.validate_flowgroups`** — verified genuinely dead and
+  removed as part of this consolidation.
+
+**Deferred (decided; tracked for follow-up).**
+
+- **`GENERATOR-VALIDATION-DEFER`.** Generator-time-only checks remain
+  generate-only by design and are intentionally **not** part of the shared
+  preflight. These are checks that require artifacts only available during code
+  generation and cannot run on the validate path.
+- **`TAXONOMY-MIGRATION-DEFER`.** The `core/validators/` 4-subdir taxonomy
+  migration is deferred to a separate pass.
+- **`BLUEPRINT-059-DRIFT`.** `LHP-IO-059` doc-vs-code drift is tracked for a
+  later reconciliation.
+- **`CLI-PRESENTER-DEFER`.** CLI presenter extraction / Live-frame dedup is
+  deferred. This also covers a **presentation asymmetry** (not a logic
+  difference — validation is single-sourced): `lhp validate` surfaces
+  project-level (batch) bundle preflight failures via the batch error message
+  (code only), whereas `lhp generate` renders the full panel **plus** the
+  doc-link.
+- **`DEAD-VALIDATOR-CLEANUP`.** Two validators were verified **still-live**
+  during this work (kept; deferred for later removal):
+  `ConfigValidator.validate_action_references` (live test callers in
+  `tests/test_config_validator_references.py`) and `PipelineValidator`
+  (exported and exercised by `tests/test_pipeline_validator.py`). The
+  genuinely-dead `ValidationService.validate_flowgroups` was removed in this
+  work (see **Removed** above). Additionally, `api/_converters.py`'s
+  `_validation_error_to_issue_view` lost its last **production** caller this
+  PR (it mapped the removed `validate_flowgroups` output) and is now reachable
+  only from `tests/api/test_validation_view_contract.py`; it is **kept** (live
+  test caller, §10.4) and deferred for removal alongside the others.
+
+**Pre-existing test debt (unrelated to this consolidation).** This branch
+carries **44 pre-existing unit/integration test failures** from the in-progress
+parallel-worker-rebuild (removed
+`ActionOrchestrator.validate_pipeline_by_field` /
+`generate_pipeline_by_field`, executor/pool exposure changes, old method names
+/ return shapes). They are **unrelated** to this validation consolidation and
+are to be migrated as the broader rebuild completes. This consolidation
+introduced **zero** production regressions and the full e2e suite is green.
+
 ### Snapshot-CDC source functions — copy-and-import (was inline)
 
 **Summary.** Snapshot-CDC source functions are no longer inlined as literal

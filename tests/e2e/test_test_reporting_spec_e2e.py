@@ -95,13 +95,32 @@ class TestTestReportingSpecE2E:
     def run_validate(self) -> tuple:
         """Run 'lhp validate --env dev'. Returns (exit_code, output)."""
         runner = CliRunner()
-        result = runner.invoke(cli, ["validate", "--env", "dev"])
+        result = runner.invoke(
+            cli,
+            [
+                "validate",
+                "--env",
+                "dev",
+                "--pipeline-config",
+                "config/pipeline_config.yaml",
+            ],
+        )
         return result.exit_code, result.output
 
     def run_validate_with_tests(self) -> tuple:
         """Run 'lhp validate --env dev --include-tests'. Returns (exit_code, output)."""
         runner = CliRunner()
-        result = runner.invoke(cli, ["validate", "--env", "dev", "--include-tests"])
+        result = runner.invoke(
+            cli,
+            [
+                "validate",
+                "--env",
+                "dev",
+                "--include-tests",
+                "--pipeline-config",
+                "config/pipeline_config.yaml",
+            ],
+        )
         return result.exit_code, result.output
 
     def _file_hash(self, path: Path) -> str:
@@ -228,6 +247,43 @@ class TestTestReportingSpecE2E:
         assert (
             exit_code != 0
         ), f"Validation should fail when provider file is missing. Output: {output}"
+
+    def test_tc22_generate_fails_when_provider_missing(self) -> None:
+        """TC-22: generate fails with LHP-CFG-032 when the provider file is missing.
+
+        Proves the documented behavior change (constitution §9.24): generate and
+        validate now share one preflight (`_run_project_preflight`), so the
+        test-reporting file-existence check fires on `lhp generate` *independent
+        of* `--include-tests`. This is the generate-side mirror of
+        `test_tc21b_validate_fails_when_provider_missing`.
+
+        Fixture arrangement (so test-reporting is the surfaced issue, not a
+        bundle or duplicate issue which precede/follow it in the shared
+        preflight's issue order: duplicate -> test-reporting -> bundle):
+        - The standard `testing_project` fixture has a valid catalog/schema
+          (no LHP-CFG-026) and no duplicate flowgroup.
+        - We delete only the `test_reporting` provider module so the
+          test-reporting check (LHP-CFG-032) is the first/only issue raised.
+
+        Note: `run_generate()` does NOT pass `--include-tests` -- that is the
+        whole point of this test.
+        """
+        # Remove the provider file (mirror test_tc21b's setup).
+        provider = self.project_root / "py_functions" / "test_reporting_publisher.py"
+        if provider.exists():
+            provider.unlink()
+
+        # Drive generate WITHOUT --include-tests; the file-existence check
+        # must still fire via the shared preflight.
+        exit_code, output = self.run_generate()
+        assert exit_code != 0, (
+            "Generate should fail when the test_reporting provider file is "
+            f"missing, even without --include-tests. Output: {output}"
+        )
+        assert "LHP-CFG-032" in output, (
+            "Generate's test-reporting preflight must surface LHP-CFG-032 "
+            f"independent of --include-tests. Output: {output}"
+        )
 
     # TC-22: Full generation with --include-tests produces hook matching baseline
     def test_tc22_hook_matches_baseline(self):

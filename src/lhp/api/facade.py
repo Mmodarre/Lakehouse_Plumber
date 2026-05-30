@@ -46,13 +46,16 @@ from lhp.api._converters import (
     _build_generation_batch_failure,
     _build_generation_batch_success,
     _build_validation_batch,
+    _build_validation_batch_from_issues,
     _delta_to_generation_response,
     _finalize_monitoring_to_result,
+    _issue_view_to_lhp_error,
     _outcome_to_validation_response,
 )
 from lhp.api._inspection_facade import (
     InspectionFacade as InspectionFacade,  # re-export (§1.10)
 )
+from lhp.api._preflight import _run_project_preflight
 from lhp.api.events import (
     ErrorEmitted,
     GenerationCompleted,
@@ -100,6 +103,7 @@ class GenerationFacade:
         output_dir: Optional[Path],
         specific_flowgroups: Optional[List[str]] = None,
         include_tests: bool = False,
+        bundle_enabled: bool = False,
         pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
         max_workers: Optional[int] = None,
         on_pipeline_complete: Optional[
@@ -129,6 +133,34 @@ class GenerationFacade:
             yielded before the exception escapes (§1.4 stream protocol).
         """
         yield OperationStarted(operation_name="generate_pipelines", env=env)
+
+        # §9.24: the preflight LOGIC is single-sourced in
+        # ``_run_project_preflight`` (shared with the validate path). This
+        # call site only SURFACES failures: generate raises (validate folds
+        # them into a failed batch instead). It MUST sit in this OUTER
+        # generator — BEFORE the ``_do_generate_pipelines`` delegation
+        # below — because that helper's ``except Exception → return failure``
+        # body SWALLOWS exceptions into a DTO, which would eat the
+        # ErrorEmitted/raise rendezvous.
+        #
+        # ``bundle_enabled`` is threaded from the CLI (``--no-bundle`` +
+        # databricks.yml auto-detect): when ``True`` this preflight also runs
+        # the bundle catalog/schema check (→ ``LHP-CFG-026``), single-sourced
+        # with validate. It only fires if the orchestrator was constructed
+        # with a ``pipeline_config_path`` (generate requires ``-pc`` when
+        # bundle is on). Covers DUPLICATE + TEST-REPORTING + bundle checks.
+        preflight_issues = _run_project_preflight(
+            self._orchestrator,
+            env=env,
+            bundle_enabled=bundle_enabled,
+            include_tests=include_tests,
+            pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
+        )
+        if preflight_issues:
+            preflight_error = _issue_view_to_lhp_error(preflight_issues[0])
+            yield ErrorEmitted(lhp_error=preflight_error)
+            raise preflight_error
+
         try:
             response = self._do_generate_pipelines(
                 pipeline_filter=pipeline_filter,
@@ -176,8 +208,21 @@ class GenerationFacade:
         ``ErrorEmitted`` rendezvous, which is reserved for genuinely
         catastrophic structured failures that this body does not
         choose to swallow.
+
+        The ``generated/<env>`` wipe runs HERE — at the start of the
+        generation-writing step — so it sits AFTER the shared project
+        preflight gate in :meth:`generate_pipelines` (which raises on
+        failure before reaching this helper). This guarantees a
+        preflight failure leaves the output tree untouched. The wipe is
+        gated on ``output_dir is not None``: a dry run threads
+        ``output_dir=None`` from the CLI, so dry-run neither wipes nor
+        writes. When set, ``output_dir`` IS the env-specific directory,
+        so it is wiped and recreated directly (every run is a full
+        regenerate).
         """
         from lhp.models.processing import PipelineDelta
+
+        self._wipe_output_dir(output_dir)
 
         pipeline_responses: Dict[str, "GenerationResponse"] = {}
 
@@ -224,6 +269,27 @@ class GenerationFacade:
             else:
                 self._logger.exception("Batch pipeline generation failed")
             return _build_generation_batch_failure(pipeline_responses, exc)
+
+    @staticmethod
+    def _wipe_output_dir(output_dir: Optional[Path]) -> None:
+        """Wipe and recreate the env-specific generated output directory.
+
+        No-op when ``output_dir`` is ``None`` (dry run): a dry run must
+        neither wipe nor write. When set, the directory is removed (if it
+        exists) and recreated empty, implementing the full-regenerate
+        contract. Runs AFTER the project preflight gate in
+        :meth:`generate_pipelines`, so a failed preflight cannot destroy
+        prior output. Scope is strictly ``generated/<env>``; the
+        ``resources/lhp/`` bundle wipe stays with
+        :meth:`BundleFacade.sync_resources`.
+        """
+        import shutil
+
+        if output_dir is None:
+            return
+        if output_dir.exists():
+            shutil.rmtree(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
 
     def finalize_monitoring_artifacts(
         self, env: str, output_dir: Path
@@ -296,6 +362,7 @@ class ValidationFacade:
             Callable[[str, "ValidationResponse"], None]
         ] = None,
         include_tests: bool = True,
+        bundle_enabled: bool = False,
         pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
         warning_collector: Optional["WarningCollector"] = None,
     ) -> Iterator[LHPEvent]:
@@ -311,6 +378,12 @@ class ValidationFacade:
         :func:`lhp.api.collect_response` to walk the stream and return
         the terminal response DTO.
 
+        ``bundle_enabled`` mirrors the generate path: when ``True`` the
+        shared preflight also runs the bundle catalog/schema check
+        (→ ``LHP-CFG-026``), but only if the orchestrator was constructed
+        with a ``pipeline_config_path``. Defaults to ``False`` so the
+        non-bundle behavior is unchanged (§9.24).
+
         :stability: provisional
         :raises lhp.errors.LHPError: ``LHP-VAL-*`` (config/action/schema
             validation), ``LHP-CFG-*`` (project config + substitution),
@@ -320,6 +393,27 @@ class ValidationFacade:
             yielded before the exception escapes (§1.4 stream protocol).
         """
         yield OperationStarted(operation_name="validate_pipelines", env=env)
+        # §9.24: project-level preflight is single-sourced in
+        # ``_run_project_preflight`` (shared with the generate path); this
+        # site only SURFACES its issues. validate FOLDS them into a failed
+        # batch (non-zero exit) — it never raises — whereas generate raises.
+        # ``bundle_enabled`` is threaded from the CLI (``--no-bundle`` +
+        # databricks.yml auto-detect) so the bundle catalog/schema preflight
+        # runs symmetrically with generate.
+        preflight_issues = _run_project_preflight(
+            self._orchestrator,
+            env=env,
+            bundle_enabled=bundle_enabled,
+            include_tests=include_tests,
+            pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
+        )
+        if preflight_issues:
+            yield ValidationCompleted(
+                response=_build_validation_batch_from_issues(
+                    preflight_issues, tuple(pipeline_fields)
+                )
+            )
+            return
         try:
             response = self._do_validate_pipelines(
                 pipeline_filter=pipeline_filter,
@@ -355,12 +449,15 @@ class ValidationFacade:
         exit code without handling a live exception.
 
         Internal: invoked by the public generator wrapper
-        :meth:`validate_pipelines`. The graceful-DTO failure path
-        (catch ``Exception`` → return DTO with ``error_code``) is
-        intentional and orthogonal to the stream-protocol
-        ``ErrorEmitted`` rendezvous, which is reserved for genuinely
-        catastrophic structured failures that this body does not
-        choose to swallow.
+        :meth:`validate_pipelines`, which has already run the shared
+        §9.24 project preflight (duplicate-(pipeline, flowgroup) +
+        test-reporting + optional bundle) and short-circuited on any
+        issues. This body therefore only runs the per-pipeline
+        validation pool. The graceful-DTO failure path (catch
+        ``Exception`` → return DTO with ``error_code``) is intentional
+        and orthogonal to the stream-protocol ``ErrorEmitted``
+        rendezvous, which is reserved for genuinely catastrophic
+        structured failures that this body does not choose to swallow.
         """
         from lhp.core.coordination.executor import PipelineValidationOutcome
 
@@ -483,6 +580,7 @@ class LakehousePlumberApplicationFacade:
         output_dir: Optional[Path],
         specific_flowgroups: Optional[List[str]] = None,
         include_tests: bool = False,
+        bundle_enabled: bool = False,
         pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
         max_workers: Optional[int] = None,
         on_pipeline_complete: Optional[
@@ -508,6 +606,7 @@ class LakehousePlumberApplicationFacade:
             output_dir=output_dir,
             specific_flowgroups=specific_flowgroups,
             include_tests=include_tests,
+            bundle_enabled=bundle_enabled,
             pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
             max_workers=max_workers,
             on_pipeline_complete=on_pipeline_complete,
@@ -526,6 +625,7 @@ class LakehousePlumberApplicationFacade:
             Callable[[str, "ValidationResponse"], None]
         ] = None,
         include_tests: bool = True,
+        bundle_enabled: bool = False,
         pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
         warning_collector: Optional["WarningCollector"] = None,
     ) -> Iterator[LHPEvent]:
@@ -546,6 +646,7 @@ class LakehousePlumberApplicationFacade:
             max_workers=max_workers,
             on_pipeline_complete=on_pipeline_complete,
             include_tests=include_tests,
+            bundle_enabled=bundle_enabled,
             pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
             warning_collector=warning_collector,
         )

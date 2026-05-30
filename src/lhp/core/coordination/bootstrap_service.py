@@ -99,12 +99,13 @@ class FlowgroupBootstrapService(BaseFlowgroupBootstrapService):
     ) -> Tuple[List[FlowGroupContext], Dict[Tuple[str, str], BlueprintProvenance]]:
         """Discover and expand blueprints + instances into synthetic FlowGroupContexts.
 
-        Returns an empty result when no blueprint or instance files are present
-        in the project (the entire feature is fully opt-in via file presence).
+        Instances are always discovered (symmetrically with the validate path,
+        per CODING_CONSTITUTION §9.24) so that instance/blueprint validation is
+        not silently skipped when no blueprint files are present. Returns an
+        empty result only when no instance files are present in the project
+        (the entire feature is fully opt-in via file presence).
         """
         blueprints = self._blueprint_discoverer.discover_blueprints()
-        if not blueprints:
-            return [], {}
 
         instances = self._blueprint_discoverer.discover_instances(blueprints)
         if not instances:

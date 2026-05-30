@@ -523,6 +523,47 @@ in the ``templates/`` directory.
 
    Run ``lhp list_templates`` to see all available template names.
 
+LHP-CFG-032: Test Reporting File Not Found
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** ``lhp.yaml`` declares a ``test_reporting`` section, but the
+provider module at ``module_path`` (or the optional ``config_file``) does not
+exist at the resolved path.
+
+**Common causes:**
+
+- Typo in the ``module_path`` or ``config_file`` path
+- The provider module has not been created yet
+- A path that resolves relative to the wrong directory (paths are relative to
+  the project root)
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-CFG-032)
+
+   # lhp.yaml
+   test_reporting:
+     module_path: py_functions/test_reporting_publisher.py   # File does not exist
+     function_name: publish_results
+
+.. code-block:: yaml
+   :caption: After (fixed) — create the file, or correct the path
+
+   # lhp.yaml
+   test_reporting:
+     module_path: py_functions/delta_test_reporter.py        # File exists
+     function_name: publish_results
+
+.. note::
+
+   This is a project preflight check. It runs on both ``lhp validate`` and
+   ``lhp generate``, **independent of** ``--include-tests`` — a project with a
+   missing provider file fails ``lhp generate`` even without the flag.
+
+.. seealso::
+
+   :doc:`actions/test_reporting` for the provider module contract and built-in
+   providers.
+
 Validation Errors (LHP-VAL)
 ----------------------------
 

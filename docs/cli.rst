@@ -220,6 +220,14 @@ Both commands respect ``--include-tests`` for per-flowgroup processing.
 - **Without flag**: Test actions are skipped during per-flowgroup processing in both validation and generation
 - **With flag**: Test actions are included — validated for configuration errors and generated as temporary DLT tables
 
+.. note::
+   ``lhp validate`` shares ``lhp generate``'s bundle-preflight flags. It accepts
+   ``--no-bundle`` and ``--pipeline-config`` / ``-pc``, and on a project that
+   contains ``databricks.yml`` it likewise **requires** ``-pc`` (or
+   ``--no-bundle``) — otherwise it fails with ``LHP-CFG-023``, exactly like
+   ``generate``. ``validate`` runs the same structural and bundle catalog/schema
+   preflight checks as ``generate``. See :doc:`configure_catalog_schema`.
+
 **Examples:**
 
 .. code-block:: bash

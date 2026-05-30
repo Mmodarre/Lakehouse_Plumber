@@ -20,7 +20,9 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import os
 import pickle
+import shutil
 from dataclasses import FrozenInstanceError
 from pathlib import Path
 from types import MappingProxyType
@@ -28,6 +30,10 @@ from typing import get_type_hints
 
 import pytest
 
+from lhp.api import (
+    LakehousePlumberApplicationFacade,
+    collect_response,
+)
 from lhp.api.responses import (
     BatchGenerationResponse,
     BatchValidationResponse,
@@ -35,6 +41,7 @@ from lhp.api.responses import (
     ValidationResponse,
 )
 from lhp.api.views import ValidationIssueView
+from lhp.models import FlowGroup
 
 try:
     from lhp.api.responses import InitProjectResult
@@ -525,3 +532,51 @@ class TestResponseHelpers:
         assert validation_response.warning_count == 0
         assert validation_response.has_errors() is True
         assert validation_response.has_warnings() is False
+
+
+_FIXTURE_PATH = Path(__file__).parent.parent / "e2e" / "fixtures" / "testing_project"
+
+
+@pytest.fixture
+def project_facade(tmp_path: Path):
+    """Real facade over an isolated copy of the e2e fixture project.
+
+    Mirrors the boundary-only setup in ``test_event_protocol.py``: deep-copy
+    the fixture per test, swap CWD to the project root (LHP resolves several
+    relative paths off ``Path.cwd()``), and build a genuine facade. No
+    internal logic is mocked (§8.8) — the validate path runs end to end.
+    """
+    project_root = tmp_path / "test_project"
+    shutil.copytree(_FIXTURE_PATH, project_root)
+    original_cwd = os.getcwd()
+    os.chdir(project_root)
+    try:
+        yield LakehousePlumberApplicationFacade.for_project(project_root)
+    finally:
+        os.chdir(original_cwd)
+
+
+@pytest.mark.unit
+class TestBatchValidationDuplicateContract:
+    """Validate surfaces duplicate (pipeline, flowgroup) pairs as a
+    failed ``BatchValidationResponse`` carrying ``LHP-VAL-009`` — the same
+    detection the generate path runs (§9.24), differing only in surfacing
+    (non-zero-exit DTO here vs. a raise on the generate path)."""
+
+    def test_duplicate_pipeline_flowgroup_yields_val_009_batch(
+        self, project_facade: LakehousePlumberApplicationFacade
+    ) -> None:
+        duplicate_flowgroups = [
+            FlowGroup(pipeline="dup_pipeline", flowgroup="dup_fg", actions=[]),
+            FlowGroup(pipeline="dup_pipeline", flowgroup="dup_fg", actions=[]),
+        ]
+        response = collect_response(
+            project_facade.validation.validate_pipelines(
+                pipeline_fields=("dup_pipeline",),
+                env="dev",
+                pre_discovered_all_flowgroups=duplicate_flowgroups,
+            )
+        )
+        assert isinstance(response, BatchValidationResponse)
+        assert response.error_code == "LHP-VAL-009"
+        assert response.success is False

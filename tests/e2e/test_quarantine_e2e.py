@@ -72,7 +72,16 @@ class TestQuarantineE2E:
     def run_validate(self) -> tuple:
         """Run 'lhp validate --env dev'. Returns (exit_code, output)."""
         runner = CliRunner()
-        result = runner.invoke(cli, ["validate", "--env", "dev"])
+        result = runner.invoke(
+            cli,
+            [
+                "validate",
+                "--env",
+                "dev",
+                "--pipeline-config",
+                "config/pipeline_config.yaml",
+            ],
+        )
         return result.exit_code, result.output
 
     def _compare_file_hashes(self, file1: Path, file2: Path) -> str:

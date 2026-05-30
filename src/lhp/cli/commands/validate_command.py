@@ -7,12 +7,8 @@
 # TODO(Phase 9.2): extract per-flowgroup display block and Live-frame setup into cli/presenters/validate_panel.py per LOCAL/REMAINING_WORK.md §9.2.
 """Validate command implementation for LakehousePlumber CLI."""
 
-import importlib
 import logging
-from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
-
-import click
 
 from lhp.api import (
     BatchValidationResponse,
@@ -20,6 +16,7 @@ from lhp.api import (
     ValidationResponse,
     WarningCollector,
     collect_response,
+    should_enable_bundle_support,
 )
 from lhp.cli.exit_codes import ExitCode
 from lhp.errors import ErrorCategory, LHPConfigError, LHPError
@@ -33,6 +30,47 @@ if TYPE_CHECKING:
     from lhp.api import FlowgroupView
 
 logger = logging.getLogger(__name__)
+
+_CATALOG_SCHEMA_DOC_LINK = (
+    "https://lakehouse-plumber.readthedocs.io/en/latest/configure_catalog_schema.html"
+)
+
+
+def _require_pipeline_config_flag(
+    *,
+    bundle_enabled: bool,
+    pipeline_config_path: Optional[str],
+) -> None:
+    """Enforce ``--pipeline-config`` when bundle support is enabled.
+
+    Mirrors the generate command's guard so validate's bundle preflight
+    fires symmetrically (§9.24). Raises ``LHPConfigError`` with code
+    ``LHP-CFG-023`` when bundle support is on but no ``--pipeline-config``
+    flag was supplied; without it the facade would carry no
+    ``pipeline_config_path`` and the catalog/schema preflight could not
+    resolve, so the actionable error is surfaced up-front. Inlined here
+    per the §5 boundary cutover (CLI can't import from
+    ``lhp.bundle.preflight``).
+    """
+    if not bundle_enabled or pipeline_config_path:
+        return
+    raise LHPConfigError(
+        category=ErrorCategory.CONFIG,
+        code_number="023",
+        title="--pipeline-config is required when bundle support is enabled",
+        details=(
+            "databricks.yml is present (bundle support is enabled) but the "
+            "--pipeline-config / -pc flag was not supplied. Bundle catalog/"
+            "schema validation requires a pipeline_config.yaml that defines "
+            "`catalog` and `schema` either per-pipeline or under "
+            "`project_defaults`."
+        ),
+        suggestions=[
+            "Pass --pipeline-config (or -pc) pointing at your pipeline_config.yaml",
+            "Or use --no-bundle to skip bundle catalog/schema validation",
+        ],
+        doc_link=_CATALOG_SCHEMA_DOC_LINK,
+    )
 
 
 def _issue_view_to_lhp_error(issue: "object") -> Optional[LHPError]:
@@ -83,6 +121,8 @@ class ValidateCommand(BaseCommand):
         pipeline: Optional[str] = None,
         verbose: bool = False,
         include_tests: bool = False,
+        no_bundle: bool = False,
+        pipeline_config: Optional[str] = None,
         *,
         max_workers: Optional[int] = None,
         show_all: bool = False,
@@ -131,25 +171,33 @@ class ValidateCommand(BaseCommand):
             self.verbose = verbose
 
         logger.debug(
-            f"Validation request: env={env}, pipeline={pipeline}, verbose={verbose}"
+            f"Validation request: env={env}, pipeline={pipeline}, "
+            f"verbose={verbose}, no_bundle={no_bundle}"
         )
 
         self.echo_verbose_info(f"Detailed logs: {self.log_file}")
 
-        # Validate blueprint/instance files up front so codes 040–055, 059
-        # surface cleanly before the orchestrator wraps them in discovery
-        # context. Without this, the same errors would still be raised by
-        # ``discover_all_flowgroups`` later (less cleanly) — and the
-        # "instances without blueprints" path (code 041) would silently
-        # leak through ``_expand_blueprints`` entirely.
-        self._validate_blueprints_and_instances(project_root)
-
         self.check_substitution_file(env)
 
+        # Bundle enablement mirrors generate: ``should_enable_bundle_support``
+        # auto-detects databricks.yml and honors ``--no-bundle``. When bundle
+        # support is on, ``--pipeline-config`` is required so the orchestrator
+        # carries a ``pipeline_config_path`` and the shared preflight's bundle
+        # catalog/schema check (→ LHP-CFG-026) can resolve (§9.24). Surfaced
+        # before any facade work so a bad invocation fails fast.
+        bundle_enabled = should_enable_bundle_support(project_root, no_bundle)
+        _require_pipeline_config_flag(
+            bundle_enabled=bundle_enabled,
+            pipeline_config_path=pipeline_config,
+        )
+
         # Route through the §9.24-clean facade bootstrap so every domain
-        # call goes via a sub-facade (no orchestrator reach-through).
+        # call goes via a sub-facade (no orchestrator reach-through). The
+        # ``pipeline_config_path`` is threaded so the bundle catalog/schema
+        # preflight can run symmetrically with generate.
         application_facade = LakehousePlumberApplicationFacade.for_project(
             project_root,
+            pipeline_config_path=pipeline_config,
             max_workers=max_workers,
         )
 
@@ -174,7 +222,6 @@ class ValidateCommand(BaseCommand):
         # introduce a scope, but pre-binding makes the post-Live access
         # robust against exceptions raised mid-frame.
         batch_response: Optional[BatchValidationResponse] = None
-        tr_errors: List[str] = []
         pipelines_to_validate: List[str] = []
         all_flowgroups: Tuple["FlowgroupView", ...] = ()
         # Set inside the Live frame when ``_determine_pipelines_to_validate``
@@ -318,6 +365,7 @@ class ValidateCommand(BaseCommand):
                                 pipeline_fields=pipelines_to_validate,
                                 env=env,
                                 include_tests=include_tests,
+                                bundle_enabled=bundle_enabled,
                                 pre_discovered_all_flowgroups=None,
                                 max_workers=max_workers,
                                 on_pipeline_complete=_on_complete,
@@ -359,20 +407,12 @@ class ValidateCommand(BaseCommand):
                 logger.info("Validate no-op: no pipelines to validate")
                 return None
 
-            # Computed silently so ``failed_overall`` is known before the
-            # summary table; the inline ✓/✗ line is printed AFTER the table
-            # to keep the visual order table → tr lines → warnings.
-            tr_result = self._validate_test_reporting(
-                application_facade,
-                pipelines_to_validate,
-                include_tests,
-            )
-            tr_errors = tr_result if tr_result is not None else []
-
+            # Test-reporting validation (LHP-CFG-032) runs inside the shared
+            # facade preflight (``_run_project_preflight``, §9.24) and is
+            # folded into ``batch_response`` — so an unsuccessful
+            # ``batch_response`` already reflects any test-reporting failure.
             failed_overall = (
-                batch_response is None
-                or not batch_response.is_successful()
-                or bool(tr_errors)
+                batch_response is None or not batch_response.is_successful()
             )
 
             print_validate_summary_table(
@@ -381,8 +421,6 @@ class ValidateCommand(BaseCommand):
                 show_all=show_all,
                 warning_count=warning_collector.count,
             )
-
-            self._print_test_reporting_status(tr_result)
 
             # Plain-string failures already appeared as the inline failure
             # line inside Live; the panels here surface the structured
@@ -421,98 +459,26 @@ class ValidateCommand(BaseCommand):
         if batch_response is None:
             raise RuntimeError("validate batch did not complete")
 
+        # Test-reporting failures (LHP-CFG-032) arrive via the shared facade
+        # preflight folded into ``batch_response`` (§9.24): a folded issue
+        # sets ``error_code`` and is counted in the batch's error totals, so
+        # the ``error_code`` bump below already accounts for them — no
+        # separate test-reporting term is added here.
         total_errors = sum(
             r.error_count for r in batch_response.pipeline_responses.values()
-        ) + len(tr_errors)
+        )
         if batch_response.error_code is not None:
             total_errors += 1
         logger.info(
             "Validation summary: passed=%d, failed=%d, warnings=%d",
             sum(1 for r in batch_response.pipeline_responses.values() if r.success),
-            sum(1 for r in batch_response.pipeline_responses.values() if not r.success)
-            + len(tr_errors),
+            sum(
+                1 for r in batch_response.pipeline_responses.values() if not r.success
+            ),
             sum(r.warning_count for r in batch_response.pipeline_responses.values()),
         )
         if total_errors > 0:
             raise SystemExit(ExitCode.DATA_ERROR)
-
-    def _validate_blueprints_and_instances(self, project_root: Path) -> None:
-        """Validate every blueprint and instance file before pipeline validation.
-
-        Reuses the runtime parser/discoverer/expander stack so the contract
-        is identical to ``lhp generate``: any error that would fail generation
-        also fails validation, just earlier and with a clearer rendering path.
-
-        - No blueprint files AND no instance files → silent no-op (the entire
-          feature is opt-in via file presence; same contract as the
-          orchestrator's ``_expand_blueprints``).
-        - One or more blueprint files exist → parse all (codes 046, 047–050,
-          plus Pydantic-level shape errors) and resolve them into a
-          name-keyed registry.
-        - One or more instance files exist → parse each against the registry
-          (codes 041–043, 051–054). The orchestrator's ``_expand_blueprints``
-          early-returns when ``blueprints == {}``, so the
-          "instances without blueprints" path is **only** caught here.
-        - If both populations are non-empty, run cross-file expansion so codes
-          044, 045 and 055 surface here rather than mid-generation.
-
-        The blueprint discoverer / expander / parser and the
-        ``ProjectConfigLoader`` all live in ``lhp.core`` and ``lhp.parsers``.
-        The §9.7 placement gate forbids ``cli/commands/*`` from importing them
-        statically, so the helpers are resolved here via
-        :func:`importlib.import_module` —
-        :samp:`API-LEAK-DEFER-blueprint-validate`.
-        All errors are raised as ``LHPError`` and formatted by the
-        existing CLI error boundary.
-        """
-        loaders_mod = importlib.import_module("lhp.core.loaders")
-        discovery_mod = importlib.import_module(
-            "lhp.core.discovery.blueprint_discoverer"
-        )
-        processing_mod = importlib.import_module(
-            "lhp.core.processing.blueprint_expander"
-        )
-        parsers_mod = importlib.import_module("lhp.parsers.blueprint_parser")
-
-        project_config_loader_cls = getattr(loaders_mod, "ProjectConfigLoader")
-        blueprint_discoverer_cls = getattr(discovery_mod, "BlueprintDiscoverer")
-        blueprint_expander_cls = getattr(processing_mod, "BlueprintExpander")
-        blueprint_parser_cls = getattr(parsers_mod, "BlueprintParser")
-
-        project_config = project_config_loader_cls(project_root).load_project_config()
-        discoverer = blueprint_discoverer_cls(
-            project_root,
-            project_config=project_config,
-            blueprint_parser=blueprint_parser_cls(),
-        )
-
-        blueprints = discoverer.discover_blueprints()
-        instances = discoverer.discover_instances(blueprints)
-
-        if not blueprints and not instances:
-            logger.debug(
-                "No blueprint or instance files found; skipping blueprint validation."
-            )
-            return
-
-        expanded_count = 0
-        if blueprints and instances:
-            expanded_flowgroups, _provenance = blueprint_expander_cls().expand(
-                blueprints, instances
-            )
-            expanded_count = len(expanded_flowgroups)
-        elif blueprints and not instances:
-            logger.info(
-                f"Found {len(blueprints)} blueprint(s) but no instance files; "
-                "no flowgroups will be expanded."
-            )
-
-        if self.verbose:
-            click.echo(
-                f"   Validated {len(blueprints)} blueprint(s), "
-                f"{len(instances)} instance(s), "
-                f"{expanded_count} expanded flowgroup(s)"
-            )
 
     def _determine_pipelines_to_validate(
         self,
@@ -568,89 +534,6 @@ class ValidateCommand(BaseCommand):
             pipeline_fields = {fg.pipeline for fg in all_flowgroups}
             return sorted(pipeline_fields), all_flowgroups
 
-    def _validate_test_reporting(
-        self,
-        application_facade: LakehousePlumberApplicationFacade,
-        pipelines_to_validate: List[str],
-        include_tests: bool,
-    ) -> Optional[List[str]]:
-        """Validate test reporting config.
 
-        Returns errors when configured (empty list on success), or ``None``
-        when not configured. The tri-state lets the printer skip output on
-        the not-configured path while still distinguishing "configured +
-        clean" (``[]``) from "not configured" (``None``).
 
-        The underlying test-reporting validator lives in
-        ``lhp.core.codegen.tst_reporting_hook_generator`` and has no
-        public-API equivalent. The generator and project-config loader are
-        resolved via :func:`importlib.import_module` rather than a static
-        ``from`` import — that keeps the placement gate green (§9.7
-        forbids static absolute / relative imports from internal
-        ``core`` modules in CLI files) while preserving the file-existence
-        behaviour that :class:`tests.e2e.test_test_reporting_spec_e2e.TC-21b`
-        pins. Tracked as :samp:`API-LEAK-DEFER-tst-reporting`.
-        """
-        config_view = application_facade.inspection.get_project_config()
-        if not config_view.has_test_reporting:
-            return None
 
-        # Lazy importlib resolution sidesteps the §9.7 placement gate
-        # (no static absolute / relative ``core`` import line) while
-        # still letting us drive the internal validator. The project-
-        # config loader is reached
-        # the same way; ``project_root`` is taken from
-        # ``ensure_project_root`` so no facade reach-through is needed.
-        codegen_mod = importlib.import_module(
-            "lhp.core.codegen.tst_reporting_hook_generator"
-        )
-        generator_cls = getattr(codegen_mod, "TestReportingHookGenerator")
-
-        loaders_mod = importlib.import_module("lhp.core.loaders")
-        project_config_loader_cls = getattr(loaders_mod, "ProjectConfigLoader")
-
-        project_root = self.ensure_project_root()
-        project_config = project_config_loader_cls(project_root).load_project_config()
-
-        # The ``include_tests`` extended check walks flowgroups for
-        # ``test_id`` — left disabled here. The file-existence check
-        # (which TC-21b pins) runs regardless of ``include_tests``.
-        processed_flowgroups = None if not include_tests else []
-
-        generator = generator_cls(project_config, project_root)
-        return generator.validate(
-            processed_flowgroups=processed_flowgroups,
-            include_tests=include_tests,
-        )
-
-    def _print_test_reporting_status(self, errors: Optional[List[str]]) -> None:
-        """Render the test_reporting inline ✓/✗ status line(s).
-
-        Called AFTER ``print_validate_summary_table`` so the visual order is
-        summary → tr lines → warning panel. ``errors=None`` means
-        test_reporting was not configured; no line is emitted.
-        """
-        if errors is None:
-            return
-
-        from rich.text import Text
-
-        from .. import console as _console_module
-
-        if errors:
-            for err in errors:
-                _console_module.console.print(
-                    Text.assemble(
-                        ("  ", "default"),
-                        ("✗ ", "bold red"),
-                        (f"test_reporting: {err}", "default"),
-                    )
-                )
-        else:
-            _console_module.console.print(
-                Text.assemble(
-                    ("  ", "default"),
-                    ("✓ ", "bold green"),
-                    ("test_reporting", "green"),
-                )
-            )

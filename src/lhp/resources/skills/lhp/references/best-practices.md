@@ -173,6 +173,7 @@ Load this file when:
 - **BP-15.2** `lhp generate --dry-run` to verify codegen without writing files.
 - **BP-15.3** Maintain dry-run baselines in version control; diff against them to detect preset-change regressions.
 - **BP-15.4** **Layered CI:** yamllint → JSON Schema → `lhp validate` → `lhp generate --dry-run` → baseline diff → pytest `--include-tests`.
+- **BP-15.5** `lhp validate` runs the **same** structural and preflight checks as `lhp generate` (no-creator/duplicate `LHP-VAL-009`, blueprint/instance `LHP-VAL-041` family, test-reporting file existence `LHP-CFG-032`, bundle catalog/schema `LHP-CFG-026`). On a project containing `databricks.yml`, pass `--pipeline-config`/`-pc` to the CI `lhp validate` step (or `--no-bundle`) — without it validate fails fast with `LHP-CFG-023`, exactly like generate.
 
 ## 16. Bundle Integration
 

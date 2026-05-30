@@ -325,6 +325,16 @@ def generate(
     help="Include test actions in validation (matches generate behavior)",
 )
 @click.option(
+    "--no-bundle",
+    is_flag=True,
+    help="Disable bundle support even if databricks.yml exists",
+)
+@click.option(
+    "--pipeline-config",
+    "-pc",
+    help="Custom pipeline config file path (relative to project root)",
+)
+@click.option(
     "--max-workers",
     type=click.IntRange(min=1),
     default=None,
@@ -346,7 +356,9 @@ def generate(
     ),
 )
 @cli_error_boundary("Pipeline validation")
-def validate(env, pipeline, verbose, include_tests, max_workers, show_all):
+def validate(
+    env, pipeline, verbose, include_tests, no_bundle, pipeline_config, max_workers, show_all
+):
     """Validate pipeline configurations"""
     from .commands.validate_command import ValidateCommand
 
@@ -355,6 +367,8 @@ def validate(env, pipeline, verbose, include_tests, max_workers, show_all):
         pipeline,
         verbose,
         include_tests,
+        no_bundle,
+        pipeline_config,
         max_workers=max_workers,
         show_all=show_all,
     )

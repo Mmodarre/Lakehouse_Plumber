@@ -15,10 +15,10 @@ import pytest
 import yaml
 from click.testing import CliRunner
 
+from lhp.api import collect_response
 from lhp.api.facade import LakehousePlumberApplicationFacade
 from lhp.cli.main import cli
 from lhp.core.coordination.layers import build_facade_orchestrator
-from tests.helpers import read_generated_pipeline
 
 
 class TestPipelineFieldOutputStructure:
@@ -256,20 +256,28 @@ dev:
             project_root, enforce_version=False
         )
 
-        # This should discover all flowgroups and organize by pipeline field
-        # Currently this will fail because the system uses directory names
-        generated_files_raw = read_generated_pipeline(
-            facade,
-            pipeline_field="raw_ingestions",
-            env="dev",
-            output_dir=project_root / "generated" / "dev",
+        # Discover all flowgroups and organize by pipeline field. This is
+        # driven through a SINGLE ``generate_pipelines`` call that passes BOTH
+        # pipeline fields via ``pipeline_fields`` — mirroring how the CLI
+        # invokes generate once per run with all discovered fields. Each
+        # ``generate_pipelines`` call now does a full-env wipe of
+        # ``generated/dev`` up front, so generating both pipeline fields in one
+        # call is required — two separate calls sharing one ``output_dir`` would
+        # self-clobber (the second wipe would delete the first call's output).
+        output_dir = project_root / "generated" / "dev"
+        batch_response = collect_response(
+            facade.generation.generate_pipelines(
+                pipeline_fields=["raw_ingestions", "silver_transforms"],
+                env="dev",
+                output_dir=output_dir,
+            )
         )
-        generated_files_silver = read_generated_pipeline(
-            facade,
-            pipeline_field="silver_transforms",
-            env="dev",
-            output_dir=project_root / "generated" / "dev",
-        )
+
+        pipeline_responses = batch_response.pipeline_responses
+        generated_files_raw = pipeline_responses["raw_ingestions"].generated_filenames
+        generated_files_silver = pipeline_responses[
+            "silver_transforms"
+        ].generated_filenames
 
         # Should have 3 files for raw_ingestions pipeline (customer, orders, lineitem)
         assert len(generated_files_raw) == 3

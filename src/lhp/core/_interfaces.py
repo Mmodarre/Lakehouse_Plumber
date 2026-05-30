@@ -31,7 +31,6 @@ from lhp.models import FlowGroup, FlowGroupContext
 from ..models.dependencies import DependencyAnalysisResult, DependencyGraphs
 from ..models.processing import PipelineDelta
 from .processing.substitution import EnhancedSubstitutionManager as SubstitutionManager
-from .validators._base import ValidationError
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,22 +134,6 @@ class BaseValidationService(ABC):
     """
 
     @abstractmethod
-    def validate_flowgroups(
-        self,
-        flowgroups: Sequence[FlowGroup],
-        *,
-        pipeline_filter: Optional[str] = None,
-    ) -> Tuple[ValidationError, ...]:
-        """Return all validation issues across the given flowgroups.
-
-        Returns the raw internal :data:`ValidationError` union
-        (``Union[str, LHPError]``); projection onto the public
-        :class:`lhp.api.views.ValidationIssueView` is the API layer's
-        responsibility, keeping ``core`` free of any ``api`` import.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
     def validate_duplicates(self, flowgroups: Sequence[FlowGroup]) -> None:
         """Raise :class:`LHPValidationError` if duplicate pipeline+flowgroup pairs exist."""
         raise NotImplementedError
@@ -164,9 +147,9 @@ class BaseValidationService(ABC):
     ) -> CrossFlowgroupCheckResult:
         """Run only the cross-flowgroup compatibility checks.
 
-        Narrower than :meth:`validate_flowgroups` — runs only the
-        table-creation and CDC fan-in compatibility validators, omits
-        the per-flowgroup :class:`ConfigValidator` pass. Used by the
+        Runs only the table-creation and CDC fan-in compatibility
+        validators, omitting the per-flowgroup :class:`ConfigValidator`
+        pass. Used by the
         per-pipeline worker in :class:`PipelineProcessor` to keep
         Phase B's validation footprint identical to the pre-§9.24
         ``_validate_cross_fg`` behaviour.

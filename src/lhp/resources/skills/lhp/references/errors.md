@@ -38,6 +38,7 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | **CFG-025** | Bundle configuration structural error | Review `databricks.yml` against DAB docs |
 | **CFG-026** | Aggregated catalog/schema preflight failure (see below) | Add `catalog`/`schema` to `project_defaults` or per-pipeline; for empty-after-substitution failures, check `substitutions/<env>.yaml` |
 | **CFG-027** | Template not found | Check spelling; run `lhp list_templates` |
+| **CFG-032** | Test-reporting provider/config file not found (preflight) | Create the file at `test_reporting.module_path` (and `config_file` if set) in `lhp.yaml`, or fix the path. Runs on both `lhp validate` and `lhp generate`, independent of `--include-tests` |
 
 ## Validation Errors (LHP-VAL)
 
@@ -82,10 +83,15 @@ Terminal output includes: error code, description, context, fix suggestions, and
 
 > **Note (0.8.7+):** `GEN-901`, `GEN-902`, and `VAL-902` are the codes users will most often encounter after a parallel-generation failure — they wrap worker-side exceptions and aggregate multi-pipeline failures from the orchestrator. The structured traceback always lands in `~/.lhp/logs/` regardless of terminal verbosity.
 
-## Pre-flight validation: LHP-CFG-023 and LHP-CFG-026
+## Pre-flight validation: LHP-CFG-023, LHP-CFG-026, LHP-CFG-032
 
-`lhp generate` runs two preflight checks **before** any side effects
-(directory wipes, code generation, bundle YAML writes). Both surface as
+`lhp generate` runs these preflight checks **before** any side effects
+(directory wipes, code generation, bundle YAML writes). When preflight
+fails, `generate` aborts before touching the filesystem — `generated/<env>/`
+is left intact, not wiped. `lhp validate` runs the **same** preflight
+checks (it gained `--no-bundle` and `--pipeline-config` / `-pc` to match;
+on a project containing `databricks.yml` it likewise requires `-pc` or
+fails with `LHP-CFG-023`). `LHP-CFG-023` and `LHP-CFG-026` surface as
 `LHPConfigError` with `doc_link` pointing to the Configure catalog/schema
 docs page.
 
@@ -158,6 +164,22 @@ entries that resolve to empty strings.
 > one per category, on the first failing pipeline. Current preflight walks
 > every pipeline once and aggregates into a single error. Parse
 > `LHPConfigError.context["failures"]` for the stable contract.
+
+### LHP-CFG-032 — test-reporting provider/config file not found
+
+**Message:** `Test reporting <module_path|config_file> not found: <path>`
+
+**Cause:** `lhp.yaml` has a `test_reporting` section, but the
+`module_path` provider file (or the optional `config_file`) does not exist
+at the resolved path. This is a project preflight check: it runs on both
+`lhp validate` and `lhp generate`, **independent of `--include-tests`** — a
+project with a missing provider file fails `generate` even without the
+flag.
+
+**Fix:** Create the provider module at `test_reporting.module_path` (and
+the YAML at `config_file` if you set one), or correct the path. Paths are
+relative to the project root. See the Test Result Reporting docs for the
+provider contract.
 
 ## LHP-GEN-001 — internal-error guard (preflight bypassed)
 

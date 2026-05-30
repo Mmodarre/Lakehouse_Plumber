@@ -14,12 +14,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional, Sequence, Tuple
 
-from ...errors import ErrorCategory, LHPValidationError
 from ..codegen.python_file_copier import CopiedModuleRecord, PythonFileCopier
 from ...models.processing import PipelineDelta
 from ...utils.file_header import write_normalized
 from ...utils.performance_timer import perf_timer
 from ..codegen.test_reporting import generate_test_reporting_hook
+from ._cross_flowgroup_issues import build_cross_flowgroup_issues
 from .validation_service import ValidationService
 
 if TYPE_CHECKING:
@@ -275,8 +275,9 @@ class PipelineProcessor:
 
         Constructs a local :class:`ValidationService` per worker
         invocation and routes the cross-flowgroup compatibility checks
-        through it (§9.24). Non-empty error lists are wrapped into an
-        :class:`LHPValidationError`. LHPError raised inside the
+        through it. §9.24: the error-construction logic is single-sourced
+        in :func:`build_cross_flowgroup_issues`; this site only SURFACES
+        the result (raises the first issue). LHPError raised inside the
         underlying validators (e.g. CDC fan-in shared-field mismatch)
         propagates unchanged.
 
@@ -288,56 +289,9 @@ class PipelineProcessor:
         with perf_timer("validate_cross_flowgroup"):
             result = validation.validate_cross_flowgroup(flowgroups)
 
-        if result.table_creation_errors:
-            self._raise_validation_error(
-                code_number="009",
-                title="Table creation validation failed",
-                errors=result.table_creation_errors,
-                suggestions=[
-                    "Ensure each target table has exactly one action "
-                    "with create_table: true",
-                    "Check for conflicting table creation settings across flowgroups",
-                    "Run 'lhp validate' for detailed diagnostics",
-                ],
-            )
-
-        if result.cdc_fanin_errors:
-            self._raise_validation_error(
-                code_number="010",
-                title="CDC fan-in compatibility validation failed",
-                errors=result.cdc_fanin_errors,
-                suggestions=[
-                    "All CDC actions sharing a target must agree on "
-                    "table-level and CDC-key fields (keys, sequence_by, "
-                    "stored_as_scd_type, track_history_*, "
-                    "partition_columns, table_properties, etc.)",
-                    "Fields allowed to differ per flow: source, once, "
-                    "ignore_null_updates, apply_as_deletes, "
-                    "apply_as_truncates, column_list, except_column_list",
-                    "Run 'lhp validate' for detailed diagnostics",
-                ],
-            )
-
-    def _raise_validation_error(
-        self,
-        *,
-        code_number: str,
-        title: str,
-        errors: List[str],
-        suggestions: List[str],
-    ) -> None:
-        """Wrap a list of validator-produced strings into an LHPValidationError."""
-        raise LHPValidationError(
-            category=ErrorCategory.VALIDATION,
-            code_number=code_number,
-            title=title,
-            details=f"{title}:\n" + "\n".join(f"  - {e}" for e in errors),
-            suggestions=suggestions,
-            context={
-                "Pipeline": self.pipeline_name,
-                "Error Count": len(errors),
-            },
-        )
+        issues = build_cross_flowgroup_issues(result, self.pipeline_name)
+        if issues:
+            raise issues[0]
 
     def _apply_copy_records(self, results: List[FlowgroupResult]) -> None:
         """Replay Phase-A copy records.

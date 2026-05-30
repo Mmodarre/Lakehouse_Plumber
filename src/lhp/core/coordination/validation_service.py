@@ -15,8 +15,7 @@ to them.
 
 Caller contract:
 
-* MAY call :meth:`validate_flowgroups`, :meth:`validate_duplicates`, and
-  :meth:`validate_cross_flowgroup`.
+* MAY call :meth:`validate_duplicates` and :meth:`validate_cross_flowgroup`.
 * MAY NOT import anything from ``lhp.core.validators/*`` (including
   ``ConfigValidator``) directly.
 
@@ -27,14 +26,13 @@ workers can carry an instance across the ``spawn`` boundary.
 """
 
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple
+from typing import List, Optional, Sequence
 
 from lhp.core._interfaces import (
     BaseValidationService,
     CrossFlowgroupCheckResult,
 )
 from lhp.core.validators import ConfigValidator
-from lhp.core.validators._base import ValidationError
 from lhp.core.validators.cdc_fanin_compatibility_validator import (
     CdcFanInCompatibilityValidator,
 )
@@ -112,100 +110,53 @@ class ValidationService(BaseValidationService):
         self._table_creation_validator = TableCreationValidator()
         self._fanin_validator = CdcFanInCompatibilityValidator()
 
-    def validate_flowgroups(
-        self,
-        flowgroups: Sequence[FlowGroup],
-        *,
-        pipeline_filter: Optional[str] = None,
-    ) -> Tuple[ValidationError, ...]:
-        """Return all validation issues across the given flowgroups.
+    def build_duplicate_issue(
+        self, flowgroups: Sequence[FlowGroup]
+    ) -> Optional[LHPError]:
+        """Build the ``LHP-VAL-009`` duplicate-pair error, or ``None`` if clean.
 
-        Composition order:
+        SINGLE source of the ``LHP-VAL-009`` "Duplicate pipeline+flowgroup
+        combinations found" construction (§9.24). Runs detection via the
+        list-returning :meth:`ConfigValidator.validate_duplicate_pipeline_flowgroup`
+        surface and, when it reports duplicates, BUILDS and RETURNS the
+        :class:`LHPValidationError`; returns ``None`` when no duplicates exist.
 
-        1. Per-flowgroup checks via :meth:`ConfigValidator.validate_flowgroup`
-           — which already runs the load/transform/write/test action
-           validators internally.
-        2. Cross-flowgroup compatibility checks via
-           :class:`TableCreationValidator` and
-           :class:`CdcFanInCompatibilityValidator` — composed exclusively
-           here (§9.24); :class:`ConfigValidator` does not delegate to them.
-
-        Returns the raw internal :data:`ValidationError` union
-        (``Union[str, LHPError]``). Public-DTO projection onto
-        :class:`lhp.api.views.ValidationIssueView` is the API layer's
-        responsibility (:func:`lhp.api._converters._validation_error_to_issue_view`),
-        keeping the ``core`` → ``api`` dependency edge severed.
-
-        Args:
-            flowgroups: All flowgroups to validate.
-            pipeline_filter: If supplied, restrict every check to flowgroups
-                whose ``pipeline`` field equals this value.
-
-        Returns:
-            Tuple of :data:`ValidationError` (string or :class:`LHPError`).
-            Empty tuple on success.
+        Mirrors :func:`lhp.core.coordination._cross_flowgroup_issues.build_cross_flowgroup_issues`:
+        construction lives here, and callers decide how to surface the result
+        (:meth:`validate_duplicates` raises it; the preflight path folds it
+        into an issue list).
         """
-        target_flowgroups: List[FlowGroup] = (
-            [fg for fg in flowgroups if fg.pipeline == pipeline_filter]
-            if pipeline_filter is not None
-            else list(flowgroups)
+        errors = self._config_validator.validate_duplicate_pipeline_flowgroup(
+            list(flowgroups)
         )
-
-        errors: List[ValidationError] = []
-
-        # Per-flowgroup checks (also covers per-action validation
-        # through ConfigValidator's internal dispatch).
-        for fg in target_flowgroups:
-            try:
-                fg_errors = self._config_validator.validate_flowgroup(fg)
-            except LHPError as exc:
-                # ConfigValidator.validate_action re-raises LHPError from
-                # field-validation (see validator.py:148). Collect it so the
-                # surface stays uniform.
-                errors.append(exc)
-                continue
-
-            errors.extend(fg_errors)
-
-        # Cross-flowgroup checks (whole-set, after pipeline_filter).
-        # Both validators return List[str]; CdcFanInCompatibilityValidator may
-        # additionally raise LHPError for shared-field mismatches.
-        try:
-            errors.extend(self._table_creation_validator.validate(target_flowgroups))
-        except LHPError as exc:
-            errors.append(exc)
-
-        try:
-            errors.extend(self._fanin_validator.validate(target_flowgroups))
-        except LHPError as exc:
-            errors.append(exc)
-
-        return tuple(errors)
+        if not errors:
+            return None
+        return LHPValidationError(
+            category=ErrorCategory.VALIDATION,
+            code_number="009",
+            title="Duplicate pipeline+flowgroup combinations found",
+            details="Duplicate pipeline+flowgroup combinations found:\n"
+            + "\n".join(f"  - {e}" for e in errors),
+            suggestions=[
+                "Ensure each pipeline+flowgroup combination is unique",
+                "Check for duplicate flowgroup names within the same pipeline",
+                "Rename one of the duplicate flowgroups",
+            ],
+            context={"Duplicates": len(errors)},
+        )
 
     def validate_duplicates(self, flowgroups: Sequence[FlowGroup]) -> None:
         """Raise :class:`LHPValidationError` if duplicate pipeline+flowgroup pairs exist.
 
         Mirrors :meth:`ActionOrchestrator.validate_duplicate_pipeline_flowgroup_combinations`
         verbatim — same error code, title, suggestions, and context — so the
-        orchestrator pass-through is a one-line delegation.
+        orchestrator pass-through is a one-line delegation. The error itself is
+        BUILT by :meth:`build_duplicate_issue` (§9.24: single construction
+        site); this method only re-raises it.
         """
-        errors = self._config_validator.validate_duplicate_pipeline_flowgroup(
-            list(flowgroups)
-        )
-        if errors:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="009",
-                title="Duplicate pipeline+flowgroup combinations found",
-                details="Duplicate pipeline+flowgroup combinations found:\n"
-                + "\n".join(f"  - {e}" for e in errors),
-                suggestions=[
-                    "Ensure each pipeline+flowgroup combination is unique",
-                    "Check for duplicate flowgroup names within the same pipeline",
-                    "Rename one of the duplicate flowgroups",
-                ],
-                context={"Duplicates": len(errors)},
-            )
+        err = self.build_duplicate_issue(flowgroups)
+        if err is not None:
+            raise err
 
     def validate_cross_flowgroup(
         self,
@@ -215,8 +166,7 @@ class ValidationService(BaseValidationService):
     ) -> CrossFlowgroupCheckResult:
         """Run only the cross-flowgroup compatibility checks.
 
-        Narrower than :meth:`validate_flowgroups` — runs the
-        :class:`TableCreationValidator` and
+        Runs the :class:`TableCreationValidator` and
         :class:`CdcFanInCompatibilityValidator` only. The per-flowgroup
         :class:`ConfigValidator` pass is intentionally omitted so the
         per-pipeline generation worker (:class:`PipelineProcessor`) sees

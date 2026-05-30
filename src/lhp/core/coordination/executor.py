@@ -69,6 +69,7 @@ from ._pool import (
     run_generate_pool,
     run_validate_pool,
 )
+from ._cross_flowgroup_issues import build_cross_flowgroup_issues
 
 if TYPE_CHECKING:
     from ...errors import LHPError
@@ -324,12 +325,16 @@ class PipelineExecutionService(BasePipelineExecutionService):
                     f"validate_cross_flowgroup [{pipeline_name}]",
                     category="validate_cross_flowgroup",
                 ):
-                    # §9.24: routed through the public ValidationService surface.
+                    # §9.24: logic single-sourced in
+                    # build_cross_flowgroup_issues; this site only SURFACES
+                    # (fold into lhp_errors).
                     cross_result = validation_service.validate_cross_flowgroup(
                         flowgroups, pipeline_filter=pipeline_name
                     )
-                    cdc_errors = cross_result.cdc_fanin_errors
-                errors.extend(cdc_errors)
+                for err in build_cross_flowgroup_issues(
+                    cross_result, pipeline_name
+                ):
+                    lhp_errors_acc.append(err)
             except (
                 Exception
             ) as e:  # noqa: BLE001 — LHPError caught for structured display

@@ -225,14 +225,18 @@ actions:
 lhp init <project>              # Scaffold new project
 lhp init <project> --bundle     # With Databricks Asset Bundle support
 
-# Validation
-lhp validate --env <env>        # Validate all configurations
+# Validation (runs the same structural + preflight checks as generate)
+lhp validate --env <env>                    # Validate all configurations
+lhp validate --env <env> --include-tests    # Also validate test actions
+lhp validate --env <env> --pipeline-config config/pipeline_config.yaml  # Required when databricks.yml present
+lhp validate --env <env> --no-bundle        # Skip bundle catalog/schema preflight
 
 # Code generation
 lhp generate --env <env>                    # Generate Python DLT files
 lhp generate --env <env> --include-tests    # Include test actions
 lhp generate --env <env> --dry-run --verbose  # Preview without writing
-lhp generate --env <env> --pipeline-config config/pipeline_config.yaml  # Regen bundle resources
+lhp generate --env <env> --pipeline-config config/pipeline_config.yaml  # Regen bundle resources; required when databricks.yml present
+lhp generate --env <env> --no-bundle        # Generate Python only; skip bundle sync
 
 # Dependency analysis
 lhp deps                                      # Full analysis (all formats)

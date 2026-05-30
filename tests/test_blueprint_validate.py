@@ -89,6 +89,53 @@ def test_validate_instance_unknown_blueprint_raises_041(tmp_path):
     assert "LHP-VAL-041" in result.output
 
 
+def test_generate_instance_unknown_blueprint_raises_041(tmp_path):
+    """`lhp generate` must surface LHP-VAL-041 for an instance referencing an
+    unknown blueprint, symmetrically with `lhp validate` (constitution §9.24:
+    no duplicated validation logic — generate now runs the same shared
+    blueprint/instance discovery). Mirrors
+    ``test_validate_instance_unknown_blueprint_raises_041`` with ``generate``."""
+    runner = CliRunner()
+    with runner.isolated_filesystem(temp_dir=tmp_path) as fs:
+        root = Path(fs)
+        _bootstrap(root)
+        # No blueprint files; instance references a nonexistent blueprint.
+        _write(
+            root / "pipelines" / "erp" / "bronze" / "sg.yaml",
+            "blueprint: nonexistent_blueprint\nsite_name: apac_sg\n",
+        )
+        result = runner.invoke(cli, ["generate", "--env", "dev"])
+    assert result.exit_code != 0
+    assert "LHP-VAL-041" in result.output
+
+
+def test_generate_silent_pass_when_no_blueprints(tmp_path):
+    """No blueprints AND no instances → `lhp generate` must NOT raise a
+    blueprint-range error code.
+
+    Bootstrap discovery early-returns on ``if not instances`` before any
+    instance file is parsed, so there is no spurious LHP-VAL-041. Generate
+    itself still fails downstream with LHP-CFG-014 ("No flowgroups found")
+    on a truly empty project — exactly as ``lhp validate`` does — so this
+    asserts on the absence of blueprint codes rather than exit 0, mirroring
+    ``test_validate_silent_pass_when_no_blueprints``."""
+    runner = CliRunner()
+    with runner.isolated_filesystem(temp_dir=tmp_path) as fs:
+        _bootstrap(Path(fs))
+        result = runner.invoke(cli, ["generate", "--env", "dev"])
+    # The kept empty-instances branch must not surface any blueprint-range code.
+    for blueprint_code in (
+        "LHP-CFG-040",
+        "LHP-VAL-041",
+        "LHP-VAL-042",
+        "LHP-VAL-043",
+        "LHP-VAL-044",
+        "LHP-VAL-045",
+        "LHP-VAL-046",
+    ):
+        assert blueprint_code not in result.output
+
+
 def test_validate_duplicate_tuple_raises_045(tmp_path):
     """Two instances yielding the same (pipeline, flowgroup) → 045 with both
     paths in the message."""
@@ -153,8 +200,9 @@ flowgroups:
 
 def test_validate_with_valid_blueprint_passes(tmp_path):
     """A well-formed blueprint + instance project must complete validate without
-    raising any blueprint error code. Exercises the success path of
-    _validate_blueprints_and_instances + downstream pipeline discovery."""
+    raising any blueprint error code. Exercises the success path of the shared
+    blueprint/instance discovery (discover_blueprints -> discover_instances) +
+    downstream pipeline discovery."""
     runner = CliRunner()
     with runner.isolated_filesystem(temp_dir=tmp_path) as fs:
         root = Path(fs)

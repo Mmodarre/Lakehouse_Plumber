@@ -245,21 +245,22 @@ from lhp.cli.main import cli
 
 runner = CliRunner()
 result = runner.invoke(cli, [
-    '--verbose', 'generate', '--env', 'dev', '--force'
+    '--verbose', 'generate', '--env', 'dev'
 ])
 
 exit_code = result.exit_code
 output = result.output
 ```
 
-Two helper methods wrap this:
+(`--force` is deprecated and a no-op — every run is now a full regenerate.)
+
+A helper method wraps this:
 
 | Method | CLI command | Notes |
 |--------|------------|-------|
-| `run_bundle_sync()` | `lhp generate --env dev --force` | Default generation, no pipeline config flag |
-| `run_bundle_sync_with_pipeline_config()` | `lhp generate --env dev --pipeline-config config/pipeline_config.yaml --force` | Explicitly passes pipeline config |
+| `run_bundle_sync()` | `lhp generate --env dev --pipeline-config config/pipeline_config.yaml` | Auto-injects `--pipeline-config` when `config/pipeline_config.yaml` exists, otherwise omits it. Bundle-enabled projects (`databricks.yml` present) require `--pipeline-config` or preflight blocks with `LHP-CFG-023`. |
 
-Both return `(exit_code, output)` tuples.
+It returns an `(exit_code, output)` tuple. The `lhp validate` helpers (`run_validate`) mirror this `--pipeline-config` handling so bundle preflight does not shadow the assertion under test.
 
 ---
 

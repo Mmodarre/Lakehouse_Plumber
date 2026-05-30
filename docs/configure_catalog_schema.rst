@@ -121,7 +121,9 @@ Pre-flight validation
 
 ``lhp generate`` runs catalog/schema validation **before** any side effects:
 no directory is wiped, no code is generated, no bundle YAML is written until
-preflight passes. Two checks fire in order:
+preflight passes. If preflight fails, ``generate`` aborts with the
+filesystem untouched — ``generated/<env>/`` is left intact rather than
+wiped. The checks fire in order:
 
 1. **CLI flag check** (``LHP-CFG-023``) — when bundle support is enabled,
    ``--pipeline-config`` must be supplied. Fails in <1 second on a missing
@@ -131,6 +133,16 @@ preflight passes. Two checks fire in order:
    ``lhp.yaml``) is checked for resolved ``catalog`` and ``schema``. All
    failures are aggregated into one error, grouped by failure type — see
    `Error reference`_ below.
+
+A third preflight check, the test-reporting provider file-existence check
+(``LHP-CFG-032``), also runs whenever ``lhp.yaml`` declares a
+``test_reporting`` section — independent of ``--include-tests``. See
+:doc:`actions/test_reporting` and :doc:`errors_reference`.
+
+``lhp validate`` runs the **same** preflight. It accepts ``--pipeline-config``
+/ ``-pc`` and ``--no-bundle`` exactly as ``generate`` does, and on a project
+with ``databricks.yml`` present it likewise requires ``-pc`` (or
+``--no-bundle``) and otherwise fails with ``LHP-CFG-023``.
 
 Preflight runs identically under ``--dry-run``: a dry-run invocation with
 missing config still surfaces the same errors, just without ever touching

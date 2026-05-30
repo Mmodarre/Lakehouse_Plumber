@@ -508,6 +508,97 @@ class TestBundleManagerE2E:
             f"  stdout: {stdout_text!r}"
         )
 
+    def test_validate_fails_on_missing_catalog_schema(self) -> None:
+        """Validate fails fast (LHP-CFG-026) when catalog/schema are missing.
+
+        Validate-side mirror of `test_missing_catalog_schema_fails_fast`
+        (constitution §9.24): generate and validate now share one preflight
+        (`_run_project_preflight`), so `lhp validate` runs the bundle
+        catalog/schema preflight and surfaces LHP-CFG-026 with the same
+        `configure_catalog_schema` doc-link that generate emits.
+
+        Uses the dedicated `testing_project_no_catalog_schema` fixture variant
+        (pipeline_config.yaml with no catalog/schema, neither per-pipeline nor
+        `project_defaults`). The fixture ships a `databricks.yml`, so validate
+        REQUIRES `-pc` on it -- hence we invoke `lhp validate` WITH
+        `--pipeline-config`.
+
+        Surfacing asymmetry (asserted deliberately, not an oversight): the
+        bundle catalog/schema preflight emits a PROJECT-level issue. Generate
+        raises it as a full LHPError, so its rendering includes the
+        `configure_catalog_schema` "More info" doc-link
+        (`test_missing_catalog_schema_fails_fast` asserts that). Validate folds
+        project-level preflight issues into the batch `error_message` (a short
+        `Error [LHP-CFG-026]: ...` title); `render_error_panel`, which is what
+        prints doc-links, runs only for PER-PIPELINE issues, so the doc-link
+        does NOT appear in validate's output. This test therefore asserts the
+        contract validate actually guarantees -- non-zero exit + LHP-CFG-026 --
+        and intentionally does NOT assert the doc-link string. The error code
+        (the structured, machine-readable signal §9.24 cares about) is
+        symmetric across both paths; the cosmetic doc-link rendering is not.
+        """
+        # Swap the autouse-copied fixture for the no-catalog/schema variant
+        # (same approach as test_missing_catalog_schema_fails_fast).
+        variant_fixture = (
+            Path(__file__).parent / "fixtures" / "testing_project_no_catalog_schema"
+        )
+        assert variant_fixture.exists(), (
+            f"Fixture variant must exist: {variant_fixture}"
+        )
+
+        os.chdir(self.original_cwd)
+        shutil.rmtree(self.project_root)
+        shutil.copytree(variant_fixture, self.project_root)
+        os.chdir(self.project_root)
+
+        # Reset working dirs as setup would have.
+        self.generated_dir = self.project_root / "generated" / "dev"
+        self.resources_dir = self.project_root / "resources" / "lhp"
+        self.generated_dir.mkdir(parents=True, exist_ok=True)
+        self.resources_dir.mkdir(parents=True, exist_ok=True)
+
+        # Separate stderr from stdout when the installed Click supports it
+        # (mirror test_missing_catalog_schema_fails_fast).
+        try:
+            runner = CliRunner(mix_stderr=False)
+            separate_streams = True
+        except TypeError:
+            runner = CliRunner()
+            separate_streams = False
+
+        # Invoke `lhp validate` WITH -pc (validate now requires it on bundle
+        # projects, and the variant ships a databricks.yml).
+        result = runner.invoke(
+            cli,
+            [
+                "--verbose",
+                "validate",
+                "--env",
+                "dev",
+                "--pipeline-config",
+                "config/pipeline_config.yaml",
+            ],
+        )
+
+        stderr_text = (getattr(result, "stderr", "") if separate_streams else "") or ""
+        stdout_text = result.output or ""
+        assert result.exit_code != 0, (
+            "Validate must fail when catalog/schema are missing from "
+            f"pipeline_config.yaml. Got exit_code={result.exit_code}, "
+            f"stdout={stdout_text!r}, stderr={stderr_text!r}"
+        )
+
+        combined = stderr_text + stdout_text
+        assert "LHP-CFG-026" in combined, (
+            "Validate's bundle preflight must surface LHP-CFG-026.\n"
+            f"  stderr: {stderr_text!r}\n"
+            f"  stdout: {stdout_text!r}"
+        )
+        # NB: the `configure_catalog_schema` doc-link is intentionally NOT
+        # asserted here -- see the docstring's "Surfacing asymmetry" note.
+        # Validate folds the project-level bundle issue into the short batch
+        # error message, which carries the code but not the doc-link.
+
     # ========================================================================
     # PREFLIGHT VALIDATION TESTS
     # ========================================================================

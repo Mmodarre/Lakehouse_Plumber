@@ -23,7 +23,6 @@ from ...api import (
     GenerationResponse,
     LakehousePlumberApplicationFacade,
     OperationStarted,
-    ProjectConfigView,
     WarningCollector,
     collect_response,
     should_enable_bundle_support,
@@ -256,29 +255,6 @@ class GenerateCommand(BaseCommand):
                         f"Pipelines discovered for generation: {pipelines_to_generate}"
                     )
 
-                    if bundle_enabled:
-                        phase_tracker.start("Preflight")
-                        self._run_catalog_schema_preflight(
-                            bundle_enabled=bundle_enabled,
-                            application_facade=application_facade,
-                            env=env,
-                        )
-                        phase_tracker.complete("Preflight")
-                        live.update(_render())
-
-                    # Every run is a full regenerate: wipe env-specific
-                    # generated/. The ``resources/lhp/`` wipe is deferred
-                    # to ``BundleFacade.sync_resources(wipe=True)`` below
-                    # so the wipe-and-regenerate contract on
-                    # ``BundleManager`` is enforced inside the facade,
-                    # not duplicated in the CLI.
-                    if not dry_run:
-                        phase_tracker.start("Cleanup")
-                        with perf_timer("Cleanup operations", phase=True):
-                            self._wipe_generated_directory(output_dir.parent, env)
-                        phase_tracker.complete("Cleanup")
-                        live.update(_render())
-
                     # Seed records up front so the spinner shows
                     # "0 of N pipelines done" immediately.
                     for pipeline_name in pipelines_to_generate:
@@ -360,6 +336,10 @@ class GenerateCommand(BaseCommand):
                                 output_dir=output_dir if not dry_run else None,
                                 specific_flowgroups=None,
                                 include_tests=include_tests,
+                                # §9.24: thread the real bundle flag so the
+                                # shared facade preflight runs the bundle
+                                # catalog/schema check (→ LHP-CFG-026).
+                                bundle_enabled=bundle_enabled,
                                 # ``all_flowgroups`` is a tuple of public
                                 # ``FlowgroupView`` records that the facade
                                 # cannot accept here (the orchestrator
@@ -492,31 +472,6 @@ class GenerateCommand(BaseCommand):
                 batch_response.error_message or "Batch pipeline generation failed"
             )
 
-    def _run_catalog_schema_preflight(
-        self,
-        *,
-        bundle_enabled: bool,
-        application_facade: LakehousePlumberApplicationFacade,
-        env: str,
-    ) -> None:
-        """Run catalog/schema preflight when bundle support is enabled.
-
-        Delegates to :meth:`BundleFacade.validate_bundle_assets`, which
-        returns a frozen :class:`BundleValidationResult`. On failure the
-        DTO carries an ``error_code`` (e.g. ``"LHP-CFG-026"``) plus a
-        tuple of issue lines; we reconstruct an :class:`LHPConfigError`
-        from those flat fields so the existing
-        :func:`render_error_panel` path renders the same code/details
-        users expect from the legacy preflight raise.
-        """
-        if not bundle_enabled:
-            return
-        with perf_timer("Preflight catalog/schema validation", phase=True):
-            result = application_facade.bundle.validate_bundle_assets(env)
-        if result.success:
-            return
-        _raise_bundle_validation_failure(result)
-
     def _create_application_facade(
         self,
         project_root: Path,
@@ -540,11 +495,7 @@ class GenerateCommand(BaseCommand):
         pipeline_fields = {fg.pipeline for fg in all_flowgroups}
         return list(pipeline_fields) if pipeline_fields else []
 
-    def _wipe_generated_directory(self, generated_dir: Path, env: str) -> None:
-        env_dir = generated_dir / env
-        if env_dir.exists():
-            shutil.rmtree(env_dir)
-        env_dir.mkdir(parents=True, exist_ok=True)
+
 
     def _handle_bundle_operations(
         self,
@@ -626,39 +577,6 @@ def _require_pipeline_config_flag(
         suggestions=[
             "Pass --pipeline-config (or -pc) pointing at your pipeline_config.yaml",
             "Or use --no-bundle to skip bundle resource generation",
-        ],
-        doc_link=_CATALOG_SCHEMA_DOC_LINK,
-    )
-
-
-def _raise_bundle_validation_failure(result) -> None:
-    """Re-raise a ``BundleValidationResult`` failure as an LHPConfigError.
-
-    The facade catches and flattens the internal ``LHPConfigError`` onto
-    the DTO (per §4.8), so the rich ``context`` mapping that the legacy
-    preflight raise carried is no longer available. The reconstructed
-    error preserves the LHP code (e.g. ``"LHP-CFG-026"`` /
-    ``"LHP-CFG-023"``) and surfaces the per-pipeline ``issues`` lines as
-    the error ``details`` payload — that matches what the e2e tests
-    assert against (the LHP code in the rendered output).
-    """
-    error_code = result.error_code or "LHP-CFG-026"
-    code_number = _strip_lhp_prefix(error_code) or "026"
-    details = (
-        result.error_message
-        or "Catalog/schema preflight failed for one or more pipelines."
-    )
-    if result.issues:
-        details = details + "\n" + "\n".join(result.issues)
-    raise LHPConfigError(
-        category=ErrorCategory.CONFIG,
-        code_number=code_number,
-        title="Bundle preflight validation failed",
-        details=details,
-        suggestions=[
-            "Ensure every pipeline declares `catalog` and `schema` "
-            "(per-pipeline or under `project_defaults`).",
-            "Run `lhp validate --env <env>` for a focused report.",
         ],
         doc_link=_CATALOG_SCHEMA_DOC_LINK,
     )
