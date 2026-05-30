@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List
 
+from ...core.codegen import copy_user_module_for_pipeline
 from ...core.loaders.external_file_loader import (
     is_file_path,
     load_external_file_text,
@@ -14,7 +15,10 @@ from ...core.registry import BaseActionGenerator
 from ...errors import ErrorFormatter
 from lhp.models import Action
 from ...parsers.schema_parser import SchemaParser
-from .snapshot_cdc_source_function import SourceFunctionResult, load_source_function
+from .snapshot_cdc_source_function import (
+    SourceFunctionResult,
+    resolve_source_function,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -133,15 +137,29 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             else {}
         )
 
-        # Process source function code for snapshot_cdc mode
-        source_function_code = None
+        # Process source function for snapshot_cdc mode. The function body is
+        # never inlined: the user's module is copied alongside the generated
+        # pipeline file (same path as custom_py/datasource/sink) and imported
+        # under a ``_snap_<mod>`` alias. ``spark`` and ``dbutils`` are injected
+        # into the copied module's globals via pre-pipeline statements so the
+        # source function resolves bare names against the pipeline's ambient
+        # session at Databricks runtime.
         source_expression = None
         if mode == "snapshot_cdc" and snapshot_cdc_config.get("source_function"):
-            result = load_source_function(
-                snapshot_cdc_config["source_function"], context
+            sf_config = snapshot_cdc_config["source_function"]
+            result = resolve_source_function(sf_config, context)
+            module_name = copy_user_module_for_pipeline(
+                sf_config["file"],
+                context,
+                component_label="snapshot source function",
             )
-            source_function_code = result.code
-            source_expression = self._build_source_expression(result)
+            alias = f"_snap_{module_name}"
+            self.add_import(
+                f"import custom_python_functions.{module_name} as {alias}"
+            )
+            self.add_pre_pipeline_statement(f"{alias}.spark = spark")
+            self.add_pre_pipeline_statement(f"{alias}.dbutils = dbutils")
+            source_expression = self._build_source_expression(result, alias)
 
         # Process data quality expectations
         expectations = context.get("expectations", [])
@@ -263,7 +281,6 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             "table_path": target_config.get("path"),
             "cdc_config": cdc_config,
             "snapshot_cdc_config": snapshot_cdc_config,
-            "source_function_code": source_function_code,
             "source_expression": source_expression,
             "expect_all": expect_all,
             "expect_all_or_drop": expect_all_or_drop,
@@ -317,16 +334,20 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             )
             return []
 
-    def _build_source_expression(self, result: SourceFunctionResult) -> str:
+    def _build_source_expression(
+        self, result: SourceFunctionResult, alias: str
+    ) -> str:
         """Build the source= expression for snapshot CDC.
 
-        Returns a bare function name when no parameters, or a partial()
-        expression with keyword arguments when parameters are present.
+        The function is referenced through the copied module's import alias
+        (``{alias}.{name}``); with parameters it becomes the first positional
+        arg of a ``functools.partial(...)``.
         """
+        qualified_name = f"{alias}.{result.name}"
         if not result.parameters:
-            return result.name
+            return qualified_name
 
         param_parts = [f"{k}={repr(v)}" for k, v in result.parameters.items()]
         params_str = ",\n        ".join(param_parts)
         self.add_import("from functools import partial")
-        return f"partial(\n        {result.name},\n        {params_str}\n    )"
+        return f"partial(\n        {qualified_name},\n        {params_str}\n    )"

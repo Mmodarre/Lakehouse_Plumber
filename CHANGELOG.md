@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Snapshot-CDC source functions — copy-and-import (was inline)
+
+**Summary.** Snapshot-CDC source functions are no longer inlined as literal
+text into every generated flowgroup file. The user's source-function file is
+now **copied once per pipeline** into `custom_python_functions/<leaf>.py`
+(verbatim, with the LHP header, **not** Black-formatted) and **imported** via
+`import custom_python_functions.<mod> as _snap_<mod>`, instead of having its
+body re-emitted into every flowgroup. This mirrors the existing `custom_py`
+copy path.
+
+**Changed.**
+
+- Snapshot-CDC source functions are copied to `custom_python_functions/` and
+  imported per pipeline rather than inlined per flowgroup. `spark` and
+  `dbutils` are forwarded into the imported module's namespace via two
+  pre-pipeline statements (`_snap_<mod>.spark = spark`,
+  `_snap_<mod>.dbutils = dbutils`), reproducing the ambient globals the inlined
+  body relied on.
+- **Backward-compatible.** Existing user snapshot source functions are
+  unchanged and keep working — the forwarded `spark`/`dbutils` globals preserve
+  the previous execution environment; no user edits are required.
+- **Performance.** A 400-flowgroup snapshot_cdc project drops from **>5 min
+  toward the ~20 s `custom_py` baseline (~15× faster)**: Black no longer
+  formats the inflated inlined body in every file, and AST parse / signature
+  extraction is now cached per pipeline.
+
+**§9.14 precedented-exception note (not a new violation category).** The two
+injection statements emitted via `add_pre_pipeline_statement` —
+`{alias}.spark = spark` and `{alias}.dbutils = dbutils` (assignment
+statements) — are net-new Python-as-string emissions. They follow the
+established pattern that **all** pre-pipeline statements are assembled as
+strings via `add_pre_pipeline_statement`; the closest sibling precedent is the
+`custom_datasource` / `custom_sink` `register_pickle_by_value(...)` emission
+(those are calls rather than assignments). A Jinja2 template is intentionally
+not used because these are header / pre-pipeline statements, not template body.
+`_build_source_expression`'s `partial(...)` string predates this work. Recorded
+here so a future audit does not re-flag these as a net-new *category* of §9.14
+exception.
+
+**Deferred (decided; tracked for follow-up).**
+
+- **`SNAPSHOT-VALIDATION-DEDUP-DEFER` (DECIDED — keep the generate-side check).**
+  The generate-side `source_function` **presence** check (`CONFIG-002`) is
+  intentionally **kept**, and the §9.24 validation-dedup consolidation is
+  deferred. Rationale (verified 2026-05-29): `lhp generate` does **not** route
+  per-action config validation through `ValidationService` — it runs only
+  cross-flowgroup validation (`processor.py:151`), so the generate-side
+  presence check is the **sole** presence guard on that path and is
+  load-bearing. Full §9.24 compliance requires wiring per-action validation
+  into the generate path — a separate validation-architecture change, out of
+  scope for this perf-focused work. The AST **signature** check remains
+  legitimately generate-only (the validator cannot read the source file).
+
 ### Phase 9.8 — `generators/` cleanup (integrated onto the layering contract)
 
 **Summary.** Four placement/responsibility fixes in `generators/`, re-applied

@@ -199,11 +199,26 @@ class TestWriteGenerators:
         assert "import sys" not in code
         assert "sys.path.append" not in code
 
-    def test_streaming_table_snapshot_cdc_function_source(self):
-        """Test streaming table with snapshot CDC using function source."""
-        # Create a temporary function file for the test
+    def _make_snapshot_function_file(self, body: str) -> str:
+        """Write a temp snapshot source-function file, return its path.
+
+        ``body`` is the function definition (and any supporting imports).
+        """
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write("""
+            f.write(body)
+            return f.name
+
+    def test_streaming_table_snapshot_cdc_function_source_bare(self):
+        """Bare (no-params) source function: copy-and-import, alias-qualified.
+
+        The function body is NOT inlined; the user's module is imported under
+        a ``_snap_<mod>`` alias and ``spark``/``dbutils`` are injected into its
+        globals unconditionally.
+        """
+        from lhp.models import FlowGroup
+
+        function_file = self._make_snapshot_function_file(
+            """
 from typing import Optional, Tuple
 from pyspark.sql import DataFrame
 
@@ -212,8 +227,10 @@ def next_customer_snapshot(latest_version: Optional[int]) -> Optional[Tuple[Data
         df = spark.read.table("raw.customer_snapshots")
         return (df, 1)
     return None
-""")
-            function_file = f.name
+"""
+        )
+        mod = Path(function_file).stem
+        alias = f"_snap_{mod}"
 
         generator = StreamingTableWriteGenerator()
         action = Action(
@@ -225,10 +242,10 @@ def next_customer_snapshot(latest_version: Optional[int]) -> Optional[Tuple[Data
                 "catalog": "silver_cat",
                 "schema": "silver_sch",
                 "table": "customers",
-                "create_table": True,  # ← Add explicit table creation flag
+                "create_table": True,
                 "snapshot_cdc_config": {
                     "source_function": {
-                        "file": function_file,  # Use actual temp file path
+                        "file": function_file,
                         "function": "next_customer_snapshot",
                     },
                     "keys": ["customer_id", "region"],
@@ -237,27 +254,105 @@ def next_customer_snapshot(latest_version: Optional[int]) -> Optional[Tuple[Data
                 },
             },
         )
+        # output_dir omitted → dry-run copy path; flowgroup is required.
+        context = {"flowgroup": FlowGroup(pipeline="p", flowgroup="fg")}
 
         try:
-            code = generator.generate(action, {})
+            code = generator.generate(action, context)
+            imports = generator.imports
+            pre = generator.get_pre_pipeline_statements()
         finally:
-            # Clean up temp file
             Path(function_file).unlink()
 
-        # Verify function embedding structure
-        assert "# Snapshot function embedded directly in generated code" in code
-        assert "def next_customer_snapshot(latest_version: Optional[int])" in code
-        assert "from pyspark.sql import DataFrame" in code
-        assert "from typing import Optional, Tuple" in code
+        # Import alias is plumbed (lives in the generator's import set, which
+        # the assembler hoists above the body).
+        assert f"import custom_python_functions.{mod} as {alias}" in imports
 
-        # Verify snapshot CDC structure
-        assert "dp.create_streaming_table(" in code
+        # BOTH session globals injected, unconditionally.
+        assert f"{alias}.spark = spark" in pre
+        assert f"{alias}.dbutils = dbutils" in pre
+
+        # No inlined function body in the rendered body.
+        assert "# Snapshot function embedded directly in generated code" not in code
+        assert "def next_customer_snapshot" not in code
+
+        # Snapshot CDC structure with the alias-qualified bare source.
         assert "dp.create_auto_cdc_from_snapshot_flow(" in code
         assert 'target="silver_cat.silver_sch.customers"' in code
-        assert "source=next_customer_snapshot" in code  # Function reference, not string
+        assert f"source={alias}.next_customer_snapshot" in code
+        assert "partial" not in code  # bare: no partial wrapper
         assert 'keys=["customer_id", "region"]' in code
         assert "stored_as_scd_type=2" in code
-        assert 'track_history_column_list=["name", "email", "address"]' in code
+
+    def test_streaming_table_snapshot_cdc_function_source_parameterized(self):
+        """Parameterized source function: alias-qualified name is partial's
+        FIRST POSITIONAL argument, body not inlined, both globals injected."""
+        import re
+
+        from lhp.models import FlowGroup
+
+        function_file = self._make_snapshot_function_file(
+            """
+from typing import Optional, Tuple
+from pyspark.sql import DataFrame
+
+def next_customer_snapshot(latest_version: Optional[int], *, region: str) -> Optional[Tuple[DataFrame, int]]:
+    if latest_version is None:
+        df = spark.read.table(f"raw.{region}_customer_snapshots")
+        return (df, 1)
+    return None
+"""
+        )
+        mod = Path(function_file).stem
+        alias = f"_snap_{mod}"
+
+        generator = StreamingTableWriteGenerator()
+        action = Action(
+            name="write_customer_snapshot_cdc_param",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "streaming_table",
+                "mode": "snapshot_cdc",
+                "catalog": "silver_cat",
+                "schema": "silver_sch",
+                "table": "customers",
+                "create_table": True,
+                "snapshot_cdc_config": {
+                    "source_function": {
+                        "file": function_file,
+                        "function": "next_customer_snapshot",
+                        "parameters": {"region": "us"},
+                    },
+                    "keys": ["customer_id"],
+                    "stored_as_scd_type": 1,
+                },
+            },
+        )
+        context = {"flowgroup": FlowGroup(pipeline="p", flowgroup="fg")}
+
+        try:
+            code = generator.generate(action, context)
+            imports = generator.imports
+            pre = generator.get_pre_pipeline_statements()
+        finally:
+            Path(function_file).unlink()
+
+        assert f"import custom_python_functions.{mod} as {alias}" in imports
+        assert "from functools import partial" in imports
+        assert f"{alias}.spark = spark" in pre
+        assert f"{alias}.dbutils = dbutils" in pre
+
+        # Body not inlined.
+        assert "def next_customer_snapshot" not in code
+        assert "# Snapshot function embedded directly in generated code" not in code
+
+        # The alias-qualified name is the partial's FIRST POSITIONAL argument
+        # (not merely that "partial" appears somewhere).
+        pattern = (
+            r"partial\(\s*" + re.escape(f"{alias}.next_customer_snapshot") + r"\s*,"
+        )
+        assert re.search(pattern, code), f"partial-first-arg not found in:\n{code}"
+        assert "region='us'" in code
 
     def test_streaming_table_snapshot_cdc_track_history_except(self):
         """Test snapshot CDC with track_history_except_column_list."""

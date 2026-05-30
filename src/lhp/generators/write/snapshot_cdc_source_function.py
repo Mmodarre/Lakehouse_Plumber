@@ -1,22 +1,35 @@
-"""Snapshot-CDC source-function loader.
+"""Snapshot-CDC source-function resolver.
 
 Reads a user-supplied Python file, locates the named function via AST,
-validates its parameters, and returns the extracted function source
-code, name, and parameters as a :class:`SourceFunctionResult`.
+extracts its keyword-only signature, and validates this flowgroup's
+parameters against that signature. Returns the function ``name`` and the
+substituted parameter VALUES as a :class:`SourceFunctionResult`.
+
+The function *body* is not extracted here: the copy-and-import path
+(``core/codegen/python_file_copier.py``) copies the whole user module and
+the generated code imports the function by name. This module only performs
+generate-time validation (a friendly error ahead of a Databricks-runtime
+``TypeError``) and parameter-value substitution.
+
+Signature extraction is cached per pipeline. The cache lives in the
+generation context under the key ``source_function_signature_cache`` and
+is keyed by the RESOLVED ABSOLUTE PATH of the source file, so a file is
+parsed at most once per pipeline regardless of how many flowgroups bind
+to it. The cheap per-flowgroup work is the parameter check against the
+cached :class:`FunctionSignature`.
 
 This module is pure: it does not mutate any generator instance state.
-The companion ``_build_source_expression`` (in
-``streaming_table.py``) consumes the result and is the only piece that
-needs to mutate generator state (to register a ``functools.partial``
-import).
+The companion ``_build_source_expression`` (in ``streaming_table.py``)
+consumes the result.
 """
 
 import ast
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, NamedTuple, Optional
 
-from ...core.loaders.external_file_loader import load_external_file_text
+from ...core.loaders.external_file_loader import resolve_external_file_path
 from ...errors import ErrorCategory, LHPError
 
 logger = logging.getLogger(__name__)
@@ -26,25 +39,52 @@ _ALLOWED_PARAM_TYPES = (str, int, float, bool, list, dict, type(None))
 
 
 class SourceFunctionResult(NamedTuple):
-    """Result of processing a source_function configuration."""
+    """Result of resolving a source_function configuration."""
 
-    code: str
     name: str
     parameters: Optional[Dict[str, Any]] = None
 
 
-def load_source_function(
+@dataclass(frozen=True)
+class FunctionSignature:
+    """The cached, parse-once view of a source function's signature.
+
+    Stored in the per-pipeline ``source_function_signature_cache`` keyed
+    by resolved absolute path. Holds only what parameter validation
+    needs: the set of keyword-only argument names and whether the
+    function accepts ``**kwargs``.
+    """
+
+    kwonly_names: frozenset[str]
+    has_kwargs: bool
+
+
+def resolve_source_function(
     source_function_config: Dict[str, Any],
     context: Optional[Dict[str, Any]] = None,
 ) -> SourceFunctionResult:
-    """Process source_function configuration and return function code, name, and parameters.
+    """Resolve a source_function config to its name and validated parameters.
+
+    Reads the source file (for AST only), extracts and caches its
+    signature once per file per pipeline, validates this flowgroup's
+    parameters against the cached signature, and returns the function
+    name plus the substituted parameter values.
 
     Args:
-        source_function_config: Dict with 'file', 'function', and optional 'parameters' keys
-        context: Generation context containing substitution_manager and other data
+        source_function_config: Dict with 'file', 'function', and optional
+            'parameters' keys.
+        context: Generation context. Used for ``project_root``,
+            ``substitution_manager``, ``secret_references``, and the
+            per-pipeline ``source_function_signature_cache``.
 
     Returns:
-        SourceFunctionResult with code, name, and optional parameters
+        SourceFunctionResult with name and optional parameters.
+
+    Raises:
+        LHPError: CONFIG/002 (incomplete config), IO/001 (file not found,
+            via the shared external-file loader), IO/003 (syntax error),
+            IO/004 (function not found in file), CONFIG/005 (unsupported
+            param type), CONFIG/006 (unknown param name).
     """
     file_name = source_function_config.get("file")
     function_name = source_function_config.get("function")
@@ -73,29 +113,68 @@ snapshot_cdc_config:
             },
         )
 
-    # Locate and read the function file using the shared external-file
-    # loader. ``load_external_file_text`` internally calls
-    # ``resolve_external_file_path`` (which raises a rich LHPFileError via
-    # ``ErrorFormatter.file_not_found`` with structured search locations
-    # when the file is missing) then reads the file with consistent
-    # UnicodeDecodeError / PermissionError handling.
+    # ``resolve_external_file_path`` raises a rich LHPFileError (IO-004,
+    # via ``ErrorFormatter.file_not_found`` with structured search
+    # locations) when the file is missing. Resolve first so we have a
+    # stable ABSOLUTE-PATH cache key before reading.
     project_root = context.get("project_root", Path.cwd()) if context else Path.cwd()
-    source_code = load_external_file_text(
+    resolved_path = resolve_external_file_path(
         file_name, project_root, file_type="snapshot source function file"
     )
+    cache_key = str(resolved_path.resolve())
 
-    # Apply substitutions to the source code and parameters
+    # Substitute parameter VALUES only; the function body is substituted by
+    # the file copier.
     if context and "substitution_manager" in context:
         substitution_mgr = context["substitution_manager"]
-        source_code = substitution_mgr._process_string(source_code)
 
         if parameters:
             parameters = substitution_mgr.substitute_yaml(parameters)
 
-        # Single collection point after ALL substitutions
+        # Single collection point after parameter substitution.
         secret_refs = substitution_mgr.secret_references
         if "secret_references" in context and context["secret_references"] is not None:
             context["secret_references"].update(secret_refs)
+
+    # Per-pipeline signature cache: parse + extract the signature once per
+    # unique source file. Subsequent flowgroups binding to the same file
+    # hit the cache and skip re-parsing entirely (GATED INVARIANT — the
+    # focused test fails if per-flowgroup parsing is reintroduced).
+    signature_cache: Optional[Dict[str, Any]] = (
+        context.get("source_function_signature_cache") if context else None
+    )
+
+    signature: Optional[FunctionSignature] = None
+    if signature_cache is not None:
+        signature = signature_cache.get(cache_key)
+
+    if signature is None:
+        signature = _extract_function_signature(
+            resolved_path, file_name, function_name
+        )
+        if signature_cache is not None:
+            signature_cache[cache_key] = signature
+
+    # Validate THIS flowgroup's parameters against the cached signature.
+    if parameters:
+        _validate_function_parameters(signature, function_name, parameters)
+
+    return SourceFunctionResult(function_name, parameters or None)
+
+
+def _extract_function_signature(
+    resolved_path: Path,
+    file_name: str,
+    function_name: str,
+) -> FunctionSignature:
+    """Parse-once body invoked on a cache miss.
+
+    ``file_name`` is the original config reference, used only in error messages.
+
+    Raises:
+        LHPError: IO/003 (syntax error) or IO/004 (function not found).
+    """
+    source_code = resolved_path.read_text(encoding="utf-8")
 
     try:
         tree = ast.parse(source_code)
@@ -123,17 +202,9 @@ def my_snapshot_function(latest_version: Optional[int]) -> Optional[Tuple[DataFr
             context={"File": file_name, "Syntax Error": str(e)},
         ) from e
 
-    # Find the function node once for both validation and extraction
     func_node = _find_function_node(tree, function_name)
 
-    # Validate parameters against function signature if provided
-    if parameters:
-        _validate_function_parameters(func_node, function_name, parameters)
-
-    # Extract the specific function
-    function_code = _extract_function_code(source_code, tree, function_name, func_node)
-
-    if not function_code:
+    if func_node is None:
         raise LHPError(
             category=ErrorCategory.IO,
             code_number="004",
@@ -167,7 +238,9 @@ def {function_name}(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, 
             context={"File": file_name, "Expected Function": function_name},
         )
 
-    return SourceFunctionResult(function_code, function_name, parameters or None)
+    kwonly_names = frozenset(arg.arg for arg in func_node.args.kwonlyargs)
+    has_kwargs = func_node.args.kwarg is not None
+    return FunctionSignature(kwonly_names=kwonly_names, has_kwargs=has_kwargs)
 
 
 def _find_function_node(
@@ -181,22 +254,23 @@ def _find_function_node(
 
 
 def _validate_function_parameters(
-    func_node: "ast.FunctionDef | None",
+    signature: FunctionSignature,
     function_name: str,
     parameters: Dict[str, Any],
 ) -> None:
     """Validate that parameters match the function's keyword-only arguments.
 
-    Skips name validation if the function accepts **kwargs.
+    Skips name validation if the function accepts ``**kwargs``.
 
     Args:
-        func_node: The AST node for the function, or None if not found
-        function_name: Name of the target function (for error messages)
-        parameters: Parameter dict from YAML config
+        signature: Cached signature for the target function.
+        function_name: Name of the target function (for error messages).
+        parameters: Parameter dict from YAML config.
 
     Raises:
-        LHPError: If parameter names don't match keyword-only args,
-                  or if parameter values have unsupported types
+        LHPError: If parameter names don't match keyword-only args
+                  (CONFIG/006), or if parameter values have unsupported
+                  types (CONFIG/005).
     """
     # Type guard: validate parameter values
     for key, value in parameters.items():
@@ -215,21 +289,15 @@ def _validate_function_parameters(
                 ],
             )
 
-    if func_node is None:
-        # Function not found — skip name validation,
-        # _extract_function_code will raise its own error
-        return
-
     # If function accepts **kwargs, skip name validation
-    if func_node.args.kwarg:
+    if signature.has_kwargs:
         logger.debug(
             f"Function '{function_name}' accepts **kwargs, "
             f"skipping parameter name validation"
         )
         return
 
-    # Collect keyword-only argument names
-    kw_only_names = {arg.arg for arg in func_node.args.kwonlyargs}
+    kw_only_names = signature.kwonly_names
 
     # Check for unknown parameter names
     unknown = set(parameters.keys()) - kw_only_names
@@ -254,83 +322,3 @@ def _validate_function_parameters(
                 f"latest_version, *, {', '.join(sorted(parameters.keys()))})",
             ],
         )
-
-
-def _extract_function_code(
-    source_code: str,
-    tree: ast.Module,
-    function_name: str,
-    func_node: "ast.FunctionDef | None" = None,
-) -> str:
-    """Extract function code and its dependencies from the AST.
-
-    Args:
-        source_code: Original source code
-        tree: Parsed AST
-        function_name: Name of function to extract
-        func_node: Pre-found FunctionDef node (avoids redundant traversal)
-
-    Returns:
-        Complete function code with imports and dependencies
-    """
-    source_lines = source_code.split("\n")
-    function_lines = []
-    imports = []
-
-    # Extract only top-level imports (not nested within functions)
-    for node in tree.body:
-        if isinstance(node, (ast.Import, ast.ImportFrom)):
-            import_line = source_lines[node.lineno - 1].strip()
-            imports.append(import_line)
-
-    # Use pre-found node or fall back to search
-    if func_node is None:
-        func_node = _find_function_node(tree, function_name)
-
-    if func_node is not None:
-        start_line = func_node.lineno - 1
-        end_line = (
-            func_node.end_lineno
-            if hasattr(func_node, "end_lineno")
-            else len(source_lines)
-        )
-        function_lines = source_lines[start_line:end_line]
-
-    if not function_lines:
-        return ""
-
-    # Combine imports and function
-    result = []
-
-    # Add necessary imports (filter out duplicates and imports truly available in DLT context)
-    unique_imports = []
-    for imp in imports:
-        # Skip ONLY the imports that are truly available in DLT context
-        # Keep pyspark.sql.functions, pyspark.sql.types, pyspark.sql, and other specific imports
-        skip_import = False
-
-        # __future__ imports must be hoisted to the top of the assembled
-        # module per PEP 236; CodeAssembler.assemble (invoked by
-        # CodeGenerationService.generate_flowgroup_code) handles this
-        # centrally. Strip here so the inlined source-function block does
-        # not embed a duplicate the chokepoint would then have to harvest.
-        if imp.startswith("from __future__"):
-            skip_import = True
-        # Skip base pyspark session imports (these are redundant in DLT)
-        elif imp.startswith("from pyspark import") or imp.startswith("import pyspark"):
-            skip_import = True
-        # Skip spark session imports (spark is available in DLT)
-        elif "SparkSession" in imp or "getOrCreate" in imp:
-            skip_import = True
-
-        if not skip_import and imp not in unique_imports:
-            unique_imports.append(imp)
-
-    if unique_imports:
-        result.extend(unique_imports)
-        result.append("")  # Empty line after imports
-
-    # Add function code
-    result.extend(function_lines)
-
-    return "\n".join(result)

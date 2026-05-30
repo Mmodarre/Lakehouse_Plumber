@@ -32,6 +32,21 @@ class GenerationContextBuilder:
         self.project_config = project_config
         self.project_root = project_root
         self.logger = logging.getLogger(__name__)
+        # Per-builder signature cache shared across every flowgroup context
+        # this builder produces. Lifecycle is per-builder-instance: the
+        # coordinator constructs one builder per pipeline run, and a
+        # spawn-pool worker constructs its own builder, so this dict is
+        # effectively per-pipeline / per-worker. Phase A is serial, so no
+        # lock is needed. Keyed by the *resolved absolute path* (str) of the
+        # source-function file; downstream tasks that write into the cache
+        # MUST use that same key convention. Value type is the parsed
+        # signature record (``FunctionSignature``, defined in
+        # ``generators/write/``); it is typed ``Any`` here because importing
+        # that type would invert the §5 layering direction (``core/codegen``
+        # must not import ``generators/``). This module is ``:stability:
+        # internal`` so strict-mypy (§4.3, binds only ``lhp/api/``) does not
+        # gate the loosened type.
+        self._source_function_signature_cache: Dict[str, Any] = {}
 
     def build(
         self,
@@ -70,6 +85,13 @@ class GenerationContextBuilder:
             # (e.g. monitoring's jobs_stats_loader.py). Read by
             # ``copy_user_module_for_pipeline`` to skip on-disk lookup.
             "auxiliary_files": auxiliary_files or {},
+            # Per-builder signature cache (same dict object across every
+            # flowgroup context this builder produces). Keyed by the resolved
+            # absolute path (str) of the source-function file; parse + signature
+            # extraction happens once per unique source file per pipeline, and
+            # the per-flowgroup work is the cheap param check. See __init__ for
+            # the §4.3 type rationale.
+            "source_function_signature_cache": self._source_function_signature_cache,
         }
 
     def collect_outputs(self, generator) -> Tuple[Set[str], Set[str]]:

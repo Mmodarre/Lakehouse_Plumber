@@ -59,9 +59,8 @@ class CodeAssembler:
             else:
                 non_future.add(imp)
 
-        # (b) Pull __future__ out of the main generated code body (e.g.
-        # snapshot-CDC source_function_code inlined into the streaming_table
-        # template).
+        # (b) Pull __future__ out of the main generated code body (e.g. a
+        # __future__ import emitted inside a generated code body).
         fl, complete_code = extract_future_imports(complete_code)
         future_imports.extend(fl)
 

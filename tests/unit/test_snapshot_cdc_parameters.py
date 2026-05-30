@@ -12,7 +12,7 @@ from lhp.generators.write.streaming_table import (
     SourceFunctionResult,
     StreamingTableWriteGenerator,
 )
-from lhp.models import Action, ActionType
+from lhp.models import Action, ActionType, FlowGroup
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -66,11 +66,29 @@ def _make_action(function_file: str, function_name: str, parameters=None):
 
 
 def _make_context(substitution_mgr=None):
-    """Create a generation context."""
-    ctx = {"secret_references": set()}
+    """Create a generation context.
+
+    The snapshot source function now uses the copy-and-import model: the
+    generator copies the user's module into ``custom_python_functions/`` and
+    imports it under a ``_snap_<mod>`` alias. Copying requires a flowgroup
+    context; ``output_dir=None`` runs the copy in dry-run mode so the leaf
+    module name is still resolved (import lines are rendered) without writing
+    any files. A fresh per-pipeline signature cache is also supplied.
+    """
+    ctx = {
+        "secret_references": set(),
+        "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
+        "output_dir": None,
+        "source_function_signature_cache": {},
+    }
     if substitution_mgr:
         ctx["substitution_manager"] = substitution_mgr
     return ctx
+
+
+def _alias_for(function_file: str) -> str:
+    """The import alias the generator assigns to the copied module."""
+    return f"_snap_{Path(function_file).stem}"
 
 
 # ---------------------------------------------------------------------------
@@ -163,8 +181,11 @@ class TestParameterRendering:
     """Test that parameters produce correct partial() output."""
 
     def test_string_parameters_produce_partial(self, generator):
-        """String parameters render as partial(func, k='v')."""
+        """String parameters render as partial(alias.func, k='v') and the
+        copied module is imported + spark/dbutils injected (copy-and-import
+        model); no inlined ``def`` body is emitted."""
         fn = _write_function_file(FUNC_WITH_KW_ONLY)
+        alias = _alias_for(fn)
         try:
             action = _make_action(
                 fn,
@@ -175,11 +196,23 @@ class TestParameterRendering:
 
             # Import is collected by the generator (assembled at pipeline level)
             assert "from functools import partial" in generator._imports
+            assert (
+                f"import custom_python_functions.{Path(fn).stem} as {alias}"
+                in generator._imports
+            )
+            # Both spark/dbutils injection statements are pre-pipeline.
+            pre = generator.get_pre_pipeline_statements()
+            assert f"{alias}.spark = spark" in pre
+            assert f"{alias}.dbutils = dbutils" in pre
+
             assert "partial(" in code
-            assert "next_delta_snapshot," in code
+            # source= references the alias-qualified function, not a bare name.
+            assert f"{alias}.next_delta_snapshot," in code
             assert "catalog='prod'" in code
             assert "schema='silver'" in code
             assert "table='customers'" in code
+            # The function body is never inlined into the generated flowgroup.
+            assert "def next_delta_snapshot" not in code
         finally:
             Path(fn).unlink()
 
@@ -219,30 +252,45 @@ def typed_snapshot(
             assert "enabled=True" in code
             assert "tags=['a', 'b']" in code
             assert "options={'x': 1}" in code
+            # Body is imported, not inlined.
+            assert "def typed_snapshot" not in code
         finally:
             Path(fn).unlink()
 
     def test_no_parameters_produces_bare_function_name(self, generator):
-        """Without parameters, source= uses bare function reference (backward compat)."""
+        """Without parameters, source= uses the alias-qualified function
+        reference (no partial)."""
         fn = _write_function_file(FUNC_NO_EXTRA_PARAMS)
+        alias = _alias_for(fn)
         try:
             action = _make_action(fn, "simple_snapshot")
             code = generator.generate(action, _make_context())
 
-            assert "source=simple_snapshot," in code
+            assert f"source={alias}.simple_snapshot," in code
             assert "partial" not in code
             assert "functools" not in code
+            # Import + injection still emitted even without parameters.
+            assert (
+                f"import custom_python_functions.{Path(fn).stem} as {alias}"
+                in generator._imports
+            )
+            pre = generator.get_pre_pipeline_statements()
+            assert f"{alias}.spark = spark" in pre
+            assert f"{alias}.dbutils = dbutils" in pre
+            # No inlined body.
+            assert "def simple_snapshot" not in code
         finally:
             Path(fn).unlink()
 
     def test_empty_parameters_treated_as_no_parameters(self, generator):
         """Empty parameters dict {} is treated as no parameters."""
         fn = _write_function_file(FUNC_NO_EXTRA_PARAMS)
+        alias = _alias_for(fn)
         try:
             action = _make_action(fn, "simple_snapshot", {})
             code = generator.generate(action, _make_context())
 
-            assert "source=simple_snapshot," in code
+            assert f"source={alias}.simple_snapshot," in code
             assert "partial" not in code
         finally:
             Path(fn).unlink()
@@ -505,21 +553,22 @@ class TestValidatorParameters:
 
 
 class TestSourceFunctionResult:
-    """Test the NamedTuple return type."""
+    """Test the NamedTuple return type (shape ``(name, parameters)``)."""
 
     def test_result_with_parameters(self):
-        result = SourceFunctionResult("code", "name", {"k": "v"})
-        assert result.code == "code"
+        result = SourceFunctionResult("name", {"k": "v"})
         assert result.name == "name"
         assert result.parameters == {"k": "v"}
+        assert not hasattr(result, "code")
+        assert result._fields == ("name", "parameters")
 
     def test_result_without_parameters(self):
-        result = SourceFunctionResult("code", "name")
+        result = SourceFunctionResult("name")
+        assert result.name == "name"
         assert result.parameters is None
 
     def test_result_unpacking(self):
-        result = SourceFunctionResult("code", "name", {"k": "v"})
-        code, name, params = result
-        assert code == "code"
+        result = SourceFunctionResult("name", {"k": "v"})
+        name, params = result
         assert name == "name"
         assert params == {"k": "v"}

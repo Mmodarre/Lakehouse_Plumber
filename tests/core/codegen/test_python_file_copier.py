@@ -8,7 +8,10 @@ from pathlib import Path
 import pytest
 
 from lhp.core.codegen import PythonFileCopier
+from lhp.core.codegen.python_file_copier import copy_user_module_for_pipeline
+from lhp.core.processing.substitution import EnhancedSubstitutionManager
 from lhp.errors import PythonFunctionConflictError
+from lhp.models import FlowGroup
 
 
 class TestPythonFileCopier:
@@ -246,3 +249,109 @@ class TestPythonFileCopier:
         # Verify no error was raised (would have raised PythonFunctionConflictError before fix)
         assert dest_path.exists()
         assert dest_path.read_text() == content
+
+
+class TestCopyUserModuleBodySubstitution:
+    """Body-level token/secret substitution during copy.
+
+    This re-homes the coverage previously asserted at the generator layer
+    (``tests/test_file_substitution.py::TestSnapshotCDCFunctionSubstitution``).
+    Token/secret substitution of a user module's *body* is the copier's
+    responsibility and only runs when ``output_dir`` is a real path. Here we
+    drive the real public entry point ``copy_user_module_for_pipeline`` with a
+    tmp_path ``output_dir`` so ``compute_copy_record`` actually calls
+    ``substitution_manager._process_string`` and writes the substituted file
+    into ``custom_python_functions/<stem>.py``.
+    """
+
+    def test_token_and_secret_substituted_in_copied_body(self, tmp_path):
+        """Tokens are replaced inline; secrets render to ``__SECRET_scope_key__``
+        placeholders and are tracked on the substitution manager."""
+        source_file = tmp_path / "snapshot_func.py"
+        source_file.write_text("""from typing import Optional, Tuple
+from pyspark.sql import DataFrame
+
+def next_snapshot(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, int]]:
+    api_key = "${secret:db_config/api_key}"
+    if latest_version is None:
+        df = spark.sql("SELECT * FROM {catalog}.{bronze_schema}.tbl")
+        return (df, 1)
+    return None
+""")
+
+        substitution_mgr = EnhancedSubstitutionManager()
+        substitution_mgr.mappings.update(
+            {"catalog": "prod_catalog", "bronze_schema": "prod_bronze"}
+        )
+
+        secret_references = set()
+        output_dir = tmp_path / "generated"
+        output_dir.mkdir()
+
+        context = {
+            "substitution_manager": substitution_mgr,
+            "secret_references": secret_references,
+            "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
+            "spec_dir": tmp_path,
+            "output_dir": output_dir,
+        }
+
+        leaf = copy_user_module_for_pipeline(
+            "snapshot_func.py",
+            context,
+            component_label="snapshot source function",
+        )
+        assert leaf == "snapshot_func"
+
+        copied = output_dir / "custom_python_functions" / "snapshot_func.py"
+        assert copied.exists(), f"Expected copied module at {copied}"
+        content = copied.read_text()
+
+        # Tokens substituted inline in the copied body.
+        assert "prod_catalog.prod_bronze.tbl" in content
+        assert "{catalog}" not in content
+        assert "{bronze_schema}" not in content
+
+        # Secret rendered to the placeholder form (the copier's convention).
+        assert "__SECRET_db_config_api_key__" in content
+        assert "${secret:db_config/api_key}" not in content
+
+        # Secret reference tracked on both the manager and the context mirror.
+        assert len(substitution_mgr.secret_references) > 0
+        scopes_keys = {(r.scope, r.key) for r in substitution_mgr.secret_references}
+        assert ("db_config", "api_key") in scopes_keys
+        assert len(secret_references) > 0
+
+        # LHP-SOURCE header points back at the original module path.
+        assert "# LHP-SOURCE: snapshot_func.py" in content
+
+    def test_dry_run_skips_write_but_returns_leaf(self, tmp_path):
+        """With ``output_dir=None`` no file is written and the body is not
+        processed, but the leaf module name is still returned."""
+        source_file = tmp_path / "snapshot_func.py"
+        source_file.write_text(
+            'def f():\n    return "{catalog}.${secret:db_config/api_key}"\n'
+        )
+
+        substitution_mgr = EnhancedSubstitutionManager()
+        substitution_mgr.mappings.update({"catalog": "prod_catalog"})
+
+        context = {
+            "substitution_manager": substitution_mgr,
+            "secret_references": set(),
+            "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
+            "spec_dir": tmp_path,
+            "output_dir": None,
+        }
+
+        leaf = copy_user_module_for_pipeline(
+            "snapshot_func.py",
+            context,
+            component_label="snapshot source function",
+        )
+
+        assert leaf == "snapshot_func"
+        # Dry-run does not write the copied module.
+        assert not (tmp_path / "generated").exists()
+        # Body not processed: no secret tracking on the dry-run path.
+        assert len(substitution_mgr.secret_references) == 0

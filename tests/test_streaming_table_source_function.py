@@ -1,58 +1,26 @@
-"""Tests for snapshot-CDC ``source_function`` extraction (PEP 236 safety).
+"""Tests for the ``__future__`` hoisting chokepoint in code assembly.
 
-Two layers of protection are exercised here:
-
-1. ``snapshot_cdc_source_function._extract_function_code`` strips
-   ``from __future__`` lines from the inlined block. Without this, a
-   user's snapshot-source file's future import would land mid-body of the
-   generated module — beneath ``from pyspark import pipelines as dp`` —
-   and trigger ``SyntaxError: from __future__ imports must occur at the
-   beginning of the file`` when Lakeflow imports it.
-
-2. ``CodeGenerationService._assemble_final_code`` is the chokepoint that hoists
-   any leftover ``from __future__`` line from the rendered template body
-   to the top of the assembled module — defense in depth.
+``CodeGenerationService._assemble_final_code`` is the chokepoint that hoists
+any ``from __future__`` line found mid-body in a rendered template to the top
+of the assembled module. PEP 236 requires future imports to precede all other
+statements, so without this hoist a ``from __future__`` line embedded inside a
+generated flowgroup body — beneath ``from pyspark import pipelines as dp`` —
+would trigger ``SyntaxError: from __future__ imports must occur at the
+beginning of the file`` when Lakeflow imports the module.
 """
 
-import ast
-
 from lhp.core.codegen.coordinator import CodeGenerationService
-from lhp.generators.write.snapshot_cdc_source_function import _extract_function_code
 from lhp.models import FlowGroup
 
 
-class TestExtractFunctionCodeStripsFuture:
-    """``_extract_function_code`` must skip ``from __future__`` imports."""
-
-    def test_future_import_dropped_from_inlined_block(self):
-        source = (
-            "from __future__ import annotations\n"
-            "from typing import Optional, Tuple\n"
-            "from pyspark.sql import DataFrame\n"
-            "\n"
-            "def my_snapshot(latest_version: Optional[int]):\n"
-            "    return None\n"
-        )
-        tree = ast.parse(source)
-
-        extracted = _extract_function_code(source, tree, "my_snapshot")
-
-        # __future__ removed; the body and surviving imports preserved.
-        assert "from __future__" not in extracted
-        assert "from typing import Optional, Tuple" in extracted
-        assert "def my_snapshot" in extracted
-
-
 class TestAssemblyChokepointHoistsFutureFromCompleteCode:
-    """Defense-in-depth: even if ``complete_code`` contains a ``__future__``
-    line embedded mid-body (which would only happen if the extractor's
-    strip filter ever regresses), the assembly chokepoint must hoist it
-    to the top so the resulting module compiles."""
+    """The assembly chokepoint must hoist a ``__future__`` line embedded
+    mid-body in ``complete_code`` to the top so the resulting module
+    compiles."""
 
     def test_future_in_complete_code_is_hoisted(self):
-        # Simulate a rendered streaming_table template body where the
-        # ``source_function_code`` block carried a ``__future__`` line
-        # through. PEP 236 requires this gets surfaced to the top.
+        # A rendered template body that carries a ``from __future__`` line
+        # mid-body. PEP 236 requires this gets surfaced to the top.
         complete_code = (
             "# ============================================================\n"
             "# TARGET TABLES\n"

@@ -1,9 +1,9 @@
-"""Unit tests for the snapshot-CDC source-function loader.
+"""Unit tests for the snapshot-CDC source-function resolver.
 
 These tests cover the module-level helpers in
 ``lhp.generators.write.snapshot_cdc_source_function`` directly, without going
 through the StreamingTableWriteGenerator. End-to-end coverage of the
-loader through the generator lives in
+resolver through the generator lives in
 ``tests/unit/test_snapshot_cdc_parameters.py``.
 """
 
@@ -14,98 +14,282 @@ from pathlib import Path
 import pytest
 
 from lhp.errors import LHPError
+from lhp.generators.write import snapshot_cdc_source_function as mod
 from lhp.generators.write.snapshot_cdc_source_function import (
+    FunctionSignature,
     SourceFunctionResult,
-    _extract_function_code,
     _validate_function_parameters,
-    load_source_function,
+    resolve_source_function,
 )
 
 
-class TestLoadSourceFunctionConfigValidation:
-    """Configuration-level validation in load_source_function."""
+def _write_source(tmpdir: str, name: str, body: str) -> str:
+    """Write a source file under tmpdir and return its (relative) name."""
+    path = Path(tmpdir) / name
+    path.write_text(body, encoding="utf-8")
+    return name
+
+
+class TestResolveSourceFunctionConfigValidation:
+    """Configuration-level validation in resolve_source_function."""
 
     def test_missing_file_raises_config_002(self):
         """A source_function config without 'file' raises LHPError CONFIG/002."""
         with pytest.raises(LHPError) as exc_info:
-            load_source_function({"function": "my_func"})
-        # CONFIG/002 is the incomplete-config code.
+            resolve_source_function({"function": "my_func"})
         assert exc_info.value.code_number == "002"
         assert "Incomplete source_function configuration" in str(exc_info.value)
 
     def test_missing_function_raises_config_002(self):
         """A source_function config without 'function' raises LHPError CONFIG/002."""
         with pytest.raises(LHPError) as exc_info:
-            load_source_function({"file": "funcs.py"})
+            resolve_source_function({"file": "funcs.py"})
         assert exc_info.value.code_number == "002"
 
 
-class TestLoadSourceFunctionFileNotFound:
-    """File-not-found resolution delegates to external_file_loader."""
+class TestResolveSourceFunctionFileNotFound:
+    """File-not-found resolution delegates to external_file_loader.
+
+    The shared ``ErrorFormatter.file_not_found`` raises IO/001 (not IO/004)
+    for a missing FILE; IO/004 is reserved for a missing FUNCTION inside an
+    existing file (see TestSyntaxAndMissingFunction).
+    """
 
     def test_missing_file_raises_lhp_error_with_file_type(self):
         """A non-existent file raises an LHPError mentioning the file_type."""
         with tempfile.TemporaryDirectory() as tmpdir:
             with pytest.raises(LHPError) as exc_info:
-                load_source_function(
+                resolve_source_function(
                     {"file": "does_not_exist.py", "function": "my_func"},
                     context={"project_root": Path(tmpdir)},
                 )
-            # The external_file_loader uses ``file_type`` in its error title.
             assert "snapshot source function file" in str(exc_info.value)
 
 
-class TestValidateFunctionParameters:
-    """Unit tests for _validate_function_parameters."""
+class TestResolveSourceFunctionResult:
+    """resolve_source_function returns the expected (name, parameters)."""
 
-    def test_keyword_only_args_accepted(self):
-        """A function with `*` and matching keyword-only args validates cleanly."""
-        source = "def my_func(latest, *, catalog, schema):\n" "    return None\n"
-        tree = ast.parse(source)
-        func_node = tree.body[0]
-        # Should not raise
-        _validate_function_parameters(
-            func_node, "my_func", {"catalog": "c", "schema": "s"}
+    def test_returns_name_and_parameters(self):
+        body = "def my_func(latest, *, catalog, schema):\n    return None\n"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            file_name = _write_source(tmpdir, "funcs.py", body)
+            result = resolve_source_function(
+                {
+                    "file": file_name,
+                    "function": "my_func",
+                    "parameters": {"catalog": "c", "schema": "s"},
+                },
+                context={
+                    "project_root": Path(tmpdir),
+                    "source_function_signature_cache": {},
+                },
+            )
+        assert isinstance(result, SourceFunctionResult)
+        assert result.name == "my_func"
+        assert result.parameters == {"catalog": "c", "schema": "s"}
+        assert not hasattr(result, "code")
+        assert result._fields == ("name", "parameters")
+
+    def test_returns_none_parameters_when_absent(self):
+        body = "def my_func(latest):\n    return None\n"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            file_name = _write_source(tmpdir, "funcs.py", body)
+            result = resolve_source_function(
+                {"file": file_name, "function": "my_func"},
+                context={
+                    "project_root": Path(tmpdir),
+                    "source_function_signature_cache": {},
+                },
+            )
+        assert result.parameters is None
+
+
+class TestPerPipelineSignatureCache:
+    """GATED INVARIANT: a source file is parsed at most once per pipeline.
+
+    If per-flowgroup parsing is reintroduced, the second call re-parses
+    and this test fails on the ast.parse call count.
+    """
+
+    def test_same_file_parsed_only_once(self, monkeypatch):
+        body = "def my_func(latest, *, catalog):\n    return None\n"
+        parse_calls = {"n": 0}
+        real_parse = ast.parse
+
+        def counting_parse(*args, **kwargs):
+            parse_calls["n"] += 1
+            return real_parse(*args, **kwargs)
+
+        monkeypatch.setattr(mod.ast, "parse", counting_parse)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            file_name = _write_source(tmpdir, "funcs.py", body)
+            shared_cache: dict = {}
+            ctx = {
+                "project_root": Path(tmpdir),
+                "source_function_signature_cache": shared_cache,
+            }
+            # Two flowgroups binding to the SAME file (distinct param sets).
+            resolve_source_function(
+                {
+                    "file": file_name,
+                    "function": "my_func",
+                    "parameters": {"catalog": "a"},
+                },
+                context=ctx,
+            )
+            resolve_source_function(
+                {
+                    "file": file_name,
+                    "function": "my_func",
+                    "parameters": {"catalog": "b"},
+                },
+                context=ctx,
+            )
+
+        assert parse_calls["n"] == 1, (
+            "Source file must be parsed exactly once per pipeline; "
+            "per-flowgroup re-parsing was reintroduced."
         )
+        # The cache holds a FunctionSignature keyed by resolved absolute path.
+        (key,) = shared_cache.keys()
+        assert Path(key).is_absolute()
+        assert isinstance(shared_cache[key], FunctionSignature)
+
+    def test_cache_hit_skips_reparse_via_counter(self, monkeypatch):
+        """Second call with the cache pre-populated does not parse at all."""
+        body = "def my_func(latest, *, catalog):\n    return None\n"
+        parse_calls = {"n": 0}
+        real_parse = ast.parse
+
+        def counting_parse(*args, **kwargs):
+            parse_calls["n"] += 1
+            return real_parse(*args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            file_name = _write_source(tmpdir, "funcs.py", body)
+            shared_cache: dict = {}
+            ctx = {
+                "project_root": Path(tmpdir),
+                "source_function_signature_cache": shared_cache,
+            }
+            # Warm the cache (real parse).
+            resolve_source_function(
+                {"file": file_name, "function": "my_func"},
+                context=ctx,
+            )
+            # Now count: a cache hit must not parse.
+            monkeypatch.setattr(mod.ast, "parse", counting_parse)
+            resolve_source_function(
+                {"file": file_name, "function": "my_func"},
+                context=ctx,
+            )
+        assert parse_calls["n"] == 0
+
+
+class TestParameterValidationErrors:
+    """Parameter validation through resolve_source_function (CONFIG/005, /006)."""
+
+    def test_unknown_param_name_raises_config_006(self):
+        body = "def my_func(latest, *, catalog):\n    return None\n"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            file_name = _write_source(tmpdir, "funcs.py", body)
+            with pytest.raises(LHPError) as exc_info:
+                resolve_source_function(
+                    {
+                        "file": file_name,
+                        "function": "my_func",
+                        "parameters": {"not_a_param": "x"},
+                    },
+                    context={
+                        "project_root": Path(tmpdir),
+                        "source_function_signature_cache": {},
+                    },
+                )
+        assert exc_info.value.code_number == "006"
+
+    def test_unsupported_param_type_raises_config_005(self):
+        body = "def my_func(latest, *, catalog):\n    return None\n"
+
+        class Weird:
+            pass
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            file_name = _write_source(tmpdir, "funcs.py", body)
+            with pytest.raises(LHPError) as exc_info:
+                resolve_source_function(
+                    {
+                        "file": file_name,
+                        "function": "my_func",
+                        "parameters": {"catalog": Weird()},
+                    },
+                    context={
+                        "project_root": Path(tmpdir),
+                        "source_function_signature_cache": {},
+                    },
+                )
+        assert exc_info.value.code_number == "005"
 
     def test_kwargs_function_skips_name_validation(self):
-        """A function with **kwargs bypasses keyword-only name validation."""
-        source = "def flexible(latest, **kwargs):\n" "    return None\n"
-        tree = ast.parse(source)
-        func_node = tree.body[0]
-        # 'anything' isn't declared explicitly — should still pass.
-        _validate_function_parameters(func_node, "flexible", {"anything": "value"})
+        body = "def flexible(latest, **kwargs):\n    return None\n"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            file_name = _write_source(tmpdir, "funcs.py", body)
+            result = resolve_source_function(
+                {
+                    "file": file_name,
+                    "function": "flexible",
+                    "parameters": {"anything": "value"},
+                },
+                context={
+                    "project_root": Path(tmpdir),
+                    "source_function_signature_cache": {},
+                },
+            )
+        assert result.parameters == {"anything": "value"}
 
 
-class TestExtractFunctionCode:
-    """Unit tests for _extract_function_code."""
+class TestSyntaxAndMissingFunction:
+    """AST-level errors surface as IO/003 (syntax) and IO/004 (not found)."""
 
-    def test_extracts_function_and_imports(self):
-        """Extracted code includes top-level imports and the function body."""
-        source = (
-            "from typing import Optional\n"
-            "\n"
-            "def my_func(x: Optional[int]):\n"
-            "    return x\n"
+    def test_syntax_error_raises_io_003(self):
+        body = "def my_func(latest, *, catalog\n    return None\n"  # missing ')'
+        with tempfile.TemporaryDirectory() as tmpdir:
+            file_name = _write_source(tmpdir, "funcs.py", body)
+            with pytest.raises(LHPError) as exc_info:
+                resolve_source_function(
+                    {"file": file_name, "function": "my_func"},
+                    context={
+                        "project_root": Path(tmpdir),
+                        "source_function_signature_cache": {},
+                    },
+                )
+        assert exc_info.value.code_number == "003"
+
+    def test_missing_function_in_file_raises_io_004(self):
+        body = "def other_func():\n    return None\n"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            file_name = _write_source(tmpdir, "funcs.py", body)
+            with pytest.raises(LHPError) as exc_info:
+                resolve_source_function(
+                    {"file": file_name, "function": "my_func"},
+                    context={
+                        "project_root": Path(tmpdir),
+                        "source_function_signature_cache": {},
+                    },
+                )
+        assert exc_info.value.code_number == "004"
+
+
+class TestValidateFunctionParametersDirect:
+    """Direct unit tests for _validate_function_parameters on FunctionSignature."""
+
+    def test_keyword_only_args_accepted(self):
+        sig = FunctionSignature(
+            kwonly_names=frozenset({"catalog", "schema"}), has_kwargs=False
         )
-        tree = ast.parse(source)
+        # Should not raise.
+        _validate_function_parameters(sig, "my_func", {"catalog": "c", "schema": "s"})
 
-        extracted = _extract_function_code(source, tree, "my_func")
-
-        assert "from typing import Optional" in extracted
-        assert "def my_func(x: Optional[int]):" in extracted
-        assert "return x" in extracted
-
-
-class TestSourceFunctionResultExport:
-    """The SourceFunctionResult NamedTuple is exported by the loader module."""
-
-    def test_namedtuple_fields(self):
-        result = SourceFunctionResult("code", "name", {"k": "v"})
-        assert result.code == "code"
-        assert result.name == "name"
-        assert result.parameters == {"k": "v"}
-
-    def test_namedtuple_optional_parameters(self):
-        result = SourceFunctionResult("code", "name")
-        assert result.parameters is None
+    def test_kwargs_signature_skips_name_validation(self):
+        sig = FunctionSignature(kwonly_names=frozenset(), has_kwargs=True)
+        _validate_function_parameters(sig, "flexible", {"anything": "value"})

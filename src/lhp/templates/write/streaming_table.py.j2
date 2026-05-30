@@ -74,11 +74,6 @@ dp.create_auto_cdc_flow(
    Snapshot CDC mode: Always create the streaming table first, then configure snapshot CDC flow
    Snapshot CDC flows require their own dedicated table
 #}
-{% if source_function_code %}
-# Snapshot function embedded directly in generated code
-{{ source_function_code }}
-
-{% endif %}
 # Create the streaming table for snapshot CDC
 dp.create_streaming_table(
     name="{{ full_table_name }}",
