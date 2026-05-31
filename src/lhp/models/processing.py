@@ -2,28 +2,12 @@
 
 import traceback
 from dataclasses import dataclass
-from pathlib import Path
-from typing import TYPE_CHECKING, Mapping, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Optional, Sequence, Tuple
 
 if TYPE_CHECKING:
-    from lhp.core.processing.substitution import EnhancedSubstitutionManager
+    from lhp.core.codegen.python_file_copier import CopiedModuleRecord
     from lhp.errors import LHPError
-    from lhp.models import FlowGroupContext
-
-
-# JSON-safe projection type for ``PipelineWorkUnit.to_dict`` and other telemetry
-# / event-bus surfaces. Locally defined here (rather than under ``lhp/api/``)
-# so the DTOs in this module stay in one place. Constitution §4.8 forbids
-# ``Any`` outside an explicit ``JSONValue`` alias — this is that exemption.
-JSONValue = Union[
-    None,
-    bool,
-    int,
-    float,
-    str,
-    Sequence["JSONValue"],
-    Mapping[str, "JSONValue"],
-]
+    from lhp.models import FlowGroup
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,13 +99,12 @@ class PipelineDelta:
         log lines, summary rows, and tests that read it keep working;
         the unwrap consumer prefers ``lhp_error`` when present.
 
-        ``duration_s`` defaults to ``0.0``. The worker dispatch boundary
-        stamps a measured value when the failure originates from actual
-        work in :func:`_dispatch_pipeline_for_generate`. Failures
-        synthesized on the main thread for infrastructural reasons
-        (``executor.submit`` raising, ``fut.result()`` unpickling errors,
-        worker crashes before t0 is captured) intentionally leave this
-        at ``0.0`` — those did not consume measurable worker work-time.
+        ``duration_s`` defaults to ``0.0``; the per-pipeline commit step
+        stamps a measured value when one is available. Failures
+        synthesized for infrastructural reasons (``executor.submit``
+        raising, ``fut.result()`` unpickling errors, worker crashes before
+        a timer is captured) intentionally leave this at ``0.0`` — those
+        did not consume measurable worker work-time.
         """
         from lhp.errors import LHPError  # lazy to avoid cycle
 
@@ -139,76 +122,102 @@ class PipelineDelta:
 
 
 @dataclass(frozen=True, slots=True)
-class PipelineWorkUnit:
-    """Inputs for one pipeline's execution slice across the worker boundary.
+class FlowgroupOutcome:
+    """Worker → main-thread report for ONE flowgroup's worker run.
 
-    Carries the per-pipeline data that varies across
-    :class:`PipelineExecutionService` invocations. Heavyweight pool-constant
-    state (worker collaborators, environment, project_root, project_config,
-    include_tests, callbacks, max_workers) is captured constructor-time on
-    :class:`PipelineExecutionService` via :class:`_GenerateWorkerState` /
-    :class:`_ValidateWorkerState`.
+    The picklable, replay-ready slice the main thread needs after a worker
+    finishes a single flowgroup — the resolved flowgroup, the
+    formatted code (when generating), the auxiliary files and copied-module
+    records replayed to disk on commit, and — on failure — the error in
+    two forms.
 
-    :stability: provisional
+    Dual-channel error transport (as on :class:`PipelineDelta`). For
+    :class:`~lhp.errors.LHPError` instances the live exception travels in
+    ``lhp_error`` (pickled via the class's ``__reduce__`` so subclass
+    identity, ``code``, ``context``, ``suggestions`` are preserved
+    verbatim) and the main thread re-raises it unchanged. When the live
+    object cannot cross the spawn boundary, the degraded string channel
+    ``errors`` carries the human-readable projection instead.
+
+    ``auxiliary_files`` is ``Tuple[Tuple[str, str], ...]`` (each pair is
+    ``(path, content)``): dropping it would silently lose the monitoring
+    flowgroup's extra modules across the process boundary.
+
+    ``frozen=True, slots=True`` for immutability across the spawn boundary
+    and a smaller per-instance footprint (no per-instance ``__dict__``).
     """
 
-    pipeline_name: str
-    flowgroups: Tuple["FlowGroupContext", ...]
-    substitution_manager: Optional["EnhancedSubstitutionManager"] = None
-    output_dir: Optional[Path] = None
-    discovery_error: Optional[str] = None
-
-    def to_dict(self) -> Mapping[str, JSONValue]:
-        """JSON-safe projection for telemetry / event-bus surfaces.
-
-        Picklability across the spawn boundary uses the frozen-dataclass
-        default; this method is for non-pickle serializations (event-bus
-        payload, structured logging).
-
-        ``substitution_manager`` is intentionally absent from the dict
-        payload (None passthrough only): it is a live collaborator with
-        non-JSON state. ``flowgroups`` projects to the flowgroup-name tuple
-        only. ``output_dir`` is stringified.
-        """
-        return {
-            "pipeline_name": self.pipeline_name,
-            "flowgroup_names": tuple(
-                ctx.flowgroup.flowgroup for ctx in self.flowgroups
-            ),
-            "substitution_manager": None,
-            "output_dir": (
-                str(self.output_dir) if self.output_dir is not None else None
-            ),
-            "discovery_error": self.discovery_error,
-        }
+    pipeline: str
+    flowgroup_name: str
+    success: bool
+    resolved_flowgroup: Optional["FlowGroup"] = None
+    formatted_code: Optional[str] = None
+    auxiliary_files: Tuple[Tuple[str, str], ...] = ()
+    copy_records: Tuple["CopiedModuleRecord", ...] = ()
+    lhp_error: Optional["LHPError"] = None
+    errors: Tuple[str, ...] = ()
 
     @classmethod
-    def from_dict(
+    def ok(
         cls,
-        data: Mapping[str, JSONValue],
+        pipeline: str,
+        flowgroup_name: str,
         *,
-        flowgroups: Tuple["FlowGroupContext", ...] = (),
-        substitution_manager: Optional["EnhancedSubstitutionManager"] = None,
-    ) -> "PipelineWorkUnit":
-        """Rehydrate a unit from its JSON projection plus live collaborators.
+        resolved_flowgroup: Optional["FlowGroup"] = None,
+        formatted_code: Optional[str] = None,
+        auxiliary_files: Sequence[Tuple[str, str]] = (),
+        copy_records: Sequence["CopiedModuleRecord"] = (),
+    ) -> "FlowgroupOutcome":
+        """Build a success outcome.
 
-        ``flowgroups`` and ``substitution_manager`` must be supplied
-        explicitly because they cannot round-trip through JSON. This
-        constructor exists for symmetry with :meth:`to_dict` (event-bus
-        replay, fixture tests); production code constructs units directly.
-        Defaults of ``()`` and ``None`` make a fixture round-trip
-        ``cls.from_dict(unit.to_dict())`` valid for the JSON-safe subset.
+        A success outcome carries neither ``lhp_error`` nor ``errors``.
+        ``formatted_code`` is ``None`` for validate-mode runs (no code is
+        generated).
         """
-        output_dir_raw = data.get("output_dir")
-        discovery_error_raw = data.get("discovery_error")
         return cls(
-            pipeline_name=str(data["pipeline_name"]),
-            flowgroups=flowgroups,
-            substitution_manager=substitution_manager,
-            output_dir=(
-                Path(output_dir_raw) if isinstance(output_dir_raw, str) else None
-            ),
-            discovery_error=(
-                str(discovery_error_raw) if discovery_error_raw is not None else None
-            ),
+            pipeline=pipeline,
+            flowgroup_name=flowgroup_name,
+            success=True,
+            resolved_flowgroup=resolved_flowgroup,
+            formatted_code=formatted_code,
+            auxiliary_files=tuple(auxiliary_files),
+            copy_records=tuple(copy_records),
+            lhp_error=None,
+            errors=(),
+        )
+
+    @classmethod
+    def failure(
+        cls,
+        pipeline: str,
+        flowgroup_name: str,
+        *,
+        lhp_error: Optional["LHPError"] = None,
+        errors: Optional[Sequence[str]] = None,
+    ) -> "FlowgroupOutcome":
+        """Build a failure outcome. MUST be total — it NEVER raises.
+
+        Called from inside a worker's ``except`` block, so a raise here
+        would cross the process boundary as an unhandled worker exception
+        (§5.6). Accordingly:
+
+          - If ``lhp_error`` is given, the live exception travels in
+            ``lhp_error`` for verbatim re-raise on the main thread.
+          - If ``errors`` is given, the degraded string channel is
+            populated.
+          - If both are given, both are stored (no xor enforcement).
+          - If neither is given, the string channel degrades to a generic
+            ``("unknown error",)`` rather than raising.
+        """
+        error_strings = tuple(errors) if errors else ()
+        if lhp_error is None and not error_strings:
+            error_strings = ("unknown error",)
+        return cls(
+            pipeline=pipeline,
+            flowgroup_name=flowgroup_name,
+            success=False,
+            resolved_flowgroup=None,
+            formatted_code=None,
+            lhp_error=lhp_error,
+            errors=error_strings,
         )

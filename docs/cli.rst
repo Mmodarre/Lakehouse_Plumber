@@ -226,7 +226,11 @@ Both commands respect ``--include-tests`` for per-flowgroup processing.
    contains ``databricks.yml`` it likewise **requires** ``-pc`` (or
    ``--no-bundle``) — otherwise it fails with ``LHP-CFG-023``, exactly like
    ``generate``. ``validate`` runs the same structural and bundle catalog/schema
-   preflight checks as ``generate``. See :doc:`configure_catalog_schema`.
+   preflight checks as ``generate``, and runs cross-flowgroup conflict detection
+   on the **resolved** flowgroups (after presets, templates, and substitutions),
+   so a conflict introduced by resolution — e.g. a template that expands into
+   two ``create_table: true`` actions targeting the same table — fails
+   ``validate``, not just ``generate``. See :doc:`configure_catalog_schema`.
 
 **Examples:**
 

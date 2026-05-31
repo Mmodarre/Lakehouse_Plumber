@@ -4,8 +4,8 @@ T1 made :meth:`FlowgroupBootstrapService.discover_all_flowgroups` memoize at
 the bootstrap boundary (a guarded ``self._discovery_cache`` tuple returned by
 identity). The bootstrap boundary is hit multiple times across one
 ``validate``/``generate`` invocation — at minimum the shared project preflight
-(:func:`lhp.api._preflight._run_project_preflight`) and the work-unit pool
-builder (:func:`lhp.core.coordination.work_unit_builder.build_generate_work_units`),
+(:func:`lhp.api._preflight._run_project_preflight`) and the flat-engine worklist
+builder (:func:`lhp.core.coordination.flowgroup_worklist_builder.build_flowgroup_worklist`),
 plus CLI listing / bundle-asset checks in the real CLI. Because all sub-facades
 share ONE orchestrator (and therefore one bootstrap) within an invocation, the
 memo is shared and the underlying disk file-walk must run only once.
@@ -182,9 +182,9 @@ def test_generate_walks_disk_once(tmp_path):
     assert response.success, response
     for name in ("g_alpha", "g_beta", "g_gamma"):
         pr = response.pipeline_responses.get(name)
-        assert pr is not None and pr.generated_filenames, (
-            f"Pipeline {name} produced no output: {pr}"
-        )
+        assert (
+            pr is not None and pr.generated_filenames
+        ), f"Pipeline {name} produced no output: {pr}"
 
     assert disk_walk.call_count == 1, (
         "Disk file-walk must run exactly once across a full generate "

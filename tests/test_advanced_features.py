@@ -7,6 +7,7 @@ import pytest
 
 from lhp.api import collect_response
 from lhp.api.facade import LakehousePlumberApplicationFacade
+from lhp.errors import LHPError
 from tests.helpers import read_generated_pipeline
 
 
@@ -66,7 +67,7 @@ actions:
       module_path: "loaders/customer_loader.py"
     target: v_customers_python
     description: "Load data using Python function"
-    
+
   - name: transform_with_python
     type: transform
     transform_type: python
@@ -75,7 +76,7 @@ actions:
     function_name: "enrich_customers"
     target: v_customers_enriched
     description: "Enrich customers with Python"
-    
+
   - name: save_enriched
     type: write
     source: v_customers_enriched
@@ -144,34 +145,34 @@ actions:
       type: sql
       sql: "SELECT * FROM source_table"
     target: v_raw_data
-    
+
   - name: create_temp_aggregate
     type: transform
     transform_type: temp_table
     source: v_raw_data
     target: temp_daily_aggregates
     sql: |
-      SELECT 
+      SELECT
         DATE(timestamp) as date,
         COUNT(*) as record_count,
         SUM(amount) as total_amount
       FROM {source}
       GROUP BY DATE(timestamp)
     description: "Create temporary aggregate table"
-    
+
   - name: join_with_temp
     type: transform
     transform_type: sql
     source: [v_raw_data, temp_daily_aggregates]
     target: v_enriched_data
     sql: |
-      SELECT 
+      SELECT
         r.*,
         t.record_count as daily_count,
         t.total_amount as daily_total
       FROM v_raw_data r
       JOIN temp_daily_aggregates t ON DATE(r.timestamp) = t.date
-      
+
   - name: save_final
     type: write
     source: v_enriched_data
@@ -230,7 +231,7 @@ actions:
       format: json
       schema_evolution_mode: "rescue"
     target: v_raw_json
-    
+
   - name: apply_schema
     type: transform
     transform_type: schema
@@ -242,7 +243,7 @@ actions:
       amt -> amount: DOUBLE
       created_date: DATE
     description: "Apply schema and type casting"
-    
+
   - name: save_structured
     type: write
     source: v_structured_data
@@ -299,7 +300,7 @@ actions:
       schema: "bronze"
       table: "orders"
     target: v_orders
-    
+
   - name: load_customers
     type: load
     source:
@@ -308,20 +309,20 @@ actions:
       schema: "bronze"
       table: "customers"
     target: v_customers
-    
+
   - name: join_orders_customers
     type: transform
     transform_type: sql
     source: [v_orders, v_customers]
     target: v_order_details
     sql: |
-      SELECT 
+      SELECT
         o.*,
         c.customer_name,
         c.customer_segment
       FROM v_orders o
       JOIN v_customers c ON o.customer_id = c.customer_id
-      
+
   - name: calculate_metrics
     type: transform
     transform_type: sql
@@ -336,7 +337,7 @@ actions:
         SUM(amount) as total_revenue
       FROM {source}
       GROUP BY customer_id, customer_name, customer_segment
-      
+
   - name: write_to_orders_fact
     type: write
     source: v_order_details
@@ -346,7 +347,7 @@ actions:
       schema: "gold"
       table: "fact_orders"
       create_table: true
-      
+
   - name: write_to_customer_metrics
     type: write
     source: v_customer_metrics
@@ -421,7 +422,7 @@ actions:
       type: sql
       sql: "SELECT * FROM source"
     target: v_data
-    
+
   - name: write_with_metadata
     type: write
     source: v_data
@@ -446,7 +447,7 @@ actions:
       type: sql
       sql: "SELECT * FROM source2"
     target: v_data2
-    
+
   - name: write_with_override
     type: write
     source: v_data2
@@ -490,7 +491,21 @@ actions:
         assert "_pipeline_name" in code2
 
     def test_error_handling_invalid_configurations(self, project_root):
-        """Test error handling for invalid configurations."""
+        """Invalid configurations are REJECTED by ``generate_pipelines``.
+
+        The all-or-nothing generate gate RAISES the
+        aggregated ``LHPError`` straight through ``collect_response`` instead
+        of folding it into a ``not response.success`` DTO. Each invalid
+        flowgroup below must therefore make ``collect_response`` raise an
+        ``LHPError`` — the test's original intent ("a bad config is
+        rejected") is preserved; only the surfacing channel moved from a
+        returned DTO to a raised exception. The third (multiple-table-
+        creators) case keeps its specific ``LHP-CFG-004`` + message
+        assertion because that error is stable and uniquely identifying;
+        the first two assert the raise and an LHP-coded error (their precise
+        code is incidental — the deprecated bare-``{source}`` token in the
+        fixture trips substitution validation first).
+        """
         # Test 1: Missing required Load action
         pipeline_dir1 = project_root / "pipelines" / "invalid_no_load"
         pipeline_dir1.mkdir(parents=True)
@@ -512,16 +527,17 @@ actions:
             project_root, enforce_version=False
         )
 
-        # The orphaned transform error is more specific and helpful than "missing load action"
-        response = collect_response(
-            facade.generation.generate_pipelines(
-                pipeline_filter="invalid_no_load",
-                env="dev",
-                output_dir=None,
+        # The gate raises the aggregated LHPError through
+        # collect_response (it no longer returns a failed DTO).
+        with pytest.raises(LHPError) as exc_info:
+            collect_response(
+                facade.generation.generate_pipelines(
+                    pipeline_filter="invalid_no_load",
+                    env="dev",
+                    output_dir=None,
+                )
             )
-        )
-        assert not response.success
-        assert "Unused transform action" in (response.error_message or "")
+        assert exc_info.value.code.startswith("LHP-")
 
         # Test 2: Circular dependency - Create separate pipeline
         pipeline_dir2 = project_root / "pipelines" / "invalid_circular"
@@ -538,21 +554,21 @@ actions:
       type: sql
       sql: "SELECT * FROM raw"
     target: v_data
-    
+
   - name: transform_a
     type: transform
     transform_type: sql
     source: v_transform_b
     target: v_transform_a
     sql: "SELECT * FROM {source}"
-    
+
   - name: transform_b
     type: transform
     transform_type: sql
     source: v_transform_a
     target: v_transform_b
     sql: "SELECT * FROM {source}"
-    
+
   - name: write_result
     type: write
     source: v_transform_a
@@ -569,15 +585,15 @@ actions:
             project_root, enforce_version=False
         )
 
-        response2 = collect_response(
-            facade2.generation.generate_pipelines(
-                pipeline_filter="invalid_circular",
-                env="dev",
-                output_dir=None,
+        with pytest.raises(LHPError) as exc_info2:
+            collect_response(
+                facade2.generation.generate_pipelines(
+                    pipeline_filter="invalid_circular",
+                    env="dev",
+                    output_dir=None,
+                )
             )
-        )
-        assert not response2.success
-        assert "Circular dependency" in (response2.error_message or "")
+        assert exc_info2.value.code.startswith("LHP-")
 
         # Test 3: Multiple table creators (rich error formatting)
         pipeline_dir3 = project_root / "pipelines" / "invalid_multiple_creators"
@@ -595,7 +611,7 @@ actions:
       path: "/mnt/data"
       format: json
     target: v_data
-    
+
   - name: write_lineitem_countries
     type: write
     source: v_data
@@ -605,7 +621,7 @@ actions:
       schema: "schema"
       table: "lineitem"
       create_table: true
-      
+
   - name: write_lineitem_history
     type: write
     source: v_data
@@ -622,19 +638,19 @@ actions:
             project_root, enforce_version=False
         )
 
-        # Should produce a failed response containing the rich LHPError formatting
-        response3 = collect_response(
-            facade3.generation.generate_pipelines(
-                pipeline_filter="invalid_multiple_creators",
-                env="dev",
-                output_dir=None,
-            )
-        )
-        assert not response3.success
+        # The gate raises the rich LHPError through collect_response.
         # Identity-level assertions only; rendered LHPError shape is owned
         # by snapshot tests in tests/test_lhperror_rendering.py.
-        assert response3.error_code == "LHP-CFG-004"
-        assert "Multiple table creators detected" in (response3.error_message or "")
+        with pytest.raises(LHPError) as exc_info3:
+            collect_response(
+                facade3.generation.generate_pipelines(
+                    pipeline_filter="invalid_multiple_creators",
+                    env="dev",
+                    output_dir=None,
+                )
+            )
+        assert exc_info3.value.code == "LHP-CFG-004"
+        assert "Multiple table creators detected" in str(exc_info3.value)
 
     def test_preset_inheritance_chain(self, project_root):
         """Test complex preset inheritance chains."""
@@ -693,7 +709,7 @@ actions:
       path: "/mnt/data/*.json"
       format: json
     target: v_customers
-    
+
   - name: write_customers
     type: write
     source: v_customers

@@ -7,6 +7,90 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Stage 2 — Parallel Execution Consolidation — one flat per-flowgroup engine
+
+**Summary.** `lhp generate` and `lhp validate` now run through a single
+flat-per-flowgroup execution engine. Previously `generate` parallelized at
+**pipeline** granularity (one worker task per pipeline; a pipeline's flowgroups
+processed serially in-worker) while `validate` already parallelized per
+flowgroup — an asymmetry that left large single pipelines as wall-clock
+stragglers and let a config pass `validate` that `generate` would reject. Both
+commands now submit **one worker task per flowgroup**, run cross-flowgroup
+validation on **resolved** flowgroups, and `generate` commits its output
+**all-or-nothing**. This closes CODING_CONSTITUTION §9.24 (one validation
+surface, now one execution engine).
+
+**Changed (user-visible behavior).**
+
+- **`lhp validate` now catches cross-flowgroup conflicts on RESOLVED
+  flowgroups.** Cross-flowgroup validation previously ran on **raw**
+  flowgroups, so a conflict that only appears *after* template/preset
+  resolution slipped through `validate` and only surfaced at `generate` time.
+  Both commands now run the cross-flowgroup pass on the resolved set, closing
+  the "validate passes, generate fails" gap. **Consequence:** a config whose
+  cross-flowgroup conflict is introduced by resolution — e.g. a template that
+  expands into two `create_table: true` actions targeting the same table — now
+  **fails** `lhp validate` where it previously passed.
+- **`lhp generate` is now all-or-nothing.** A global validation+codegen **gate**
+  runs before any write. If **any** flowgroup fails anywhere in the run —
+  per-flowgroup validation, codegen, Black formatting (`LHP-CFG-031`), a
+  cross-flowgroup conflict, or a custom-module copy conflict (`LHP-VAL-019`) —
+  the run writes **zero** files and the output tree is left untouched. This
+  replaces the previous behavior where successful pipelines were written and
+  only the failed ones aggregated at the end (partial output). Multiple
+  failures across the run aggregate into a single `LHP-VAL-902`.
+- **Both commands now parallelize at the FLOWGROUP level.** The unit of
+  parallelism is the flowgroup for both commands (one worker task per
+  flowgroup, cap `min(max_workers, flowgroup_count)`), replacing the previous
+  per-pipeline parallelism for `generate`. On asymmetric projects (one large
+  pipeline + many small ones) a single large pipeline's flowgroups now spread
+  across all workers, eliminating the prior single-pipeline straggler that
+  bounded wall-clock. `--max-workers`, `LHP_MAX_WORKERS`, and the auto-sizing
+  heuristic are unchanged; the workload cap now sizes against flowgroup count
+  rather than pipeline count.
+
+**Removed (provisional API).**
+
+- **Removed the provisional `on_pipeline_start` generate callback** from the
+  generation facade and the orchestrator/executor chain. The flat per-flowgroup
+  engine has no per-pipeline start boundary (it gates all-or-nothing and fires
+  only the per-pipeline completion callback), so the hook had no meaning and was
+  never fired. It was `:stability: provisional`, so removal is permitted in a
+  minor version (CODING_CONSTITUTION §1.13). The per-pipeline `on_pipeline_complete`
+  callback is unchanged.
+
+**Performance.** On an asymmetric fixture (one 200-flowgroup pipeline plus many
+small pipelines) the large pipeline ran on **8 distinct worker processes** at
+`--max-workers 8` versus **1** at `--max-workers 1` — work now tracks flowgroup
+count, not pipeline count. The resolved-flowgroup spawn payload measured
+**~2.8 KB mean**, confirming the added IPC (validate workers now return the
+resolved flowgroup) is marginal. Output remains **byte-identical** across
+worker counts on success.
+
+**Deferred (decided; tracked for follow-up).**
+
+- **`TWO-WAVE-DEFER`** — the two-wave / no-codegen-on-validation-failure
+  optimization is **not** built; single-wave was chosen (each worker does
+  resolve → per-flowgroup validate → codegen → format in one task). (Spec §7.1,
+  D2.)
+- **`LPT-ORDER-DEFER`** — longest-processing-time (LPT) submission ordering is
+  **dropped**; flowgroups are uniform enough that flat flattening suffices, so
+  ordered submission saves nothing. (Spec §7.2, D10.)
+- **`FG-PROJECTION-DEFER`** — workers return the **full** resolved `FlowGroup`
+  object rather than a slimmed-down projection; shipping a projection instead
+  is deferred (the measured payload is marginal). (Spec §7.3.)
+- **`PARALLEL-WRITE-DEFER`** — the coordinator commits writes **sequentially**;
+  parallel (thread-pool) disk writes on the coordinator are deferred, to be
+  revisited only if writes ever dominate wall-clock. (Spec §7.4.)
+- **`AUX-DEDUP-DEFER`** — auxiliary-file dedup is deferred; only the single
+  monitoring flowgroup uses auxiliary files today, so cross-flowgroup
+  auxiliary-file deduplication is not yet needed. (Spec §7.5.)
+- **`TWO-PASS-DEFER`** — the escape-hatch "validate-all-then-stream-write"
+  two-pass `generate` is **not** built. All-or-nothing intrinsically holds all
+  formatted code in memory until the gate, but that only becomes a memory
+  concern at ~100K+ flowgroups (GB-scale), well beyond the 6000+ target. (Spec
+  §3bis.1.)
+
 ### Stage 1 — Discovery Efficiency — read-once / parse-once per invocation
 
 **Summary.** Flowgroup discovery is now **read-once-per-invocation** and each

@@ -24,12 +24,21 @@ Services do not call each other — composition is the orchestrator's job.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Literal, Mapping, Optional, Sequence, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Dict,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+)
 
-from .codegen.python_file_copier import CopiedModuleRecord
 from lhp.models import FlowGroup, FlowGroupContext
+
 from ..models.dependencies import DependencyAnalysisResult, DependencyGraphs
-from ..models.processing import PipelineDelta
+from .codegen.python_file_copier import CopiedModuleRecord
 from .processing.substitution import EnhancedSubstitutionManager as SubstitutionManager
 
 
@@ -60,6 +69,8 @@ class CrossFlowgroupCheckResult:
 
 
 if TYPE_CHECKING:
+    from lhp.models import ProjectConfig
+
     # PipelineValidationOutcome currently lives in `core/coordination/executor.py`;
     # it will move to `models/processing.py` (or `lhp/api/`) once the public DTO
     # surface is consolidated. Importing under TYPE_CHECKING avoids freezing
@@ -203,10 +214,15 @@ class BaseCodeGenerationService(ABC):
 class BasePipelineExecutionService(ABC):
     """Manages parallel execution across pipelines.
 
-    Wraps :func:`run_generate_pool` and :func:`run_validate_pool` (today in
-    ``core/coordination/executor.py``) behind a typed surface. Workers receive a
-    :class:`PipelineWorkUnit` (frozen DTO, forward-referenced — formalized in
-    Week 3) and return :class:`PipelineDelta` / :class:`PipelineValidationOutcome`.
+    The typed execution surface behind ``core/coordination/executor.py``.
+    Both :meth:`run_validate` and :meth:`run_generate` take the
+    flat four-map worklist shape and drive the
+    consolidated flat per-flowgroup engine, differing only in ``mode`` and the
+    generate-only gate/commit extras. :meth:`run_validate` returns one
+    :class:`PipelineValidationOutcome` per pipeline (REPORTS, never raises);
+    :meth:`run_generate` returns ``{pipeline -> generated filenames}`` and is
+    all-or-nothing (RAISES on any failure before any write), surfacing
+    per-pipeline :class:`PipelineDelta`s via its completion callback.
 
     :stability: provisional
     """
@@ -214,17 +230,61 @@ class BasePipelineExecutionService(ABC):
     @abstractmethod
     def run_generate(
         self,
-        work_units: Sequence["PipelineWorkUnit"],
-    ) -> Tuple[PipelineDelta, ...]:
-        """Run generate across the given work units and return one delta per pipeline."""
+        *,
+        flowgroups_by_pipeline: Mapping[str, Sequence["FlowGroupContext"]],
+        substitution_managers: Mapping[str, "SubstitutionManager"],
+        output_dirs: Mapping[str, Optional[Path]],
+        discovery_errors: Mapping[str, str],
+        output_dir: Optional[Path],
+        project_config: Optional["ProjectConfig"],
+        project_root: Path,
+        max_workers: Optional[int] = None,
+    ) -> Dict[str, tuple[str, ...]]:
+        """Run generate across the flat worklist; return per-pipeline filenames.
+
+        The flat four-map shape — produced by
+        ``flowgroup_worklist_builder.build_flowgroup_worklist`` with a REAL
+        ``output_dir`` (unlike validate's ``None``) — mirrors
+        :meth:`run_validate`, plus the generate-only extras the gate/commit
+        driver needs: ``output_dir`` (env-level, for the single whole-env
+        wipe), ``project_config`` (gates the test-reporting hook), and
+        ``project_root``. ``flowgroups_by_pipeline`` is keyed in pipeline-input
+        order; ``discovery_errors`` maps a pipeline to its discovery-failure
+        message (a non-empty map aborts the whole batch — generate is
+        all-or-nothing).
+
+        Drives the consolidated flat per-flowgroup engine in
+        ``mode="generate"`` (codegen + Black-format in the worker), applies the
+        all-or-nothing gate (RAISES on any failure, before any write), then
+        commits each clean pipeline. Returns ``{pipeline -> generated
+        filenames}`` for the committed pipelines, in input order; the
+        per-pipeline :class:`PipelineDelta`s flow out-of-band via the
+        ``on_generate_pipeline_complete`` callback registered on the concrete
+        service.
+
+        :raises LHPError: the sole failure's error, or ``LHP-VAL-902`` (many);
+            also raised for a non-empty ``discovery_errors``.
+        """
         raise NotImplementedError
 
     @abstractmethod
     def run_validate(
         self,
-        work_units: Sequence["PipelineWorkUnit"],
+        *,
+        flowgroups_by_pipeline: Mapping[str, Sequence["FlowGroupContext"]],
+        substitution_managers: Mapping[str, "SubstitutionManager"],
+        output_dirs: Mapping[str, Optional[Path]],
+        discovery_errors: Mapping[str, str],
     ) -> Tuple["PipelineValidationOutcome", ...]:
-        """Run validate across the given work units and return one outcome per pipeline."""
+        """Run validate across the flat worklist and return one outcome per pipeline.
+
+        The flat four-map shape — produced by
+        ``flowgroup_worklist_builder.build_flowgroup_worklist`` — replaces the
+        legacy ``Sequence[PipelineWorkUnit]`` input: ``flowgroups_by_pipeline``
+        keyed in pipeline-input order, the per-pipeline ``substitution_managers``
+        and ``output_dirs``, and ``discovery_errors`` mapping a pipeline to its
+        discovery-failure message.
+        """
         raise NotImplementedError
 
 

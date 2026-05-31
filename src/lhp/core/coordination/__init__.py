@@ -1,8 +1,11 @@
-"""Cross-pipeline coordination: parallel execution and Phase-A/B workers.
+"""Cross-pipeline coordination: the consolidated flat per-flowgroup engine.
 
-This package wraps :class:`concurrent.futures.ProcessPoolExecutor` for
-both generation and validation, plus the worker entrypoints that ship
-across the ``spawn`` boundary. Also hosts:
+This package drives a single :class:`concurrent.futures.ProcessPoolExecutor`
+fan-out engine (:func:`._pool._run_flowgroup_pool_core`, ``mode`` the only
+fork) for both generation and validation, with the single-flowgroup worker
+seam in :mod:`._flowgroup_pool` shipping across the ``spawn`` boundary. The
+orchestrator-facing facade is :class:`PipelineExecutionService`
+(:mod:`.executor`). Also hosts:
 
 - :class:`ActionOrchestrator` — top-level orchestration entrypoint
   (deferred behind ``__getattr__`` to break the
@@ -13,33 +16,26 @@ Public response DTOs (``GenerationResponse``, ``BatchGenerationResponse``,
 (``ValidationIssueView``) live in :mod:`lhp.api.responses` /
 :mod:`lhp.api.views`; this package no longer re-exports them.
 
-The free functions exported here are entrypoints for multiprocessing
-workers. Workers reference them by import path; renaming them would
-break pickle-by-name across the process boundary.
+The engine internals (``_run_flowgroup_pool_core`` and its ``mode`` fork)
+are NOT exported from this package surface (constitution §4.6);
+the worker-seam symbols re-exported from :mod:`.executor` form the
+pickle-by-name contract and must not be renamed without updating workers.
 """
 
 from typing import TYPE_CHECKING, Any
 
 from lhp.core.coordination.bootstrap_service import FlowgroupBootstrapService
 from lhp.core.coordination.executor import (
-    FlowgroupValidationResult,
     OnValidationComplete,
     PipelineExecutionService,
     PipelineValidationOutcome,
-    ValidationAssembler,
-    _GenerateWorkerState,
-    _ValidateWorkerState,
-    run_generate_pool,
-    run_validate_pool,
 )
 from lhp.core.coordination.monitoring_pipeline_builder import (
     MonitoringBuildResult,
     MonitoringPipelineBuilder,
 )
 from lhp.core.coordination.monitoring_service import MonitoringFinalizerService
-from lhp.core.coordination.processor import PipelineProcessor
 from lhp.core.coordination.validation_service import ValidationService
-from lhp.models.processing import PipelineWorkUnit
 
 if TYPE_CHECKING:
     from lhp.core.coordination.orchestrator import ActionOrchestrator
@@ -61,19 +57,11 @@ def __getattr__(name: str) -> Any:
 __all__ = [
     "ActionOrchestrator",
     "FlowgroupBootstrapService",
-    "FlowgroupValidationResult",
     "MonitoringBuildResult",
     "MonitoringFinalizerService",
     "MonitoringPipelineBuilder",
     "OnValidationComplete",
     "PipelineExecutionService",
-    "PipelineProcessor",
     "PipelineValidationOutcome",
-    "PipelineWorkUnit",
-    "ValidationAssembler",
     "ValidationService",
-    "_GenerateWorkerState",
-    "_ValidateWorkerState",
-    "run_generate_pool",
-    "run_validate_pool",
 ]

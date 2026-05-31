@@ -10,6 +10,88 @@ from lhp.api import LakehousePlumberApplicationFacade
 from lhp.core.coordination.layers import build_facade_orchestrator
 from tests.helpers import read_generated_pipeline
 
+# Flat-engine generate-gate injection helpers.
+# Shared by the TestGeneratePipelinesByFields failure-mode tests. They drive the
+# REAL orchestrator ``generate_pipelines`` (and therefore the real generate
+# gate) while swapping the engine's two module-level seams — the spawn pool and
+# the per-flowgroup worker — exactly as ``tests/core/coordination/
+# test_flowgroup_pool.py`` does. The fake worker returns a canned
+# ``FlowgroupOutcome`` per (pipeline, flowgroup_name); pipelines without a canned
+# failure get an ok-with-code outcome (the gate raises before commit on the
+# failing ones, so the project's flowgroups are never really codegen'd).
+
+
+class _SyncGenerateExecutor:
+    """Synchronous in-process stand-in for ``ProcessPoolExecutor``.
+
+    Runs each submitted callable eagerly and returns an already-completed
+    Future, keeping the engine's submit / as_completed / result call shape while
+    removing the spawn boundary (so the locally-defined fake worker need not
+    pickle). Accepts and ignores the pool kwargs the engine passes.
+    """
+
+    def __init__(self, *args, **kwargs) -> None:
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def submit(self, fn, /, *args, **kwargs):
+        from concurrent.futures import Future
+
+        fut: Future = Future()
+        try:
+            fut.set_result(fn(*args, **kwargs))
+        except Exception as exc:  # pragma: no cover - fake worker never raises
+            fut.set_exception(exc)
+        return fut
+
+
+def _failure_outcome(pipeline, *, lhp_error=None, errors=()):
+    """Build a generate-mode failure ``FlowgroupOutcome`` for ``pipeline``.
+
+    ``lhp_error`` rides the structured channel (arm 1 of
+    ``pipeline_failure_descriptor`` → verbatim single re-raise / 902 listing);
+    ``errors`` rides the degraded string channel (arm 2 → rebuilt 901).
+    """
+    from lhp.models.processing import FlowgroupOutcome
+
+    return FlowgroupOutcome.failure(
+        pipeline, f"{pipeline}_fg", lhp_error=lhp_error, errors=tuple(errors)
+    )
+
+
+def _install_fake_generate_worker(monkeypatch, outcomes_by_key):
+    """Swap the engine's spawn pool + worker for in-process fakes.
+
+    ``outcomes_by_key`` maps ``(pipeline, flowgroup_name)`` to the canned
+    failure ``FlowgroupOutcome`` the worker returns; any other flowgroup gets a
+    success outcome carrying trivial formatted code (so a clean pipeline would
+    commit, though the failing ones make the gate raise first).
+    """
+    from lhp.core.coordination import _pool as fe
+    from lhp.models.processing import FlowgroupOutcome
+
+    def _fake_worker(fg_ctx, *, mode):
+        assert mode == "generate"
+        pipeline = fg_ctx.flowgroup.pipeline
+        fg_name = fg_ctx.flowgroup.flowgroup
+        canned = outcomes_by_key.get((pipeline, fg_name))
+        if canned is not None:
+            return canned
+        return FlowgroupOutcome.ok(
+            pipeline,
+            fg_name,
+            resolved_flowgroup=fg_ctx.flowgroup,
+            formatted_code="x = 1\n",
+        )
+
+    monkeypatch.setattr(fe, "ProcessPoolExecutor", _SyncGenerateExecutor)
+    monkeypatch.setattr(fe, "_process_one_flowgroup", _fake_worker)
+
 
 def _build_multipipeline_project(tmpdir, pipeline_names):
     """Build a multi-pipeline project with one flowgroup per pipeline.
@@ -563,12 +645,8 @@ class TestOrchestratorDependencyInjection:
         from lhp.core.coordination.validation_service import ValidationService
         from lhp.core.loaders import ProjectConfigLoader
         from lhp.core.processing import TemplateEngine
-        from lhp.core.processing.flowgroup_resolver import (
-            FlowgroupResolutionService,
-        )
-        from lhp.core.registry import (
-            OrchestrationDependencies,
-        )
+        from lhp.core.processing.flowgroup_resolver import FlowgroupResolutionService
+        from lhp.core.registry import OrchestrationDependencies
         from lhp.core.validators import ConfigValidator
         from lhp.core.validators.secret_validator import SecretValidator
         from lhp.presets.preset_manager import PresetManager
@@ -625,9 +703,7 @@ class TestOrchestratorDependencyInjection:
 
     def test_dependency_factories_work(self):
         """Test that dependency factories can create instances."""
-        from lhp.core.registry import (
-            DefaultSubstitutionFactory,
-        )
+        from lhp.core.registry import DefaultSubstitutionFactory
 
         with tempfile.TemporaryDirectory() as tmpdir:
             substitution_file = Path(tmpdir) / "test.yaml"
@@ -704,14 +780,31 @@ class TestGeneratePipelinesByFields:
             )
 
             # Reference: repeated single-pipeline calls via the orchestrator's
-            # ``generate_pipelines(pipeline_filter=...)`` form.
+            # ``generate_pipelines(pipeline_filter=...)`` form — the same path
+            # the CLI drives for ``lhp generate -p <pipeline>`` (which resolves
+            # ``-p`` to a single-element list; see
+            # ``generate_command._get_pipeline_names``).
+            #
+            # Each ``generate_pipelines`` invocation is an independent FULL
+            # regenerate of its ``output_dir``: the commit step wipes the whole
+            # env output tree once up front (``_commit._wipe_env_output_dir``)
+            # before writing only the pipelines it was asked for. So each
+            # single-pipeline call gets its OWN output dir (``ref/<name>``) — a
+            # faithful model of three separate ``lhp generate -p <name>`` runs,
+            # each into its own ``generated/<env>``. Pointing all three at ONE
+            # shared dir would (correctly) have each run wipe the previous run's
+            # output, leaving only the last pipeline — which is the
+            # full-regenerate contract, not a comparable reference.
             ref_orch = build_facade_orchestrator(project_root, max_workers=1)
-            ref_out_dir = project_root / "ref"
+            ref_out_dirs = {
+                name: project_root / "ref" / name
+                for name in ["p_alpha", "p_beta", "p_gamma"]
+            }
             single = {
                 name: ref_orch.generate_pipelines(
                     pipeline_filter=name,
                     env="dev",
-                    output_dir=ref_out_dir,
+                    output_dir=ref_out_dirs[name],
                 )[name]
                 for name in ["p_alpha", "p_beta", "p_gamma"]
             }
@@ -731,11 +824,11 @@ class TestGeneratePipelinesByFields:
             for name in single:
                 assert set(plural[name]) == set(single[name])
                 for filename in single[name]:
-                    single_code = (ref_out_dir / name / filename).read_text()
+                    single_code = (ref_out_dirs[name] / name / filename).read_text()
                     plural_code = (plural_out_dir / name / filename).read_text()
-                    assert plural_code == single_code, (
-                        f"Content mismatch for {name}/{filename}"
-                    )
+                    assert (
+                        plural_code == single_code
+                    ), f"Content mismatch for {name}/{filename}"
 
     def test_max_workers_1_matches_max_workers_8(self):
         """``max_workers=1`` (sequential) and ``max_workers=8`` produce
@@ -833,16 +926,19 @@ class TestGeneratePipelinesByFields:
             assert sorted(seen) == ["c1", "c2", "c3"]
 
     def test_single_lhp_failure_unwraps_original(self, monkeypatch):
-        """When the pool returns one failed delta with a live lhp_error,
-        orchestrator re-raises the original LHPError unchanged (preserving
-        the original code, not wrapping as LHP-GEN-901 or LHP-VAL-902)."""
-        from lhp.core.coordination import executor as executor_module
-        from lhp.models.processing import PipelineDelta
-        from lhp.errors import (
-            ErrorCategory,
-            LHPError,
-            LHPValidationError,
-        )
+        """One failing flowgroup carrying a live lhp_error → the orchestrator
+        re-raises the original LHPError unchanged (original code preserved,
+        not wrapped as LHP-GEN-901 or LHP-VAL-902).
+
+        Migrated from the deleted pipeline-batched pool-runner monkeypatch
+        (which returned per-pipeline ``PipelineDelta``s) to the flat engine +
+        generate gate. Drives the REAL ``generate_pipelines`` but swaps the engine's
+        spawn pool for a synchronous executor and the per-flowgroup worker for a
+        fake returning canned :class:`FlowgroupOutcome`s — so the gate's
+        single-vs-902 shaping (``_generate_gate.gate_or_raise`` /
+        ``raise_aggregate_failure``) is the real code under test.
+        """
+        from lhp.errors import ErrorCategory, LHPError, LHPValidationError
 
         original = LHPValidationError(
             category=ErrorCategory.VALIDATION,
@@ -851,23 +947,16 @@ class TestGeneratePipelinesByFields:
             details="action 'foo' references missing source 'bar'",
             context={"pipeline": "p_alpha"},
         )
-        failed_delta = PipelineDelta(
-            pipeline_name="p_alpha",
-            success=False,
-            lhp_error=original,
-            error_type="LHPValidationError",
-            error_message=str(original),
-            error_traceback="(synthetic traceback)",
-        )
-
-        def fake_pool(**kwargs):
-            return ([], [failed_delta])
-
-        monkeypatch.setattr(executor_module, "run_generate_pool", fake_pool)
+        # p_alpha's sole flowgroup fails with the live error; arm 1 of
+        # pipeline_failure_descriptor carries it for verbatim single re-raise.
+        outcomes = {
+            ("p_alpha", "p_alpha_fg"): _failure_outcome("p_alpha", lhp_error=original)
+        }
 
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = _build_multipipeline_project(tmpdir, ["p_alpha"])
             orch = build_facade_orchestrator(project_root, max_workers=1)
+            _install_fake_generate_worker(monkeypatch, outcomes)
 
             with pytest.raises(LHPError) as excinfo:
                 orch.generate_pipelines(
@@ -876,18 +965,18 @@ class TestGeneratePipelinesByFields:
                     output_dir=project_root / "out",
                 )
 
-            # The orchestrator must re-raise the ORIGINAL LHPError unchanged.
-            # Critically, the code is LHP-VAL-007 (not LHP-GEN-901 from
-            # from_worker_exception and not LHP-VAL-902 from the aggregator).
+            # Single failure → the ORIGINAL LHPError re-raised verbatim.
+            # Code is LHP-VAL-007 (not LHP-GEN-901, not LHP-VAL-902).
             assert excinfo.value is original
             assert excinfo.value.code == "LHP-VAL-007"
 
     def test_multi_lhp_failure_aggregates_with_902(self, monkeypatch):
-        """When the pool returns multiple failed deltas with distinct
-        LHPError codes, orchestrator raises LHP-VAL-902 with per-pipeline
-        codes surfaced in the context dict."""
-        from lhp.core.coordination import executor as executor_module
-        from lhp.models.processing import PipelineDelta
+        """Multiple failing flowgroups with distinct LHPError codes → the gate
+        raises LHP-VAL-902 with per-pipeline codes in the context dict.
+
+        Migrated off the deleted pipeline-batched pool runner the same way as
+        ``test_single_lhp_failure_unwraps_original``.
+        """
         from lhp.errors import (
             ErrorCategory,
             LHPConfigError,
@@ -913,32 +1002,18 @@ class TestGeneratePipelinesByFields:
             title="Duplicate flowgroup",
             details="gamma details",
         )
-        deltas = [
-            PipelineDelta(
-                pipeline_name=name,
-                success=False,
-                lhp_error=err,
-                error_type=type(err).__name__,
-                error_message=str(err),
-                error_traceback="(synthetic)",
-            )
-            for name, err in (
-                ("p_alpha", err_alpha),
-                ("p_beta", err_beta),
-                ("p_gamma", err_gamma),
-            )
-        ]
-
-        def fake_pool(**kwargs):
-            return ([], deltas)
-
-        monkeypatch.setattr(executor_module, "run_generate_pool", fake_pool)
+        outcomes = {
+            ("p_alpha", "p_alpha_fg"): _failure_outcome("p_alpha", lhp_error=err_alpha),
+            ("p_beta", "p_beta_fg"): _failure_outcome("p_beta", lhp_error=err_beta),
+            ("p_gamma", "p_gamma_fg"): _failure_outcome("p_gamma", lhp_error=err_gamma),
+        }
 
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = _build_multipipeline_project(
                 tmpdir, ["p_alpha", "p_beta", "p_gamma"]
             )
             orch = build_facade_orchestrator(project_root, max_workers=3)
+            _install_fake_generate_worker(monkeypatch, outcomes)
 
             with pytest.raises(LHPError) as excinfo:
                 orch.generate_pipelines(
@@ -947,8 +1022,8 @@ class TestGeneratePipelinesByFields:
                     output_dir=project_root / "out",
                 )
 
-            # Aggregator wraps as LHP-VAL-902 with per-pipeline original
-            # codes surfaced in the context dict (not nested panels).
+            # Many failures → synthesized LHP-VAL-902 with per-pipeline original
+            # codes surfaced in the context dict.
             assert excinfo.value.code == "LHP-VAL-902"
             ctx = excinfo.value.context
             assert ctx["failure_count"] == 3
@@ -957,34 +1032,27 @@ class TestGeneratePipelinesByFields:
             assert "LHP-VAL-019" in ctx["p_gamma"]
 
     def test_single_non_lhp_failure_wraps_as_901(self, monkeypatch):
-        """When the pool returns one failed delta with lhp_error=None
-        (a non-LHP worker exception like KeyError), orchestrator wraps
-        the failure via lhp_error_from_worker_failure → LHP-GEN-901."""
-        from lhp.core.coordination import executor as executor_module
-        from lhp.models.processing import PipelineDelta
+        """One failing flowgroup whose error rode the degraded string channel
+        (no live LHPError — e.g. a worker KeyError) → the gate rebuilds it via
+        ``lhp_error_from_worker_failure`` → LHP-GEN-901.
+
+        Migrated off the deleted pipeline-batched pool runner; the non-LHP
+        failure now travels on ``FlowgroupOutcome.errors`` (arm 2 of
+        pipeline_failure_descriptor) and
+        the single-failure gate arm rebuilds the 901.
+        """
         from lhp.errors import LHPError
 
-        failed_delta = PipelineDelta(
-            pipeline_name="p_alpha",
-            success=False,
-            lhp_error=None,
-            error_type="KeyError",
-            error_message="'missing_substitution'",
-            error_traceback=(
-                "Traceback (most recent call last):\n"
-                "  File 'worker.py', line 1, in <module>\n"
-                "KeyError: 'missing_substitution'"
-            ),
-        )
-
-        def fake_pool(**kwargs):
-            return ([], [failed_delta])
-
-        monkeypatch.setattr(executor_module, "run_generate_pool", fake_pool)
+        outcomes = {
+            ("p_alpha", "p_alpha_fg"): _failure_outcome(
+                "p_alpha", errors=("KeyError: 'missing_substitution'",)
+            )
+        }
 
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = _build_multipipeline_project(tmpdir, ["p_alpha"])
             orch = build_facade_orchestrator(project_root, max_workers=1)
+            _install_fake_generate_worker(monkeypatch, outcomes)
 
             with pytest.raises(LHPError) as excinfo:
                 orch.generate_pipelines(
@@ -993,8 +1061,7 @@ class TestGeneratePipelinesByFields:
                     output_dir=project_root / "out",
                 )
 
-            # Non-LHP worker exceptions are reconstructed via
-            # from_worker_exception → LHP-GEN-901.
+            # Non-LHP worker failures are reconstructed → LHP-GEN-901.
             assert excinfo.value.code == "LHP-GEN-901"
 
 
@@ -1021,9 +1088,9 @@ class TestValidatePipelinesByFields:
 
             assert len(outcomes) == 3
             for outcome in outcomes:
-                assert outcome.success, (
-                    f"Pipeline {outcome.pipeline} failed unexpectedly: {outcome.errors}"
-                )
+                assert (
+                    outcome.success
+                ), f"Pipeline {outcome.pipeline} failed unexpectedly: {outcome.errors}"
                 assert outcome.errors == ()
                 assert outcome.warnings == ()
 
@@ -1080,7 +1147,9 @@ class TestValidatePipelinesByFields:
             orch = build_facade_orchestrator(project_root)
 
             outcomes = orch.validate_pipelines(
-                pipeline_filter="shim_pipe", env="dev", include_tests=True,
+                pipeline_filter="shim_pipe",
+                env="dev",
+                include_tests=True,
             )
 
             assert len(outcomes) == 1

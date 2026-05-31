@@ -52,7 +52,7 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | **VAL-010** | Both `__eventlog_monitoring` alias and real pipeline name in config | Use only one — alias or real name |
 | **VAL-011** | Multiple validation causes; commonly: eventlog alias misuse OR schema column-type syntax. See source for the specific site. | Check the error context for the specific cause |
 | **VAL-012** | Invalid source format (string where dict needed) | Provide full source config with `type`, `path`, etc. |
-| **VAL-902** | Multi-pipeline validation aggregator — N pipelines failed during a parallel `lhp generate` run (raised by orchestrator after worker results are joined) | Re-run with `--verbose` for full stack; check `~/.lhp/logs/` for per-pipeline tracebacks; inspect the per-pipeline rows in the summary table |
+| **VAL-902** | All-or-nothing aggregator — one or more flowgroups failed anywhere in a parallel `lhp generate` run (per-flowgroup validation, codegen, Black `LHP-CFG-031`, cross-flowgroup conflict, or copy conflict `LHP-VAL-019`); raised by the coordinator gate after all worker results are joined, before any files are written | Re-run with `--verbose` for full stack; check `~/.lhp/logs/` for per-flowgroup tracebacks; every listed failure must be fixed — the run wrote zero files |
 
 ## I/O Errors (LHP-IO)
 
@@ -78,17 +78,23 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | Code | Trigger | Fix |
 |------|---------|-----|
 | **GEN-001** | Internal-error guard: preflight bypassed for bundle resource generation (see below) | Programming bug — invoke `bundle.preflight.validate_catalog_schema` first |
-| **GEN-901** | Worker exception during a parallel `lhp generate` run — a child process raised an exception and the orchestrator reconstructed it via `lhp_error_from_worker_failure` | Re-run with `--verbose` for full stack; check `~/.lhp/logs/` for the worker traceback |
+| **GEN-901** | Worker exception during a parallel `lhp generate` run — a child process (one flowgroup task) raised an exception and the orchestrator reconstructed it via `lhp_error_from_worker_failure` | Re-run with `--verbose` for full stack; check `~/.lhp/logs/` for the worker traceback |
 | **GEN-902** | Unexpected non-LHP, non-Bundle exception wrapped by `from_unexpected_exception` (CLI fallback path) | Re-run with `--verbose` for full stack; check `~/.lhp/logs/` for the traceback |
 
-> **Note (0.8.7+):** `GEN-901`, `GEN-902`, and `VAL-902` are the codes users will most often encounter after a parallel-generation failure — they wrap worker-side exceptions and aggregate multi-pipeline failures from the orchestrator. The structured traceback always lands in `~/.lhp/logs/` regardless of terminal verbosity.
+> **Note (0.8.7+):** `GEN-901`, `GEN-902`, and `VAL-902` are the codes users will most often encounter after a parallel-generation failure — they wrap worker-side exceptions and aggregate failures from the coordinator. `lhp generate` parallelizes at the **flowgroup** level (one worker task per flowgroup) and is **all-or-nothing**: `VAL-902` aggregates every flowgroup that failed anywhere in the run, and when it fires **no files are written**. The structured traceback always lands in `~/.lhp/logs/` regardless of terminal verbosity.
 
 ## Pre-flight validation: LHP-CFG-023, LHP-CFG-026, LHP-CFG-032
 
 `lhp generate` runs these preflight checks **before** any side effects
 (directory wipes, code generation, bundle YAML writes). When preflight
 fails, `generate` aborts before touching the filesystem — `generated/<env>/`
-is left intact, not wiped. `lhp validate` runs the **same** preflight
+is left intact, not wiped. This untouched-output guarantee is not limited to
+preflight: `lhp generate` is **all-or-nothing** — if *any* flowgroup fails
+anywhere in the run (per-flowgroup validation, codegen, Black formatting
+`LHP-CFG-031`, a cross-flowgroup conflict, or a custom-module copy conflict
+`LHP-VAL-019`), the run writes **zero** files and leaves the output tree
+untouched, aggregating multiple failures into a single `LHP-VAL-902`. `lhp
+validate` runs the **same** preflight
 checks (it gained `--no-bundle` and `--pipeline-config` / `-pc` to match;
 on a project containing `databricks.yml` it likewise requires `-pc` or
 fails with `LHP-CFG-023`). `LHP-CFG-023` and `LHP-CFG-026` surface as

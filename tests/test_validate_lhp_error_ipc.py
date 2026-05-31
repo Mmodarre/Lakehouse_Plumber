@@ -1,52 +1,52 @@
 """IPC round-trip tests for LHPError instances on the validate path.
 
-Phase D's structured ``lhp_error`` field on
-:class:`FlowgroupValidationResult` carries the live worker exception
-across the spawn boundary. The worker pickles the result via
-:meth:`LHPError.__reduce__`; the main thread unpickles it without
-losing subclass identity, ``code``, ``context``, or ``suggestions``.
+The consolidated flat engine carries the live worker exception across the
+``spawn`` boundary on :class:`~lhp.models.processing.FlowgroupOutcome`'s
+structured ``lhp_error`` field. The worker pickles the outcome via the pool's
+result channel (which uses ``pickle``); the live :class:`~lhp.errors.LHPError`
+inside it travels through :meth:`LHPError.__reduce__`, so the main thread
+unpickles it without losing subclass identity, ``code``, ``context``, or
+``suggestions``. The validate consumer
+(:func:`._pool.assemble_validate_outcomes`) then folds that
+``lhp_error`` into :attr:`PipelineValidationOutcome.lhp_errors`.
 
 These tests cover:
 
-- Plain :class:`LHPValidationError` round-trip on
-  :class:`FlowgroupValidationResult`.
+- Plain :class:`LHPValidationError` round-trip on :class:`FlowgroupOutcome`.
 - Subclasses with custom ``__init__`` (:class:`PythonFunctionConflictError`,
   :class:`MultiDocumentError`) — they REQUIRE a working ``__reduce__``
   override.
 - Non-LHP exceptions fall back to the string projection (``errors``
   populated, ``lhp_error`` None).
-- Orchestrator CDC fan-in path lands LHPErrors in
-  :attr:`PipelineValidationOutcome.lhp_errors`, not just ``errors``.
+- End-to-end: an LHPError on a worker's ``FlowgroupOutcome`` survives the
+  pickle and surfaces in :attr:`PipelineValidationOutcome.lhp_errors` (not
+  just ``errors``) through the real assemble fold.
 """
 
 from __future__ import annotations
 
 import pickle
 from pathlib import Path
-from unittest.mock import MagicMock
 
-from lhp.api.views import ValidationIssueView
-from lhp.core.coordination.executor import (
-    FlowgroupValidationResult,
-    PipelineValidationOutcome,
-)
-from lhp.errors import PythonFunctionConflictError
+from lhp.core.coordination._pool import _PipelinePoolResult, assemble_validate_outcomes
 from lhp.errors import (
     ErrorCategory,
     LHPError,
     LHPValidationError,
     MultiDocumentError,
+    PythonFunctionConflictError,
 )
+from lhp.models.processing import FlowgroupOutcome
 
 
-def test_lhp_error_survives_worker_to_main_via_validation_issue():
-    """Round-trip a FlowgroupValidationResult carrying an LHPError.
+def test_lhp_error_survives_worker_to_main_on_flowgroup_outcome():
+    """Round-trip a FlowgroupOutcome carrying an LHPError.
 
-    Mirrors the worker→main IPC path: the worker constructs the
-    result, ``pickle.dumps`` (what ProcessPoolExecutor uses to send
-    over the spawn channel), then the main thread ``pickle.loads`` it
-    and rebuilds a :class:`ValidationIssue`. ``code``, ``title``,
-    ``details``, ``context``, and subclass identity must survive.
+    Mirrors the worker->main IPC path: the worker builds a failure outcome
+    via :meth:`FlowgroupOutcome.failure`, ``pickle.dumps`` (what the process
+    pool uses to send the result over the spawn channel), then the main
+    thread ``pickle.loads`` it. ``code``, ``title``, ``details``,
+    ``context``, ``suggestions``, and subclass identity must survive.
     """
     err = LHPValidationError(
         category=ErrorCategory.VALIDATION,
@@ -56,14 +56,17 @@ def test_lhp_error_survives_worker_to_main_via_validation_issue():
         context={"action": "load_x", "missing_view": "x_v"},
         suggestions=["Define x_v first", "Check spelling"],
     )
-    result = FlowgroupValidationResult(
-        pipeline="bronze",
-        flowgroup_name="fg1",
-        errors=(),
+    outcome = FlowgroupOutcome.failure(
+        "bronze",
+        "fg1",
         lhp_error=err,
     )
-    restored = pickle.loads(pickle.dumps(result))
+    restored = pickle.loads(pickle.dumps(outcome))
 
+    assert isinstance(restored, FlowgroupOutcome)
+    assert restored.success is False
+    assert restored.pipeline == "bronze"
+    assert restored.flowgroup_name == "fg1"
     assert isinstance(restored.lhp_error, LHPValidationError)
     assert restored.lhp_error.code == "LHP-VAL-007"
     assert restored.lhp_error.title == "Test validation error"
@@ -72,55 +75,40 @@ def test_lhp_error_survives_worker_to_main_via_validation_issue():
         "missing_view": "x_v",
     }
     assert restored.lhp_error.suggestions == ["Define x_v first", "Check spelling"]
+    # Per-fg string and structured channels are mutually exclusive on failure
+    # when an LHPError is supplied: the live error rides the structured channel.
     assert restored.errors == ()
-
-    # ValidationIssue rebuild contract from layers._on_outcome.
-    issue = ValidationIssueView(
-        code=restored.lhp_error.code,
-        severity="error",
-        title=restored.lhp_error.title,
-        details=restored.lhp_error.details,
-        location="bronze",
-        lhp_error=restored.lhp_error,
-    )
-    assert issue.code == "LHP-VAL-007"
-    assert issue.lhp_error is restored.lhp_error
 
 
 def test_non_lhp_exception_no_lhp_error_field():
     """Non-LHP exceptions fall back to the string projection.
 
     The worker chooses the bucket based on ``isinstance(exc, LHPError)``.
-    A KeyError → ``errors=(string,)``, ``lhp_error=None``.
+    A KeyError -> ``errors=(string,)``, ``lhp_error=None``.
     """
-    result = FlowgroupValidationResult(
-        pipeline="bronze",
-        flowgroup_name="fg1",
+    outcome = FlowgroupOutcome.failure(
+        "bronze",
+        "fg1",
         errors=("Flowgroup 'fg1': KeyError: 'missing_key'",),
-        lhp_error=None,
     )
-    restored = pickle.loads(pickle.dumps(result))
+    restored = pickle.loads(pickle.dumps(outcome))
     assert restored.lhp_error is None
     assert restored.errors == ("Flowgroup 'fg1': KeyError: 'missing_key'",)
+    assert restored.success is False
 
 
 def test_python_function_conflict_error_round_trip():
     """PythonFunctionConflictError has a custom __init__; its __reduce__
     override must keep IPC round-trip working when carried via
-    FlowgroupValidationResult.
+    FlowgroupOutcome.
     """
     err = PythonFunctionConflictError(
         destination=Path("/tmp/out/foo.py"),
         existing_source=Path("/tmp/src/a.py"),
         new_source=Path("/tmp/src/b.py"),
     )
-    result = FlowgroupValidationResult(
-        pipeline="silver",
-        flowgroup_name="fg2",
-        errors=(),
-        lhp_error=err,
-    )
-    restored = pickle.loads(pickle.dumps(result))
+    outcome = FlowgroupOutcome.failure("silver", "fg2", lhp_error=err)
+    restored = pickle.loads(pickle.dumps(outcome))
 
     assert isinstance(restored.lhp_error, PythonFunctionConflictError)
     assert restored.lhp_error.destination == Path("/tmp/out/foo.py")
@@ -138,13 +126,8 @@ def test_multi_document_error_round_trip():
         num_documents=3,
         error_context="duplicated flowgroup definitions",
     )
-    result = FlowgroupValidationResult(
-        pipeline="gold",
-        flowgroup_name="fg3",
-        errors=(),
-        lhp_error=err,
-    )
-    restored = pickle.loads(pickle.dumps(result))
+    outcome = FlowgroupOutcome.failure("gold", "fg3", lhp_error=err)
+    restored = pickle.loads(pickle.dumps(outcome))
 
     assert isinstance(restored.lhp_error, MultiDocumentError)
     assert restored.lhp_error.file_path == Path("/tmp/fg.yaml")
@@ -153,73 +136,54 @@ def test_multi_document_error_round_trip():
     assert restored.lhp_error.code == "LHP-IO-003"
 
 
-def test_cdc_fan_in_lhp_error_carries_code():
-    """Orchestrator CDC fan-in path lands LHPErrors in ``lhp_errors``.
+def test_worker_lhp_error_surfaces_in_pipeline_outcome_lhp_errors():
+    """An LHPError on a worker outcome lands in ``lhp_errors`` post-IPC.
 
-    Unit-level test of the assembler contract: when
-    ``ValidationService.validate_cross_flowgroup`` raises an LHPError, the
-    per-pipeline outcome carries it in
-    :attr:`PipelineValidationOutcome.lhp_errors` (NOT
-    :attr:`~PipelineValidationOutcome.errors`).
+    End-to-end of the validate IPC contract: a worker's
+    :class:`FlowgroupOutcome` carrying an LHPError is pickled (the spawn
+    channel), unpickled on the main thread, bucketed into a
+    :class:`_PipelinePoolResult`, and folded by the REAL
+    :func:`assemble_validate_outcomes`. The structured error must surface in
+    :attr:`PipelineValidationOutcome.lhp_errors` (NOT the stringified
+    ``errors``), and the live instance identity is preserved across the fold.
     """
-    from lhp.core.coordination import ActionOrchestrator
-    from lhp.models import FlowGroup
-
-    # Build a synthetic flowgroup so the assembler is exercised with a
-    # non-empty pipeline (the empty-pipeline branch short-circuits).
-    fg = FlowGroup(
-        pipeline="bronze",
-        flowgroup="fg1",
-        actions=[],
-    )
-
-    cdc_err = LHPValidationError(
+    err = LHPValidationError(
         category=ErrorCategory.VALIDATION,
-        code_number="030",
-        title="CDC fan-in mismatch",
-        details="Conflicting keys across CDC sources",
+        code_number="007",
+        title="An action references an unknown view",
+        details="v_missing is not defined",
+        context={"action": "load_x"},
+        suggestions=["Define v_missing first"],
     )
+    worker_outcome = FlowgroupOutcome.failure("bronze", "fg1", lhp_error=err)
 
-    orch = ActionOrchestrator.__new__(ActionOrchestrator)
-    orch.validation = MagicMock()
-    orch.validation.validate_cross_flowgroup = MagicMock(side_effect=cdc_err)
-    orch.logger = MagicMock()
+    # The worker->main spawn hop: pickle the outcome and rebuild it.
+    restored_outcome = pickle.loads(pickle.dumps(worker_outcome))
 
-    # Re-create the assembler closure's behaviour with a single
-    # flowgroup that has no per-flowgroup errors.
-    results = [
-        FlowgroupValidationResult(
+    # The engine buckets per-pipeline results into _PipelinePoolResult; the
+    # cross-fg barrier produced no issues here (clean resolved set).
+    pool_results = [
+        _PipelinePoolResult(
             pipeline="bronze",
-            flowgroup_name="fg1",
-            errors=(),
-            lhp_error=None,
+            outcomes_in_order=(restored_outcome,),
+            cross_fg_issues=(),
+            cross_fg_errors=(),
         )
     ]
 
-    # The assembler is a nested closure inside
-    # validate_pipelines_by_fields; we test the equivalent fold here.
-    errors_list: list[str] = []
-    lhp_errors_acc: list[LHPError] = []
-    for result in results:
-        errors_list.extend(result.errors)
-        if result.lhp_error is not None:
-            lhp_errors_acc.append(result.lhp_error)
+    outcomes = assemble_validate_outcomes(pool_results, discovery_errors={})
 
-    try:
-        orch.validation.validate_cross_flowgroup([fg])
-    except LHPError as e:
-        lhp_errors_acc.append(e)
-
-    outcome = PipelineValidationOutcome(
-        pipeline="bronze",
-        errors=tuple(errors_list),
-        warnings=(),
-        success=(len(errors_list) == 0 and len(lhp_errors_acc) == 0),
-        lhp_errors=tuple(lhp_errors_acc),
-    )
-
+    assert len(outcomes) == 1
+    outcome = outcomes[0]
+    assert outcome.pipeline == "bronze"
     assert outcome.success is False
+    # Structured channel — NOT stringified into errors.
     assert outcome.errors == ()
     assert len(outcome.lhp_errors) == 1
-    assert outcome.lhp_errors[0].code == "LHP-VAL-030"
-    assert outcome.lhp_errors[0] is cdc_err
+    surfaced: LHPError = outcome.lhp_errors[0]
+    assert isinstance(surfaced, LHPValidationError)
+    assert surfaced.code == "LHP-VAL-007"
+    assert surfaced.context == {"action": "load_x"}
+    assert surfaced.suggestions == ["Define v_missing first"]
+    # Identity is preserved through the fold (the restored instance is reused).
+    assert surfaced is restored_outcome.lhp_error

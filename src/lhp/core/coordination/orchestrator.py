@@ -37,16 +37,26 @@ from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence, Tupl
 from lhp.models import FlowGroup, FlowGroupContext
 
 if TYPE_CHECKING:
-    from ..codegen.python_file_copier import CopiedModuleRecord
     from ...models.processing import PipelineDelta
+    from ..codegen.python_file_copier import CopiedModuleRecord
 
-from ...models.processing import PipelineWorkUnit
 from ...parsers.blueprint_parser import BlueprintParser
 from ...parsers.yaml_parser import CachingYAMLParser, YAMLParser
 from ...presets.preset_manager import PresetManager
 from ...utils.performance_timer import perf_timer
 from ...utils.version import (  # noqa: F401 — re-export for tests that monkeypatch `orchestrator.get_version`
     get_version,
+)
+from .._interfaces import (
+    BaseCodeGenerationService,
+    BaseDependencyAnalysisService,
+    BaseFlowgroupBootstrapService,
+    BaseFlowgroupDiscoveryService,
+    BaseFlowgroupResolutionService,
+    BaseMonitoringFinalizerService,
+    BasePipelineExecutionService,
+    BaseValidationService,
+    BaseWarningCollector,
 )
 from ..codegen.coordinator import CodeGenerationService
 from ..codegen.formatter import CodeFormatter
@@ -61,30 +71,15 @@ from ..processing.substitution import EnhancedSubstitutionManager
 from ..registry import ActionRegistry, OrchestrationDependencies
 from ..validators import ConfigValidator
 from ..validators.secret_validator import SecretValidator
-from .._interfaces import (
-    BaseCodeGenerationService,
-    BaseDependencyAnalysisService,
-    BaseFlowgroupBootstrapService,
-    BaseFlowgroupDiscoveryService,
-    BaseFlowgroupResolutionService,
-    BaseMonitoringFinalizerService,
-    BasePipelineExecutionService,
-    BaseValidationService,
-    BaseWarningCollector,
-)
+from ._flowgroup_pool import _FlowgroupWorkerState
 from .bootstrap_service import FlowgroupBootstrapService
-from .executor import (  # noqa: F401 — kept for tests that monkeypatch the symbol
+from .executor import (
     OnValidationComplete,
     PipelineExecutionService,
     PipelineValidationOutcome,
-    _GenerateWorkerState,
-    _ValidateWorkerState,
-    aggregate_generate_outcomes,
-    run_generate_pool,
-    run_validate_pool,
 )
+from .flowgroup_worklist_builder import build_flowgroup_worklist
 from .monitoring_service import MonitoringFinalizerService
-from .work_unit_builder import build_generate_work_units, build_validate_work_units
 
 
 def _auto_max_workers() -> int:
@@ -401,16 +396,34 @@ class ActionOrchestrator:
         pre_discovered_all_flowgroups: Optional[Sequence[FlowGroup]] = None,
         max_workers: Optional[int] = None,
         on_pipeline_complete: Optional[Callable[["PipelineDelta"], None]] = None,
-        on_pipeline_start: Optional[Callable[[str], None]] = None,
         warning_collector: Optional[BaseWarningCollector] = None,
     ) -> Dict[str, tuple[str, ...]]:
-        """Build work units, hand to PipelineExecutionService.run_generate, aggregate.
+        """Build the flat worklist, hand to PipelineExecutionService.run_generate.
 
         Exactly one of ``pipeline_filter`` (single pipeline by field) or
         ``pipeline_fields`` (batch by field list) may be supplied. When
         both are ``None`` no pipelines are generated and an empty mapping
         is returned (the caller is expected to discover the pipeline
         list first; see :class:`GenerationFacade`).
+
+        Routes through the consolidated flat per-flowgroup engine,
+        mirroring :meth:`validate_pipelines`:
+        :func:`flowgroup_worklist_builder.build_flowgroup_worklist` produces the
+        flat four-map shape — here with a REAL ``output_dir`` (generate writes;
+        validate passes ``None``), so each pipeline's ``output_dirs`` entry is
+        ``output_dir / <pipeline>`` (and is created on disk by the builder). The
+        per-pipeline cross-flowgroup validation now runs on the RESOLVED
+        flowgroups INSIDE the engine (§9.24).
+
+        :meth:`PipelineExecutionService.run_generate` drives the engine in
+        ``mode="generate"``, applies the all-or-nothing GATE (RAISES on any
+        failure, before any write — so this method no longer wraps the call in
+        an aggregate-and-raise step), then commits each clean pipeline and
+        returns ``{pipeline -> generated filenames}`` (the per-pipeline
+        :class:`PipelineDelta`s flow through ``on_pipeline_complete``). A
+        per-pipeline discovery failure (carried in the worklist's
+        ``discovery_errors`` map) aborts the whole batch inside ``run_generate``
+        — generate is all-or-nothing.
         """
         if pipeline_filter is not None and pipeline_fields is not None:
             raise ValueError(
@@ -428,63 +441,69 @@ class ActionOrchestrator:
         self.logger.info(
             f"Starting batch pipeline generation: {len(effective_fields)} pipeline(s) for env: {env}"
         )
-        work_units = self._build_generate_work_units(
+        (
+            flowgroups_by_pipeline,
+            substitution_managers,
+            output_dirs,
+            discovery_errors,
+        ) = build_flowgroup_worklist(
+            self,
             pipeline_fields=effective_fields,
             env=env,
             output_dir=output_dir,
-            specific_flowgroups=specific_flowgroups,
-            include_tests=include_tests,
-            pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
+            pre_discovered_all_flowgroups=(
+                list(pre_discovered_all_flowgroups)
+                if pre_discovered_all_flowgroups is not None
+                else None
+            ),
             warning_collector=warning_collector,
         )
         self.execution.configure_generate(
             max_workers=max_workers if max_workers is not None else self.max_workers,
-            on_pipeline_start=on_pipeline_start,
             on_pipeline_complete=on_pipeline_complete,
             environment=env,
             include_tests=include_tests,
+            validation_service=self.validation,
             worker_state=self._build_generate_worker_state(env, include_tests),
         )
-        return aggregate_generate_outcomes(self.execution.run_generate(work_units))
+        return self.execution.run_generate(
+            flowgroups_by_pipeline=flowgroups_by_pipeline,
+            substitution_managers=substitution_managers,
+            output_dirs=output_dirs,
+            discovery_errors=discovery_errors,
+            output_dir=output_dir,
+            project_config=self.project_config,
+            project_root=self.project_root,
+            max_workers=max_workers,
+        )
 
     def _build_generate_worker_state(
         self,
         env: str,
         include_tests: bool,
-    ) -> _GenerateWorkerState:
-        return _GenerateWorkerState(
+    ) -> _FlowgroupWorkerState:
+        """Build the unified worker state for the flat-engine generate path.
+
+        Generate uses the same :class:`_FlowgroupWorkerState` carrier as
+        validate — identical to
+        :meth:`_build_validate_worker_state` (the generate-only collaborators
+        ``code_generator`` / ``formatter`` / ``environment`` are genuinely
+        consumed here, unlike in validate mode). The per-pipeline
+        ``substitution_managers`` / ``pipeline_output_dirs`` are placeholders;
+        :meth:`PipelineExecutionService.run_generate` replaces them per batch
+        from the worklist builder's maps. ``project_config`` / ``project_root``
+        are deliberately NOT on this carrier (they are commit-step inputs the
+        coordinator passes to ``run_generate`` separately, never crossing the
+        spawn boundary).
+        """
+        return _FlowgroupWorkerState(
             processor=self.processing,
+            substitution_managers={},
+            include_tests=include_tests,
             code_generator=self.codegen,
             formatter=self._formatter,
-            substitution_managers={},
             pipeline_output_dirs={},
             environment=env,
-            project_root=self.project_root,
-            project_config=self.project_config,
-            include_tests=include_tests,
-        )
-
-    def _build_generate_work_units(
-        self,
-        *,
-        pipeline_fields: Sequence[str],
-        env: str,
-        output_dir: Optional[Path],
-        specific_flowgroups: Optional[List[str]],
-        include_tests: bool,
-        pre_discovered_all_flowgroups: Optional[Sequence[FlowGroup]],
-        warning_collector: Optional[BaseWarningCollector],
-    ) -> Tuple[PipelineWorkUnit, ...]:
-        """Thin delegator to :func:`work_unit_builder.build_generate_work_units`."""
-        return build_generate_work_units(
-            self,
-            pipeline_fields=pipeline_fields,
-            env=env,
-            output_dir=output_dir,
-            specific_flowgroups=specific_flowgroups,
-            include_tests=include_tests,
-            pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
-            warning_collector=warning_collector,
         )
 
     def _find_source_yaml_for_flowgroup(self, flowgroup: FlowGroup) -> Optional[Path]:
@@ -580,13 +599,20 @@ class ActionOrchestrator:
         on_pipeline_complete: Optional[OnValidationComplete] = None,
         warning_collector: Optional[BaseWarningCollector] = None,
     ) -> List[PipelineValidationOutcome]:
-        """Build work units, hand to PipelineExecutionService.run_validate.
+        """Build the flat worklist, hand to PipelineExecutionService.run_validate.
 
         Exactly one of ``pipeline_filter`` (single pipeline by field) or
         ``pipeline_fields`` (batch by field list) may be supplied. When
         both are ``None`` no pipelines are validated and an empty list
         is returned (the caller is expected to discover the pipeline
         list first; see :class:`ValidationFacade`).
+
+        Routes through the consolidated flat per-flowgroup engine:
+        :func:`flowgroup_worklist_builder.build_flowgroup_worklist` produces
+        the flat four-map shape (``output_dir=None`` — validate writes
+        nothing), which :meth:`PipelineExecutionService.run_validate` drives
+        in ``mode="validate"``. Cross-flowgroup validation now runs on the
+        RESOLVED flowgroups inside the engine (§9.24).
         """
         if pipeline_filter is not None and pipeline_fields is not None:
             raise ValueError(
@@ -601,10 +627,21 @@ class ActionOrchestrator:
             return []
 
         self._invalidate_pipeline_slice_cache()
-        work_units = self._build_validate_work_units(
+        (
+            flowgroups_by_pipeline,
+            substitution_managers,
+            output_dirs,
+            discovery_errors,
+        ) = build_flowgroup_worklist(
+            self,
             pipeline_fields=effective_fields,
             env=env,
-            pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
+            output_dir=None,
+            pre_discovered_all_flowgroups=(
+                list(pre_discovered_all_flowgroups)
+                if pre_discovered_all_flowgroups is not None
+                else None
+            ),
             warning_collector=warning_collector,
         )
         self.execution.configure_validate(
@@ -612,30 +649,40 @@ class ActionOrchestrator:
             include_tests=include_tests,
             validation_service=self.validation,
             on_pipeline_complete=on_pipeline_complete,
-            worker_state=self._build_validate_worker_state(include_tests),
+            worker_state=self._build_validate_worker_state(env, include_tests),
         )
-        return list(self.execution.run_validate(work_units))
+        return list(
+            self.execution.run_validate(
+                flowgroups_by_pipeline=flowgroups_by_pipeline,
+                substitution_managers=substitution_managers,
+                output_dirs=output_dirs,
+                discovery_errors=discovery_errors,
+            )
+        )
 
-    def _build_validate_worker_state(self, include_tests: bool) -> _ValidateWorkerState:
-        return _ValidateWorkerState(
+    def _build_validate_worker_state(
+        self, env: str, include_tests: bool
+    ) -> _FlowgroupWorkerState:
+        """Build the unified worker state for the flat-engine validate path.
+
+        The consolidated engine takes one
+        :class:`_FlowgroupWorkerState` for both modes. In validate mode the
+        worker only reads ``processor`` / ``substitution_managers`` /
+        ``include_tests`` (it resolves + per-flowgroup-validates and stops);
+        the generate-only collaborators (``code_generator`` / ``formatter`` /
+        ``pipeline_output_dirs`` / ``environment``) are required by the
+        dataclass but unused on this path. They are populated with the real
+        collaborators anyway — harmless for validate, and the exact shape
+        generate reuses. The per-pipeline ``substitution_managers``
+        / ``pipeline_output_dirs`` are placeholders here; ``run_validate``
+        replaces them per batch from the worklist builder's maps.
+        """
+        return _FlowgroupWorkerState(
             processor=self.processing,
             substitution_managers={},
             include_tests=include_tests,
-        )
-
-    def _build_validate_work_units(
-        self,
-        *,
-        pipeline_fields: Sequence[str],
-        env: str,
-        pre_discovered_all_flowgroups: Optional[Sequence[FlowGroup]],
-        warning_collector: Optional[BaseWarningCollector],
-    ) -> Tuple[PipelineWorkUnit, ...]:
-        """Thin delegator to :func:`work_unit_builder.build_validate_work_units`."""
-        return build_validate_work_units(
-            self,
-            pipeline_fields=pipeline_fields,
-            env=env,
-            pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
-            warning_collector=warning_collector,
+            code_generator=self.codegen,
+            formatter=self._formatter,
+            pipeline_output_dirs={},
+            environment=env,
         )

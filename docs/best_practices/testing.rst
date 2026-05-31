@@ -184,6 +184,12 @@ validating first means you optimise for the wrong failure mode.
 The recommendation is to wire ``lhp validate`` as a blocking CI
 check on every PR. The check takes seconds, catches the largest
 class of config errors, and produces actionable error messages.
+``lhp validate`` now runs its checks — including cross-flowgroup
+conflict detection — on the **resolved** flowgroups (after presets,
+templates, and substitutions are applied), so a conflict introduced
+by resolution (for example, a template that expands into two
+``create_table: true`` actions targeting the same table) is caught
+by ``validate`` rather than slipping through to ``generate``.
 Anything that gets past it is either a real bug in LHP or a class
 of error that only the generator catches — both of which deserve
 investigation.

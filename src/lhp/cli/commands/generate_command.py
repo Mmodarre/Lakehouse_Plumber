@@ -195,12 +195,10 @@ class GenerateCommand(BaseCommand):
                     redirect_stdout=True,
                     redirect_stderr=True,
                 ) as live:
-                    # Coalesce the submit-loop ``live.update`` storm: the
-                    # facade fires ``on_pipeline_start`` once per pipeline
-                    # synchronously on the main thread, so for N=100 we'd
-                    # paint the Panel 100 times before any worker finishes.
-                    # The coalescer drops calls inside a 100ms window;
-                    # completion callbacks still use direct ``live.update``.
+                    # Coalesces bursty ``live.update`` calls into a single
+                    # repaint inside a 100ms window. Completion callbacks
+                    # use direct ``live.update``; this guards the terminal
+                    # force-flush after the generate loop returns.
                     coalesced = _LiveUpdateCoalescer(live, _render)
                     # Triggers the lazy ``ActionOrchestrator`` import (~25
                     # transitive modules) inside the Live frame so the first
@@ -286,14 +284,8 @@ class GenerateCommand(BaseCommand):
                     phase_tracker.complete("Deprecation scan")
                     live.update(_render())
 
-                    # Main-thread per-pipeline callbacks fired by the facade.
-                    # ``_on_pipeline_start`` is idempotent under concurrent
-                    # worker starts because PhaseTracker.start is keyed by name.
-                    def _on_pipeline_start(name: str) -> None:
-                        if phase_tracker.active != "Generation":
-                            phase_tracker.start("Generation")
-                        coalesced.update()
-
+                    # Fired on the main thread by the facade, so it may touch
+                    # the Live frame / PhaseTracker directly.
                     def _on_pipeline_complete(
                         name: str, response: GenerationResponse
                     ) -> None:
@@ -316,13 +308,24 @@ class GenerateCommand(BaseCommand):
                         overall_progress.advance()
                         live.update(_render())
 
-                    # Option B (per-event stream consumption): the Live
-                    # frame integrates per-pipeline callbacks fired by
-                    # the facade. ``GenerationCompleted`` carries the
-                    # terminal ``BatchGenerationResponse``; on LHPError,
-                    # an ``ErrorEmitted`` precedes the raise — captured
-                    # here and re-raised AFTER both context managers
-                    # exit so ``cli_error_boundary`` sees clean stderr.
+                    # Enter the "Generation" phase once, before the pool
+                    # runs. The flat engine has no per-pipeline start
+                    # boundary (it gates all-or-nothing and fires only a
+                    # per-pipeline completion callback), so a single phase
+                    # start here is the natural place to mark the boundary.
+                    # ``PhaseTracker.start`` is an idempotent setter; this
+                    # activates the ``show_progress`` gate and seeds the
+                    # start-time that the ``complete("Generation")`` calls
+                    # below consume.
+                    phase_tracker.start("Generation")
+                    live.update(_render())
+
+                    # The Live frame consumes the per-event stream:
+                    # ``GenerationCompleted`` carries the terminal
+                    # ``BatchGenerationResponse``; on LHPError, an
+                    # ``ErrorEmitted`` precedes the raise — captured here and
+                    # re-raised AFTER both context managers exit so
+                    # ``cli_error_boundary`` sees clean stderr.
                     with perf_timer(
                         f"Batch pipeline generation [{len(pipelines_to_generate)}]",
                         phase=True,
@@ -351,7 +354,6 @@ class GenerateCommand(BaseCommand):
                                 pre_discovered_all_flowgroups=None,
                                 max_workers=max_workers,
                                 on_pipeline_complete=_on_pipeline_complete,
-                                on_pipeline_start=_on_pipeline_start,
                                 warning_collector=warning_collector,
                             ):
                                 if isinstance(event, OperationStarted):
@@ -494,8 +496,6 @@ class GenerateCommand(BaseCommand):
             return [pipeline]
         pipeline_fields = {fg.pipeline for fg in all_flowgroups}
         return list(pipeline_fields) if pipeline_fields else []
-
-
 
     def _handle_bundle_operations(
         self,

@@ -4,13 +4,9 @@ import logging
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Sequence, Tuple
 
-from ...errors import (
-    ErrorCategory,
-    LHPValidationError,
-    PythonFunctionConflictError,
-)
+from ...errors import ErrorCategory, LHPValidationError, PythonFunctionConflictError
 from ..loaders.external_file_loader import resolve_external_file_path
 
 logger = logging.getLogger(__name__)
@@ -30,6 +26,89 @@ class CopiedModuleRecord:
     content: str
     module_path: str
     custom_functions_dir: Path
+
+
+def _register_copy(
+    copied_files: Dict[str, str],
+    dest_key: str,
+    source_path: str,
+    log: logging.Logger,
+) -> bool:
+    """Decide whether a module copy should proceed, mutating the registry.
+
+    Shared dedup + conflict core for both the write path
+    (:meth:`PythonFileCopier.copy_python_file`) and the no-write planning
+    path (:meth:`PythonFileCopier.plan`). Pure with respect to the
+    filesystem: the only effect is registering ``dest_key`` in
+    ``copied_files`` on a first-seen destination. Callers hold any required
+    lock around this function; it does no locking itself.
+
+    Args:
+        copied_files: Destination-path -> normalized-source-path registry.
+            Mutated in place when ``dest_key`` is seen for the first time.
+        dest_key: ``str(dest_path)`` for the module being copied.
+        source_path: Original (possibly Windows-style) source path.
+        log: Logger used for the dedup-skip / copying debug messages, so the
+            write path's observable logging is preserved when this is reused.
+
+    Returns:
+        True if the destination is newly registered and the caller should
+        write it; False if an identical source already claimed it (dedup
+        skip).
+
+    Raises:
+        PythonFunctionConflictError: If a *different* source already claimed
+            ``dest_key`` (code 019).
+    """
+    if dest_key in copied_files:
+        existing_source = copied_files[dest_key]
+        # Normalize backslashes so Windows native paths and backslash string
+        # literals compare equal.
+        normalized_existing = existing_source.replace("\\", "/")
+        normalized_new = source_path.replace("\\", "/")
+        if normalized_existing != normalized_new:
+            raise PythonFunctionConflictError(
+                destination=dest_key,
+                existing_source=existing_source,
+                new_source=source_path,
+            )
+        log.debug(
+            f"Skipping Python file copy (already copied): {source_path} → {Path(dest_key).name}"
+        )
+        return False
+
+    copied_files[dest_key] = source_path.replace("\\", "/")
+    log.debug(f"Copying Python file: {source_path} → {Path(dest_key).name}")
+    return True
+
+
+def _register_init(
+    copied_files: Dict[str, str],
+    custom_functions_dir: Path,
+) -> bool:
+    """Decide whether the package ``__init__.py`` should be written.
+
+    Shared init-registration core for both the write path
+    (:meth:`PythonFileCopier.ensure_init_file`) and the no-write planning
+    path (:meth:`PythonFileCopier.plan`). Registers the init key in
+    ``copied_files`` on first sight; no filesystem effect. Callers hold any
+    required lock around this function.
+
+    Args:
+        copied_files: Registry shared with :func:`_register_copy`. Mutated in
+            place when the init key is seen for the first time.
+        custom_functions_dir: Directory whose ``__init__.py`` is being
+            ensured.
+
+    Returns:
+        True if the init file is newly registered and should be written;
+        False if it was already registered.
+    """
+    init_key = str(custom_functions_dir / "__init__.py")
+    if init_key in copied_files:
+        return False  # Already created
+    copied_files[init_key] = "__init__"
+    return True
 
 
 class PythonFileCopier:
@@ -67,31 +146,13 @@ class PythonFileCopier:
         Raises:
             PythonFunctionConflictError: If different source tries to write same destination
         """
-        dest_key = str(dest_path)
-
         with self._lock:
-            if dest_key in self._copied_files:
-                existing_source = self._copied_files[dest_key]
-                # Normalize paths for comparison: replace backslashes first, then use as_posix()
-                # This handles both Windows native paths and string literals with backslashes
-                normalized_existing = existing_source.replace("\\", "/")
-                normalized_new = source_path.replace("\\", "/")
-                if normalized_existing != normalized_new:
-                    # Real conflict - different sources targeting same destination
-                    raise PythonFunctionConflictError(
-                        destination=dest_key,
-                        existing_source=existing_source,
-                        new_source=source_path,
-                    )
-                # Same source - already copied, skip
-                self._logger.debug(
-                    f"Skipping Python file copy (already copied): {source_path} → {dest_path.name}"
-                )
-                return False
+            should_write = _register_copy(
+                self._copied_files, str(dest_path), source_path, self._logger
+            )
 
-            # Register this file as being copied (normalize to forward slashes for consistency)
-            self._copied_files[dest_key] = source_path.replace("\\", "/")
-            self._logger.debug(f"Copying Python file: {source_path} → {dest_path.name}")
+        if not should_write:
+            return False
 
         # Write file outside the lock (safe - we own this destination now)
         dest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -107,12 +168,11 @@ class PythonFileCopier:
         Args:
             custom_functions_dir: Directory where custom Python functions are stored
         """
-        init_key = str(custom_functions_dir / "__init__.py")
-
         with self._lock:
-            if init_key in self._copied_files:
-                return  # Already created
-            self._copied_files[init_key] = "__init__"
+            should_write = _register_init(self._copied_files, custom_functions_dir)
+
+        if not should_write:
+            return  # Already created
 
         custom_functions_dir.mkdir(parents=True, exist_ok=True)
         init_file = custom_functions_dir / "__init__.py"
@@ -146,6 +206,48 @@ class PythonFileCopier:
         """
         self.ensure_init_file(record.custom_functions_dir)
         self.copy_python_file(record.source_path, record.dest_path, record.content)
+
+    def plan(
+        self, records: Sequence["CopiedModuleRecord"]
+    ) -> Tuple["CopiedModuleRecord", ...]:
+        """Compute which records would be written, with zero disk writes.
+
+        Runs the exact dedup + conflict-detection rule used by the write path
+        (:meth:`apply_copy_record` -> :meth:`ensure_init_file` /
+        :meth:`copy_python_file`) over ``records`` in order, against a private
+        throwaway registry. No file I/O occurs, and ``self`` is not mutated:
+        this neither writes files nor touches the instance registry returned
+        by :meth:`get_copied_files`.
+
+        For each record, the init-file registration is applied first (mirroring
+        :meth:`apply_copy_record`), then the module-copy decision. A record is
+        included in the result only when its module copy is newly registered;
+        records suppressed by dedup (an identical source already claimed the
+        same destination) are dropped. A cross-source conflict raises, exactly
+        as the write path would.
+
+        Args:
+            records: Phase-A records to plan, in the order they would be
+                replayed (matching ``PipelineProcessor._apply_copy_records``).
+
+        Returns:
+            The deduped records that would be written, in input order. The
+            result is deterministic: the same input always yields the same
+            tuple.
+
+        Raises:
+            PythonFunctionConflictError: code 019, when two records with
+                different sources target the same destination.
+        """
+        registry: Dict[str, str] = {}
+        planned: List["CopiedModuleRecord"] = []
+        for record in records:
+            _register_init(registry, record.custom_functions_dir)
+            if _register_copy(
+                registry, str(record.dest_path), record.source_path, logger
+            ):
+                planned.append(record)
+        return tuple(planned)
 
 
 def compute_copy_record(

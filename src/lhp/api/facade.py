@@ -109,7 +109,6 @@ class GenerationFacade:
         on_pipeline_complete: Optional[
             Callable[[str, "GenerationResponse"], None]
         ] = None,
-        on_pipeline_start: Optional[Callable[[str], None]] = None,
         warning_collector: Optional["WarningCollector"] = None,
     ) -> Iterator[LHPEvent]:
         """Stream-protocol wrapper around batch pipeline generation.
@@ -172,7 +171,6 @@ class GenerationFacade:
                 pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
                 max_workers=max_workers,
                 on_pipeline_complete=on_pipeline_complete,
-                on_pipeline_start=on_pipeline_start,
                 warning_collector=warning_collector,
             )
         except LHPError as exc:
@@ -194,35 +192,37 @@ class GenerationFacade:
         on_pipeline_complete: Optional[
             Callable[[str, "GenerationResponse"], None]
         ] = None,
-        on_pipeline_start: Optional[Callable[[str], None]] = None,
         warning_collector: Optional["WarningCollector"] = None,
     ) -> "BatchGenerationResponse":
-        """Coordinate batch generation; aggregate failure preserves the
-        LHP error code (§4.8) so the CLI can map it to an exit code
-        without handling a live exception.
+        """Coordinate batch generation and return the terminal batch DTO.
 
         Internal: invoked by the public generator wrapper
-        :meth:`generate_pipelines`. The graceful-DTO failure path
-        (catch ``Exception`` → return DTO with ``error_code``) is
-        intentional and orthogonal to the stream-protocol
-        ``ErrorEmitted`` rendezvous, which is reserved for genuinely
-        catastrophic structured failures that this body does not
-        choose to swallow.
+        :meth:`generate_pipelines`.
 
-        The ``generated/<env>`` wipe runs HERE — at the start of the
-        generation-writing step — so it sits AFTER the shared project
-        preflight gate in :meth:`generate_pipelines` (which raises on
-        failure before reaching this helper). This guarantees a
-        preflight failure leaves the output tree untouched. The wipe is
-        gated on ``output_dir is not None``: a dry run threads
-        ``output_dir=None`` from the CLI, so dry-run neither wipes nor
-        writes. When set, ``output_dir`` IS the env-specific directory,
-        so it is wiped and recreated directly (every run is a full
-        regenerate).
+        Failure handling is split deliberately:
+
+        * **Structured (:class:`LHPError`) failures** — most importantly
+          the all-or-nothing gate aggregate raised by ``run_generate``
+          (spec §3 / §3bis) — are re-raised UNCHANGED so they propagate
+          out to :meth:`generate_pipelines`, whose ``except LHPError``
+          performs the §1.4 stream-protocol rendezvous (yield
+          :class:`ErrorEmitted`, then re-raise). This body no longer
+          swallows ``LHPError`` into a DTO.
+        * **Non-LHP infra failures** (e.g. an :class:`OSError` from a
+          commit-time disk write, AFTER the gate has passed) degrade to a
+          batch-failure response via :func:`_build_generation_batch_failure`
+          so the CLI gets a terminal DTO with an ``error_code`` rather than
+          a live exception. See the comment on the residual ``except``
+          below: this is intentional, not a §1.4 gap.
+
+        The ``generated/<env>`` wipe is NOT performed here: the commit step
+        (:func:`~lhp.core.coordination.executor.PipelineExecutionService`)
+        owns the single whole-env wipe, which now runs AFTER the
+        all-or-nothing gate so a gate failure leaves prior output
+        untouched. A dry run threads ``output_dir=None`` from the CLI, so
+        ``output_dir`` is forwarded as-is and the engine writes nothing.
         """
         from lhp.models.processing import PipelineDelta
-
-        self._wipe_output_dir(output_dir)
 
         pipeline_responses: Dict[str, "GenerationResponse"] = {}
 
@@ -252,44 +252,29 @@ class GenerationFacade:
                     pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
                     max_workers=max_workers,
                     on_pipeline_complete=_on_delta,
-                    on_pipeline_start=on_pipeline_start,
                     warning_collector=warning_collector,
                 )
             return _build_generation_batch_success(
                 pipeline_responses, output_dir=output_dir
             )
+        except LHPError:
+            # §1.4 rendezvous: let the structured failure (most importantly
+            # the all-or-nothing gate aggregate from ``run_generate``)
+            # propagate to ``generate_pipelines``, which yields
+            # ``ErrorEmitted`` then re-raises. Bare ``raise`` keeps the
+            # original cause chain (B904) — do NOT wrap in a DTO here.
+            raise
         except Exception as exc:
-            from lhp.errors import LHPError
-
-            if isinstance(exc, LHPError):
-                self._logger.debug(
-                    f"Batch pipeline generation failed: "
-                    f"{len(pipeline_responses)} pipeline(s) had outcomes captured"
-                )
-            else:
-                self._logger.exception("Batch pipeline generation failed")
+            # A NON-LHP infra failure at/after the gate — e.g. an ``OSError``
+            # from a commit-time disk write once the gate has already passed —
+            # is reported as a batch-failure DTO, NOT routed through the
+            # ``ErrorEmitted``+raise rendezvous (which is reserved for
+            # ``LHPError``). Such a failure may leave a partially written
+            # output tree: commit is a non-transactional multi-file write
+            # and making it atomic is explicitly out of scope. This is an
+            # intentional, documented degradation, not a silent §1.4 gap.
+            self._logger.exception("Batch pipeline generation failed")
             return _build_generation_batch_failure(pipeline_responses, exc)
-
-    @staticmethod
-    def _wipe_output_dir(output_dir: Optional[Path]) -> None:
-        """Wipe and recreate the env-specific generated output directory.
-
-        No-op when ``output_dir`` is ``None`` (dry run): a dry run must
-        neither wipe nor write. When set, the directory is removed (if it
-        exists) and recreated empty, implementing the full-regenerate
-        contract. Runs AFTER the project preflight gate in
-        :meth:`generate_pipelines`, so a failed preflight cannot destroy
-        prior output. Scope is strictly ``generated/<env>``; the
-        ``resources/lhp/`` bundle wipe stays with
-        :meth:`BundleFacade.sync_resources`.
-        """
-        import shutil
-
-        if output_dir is None:
-            return
-        if output_dir.exists():
-            shutil.rmtree(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
 
     def finalize_monitoring_artifacts(
         self, env: str, output_dir: Path
@@ -586,7 +571,6 @@ class LakehousePlumberApplicationFacade:
         on_pipeline_complete: Optional[
             Callable[[str, "GenerationResponse"], None]
         ] = None,
-        on_pipeline_start: Optional[Callable[[str], None]] = None,
         warning_collector: Optional["WarningCollector"] = None,
     ) -> Iterator[LHPEvent]:
         """Shortcut for ``self.generation.generate_pipelines(...)``.
@@ -610,7 +594,6 @@ class LakehousePlumberApplicationFacade:
             pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
             max_workers=max_workers,
             on_pipeline_complete=on_pipeline_complete,
-            on_pipeline_start=on_pipeline_start,
             warning_collector=warning_collector,
         )
 

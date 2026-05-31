@@ -15,7 +15,6 @@ from lhp.core.processing.flowgroup_resolver import FlowgroupResolutionService
 from lhp.core.processing.substitution import EnhancedSubstitutionManager
 from lhp.core.validators import ConfigValidator
 from lhp.core.validators.secret_validator import SecretValidator
-from lhp.errors import LHPValidationError
 from lhp.models import Action, ActionType, FlowGroup
 from lhp.presets.preset_manager import PresetManager
 from tests.fakes import (
@@ -327,15 +326,23 @@ actions:
             len(errors) > 0
         ), "Expected validation errors with include_tests=True for missing columns"
 
-    def test_validate_passes_include_tests_through_chain(self):
-        """Worker function forwards include_tests to processor.process_flowgroup.
+    def test_validate_passes_include_tests_through_chain(self, monkeypatch):
+        """Worker forwards include_tests to processor.process_flowgroup.
 
-        Under ProcessPoolExecutor the orchestrator dispatches to a worker
-        process. Picklable fakes (not MagicMock) are required so the same
-        collaborators can be passed across the spawn boundary in upcoming
-        ``initializer=`` plumbing.
+        The system under test is the consolidated single-wave worker
+        (:func:`._flowgroup_pool._process_one_flowgroup`). The worker reads its
+        collaborators from the module-global ``_flowgroup_state`` (populated by
+        ``_init_flowgroup_worker`` in a spawned worker); here we set that global
+        directly to a :class:`_FlowgroupWorkerState` wrapping picklable fakes,
+        run the worker in-process in ``validate`` mode, and assert it threaded
+        ``include_tests`` (carried on the state) onto
+        ``processor.process_flowgroup``.
         """
-        from lhp.core.coordination.executor import _process_flowgroup_for_validate
+        from lhp.core.coordination import _flowgroup_pool as fp
+        from lhp.core.coordination._flowgroup_pool import (
+            _FlowgroupWorkerState,
+            _process_one_flowgroup,
+        )
 
         fg = FlowGroup(
             pipeline="test_pipeline",
@@ -350,16 +357,23 @@ actions:
             ],
         )
         fake_processor = FakeFlowgroupResolutionService()
-        substitution_mgr = FakeSubstitutionManager()
-
-        _process_flowgroup_for_validate(
-            _ctx_of(fg),
+        state = _FlowgroupWorkerState(
             processor=fake_processor,
-            substitution_mgr=substitution_mgr,
+            substitution_managers={"test_pipeline": FakeSubstitutionManager()},
             include_tests=False,
+            code_generator=None,  # unused in validate mode
+            formatter=None,  # unused in validate mode
+            pipeline_output_dirs={"test_pipeline": None},
+            environment="dev",
         )
+        monkeypatch.setattr(fp, "_flowgroup_state", state)
 
+        outcome = _process_one_flowgroup(_ctx_of(fg), mode="validate")
+
+        # Worker did not raise and ran the resolver exactly once.
+        assert outcome.success is True
         assert len(fake_processor.calls) == 1
+        # include_tests (from the worker state) threaded onto the resolver call.
         assert fake_processor.calls[0].kwargs.get("include_tests") is False
 
 

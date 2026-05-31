@@ -123,7 +123,18 @@ Pre-flight validation
 no directory is wiped, no code is generated, no bundle YAML is written until
 preflight passes. If preflight fails, ``generate`` aborts with the
 filesystem untouched — ``generated/<env>/`` is left intact rather than
-wiped. The checks fire in order:
+wiped.
+
+.. note::
+   This untouched-output guarantee is not limited to preflight. ``lhp
+   generate`` is **all-or-nothing**: if *any* flowgroup fails anywhere in the
+   run — per-flowgroup validation, code generation, Black formatting
+   (``LHP-CFG-031``), a cross-flowgroup conflict, or a custom-module copy
+   conflict (``LHP-VAL-019``) — the run writes **zero** files and leaves the
+   output tree untouched. Multiple failures aggregate into a single
+   ``LHP-VAL-902``.
+
+The preflight checks fire in order:
 
 1. **CLI flag check** (``LHP-CFG-023``) — when bundle support is enabled,
    ``--pipeline-config`` must be supplied. Fails in <1 second on a missing

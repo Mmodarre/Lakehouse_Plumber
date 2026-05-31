@@ -96,7 +96,7 @@ class FakeTemplate:
 
 
 class FakeTemplateEngine:
-    """Stand-in for :class:`lhp.core.template_engine.TemplateEngine`.
+    """Stand-in for :class:`lhp.core.processing.template_engine.TemplateEngine`.
 
     Constructor seeds ``get_template`` and ``render_template`` return values.
     Pickle-safe because every attribute is a concrete picklable type.
@@ -142,10 +142,9 @@ class FakeCodeFormatter:
 class FakeProjectConfig:
     """Stand-in for :class:`lhp.models.config.ProjectConfig`.
 
-    Only fields read inside :class:`lhp.core.coordination.processor.PipelineProcessor`
-    init / dispatch paths are exposed. ``test_reporting`` is the single field
-    the processor reads opaquely; default ``None`` matches projects without a
-    ``test_reporting`` block.
+    Only the fields read on the generate commit path are exposed.
+    ``test_reporting`` is the single field consumed opaquely; default
+    ``None`` matches projects without a ``test_reporting`` block.
     """
 
     def __init__(

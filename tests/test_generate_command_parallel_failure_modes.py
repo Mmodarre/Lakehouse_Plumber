@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
+
 def _build_lhp_project(project_root: Path) -> None:
     """Build a minimal valid LHP project skeleton at ``project_root``.
 
@@ -193,18 +194,20 @@ class TestParallelGenerateFailureModes:
                 f"output at least once; got 0.\nFull output:\n{output}"
             )
 
-    def test_partial_failure_isolates_broken_pipeline(self, tmp_path: Path) -> None:
-        """One broken flowgroup must not poison sibling pipelines.
+    def test_any_failure_writes_no_files_all_or_nothing(self, tmp_path: Path) -> None:
+        """One broken flowgroup aborts the WHOLE batch — no pipeline writes.
 
-        Cross-pipeline isolation contract for the flat-pool engine: a
-        Phase-A failure inside one pipeline bubbles up as an overall
-        non-zero exit, but the workers handling the OTHER pipelines
-        continue to completion and their per-pipeline artifacts land on
-        disk. The broken pipeline's artifacts must NOT be written (the
-        PipelineProcessor short-circuits via _raise_for_phase_a_failures
-        before _write_python_files runs).
+        Generate is all-or-nothing: the gate raises on ANY
+        per-flowgroup failure BEFORE any file is written, so when one
+        flowgroup in ``pipeline_beta`` is broken the run exits non-zero and
+        NO pipeline — not even the all-valid siblings — emits ``.py`` files.
+
+        The flat engine + generate gate refuse to write a partial tree. The
+        no-write / prior-output-untouched guarantee is unit-covered by
+        ``test_flowgroup_pool``'s gate-failure tests; this is its
+        end-to-end CLI counterpart.
         """
-        project_root = tmp_path / "lhp_proj_partial_failure"
+        project_root = tmp_path / "lhp_proj_all_or_nothing"
         _build_lhp_project(project_root)
         _write_3x4_fixture(
             project_root,
@@ -214,7 +217,7 @@ class TestParallelGenerateFailureModes:
 
         result = self._invoke_cli(project_root, "--show-all")
 
-        # Overall failure: at least one pipeline blew up.
+        # Overall failure: the broken flowgroup aborts the batch.
         assert result.exit_code != 0, (
             f"Expected non-zero exit when a flowgroup is broken; got "
             f"exit_code={result.exit_code}\nOutput:\n{result.output}"
@@ -222,25 +225,17 @@ class TestParallelGenerateFailureModes:
 
         generated_dev = project_root / "generated" / "dev"
 
-        # Sibling pipelines completed: their per-flowgroup .py files exist.
-        for sibling in ("pipeline_alpha", "pipeline_gamma"):
-            sibling_dir = generated_dev / sibling
-            assert sibling_dir.exists(), (
-                f"Sibling pipeline {sibling} directory missing — broken "
-                f"pipeline poisoned the sibling.\nOutput:\n{result.output}"
+        # All-or-nothing: NO pipeline emitted .py files — including the
+        # all-valid siblings (the gate raised before any write).
+        for pipeline_name in (
+            "pipeline_alpha",
+            "pipeline_beta",
+            "pipeline_gamma",
+        ):
+            pdir = generated_dev / pipeline_name
+            written = list(pdir.glob("*.py")) if pdir.exists() else []
+            assert not written, (
+                f"All-or-nothing violated: pipeline {pipeline_name} wrote "
+                f"{[p.name for p in written]} despite a failing flowgroup in "
+                f"the batch.\nOutput:\n{result.output}"
             )
-            py_files = sorted(p.name for p in sibling_dir.glob("*.py"))
-            assert py_files, (
-                f"Sibling pipeline {sibling} produced no .py files — "
-                f"broken pipeline poisoned the sibling.\nOutput:\n"
-                f"{result.output}"
-            )
-
-        # Broken pipeline: no .py files emitted (PipelineProcessor
-        # short-circuits before _write_python_files when Phase A fails).
-        broken_dir = generated_dev / "pipeline_beta"
-        broken_files = list(broken_dir.glob("*.py")) if broken_dir.exists() else []
-        assert not broken_files, (
-            f"Broken pipeline pipeline_beta should have no .py files "
-            f"written, found: {[p.name for p in broken_files]}"
-        )

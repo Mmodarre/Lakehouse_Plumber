@@ -247,11 +247,11 @@ layers = [
     "lhp.utils",
 ]
 ignore_imports = [
-    # Phase 10.2 closes this — TYPE_CHECKING-only forward ref from
-    # ``lhp.models.processing`` into
-    # ``lhp.core.processing.substitution.EnhancedSubstitutionManager``
-    # (Protocol move pending).
-    "lhp.models.processing -> lhp.core.processing.substitution",
+    # TYPE_CHECKING-only forward ref from ``lhp.models.processing`` into
+    # ``lhp.core.codegen.python_file_copier.CopiedModuleRecord``. The
+    # spawn-boundary transport DTO ``FlowgroupOutcome`` carries a
+    # ``copy_records`` payload typed against it. No runtime coupling.
+    "lhp.models.processing -> lhp.core.codegen.python_file_copier",
 ]
 
 [[tool.importlinter.contracts]]
@@ -259,13 +259,12 @@ name = "Models must not depend on higher layers"
 type = "forbidden"
 source_modules = ["lhp.models"]
 forbidden_modules = ["lhp.cli", "lhp.bundle", "lhp.core", "lhp.generators", "lhp.parsers", "lhp.presets", "lhp.api"]
-# TYPE_CHECKING-only edge. ``PipelineWorkUnit`` annotates an optional
-# ``EnhancedSubstitutionManager`` field that ``to_dict`` deliberately omits
-# (the manager has non-JSON state). No runtime coupling. Phase 10.2's mypy
-# --strict expansion will swap this for a Protocol defined in ``lhp.models``
-# and remove the edge entirely.
+# TYPE_CHECKING-only transport edge: ``FlowgroupOutcome`` annotates a
+# ``copy_records`` field of ``CopiedModuleRecord`` payloads across the
+# spawn boundary. The records round-trip as plain mappings, so there is no
+# runtime coupling into ``lhp.core``.
 ignore_imports = [
-    "lhp.models.processing -> lhp.core.processing.substitution",
+    "lhp.models.processing -> lhp.core.codegen.python_file_copier",
 ]
 
 [[tool.importlinter.contracts]]

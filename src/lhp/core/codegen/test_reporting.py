@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, List, Optional
 
 if TYPE_CHECKING:
     from lhp.models import FlowGroup, ProjectConfig
+
     from ..processing.substitution import EnhancedSubstitutionManager
 
 
@@ -19,7 +20,7 @@ def generate_test_reporting_hook(
     pipeline_name: str,
     flowgroups: List["FlowGroup"],
     output_dir: Path,
-    project_config: "ProjectConfig",
+    project_config: Optional["ProjectConfig"],
     project_root: Path,
     include_tests: bool,
     substitution_mgr: Optional["EnhancedSubstitutionManager"] = None,
@@ -58,8 +59,8 @@ def generate_test_reporting_hook(
 
     Returns:
         Number of pipeline artifacts written (0 when no hook was generated).
-        :class:`~lhp.core.coordination.processor.PipelineProcessor` consumes
-        this count for its ``PipelineDelta.artifacts_count`` rollup.
+        The per-pipeline commit step (:mod:`~lhp.core.coordination._commit`)
+        consumes this count for its ``PipelineDelta.artifacts_count`` rollup.
     """
     if not include_tests:
         return 0
