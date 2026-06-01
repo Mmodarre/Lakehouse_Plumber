@@ -22,10 +22,10 @@ from rich.text import Text
 from rich.tree import Tree
 
 from lhp.api import (
-    EnhancedSubstitutionManager,
     LakehousePlumberApplicationFacade,
     ProcessedFlowgroupView,
     ProjectConfigView,
+    SubstitutionView,
 )
 from lhp.errors import ErrorCategory, LHPError
 
@@ -214,17 +214,21 @@ class ShowCommand(BaseCommand):
             instance, instance_path, blueprints
         )
 
-        # ``EnhancedSubstitutionManager`` is re-exported by ``lhp.api``
-        # (allowed in CLI per §5.3) and is only used here for the
-        # secret-reference and token-summary tables. The facade builds an
-        # equivalent manager internally for ``process_flowgroup``; this
-        # CLI-side instance is kept solely for rendering bookkeeping.
         application_facade = LakehousePlumberApplicationFacade.for_project(
             project_root,
             enforce_version=False,
         )
 
-        substitution_mgr = self._load_substitution_manager(project_root, env)
+        sub_file = project_root / "substitutions" / f"{env}.yaml"
+        if not sub_file.exists():
+            _console_module.err_console.print(
+                Text.assemble(
+                    ("⚠ ", "bold yellow"),
+                    ("Warning: Substitution file not found: ", "bold yellow"),
+                    (str(sub_file), ""),
+                )
+            )
+        sub_view = application_facade.inspection.build_substitution_view(env)
         _console_module.console.print(
             Text.assemble(
                 ("Blueprint: ", "bold dim"),
@@ -255,8 +259,8 @@ class ShowCommand(BaseCommand):
             self._display_flowgroup_configuration(processed, env)
             self._display_actions_table(processed)
 
-        self._display_secret_references(substitution_mgr)
-        self._display_substitution_summary(substitution_mgr)
+        self._display_secret_references(sub_view)
+        self._display_substitution_summary(sub_view)
 
     def show_project_info(self) -> None:
         """Display project information and statistics."""
@@ -273,20 +277,6 @@ class ShowCommand(BaseCommand):
         self._display_environments(project_root)
 
         self._display_recent_activity(project_root)
-
-    def _load_substitution_manager(self, project_root: Path, env: str):
-        substitution_file = project_root / "substitutions" / f"{env}.yaml"
-        if not substitution_file.exists():
-            _console_module.err_console.print(
-                Text.assemble(
-                    ("⚠ ", "bold yellow"),
-                    ("Warning: Substitution file not found: ", "bold yellow"),
-                    (str(substitution_file), ""),
-                )
-            )
-            return EnhancedSubstitutionManager(env=env)
-        else:
-            return EnhancedSubstitutionManager(substitution_file, env)
 
     def _display_flowgroup_configuration(
         self, processed_fg: ProcessedFlowgroupView, env: str
@@ -390,10 +380,10 @@ class ShowCommand(BaseCommand):
             rows,
         )
 
-    def _display_secret_references(self, substitution_mgr) -> None:
+    def _display_secret_references(self, view: SubstitutionView) -> None:
         from ..render import ColumnSpec, render_listing_table
 
-        secret_refs = substitution_mgr.secret_references
+        secret_refs = view.secret_references
         if not secret_refs:
             return
         rows = [
@@ -406,21 +396,21 @@ class ShowCommand(BaseCommand):
             rows,
         )
 
-    def _display_substitution_summary(self, substitution_mgr) -> None:
+    def _display_substitution_summary(self, view: SubstitutionView) -> None:
         from ..render import ColumnSpec, render_listing_table
 
-        if not substitution_mgr.mappings:
+        if not view.tokens:
             return
 
         rows = []
-        for token, value in list(substitution_mgr.mappings.items())[:10]:
+        for token, value in list(view.tokens.items())[:10]:
             display_value = str(value)
             if len(display_value) > 40:
                 display_value = display_value[:37] + "..."
             rows.append((f"${{{token}}}", display_value))
 
         render_listing_table(
-            f"Token Substitutions ({len(substitution_mgr.mappings)} found)",
+            f"Token Substitutions ({len(view.tokens)} found)",
             [
                 ColumnSpec("Token", style="bold"),
                 ColumnSpec("Value"),
@@ -428,10 +418,10 @@ class ShowCommand(BaseCommand):
             rows,
         )
 
-        if len(substitution_mgr.mappings) > 10:
+        if len(view.tokens) > 10:
             _console_module.console.print(
                 Text(
-                    f"... and {len(substitution_mgr.mappings) - 10} more",
+                    f"... and {len(view.tokens) - 10} more",
                     style="dim",
                 )
             )
@@ -626,13 +616,17 @@ class ShowCommand(BaseCommand):
                 context={"Environment": env},
             )
 
-        mgr = EnhancedSubstitutionManager(sub_file, env=env)
+        application_facade = LakehousePlumberApplicationFacade.for_project(
+            project_root,
+            enforce_version=False,
+        )
+        view = application_facade.inspection.build_substitution_view(env)
 
         simple_tokens: dict = {}
         maps: dict = {}
         reserved: dict = {}
 
-        for key, value in mgr.mappings.items():
+        for key, value in view.raw_mappings.items():
             if key in ["workspace_env", "logical_env"]:
                 reserved[key] = value
             elif isinstance(value, dict):

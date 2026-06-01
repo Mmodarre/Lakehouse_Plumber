@@ -6,6 +6,7 @@ outcome of a runtime operation.
 
 :stability: provisional
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -314,6 +315,12 @@ class SubstitutionView:
       ``dict`` / ``list`` objects (used by prefix/suffix rules) are
       flattened to strings via ``str(...)`` before exposure, since
       DTO fields must be flat per §4.8.
+    - ``raw_mappings`` — the same expanded mappings as ``tokens`` but
+      with their nested structure preserved: ``dict`` / ``list``
+      values (of scalars) are kept as-is rather than flattened to a
+      ``str`` repr. Consumers that need the structured mapping (e.g.
+      bucketing values by ``isinstance(value, dict)``) read this
+      field; ``tokens`` remains the flat string projection.
     - ``secret_references`` — every ``${secret:scope/key}`` reference
       the manager has observed, as a sorted, deduplicated tuple.
     - ``default_secret_scope`` — the configured fallback scope used
@@ -329,5 +336,6 @@ class SubstitutionView:
 
     env: str
     tokens: Mapping[str, str]
+    raw_mappings: Mapping[str, JSONValue] = field(default_factory=dict)
     secret_references: Tuple[SecretReferenceView, ...] = ()
     default_secret_scope: Optional[str] = None

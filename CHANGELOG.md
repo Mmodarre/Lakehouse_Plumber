@@ -60,6 +60,46 @@ strict §8.2 mirror path (`tests/utils/...`), because neither that nor
 `tests/unit/utils/` exists — extending the existing file is the lower-risk
 choice per §10.4 (inherited test-layout debt).
 
+### Substitution-view CLI migration — `show` panels off the internal manager
+
+**Summary.** Closes `OPMETA-SVC-VIEW-CLI-DEFER`, the CLI-consumer half of the
+substitution-view work whose replacement (the `SubstitutionView` /
+`SecretReferenceView` DTOs + `InspectionFacade.build_substitution_view(env)`
+method) shipped earlier in the v0.9.0 wave under the prior `OPMETA-SVC-VIEW`
+entries. The CLI `show` substitution panels now consume that facade method
+instead of constructing the internal substitution manager, and the deprecated
+`lhp.api` re-export shim is removed. This is an **internal refactor**: the
+public API surface adds one provisional field and drops one already-deprecated
+re-export, so it is **not** a semver-breaking change (CODING_CONSTITUTION §1.7).
+
+**Added.**
+
+- **`SubstitutionView.raw_mappings` (`Mapping[str, JSONValue]`, `:stability:
+  provisional`).** A structure-preserving companion to the flat `tokens` field,
+  retaining the nested substitution-map structure that `tokens` stringifies.
+  `InspectionFacade.build_substitution_view(env)` populates it from the
+  manager's un-coerced mappings.
+
+**Changed.**
+
+- **CLI `show` substitution panels now render via
+  `InspectionFacade.build_substitution_view`.** `show --instance` /
+  `show substitutions` route their substitution / secret-reference panels
+  through `application_facade.inspection.build_substitution_view(env)` instead of
+  constructing the internal substitution manager. The
+  `EnhancedSubstitutionManager` import and the `_load_substitution_manager`
+  helper are deleted from `show_command.py`.
+
+**Removed.**
+
+- **The deprecated `EnhancedSubstitutionManager` re-export + PEP-562
+  `__getattr__` shim from `lhp.api`.** Per §6.4 — the replacement
+  (`SubstitutionView` + `build_substitution_view`) shipped under the prior
+  `OPMETA-SVC-VIEW` wave. Accessing `lhp.api.EnhancedSubstitutionManager` now
+  raises `AttributeError`. The **internal** class
+  `lhp.core.processing.substitution.EnhancedSubstitutionManager` is retained
+  untouched for internal use; only the public re-export is removed.
+
 ### Eliminate inspection-path facade reach-throughs
 
 **Summary.** `lhp stats --pipeline <X>` (and any other filtered

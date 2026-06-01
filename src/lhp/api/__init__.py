@@ -21,8 +21,7 @@ the terminal response DTO.
 
 from __future__ import annotations
 
-import warnings
-from typing import Any, Iterator
+from typing import Iterator
 
 from lhp.api._serialization import to_dict
 from lhp.api.bootstrap import LakehousePlumberBootstrap
@@ -77,28 +76,6 @@ from lhp.api.views import (
 )
 from lhp.bundle.detection import should_enable_bundle_support
 
-# Deprecated re-export — kept for backward compatibility only.
-#
-# ``EnhancedSubstitutionManager`` is an internal implementation class
-# from ``lhp.core.processing.substitution``. It was exposed on the
-# public surface as a transitional shim while
-# :class:`SubstitutionView` and
-# :meth:`InspectionFacade.build_substitution_view` were under
-# development. Consumers MUST migrate to those public symbols; the
-# internal manager is volatile and may change at any minor version
-# per §1.7.
-#
-# Per constitution §6.4, deprecation requires three artifacts: a shim,
-# a runtime ``DeprecationWarning``, and a removal version. The shim is
-# wired via the module-level :func:`__getattr__` below (PEP 562), which
-# also emits the warning on first access. The direct top-level import
-# is intentionally omitted so the name is not in ``globals()`` and
-# PEP 562 lookup fires.
-#
-# :stability: deprecated
-# Removal: planned for v1.0.0 (one minor version after v0.9.0 ships
-# the replacement view + facade method per §6.4).
-
 
 def collect_response(events: Iterator[LHPEvent]) -> object:
     """Walk an LHPEvent stream and return the terminal ``response``.
@@ -133,32 +110,6 @@ def collect_response(events: Iterator[LHPEvent]) -> object:
     return final_response
 
 
-def __getattr__(name: str) -> Any:
-    """PEP 562 module-level attribute access hook.
-
-    Wires the runtime ``DeprecationWarning`` for the
-    ``EnhancedSubstitutionManager`` shim mandated by constitution §6.4.
-    Only fires for names not present in module globals, which is why
-    the direct top-level import of the deprecated symbol is omitted.
-
-    :stability: internal
-    """
-    if name == "EnhancedSubstitutionManager":
-        warnings.warn(
-            "EnhancedSubstitutionManager is deprecated; use "
-            "InspectionFacade.build_substitution_view instead. "
-            "Removal planned for v1.0.0.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        from lhp.core.processing.substitution import (
-            EnhancedSubstitutionManager as _EnhancedSubstitutionManager,
-        )
-
-        return _EnhancedSubstitutionManager
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
-
 __all__: list[str] = [
     "ActionView",
     "BatchGenerationResponse",
@@ -173,7 +124,6 @@ __all__: list[str] = [
     "DependencyAnalysisResult",
     "DependencyOutputEntry",
     "DependencyOutputsResult",
-    "EnhancedSubstitutionManager",
     "ErrorEmitted",
     "FinalizeMonitoringResult",
     "FlowgroupView",

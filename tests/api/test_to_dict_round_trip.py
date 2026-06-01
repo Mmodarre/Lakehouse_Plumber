@@ -338,6 +338,7 @@ _INSTANCES = [
         SubstitutionView(
             env="dev",
             tokens={"catalog": "dev_catalog", "schema": "main"},
+            raw_mappings={"catalog_map": {"prod": "main"}},
             secret_references=(
                 SecretReferenceView(scope="kv", key="db_url"),
                 SecretReferenceView(scope="kv", key="api_token"),

@@ -427,6 +427,11 @@ class InspectionFacade:
           Internal nested ``dict`` / ``list`` values (used by
           prefix/suffix rules) are coerced to ``str`` since DTO
           fields must be flat per §4.8.
+        - ``raw_mappings`` — the same expanded mappings, but un-coerced:
+          nested ``dict`` / ``list`` values are preserved as-is so
+          consumers can inspect the structure that ``tokens`` flattens
+          (per §4.8, ``raw_mappings`` is the canonical ``JSONValue``
+          companion to a flat string field).
         - ``secret_references`` — every observed
           ``${secret:scope/key}`` reference, sorted by
           ``(scope, key)`` for deterministic ordering.
@@ -456,7 +461,9 @@ class InspectionFacade:
         # ``dict``/``list`` values when prefix/suffix rules are used
         # (see substitution.py lines 155, 169). ``str(value)`` is a
         # no-op for actual strings and collapses nested rule objects
-        # to a flat repr — DTO fields must be flat per §4.8.
+        # to a flat repr for ``tokens`` — that flat field must stay
+        # flat per §4.8. The nesting is not lost: it is preserved
+        # verbatim on ``raw_mappings`` below (a ``JSONValue`` field).
         tokens: Dict[str, str] = {
             key: str(value) for key, value in manager.mappings.items()
         }
@@ -469,6 +476,7 @@ class InspectionFacade:
         return SubstitutionView(
             env=env,
             tokens=tokens,
+            raw_mappings=dict(manager.mappings),
             secret_references=secret_views,
             default_secret_scope=manager.default_secret_scope,
         )

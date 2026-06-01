@@ -51,6 +51,9 @@ def _substitution_to_json_safe_dict(view: SubstitutionView) -> dict[str, object]
         "env": view.env,
         # Mapping → plain dict for JSON-shape.
         "tokens": dict(view.tokens),
+        # Mapping[str, JSONValue] → plain dict; values already JSON-safe
+        # (nested dicts/lists of scalars), so serialise as-is.
+        "raw_mappings": dict(view.raw_mappings),
         # Tuple[SecretReferenceView, ...] → list of dicts.
         "secret_references": [_secret_to_json_safe_dict(r) for r in view.secret_references],
         "default_secret_scope": view.default_secret_scope,
@@ -63,6 +66,7 @@ def _substitution_from_json_safe_dict(payload: Mapping[str, object]) -> Substitu
     return SubstitutionView(
         env=payload["env"],  # type: ignore[arg-type]
         tokens=dict(payload["tokens"]),  # type: ignore[arg-type]
+        raw_mappings=dict(payload["raw_mappings"]),  # type: ignore[arg-type]
         secret_references=tuple(_secret_from_json_safe_dict(r) for r in refs_payload),
         default_secret_scope=payload["default_secret_scope"],  # type: ignore[arg-type]
     )
@@ -93,6 +97,10 @@ def populated_substitution_view() -> SubstitutionView:
             "catalog": "main",
             "schema": "analytics",
             "workspace_env": "prod",
+        },
+        raw_mappings={
+            "catalog_map": {"prod": "main", "dev": "sandbox"},
+            "schema": "bronze",
         },
         secret_references=(
             SecretReferenceView(scope="my-scope", key="db_password"),
@@ -198,6 +206,9 @@ class TestJSONRoundTrip:
         # Field-by-field for clearer drift signal.
         assert restored.env == populated_substitution_view.env
         assert dict(restored.tokens) == dict(populated_substitution_view.tokens)
+        assert dict(restored.raw_mappings) == dict(
+            populated_substitution_view.raw_mappings
+        )
         assert restored.secret_references == populated_substitution_view.secret_references
         assert (
             restored.default_secret_scope
@@ -282,7 +293,13 @@ class TestFieldTypeContract:
 
     def test_substitution_view_required_fields_present(self) -> None:
         field_names = {f.name for f in dataclasses.fields(SubstitutionView)}
-        required = {"env", "tokens", "secret_references", "default_secret_scope"}
+        required = {
+            "env",
+            "tokens",
+            "raw_mappings",
+            "secret_references",
+            "default_secret_scope",
+        }
         missing = required - field_names
         assert not missing, (
             f"SubstitutionView is missing required fields: {missing}."
