@@ -243,7 +243,7 @@ actions:
         # The wrapped-string form (which v0.8.7 §2 introduced and Option 1
         # reverts) would break JDBC auth at runtime — auth would receive
         # the literal call text instead of the resolved secret.
-        # Wrap-tolerant: black may break the .option(...) call across lines
+        # Wrap-tolerant: ruff may break the .option(...) call across lines
         # when the full single-line form is >88 chars (e.g. the password
         # variant comes out at 89 chars, one over the configured limit).
         # Normalise ALL whitespace to nothing so the wrapped form

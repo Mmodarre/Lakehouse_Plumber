@@ -147,6 +147,7 @@ class ProjectConfigLoader:
             monitoring=monitoring_config,
             required_lhp_version=config_data.get("required_lhp_version"),
             test_reporting=test_reporting_config,
+            apply_formatting=config_data.get("apply_formatting", True),
         )
 
         return project_config

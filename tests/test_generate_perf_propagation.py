@@ -43,7 +43,6 @@ from lhp.core.coordination._flowgroup_pool import (
 from lhp.utils import performance_timer as pt
 from lhp.utils.performance_timer import is_perf_enabled
 from tests.fakes import (
-    FakeCodeFormatter,
     FakeCodeGenerator,
     FakeFlowgroupResolutionService,
     FakeSubstitutionManager,
@@ -276,8 +275,9 @@ class TestGeneratePerfPropagation:
         * ``assemble_code``        cnt=2  (once per flowgroup; coordinator)
         * ``get_generator``        cnt=6  (one per action: load+transform+write)
         * ``jinja_render``         cnt=6  (one render per action generator)
-        * ``black_format``         cnt=2  (one format per flowgroup's code)
         * ``preset_resolve``       cnt=4  == ``2 * flowgroup_count``
+        * ``format_tree``          cnt=1  (one terminal ruff-format pass per
+          run; MAIN THREAD — the worker no longer formats)
 
         The ``preset_resolve`` ratio is the headline finding: each flowgroup's
         preset chain is resolved TWICE per run — once in the resolver
@@ -285,6 +285,12 @@ class TestGeneratePerfPropagation:
         second time in the codegen coordinator (``coordinator.py`` line ~160).
         The assertion pins the observed ``== 2 * flowgroup_count`` relationship
         to lock that double-resolution exposure in place.
+
+        ``black_format`` is intentionally ABSENT: the former per-flowgroup
+        in-worker format pass was relocated to a single terminal ruff pass on
+        the coordinator (``format_tree``, recorded ONCE per run, not per
+        flowgroup). ``black_format`` was the historical key name for the
+        removed per-flowgroup pass; it must never reappear.
         """
         project_root = tmp_path
         _build_multipipeline_project(project_root, self.PIPELINES, with_presets=True)
@@ -320,7 +326,7 @@ class TestGeneratePerfPropagation:
             return counts[category]
 
         # Categories pinned to exactly one occurrence per flowgroup.
-        for category in ("resolve_dependencies", "assemble_code", "black_format"):
+        for category in ("resolve_dependencies", "assemble_code"):
             assert _present(category) == flowgroup_count, (
                 f"Category '{category}' has cnt={counts[category]}, expected "
                 f"{flowgroup_count} (one per flowgroup).\n\nperf.log:\n{text}"
@@ -332,6 +338,20 @@ class TestGeneratePerfPropagation:
                 f"Category '{category}' has cnt={counts[category]}, expected "
                 f"> 0 (one per action generated).\n\nperf.log:\n{text}"
             )
+
+        # format_tree: the relocated terminal ruff-format pass runs ONCE per
+        # run on the coordinator (NOT per flowgroup), replacing the former
+        # worker-side per-flowgroup pass. Its presence here proves the
+        # main-thread timer records into the same summary singleton --perf renders.
+        assert _present("format_tree") == 1, (
+            f"format_tree cnt={counts.get('format_tree')}, expected 1 (one "
+            f"terminal ruff-format pass per run).\n\nperf.log:\n{text}"
+        )
+        # The former per-flowgroup worker category is gone.
+        assert "black_format" not in counts, (
+            "black_format should no longer be recorded — in-worker formatting "
+            f"was relocated to the terminal format_tree pass.\n\nperf.log:\n{text}"
+        )
 
         # preset_resolve: each flowgroup's chain is resolved twice (resolver +
         # codegen coordinator), so cnt is exactly 2x the flowgroup count.
@@ -364,8 +384,7 @@ class TestGeneratePerfPropagation:
            worker reads its collaborators from the ``_flowgroup_state`` global
            (set here exactly as ``_init_flowgroup_worker`` would in a spawned
            worker), and ``validate`` mode exercises only the resolver — so the
-           empty-surface ``FakeCodeGenerator`` / ``FakeCodeFormatter`` are
-           never called.
+           empty-surface ``FakeCodeGenerator`` is never called.
         """
         # --- Proof 1: no --perf => no perf.log written ----------------------
         project_root = tmp_path
@@ -393,7 +412,6 @@ class TestGeneratePerfPropagation:
             substitution_managers={"pipe_x": FakeSubstitutionManager()},
             include_tests=False,
             code_generator=FakeCodeGenerator(),
-            formatter=FakeCodeFormatter(),
             pipeline_output_dirs={"pipe_x": None},
             environment="dev",
         )

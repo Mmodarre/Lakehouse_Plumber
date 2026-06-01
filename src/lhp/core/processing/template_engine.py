@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
-from jinja2 import Environment
+from jinja2 import Environment, Template
 
 from lhp.models import Action
 from lhp.models import Template as TemplateModel
@@ -32,6 +32,10 @@ class TemplateEngine:
 
         # Create Jinja2 environment for parameter expansion
         self.jinja_env = Environment()  # nosec B701 — generates Python, not HTML
+
+        # Per-instance cache of compiled inline templates, keyed on source string.
+        # Bound to this instance's jinja_env (never a process-global cache).
+        self._compiled: dict[str, Template] = {}
 
         # Discover available template files (but don't parse them yet - lazy loading)
         self._available_templates: Set[str] = set()
@@ -193,7 +197,7 @@ class TemplateEngine:
             # Only process strings that contain template syntax
             if "{{" in value and "}}" in value:
                 # Render template expression
-                template = self.jinja_env.from_string(value)
+                template = self._compile(value)
                 rendered = template.render(**parameters)
 
                 # Convert rendered result to appropriate type
@@ -207,6 +211,14 @@ class TemplateEngine:
             return [self._render_value(item, parameters) for item in value]
         else:
             return value
+
+    def _compile(self, source: str) -> Template:
+        """Compile an inline template, memoizing the result per source string."""
+        compiled = self._compiled.get(source)
+        if compiled is None:
+            compiled = self.jinja_env.from_string(source)
+            self._compiled[source] = compiled
+        return compiled
 
     def _convert_template_result(self, rendered: str) -> Any:
         """Convert rendered string back to appropriate data type with fail-fast error handling.

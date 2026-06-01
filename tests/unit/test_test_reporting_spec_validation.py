@@ -368,11 +368,13 @@ class TestTC12ConfigFileEmbedding:
         )
 
         assert content is not None
-        # repr() embeds the dict, then Black normalizes to double quotes
-        # e.g. {"plan_id": 42, "org": "acme"}
-        assert '"plan_id"' in content
+        # repr() embeds the dict, e.g. {'plan_id': 42, 'org': 'acme'}. Quote
+        # style (single vs double) is left to the coordinator's terminal
+        # `ruff format` pass and is NOT asserted here (this inspects the
+        # pre-format return value); only the embedded keys/values are.
+        assert "plan_id" in content
         assert "42" in content
-        assert '"acme"' in content
+        assert "acme" in content
 
 
 # ============================================================================

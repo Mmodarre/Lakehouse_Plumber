@@ -19,7 +19,6 @@ import pytest
 
 from tests.fakes import (
     CallRecord,
-    FakeCodeFormatter,
     FakeCodeGenerator,
     FakeFlowgroupResolutionService,
     FakeProjectConfig,
@@ -76,10 +75,6 @@ class TestFakesPickle:
     def test_fake_code_generator_pickles(self) -> None:
         restored = pickle.loads(pickle.dumps(FakeCodeGenerator()))
         assert isinstance(restored, FakeCodeGenerator)
-
-    def test_fake_code_formatter_pickles(self) -> None:
-        restored = pickle.loads(pickle.dumps(FakeCodeFormatter()))
-        assert isinstance(restored, FakeCodeFormatter)
 
     def test_fake_project_config_pickles(self) -> None:
         fake = FakeProjectConfig(name="proj", test_reporting={"enabled": True})

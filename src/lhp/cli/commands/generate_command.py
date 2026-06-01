@@ -74,6 +74,7 @@ class GenerateCommand(BaseCommand):
         show_all: bool = False,
         force: bool = False,
         no_state: bool = False,
+        no_format: bool = False,
     ) -> None:
         """Run the generate command.
 
@@ -81,6 +82,10 @@ class GenerateCommand(BaseCommand):
         full-success run and only lists failed pipelines otherwise.
         ``force`` and ``no_state`` are deprecated no-ops that route a
         deprecation entry through ``warning_collector`` when truthy.
+        ``no_format`` (CLI ``--no-format``) forces the terminal formatting
+        pass OFF, overriding the ``lhp.yaml`` ``apply_formatting`` key; when
+        the flag is absent the project-config value decides (default True).
+        The generated-code validity guard (LHP-CFG-031) always runs.
         """
         from rich.live import Live
         from rich.text import Text
@@ -114,7 +119,7 @@ class GenerateCommand(BaseCommand):
         _remove_legacy_state_artifacts(project_root)
 
         self.check_substitution_file(env)
-        self.echo_verbose_info(f"Detailed logs: {self.log_file}")
+        self.announce_log_file()
 
         # Refuse to proceed if bundle support is on and no pipeline_config
         # was supplied. Done BEFORE any side effects (including opening
@@ -339,6 +344,12 @@ class GenerateCommand(BaseCommand):
                                 output_dir=output_dir if not dry_run else None,
                                 specific_flowgroups=None,
                                 include_tests=include_tests,
+                                # Tri-state formatting override: --no-format
+                                # forces it OFF; otherwise ``None`` defers to
+                                # the project's ``lhp.yaml`` ``apply_formatting``
+                                # key (resolved in the orchestrator). The
+                                # CFG-031 validity guard runs regardless.
+                                apply_formatting=(False if no_format else None),
                                 # §9.24: thread the real bundle flag so the
                                 # shared facade preflight runs the bundle
                                 # catalog/schema check (→ LHP-CFG-026).

@@ -18,7 +18,6 @@ more. Calibration:
 
 from tests.fakes.processing import (
     CallRecord,
-    FakeCodeFormatter,
     FakeCodeGenerator,
     FakeFlowgroupResolutionService,
     FakeProjectConfig,
@@ -29,7 +28,6 @@ from tests.fakes.processing import (
 
 __all__ = [
     "CallRecord",
-    "FakeCodeFormatter",
     "FakeCodeGenerator",
     "FakeFlowgroupResolutionService",
     "FakeProjectConfig",

@@ -385,7 +385,7 @@ class TestActionOrchestrator:
 
             code = generated_files["secret_flowgroup.py"]
 
-            # Entire-value fields must use the bare-call form. Black
+            # Entire-value fields must use the bare-call form. ruff
             # normalizes top-level string quotes to double, so the
             # dbutils call uses double-quoted scope/key here.
             assert (

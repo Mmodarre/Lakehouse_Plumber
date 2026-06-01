@@ -34,7 +34,7 @@ dependencies = [
     "pydantic==2.12.0",
     "jsonschema>=4.26.0",
     "packaging>=23.2",
-    "black>=26.3.1",
+    "ruff>=0.13.3",
     "networkx>=3.6.0",
 ]
 
@@ -168,6 +168,14 @@ extend-exclude = '''
 '''
 
 [tool.ruff]
+# ``target-version`` is a TOP-LEVEL ``[tool.ruff]`` key per the ruff config
+# schema (NOT a ``[tool.ruff.format]`` key — that section holds format-only
+# options like ``quote-style``). py311 corrects the stale Black PY38 baseline.
+# NOTE: this governs LHP's OWN repo tooling. The generated-output terminal
+# formatting pass runs ``ruff format`` inside the USER's project dir, where
+# ruff discovers the USER's config — so T5.2 must pass config EXPLICITLY on
+# that invocation to keep generated formatting deterministic and LHP-controlled.
+target-version = "py311"
 extend-exclude = [
     "tests/fixtures/import_manager/invalid_syntax.py",
 ]

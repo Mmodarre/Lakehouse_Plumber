@@ -267,7 +267,6 @@ def test_flat_engine_guards_executor_submit_raises(monkeypatch):
         substitution_managers={},
         include_tests=False,
         code_generator=object(),
-        formatter=object(),
         pipeline_output_dirs={},
         environment="dev",
     )

@@ -274,8 +274,8 @@ def gate_or_raise(
        before any commit.
     2. Build the global error set = {per-pipeline failures (per-fg +
        cross-fg, collapsed by :func:`pipeline_failure_descriptor`)} ∪ {the
-       cross-pipeline ``019``}. Codegen / Black-parse failures already ride
-       the per-fg failures (the worker catches them).
+       cross-pipeline ``019``}. Codegen / generated-source parse failures
+       already ride the per-fg failures (the worker catches them).
     3. Non-empty → :func:`raise_aggregate_failure` (single → that error
        verbatim; many → ``LHP-VAL-902``) and RAISE. Empty → return
        ``pool_results`` unchanged for the caller's commit to consume.

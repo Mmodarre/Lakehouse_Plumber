@@ -27,8 +27,10 @@ logger = logging.getLogger(__name__)
 
 # CONFIG-category code carried by test-reporting preflight failures.
 # ``TestReportingHookGenerator.validate`` returns plain message strings with
-# no structured code, so the code is assigned here. CFG-026..031 are already
-# taken (catalog/schema, template, bundle); 032 is the next free CONFIG slot.
+# no structured code, so the code is assigned here. This is the canonical,
+# pre-existing owner of LHP-CFG-032; the generated-code formatter codes
+# (CFG-031 parse guard, CFG-033 ruff-format exit, CFG-034 ruff-not-found)
+# deliberately skip 032 so test-reporting keeps sole ownership of it.
 _TEST_REPORTING_CODE_NUMBER = "032"
 
 

@@ -2,9 +2,10 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 import click
+
+from .._project_root import _find_project_root
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,7 @@ class BaseCommand:
         from ...errors import ErrorCategory, LHPError
 
         if self._project_root is None:
-            self._project_root = self._find_project_root()
+            self._project_root = _find_project_root()
 
         if not self._project_root:
             raise LHPError(
@@ -64,24 +65,6 @@ class BaseCommand:
             )
 
         return self._project_root
-
-    def _find_project_root(self) -> Optional[Path]:
-        """
-        Find the project root by looking for lhp.yaml.
-
-        Searches current directory and parent directories for lhp.yaml file.
-
-        Returns:
-            Path to project root if found, None otherwise
-        """
-        current = Path.cwd().resolve()
-
-        # Check current directory and parent directories
-        for path in [current] + list(current.parents):
-            if (path / "lhp.yaml").exists():
-                return path
-
-        return None
 
     def check_substitution_file(self, env: str) -> Path:
         """
@@ -128,12 +111,14 @@ class BaseCommand:
 
         return substitution_file
 
-    def echo_verbose_info(self, message: str) -> None:
-        """Echo verbose information if verbose mode is enabled."""
-        if self.verbose and self.log_file:
-            click.echo(f"{message}")
-            if "Detailed logs:" not in message:
-                click.echo(f"Detailed logs: {self.log_file}")
+    def announce_log_file(self) -> None:
+        """Announce the log-file path whenever a file was written.
+
+        Emitted independently of ``--verbose``: the ``--log-file`` opt-in flag
+        writes a file even without ``-v``, so the user must be told where it landed.
+        """
+        if self.log_file:
+            click.echo(f"Detailed logs: {self.log_file}")
 
     def _get_include_patterns(self, project_root: Path) -> list:
         """Get include patterns from project configuration.

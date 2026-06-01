@@ -13,8 +13,8 @@ the pieces a *single flowgroup* needs to be processed in a spawn worker:
   populated by :func:`_init_flowgroup_worker` and read by the worker.
 - The single-wave worker entry :func:`_process_one_flowgroup` which does
   resolve + per-flowgroup validation and, for ``mode == "generate"``,
-  codegen + Black-format — all in one task, NEVER raising (constitution
-  §5.6): every failure is returned as a
+  codegen + a cheap ``ast.parse`` syntax guard — all in one task, NEVER
+  raising (constitution §5.6): every failure is returned as a
   :class:`~lhp.models.processing.FlowgroupOutcome` via its total
   :meth:`~lhp.models.processing.FlowgroupOutcome.failure` constructor.
 
@@ -58,10 +58,10 @@ from ...utils.performance_timer import (
     reset_perf_summary,
 )
 from .._interfaces import BaseCodeGenerationService, BaseFlowgroupResolutionService
+from ..codegen.formatter import assert_generated_python_valid
 
 if TYPE_CHECKING:
     from ...models.processing import CopiedModuleRecord
-    from ..codegen.formatter import CodeFormatter
     from ..processing.substitution import EnhancedSubstitutionManager
 
 
@@ -131,8 +131,11 @@ class _FlowgroupWorkerState:
 
     - ``processor`` / ``substitution_managers`` — both modes (resolve +
       per-flowgroup-validate; the sub manager is looked up by pipeline name).
-    - ``code_generator`` / ``formatter`` / ``pipeline_output_dirs`` /
-      ``environment`` — generate-only (unused in validate mode).
+    - ``code_generator`` / ``pipeline_output_dirs`` / ``environment`` —
+      generate-only (unused in validate mode). The formatter is deliberately
+      absent: the worker no longer formats (it only ``ast.parse``-validates
+      via :func:`assert_generated_python_valid`); the single terminal ruff
+      pass runs on the coordinator over the committed tree.
     - ``include_tests`` — consumed by ``process_flowgroup`` in BOTH modes
       (it filters test actions before validation), so it is genuinely shared.
 
@@ -152,7 +155,6 @@ class _FlowgroupWorkerState:
     include_tests: bool
     # Generate-only collaborators (unused in validate mode):
     code_generator: BaseCodeGenerationService
-    formatter: "CodeFormatter"
     pipeline_output_dirs: Mapping[str, Optional[Path]]
     environment: str
 
@@ -251,10 +253,12 @@ def _process_one_flowgroup_impl(
     3. ``generate`` mode then runs codegen
        (:meth:`CodeGenerationService.generate_flowgroup_code` with a
        ``phase_a_records`` list it mutates in place to receive
-       :class:`CopiedModuleRecord`s — NO disk writes) and Black-format
-       (:meth:`CodeFormatter.format_code`, which raises
-       :class:`LHPConfigError` ``LHP-CFG-031`` on unparseable generated
-       source). It returns an ``ok`` outcome carrying ``formatted_code``,
+       :class:`CopiedModuleRecord`s — NO disk writes) and the cheap
+       parse guard (:func:`..codegen.formatter.assert_generated_python_valid`,
+       which raises :class:`LHPConfigError` ``LHP-CFG-031`` on unparseable
+       generated source). Formatting is NOT done here — it is relocated to
+       the coordinator's single terminal ``ruff format`` pass. The worker
+       returns an ``ok`` outcome carrying the UNFORMATTED ``formatted_code``,
        the captured ``copy_records``, the resolved flowgroup, and the
        monitoring-path ``auxiliary_files``.
 
@@ -314,7 +318,8 @@ def _process_one_flowgroup_impl(
             resolved_flowgroup=resolved,
         )
 
-    # Generate mode: codegen + format (no disk writes).
+    # Generate mode: codegen + syntax guard (no formatting, no disk writes).
+    # Formatting is relocated to the coordinator's terminal ruff pass.
     try:
         # ``records`` is mutated in place by generate_flowgroup_code:
         # user-module copies are appended as CopiedModuleRecords instead
@@ -330,10 +335,12 @@ def _process_one_flowgroup_impl(
             phase_a_records=records,
             auxiliary_files=ctx_out.auxiliary_files,
         )
-        with perf_timer(f"black_format [{flowgroup_name}]", category="black_format"):
-            formatted = state.formatter.format_code(code)
+        # Cheap (microsecond ast.parse) syntax guard: the worker ships the
+        # UNFORMATTED ``code`` and only asserts it parses. A failed parse
+        # raises LHP-CFG-031 — caught below and routed onto the failure DTO.
+        assert_generated_python_valid(code, flowgroup_name)
     except Exception as exc:
-        # Codegen errors and Black-parse LHP-CFG-031 both land here. Per
+        # Codegen errors and the syntax-guard LHP-CFG-031 both land here. Per
         # §5.6 the worker still does not raise; the resolved flowgroup is
         # not re-attached on the failure DTO (failure() is total and
         # carries only the error channels — the coordinator gate needs
@@ -347,7 +354,10 @@ def _process_one_flowgroup_impl(
         pipeline,
         flowgroup_name,
         resolved_flowgroup=resolved,
-        formatted_code=formatted,
+        # Despite its ``formatted_code`` name the field carries UNFORMATTED
+        # source: the terminal ruff pass on the coordinator formats the
+        # committed tree in place.
+        formatted_code=code,
         auxiliary_files=tuple(ctx_out.auxiliary_files.items()),
         copy_records=tuple(records),
     )

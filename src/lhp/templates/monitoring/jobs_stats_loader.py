@@ -180,9 +180,7 @@ def get_jobs_stats(spark, parameters) -> DataFrame:
 def _get_pipeline_tags(w, pipeline_id):
     """Fetch pipeline tags via raw REST API (SDK model may not expose spec.tags)."""
     try:
-        resp = w.api_client.do(
-            "GET", f"/api/2.0/pipelines/{pipeline_id}"
-        )
+        resp = w.api_client.do("GET", f"/api/2.0/pipelines/{pipeline_id}")
         if resp and isinstance(resp, dict):
             return resp.get("spec", {}).get("tags", {})
     except Exception as e:

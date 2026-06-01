@@ -50,7 +50,9 @@ from typing import (
 from lhp.models import FlowGroupContext
 
 from ...models.processing import PipelineDelta
+from ...utils.performance_timer import perf_timer
 from .._interfaces import BasePipelineExecutionService
+from ..codegen.formatter import format_generated_tree
 from ._commit import commit_generate_results
 from ._flowgroup_pool import (
     _FlowgroupWorkerState,
@@ -179,6 +181,7 @@ class PipelineExecutionService(BasePipelineExecutionService):
         project_config: Optional["ProjectConfig"],
         project_root: Path,
         max_workers: Optional[int] = None,
+        apply_formatting: bool = True,
     ) -> Dict[str, tuple[str, ...]]:
         """Run generate through the unified flat engine; all-or-nothing.
 
@@ -193,12 +196,12 @@ class PipelineExecutionService(BasePipelineExecutionService):
         through.
 
         This method assembles the per-batch :class:`_FlowgroupWorkerState`
-        (combining the constructor-time leaf-service collaborators —
-        ``processor`` / ``code_generator`` / ``formatter`` / ``environment`` /
-        ``include_tests`` — with the call-time ``substitution_managers`` /
-        ``output_dirs``), then drives the engine in ``mode="generate"`` (codegen
-        + Black-format in the worker), GATES (raises on ANY failure, before any
-        write), and COMMITS each clean pipeline.
+        (constructor-time leaf services — ``processor`` / ``code_generator`` /
+        ``formatter`` / ``environment`` / ``include_tests`` — plus call-time
+        ``substitution_managers`` / ``output_dirs``), then drives the engine in
+        ``mode="generate"`` (codegen + AST-parse guard in the worker; formatting
+        is the ``apply_formatting``-gated terminal pass), GATES (raises before
+        any write), and COMMITS each clean pipeline.
 
         Discovery failures: ``build_flowgroup_worklist`` routes a pipeline whose
         per-pipeline discovery raised into ``discovery_errors`` (present but
@@ -264,6 +267,7 @@ class PipelineExecutionService(BasePipelineExecutionService):
             project_config=project_config,
             project_root=project_root,
             max_workers=max_workers,
+            apply_formatting=apply_formatting,
         )
         return {delta.pipeline_name: delta.generated_filenames for delta in deltas}
 
@@ -337,16 +341,23 @@ class PipelineExecutionService(BasePipelineExecutionService):
         project_config: Optional["ProjectConfig"] = None,
         project_root: Optional[Path] = None,
         max_workers: Optional[int] = None,
+        apply_formatting: bool = True,
     ) -> Tuple[PipelineDelta, ...]:
         """Run the flat engine in generate mode, GATE, then COMMIT.
 
-        The generate-path driver, kept thin:
-        it drives the generate-only engine
-        (:func:`._pool._run_flowgroup_pool_core`, ``mode`` forks
+        The generate-path driver, kept thin: it drives the generate-only
+        engine (:func:`._pool._run_flowgroup_pool_core`, ``mode`` forks
         only there — constitution §4.6), hands the per-pipeline results to
         :func:`._generate_gate.gate_or_raise` (copy-conflict ``019`` dry pass +
-        single-vs-``902`` shaping), then commits each clean pipeline via
-        :func:`._commit.commit_generate_results`.
+        single-vs-``902`` shaping), commits each clean pipeline via
+        :func:`._commit.commit_generate_results` (writing the workers'
+        UNFORMATTED source verbatim), then runs the single terminal
+        :func:`..codegen.formatter.format_generated_tree` pass — one
+        ``ruff format`` over the WHOLE env ``output_dir`` (generated flowgroup
+        files, copied user modules, the test-reporting hook, and auxiliary
+        inline modules; ``ruff format`` only rewrites Python, so bundle YAML is
+        untouched). That pass is skipped when ``output_dir`` is ``None``
+        (dry-run / validate) or ``apply_formatting`` is False.
 
         All-or-nothing: on ANY failure NO files are written and the
         aggregate is raised. Writes — and the single whole-env wipe of
@@ -376,7 +387,7 @@ class PipelineExecutionService(BasePipelineExecutionService):
         fire_pipeline_failure_deltas(pool_results, self._on_generate_pipeline_complete)
         # Raises on ANY failure (no writes yet); returns the clean results.
         clean = gate_or_raise(pool_results)
-        return commit_generate_results(
+        deltas = commit_generate_results(
             clean,
             pipeline_output_dirs=worker_state.pipeline_output_dirs,
             substitution_managers=worker_state.substitution_managers,
@@ -386,6 +397,19 @@ class PipelineExecutionService(BasePipelineExecutionService):
             project_root=project_root or Path.cwd(),
             on_pipeline_complete=self._on_generate_pipeline_complete,
         )
+        # Terminal ruff pass (main thread, timed as ``format_tree``): workers
+        # ship UNFORMATTED source written verbatim by commit, so the WHOLE env
+        # output tree is formatted ONCE here with ``ruff format`` — generated
+        # flowgroup files, copied user modules, the test-reporting hook, and
+        # auxiliary inline modules alike (``ruff format`` only rewrites Python,
+        # so bundle YAML is untouched). Skipped on dry-run/validate
+        # (``output_dir`` None) or ``--no-format`` / ``apply_formatting: false``
+        # — the in-worker AST-parse guard still runs regardless, so invalid
+        # Python fails (LHP-CFG-031) either way.
+        if output_dir is not None and apply_formatting:
+            with perf_timer("format_tree", category="format_tree"):
+                format_generated_tree(output_dir)
+        return deltas
 
     def configure_generate(
         self,

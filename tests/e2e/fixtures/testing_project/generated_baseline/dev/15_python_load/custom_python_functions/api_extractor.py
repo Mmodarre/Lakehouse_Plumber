@@ -30,5 +30,7 @@ def extract_customer_data(spark: SparkSession, parameters: dict) -> DataFrame:
         (1, "alice", "alice@example.com", start_date),
         (2, "bob", "bob@example.com", start_date),
     ]
-    schema = "customer_id INT, first_name STRING, email STRING, registration_date STRING"
+    schema = (
+        "customer_id INT, first_name STRING, email STRING, registration_date STRING"
+    )
     return spark.createDataFrame(rows, schema=schema)

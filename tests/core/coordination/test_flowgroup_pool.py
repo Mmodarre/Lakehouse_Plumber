@@ -3,7 +3,7 @@
 Exercises :func:`lhp.core.coordination._flowgroup_pool._process_one_flowgroup`
 directly, in-process (NOT through a ``ProcessPoolExecutor``), to prove the
 core contract: the worker resolves + validates (and, in generate mode,
-codegens + formats) one flowgroup and converts EVERY failure into a
+codegens + ``ast.parse``-validates) one flowgroup and converts EVERY failure into a
 :class:`~lhp.models.processing.FlowgroupOutcome` via the total
 :meth:`FlowgroupOutcome.failure` constructor — it NEVER lets an exception
 escape (constitution §5.6).
@@ -165,30 +165,11 @@ class _FakeCodeGen:
         return self._code
 
 
-class _FakeFormatter:
-    """Stands in for CodeFormatter.
-
-    ``format_code`` either raises ``raise_exc`` (e.g. the real Black-031
-    ``LHPConfigError``) or echoes a formatted string.
-    """
-
-    def __init__(self, *, raise_exc: Optional[Exception] = None) -> None:
-        self._raise = raise_exc
-        self.calls: List[str] = []
-
-    def format_code(self, code: str, line_length=None) -> str:
-        self.calls.append(code)
-        if self._raise is not None:
-            raise self._raise
-        return f"# formatted\n{code}"
-
-
 def _install_state(
     monkeypatch: pytest.MonkeyPatch,
     *,
     resolver: _FakeResolver,
     code_generator: Optional[_FakeCodeGen] = None,
-    formatter: Optional[_FakeFormatter] = None,
     output_dir: Optional[Path] = None,
     include_tests: bool = False,
 ) -> _FlowgroupWorkerState:
@@ -196,14 +177,15 @@ def _install_state(
 
     This is the in-process analogue of ``_init_flowgroup_worker`` running
     in a spawned worker: it populates ``_flowgroup_pool._flowgroup_state``
-    so ``_process_one_flowgroup`` reads the fakes.
+    so ``_process_one_flowgroup`` reads the fakes. The worker no longer
+    formats (it only ``ast.parse``-validates the generated code), so the
+    state carries no formatter.
     """
     state = _FlowgroupWorkerState(
         processor=resolver,
         substitution_managers={PIPELINE: object()},
         include_tests=include_tests,
         code_generator=code_generator or _FakeCodeGen(),
-        formatter=formatter or _FakeFormatter(),
         pipeline_output_dirs={PIPELINE: output_dir},
         environment="dev",
     )
@@ -220,12 +202,12 @@ def _val_error() -> LHPValidationError:
     )
 
 
-def _black_031_error() -> LHPConfigError:
+def _parse_031_error() -> LHPConfigError:
     return LHPConfigError(
         category=ErrorCategory.CONFIG,
         code_number="031",
-        title="Generated source failed Black parsing",
-        details="black could not parse",
+        title="Generated source failed to parse",
+        details="generated source could not be parsed",
     )
 
 
@@ -240,12 +222,10 @@ def test_generate_mode_ok_outcome(monkeypatch):
         aux={"monitor/extra.py": "print('x')\n"},
     )
     code_gen = _FakeCodeGen(code="y = 2\n", append_record=record)
-    formatter = _FakeFormatter()
     _install_state(
         monkeypatch,
         resolver=resolver,
         code_generator=code_gen,
-        formatter=formatter,
         output_dir=Path("/out/pipe_a"),
         include_tests=True,
     )
@@ -257,7 +237,10 @@ def test_generate_mode_ok_outcome(monkeypatch):
     assert outcome.pipeline == PIPELINE
     assert outcome.flowgroup_name == FLOWGROUP
     assert outcome.resolved_flowgroup is resolved
-    assert outcome.formatted_code == "# formatted\ny = 2\n"
+    # The worker no longer formats: ``formatted_code`` carries the UNFORMATTED
+    # source verbatim (the terminal ruff format pass on the coordinator formats
+    # the committed tree). ``y = 2\n`` is valid Python, so the syntax guard passes.
+    assert outcome.formatted_code == "y = 2\n"
     assert outcome.copy_records == (record,)
     # Monitoring aux files routed through as a tuple of (path, content).
     assert outcome.auxiliary_files == (("monitor/extra.py", "print('x')\n"),)
@@ -271,16 +254,14 @@ def test_generate_mode_ok_outcome(monkeypatch):
 
 @pytest.mark.unit
 def test_validate_mode_ok_outcome_carries_resolved_no_code(monkeypatch):
-    """Validate mode returns ok with the resolved FG and NO codegen/format."""
+    """Validate mode returns ok with the resolved FG and NO codegen."""
     resolved = _FakeFlowGroup()
     resolver = _FakeResolver(resolved_flowgroup=resolved)
     code_gen = _FakeCodeGen()
-    formatter = _FakeFormatter()
     _install_state(
         monkeypatch,
         resolver=resolver,
         code_generator=code_gen,
-        formatter=formatter,
     )
 
     outcome = _process_one_flowgroup(_ctx(), mode="validate")
@@ -291,9 +272,8 @@ def test_validate_mode_ok_outcome_carries_resolved_no_code(monkeypatch):
     assert outcome.formatted_code is None
     assert outcome.copy_records == ()
     assert outcome.lhp_error is None
-    # Codegen + format are never touched in validate mode.
+    # Codegen is never touched in validate mode.
     assert code_gen.calls == []
-    assert formatter.calls == []
 
 
 # Failure conversion (worker must NOT raise)
@@ -308,12 +288,10 @@ def test_per_flowgroup_validation_failure_returns_failure_dto(monkeypatch, mode)
     err = _val_error()
     resolver = _FakeResolver(raise_exc=err)
     code_gen = _FakeCodeGen()
-    formatter = _FakeFormatter()
     _install_state(
         monkeypatch,
         resolver=resolver,
         code_generator=code_gen,
-        formatter=formatter,
     )
 
     outcome = _process_one_flowgroup(_ctx(), mode=mode)
@@ -328,9 +306,8 @@ def test_per_flowgroup_validation_failure_returns_failure_dto(monkeypatch, mode)
     assert outcome.errors == ()
     assert outcome.resolved_flowgroup is None
     assert outcome.formatted_code is None
-    # Codegen/format never run once resolve/validate failed.
+    # Codegen never runs once resolve/validate failed.
     assert code_gen.calls == []
-    assert formatter.calls == []
 
 
 @pytest.mark.unit
@@ -339,12 +316,10 @@ def test_codegen_failure_returns_failure_dto(monkeypatch):
     boom = RuntimeError("codegen blew up")
     resolver = _FakeResolver()
     code_gen = _FakeCodeGen(raise_exc=boom)
-    formatter = _FakeFormatter()
     _install_state(
         monkeypatch,
         resolver=resolver,
         code_generator=code_gen,
-        formatter=formatter,
     )
 
     outcome = _process_one_flowgroup(_ctx(), mode="generate")
@@ -356,30 +331,35 @@ def test_codegen_failure_returns_failure_dto(monkeypatch):
     assert "RuntimeError" in outcome.errors[0]
     assert "codegen blew up" in outcome.errors[0]
     assert outcome.flowgroup_name == FLOWGROUP
-    # Format is never reached when codegen raised.
-    assert formatter.calls == []
 
 
 @pytest.mark.unit
-def test_black_031_failure_returns_failure_dto(monkeypatch):
-    """format_code raising LHP-CFG-031 -> failure DTO with live LHPError."""
-    err = _black_031_error()
+def test_syntax_guard_031_failure_returns_failure_dto(monkeypatch):
+    """Codegen emitting un-parseable Python -> failure DTO with a live CFG-031.
+
+    Drives the REAL ``ast.parse`` syntax guard
+    (:func:`assert_generated_python_valid`) the worker now runs in place of
+    the relocated formatting pass: the fake code generator returns
+    syntactically-invalid source (``def (:``), so the guard raises the same
+    ``LHP-CFG-031`` the user sees when the generated source cannot be parsed.
+    The worker catches it (§5.6) and surfaces it on the structured channel.
+    The guard is NOT mocked — this asserts the real behavior end-to-end.
+    """
     resolver = _FakeResolver()
-    code_gen = _FakeCodeGen(code="def (:\n")  # nonsense source; fake formatter raises
-    formatter = _FakeFormatter(raise_exc=err)
+    code_gen = _FakeCodeGen(code="def (:\n")  # invalid Python -> real ast.parse fails
     _install_state(
         monkeypatch,
         resolver=resolver,
         code_generator=code_gen,
-        formatter=formatter,
     )
 
     outcome = _process_one_flowgroup(_ctx(), mode="generate")
 
     assert outcome.success is False
-    assert outcome.lhp_error is err
     assert isinstance(outcome.lhp_error, LHPConfigError)
     assert outcome.lhp_error.code == "LHP-CFG-031"
+    # The flowgroup name rides in the error context (per-flowgroup attribution).
+    assert outcome.lhp_error.context.get("Flowgroup") == FLOWGROUP
     assert outcome.errors == ()
 
 
@@ -391,7 +371,6 @@ def test_black_031_failure_returns_failure_dto(monkeypatch):
         ("resolve", "validate"),
         ("resolve", "generate"),
         ("codegen", "generate"),
-        ("format", "generate"),
     ],
 )
 def test_worker_never_propagates_exception(monkeypatch, stage, mode):
@@ -399,17 +378,18 @@ def test_worker_never_propagates_exception(monkeypatch, stage, mode):
 
     This is the constitution-§5.6 contract under test: whatever blows up
     inside the worker, the call site sees a FlowgroupOutcome, not an
-    exception crossing the (would-be) process boundary.
+    exception crossing the (would-be) process boundary. The former
+    ``format`` stage is gone — the worker no longer formats; the
+    generate-mode syntax-guard failure path is covered by
+    :func:`test_syntax_guard_031_failure_returns_failure_dto`.
     """
     boom = RuntimeError(f"{stage} exploded")
     resolver = _FakeResolver(raise_exc=boom if stage == "resolve" else None)
     code_gen = _FakeCodeGen(raise_exc=boom if stage == "codegen" else None)
-    formatter = _FakeFormatter(raise_exc=boom if stage == "format" else None)
     _install_state(
         monkeypatch,
         resolver=resolver,
         code_generator=code_gen,
-        formatter=formatter,
     )
 
     # The assertion is simply that this does not raise.
@@ -433,7 +413,6 @@ def test_worker_never_propagates_even_when_substitution_lookup_fails(monkeypatch
         substitution_managers={},  # missing PIPELINE key -> KeyError
         include_tests=False,
         code_generator=_FakeCodeGen(),
-        formatter=_FakeFormatter(),
         pipeline_output_dirs={PIPELINE: None},
         environment="dev",
     )
@@ -592,7 +571,6 @@ def test_flowgroup_pool_validate_barrier_on_resolved_and_pipeline_order(monkeypa
         substitution_managers={multi: object(), single: object()},
         include_tests=False,
         code_generator=_FakeCodeGen(),
-        formatter=_FakeFormatter(),
         pipeline_output_dirs={multi: None, single: None},
         environment="dev",
     )
@@ -695,7 +673,6 @@ def _drive_gate(monkeypatch, tmp_path, *, flowgroups_by_pipeline, outcomes_by_ke
         substitution_managers={p: object() for p in pipelines},
         include_tests=False,
         code_generator=_FakeCodeGen(),
-        formatter=_FakeFormatter(),
         pipeline_output_dirs={p: tmp_path for p in pipelines},
         environment="dev",
     )
@@ -736,7 +713,6 @@ def _drive_commit(monkeypatch, tmp_path, *, flowgroups_by_pipeline, outcomes_by_
         substitution_managers={p: object() for p in pipelines},
         include_tests=False,
         code_generator=_FakeCodeGen(),
-        formatter=_FakeFormatter(),
         pipeline_output_dirs=dict(pipeline_dirs),
         environment="dev",
     )
@@ -812,7 +788,7 @@ def test_flowgroup_pool_generate_gate_multi_failure_902_no_writes(
             "pipe_a", "fg_a", lhp_error=_val_error()
         ),
         ("pipe_b", "fg_b"): FlowgroupOutcome.failure(
-            "pipe_b", "fg_b", lhp_error=_black_031_error()
+            "pipe_b", "fg_b", lhp_error=_parse_031_error()
         ),
     }
 

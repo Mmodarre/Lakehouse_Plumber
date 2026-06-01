@@ -539,30 +539,6 @@ description = "Test package"
                 finally:
                     lhp.cli.main.__file__ = original_file
 
-    def test_cleanup_logging_edge_case(self, runner):
-        """Test cleanup_logging() with no handlers attached."""
-        import logging
-        from unittest.mock import patch
-
-        from lhp.cli.main import cleanup_logging
-
-        # Create a fresh logger with no handlers
-        test_logger = logging.getLogger("test_empty_logger")
-        test_logger.handlers.clear()
-
-        # Mock the root logger to return our empty logger
-        with patch("lhp.cli.main.logging.getLogger") as mock_get_logger:
-            mock_get_logger.return_value = test_logger
-
-            # Should not raise any exceptions
-            try:
-                cleanup_logging()
-            except Exception as e:
-                pytest.fail(f"cleanup_logging() raised an exception: {e}")
-
-            # Verify handlers list is still empty
-            assert len(test_logger.handlers) == 0
-
     def test_list_templates_empty_dir(self, runner, temp_project):
         """Test list-templates command with no template files."""
         with runner.isolated_filesystem(temp_dir=temp_project):

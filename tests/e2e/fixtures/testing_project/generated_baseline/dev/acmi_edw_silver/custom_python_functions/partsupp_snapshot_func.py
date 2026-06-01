@@ -9,16 +9,19 @@ from pyspark.sql import DataFrame
 def next_snapshot_and_version(
     latest_snapshot_version: Optional[int],
 ) -> Optional[Tuple[DataFrame, int]]:
-
     if latest_snapshot_version is None:
         df = spark.sql("""
             SELECT * FROM acme_edw_dev.edw_bronze.partsupp 
             WHERE snapshot_id = (SELECT min(snapshot_id) FROM acme_edw_dev.edw_bronze.partsupp)
         """)
 
-        min_snapshot_id = spark.sql("""
+        min_snapshot_id = (
+            spark.sql("""
             SELECT min(snapshot_id) as min_id FROM acme_edw_dev.edw_bronze.partsupp
-        """).collect()[0].min_id
+        """)
+            .collect()[0]
+            .min_id
+        )
 
         return (df, min_snapshot_id)
 

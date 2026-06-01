@@ -252,6 +252,7 @@ class BasePipelineExecutionService(ABC):
         project_config: Optional["ProjectConfig"],
         project_root: Path,
         max_workers: Optional[int] = None,
+        apply_formatting: bool = True,
     ) -> Dict[str, tuple[str, ...]]:
         """Run generate across the flat worklist; return per-pipeline filenames.
 
@@ -267,7 +268,8 @@ class BasePipelineExecutionService(ABC):
         all-or-nothing).
 
         Drives the consolidated flat per-flowgroup engine in
-        ``mode="generate"`` (codegen + Black-format in the worker), applies the
+        ``mode="generate"`` (codegen + AST-parse guard in the worker;
+        ``apply_formatting`` gates the terminal ruff pass), applies the
         all-or-nothing gate (RAISES on any failure, before any write), then
         commits each clean pipeline. Returns ``{pipeline -> generated
         filenames}`` for the committed pipelines, in input order; the

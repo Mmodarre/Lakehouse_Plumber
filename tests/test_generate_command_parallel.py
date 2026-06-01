@@ -13,58 +13,62 @@ from __future__ import annotations
 
 import dataclasses
 from pathlib import Path
-from typing import Optional
 
 import pytest
 import yaml
 from click.testing import CliRunner
 
 from lhp.cli.main import cli
-from lhp.core.codegen.formatter import CodeFormatter
-from lhp.errors import ErrorCategory, LHPConfigError
 
 # Marker embedded in one flowgroup's generated source (via its table name)
-# so the N4 fallback formatter can single it out across the spawn boundary.
+# so the wrapper can single it out across the spawn boundary.
 _CFG031_MARKER = "cfg031_unparseable_target"
 
 
-class _Cfg031Formatter(CodeFormatter):
-    """Picklable ``CodeFormatter`` that injects an ``LHP-CFG-031`` for ONE flowgroup.
+class _Cfg031CodeGenerator:
+    """Picklable code-generator wrapper that emits UN-PARSEABLE Python for ONE fg.
 
-    Used by N4 as the documented fallback (see the test docstring). The
-    worker pool runs under ``ProcessPoolExecutor(mp_context="spawn")`` and
-    re-imports this module fresh in each child, so the injected formatter
-    must be a TOP-LEVEL (picklable) class shipped on the
+    Drives the REAL syntax guard the worker runs in place of the relocated
+    formatting pass: :func:`lhp.core.codegen.formatter.assert_generated_python_valid`
+    (a plain ``ast.parse``). The worker calls
+    ``code_generator.generate_flowgroup_code(...)`` and then validates the
+    result; by RETURNING syntactically-invalid source (``def (:``) for the
+    marked flowgroup, this makes the REAL guard raise ``LHP-CFG-031`` — the
+    guard is NOT mocked, so the honest root-cause path (real ast.parse ->
+    real CFG-031 -> worker catch -> failure DTO -> gate -> facade raise) is
+    exercised end to end.
+
+    The worker pool runs under ``ProcessPoolExecutor(mp_context="spawn")`` and
+    re-imports this module fresh in each child, so the injected collaborator
+    must be a TOP-LEVEL (picklable) object shipped on the
     ``_FlowgroupWorkerState`` — a parent-process ``monkeypatch`` would not
-    cross the spawn boundary. ``format_code`` raises the real
-    :class:`LHPConfigError` ``031`` (identical category/code/title to
-    :meth:`CodeFormatter.format_code`'s ``InvalidInput`` arm) only when the
-    generated source contains :data:`_CFG031_MARKER`; every other
-    flowgroup formats normally, so this isolates a single Black-unparseable
-    flowgroup while exercising the REAL gate + facade + CLI path.
+    cross the spawn boundary. It wraps the REAL ``CodeGenerationService`` (also
+    picklable, already shipped on the state) and delegates verbatim for every
+    flowgroup whose generated source lacks :data:`_CFG031_MARKER`, so only the
+    one marked flowgroup is corrupted.
     """
 
-    def format_code(self, code: str, line_length: Optional[int] = None) -> str:
+    def __init__(self, wrapped) -> None:
+        self._wrapped = wrapped
+
+    def generate_flowgroup_code(self, *args, **kwargs) -> str:
+        code = self._wrapped.generate_flowgroup_code(*args, **kwargs)
         if _CFG031_MARKER in code:
-            raise LHPConfigError(
-                category=ErrorCategory.CONFIG,
-                code_number="031",
-                title="Generated source failed Black parsing",
-                details=(
-                    "Injected Black-unparseable generated source for one "
-                    "flowgroup (N4 documented fallback)."
-                ),
-            )
-        return super().format_code(code, line_length)
+            # Replace the (valid) generated source with un-parseable Python so
+            # the worker's REAL ast.parse guard raises LHP-CFG-031.
+            return "def (:\n"
+        return code
 
 
-def _patch_worker_state_with_cfg031_formatter(monkeypatch) -> None:
-    """Make the generate worker pool use :class:`_Cfg031Formatter`.
+def _patch_worker_state_with_cfg031_codegen(monkeypatch) -> None:
+    """Make the generate worker pool emit un-parseable Python for ONE flowgroup.
 
-    Patches ``ActionOrchestrator._build_generate_worker_state`` to swap the
-    real formatter on the (frozen) ``_FlowgroupWorkerState`` for the
-    ``031``-injecting one. The state — formatter included — is what the
-    engine pickles to each spawned worker via ``initializer=``.
+    Patches ``ActionOrchestrator._build_generate_worker_state`` to wrap the
+    real ``code_generator`` on the (frozen) ``_FlowgroupWorkerState`` in
+    :class:`_Cfg031CodeGenerator`. The state — wrapped generator included — is
+    what the engine pickles to each spawned worker via ``initializer=``. The
+    REAL syntax guard then trips on the corrupted output, so the worker
+    surfaces a genuine ``LHP-CFG-031`` rather than an injected one.
     """
     from lhp.core.coordination.orchestrator import ActionOrchestrator
 
@@ -72,7 +76,9 @@ def _patch_worker_state_with_cfg031_formatter(monkeypatch) -> None:
 
     def _patched(self, env, include_tests):
         state = original(self, env, include_tests)
-        return dataclasses.replace(state, formatter=_Cfg031Formatter())
+        return dataclasses.replace(
+            state, code_generator=_Cfg031CodeGenerator(state.code_generator)
+        )
 
     monkeypatch.setattr(ActionOrchestrator, "_build_generate_worker_state", _patched)
 
@@ -548,36 +554,37 @@ class TestGenerateCommandParallel:
                 seq_bytes == par_bytes
             ), f"Bytewise diff for {rel} between --max-workers 1 and 8"
 
-    def test_N4_black_unparseable_cfg031_aborts_with_zero_files(
+    def test_N4_unparseable_generated_python_cfg031_aborts_with_zero_files(
         self, runner, tmp_path, monkeypatch
     ):
-        """N4: a Black-unparseable flowgroup aborts the run.
+        """N4: a flowgroup whose generated Python does not parse aborts the run.
 
-        When ONE flowgroup's generated source fails Black parsing, the worker
-        surfaces ``LHP-CFG-031`` as a ``FlowgroupOutcome`` failure (workers
-        never raise), the all-or-nothing gate aggregates it, and the
-        run aborts with ZERO files written. The other (valid)
-        pipeline must NOT be committed.
+        When ONE flowgroup's generated source fails the worker's ``ast.parse``
+        syntax guard, the worker surfaces ``LHP-CFG-031`` as a
+        ``FlowgroupOutcome`` failure (workers never raise), the all-or-nothing
+        gate aggregates it, and the run aborts with ZERO files written. The
+        other (valid) pipeline must NOT be committed.
 
-        FALLBACK (documented): this injects the ``LHP-CFG-031`` rather than
-        provoking it through config. A genuine Black-unparseable GENERATION
-        could not be constructed via config on this branch — the seams that
-        embed user text into GENERATED (Black-formatted) source all sanitize
-        it: ``sql`` transform bodies are escaped (verified: a ``\"\"\"``-/
-        backslash-/unbalanced-paren payload still produces valid, formatted
-        Python), and custom-Python (``module_path``) / snapshot-CDC
-        (``source_function``) modules are COPIED verbatim and AST-validated,
-        never run through ``CodeFormatter.format_code``. ``LHP-CFG-031`` by
-        design only fires on an actual LHP generator/template bug. So the
-        fallback injects a real :class:`LHPConfigError` ``031`` from a
-        picklable formatter shipped on the worker state (see
-        :func:`_patch_worker_state_with_cfg031_formatter`) — the gate, the
-        facade ``ErrorEmitted``+raise rendezvous, and the no-write contract
-        are all exercised for real; only the Black failure itself is injected.
+        ROOT-CAUSE PATH (not a mocked guard): the in-worker formatting pass was
+        relocated to a single terminal coordinator pass, and the worker now
+        runs the REAL ``ast.parse`` guard
+        (:func:`lhp.core.codegen.formatter.assert_generated_python_valid`) over
+        the generator's output. A genuine bad GENERATION still cannot be
+        constructed via config on this branch — the seams that embed user text
+        into generated source all sanitize it (``sql`` transform bodies are
+        escaped; custom-Python / snapshot-CDC modules are COPIED verbatim and
+        AST-validated separately). ``LHP-CFG-031`` by design only fires on an
+        actual LHP generator/template bug. So the injection corrupts the
+        GENERATOR OUTPUT (not the guard): :class:`_Cfg031CodeGenerator` wraps
+        the real ``CodeGenerationService`` on the worker state and returns
+        un-parseable Python (``def (:``) for the one marked flowgroup, so the
+        REAL guard raises a REAL ``LHP-CFG-031``. The gate, the facade
+        ``ErrorEmitted``+raise rendezvous, and the no-write contract are all
+        exercised for real — and so is the syntax guard itself.
         """
         project_root = tmp_path
         # Two valid pipelines; the second's table name carries the marker so
-        # ONLY its generated source trips the injected 031.
+        # ONLY its generated source is corrupted into un-parseable Python.
         _build_multipipeline_project(project_root, ["p_ok"])
         bad_dir = project_root / "pipelines" / "p_cfg031"
         bad_dir.mkdir(parents=True)
@@ -603,8 +610,8 @@ class TestGenerateCommandParallel:
                         "type": "streaming_table",
                         "catalog": "${catalog}",
                         "schema": "${bronze_schema}",
-                        # Marker leaks into the generated source -> the
-                        # injected formatter raises LHP-CFG-031 for this fg.
+                        # Marker leaks into the generated source -> the wrapper
+                        # corrupts this fg's output -> the real guard raises 031.
                         "table": _CFG031_MARKER,
                         "create_table": True,
                     },
@@ -614,7 +621,7 @@ class TestGenerateCommandParallel:
         with open(bad_dir / "p_cfg031_fg.yaml", "w") as f:
             yaml.dump(bad_fg, f)
 
-        _patch_worker_state_with_cfg031_formatter(monkeypatch)
+        _patch_worker_state_with_cfg031_codegen(monkeypatch)
 
         monkeypatch.chdir(project_root)
         result = runner.invoke(
@@ -632,7 +639,7 @@ class TestGenerateCommandParallel:
         output_root = project_root / "generated" / "dev"
         py_files = _py_files_under(output_root)
         assert py_files == [], (
-            f"Expected ZERO generated .py files on a Black-parse abort; "
+            f"Expected ZERO generated .py files on a syntax-guard abort; "
             f"found: {[str(p) for p in py_files]}"
         )
 

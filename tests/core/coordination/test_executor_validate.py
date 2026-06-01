@@ -154,7 +154,6 @@ def test_assemble_folds_table_creation_errors_into_lhp_errors(monkeypatch):
         substitution_managers={},
         include_tests=False,
         code_generator=MagicMock(),
-        formatter=MagicMock(),
         pipeline_output_dirs={},
         environment="dev",
     )

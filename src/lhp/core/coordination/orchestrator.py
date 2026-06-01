@@ -54,7 +54,6 @@ from .._interfaces import (
     BaseWarningCollector,
 )
 from ..codegen.coordinator import CodeGenerationService
-from ..codegen.formatter import CodeFormatter
 from ..dependencies import DependencyAnalysisService, DependencyResolver
 from ..discovery.blueprint_discoverer import BlueprintDiscoverer
 from ..discovery.flowgroup_discoverer import FlowgroupDiscoveryService
@@ -252,7 +251,6 @@ class ActionOrchestrator:
         # still reach in by the old names.
         self.processor = self.processing
         self.generator = self.codegen
-        self._formatter = CodeFormatter()
 
         self._pipeline_slice_cache: Dict[str, List[FlowGroup]] = {}
         self._pipeline_slice_cache_id: Optional[int] = None
@@ -354,6 +352,7 @@ class ActionOrchestrator:
         output_dir: Optional[Path] = None,
         specific_flowgroups: Optional[List[str]] = None,
         include_tests: bool = False,
+        apply_formatting: bool | None = None,
         pre_discovered_all_flowgroups: Optional[Sequence[FlowGroup]] = None,
         max_workers: Optional[int] = None,
         on_pipeline_complete: Optional[Callable[["PipelineDelta"], None]] = None,
@@ -366,6 +365,13 @@ class ActionOrchestrator:
         both are ``None`` no pipelines are generated and an empty mapping
         is returned (the caller is expected to discover the pipeline
         list first; see :class:`GenerationFacade`).
+
+        ``apply_formatting`` is a tri-state override for the terminal
+        ruff pass: ``None`` (the default) resolves to the loaded
+        project config's ``apply_formatting`` value (``True`` when there
+        is no project config); ``True`` / ``False`` override it. This
+        method resolves the override to a concrete bool and passes that
+        plain value into :meth:`PipelineExecutionService.run_generate`.
 
         Routes through the consolidated flat per-flowgroup engine,
         mirroring :meth:`validate_pipelines`:
@@ -427,6 +433,19 @@ class ActionOrchestrator:
             validation_service=self.validation,
             worker_state=self._build_generate_worker_state(env, include_tests),
         )
+        # Resolve the tri-state formatting override against the loaded project
+        # config: ``None`` means "use the project's ``lhp.yaml``
+        # ``apply_formatting`` setting" (default ``True`` when there is no
+        # project config); ``True`` / ``False`` override it. ``run_generate``
+        # and everything inward receive the already-resolved plain bool.
+        if apply_formatting is None:
+            effective_apply_formatting = (
+                self.project_config.apply_formatting
+                if self.project_config is not None
+                else True
+            )
+        else:
+            effective_apply_formatting = apply_formatting
         return self.execution.run_generate(
             flowgroups_by_pipeline=flowgroups_by_pipeline,
             substitution_managers=substitution_managers,
@@ -436,6 +455,7 @@ class ActionOrchestrator:
             project_config=self.project_config,
             project_root=self.project_root,
             max_workers=max_workers,
+            apply_formatting=effective_apply_formatting,
         )
 
     def _build_generate_worker_state(
@@ -448,21 +468,22 @@ class ActionOrchestrator:
         Generate uses the same :class:`_FlowgroupWorkerState` carrier as
         validate — identical to
         :meth:`_build_validate_worker_state` (the generate-only collaborators
-        ``code_generator`` / ``formatter`` / ``environment`` are genuinely
+        ``code_generator`` / ``environment`` are genuinely
         consumed here, unlike in validate mode). The per-pipeline
         ``substitution_managers`` / ``pipeline_output_dirs`` are placeholders;
         :meth:`PipelineExecutionService.run_generate` replaces them per batch
         from the worklist builder's maps. ``project_config`` / ``project_root``
         are deliberately NOT on this carrier (they are commit-step inputs the
         coordinator passes to ``run_generate`` separately, never crossing the
-        spawn boundary).
+        spawn boundary). No formatter rides along: the worker only
+        ``ast.parse``-validates generated code; the single terminal ruff pass
+        runs on the coordinator (:class:`PipelineExecutionService`).
         """
         return _FlowgroupWorkerState(
             processor=self.processing,
             substitution_managers={},
             include_tests=include_tests,
             code_generator=self.codegen,
-            formatter=self._formatter,
             pipeline_output_dirs={},
             environment=env,
         )
@@ -574,7 +595,7 @@ class ActionOrchestrator:
         :class:`_FlowgroupWorkerState` for both modes. In validate mode the
         worker only reads ``processor`` / ``substitution_managers`` /
         ``include_tests`` (it resolves + per-flowgroup-validates and stops);
-        the generate-only collaborators (``code_generator`` / ``formatter`` /
+        the generate-only collaborators (``code_generator`` /
         ``pipeline_output_dirs`` / ``environment``) are required by the
         dataclass but unused on this path. They are populated with the real
         collaborators anyway — harmless for validate, and the exact shape
@@ -587,7 +608,6 @@ class ActionOrchestrator:
             substitution_managers={},
             include_tests=include_tests,
             code_generator=self.codegen,
-            formatter=self._formatter,
             pipeline_output_dirs={},
             environment=env,
         )

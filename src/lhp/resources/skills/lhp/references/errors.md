@@ -38,7 +38,10 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | **CFG-025** | Bundle configuration structural error | Review `databricks.yml` against DAB docs |
 | **CFG-026** | Aggregated catalog/schema preflight failure (see below) | Add `catalog`/`schema` to `project_defaults` or per-pipeline; for empty-after-substitution failures, check `substitutions/<env>.yaml` |
 | **CFG-027** | Template not found | Check spelling; run `lhp list_templates` |
+| **CFG-031** | Generated Python source failed to parse (`ast.parse` SyntaxError) — in-worker syntax guard; names the offending flowgroup | Almost always an LHP generator/template bug — file a bug report with the failing flowgroup YAML; turn on DEBUG logging to inspect the generated source; if authoring a custom template or snapshot-CDC `source_function`, verify embedded Python with `python -m py_compile` |
 | **CFG-032** | Test-reporting provider/config file not found (preflight) | Create the file at `test_reporting.module_path` (and `config_file` if set) in `lhp.yaml`, or fix the path. Runs on both `lhp validate` and `lhp generate`, independent of `--include-tests` |
+| **CFG-033** | `ruff format` terminal pass exited non-zero — generated code written but not formatted; error carries ruff's exit code + stderr/stdout | Inspect ruff's output for the offending file; confirm ruff is installed and the generated tree is valid Python; re-run with `--no-format` to skip formatting and inspect the raw code |
+| **CFG-034** | `ruff` executable not found for the generated-code formatting pass (not in the active env's scripts dir or on `PATH`) | ruff ships as an LHP runtime dependency — `pip install ruff`, or reinstall LHP (`pip install lakehouse-plumber`); in isolated/custom envs ensure ruff is on `PATH` |
 
 ## Validation Errors (LHP-VAL)
 
@@ -52,7 +55,7 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | **VAL-010** | Both `__eventlog_monitoring` alias and real pipeline name in config | Use only one — alias or real name |
 | **VAL-011** | Multiple validation causes; commonly: eventlog alias misuse OR schema column-type syntax. See source for the specific site. | Check the error context for the specific cause |
 | **VAL-012** | Invalid source format (string where dict needed) | Provide full source config with `type`, `path`, etc. |
-| **VAL-902** | All-or-nothing aggregator — one or more flowgroups failed anywhere in a parallel `lhp generate` run (per-flowgroup validation, codegen, Black `LHP-CFG-031`, cross-flowgroup conflict, or copy conflict `LHP-VAL-019`); raised by the coordinator gate after all worker results are joined, before any files are written | Re-run with `--verbose` for full stack; check `~/.lhp/logs/` for per-flowgroup tracebacks; every listed failure must be fixed — the run wrote zero files |
+| **VAL-902** | All-or-nothing aggregator — one or more flowgroups failed anywhere in a parallel `lhp generate` run (per-flowgroup validation, codegen, generated-source parse failure `LHP-CFG-031`, cross-flowgroup conflict, or copy conflict `LHP-VAL-019`); raised by the coordinator gate after all worker results are joined, before any files are written | Re-run with `--verbose` for full stack; re-run with `--log-file` to capture a debug log at `<project>/.lhp/logs/lhp.log` and attach it to the bug report; every listed failure must be fixed — the run wrote zero files |
 
 ## I/O Errors (LHP-IO)
 
@@ -78,10 +81,10 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | Code | Trigger | Fix |
 |------|---------|-----|
 | **GEN-001** | Internal-error guard: preflight bypassed for bundle resource generation (see below) | Programming bug — invoke `bundle.preflight.validate_catalog_schema` first |
-| **GEN-901** | Worker exception during a parallel `lhp generate` run — a child process (one flowgroup task) raised an exception and the orchestrator reconstructed it via `lhp_error_from_worker_failure` | Re-run with `--verbose` for full stack; check `~/.lhp/logs/` for the worker traceback |
-| **GEN-902** | Unexpected non-LHP, non-Bundle exception wrapped by `from_unexpected_exception` (CLI fallback path) | Re-run with `--verbose` for full stack; check `~/.lhp/logs/` for the traceback |
+| **GEN-901** | Worker exception during a parallel `lhp generate` run — a child process (one flowgroup task) raised an exception and the orchestrator reconstructed it via `lhp_error_from_worker_failure` | Re-run with `--verbose` for full stack; re-run with `--log-file` to capture a debug log at `<project>/.lhp/logs/lhp.log` and attach it to the bug report |
+| **GEN-902** | Unexpected non-LHP, non-Bundle exception wrapped by `from_unexpected_exception` (CLI fallback path) | Re-run with `--verbose` for full stack; re-run with `--log-file` to capture a debug log at `<project>/.lhp/logs/lhp.log` and attach it to the bug report |
 
-> **Note (0.8.7+):** `GEN-901`, `GEN-902`, and `VAL-902` are the codes users will most often encounter after a parallel-generation failure — they wrap worker-side exceptions and aggregate failures from the coordinator. `lhp generate` parallelizes at the **flowgroup** level (one worker task per flowgroup) and is **all-or-nothing**: `VAL-902` aggregates every flowgroup that failed anywhere in the run, and when it fires **no files are written**. The structured traceback always lands in `~/.lhp/logs/` regardless of terminal verbosity.
+> **Note (0.8.7+):** `GEN-901`, `GEN-902`, and `VAL-902` are the codes users will most often encounter after a parallel-generation failure — they wrap worker-side exceptions and aggregate failures from the coordinator. `lhp generate` parallelizes at the **flowgroup** level (one worker task per flowgroup) and is **all-or-nothing**: `VAL-902` aggregates every flowgroup that failed anywhere in the run, and when it fires **no files are written**. Re-run with `--log-file` to capture a debug log at `<project>/.lhp/logs/lhp.log` (opt-in; not written by default).
 
 ## Pre-flight validation: LHP-CFG-023, LHP-CFG-026, LHP-CFG-032
 
@@ -90,9 +93,9 @@ Terminal output includes: error code, description, context, fix suggestions, and
 fails, `generate` aborts before touching the filesystem — `generated/<env>/`
 is left intact, not wiped. This untouched-output guarantee is not limited to
 preflight: `lhp generate` is **all-or-nothing** — if *any* flowgroup fails
-anywhere in the run (per-flowgroup validation, codegen, Black formatting
-`LHP-CFG-031`, a cross-flowgroup conflict, or a custom-module copy conflict
-`LHP-VAL-019`), the run writes **zero** files and leaves the output tree
+anywhere in the run (per-flowgroup validation, codegen, generated-source parse
+failure `LHP-CFG-031`, a cross-flowgroup conflict, or a custom-module copy
+conflict `LHP-VAL-019`), the run writes **zero** files and leaves the output tree
 untouched, aggregating multiple failures into a single `LHP-VAL-902`. `lhp
 validate` runs the **same** preflight
 checks (it gained `--no-bundle` and `--pipeline-config` / `-pc` to match;
@@ -299,7 +302,7 @@ Read the error code prefix:
 - `LHP-IO-*` — fix file path (paths are relative to FlowGroup YAML)
 - `LHP-ACT-*` — fix typo in action type/sub_type/preset name
 - `LHP-DEP-*` — break the dependency cycle shown in the message
-- `LHP-GEN-*` — worker / unexpected exception (re-run with `--verbose`; check `~/.lhp/logs/`)
+- `LHP-GEN-*` — worker / unexpected exception (re-run with `--verbose`; re-run with `--log-file` to capture `<project>/.lhp/logs/lhp.log`)
 
 Apply the numbered fix suggestions in the terminal output, then re-run.
 

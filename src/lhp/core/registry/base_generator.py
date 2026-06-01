@@ -1,11 +1,7 @@
 from __future__ import annotations
 
-import json
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
-
-import yaml
-from jinja2 import Environment
 
 from ...utils.performance_timer import perf_timer
 
@@ -37,16 +33,13 @@ class BaseActionGenerator(ABC):
         self._pre_pipeline_statements: List[str] = []
 
         # Deferred to avoid registry → codegen → generators → registry cycle.
-        from ..codegen.template_renderer import get_lhp_template_loader
+        # The generator Environment is process-local and shared across all
+        # generators so template compilation is amortized (see
+        # get_shared_generator_environment). It is read-only after construction;
+        # no generator mutates self.env, so sharing is safe.
+        from ..codegen.template_renderer import get_shared_generator_environment
 
-        self.env = Environment(  # nosec B701 — generates Python, not HTML
-            loader=get_lhp_template_loader(),
-            trim_blocks=True,
-            lstrip_blocks=True,
-        )
-        # Add filters
-        self.env.filters["tojson"] = json.dumps
-        self.env.filters["toyaml"] = yaml.dump
+        self.env = get_shared_generator_environment()
 
     @abstractmethod
     def generate(self, action: Action, context: Dict[str, Any]) -> str:

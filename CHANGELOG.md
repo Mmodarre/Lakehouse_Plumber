@@ -7,6 +7,126 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Generation hot-path optimization — `lhp generate` substantially faster on large projects
+
+**Summary.** This lands the optimization work the prior perf-instrumentation
+entry flagged as "Out of scope (follow-up)". `lhp generate`'s hot path is now
+**substantially faster on large projects** — roughly **4–5×** on a
+2660-flowgroup reference run. The win comes from amortizing two costs that were
+previously paid per action / per flowgroup (Jinja `Environment` rebuilds and
+inline-template recompilation) and from moving Python formatting out of the
+parallel workers into a single terminal pass. Generated pipeline code remains
+semantically identical; the **only** intended output difference is a one-time
+whitespace/quote/line-wrap reflow because the *generated* output is now
+formatted with `ruff format` instead of Black (see **Changed** below).
+
+**Performance.**
+
+- **Shared, compile-once Jinja `Environment` for code generators.** The Jinja2
+  `Environment` used by the per-action generators is now built **once per
+  process and shared** (`get_shared_generator_environment()` in
+  `core/codegen/template_renderer.py`) instead of rebuilt for every action.
+  Because a generator instance is handed back per action by the registry, the
+  old per-instance `Environment` recompiled each template against an empty
+  cache on every render; the shared `Environment` compiles each template once
+  and lets subsequent renders hit Jinja's in-`Environment` template cache. The
+  shared `Environment` replicates the historical per-instance one exactly
+  (filters included), so output is byte-identical.
+- **Inline `${...}` template strings are compiled once and cached.** Inline
+  template strings are now compiled a single time and cached per template engine
+  (`TemplateEngine._compiled`, keyed on the source string, in
+  `core/processing/template_engine.py`) instead of being recompiled for every
+  flowgroup that references them.
+
+**Changed.**
+
+- **Formatting moved to a single terminal pass after generation.** Generated
+  Python is now formatted **once, after generation**, rather than inside each
+  parallel worker. The per-flowgroup worker now performs only a fast
+  `ast.parse` validity check on the generated code (microsecond-scale) and
+  still raises the same per-flowgroup error on invalid generated Python. This
+  removes the formatter from the parallel hot path while keeping invalid output
+  from ever being written.
+- **Generated output is now formatted with `ruff format` instead of Black.**
+  This is a deliberate, **one-time** formatting change to the code LHP
+  *generates* — semantically identical Python, but with different whitespace,
+  quote, and line-wrap style. Expect a one-time diff in `generated/` the first
+  time you regenerate after upgrading. **Note:** this affects only the
+  *generated* output; LHP's **own** source code is still formatted with Black.
+  Consequently `ruff` is now a **runtime** dependency, while Black remains a
+  **dev** dependency.
+
+**Added.**
+
+- **`--no-format` flag on `lhp generate`** (with a corresponding
+  `apply_formatting` key in `lhp.yaml`) to **skip the terminal formatting pass**
+  for faster generation. The CLI flag overrides the project-config key. The
+  `ast.parse` validity check **always** runs regardless, so invalid generated
+  Python is still rejected even with `--no-format` — `--no-format` trades
+  formatted output for speed, not correctness.
+
+**Docs.**
+
+- **Added guidance recommending `LHP_MAX_WORKERS` (or `--max-workers`) for
+  CPU-bound batch generation**, so operators can size the parallel pool to the
+  host running large batch generates.
+
+**Deferred (decided; tracked for follow-up).**
+
+- **`FlowgroupOutcome.formatted_code` not renamed (deferred).** With formatting
+  moved to the terminal pass, the internal `FlowgroupOutcome.formatted_code`
+  field now carries **unformatted** (but `ast.parse`-validated) generated code,
+  so its name is now slightly inaccurate. The honest rename (e.g. to
+  `generated_code`) was **deferred**: the field lives on a frozen DTO
+  (`models/processing.py`) and renaming it is a separate, wider change touching
+  every reader. A docstring note was left at the field instead.
+- **Worker auto-count `0.8` factor unchanged (deferred).** The automatic
+  max-workers heuristic (`_auto_max_workers()` in
+  `core/coordination/orchestrator.py`) still multiplies the detected core count
+  by `0.8` (a 20% headroom). Tuning this factor was deliberately left **out of
+  scope** — it is an open question best driven by real numbers — and operators
+  who want a different worker count can override with `LHP_MAX_WORKERS` /
+  `--max-workers`.
+
+### Opt-in `--log-file` flag — decouple verbose console from file persistence
+
+**Summary.** A new group-level flag `--log-file` (boolean, off by default)
+writes a detailed DEBUG log to `<project>/.lhp/logs/lhp.log`. Previously a
+debug log file was written unconditionally on every command whenever `lhp.yaml`
+was found, including read-only commands. When `--log-file` is absent the
+`.lhp/logs/` directory is **never created**. `-v`/`--verbose` is now
+**console-only** — decoupled from file persistence. The "quiet console, full
+DEBUG file" bug-capture pattern is `--log-file` (without `-v`).
+
+**Added.**
+
+- **`--log-file` flag (group-level, off by default).** Enables per-run DEBUG
+  logging to `<project>/.lhp/logs/lhp.log`. File handler is attached only when
+  the flag is set; no handler, no directory creation otherwise.
+- **Path announcement (`DEC-3`).** Even without `-v`, `--log-file` prints
+  `Detailed logs: <path>` exactly once so the caller knows where to look.
+- **`cli/logging_config.py` (`LOG-CONFIG-CLI-EXTRACT`).** `configure_logging`
+  and `cleanup_logging` extracted from `main.py` into a new dedicated module,
+  keeping `main.py` to group definition + command registration (TARGET §7).
+- **`cli/_project_root.py` (`_find_project_root` dedupe).** The duplicated
+  `_find_project_root` copies in `main.py` and `base_command.py` collapsed into
+  a single canonical module; both callers now import from it.
+
+**Changed.**
+
+- **`-v`/`--verbose` is console-only.** Verbose output no longer implies file
+  persistence. The two concerns are now independent flags.
+- **Debug log file is opt-in.** The file (previously written unconditionally)
+  is now written only when `--log-file` is passed.
+
+**Deferred (tracked for follow-up).**
+
+- **`LOG-FILE-ROTATION`** — the file is opened in append mode (`DEC-1`); across
+  opted-in runs it accumulates. Rotation is not implemented; tracked for a
+  future pass if growth becomes a problem.
+- **`LHP_LOG_FILE` env var + top-level package `NullHandler`** — spec §7
+  optional follow-ups; not done.
+
 ### Parallel-worker performance instrumentation — propagated per-category timers + event counts
 
 **Summary.** Instrumentation-only change that makes the parallel

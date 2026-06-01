@@ -175,6 +175,9 @@ Load this file when:
 - **BP-15.4** **Layered CI:** yamllint → JSON Schema → `lhp validate` → `lhp generate --dry-run` → baseline diff → pytest `--include-tests`.
 - **BP-15.5** `lhp validate` runs the **same** structural and preflight checks as `lhp generate` (no-creator/duplicate `LHP-VAL-009`, blueprint/instance `LHP-VAL-041` family, test-reporting file existence `LHP-CFG-032`, bundle catalog/schema `LHP-CFG-026`). On a project containing `databricks.yml`, pass `--pipeline-config`/`-pc` to the CI `lhp validate` step (or `--no-bundle`) — without it validate fails fast with `LHP-CFG-023`, exactly like generate.
 - **BP-15.6** `lhp validate` runs cross-flowgroup conflict detection on the **resolved** flowgroups (after presets, templates, and substitutions). A conflict introduced by resolution — e.g. a template that expands into two `create_table: true` actions targeting the same table — now fails `lhp validate`, not just `lhp generate`.
+- **BP-15.7** `lhp generate`/`lhp validate` process flowgroups in a CPU-bound worker pool. Pool size precedence: `--max-workers N` flag → `LHP_MAX_WORKERS` env var → auto-default. Auto-default = `max(1, floor(detected_cpus * 0.8))` (20% headroom for the main thread + OS). Floored, so: 1→1, 2→1, 8→6, 16→12, 64→51.
+- **BP-15.8** On a **dedicated batch host** for large projects, the 0.8 auto-default under-utilizes CPU. Set `LHP_MAX_WORKERS=<physical core count>` (or `--max-workers N` per run) to maximize generation throughput.
+- **BP-15.9** Worker count clamps to ≥ 1: `LHP_MAX_WORKERS=0` runs sequentially (does not disable the pool); a non-integer value warns and falls back to auto-detect.
 
 ## 16. Bundle Integration
 

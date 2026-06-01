@@ -777,5 +777,82 @@ actions:
                 assert isinstance(action.source["max_files_per_trigger"], str), f"Should be string for {description}"
 
 
+class TestTemplateEngineCompileCache:
+    """Inline-template compile cache.
+
+    Byte-identical inline ``{{ ... }}`` strings are compiled once per engine
+    instance and the COMPILED template is reused; the rendered result is not
+    cached, so live parameters still take effect on every render.
+    """
+
+    def test_compile_called_once_for_repeated_source(self):
+        """Rendering the same source twice compiles it via from_string exactly once."""
+        from unittest.mock import patch
+
+        engine = TemplateEngine()
+        source = "{{ table_name }}_raw"
+
+        with patch.object(
+            engine.jinja_env,
+            "from_string",
+            wraps=engine.jinja_env.from_string,
+        ) as spy:
+            first = engine._render_value(source, {"table_name": "orders"})
+            second = engine._render_value(source, {"table_name": "orders"})
+
+        assert first == "orders_raw"
+        assert second == "orders_raw"
+        # Compiled once, reused on the second render.
+        assert spy.call_count == 1
+
+    def test_compile_caches_template_not_rendered_result(self):
+        """Same cached source with different params yields different output."""
+        from unittest.mock import patch
+
+        engine = TemplateEngine()
+        source = "{{ x }}"
+
+        with patch.object(
+            engine.jinja_env,
+            "from_string",
+            wraps=engine.jinja_env.from_string,
+        ) as spy:
+            first = engine._render_value(source, {"x": 1})
+            second = engine._render_value(source, {"x": 2})
+
+        # Live params still drive each render: we cache the template, not the result.
+        assert first == 1
+        assert second == 2
+        # Still compiled only once despite differing params.
+        assert spy.call_count == 1
+
+    def test_distinct_sources_compiled_separately(self):
+        """Different source strings each get their own cache entry."""
+        from unittest.mock import patch
+
+        engine = TemplateEngine()
+
+        with patch.object(
+            engine.jinja_env,
+            "from_string",
+            wraps=engine.jinja_env.from_string,
+        ) as spy:
+            engine._render_value("{{ a }}", {"a": "x"})
+            engine._render_value("{{ b }}", {"b": "y"})
+
+        assert spy.call_count == 2
+        assert set(engine._compiled.keys()) == {"{{ a }}", "{{ b }}"}
+
+    def test_cache_is_per_instance(self):
+        """Each engine instance owns its own compiled-template cache."""
+        engine_a = TemplateEngine()
+        engine_b = TemplateEngine()
+
+        engine_a._render_value("{{ v }}", {"v": 1})
+
+        assert "{{ v }}" in engine_a._compiled
+        assert engine_b._compiled == {}
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"]) 

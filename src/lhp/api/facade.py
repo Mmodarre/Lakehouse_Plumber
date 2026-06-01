@@ -103,6 +103,7 @@ class GenerationFacade:
         output_dir: Optional[Path],
         specific_flowgroups: Optional[List[str]] = None,
         include_tests: bool = False,
+        apply_formatting: bool | None = None,
         bundle_enabled: bool = False,
         pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
         max_workers: Optional[int] = None,
@@ -122,6 +123,13 @@ class GenerationFacade:
         Callers that don't need event-level visibility use
         :func:`lhp.api.collect_response` to walk the stream and return
         the terminal response DTO.
+
+        ``apply_formatting`` is a tri-state OVERRIDE for the terminal
+        code-formatting pass: ``None`` (the default) means "use the
+        project's ``lhp.yaml`` ``apply_formatting`` setting"; ``True`` /
+        ``False`` override that key. The resolution to a concrete bool
+        happens in the orchestrator (which holds the loaded project
+        config); this layer only forwards the override.
 
         :stability: provisional
         :raises lhp.errors.LHPError: ``LHP-VAL-*`` (config/action/schema
@@ -168,6 +176,7 @@ class GenerationFacade:
                 output_dir=output_dir,
                 specific_flowgroups=specific_flowgroups,
                 include_tests=include_tests,
+                apply_formatting=apply_formatting,
                 pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
                 max_workers=max_workers,
                 on_pipeline_complete=on_pipeline_complete,
@@ -187,6 +196,7 @@ class GenerationFacade:
         output_dir: Optional[Path],
         specific_flowgroups: Optional[List[str]] = None,
         include_tests: bool = False,
+        apply_formatting: bool | None = None,
         pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
         max_workers: Optional[int] = None,
         on_pipeline_complete: Optional[
@@ -198,6 +208,11 @@ class GenerationFacade:
 
         Internal: invoked by the public generator wrapper
         :meth:`generate_pipelines`.
+
+        ``apply_formatting`` is forwarded unchanged as the tri-state
+        override (``None`` = use the project's ``lhp.yaml``
+        ``apply_formatting`` setting; ``True`` / ``False`` override it);
+        the orchestrator resolves it to a concrete bool.
 
         Failure handling is split deliberately:
 
@@ -249,6 +264,7 @@ class GenerationFacade:
                     output_dir=output_dir,
                     specific_flowgroups=specific_flowgroups,
                     include_tests=include_tests,
+                    apply_formatting=apply_formatting,
                     pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
                     max_workers=max_workers,
                     on_pipeline_complete=_on_delta,
@@ -565,6 +581,7 @@ class LakehousePlumberApplicationFacade:
         output_dir: Optional[Path],
         specific_flowgroups: Optional[List[str]] = None,
         include_tests: bool = False,
+        apply_formatting: bool | None = None,
         bundle_enabled: bool = False,
         pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
         max_workers: Optional[int] = None,
@@ -578,6 +595,11 @@ class LakehousePlumberApplicationFacade:
         Restates the canonical signature (§4.2) and forwards every
         parameter unchanged via ``yield from`` (§1.4, §5.7).
 
+        ``apply_formatting`` is the tri-state formatting override
+        (``None`` = use the project's ``lhp.yaml`` ``apply_formatting``
+        setting; ``True`` / ``False`` override it), resolved downstream
+        in the orchestrator.
+
         :stability: provisional
         :raises lhp.errors.LHPError: same families as
             :meth:`GenerationFacade.generate_pipelines` — ``LHP-VAL-*``,
@@ -590,6 +612,7 @@ class LakehousePlumberApplicationFacade:
             output_dir=output_dir,
             specific_flowgroups=specific_flowgroups,
             include_tests=include_tests,
+            apply_formatting=apply_formatting,
             bundle_enabled=bundle_enabled,
             pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
             max_workers=max_workers,

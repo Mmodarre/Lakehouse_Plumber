@@ -6,7 +6,8 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from lhp.cli.main import cleanup_logging, cli
+from lhp.cli.logging_config import cleanup_logging
+from lhp.cli.main import cli
 
 
 class TestCLIComprehensive:

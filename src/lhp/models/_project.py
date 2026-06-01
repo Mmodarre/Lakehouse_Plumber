@@ -2,7 +2,7 @@
 
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ._monitoring import EventLogConfig, MonitoringConfig
 from ._operational_metadata import ProjectOperationalMetadataConfig
@@ -25,3 +25,12 @@ class ProjectConfig(BaseModel):
     monitoring: Optional[MonitoringConfig] = None
     required_lhp_version: Optional[str] = None
     test_reporting: Optional[TestReportingConfig] = None
+    apply_formatting: bool = Field(
+        True,
+        description=(
+            "Whether to run the terminal code-formatting pass over generated "
+            "Python files. Set to false to skip formatting for faster builds; "
+            "the AST-parse validity guard (LHP-CFG-031) always runs regardless. "
+            "The CLI --no-format flag overrides this key."
+        ),
+    )

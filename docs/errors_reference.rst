@@ -564,6 +564,65 @@ exist at the resolved path.
    :doc:`actions/test_reporting` for the provider module contract and built-in
    providers.
 
+LHP-CFG-031: Generated Source Failed to Parse
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** LHP generated Python source that could not be parsed
+(``ast.parse`` raised a ``SyntaxError``). The in-worker syntax guard runs over
+every flowgroup's generated code before the output is committed, and the error
+names the offending flowgroup.
+
+**Common causes:**
+
+- A bug in an LHP generator or template that emitted syntactically invalid
+  Python — this is almost never a problem with your YAML.
+- A custom template or a snapshot-CDC ``source_function`` that embeds Python
+  which does not parse.
+
+**How to resolve:**
+
+- File a bug report against LHP with the failing flowgroup YAML.
+- Turn on DEBUG logging to inspect the generated source that failed to parse.
+- If you author a custom template or a snapshot-CDC ``source_function``, verify
+  the embedded Python parses with ``python -m py_compile``.
+
+LHP-CFG-033: Ruff Failed to Format Generated Code
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** The terminal ``ruff format`` pass over the generated output
+directory exited non-zero. The generated code was written to disk but could not
+be formatted. The error carries ruff's exit code, stdout, and stderr so the
+failure is diagnosable.
+
+**Common causes:**
+
+- A generated file is syntactically invalid (an LHP generator/template bug),
+  so ruff could not parse it.
+- The ruff invocation itself failed to read a file in the output tree.
+
+**How to resolve:**
+
+- Inspect ruff's error output (carried in the error context) for the offending
+  file.
+- Confirm ruff is installed and the generated tree is valid Python.
+- Re-run with ``--no-format`` to skip formatting and inspect the raw generated
+  code; if a generated file is invalid, file a bug report with the flowgroup
+  YAML.
+
+LHP-CFG-034: Ruff Executable Not Found
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** LHP could not locate the ``ruff`` executable required for
+the generated-code formatting pass. ruff ships as a runtime dependency of LHP
+but was not found in the active environment's scripts directory or on ``PATH``.
+
+**How to resolve:**
+
+- Install ruff into the active environment: ``pip install ruff``.
+- Reinstall LHP with its dependencies: ``pip install lakehouse-plumber``.
+- If you use an isolated or custom environment, ensure ruff is on ``PATH`` or
+  installed alongside LHP.
+
 Validation Errors (LHP-VAL)
 ----------------------------
 

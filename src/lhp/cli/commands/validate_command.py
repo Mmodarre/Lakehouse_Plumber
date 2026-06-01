@@ -175,7 +175,7 @@ class ValidateCommand(BaseCommand):
             f"verbose={verbose}, no_bundle={no_bundle}"
         )
 
-        self.echo_verbose_info(f"Detailed logs: {self.log_file}")
+        self.announce_log_file()
 
         self.check_substitution_file(env)
 
@@ -472,9 +472,7 @@ class ValidateCommand(BaseCommand):
         logger.info(
             "Validation summary: passed=%d, failed=%d, warnings=%d",
             sum(1 for r in batch_response.pipeline_responses.values() if r.success),
-            sum(
-                1 for r in batch_response.pipeline_responses.values() if not r.success
-            ),
+            sum(1 for r in batch_response.pipeline_responses.values() if not r.success),
             sum(r.warning_count for r in batch_response.pipeline_responses.values()),
         )
         if total_errors > 0:
@@ -533,7 +531,3 @@ class ValidateCommand(BaseCommand):
 
             pipeline_fields = {fg.pipeline for fg in all_flowgroups}
             return sorted(pipeline_fields), all_flowgroups
-
-
-
-

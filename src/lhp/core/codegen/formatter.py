@@ -1,365 +1,203 @@
 """Code formatting utilities for LakehousePlumber.
 
-Provides utilities for formatting generated Python code.
+The generation hot-path formats generated code in a single terminal pass
+that shells out to ``ruff format`` (see :func:`format_generated_tree`). The
+in-worker step only asserts the generated source parses
+(:func:`assert_generated_python_valid`); the actual formatting happens once,
+on the coordinator, over the whole output tree.
 """
 
+import ast
 import logging
-import re
+import os
+import shutil
 import subprocess
-import tempfile
-import tomllib
+import sys
+import sysconfig
 from pathlib import Path
-from typing import Any, Dict, List, Optional
 
 from ...errors import ErrorCategory, LHPConfigError
 
+logger = logging.getLogger(__name__)
 
-def _read_black_config() -> Dict[str, Any]:
-    """Read Black configuration from pyproject.toml.
+# Deterministic ``ruff format`` flags for the generated-output terminal pass.
+#
+# The pass runs inside the USER's project directory, where a bare ``ruff
+# format`` would discover and honor the user's own ``pyproject.toml`` /
+# ``ruff.toml`` (line length, target version, quote style, ...). That would
+# make generated-code formatting depend on the user's environment and break
+# the reproducibility generated output requires. ``--isolated`` makes ruff
+# ignore ALL discovered config files; the two ``--config`` overrides then pin
+# the formatting LHP controls:
+#   * ``target-version='py311'`` — matches LHP's minimum supported Python.
+#   * ``line-length=88`` — the long-standing 88-column generated-code width.
+_RUFF_FORMAT_BASE_ARGS = [
+    "format",
+    "--isolated",
+    "--config",
+    "target-version='py311'",
+    "--config",
+    "line-length=88",
+]
+
+
+def _ruff_exe() -> str:
+    """Locate the ruff executable bundled with the active environment.
+
+    Returns the path to the ``ruff`` shipped in the *current* environment's
+    scripts directory — NOT a bare ``PATH`` lookup, which could resolve an
+    unrelated ruff installed elsewhere on the machine. The terminal
+    formatting pass shells out to this executable, so it must be the
+    one that satisfies LHP's own ``ruff`` runtime dependency.
+
+    Resolution order:
+      1. ``sysconfig.get_path("scripts")`` (the active venv's ``bin``/
+         ``Scripts`` dir) joined with ``ruff`` (``ruff.exe`` on Windows).
+      2. ``shutil.which("ruff")`` as a defensive fallback only if the
+         sysconfig candidate does not exist.
 
     Returns:
-        Dictionary with Black configuration, or defaults if not found
+        Absolute path to the ruff executable, as a ``str`` suitable for
+        passing directly as a subprocess argument.
+
+    Raises:
+        LHPConfigError: ``LHP-CFG-034`` if no ruff executable can be found,
+            naming ruff as a required runtime dependency.
     """
-    # Start from current working directory and walk up to find pyproject.toml
-    current_path = Path.cwd()
+    exe_name = "ruff.exe" if os.name == "nt" else "ruff"
+    candidate = Path(sysconfig.get_path("scripts")) / exe_name
+    if candidate.exists():
+        return str(candidate)
 
-    # Try up to 5 levels up to find pyproject.toml
-    for _ in range(5):
-        pyproject_path = current_path / "pyproject.toml"
-        if pyproject_path.exists():
-            try:
-                with open(pyproject_path, "rb") as f:
-                    config = tomllib.load(f)
-                return config.get("tool", {}).get("black", {})
-            except Exception as e:
-                # If we can't read the file, fall back to defaults
-                logging.getLogger(__name__).debug(
-                    f"Could not read Black config from {pyproject_path}: {e}"
-                )
-                break
+    # Defensive fallback: the sysconfig scripts dir did not contain ruff
+    # (unusual layouts, console-script shims relocated, etc.).
+    found = shutil.which("ruff")
+    if found:
+        return found
 
-        # Move up one level
-        parent = current_path.parent
-        if parent == current_path:  # Reached root
-            break
-        current_path = parent
-
-    # Return defaults if no pyproject.toml found or error reading it
-    return {}
-
-
-class CodeFormatter:
-    """Format generated Python code using Black."""
-
-    def __init__(self):
-        self.logger = logging.getLogger(__name__)
-        # Read Black configuration from pyproject.toml
-        self.black_config = _read_black_config()
-
-    def format_code(self, code: str, line_length: Optional[int] = None) -> str:
-        """Format Python code using Black.
-
-        Args:
-            code: Python code to format
-            line_length: Maximum line length (if None, reads from pyproject.toml)
-
-        Returns:
-            Formatted code
-        """
-        # Use provided line_length or read from project configuration
-        if line_length is None:
-            line_length = self.black_config.get(
-                "line-length", 88
-            )  # Default to 88 if not found
-
-        try:
-            # Try to use Black programmatically
-            import black
-            from black.parsing import InvalidInput
-
-            # Format with Black using project configuration
-            mode = black.Mode(
-                line_length=line_length,
-                target_versions={black.TargetVersion.PY38},
-                string_normalization=True,
-                magic_trailing_comma=True,
-            )
-
-            # Under ProcessPoolExecutor with mp_context="spawn", each worker
-            # owns its own black tokenizer cache and grammar tables; only
-            # one thread per process ever reaches this call, so the
-            # historical intra-process lock around format_str is obsolete.
-            formatted = black.format_str(code, mode=mode)
-            return formatted
-
-        except ImportError:
-            self.logger.warning("Black not available, trying command line")
-            return self._format_with_black_cli(code, line_length)
-        except InvalidInput as e:
-            # Black IS installed; the source we generated is not valid
-            # Python. Surface that as an actionable LHP error rather than
-            # silently shipping unformatted code to disk — the prior
-            # behavior masked generator/template bugs.
-            raise LHPConfigError(
-                category=ErrorCategory.CONFIG,
-                code_number="031",
-                title="Generated source failed Black parsing",
-                details=(
-                    f"LHP produced Python source code that Black could not parse: {e}. "
-                    "This is almost certainly a bug in an LHP generator or template — "
-                    "the generator emitted syntactically invalid Python."
-                ),
-                suggestions=[
-                    "File a bug report against LHP with the failing flowgroup YAML",
-                    "Inspect the un-formatted generated code (turn on DEBUG logging) "
-                    "to see what Black was given",
-                    "If you're authoring a custom template or a snapshot-CDC source_function, "
-                    "verify the embedded Python parses with `python -m py_compile`",
-                ],
-                context={
-                    "Black error": str(e),
-                    "First 500 chars of generated code": code[:500],
-                },
-            ) from e
-
-    def _format_with_black_cli(self, code: str, line_length: int) -> str:
-        """Format code using Black CLI.
-
-        Args:
-            code: Python code to format
-            line_length: Maximum line length
-
-        Returns:
-            Formatted code
-        """
-        try:
-            # Write code to temporary file
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-                f.write(code)
-                temp_file = f.name
-
-            # Run Black
-            result = subprocess.run(
-                ["black", "-l", str(line_length), temp_file],
-                capture_output=True,
-                text=True,
-            )
-
-            if result.returncode == 0:
-                # Read formatted code
-                with open(temp_file, "r") as f:
-                    formatted = f.read()
-                return formatted
-            else:
-                self.logger.warning(f"Black CLI failed: {result.stderr}")
-                return code
-
-        except Exception as e:
-            self.logger.warning(f"Black CLI formatting failed: {e}")
-            return code
-        finally:
-            # Clean up temp file
-            try:
-                Path(temp_file).unlink()
-            except (OSError, FileNotFoundError) as e:
-                self.logger.debug(f"Could not remove temp file: {e}")
-                pass
-
-    def organize_imports(self, code: str) -> str:
-        """Organize imports in Python code.
-
-        Args:
-            code: Python code
-
-        Returns:
-            Code with organized imports
-        """
-        lines = code.split("\n")
-
-        # Separate imports and other code
-        import_lines = []
-        other_lines = []
-        in_imports = True
-
-        for line in lines:
-            stripped = line.strip()
-
-            if in_imports:
-                if stripped.startswith(("import ", "from ")):
-                    import_lines.append(line)
-                elif stripped and not stripped.startswith("#"):
-                    # First non-import, non-comment line
-                    in_imports = False
-                    other_lines.append(line)
-                else:
-                    # Comments and blank lines
-                    if import_lines:
-                        # Already have imports, this is a separator
-                        in_imports = False
-                    other_lines.append(line)
-            else:
-                other_lines.append(line)
-
-        # Sort imports
-        import_lines = self._sort_imports(import_lines)
-
-        # Combine
-        if import_lines:
-            return "\n".join(import_lines) + "\n\n" + "\n".join(other_lines)
-        else:
-            return "\n".join(other_lines)
-
-    def _sort_imports(self, import_lines: List[str]) -> List[str]:
-        """Sort import statements.
-
-        Args:
-            import_lines: List of import lines
-
-        Returns:
-            Sorted import lines
-        """
-        # Separate standard library, third-party, and local imports
-        stdlib_imports = []
-        third_party_imports = []
-        local_imports = []
-
-        stdlib_modules = {
-            "os",
-            "sys",
-            "datetime",
-            "json",
-            "logging",
-            "pathlib",
-            "re",
-            "collections",
-            "itertools",
-            "functools",
-            "typing",
-        }
-
-        for line in import_lines:
-            if not line.strip():
-                continue
-
-            # Extract module name
-            if line.strip().startswith("import "):
-                module = line.strip().split()[1].split(".")[0]
-            elif line.strip().startswith("from "):
-                module = line.strip().split()[1].split(".")[0]
-            else:
-                continue
-
-            if module in stdlib_modules:
-                stdlib_imports.append(line)
-            elif module.startswith("."):
-                local_imports.append(line)
-            else:
-                third_party_imports.append(line)
-
-        # Sort each group
-        stdlib_imports.sort()
-        third_party_imports.sort()
-        local_imports.sort()
-
-        # Combine with proper spacing
-        result = []
-        if stdlib_imports:
-            result.extend(stdlib_imports)
-        if third_party_imports:
-            if result:
-                result.append("")
-            result.extend(third_party_imports)
-        if local_imports:
-            if result:
-                result.append("")
-            result.extend(local_imports)
-
-        return result
-
-    def format_sql(self, sql: str, indent: int = 4) -> str:
-        """Format SQL query for readability.
-
-        Args:
-            sql: SQL query string
-            indent: Number of spaces for indentation
-
-        Returns:
-            Formatted SQL
-        """
-        # Basic SQL formatting
-        formatted = sql
-
-        # Add newlines before keywords (handle multi-word keywords first)
-        multi_keywords = [
-            "LEFT JOIN",
-            "RIGHT JOIN",
-            "INNER JOIN",
-            "OUTER JOIN",
-            "GROUP BY",
-            "ORDER BY",
-        ]
-        for keyword in multi_keywords:
-            pattern = rf"\b{keyword}\b"
-            formatted = re.sub(pattern, f"\n{keyword}", formatted, flags=re.IGNORECASE)
-
-        # Then handle single-word keywords
-        single_keywords = [
-            "FROM",
-            "WHERE",
-            "JOIN",
-            "ON",
-            "HAVING",
-            "UNION",
-            "LIMIT",
-            "OFFSET",
-            "WITH",
-            "AS",
-        ]
-        for keyword in single_keywords:
-            pattern = rf"\b{keyword}\b"
-            formatted = re.sub(pattern, f"\n{keyword}", formatted, flags=re.IGNORECASE)
-
-        # Clean up multiple spaces
-        formatted = re.sub(r"  +", " ", formatted)
-
-        # Remove space after newline
-        formatted = re.sub(r"\n ", "\n", formatted)
-
-        # Indent lines
-        lines = formatted.strip().split("\n")
-        indented_lines = []
-
-        for i, line in enumerate(lines):
-            if i == 0:
-                indented_lines.append(line)
-            else:
-                indented_lines.append(" " * indent + line.strip())
-
-        return "\n".join(indented_lines)
+    raise LHPConfigError(
+        category=ErrorCategory.CONFIG,
+        code_number="034",
+        title="ruff executable not found",
+        details=(
+            "LHP could not locate the ``ruff`` executable required for the "
+            "generated-code formatting pass. ruff is a runtime dependency of "
+            f"LHP but was not found in the active environment's scripts "
+            f"directory ({sysconfig.get_path('scripts')!r}) or on PATH."
+        ),
+        suggestions=[
+            "Install ruff into the active environment: `pip install ruff`",
+            "Reinstall LHP with its dependencies: `pip install lakehouse-plumber`",
+            "If using an isolated/custom environment, ensure ruff is on PATH "
+            "or installed alongside LHP",
+        ],
+        context={
+            "Scripts directory checked": sysconfig.get_path("scripts"),
+            "Python executable": sys.executable,
+        },
+    )
 
 
-def organize_imports(code: str) -> str:
-    """Convenience function to organize imports.
+def assert_generated_python_valid(code: str, flowgroup: str) -> None:
+    """Assert that LHP-generated Python parses, with per-flowgroup attribution.
+
+    This is the cheap (microsecond ``ast.parse``) syntax guard that runs
+    inside the generation worker; the actual formatting is relocated to a
+    single terminal pass (:func:`format_generated_tree`). It reproduces the
+    exact ``LHP-CFG-031`` error a user sees when the generated source cannot
+    be parsed: same category, same code number, same title/details/
+    suggestions text. The only addition is the ``flowgroup`` name in
+    ``context`` so the per-flowgroup attribution survives outside the
+    worker's failure-DTO wrapping.
 
     Args:
-        code: Python code
+        code: Generated Python source to validate.
+        flowgroup: Name of the flowgroup that produced ``code`` (surfaced
+            in the error so failures stay attributable per flowgroup).
 
-    Returns:
-        Code with organized imports
+    Raises:
+        LHPConfigError: ``LHP-CFG-031`` if ``code`` is not valid Python.
     """
-    formatter = CodeFormatter()
-    return formatter.organize_imports(code)
+    try:
+        ast.parse(code)
+    except SyntaxError as e:
+        raise LHPConfigError(
+            category=ErrorCategory.CONFIG,
+            code_number="031",
+            title="Generated source failed to parse",
+            details=(
+                f"LHP produced Python source code that could not be parsed: {e}. "
+                "This is almost certainly a bug in an LHP generator or template — "
+                "the generator emitted syntactically invalid Python."
+            ),
+            suggestions=[
+                "File a bug report against LHP with the failing flowgroup YAML",
+                "Inspect the generated code (turn on DEBUG logging) "
+                "to see the source that failed to parse",
+                "If you're authoring a custom template or a snapshot-CDC source_function, "
+                "verify the embedded Python parses with `python -m py_compile`",
+            ],
+            context={
+                "Flowgroup": flowgroup,
+                "Syntax error": str(e),
+                "First 500 chars of generated code": code[:500],
+            },
+        ) from e
 
 
-def format_sql(sql: str, indent: int = 4) -> str:
-    """Convenience function to format SQL.
+def format_generated_tree(output_dir: Path) -> None:
+    """Format every generated ``*.py`` file under ``output_dir`` with ruff.
+
+    The single terminal formatting pass that replaces per-flowgroup in-worker
+    formatting. It shells out to the bundled ``ruff`` (:func:`_ruff_exe`) and
+    formats the WHOLE output tree: generated flowgroup files, copied user
+    modules (``custom_python_functions/*.py``, test-reporting provider
+    modules), the per-pipeline ``_test_reporting_hook.py``, and auxiliary
+    inline modules (e.g. the monitoring ``jobs_stats_loader.py``). ``ruff
+    format`` only rewrites Python files, so bundle YAML under ``resources/``
+    is left untouched.
+
+    The invocation pins ``--isolated`` plus explicit ``target-version`` /
+    ``line-length`` overrides (see :data:`_RUFF_FORMAT_BASE_ARGS`) so the
+    result is LHP-controlled and reproducible regardless of any
+    ``pyproject.toml`` / ``ruff.toml`` in the user's project directory.
 
     Args:
-        sql: SQL query string
-        indent: Number of spaces for indentation
+        output_dir: The env-level generated output directory
+            (``generated/<env>``) to format in place. The directory is
+            created by the commit step before this pass runs.
 
-    Returns:
-        Formatted SQL
+    Raises:
+        LHPConfigError: ``LHP-CFG-033`` if ruff exits non-zero (e.g. it could
+            not read or parse a generated file). The error carries ruff's
+            stderr so the failure surfaces clearly rather than silently
+            shipping unformatted code.
     """
-    formatter = CodeFormatter()
-    return formatter.format_sql(sql, indent)
+    cmd = [_ruff_exe(), *_RUFF_FORMAT_BASE_ARGS, str(output_dir)]
+    result = subprocess.run(cmd, check=False, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise LHPConfigError(
+            category=ErrorCategory.CONFIG,
+            code_number="033",
+            title="ruff failed to format generated code",
+            details=(
+                "The terminal `ruff format` pass over the generated output "
+                f"directory exited with code {result.returncode}. The generated "
+                "code was written to disk but could not be formatted, so the "
+                "output may be left unformatted."
+            ),
+            suggestions=[
+                "Inspect the ruff error output below for the offending file",
+                "If a generated file is syntactically invalid, this is an LHP "
+                "generator/template bug — file a bug report with the flowgroup YAML",
+                "Re-run with `--no-format` to skip formatting and inspect the "
+                "raw generated code",
+            ],
+            context={
+                "ruff command": " ".join(cmd),
+                "Output directory": str(output_dir),
+                "ruff exit code": result.returncode,
+                "ruff stderr": (result.stderr or "").strip(),
+                "ruff stdout": (result.stdout or "").strip(),
+            },
+        )

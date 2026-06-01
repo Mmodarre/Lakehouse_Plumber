@@ -316,10 +316,13 @@ class TestSpecHookGeneration:
         )
 
         assert result is not None
-        # tst_with_id has explicit target, so key is "tst_with_id"
-        assert '"tst_with_id": "SIT-01"' in result
+        # The map is embedded via repr(); quote style (single vs double) is left
+        # to the coordinator's terminal `ruff format` pass and is NOT asserted
+        # here (this inspects the pre-format return value). tst_with_id has an
+        # explicit target, so its key is "tst_with_id".
+        assert "tst_with_id" in result and "SIT-01" in result
         # tst_also_with_id has no target, so key is "tmp_test_tst_also_with_id"
-        assert '"tmp_test_tst_also_with_id": "SIT-02"' in result
+        assert "tmp_test_tst_also_with_id" in result and "SIT-02" in result
         # tst_without_id should NOT appear
         assert (
             "tst_without_id" not in result

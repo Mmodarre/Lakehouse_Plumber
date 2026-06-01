@@ -1,18 +1,15 @@
 """LakehousePlumber CLI - Main entry point."""
 
-# JUSTIFIED: Click command-group registration is one logical
-# declaration; module-load-time side effects mean partial-split
-# modules would import-cycle through cli/commands/.
 # TODO(Phase 9.2): redistribute version-resolution helpers to cli/_version.py after presenter extraction lands
 
 import logging
-import sys
 from pathlib import Path
-from typing import Optional
 
 import rich_click as click
 
+from ._project_root import _find_project_root
 from .error_boundary import cli_error_boundary
+from .logging_config import configure_logging
 
 try:
     from importlib.metadata import version
@@ -55,75 +52,29 @@ def get_version():
         return "0.2.11"
 
 
-def configure_logging(verbose: bool, project_root: Optional[Path] = None):
-    """Configure logging for LakehousePlumber. Returns log file path or None."""
-    cleanup_logging()
-
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.DEBUG if verbose else logging.INFO)
-
-    # Diagnostic logs go to stderr so they never collide with primary
-    # command output on stdout. See STYLE.md section 2.
-    console_handler = logging.StreamHandler(sys.stderr)
-    console_handler.setLevel(logging.WARNING if not verbose else logging.DEBUG)
-    console_formatter = logging.Formatter("%(levelname)s: %(message)s")
-    console_handler.setFormatter(console_formatter)
-    root_logger.addHandler(console_handler)
-
-    log_file_path = None
-    if project_root:
-        log_dir = project_root / ".lhp" / "logs"
-        log_dir.mkdir(parents=True, exist_ok=True)
-        log_file_path = log_dir / "lhp.log"
-
-        file_handler = logging.FileHandler(log_file_path, mode="a", encoding="utf-8")
-        file_handler.setLevel(logging.DEBUG)
-        file_formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
-        file_handler.setFormatter(file_formatter)
-        root_logger.addHandler(file_handler)
-
-    return str(log_file_path) if log_file_path else None
-
-
-def cleanup_logging():
-    """Clean up logging handlers."""
-    root_logger = logging.getLogger()
-    for handler in root_logger.handlers[:]:
-        handler.close()
-        root_logger.removeHandler(handler)
-
-
-def _find_project_root() -> Optional[Path]:
-    """Find the project root by looking for lhp.yaml."""
-    current = Path.cwd().resolve()
-
-    for path in [current] + list(current.parents):
-        if (path / "lhp.yaml").exists():
-            return path
-
-    return None
-
-
 @click.group()
 @click.version_option(version=get_version(), prog_name="lhp")
 @click.option(
     "--verbose",
     "-v",
     is_flag=True,
-    help="Enable verbose logging (controls log output only)",
+    help="Enable verbose console logging",
+)
+@click.option(
+    "--log-file",
+    is_flag=True,
+    help="Write a detailed DEBUG log to .lhp/logs/lhp.log (off by default).",
 )
 @click.option("--perf", is_flag=True, hidden=True)
-def cli(verbose, perf):
+def cli(verbose, perf, log_file):
     """LakehousePlumber - Generate Lakeflow pipelines from YAML configs."""
     project_root = _find_project_root()
-    log_file = configure_logging(verbose, project_root)
+    log_file_path = configure_logging(verbose, project_root, log_to_file=log_file)
 
     ctx = click.get_current_context()
     ctx.ensure_object(dict)
     ctx.obj["verbose"] = verbose
-    ctx.obj["log_file"] = log_file
+    ctx.obj["log_file"] = log_file_path
     ctx.obj["perf"] = perf
 
     if perf:
@@ -250,6 +201,17 @@ def skill_uninstall(user: bool, force: bool) -> None:
     help="Include test actions in generation (skipped by default for faster builds)",
 )
 @click.option(
+    "--no-format",
+    "no_format",
+    is_flag=True,
+    default=False,
+    help=(
+        "Skip the terminal code-formatting pass over generated Python "
+        "(faster builds). Overrides the lhp.yaml 'apply_formatting' key. "
+        "The generated-code validity guard (LHP-CFG-031) always runs."
+    ),
+)
+@click.option(
     "--pipeline-config",
     "-pc",
     help="Custom pipeline config file path (relative to project root)",
@@ -271,7 +233,7 @@ def skill_uninstall(user: bool, force: bool) -> None:
     default=False,
     help=(
         "Show every pipeline in the summary table (default: failed pipelines "
-        "only). Note: --verbose/-v controls log-file verbosity, not the "
+        "only). Note: --verbose/-v controls console verbosity, not the "
         "summary table."
     ),
 )
@@ -291,6 +253,7 @@ def generate(
     force,
     no_bundle,
     include_tests,
+    no_format,
     pipeline_config,
     max_workers,
     show_all,
@@ -311,6 +274,7 @@ def generate(
         show_all=show_all,
         force=force,
         no_state=no_state,
+        no_format=no_format,
     )
 
 
@@ -351,13 +315,20 @@ def generate(
     default=False,
     help=(
         "Show every pipeline in the summary table (default: failed pipelines "
-        "only). Note: --verbose/-v controls log-file verbosity, not the "
+        "only). Note: --verbose/-v controls console verbosity, not the "
         "summary table."
     ),
 )
 @cli_error_boundary("Pipeline validation")
 def validate(
-    env, pipeline, verbose, include_tests, no_bundle, pipeline_config, max_workers, show_all
+    env,
+    pipeline,
+    verbose,
+    include_tests,
+    no_bundle,
+    pipeline_config,
+    max_workers,
+    show_all,
 ):
     """Validate pipeline configurations"""
     from .commands.validate_command import ValidateCommand

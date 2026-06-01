@@ -4,7 +4,6 @@ Focuses on helper functions, edge-case branches, and command routing
 that existing CLI tests do not exercise.
 """
 
-import logging
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -14,9 +13,7 @@ from click.testing import CliRunner
 
 from lhp.cli.main import (
     _find_project_root,
-    cleanup_logging,
     cli,
-    configure_logging,
     get_version,
 )
 
@@ -106,6 +103,41 @@ class TestCliPerfFlag:
                     with patch("lhp.cli.commands.init_command.InitCommand.execute"):
                         runner.invoke(cli, ["--perf", "init", "test_proj"])
                         mock_perf.assert_called_once_with(None)
+
+
+# ============================================================================
+# CLI group --log-file flag wiring (flag -> callback -> configure_logging)
+# ============================================================================
+
+
+@pytest.mark.unit
+class TestCliLogFileFlag:
+    """Cover the --log-file flag-wiring seam (§8.1).
+
+    The unit tests for configure_logging call it directly, bypassing Click.
+    These exercise the real group callback so a regression that ignores the
+    flag (or hardcodes log_to_file) is caught.
+    """
+
+    def test_log_file_flag_sets_log_to_file_true(self):
+        """--log-file routes through to configure_logging(log_to_file=True)."""
+        runner = CliRunner()
+        with patch("lhp.cli.main.configure_logging", return_value=None) as mock_cfg:
+            with patch("lhp.cli.main._find_project_root", return_value=None):
+                with patch("lhp.cli.commands.init_command.InitCommand.execute"):
+                    runner.invoke(cli, ["--log-file", "init", "test_proj"])
+        mock_cfg.assert_called_once()
+        assert mock_cfg.call_args.kwargs["log_to_file"] is True
+
+    def test_no_log_file_flag_sets_log_to_file_false(self):
+        """Without --log-file, configure_logging gets log_to_file=False (default)."""
+        runner = CliRunner()
+        with patch("lhp.cli.main.configure_logging", return_value=None) as mock_cfg:
+            with patch("lhp.cli.main._find_project_root", return_value=None):
+                with patch("lhp.cli.commands.init_command.InitCommand.execute"):
+                    runner.invoke(cli, ["init", "test_proj"])
+        mock_cfg.assert_called_once()
+        assert mock_cfg.call_args.kwargs["log_to_file"] is False
 
 
 # ============================================================================
@@ -200,62 +232,6 @@ class TestCommandRouting:
                         blueprint_filter=None,
                     )
                     assert result.exit_code == 0
-
-
-# ============================================================================
-# configure_logging with project_root (lines 84-94, 98)
-# ============================================================================
-
-
-@pytest.mark.unit
-class TestConfigureLogging:
-    """Cover configure_logging branches including file handler setup."""
-
-    def test_configure_logging_with_project_root(self, tmp_path):
-        """Lines 84-94, 98: creates file handler when project_root is given."""
-        log_file = configure_logging(verbose=False, project_root=tmp_path)
-        assert log_file is not None
-        assert "lhp.log" in log_file
-        assert (tmp_path / ".lhp" / "logs" / "lhp.log").exists()
-        # Cleanup
-        cleanup_logging()
-
-    def test_configure_logging_verbose_with_project_root(self, tmp_path):
-        """Verbose mode sets DEBUG level on console and root logger."""
-        log_file = configure_logging(verbose=True, project_root=tmp_path)
-        assert log_file is not None
-
-        root = logging.getLogger()
-        assert root.level == logging.DEBUG
-        # Cleanup
-        cleanup_logging()
-
-    def test_configure_logging_no_project_root(self):
-        """Line 98: returns None when no project_root."""
-        result = configure_logging(verbose=False, project_root=None)
-        assert result is None
-        cleanup_logging()
-
-
-# ============================================================================
-# cleanup_logging with existing handlers (line 107)
-# ============================================================================
-
-
-@pytest.mark.unit
-class TestCleanupLogging:
-    """Cover cleanup_logging removing handlers."""
-
-    def test_cleanup_removes_existing_handlers(self):
-        """Lines 105-107: removes and closes all root logger handlers."""
-        root = logging.getLogger()
-        handler = logging.StreamHandler()
-        root.addHandler(handler)
-        count_before = len(root.handlers)
-        assert count_before > 0
-
-        cleanup_logging()
-        assert len(root.handlers) == 0
 
 
 # ============================================================================

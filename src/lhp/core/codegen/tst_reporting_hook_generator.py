@@ -15,7 +15,6 @@ from ...errors import ErrorCategory, LHPError
 from lhp.models import ActionType, FlowGroup, ProjectConfig
 from ...utils.file_header import build_lhp_source_header, write_normalized
 from ..processing.substitution import EnhancedSubstitutionManager
-from .formatter import CodeFormatter
 from .template_renderer import get_lhp_template_loader
 
 logger = logging.getLogger(__name__)
@@ -41,7 +40,6 @@ class TestReportingHookGenerator:
             loader=get_lhp_template_loader(),
             keep_trailing_newline=True,
         )
-        self._formatter = CodeFormatter()
 
     @property
     def test_reporting_config(self):
@@ -91,11 +89,10 @@ class TestReportingHookGenerator:
             function_name=config.function_name,
         )
 
-        try:
-            content = self._formatter.format_code(content)
-        except Exception as e:
-            logger.warning(f"Black formatting failed for hook file: {e}")
-
+        # NOT formatted here: the coordinator's single terminal ``ruff
+        # format`` pass (formatter.format_generated_tree) formats the whole
+        # output tree — including this hook — once, after commit. Writing the
+        # rendered (unformatted) source verbatim keeps formatting in one place.
         hook_path = output_dir / HOOK_FILENAME
         write_normalized(hook_path, content)
         logger.info(f"Generated test reporting hook: {hook_path}")

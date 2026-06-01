@@ -25,6 +25,45 @@ target (:term:`streaming table <Streaming table>` versus :term:`materialized vie
 ``cluster_columns`` versus ``partition_columns`` affect them
 significantly.
 
+Tuning generation parallelism for large projects
+-------------------------------------------------
+
+``lhp generate`` and ``lhp validate`` process FlowGroups in a worker
+pool, and the per-FlowGroup work (template rendering, code generation,
+formatting) is CPU-bound. The pool size is resolved with the following
+precedence:
+
+1. The explicit ``--max-workers N`` flag, if passed.
+2. Otherwise the ``LHP_MAX_WORKERS`` environment variable, if set.
+3. Otherwise an automatic default.
+
+The automatic default is deliberately conservative: it takes the
+detected CPU count and uses 80% of it, rounded **down**, with a floor
+of one worker. Concretely, a host with 8 detected cores auto-uses 6
+workers, 16 cores uses 12, and 64 cores uses 51. The 20% headroom
+leaves room for the main thread and the OS to schedule alongside the
+pool. Because the result is rounded down, small hosts land lower than
+you might expect — a 2-core host auto-uses a single worker (``2 × 0.8 =
+1.6``, floored to 1), and a 1-core host also uses one.
+
+On a dedicated batch host whose only job is running ``lhp generate``,
+that 20% headroom under-utilizes the machine. Set ``LHP_MAX_WORKERS``
+to the physical core count (or pass ``--max-workers`` to a single run)
+to maximize generation throughput:
+
+.. code-block:: bash
+
+   # Dedicated batch host with 16 physical cores
+   export LHP_MAX_WORKERS=16
+   lhp generate -e prod
+
+   # Or override a single invocation without exporting
+   lhp generate -e prod --max-workers 16
+
+The value is clamped to a minimum of one worker; ``LHP_MAX_WORKERS=0``
+runs sequentially rather than disabling the pool, and a non-integer
+value logs a warning and falls back to the automatic default.
+
 Streaming tables versus materialized views
 ------------------------------------------
 

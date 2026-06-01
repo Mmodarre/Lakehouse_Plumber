@@ -13,16 +13,19 @@ def next_supplier_snapshot(
     schema: str,
     table: str,
 ) -> Optional[Tuple[DataFrame, int]]:
-
     if latest_snapshot_version is None:
         df = spark.sql(f"""
             SELECT * FROM acme_edw_dev.{schema}.{table}
             WHERE snapshot_id = (SELECT min(snapshot_id) FROM acme_edw_dev.{schema}.{table})
         """)
 
-        min_snapshot_id = spark.sql(f"""
+        min_snapshot_id = (
+            spark.sql(f"""
             SELECT min(snapshot_id) as min_id FROM acme_edw_dev.{schema}.{table}
-        """).collect()[0].min_id
+        """)
+            .collect()[0]
+            .min_id
+        )
 
         return (df, min_snapshot_id)
 

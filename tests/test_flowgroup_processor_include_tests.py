@@ -382,7 +382,6 @@ actions:
             substitution_managers={"test_pipeline": FakeSubstitutionManager()},
             include_tests=False,
             code_generator=None,  # unused in validate mode
-            formatter=None,  # unused in validate mode
             pipeline_output_dirs={"test_pipeline": None},
             environment="dev",
         )
