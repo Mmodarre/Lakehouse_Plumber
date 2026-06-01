@@ -17,8 +17,9 @@ from pathlib import Path
 
 import pytest
 
-from lhp.core.codegen import CopiedModuleRecord, PythonFileCopier
+from lhp.core.codegen import PythonFileCopier
 from lhp.errors import PythonFunctionConflictError
+from lhp.models.processing import CopiedModuleRecord
 
 
 def _record(source_path: str, custom_dir: Path, *, stem: str) -> CopiedModuleRecord:

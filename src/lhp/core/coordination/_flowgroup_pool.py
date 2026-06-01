@@ -52,8 +52,8 @@ from ...models.processing import FlowgroupOutcome
 from .._interfaces import BaseCodeGenerationService, BaseFlowgroupResolutionService
 
 if TYPE_CHECKING:
+    from ...models.processing import CopiedModuleRecord
     from ..codegen.formatter import CodeFormatter
-    from ..codegen.python_file_copier import CopiedModuleRecord
     from ..processing.substitution import EnhancedSubstitutionManager
 
 

@@ -29,11 +29,10 @@ from pathlib import Path
 
 import pytest
 
-from lhp.core.codegen.python_file_copier import CopiedModuleRecord
 from lhp.errors.categories import ErrorCategory
 from lhp.errors.types import LHPError, MultiDocumentError, PythonFunctionConflictError
 from lhp.models import Action, ActionType, FlowGroup
-from lhp.models.processing import FlowgroupOutcome
+from lhp.models.processing import CopiedModuleRecord, FlowgroupOutcome
 
 
 def _round_trip(obj):

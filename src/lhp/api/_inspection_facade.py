@@ -9,6 +9,7 @@ two dependency-output paths.
 
 :stability: internal
 """
+
 # JUSTIFIED: This module's :class:`InspectionFacade` exposes fourteen
 # public methods (§3.2 requires justification at 10–15; hard cap at 15),
 # explicitly enumerated in the class docstring to satisfy the
@@ -118,12 +119,12 @@ class InspectionFacade:
             during discovery, ``LHP-FILE-*`` for missing paths, and
             ``LHP-MULT-*`` for malformed multi-document YAML.
         """
-        if pipeline_filter is None:
-            flowgroups = self._orchestrator.discover_all_flowgroups()
-        else:
-            flowgroups = self._orchestrator.discover_flowgroups_by_pipeline_field(
-                pipeline_filter
-            )
+        all_fgs = self._orchestrator.bootstrap.discover_all_flowgroups()
+        flowgroups = (
+            all_fgs
+            if pipeline_filter is None
+            else tuple(fg for fg in all_fgs if fg.pipeline == pipeline_filter)
+        )
         file_paths = _flowgroup_file_paths(self._orchestrator, flowgroups)
         return _flowgroups_to_views(flowgroups, file_paths=file_paths)
 
@@ -144,9 +145,11 @@ class InspectionFacade:
         substitution_mgr = _build_substitution_manager_for_env(
             self._orchestrator.project_root, env
         )
-        processed = self._orchestrator.process_flowgroup(target, substitution_mgr)
-        source_path = self._orchestrator._find_source_yaml_for_flowgroup(processed)
-        return _flowgroup_to_processed_view(processed, file_path=source_path)
+        ctx_in = self._orchestrator.bootstrap.make_context(target)
+        ctx_out = self._orchestrator.processing.resolve(ctx_in, substitution_mgr)
+        return _flowgroup_to_processed_view(
+            ctx_out.flowgroup, file_path=ctx_out.source_yaml
+        )
 
     def generate_flowgroup_code(
         self, flowgroup_name: str, *, env: str
@@ -165,25 +168,23 @@ class InspectionFacade:
         substitution_mgr = _build_substitution_manager_for_env(
             self._orchestrator.project_root, env
         )
-        processed = self._orchestrator.process_flowgroup(target, substitution_mgr)
-        source_path = self._orchestrator._find_source_yaml_for_flowgroup(processed)
-        code = self._orchestrator.generate_flowgroup_code(
-            processed,
+        ctx_in = self._orchestrator.bootstrap.make_context(target)
+        ctx_out = self._orchestrator.processing.resolve(ctx_in, substitution_mgr)
+        code = self._orchestrator.codegen.generate(
+            ctx_out.flowgroup,
             substitution_mgr,
             output_dir=None,
-            source_yaml=source_path,
+            source_yaml=ctx_out.source_yaml,
             env=env,
         )
         return GeneratedCodeView(
-            flowgroup_name=processed.flowgroup,
-            pipeline=processed.pipeline,
+            flowgroup_name=ctx_out.flowgroup.flowgroup,
+            pipeline=ctx_out.flowgroup.pipeline,
             generated_code=code,
-            target_filename=f"{processed.flowgroup}.py",
+            target_filename=f"{ctx_out.flowgroup.flowgroup}.py",
         )
 
-    def find_source_yaml_for_flowgroup(
-        self, flowgroup_name: str
-    ) -> Optional[Path]:
+    def find_source_yaml_for_flowgroup(self, flowgroup_name: str) -> Optional[Path]:
         """Return the source YAML path for the named flowgroup, or ``None``.
 
         :stability: provisional
@@ -196,8 +197,8 @@ class InspectionFacade:
             target = _locate_flowgroup_by_name(self._orchestrator, flowgroup_name)
         except LookupError:
             return None
-        result: Optional[Path] = self._orchestrator._find_source_yaml_for_flowgroup(
-            target
+        result: Optional[Path] = (
+            self._orchestrator.discovery.find_source_yaml_for_flowgroup(target)
         )
         return result
 
@@ -207,7 +208,7 @@ class InspectionFacade:
         :stability: provisional
         :raises: None — reads already-loaded project configuration.
         """
-        return tuple(self._orchestrator.get_include_patterns())
+        return tuple(self._orchestrator.discovery.get_include_patterns())
 
     def get_project_config(self) -> ProjectConfigView:
         """Return a frozen view of the project's loaded ``lhp.yaml``.
@@ -226,7 +227,7 @@ class InspectionFacade:
             ``LHP-FILE-*`` / ``LHP-MULT-*`` propagated from flowgroup
             discovery — same families as :meth:`list_flowgroups`.
         """
-        flowgroups = self._orchestrator.discover_all_flowgroups()
+        flowgroups = self._orchestrator.bootstrap.discover_all_flowgroups()
         return _build_stats_result(flowgroups)
 
     def list_blueprints(
@@ -460,9 +461,7 @@ class InspectionFacade:
             key: str(value) for key, value in manager.mappings.items()
         }
 
-        sorted_refs = sorted(
-            manager.secret_references, key=lambda r: (r.scope, r.key)
-        )
+        sorted_refs = sorted(manager.secret_references, key=lambda r: (r.scope, r.key))
         secret_views: Tuple[SecretReferenceView, ...] = tuple(
             SecretReferenceView(scope=ref.scope, key=ref.key) for ref in sorted_refs
         )

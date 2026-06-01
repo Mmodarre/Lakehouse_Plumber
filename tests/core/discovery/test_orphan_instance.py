@@ -85,7 +85,7 @@ def test_orphan_instance_raises_val_041(tmp_path):
     orchestrator = build_facade_orchestrator(project_root, enforce_version=False)
 
     with pytest.raises(LHPValidationError) as exc_info:
-        orchestrator.discover_all_flowgroups()
+        orchestrator.bootstrap.discover_all_flowgroups()
 
     # `code_number` is the bare error number set by LHPError.__init__; `code`
     # is the fully-qualified "LHP-VAL-041" (category "VAL" + code_number).

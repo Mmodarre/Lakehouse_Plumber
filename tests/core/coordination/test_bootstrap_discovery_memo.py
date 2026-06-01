@@ -219,8 +219,8 @@ def test_boundary_returns_stable_identity_guards_slice_cache(tmp_path):
     orchestrator = build_facade_orchestrator(project_root, enforce_version=False)
 
     with _spy_on_disk_walk() as disk_walk:
-        first = orchestrator.discover_all_flowgroups()
-        second = orchestrator.discover_all_flowgroups()
+        first = orchestrator.bootstrap.discover_all_flowgroups()
+        second = orchestrator.bootstrap.discover_all_flowgroups()
 
     assert first is second, (
         "Bootstrap memo must return the cached tuple by identity; a fresh "

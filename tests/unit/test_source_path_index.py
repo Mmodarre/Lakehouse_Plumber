@@ -26,30 +26,33 @@ class TestFindSourceYamlIndex:
             pipelines = root / "pipelines" / "p1"
             pipelines.mkdir(parents=True)
 
-            (pipelines / "alpha.yaml").write_text(
-                "pipeline: p1\nflowgroup: fg_alpha\n"
-            )
-            (pipelines / "beta.yaml").write_text(
-                "pipeline: p1\nflowgroup: fg_beta\n"
-            )
+            (pipelines / "alpha.yaml").write_text("pipeline: p1\nflowgroup: fg_alpha\n")
+            (pipelines / "beta.yaml").write_text("pipeline: p1\nflowgroup: fg_beta\n")
 
             p2 = root / "pipelines" / "p2"
             p2.mkdir(parents=True)
-            (p2 / "gamma.yaml").write_text(
-                "pipeline: p2\nflowgroup: fg_gamma\n"
-            )
+            (p2 / "gamma.yaml").write_text("pipeline: p2\nflowgroup: fg_gamma\n")
 
             discoverer = FlowgroupDiscoveryService(root)
 
-            assert discoverer.find_source_yaml_for_flowgroup(
-                _make_flowgroup("p1", "fg_alpha")
-            ) == pipelines / "alpha.yaml"
-            assert discoverer.find_source_yaml_for_flowgroup(
-                _make_flowgroup("p1", "fg_beta")
-            ) == pipelines / "beta.yaml"
-            assert discoverer.find_source_yaml_for_flowgroup(
-                _make_flowgroup("p2", "fg_gamma")
-            ) == p2 / "gamma.yaml"
+            assert (
+                discoverer.find_source_yaml_for_flowgroup(
+                    _make_flowgroup("p1", "fg_alpha")
+                )
+                == pipelines / "alpha.yaml"
+            )
+            assert (
+                discoverer.find_source_yaml_for_flowgroup(
+                    _make_flowgroup("p1", "fg_beta")
+                )
+                == pipelines / "beta.yaml"
+            )
+            assert (
+                discoverer.find_source_yaml_for_flowgroup(
+                    _make_flowgroup("p2", "fg_gamma")
+                )
+                == p2 / "gamma.yaml"
+            )
 
     def test_find_source_yaml_returns_none_for_unknown(self):
         """Unknown flowgroup returns None."""
@@ -57,9 +60,7 @@ class TestFindSourceYamlIndex:
             root = Path(tmp)
             pipelines = root / "pipelines" / "p1"
             pipelines.mkdir(parents=True)
-            (pipelines / "only.yaml").write_text(
-                "pipeline: p1\nflowgroup: exists\n"
-            )
+            (pipelines / "only.yaml").write_text("pipeline: p1\nflowgroup: exists\n")
 
             discoverer = FlowgroupDiscoveryService(root)
             result = discoverer.find_source_yaml_for_flowgroup(
@@ -83,9 +84,12 @@ class TestFindSourceYamlIndex:
 
             discoverer = FlowgroupDiscoveryService(root)
             for name in ("fg1", "fg2", "fg3"):
-                assert discoverer.find_source_yaml_for_flowgroup(
-                    _make_flowgroup("p1", name)
-                ) == multi
+                assert (
+                    discoverer.find_source_yaml_for_flowgroup(
+                        _make_flowgroup("p1", name)
+                    )
+                    == multi
+                )
 
     def test_find_source_yaml_array_syntax_file(self):
         """All flowgroups from array syntax map to the same file."""
@@ -105,9 +109,12 @@ class TestFindSourceYamlIndex:
 
             discoverer = FlowgroupDiscoveryService(root)
             for name in ("a1", "a2", "a3"):
-                assert discoverer.find_source_yaml_for_flowgroup(
-                    _make_flowgroup("p1", name)
-                ) == arr
+                assert (
+                    discoverer.find_source_yaml_for_flowgroup(
+                        _make_flowgroup("p1", name)
+                    )
+                    == arr
+                )
 
     def test_index_built_once(self):
         """Index is built on first call and reused for subsequent calls."""
@@ -115,9 +122,7 @@ class TestFindSourceYamlIndex:
             root = Path(tmp)
             pipelines = root / "pipelines" / "p1"
             pipelines.mkdir(parents=True)
-            (pipelines / "fg.yaml").write_text(
-                "pipeline: p1\nflowgroup: fg1\n"
-            )
+            (pipelines / "fg.yaml").write_text("pipeline: p1\nflowgroup: fg1\n")
 
             discoverer = FlowgroupDiscoveryService(root)
 
@@ -127,12 +132,8 @@ class TestFindSourceYamlIndex:
                 wraps=discoverer.discover_all_flowgroups_with_paths,
             ) as mock_discover:
                 # Call multiple times
-                discoverer.find_source_yaml_for_flowgroup(
-                    _make_flowgroup("p1", "fg1")
-                )
-                discoverer.find_source_yaml_for_flowgroup(
-                    _make_flowgroup("p1", "fg1")
-                )
+                discoverer.find_source_yaml_for_flowgroup(_make_flowgroup("p1", "fg1"))
+                discoverer.find_source_yaml_for_flowgroup(_make_flowgroup("p1", "fg1"))
                 discoverer.find_source_yaml_for_flowgroup(
                     _make_flowgroup("p1", "unknown")
                 )
@@ -172,8 +173,7 @@ class TestFindSourceYamlIndex:
                         errors.append(e)
 
                 threads = [
-                    threading.Thread(target=lookup, args=(f"fg{i}",))
-                    for i in range(10)
+                    threading.Thread(target=lookup, args=(f"fg{i}",)) for i in range(10)
                 ]
                 for t in threads:
                     t.start()
@@ -197,12 +197,8 @@ class TestEagerIndexPopulation:
             pipelines = root / "pipelines" / "p1"
             pipelines.mkdir(parents=True)
 
-            (pipelines / "alpha.yaml").write_text(
-                "pipeline: p1\nflowgroup: fg1\n"
-            )
-            (pipelines / "beta.yaml").write_text(
-                "pipeline: p1\nflowgroup: fg2\n"
-            )
+            (pipelines / "alpha.yaml").write_text("pipeline: p1\nflowgroup: fg1\n")
+            (pipelines / "beta.yaml").write_text("pipeline: p1\nflowgroup: fg2\n")
 
             discoverer = FlowgroupDiscoveryService(root)
 
@@ -232,9 +228,7 @@ class TestEagerIndexPopulation:
             pipelines = root / "pipelines" / "p1"
             pipelines.mkdir(parents=True)
 
-            (pipelines / "fg.yaml").write_text(
-                "pipeline: p1\nflowgroup: fg1\n"
-            )
+            (pipelines / "fg.yaml").write_text("pipeline: p1\nflowgroup: fg1\n")
 
             discoverer = FlowgroupDiscoveryService(root)
             discoverer.discover_all_flowgroups()
@@ -257,9 +251,7 @@ class TestGetIncludePatternsNoReload:
         mock_loader.load_project_config.return_value = mock_config
 
         with tempfile.TemporaryDirectory() as tmp:
-            discoverer = FlowgroupDiscoveryService(
-                Path(tmp), config_loader=mock_loader
-            )
+            discoverer = FlowgroupDiscoveryService(Path(tmp), config_loader=mock_loader)
             # __init__ calls load_project_config once
             assert mock_loader.load_project_config.call_count == 1
 
@@ -301,7 +293,7 @@ class TestDiscoverAndFilterPreDiscovered:
             ]
 
             with patch.object(
-                orch, "discover_flowgroups_by_pipeline_field"
+                orch.discovery, "discover_flowgroups_by_pipeline_field"
             ) as mock_discover:
                 result = orch._discover_and_filter_flowgroups(
                     env="dev",

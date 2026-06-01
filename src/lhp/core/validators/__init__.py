@@ -23,7 +23,6 @@ from .dlt_cdc_validators import (
     SnapshotCdcConfigValidator,
     CdcSchemaValidator,
 )
-from .pipeline_validator import PipelineValidator
 from .job_name_validator import validate_job_names, validate_job_name_format
 from .kafka_validator import KafkaOptionsValidator
 
@@ -46,7 +45,6 @@ __all__ = [
     "CdcConfigValidator",
     "SnapshotCdcConfigValidator",
     "CdcSchemaValidator",
-    "PipelineValidator",
     "validate_job_names",
     "validate_job_name_format",
     "KafkaOptionsValidator",

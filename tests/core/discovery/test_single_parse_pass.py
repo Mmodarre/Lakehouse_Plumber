@@ -143,9 +143,7 @@ def _expected_pipeline_yaml_keys(project_root: Path) -> set:
     cache key, which the production code computes via ``path.resolve()``
     (``CachingYAMLParser._cached_load``).
     """
-    return {
-        str(p.resolve()) for p in project_root.glob("pipelines/**/*.yaml")
-    }
+    return {str(p.resolve()) for p in project_root.glob("pipelines/**/*.yaml")}
 
 
 @pytest.mark.integration
@@ -180,7 +178,7 @@ def test_each_pipeline_file_parsed_exactly_once(tmp_path):
         "load_yaml_documents_all",
         side_effect=counting_load,
     ):
-        flowgroups = orchestrator.discover_all_flowgroups()
+        flowgroups = orchestrator.bootstrap.discover_all_flowgroups()
 
     # Real wiring ran end-to-end: every flowgroup file produced a flowgroup.
     assert len(flowgroups) == len(expected_keys), flowgroups
@@ -316,7 +314,7 @@ def test_capacity_reserved_prevents_eviction_reread(tmp_path):
         "load_yaml_documents_all",
         side_effect=counting_load,
     ):
-        flowgroups = orchestrator.discover_all_flowgroups()
+        flowgroups = orchestrator.bootstrap.discover_all_flowgroups()
 
     assert len(flowgroups) == file_count, flowgroups
 

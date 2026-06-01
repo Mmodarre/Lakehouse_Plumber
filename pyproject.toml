@@ -251,26 +251,12 @@ layers = [
     "lhp.errors",
     "lhp.utils",
 ]
-ignore_imports = [
-    # TYPE_CHECKING-only forward ref from ``lhp.models.processing`` into
-    # ``lhp.core.codegen.python_file_copier.CopiedModuleRecord``. The
-    # spawn-boundary transport DTO ``FlowgroupOutcome`` carries a
-    # ``copy_records`` payload typed against it. No runtime coupling.
-    "lhp.models.processing -> lhp.core.codegen.python_file_copier",
-]
 
 [[tool.importlinter.contracts]]
 name = "Models must not depend on higher layers"
 type = "forbidden"
 source_modules = ["lhp.models"]
 forbidden_modules = ["lhp.cli", "lhp.bundle", "lhp.core", "lhp.generators", "lhp.parsers", "lhp.presets", "lhp.api"]
-# TYPE_CHECKING-only transport edge: ``FlowgroupOutcome`` annotates a
-# ``copy_records`` field of ``CopiedModuleRecord`` payloads across the
-# spawn boundary. The records round-trip as plain mappings, so there is no
-# runtime coupling into ``lhp.core``.
-ignore_imports = [
-    "lhp.models.processing -> lhp.core.codegen.python_file_copier",
-]
 
 [[tool.importlinter.contracts]]
 name = "Utils must depend only on stdlib (and at most models)"

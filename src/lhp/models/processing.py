@@ -2,12 +2,28 @@
 
 import traceback
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Sequence, Tuple
 
 if TYPE_CHECKING:
-    from lhp.core.codegen.python_file_copier import CopiedModuleRecord
     from lhp.errors import LHPError
     from lhp.models import FlowGroup
+
+
+@dataclass(frozen=True, slots=True)
+class CopiedModuleRecord:
+    """Pure-compute description of a user Python module copy.
+
+    Produced in Phase A by :func:`compute_copy_record` with no side
+    effects — no filesystem writes, no state mutation. Replayed in
+    Phase B by :meth:`PythonFileCopier.apply_copy_record`.
+    """
+
+    source_path: str
+    dest_path: Path
+    content: str
+    module_path: str
+    custom_functions_dir: Path
 
 
 @dataclass(frozen=True, slots=True)
@@ -153,7 +169,7 @@ class FlowgroupOutcome:
     resolved_flowgroup: Optional["FlowGroup"] = None
     formatted_code: Optional[str] = None
     auxiliary_files: Tuple[Tuple[str, str], ...] = ()
-    copy_records: Tuple["CopiedModuleRecord", ...] = ()
+    copy_records: Tuple[CopiedModuleRecord, ...] = ()
     lhp_error: Optional["LHPError"] = None
     errors: Tuple[str, ...] = ()
 
@@ -166,7 +182,7 @@ class FlowgroupOutcome:
         resolved_flowgroup: Optional["FlowGroup"] = None,
         formatted_code: Optional[str] = None,
         auxiliary_files: Sequence[Tuple[str, str]] = (),
-        copy_records: Sequence["CopiedModuleRecord"] = (),
+        copy_records: Sequence[CopiedModuleRecord] = (),
     ) -> "FlowgroupOutcome":
         """Build a success outcome.
 

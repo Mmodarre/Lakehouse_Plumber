@@ -38,7 +38,7 @@ from typing import (
 from lhp.models import FlowGroup, FlowGroupContext
 
 from ..models.dependencies import DependencyAnalysisResult, DependencyGraphs
-from .codegen.python_file_copier import CopiedModuleRecord
+from ..models.processing import CopiedModuleRecord
 from .processing.substitution import EnhancedSubstitutionManager as SubstitutionManager
 
 
@@ -86,6 +86,11 @@ class BaseFlowgroupDiscoveryService(ABC):
     read method (§4.1): :meth:`discover_flowgroups`, gated by an explicit
     ``pipeline_filter`` keyword (``None`` returns every flowgroup).
 
+    :meth:`find_source_yaml_for_flowgroup` is a distinct source-path-lookup
+    operation, not a discover-variant (§4.1): it maps an already-discovered
+    flowgroup back to the YAML file it came from rather than enumerating
+    flowgroups.
+
     :stability: provisional
     """
 
@@ -99,6 +104,14 @@ class BaseFlowgroupDiscoveryService(ABC):
     @abstractmethod
     def get_include_patterns(self) -> Tuple[str, ...]:
         """Return the glob patterns used for discovery."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def find_source_yaml_for_flowgroup(self, flowgroup: FlowGroup) -> Optional[Path]:
+        """Return the source YAML path for a flowgroup, or ``None`` if unresolved.
+
+        Multi-document (``---``) and flowgroups-array files are supported.
+        """
         raise NotImplementedError
 
 

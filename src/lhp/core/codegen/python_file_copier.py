@@ -2,30 +2,14 @@
 
 import logging
 import threading
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from ...errors import ErrorCategory, LHPValidationError, PythonFunctionConflictError
+from ...models.processing import CopiedModuleRecord
 from ..loaders.external_file_loader import resolve_external_file_path
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True, slots=True)
-class CopiedModuleRecord:
-    """Pure-compute description of a user Python module copy.
-
-    Produced in Phase A by :func:`compute_copy_record` with no side
-    effects — no filesystem writes, no state mutation. Replayed in
-    Phase B by :meth:`PythonFileCopier.apply_copy_record`.
-    """
-
-    source_path: str
-    dest_path: Path
-    content: str
-    module_path: str
-    custom_functions_dir: Path
 
 
 def _register_copy(

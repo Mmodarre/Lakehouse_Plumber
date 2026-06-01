@@ -489,7 +489,7 @@ class ValidateCommand(BaseCommand):
 
         Routes flowgroup discovery through the inspection sub-facade so
         no orchestrator reach-through is needed (§9.23). Discovery
-        errors (e.g. blueprint expansion failures, codes 040–055, 059)
+        errors (e.g. blueprint expansion failures, codes 040–055)
         surface as :class:`LHPError` raised by ``list_flowgroups``;
         callers catch via the CLI error boundary.
         """

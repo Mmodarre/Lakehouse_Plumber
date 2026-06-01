@@ -10,6 +10,8 @@ Rules checked, with their finding codes:
   LHP-9.4   §4.1 / §9.4   `_by_field` / `_by_fields` / `_v<N>` method variants
   LHP-9.13  §1.10 / §9.13 `ActionOrchestrator` name in lhp/api/
   LHP-9.23  §9.23         `facade.orchestrator.X()` reach-through
+  LHP-9.23  §9.23         lhp/api/ reaches orchestrator PRIVATE surface
+                          (`self._orchestrator._x` / `orchestrator._x` / `orch._x`)
 
 Scope: src/lhp/**/*.py.  Each file is checked against the subset of rules
 that apply to its path.
@@ -27,6 +29,7 @@ Suppression:
   `_by_field` / `_v<N>` definition.  No suppression is supported for the
   other rules — they target placement, which is the rule itself.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -77,6 +80,16 @@ RE_FACADE_REACH = re.compile(
     r"\b[a-zA-Z_][a-zA-Z0-9_]*facade\.orchestrator\.", re.IGNORECASE
 )
 
+# §9.23 (broader form) — lhp/api/ reaching through the orchestrator's
+# PRIVATE surface.  Matches `self._orchestrator._x`, `orchestrator._x`,
+# `orch._x`.  `\._[a-zA-Z]` deliberately (a) excludes dunders
+# (`.__class__` is `_` then `_`, not a letter) and (b) does NOT match
+# public-service access like `orchestrator.discovery.x` (there is no `._`
+# immediately after the orchestrator name).
+RE_FACADE_INTERNAL_REACH = re.compile(
+    r"\b(self\._orchestrator|orchestrator|orch)\._[a-zA-Z][a-zA-Z0-9_]*"
+)
+
 # §9.13 — `ActionOrchestrator` (or any `*Orchestrator` class name) in
 # anything that lhp/api/ exposes.  We flag the literal string here; the
 # constitution forbids it in docstrings, examples, and __all__.
@@ -85,8 +98,7 @@ ORCHESTRATOR_LITERAL = "ActionOrchestrator"
 # §9.2 — utils/ may not host domain types.  These import patterns indicate
 # that a utils/ file is domain-aware.
 RE_UTILS_DOMAIN_IMPORT = re.compile(
-    r"^\s*from\s+(?:lhp\.|\.\.)"
-    r"(?:errors|models|api)(?:\s|\.|$)",
+    r"^\s*from\s+(?:lhp\.|\.\.)" r"(?:errors|models|api)(?:\s|\.|$)",
     re.MULTILINE,
 )
 RE_UTILS_LHP_ERROR_SUBCLASS = re.compile(
@@ -254,6 +266,47 @@ def check_facade_reach_through(path: Path) -> list[str]:
     return findings
 
 
+def _facade_internal_reach_findings(
+    text_or_lines: str | list[str],
+) -> list[tuple[int, str]]:
+    """Find lhp/api/ reaches into the orchestrator PRIVATE surface.
+
+    Accepts a string (split on newlines) or a list of lines.  Returns a
+    list of ``(line_no, line)`` matches — path reading, ``is_under``
+    gating, and noqa suppression are handled by the public
+    ``check_facade_internal_reach_through`` so this helper stays a pure,
+    directly unit-testable line matcher.
+    """
+    if isinstance(text_or_lines, str):
+        lines = text_or_lines.splitlines()
+    else:
+        lines = text_or_lines
+    matches: list[tuple[int, str]] = []
+    for line_no, line in enumerate(lines, start=1):
+        if RE_FACADE_INTERNAL_REACH.search(line):
+            matches.append((line_no, line))
+    return matches
+
+
+def check_facade_internal_reach_through(path: Path) -> list[str]:
+    findings: list[str] = []
+    if not is_under(path, LHP_API_DIR):
+        return findings
+    text = read_text(path)
+    if not text:
+        return findings
+    for line_no, line in _facade_internal_reach_findings(text):
+        if "LHP-9.23" in find_noqa_codes(line):
+            continue
+        findings.append(
+            f"{rel(path)}:{line_no}: LHP-9.23 facade-internal private "
+            f"orchestrator reach-through (`self._orchestrator._x` / "
+            f"`orchestrator._x` / `orch._x`) — orchestrator internals are "
+            f"private; extend the facade instead"
+        )
+    return findings
+
+
 def check_api_orchestrator_mentions(path: Path) -> list[str]:
     findings: list[str] = []
     if not is_under(path, LHP_API_DIR):
@@ -278,6 +331,7 @@ CHECKS = (
     check_cli_imports,
     check_method_variants,
     check_facade_reach_through,
+    check_facade_internal_reach_through,
     check_api_orchestrator_mentions,
 )
 
@@ -294,9 +348,7 @@ def check_file(path: Path) -> list[str]:
 def iter_all_files() -> list[Path]:
     if not SRC_ROOT.exists():
         return []
-    return sorted(
-        p for p in SRC_ROOT.rglob("*.py") if "__pycache__" not in p.parts
-    )
+    return sorted(p for p in SRC_ROOT.rglob("*.py") if "__pycache__" not in p.parts)
 
 
 def main(argv: list[str]) -> int:

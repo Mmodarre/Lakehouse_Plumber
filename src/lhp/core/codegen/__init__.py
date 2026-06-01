@@ -5,7 +5,6 @@ from lhp.core.codegen.operational_metadata import (
     OperationalMetadataService,
 )
 from lhp.core.codegen.python_file_copier import (
-    CopiedModuleRecord,
     PythonFileCopier,
     compute_copy_record,
     copy_user_module_for_pipeline,
@@ -17,7 +16,6 @@ from lhp.core.codegen.tst_reporting_hook_generator import TestReportingHookGener
 
 __all__ = [
     "CodeGenerationService",
-    "CopiedModuleRecord",
     "ImportManager",
     "OperationalMetadataCatalog",
     "OperationalMetadataService",

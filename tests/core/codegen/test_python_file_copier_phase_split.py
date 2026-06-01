@@ -29,10 +29,10 @@ from unittest.mock import MagicMock
 import pytest
 
 from lhp.core.codegen import (
-    CopiedModuleRecord,
     PythonFileCopier,
     compute_copy_record,
 )
+from lhp.models.processing import CopiedModuleRecord
 
 
 @pytest.fixture

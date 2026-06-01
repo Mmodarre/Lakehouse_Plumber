@@ -30,21 +30,15 @@ def _write_source(tmpdir: str, name: str, body: str) -> str:
     return name
 
 
-class TestResolveSourceFunctionConfigValidation:
-    """Configuration-level validation in resolve_source_function."""
-
-    def test_missing_file_raises_config_002(self):
-        """A source_function config without 'file' raises LHPError CONFIG/002."""
-        with pytest.raises(LHPError) as exc_info:
-            resolve_source_function({"function": "my_func"})
-        assert exc_info.value.code_number == "002"
-        assert "Incomplete source_function configuration" in str(exc_info.value)
-
-    def test_missing_function_raises_config_002(self):
-        """A source_function config without 'function' raises LHPError CONFIG/002."""
-        with pytest.raises(LHPError) as exc_info:
-            resolve_source_function({"file": "funcs.py"})
-        assert exc_info.value.code_number == "002"
+# NOTE: The old TestResolveSourceFunctionConfigValidation class (which
+# asserted a CONFIG/002 presence raise for a missing 'file'/'function')
+# was removed. That generate-side guard was redundant: the snapshot-CDC
+# validator (SnapshotCdcConfigValidator, reached via
+# ConfigValidator.validate_flowgroup → WriteActionValidator) enforces both
+# fields and runs UNCONDITIONALLY in the per-flowgroup worker before the
+# codegen branch in BOTH validate and generate modes. The generate-path
+# rejection is now proven by
+# tests/test_generate_command_parallel.py::TestGenerateCommandParallel::test_snapshot_cdc_missing_source_function_function_rejected_at_generate.
 
 
 class TestResolveSourceFunctionFileNotFound:

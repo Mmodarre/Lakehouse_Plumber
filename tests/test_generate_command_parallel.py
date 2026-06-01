@@ -167,6 +167,72 @@ def _add_invalid_flowgroup(project_root: Path, pipeline_name: str) -> None:
         yaml.dump(flowgroup, f)
 
 
+def _add_snapshot_cdc_missing_function_flowgroup(
+    project_root: Path, pipeline_name: str
+) -> None:
+    """Add ONE snapshot_cdc flowgroup whose source_function omits ``function``.
+
+    The flowgroup is otherwise well-formed (valid streaming_table target,
+    snapshot_cdc mode, keys, scd type) and even references a REAL source
+    file on disk — so the ONLY defect is the missing
+    ``source_function.function`` key.
+
+    This proves the GENERATE path rejects the missing field at validate-time
+    (``SnapshotCdcConfigValidator`` via ``ConfigValidator.validate_flowgroup``,
+    run unconditionally in the per-flowgroup worker BEFORE codegen) rather
+    than via any generate-side presence guard — the redundant CONFIG/002
+    raise that used to live in ``snapshot_cdc_source_function.resolve_source_function``
+    was deleted. If the snapshot source-function resolver were ever reached,
+    it would be on the codegen branch (which never runs because validation
+    fails first), and the file IS present, so a "file not found" IO error
+    cannot be confused for the validator error.
+    """
+    fg_dir = project_root / "pipelines" / pipeline_name
+    fg_dir.mkdir(parents=True, exist_ok=True)
+
+    # A real, syntactically valid source file so the ONLY defect is the
+    # missing 'function' key (rules out an IO/file-not-found false positive).
+    funcs_dir = project_root / "functions"
+    funcs_dir.mkdir(parents=True, exist_ok=True)
+    (funcs_dir / "snap_funcs.py").write_text(
+        "from typing import Optional, Tuple\n"
+        "from pyspark.sql import DataFrame\n\n\n"
+        "def my_snapshot(latest_version: Optional[int])"
+        " -> Optional[Tuple[DataFrame, int]]:\n"
+        "    return None\n",
+        encoding="utf-8",
+    )
+
+    flowgroup = {
+        "pipeline": pipeline_name,
+        "flowgroup": f"{pipeline_name}_fg",
+        "actions": [
+            {
+                "name": "write_snap",
+                "type": "write",
+                "write_target": {
+                    "type": "streaming_table",
+                    "catalog": "${catalog}",
+                    "schema": "${bronze_schema}",
+                    "table": "snap_target",
+                    "create_table": True,
+                    "mode": "snapshot_cdc",
+                    "snapshot_cdc_config": {
+                        "source_function": {
+                            # 'function' deliberately omitted; 'file' exists.
+                            "file": "functions/snap_funcs.py",
+                        },
+                        "keys": ["id"],
+                        "stored_as_scd_type": 2,
+                    },
+                },
+            },
+        ],
+    }
+    with open(fg_dir / f"{pipeline_name}_fg.yaml", "w") as f:
+        yaml.dump(flowgroup, f)
+
+
 def _py_files_under(output_root: Path):
     """All generated ``.py`` files under an env output dir (empty if absent)."""
     if not output_root.exists():
@@ -356,6 +422,71 @@ class TestGenerateCommandParallel:
         assert (
             "not_a_real_action_type" in result.output
         ), f"Offending action type missing from error output:\n{result.output}"
+
+    @pytest.mark.unit
+    def test_snapshot_cdc_missing_source_function_function_rejected_at_generate(
+        self, runner, tmp_path, monkeypatch
+    ):
+        """GENERATE rejects a snapshot_cdc flowgroup missing source_function.function.
+
+        Safety basis for deleting the redundant CONFIG/002 presence guard in
+        ``snapshot_cdc_source_function.resolve_source_function``: the
+        snapshot-CDC validator (reached via
+        ``ConfigValidator.validate_flowgroup`` → ``WriteActionValidator``)
+        runs UNCONDITIONALLY in the per-flowgroup worker
+        (``core/coordination/_flowgroup_pool.py`` → ``process_flowgroup``)
+        BEFORE the codegen branch, in BOTH ``validate`` and ``generate``
+        modes. So a missing ``source_function.function`` is rejected at
+        validate-time during ``generate`` and the codegen resolver
+        (``resolve_source_function``) is NEVER reached.
+
+        Asserts:
+        * non-zero exit (the aggregated validator error fails the gate);
+        * the failure is the VALIDATION error (``LHP-VAL-007`` / the
+          ``source_function must have 'function'`` validator message), NOT
+          the deleted ``LHP-CFG-002`` presence guard;
+        * ZERO ``.py`` files written — proving codegen never ran (had it
+          run, ``resolve_source_function`` would have been the only other
+          place this could fail, and the file IS present on disk).
+        """
+        project_root = tmp_path
+        # A couple of valid pipelines plus the one bad snapshot_cdc flowgroup,
+        # exercising the all-or-nothing gate through the real fan-out engine.
+        _build_multipipeline_project(project_root, ["p_alpha", "p_beta"])
+        _add_snapshot_cdc_missing_function_flowgroup(project_root, "p_snap_bad")
+
+        monkeypatch.chdir(project_root)
+        result = runner.invoke(
+            cli,
+            ["generate", "--env", "dev", "--max-workers", "2", "--no-bundle"],
+        )
+
+        assert result.exit_code != 0, (
+            f"Expected non-zero exit on a snapshot_cdc flowgroup missing "
+            f"source_function.function; got {result.exit_code}:\n{result.output}"
+        )
+
+        # It must be the VALIDATOR error, not the deleted CONFIG/002 guard.
+        assert "LHP-CFG-002" not in result.output, (
+            "Rejection must come from the snapshot-CDC validator, NOT the "
+            f"deleted generate-side CONFIG/002 guard:\n{result.output}"
+        )
+        assert (
+            "LHP-VAL-007" in result.output
+            or "source_function must have 'function'" in result.output
+        ), (
+            "Expected the snapshot-CDC validator error (LHP-VAL-007 / "
+            f"missing 'function') in output:\n{result.output}"
+        )
+
+        # Zero .py written: codegen never ran, so resolve_source_function
+        # was never reached.
+        output_root = project_root / "generated" / "dev"
+        py_files = _py_files_under(output_root)
+        assert py_files == [], (
+            f"Expected ZERO generated .py files (validation gates before "
+            f"codegen); found: {[str(p) for p in py_files]}"
+        )
 
     def test_N2_max_workers_1_vs_8_byte_identical_tree(
         self, runner, tmp_path, monkeypatch

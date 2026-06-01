@@ -198,50 +198,6 @@ class ConfigValidator:
 
         return errors
 
-    def validate_action_references(self, actions: List[Action]) -> List[str]:
-        """Validate that all action references are valid."""
-        errors = []
-
-        # Build set of all available views/targets
-        available_views = set()
-        for action in actions:
-            if action.target:
-                available_views.add(action.target)
-
-        # Check all references
-        for action in actions:
-            sources = self._extract_all_sources(action)
-            for source in sources:
-                # Skip external sources
-                if not source.startswith("v_") and "." in source:
-                    continue  # Likely an external table like bronze.customers
-
-                if source.startswith("v_") and source not in available_views:
-                    errors.append(
-                        f"Action '{action.name}' references view '{source}' which is not defined"
-                    )
-
-        return errors
-
-    def _extract_all_sources(self, action: Action) -> List[str]:
-        """Extract all source references from an action."""
-        sources = []
-
-        if isinstance(action.source, str):
-            sources.append(action.source)
-        elif isinstance(action.source, list):
-            sources.extend(action.source)
-        elif isinstance(action.source, dict):
-            # Check various fields that might contain source references
-            for field in ["view", "source", "views", "sources"]:
-                value = action.source.get(field)
-                if isinstance(value, str):
-                    sources.append(value)
-                elif isinstance(value, list):
-                    sources.extend(value)
-
-        return sources
-
     def validate_duplicate_pipeline_flowgroup(
         self, flowgroups: List[FlowGroup]
     ) -> List[str]:

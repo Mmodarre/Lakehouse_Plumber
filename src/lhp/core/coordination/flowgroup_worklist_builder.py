@@ -120,7 +120,7 @@ def build_flowgroup_worklist(
         all_flowgroups = pre_discovered_all_flowgroups
     else:
         with perf_timer("discover_all_flowgroups"):
-            all_flowgroups = orchestrator.discover_all_flowgroups()
+            all_flowgroups = orchestrator.bootstrap.discover_all_flowgroups()
 
     substitution_file = orchestrator.project_root / "substitutions" / f"{env}.yaml"
 
@@ -131,10 +131,7 @@ def build_flowgroup_worklist(
 
     for pipeline_field in pipeline_fields:
         try:
-            flowgroups = orchestrator.discover_flowgroups_by_pipeline_field(
-                pipeline_field,
-                pre_discovered_all_flowgroups=all_flowgroups,
-            )
+            flowgroups = [fg for fg in all_flowgroups if fg.pipeline == pipeline_field]
         except Exception as e:  # noqa: BLE001 — caller-facing discovery error
             orchestrator.logger.debug(
                 f"Pipeline '{pipeline_field}' discovery failed",
@@ -147,7 +144,7 @@ def build_flowgroup_worklist(
             discovery_errors[pipeline_field] = f"Pipeline validation failed: {e}"
             continue
 
-        contexts = [orchestrator._make_context(fg) for fg in flowgroups]
+        contexts = [orchestrator.bootstrap.make_context(fg) for fg in flowgroups]
         flowgroups_by_pipeline[pipeline_field] = contexts
         if not flowgroups:
             # Empty discovery: present in the worklist, no sub-manager / dir.

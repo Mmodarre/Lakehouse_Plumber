@@ -81,37 +81,29 @@ def resolve_source_function(
         SourceFunctionResult with name and optional parameters.
 
     Raises:
-        LHPError: CONFIG/002 (incomplete config), IO/001 (file not found,
-            via the shared external-file loader), IO/003 (syntax error),
-            IO/004 (function not found in file), CONFIG/005 (unsupported
-            param type), CONFIG/006 (unknown param name).
+        LHPError: IO/001 (file not found, via the shared external-file
+            loader), IO/003 (syntax error), IO/004 (function not found in
+            file), CONFIG/005 (unsupported param type), CONFIG/006
+            (unknown param name).
     """
     file_name = source_function_config.get("file")
     function_name = source_function_config.get("function")
     parameters = source_function_config.get("parameters")
 
-    if not file_name or not function_name:
-        raise LHPError(
-            category=ErrorCategory.CONFIG,
-            code_number="002",
-            title="Incomplete source_function configuration",
-            details="The source_function configuration is missing required fields.",
-            suggestions=[
-                "Specify both 'file' and 'function' in your source_function config",
-                "Check your YAML syntax and indentation",
-            ],
-            example="""Correct configuration:
-snapshot_cdc_config:
-  source_function:
-    file: "functions/my_snapshots.py"    # ← Required
-    function: "my_snapshot_function"     # ← Required
-  keys: ["id"]
-  stored_as_scd_type: 2""",
-            context={
-                "Provided file": file_name,
-                "Provided function": function_name,
-            },
-        )
+    # NOTE: ``file``/``function`` presence is NOT re-validated here. The
+    # snapshot-CDC validator (``SnapshotCdcConfigValidator``, reached via
+    # ``ConfigValidator.validate_flowgroup`` → ``WriteActionValidator``)
+    # already enforces both fields and runs UNCONDITIONALLY in the
+    # per-flowgroup worker (``core/coordination/_flowgroup_pool.py``)
+    # BEFORE the codegen branch in BOTH ``validate`` and ``generate``
+    # modes — so a missing field is rejected (LHP-VAL-007) long before
+    # this resolver is reached. The asserts below encode that upstream
+    # contract for the type checker (narrowing ``Optional`` away) and act
+    # as a cheap defensive guard; they are not a user-facing error path.
+    assert file_name is not None, "source_function.file enforced upstream by validator"
+    assert (
+        function_name is not None
+    ), "source_function.function enforced upstream by validator"
 
     # ``resolve_external_file_path`` raises a rich LHPFileError (IO-004,
     # via ``ErrorFormatter.file_not_found`` with structured search
@@ -149,9 +141,7 @@ snapshot_cdc_config:
         signature = signature_cache.get(cache_key)
 
     if signature is None:
-        signature = _extract_function_signature(
-            resolved_path, file_name, function_name
-        )
+        signature = _extract_function_signature(resolved_path, file_name, function_name)
         if signature_cache is not None:
             signature_cache[cache_key] = signature
 

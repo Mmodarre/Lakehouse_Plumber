@@ -27,7 +27,6 @@ from typing import Dict, List, Mapping, Optional, Sequence
 import pytest
 
 from lhp.core._interfaces import CrossFlowgroupCheckResult
-from lhp.core.codegen.python_file_copier import CopiedModuleRecord
 from lhp.core.coordination import _flowgroup_pool as fp
 from lhp.core.coordination import _pool as fe
 from lhp.core.coordination._flowgroup_pool import (
@@ -44,7 +43,11 @@ from lhp.errors import (
     PythonFunctionConflictError,
 )
 from lhp.models import FlowGroupContext
-from lhp.models.processing import FlowgroupOutcome, PipelineDelta
+from lhp.models.processing import (
+    CopiedModuleRecord,
+    FlowgroupOutcome,
+    PipelineDelta,
+)
 
 PIPELINE = "pipe_a"
 FLOWGROUP = "fg_one"

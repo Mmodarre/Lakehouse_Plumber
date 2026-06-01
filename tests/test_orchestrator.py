@@ -701,19 +701,6 @@ class TestOrchestratorDependencyInjection:
                 == mock_substitution_factory
             )
 
-    def test_dependency_factories_work(self):
-        """Test that dependency factories can create instances."""
-        from lhp.core.registry import DefaultSubstitutionFactory
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            substitution_file = Path(tmpdir) / "test.yaml"
-            substitution_file.write_text("test: value")
-
-            # Test substitution factory
-            sub_factory = DefaultSubstitutionFactory()
-            sub_manager = sub_factory.create(substitution_file, "test")
-            assert sub_manager is not None
-
 
 class TestOrchestratorWithPipelineConfig:
     """Test ActionOrchestrator accepts and uses pipeline config."""

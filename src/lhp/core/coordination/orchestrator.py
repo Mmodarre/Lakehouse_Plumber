@@ -3,23 +3,20 @@
 :class:`ActionOrchestrator` is the composition root wiring eight
 ABC-typed collaborator services (discovery, flowgroup resolution,
 validation, code generation, dependency analysis, monitoring,
-execution, bootstrap) and exposing ten public methods to callers
+execution, bootstrap) and exposing five public methods to callers
 (CLI commands and :class:`LakehousePlumberApplicationFacade`).
 
-§3.2 justification — the ten methods land in the 10–15 range
-requiring module-docstring rationale; each is the narrowest surface
-for its responsibility and none composes another:
-``get_include_patterns`` (discovery glob pass-through);
-``discover_flowgroups`` (single-pipeline read);
-``discover_all_flowgroups`` (full discovery + blueprint expansion +
-monitoring, delegates to bootstrap); ``finalize_monitoring_artifacts``
-(end-of-run notebook/job write); ``discover_flowgroups_by_pipeline_field``
-(CLI surface for ``lhp show``); ``validate_duplicate_pipeline_flowgroup_combinations``
-(duplicate-key guard); ``generate_pipelines`` (batch generate; hands to
-:class:`PipelineExecutionService`); ``process_flowgroup`` (per-flowgroup
-resolution wrapper for per-action CLI); ``generate_flowgroup_code``
-(per-flowgroup code-gen wrapper for per-action CLI); ``validate_pipelines``
-(batch validate; hands to :class:`PipelineExecutionService`).
+Per Target Architecture §4 (thin coordination layer), callers use the
+public services directly (``.bootstrap``, ``.discovery``,
+``.processing``, ``.codegen``); the orchestrator exposes only five
+methods, each the narrowest surface for its responsibility and none
+composing another:
+``discover_flowgroups`` (single-pipeline directory read);
+``finalize_monitoring_artifacts`` (end-of-run notebook/job write);
+``validate_duplicate_pipeline_flowgroup_combinations`` (duplicate-key
+guard); ``generate_pipelines`` (batch generate; hands to
+:class:`PipelineExecutionService`); ``validate_pipelines`` (batch
+validate; hands to :class:`PipelineExecutionService`).
 """
 
 # JUSTIFIED: Constructor wires eight ABC-typed collaborator services
@@ -32,18 +29,16 @@ import logging
 import os
 from collections import defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence
 
-from lhp.models import FlowGroup, FlowGroupContext
+from lhp.models import FlowGroup
 
 if TYPE_CHECKING:
     from ...models.processing import PipelineDelta
-    from ..codegen.python_file_copier import CopiedModuleRecord
 
 from ...parsers.blueprint_parser import BlueprintParser
 from ...parsers.yaml_parser import CachingYAMLParser, YAMLParser
 from ...presets.preset_manager import PresetManager
-from ...utils.performance_timer import perf_timer
 from ...utils.version import (  # noqa: F401 — re-export for tests that monkeypatch `orchestrator.get_version`
     get_version,
 )
@@ -67,7 +62,6 @@ from ..loaders import ProjectConfigLoader
 from ..loaders.version_enforcement import enforce_version_requirements
 from ..processing import TemplateEngine
 from ..processing.blueprint_expander import BlueprintExpander
-from ..processing.substitution import EnhancedSubstitutionManager
 from ..registry import ActionRegistry, OrchestrationDependencies
 from ..validators import ConfigValidator
 from ..validators.secret_validator import SecretValidator
@@ -288,9 +282,6 @@ class ActionOrchestrator:
             actual_version=get_version(),
         )
 
-    def get_include_patterns(self) -> List[str]:
-        return list(self.discovery.get_include_patterns())
-
     def discover_flowgroups(self, pipeline_dir: Path) -> List[FlowGroup]:
         """Discover all flowgroups in a specific pipeline directory.
 
@@ -299,14 +290,6 @@ class ActionOrchestrator:
         directory helper directly until the legacy directory path retires.
         """
         return self.discovery._legacy_discover_flowgroups_by_dir(pipeline_dir)  # type: ignore[attr-defined]
-
-    def discover_all_flowgroups(self) -> Tuple[FlowGroup, ...]:
-        """Discover disk-sourced flowgroups, expand blueprints, attach monitoring.
-
-        Delegates to :class:`FlowgroupBootstrapService`; preserved on the orchestrator
-        surface for ``_inspection_facade.py`` reach-through compatibility.
-        """
-        return self.bootstrap.discover_all_flowgroups()
 
     def finalize_monitoring_artifacts(self, env: str, output_dir: Path) -> None:
         """Reconcile monitoring artifacts: clean stale, write current.
@@ -320,28 +303,6 @@ class ActionOrchestrator:
 
     def _cleanup_monitoring_artifacts(self, env: str, output_dir: Path) -> None:
         self.monitoring.cleanup_artifacts(env, output_dir)
-
-    def discover_flowgroups_by_pipeline_field(
-        self,
-        pipeline_field: str,
-        pre_discovered_all_flowgroups: Optional[Sequence[FlowGroup]] = None,
-    ) -> List[FlowGroup]:
-        """Discover flowgroups matching a pipeline field across all directories.
-
-        When ``pre_discovered_all_flowgroups`` is provided, filters from
-        that list instead of re-discovering. Otherwise delegates to the
-        discovery service's pipeline-filtered read.
-        """
-        if pre_discovered_all_flowgroups is not None:
-            return [
-                fg
-                for fg in pre_discovered_all_flowgroups
-                if fg.pipeline == pipeline_field
-            ]
-        with perf_timer(f"discover_by_pipeline_field [{pipeline_field}]"):
-            return list(
-                self.discovery.discover_flowgroups(pipeline_filter=pipeline_field)
-            )
 
     def validate_duplicate_pipeline_flowgroup_combinations(
         self, flowgroups: List[FlowGroup]
@@ -504,62 +465,6 @@ class ActionOrchestrator:
             formatter=self._formatter,
             pipeline_output_dirs={},
             environment=env,
-        )
-
-    def _find_source_yaml_for_flowgroup(self, flowgroup: FlowGroup) -> Optional[Path]:
-        """Find the source YAML for a flowgroup (multi-doc / array supported)."""
-        return self.discovery.find_source_yaml_for_flowgroup(flowgroup)  # type: ignore[attr-defined]
-
-    def _make_context(self, fg: FlowGroup) -> FlowGroupContext:
-        """Delegates to :class:`FlowgroupBootstrapService`."""
-        return self.bootstrap.make_context(fg)
-
-    def process_flowgroup(
-        self,
-        flowgroup: FlowGroup,
-        substitution_mgr: EnhancedSubstitutionManager,
-        include_tests: bool = True,
-    ) -> FlowGroup:
-        """Expand templates, apply presets and substitutions.
-
-        Back-compat shim around :meth:`FlowgroupResolutionService.resolve`
-        for callers that pass/expect a FlowGroup rather than a
-        FlowGroupContext.
-        """
-        ctx_in = self._make_context(flowgroup)
-        ctx_out = self.processing.resolve(
-            ctx_in, substitution_mgr, include_tests=include_tests
-        )
-        return ctx_out.flowgroup
-
-    def generate_flowgroup_code(
-        self,
-        flowgroup: FlowGroup,
-        substitution_mgr: EnhancedSubstitutionManager,
-        output_dir: Optional[Path] = None,
-        source_yaml: Optional[Path] = None,
-        env: Optional[str] = None,
-        include_tests: bool = False,
-        phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
-    ) -> str:
-        """Generate complete Python code for a flowgroup.
-
-        Args:
-            phase_a_records: Optional list passed by Phase A workers in the
-                cross-pipeline flat pool; when supplied, the file copier
-                appends :class:`CopiedModuleRecord` entries to it instead
-                of writing to disk. Phase B replays those records.
-        """
-        return self.codegen.generate(
-            flowgroup,
-            substitution_mgr,
-            output_dir=output_dir,
-            source_yaml=source_yaml,
-            env=env,
-            include_tests=include_tests,
-            phase_a_records=(
-                tuple(phase_a_records) if phase_a_records is not None else None
-            ),
         )
 
     def _discover_and_filter_flowgroups(

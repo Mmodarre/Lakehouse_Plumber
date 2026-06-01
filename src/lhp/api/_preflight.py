@@ -60,7 +60,7 @@ def _run_project_preflight(
 
     The flowgroup set used by checks (1) and (2) is resolved EXACTLY ONCE
     here — from ``pre_discovered_all_flowgroups`` when the caller supplies
-    it, otherwise from ``orchestrator.discover_all_flowgroups()`` — and the
+    it, otherwise from ``orchestrator.bootstrap.discover_all_flowgroups()`` — and the
     same resolved list is threaded into both, so neither re-discovers
     independently. The bundle check (3) does not consume flowgroups.
 
@@ -71,7 +71,7 @@ def _run_project_preflight(
 
     Args:
         orchestrator: The composition-root orchestrator both facades hold
-            as ``self._orchestrator``. Exposes ``discover_all_flowgroups``,
+            as ``self._orchestrator``. Exposes ``bootstrap.discover_all_flowgroups``,
             ``validation.build_duplicate_issue``, ``project_config`` and
             ``project_root``; also used to construct the bundle facade.
         env: Active environment name (drives substitution in the bundle
@@ -84,7 +84,7 @@ def _run_project_preflight(
         pre_discovered_all_flowgroups: Caller-supplied flowgroup set to
             run the duplicate and test-reporting checks against. When
             ``None`` (the default), the flowgroups are self-discovered via
-            ``orchestrator.discover_all_flowgroups()`` so behavior is
+            ``orchestrator.bootstrap.discover_all_flowgroups()`` so behavior is
             identical to the no-argument path. When provided, this set is
             used verbatim (the validate path forwards its own
             ``pre_discovered_all_flowgroups`` here so injected duplicates
@@ -101,14 +101,12 @@ def _run_project_preflight(
     all_flowgroups: List["FlowGroup"] = (
         list(pre_discovered_all_flowgroups)
         if pre_discovered_all_flowgroups is not None
-        else orchestrator.discover_all_flowgroups()
+        else orchestrator.bootstrap.discover_all_flowgroups()
     )
 
     issues.extend(_check_duplicate_flowgroups(orchestrator, all_flowgroups))
     issues.extend(
-        _check_test_reporting(
-            orchestrator, all_flowgroups, include_tests=include_tests
-        )
+        _check_test_reporting(orchestrator, all_flowgroups, include_tests=include_tests)
     )
     if bundle_enabled:
         issues.extend(_check_bundle_assets(orchestrator, env=env))

@@ -13,8 +13,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Tuple
 
 from ...errors import ErrorCategory, LHPError, LHPValidationError
-from .python_file_copier import CopiedModuleRecord
 from lhp.models import Action, ActionType, FlowGroup
+from lhp.models.processing import CopiedModuleRecord
 from ...utils.performance_timer import perf_timer
 from .._interfaces import BaseCodeGenerationService
 from ..processing.substitution import EnhancedSubstitutionManager

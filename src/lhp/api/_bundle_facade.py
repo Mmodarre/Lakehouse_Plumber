@@ -9,6 +9,7 @@ converters and the bundle scaffolding logic.
 
 :stability: internal
 """
+
 from __future__ import annotations
 
 import logging
@@ -370,7 +371,7 @@ class BundleFacade:
         try:
             with perf_timer("facade.validate_bundle_assets"):
                 flowgroups: Sequence["FlowGroup"] = (
-                    self._orchestrator.discover_all_flowgroups()
+                    self._orchestrator.bootstrap.discover_all_flowgroups()
                 )
                 pipeline_names = sorted({fg.pipeline for fg in flowgroups})
                 monitoring_name: Optional[str] = (
@@ -395,9 +396,7 @@ class BundleFacade:
                 self._logger.exception("Bundle validation failed")
             return _bundle_validate_to_result(exc=exc)
 
-    def enable_bundle(
-        self, target_dir: Optional[Path] = None
-    ) -> BundleEnableResult:
+    def enable_bundle(self, target_dir: Optional[Path] = None) -> BundleEnableResult:
         """Enable Databricks Asset Bundle support on an existing project.
 
         Creates ``databricks.yml`` and the ``bundle/`` resource directory.
@@ -419,9 +418,7 @@ class BundleFacade:
         ).resolve()
         try:
             with perf_timer("facade.enable_bundle"):
-                created_files, created_dirs = _scaffold_bundle_assets(
-                    resolved_target
-                )
+                created_files, created_dirs = _scaffold_bundle_assets(resolved_target)
             return _bundle_enable_to_result(
                 target_dir=resolved_target,
                 created_files=created_files,

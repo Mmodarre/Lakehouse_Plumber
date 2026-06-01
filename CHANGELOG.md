@@ -7,6 +7,188 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Eliminate inspection-path facade reach-throughs
+
+**Summary.** `lhp stats --pipeline <X>` (and any other filtered
+`list_flowgroups` consumer) now reports the **same** blueprint-expanded +
+monitoring flowgroups as the unfiltered view, narrowed to pipeline X.
+Previously the filtered path used raw disk discovery and **omitted**
+blueprint-expanded / monitoring flowgroups, so the filtered and unfiltered
+views disagreed; they are now consistent. Behind that fix, `lhp/api/` no longer
+reaches through the orchestrator's **private** surface — the inspection facade
+and converters now call the orchestrator's public, ABC-typed services
+(`bootstrap` / `discovery` / `processing` / `codegen`) — and a new mechanical
+gate prevents the pattern from returning. This is an **internal refactor**: the
+public API surface is unchanged, so it is **not** a semver-breaking change
+(CODING_CONSTITUTION §1.7).
+
+**Changed (user-visible behavior).**
+
+- **Filtered `lhp stats --pipeline <X>` is now consistent with the unfiltered
+  view.** The filtered `list_flowgroups` path now returns the blueprint-expanded
+  + monitoring flowgroups (narrowed to pipeline X) instead of raw disk
+  discovery, which silently dropped blueprint-expanded and monitoring
+  flowgroups. A new behavior-locking test pins this — there is **no** coverage
+  gap.
+
+**Changed (internal — not a public-API change).**
+
+- **`lhp/api/` no longer reaches the orchestrator's private surface.** The
+  inspection facade and `api/_converters.py` now call the orchestrator's public,
+  ABC-typed services (`bootstrap` / `discovery` / `processing` / `codegen`)
+  instead of its `_`-prefixed members.
+- **`ActionOrchestrator`'s public method surface shrank from 10 → 5.** The 7
+  reach-through shims are removed; the retained five are the legacy
+  `discover_flowgroups` plus the four pipeline/monitoring methods
+  (`generate_pipelines`, `validate_pipelines`,
+  `validate_duplicate_pipeline_flowgroup_combinations`,
+  `finalize_monitoring_artifacts`). This advances the thin-coordinator target
+  architecture.
+- **One additional caller repointed.** `InspectionFacade.compute_stats` — missed
+  by the initial plan — was also moved onto the public service
+  (`self._orchestrator.bootstrap.discover_all_flowgroups()`) in the same change.
+- **Source-path resolution on the inspection paths.** `process_flowgroup` /
+  `generate_flowgroup_code` now resolve the source-YAML path from the raw-keyed
+  context envelope (set at bootstrap from the **pre-resolution** flowgroup)
+  rather than re-looking-it-up from the post-resolution flowgroup. Output is
+  identical except when resolution rewrites a `pipeline`/`flowgroup` identity
+  field (e.g. an `${env_token}` in `pipeline:`), where the raw-keyed path is
+  **more correct**.
+
+**Added.**
+
+- **New mechanical gate `LHP-9.23` (facade-internal private reach-through).**
+  `scripts/check_placement.py` now flags `self._orchestrator._x` /
+  `self._orchestrator._x()` patterns in `lhp/api/`, preventing the
+  reach-through from returning.
+
+**Deferred (decided; tracked for follow-up).**
+
+- **`T2-typing` (spec §10).** Orchestrator parameter typing in `lhp/api/` is
+  kept as `_Orchestrator = Any`; tightening the orchestrator type annotations is
+  deferred.
+- **Surviving out-of-scope reach-throughs.** `_listings.py` (discoverer /
+  expander `# type: ignore[attr-defined]`), `show_command.py`
+  (`CLI-PRESENTER-DEFER`), and the bootstrap-service concrete-only
+  `# type: ignore`s are left in place for a future pass.
+
+**Tests.** The new `LHP-9.23` gate test inlines its `scripts/`-on-`sys.path`
+setup in the test module rather than adding a `tests/scripts/conftest.py`, to
+avoid a pytest bare-`conftest` collision with the root conftest.
+
+### Deferred-item closure — dead-validator/error-code cleanup, snapshot validation-dedup reversal, layering carve-out resolution
+
+**Summary.** A deferred-item chunk that closes six tracked tags, opens one new
+deferral, and corrects two now-stale changelog claims. It is largely
+subtractive: a phantom error code and three dead validator symbols are removed,
+a previously-recorded "keep the check" decision is **reversed** because the path
+it depended on no longer exists, and the last import-linter carve-out is closed
+by relocating a frozen dataclass. All mechanical gates remain green; the new
+`generate`-path regression test proves the snapshot-CDC presence guard is now
+genuinely redundant.
+
+**Closes `BLUEPRINT-059-DRIFT`.** Deleted the phantom `LHP-IO-059` error-code
+row from `docs/blueprints.rst` and dropped "059" from the codes docstring in
+`cli/commands/validate_command.py`. The condition was provably unreachable —
+instance discovery filters via `relative_to(base_dir)` in
+`utils/file_pattern_matcher.py`, so implementing the check would have been dead
+defensive code. The fix was subtractive (remove the documented-but-unreachable
+code), not additive.
+
+**Closes `DEAD-VALIDATOR-CLEANUP`.** Removed three test-only/dead validator
+symbols and their bound tests:
+
+- `PipelineValidator` — the whole module `core/validators/pipeline_validator.py`
+  deleted, plus its `core/validators/__init__.py` import / `__all__` entry and
+  the bound test file `tests/test_pipeline_validator.py`.
+- `ConfigValidator.validate_action_references` (and its now-orphaned private
+  helper `_extract_all_sources`). The bound test file
+  `tests/test_config_validator_references.py` had its **2** cases for these
+  removed; its **2 other** cases — covering the live `TableCreationValidator`
+  and `validate_flowgroup` template-warning paths — were **preserved**.
+- `_validation_error_to_issue_view` from `api/_converters.py` (plus its
+  `TestValidationErrorToIssueView` test class; the other classes in that file
+  were kept). Private symbol — no `:stability:` / semver impact.
+
+**Closes `SNAPSHOT-VALIDATION-DEDUP-DEFER` (DECISION REVERSAL).** This reverses
+the earlier (2026-05-29) "keep the `CONFIG-002` check" decision recorded under
+this same tag in the v0.6.x-era snapshot-CDC perf entry. That decision rested on
+`processor.py:151` running **only** cross-flowgroup validation on the generate
+path, making the generate-side presence guard the sole presence check. **Stage 2
+deleted `processor.py`**: the per-flowgroup worker now runs
+`ConfigValidator.validate_flowgroup` (→ `WriteActionValidator` →
+`SnapshotCdcConfigValidator`) **unconditionally** before the codegen branch in
+**both** `validate` and `generate` modes
+(`core/coordination/_flowgroup_pool.py`, via
+`flowgroup_resolver.process_flowgroup`). The `CONFIG-002` presence guard in
+`generators/write/snapshot_cdc_source_function.py` is therefore now redundant and
+was **removed**; the AST signature checks (`_extract_function_signature` /
+`_validate_function_parameters`) were **kept** (they remain legitimately
+generate-only — the validator cannot read the source file). A new generate-path
+regression test
+(`tests/test_generate_command_parallel.py::...::test_snapshot_cdc_missing_source_function_function_rejected_at_generate`)
+proves a missing `source_function.function` is rejected at generate-time with
+`LHP-VAL-007` (**not** the deleted `LHP-CFG-002`) before codegen runs. The
+type-narrowing the deleted guard previously provided is now expressed via
+`assert file_name is not None` documenting the upstream-validator contract.
+
+**Closes `CODEGEN-MODULE-COUNT-DEFER`.** Reframed `TARGET_ARCHITECTURE.md` §5 +
+checklist item 5 from the stale "5 named modules" headcount to the structural
+**invariant**: a coordinator + named delegate services + supporting
+single-responsibility modules + the `imports/` and `operational_metadata/`
+subpackages, governed by single-responsibility + size limits, with per-action
+generators staying in `generators/`. Code was already 0-violation compliant.
+**Caveat:** `LOCAL/TARGET_ARCHITECTURE.md` is a git-ignored local doc, so this
+edit lives in the worktree working tree only and must be reconciled into the
+canonical copy manually (it does not travel via git).
+
+**Closes the Phase-10.2 import-linter carve-out — wrong-class claim corrected.**
+The real carved-out edge was
+`lhp.models.processing -> lhp.core.codegen.python_file_copier.CopiedModuleRecord`,
+**not** `...substitution.EnhancedSubstitutionManager` as the Phase 9.7 entry
+("Surviving carve-out") and the earlier `pyproject.toml carve-outs` note both
+wrongly recorded. Resolved by moving the pure frozen dataclass
+`CopiedModuleRecord` down into `lhp/models/processing.py` (beside
+`FlowgroupOutcome`, kept out of `__all__`) and repointing every importer.
+**Both** `ignore_imports` carve-outs in `pyproject.toml` (the "LHP top-down
+layering" contract and the "Models must not depend on higher layers" contract)
+were deleted; import-linter now passes with **zero** ignores for that edge. (A
+single-impl Protocol was rejected as §3.6 abstraction-for-its-own-sake.)
+
+**`WK6-FIXUP-DEFER-new-module-tests` — PARTIAL.** Added
+`tests/core/registry/test_factories.py` (ABC contract per §13.8 / §9.25:
+`SubstitutionFactory` is non-instantiable; `DefaultSubstitutionFactory.create`
+returns an `EnhancedSubstitutionManager`; a custom factory is accepted by
+`OrchestrationDependencies`; `create_substitution_manager` delegates to the
+injected factory) and folded in the green-lie smoke test
+`test_dependency_factories_work` (removed from `tests/test_orchestrator.py`). The
+soft "dependency-services hardening" clause **remains** a documented deferral
+(4/5 dependency services already tested).
+
+**Deferred (new; tracked for follow-up).**
+
+- **`CORE-FILE-BUDGET-DRIFT`.** `TARGET_ARCHITECTURE.md` §3's "≤80 files in
+  `core/` (recursive)" figure is stale: the actual count is **90** post-chunk
+  (was 91; this chunk's `pipeline_validator.py` deletion accounts for the −1).
+  **Not** fixed here — tracked for a separate pass. A §3 status note was added to
+  the TARGET doc (same git-ignored caveat as `CODEGEN-MODULE-COUNT-DEFER` above:
+  worktree-working-tree only).
+
+**Notable (NIT-level).**
+
+- One accurate, load-bearing comment in `pyproject.toml` (the "LHP top-down
+  layering" contract header) still references `python_file_copier`. It documents
+  the `python_file_copier.py → core/` relocation and is **unrelated** to the
+  removed carve-outs, so it was intentionally retained — hence
+  `grep python_file_copier pyproject.toml` returns **1**, not 0.
+- Gate-driven incidental fixes: the `assert`-based type-narrowing added in
+  `snapshot_cdc_source_function.py` (replacing the narrowing the deleted guard
+  provided). (The deferred chunk had also widened a `# type: ignore` at
+  `coordination/orchestrator.py:510`, but that edit was **dropped on
+  integration**: the concurrent orchestrator-surface-thinning refactor in this
+  same release deleted `_find_source_yaml_for_flowgroup` outright, so the
+  suppression no longer applies.)
+
 ### Test remediation — `generators/test/` branch-coverage hardening
 
 **Summary.** A test-trust pass over the test-action leaf generators: raised

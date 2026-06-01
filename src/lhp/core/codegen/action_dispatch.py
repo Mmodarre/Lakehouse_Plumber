@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Set, Tuple
 
 from ...errors import ErrorCategory, LHPError, LHPValidationError
-from .python_file_copier import CopiedModuleRecord
 from lhp.models import Action, ActionType, FlowGroup, TransformType
+from lhp.models.processing import CopiedModuleRecord
 from ..processing.substitution import EnhancedSubstitutionManager
 
 if TYPE_CHECKING:

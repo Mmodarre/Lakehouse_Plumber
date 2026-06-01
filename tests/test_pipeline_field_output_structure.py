@@ -481,16 +481,14 @@ dev:
         """Test that orchestrator can discover flowgroups by pipeline field across directories."""
         project_root = project_with_pipeline_field_structure
 
-        orchestrator = build_facade_orchestrator(
-            project_root, enforce_version=False
-        )
+        orchestrator = build_facade_orchestrator(project_root, enforce_version=False)
 
         # This method should discover all flowgroups with the given pipeline field
-        raw_flowgroups = orchestrator.discover_flowgroups_by_pipeline_field(
-            "raw_ingestions"
+        raw_flowgroups = orchestrator.discovery.discover_flowgroups(
+            pipeline_filter="raw_ingestions"
         )
-        silver_flowgroups = orchestrator.discover_flowgroups_by_pipeline_field(
-            "silver_transforms"
+        silver_flowgroups = orchestrator.discovery.discover_flowgroups(
+            pipeline_filter="silver_transforms"
         )
 
         # Should find 3 flowgroups for raw_ingestions
@@ -550,14 +548,12 @@ dev:
             yaml.dump(duplicate_flowgroup, f)
 
         # This should fail validation due to duplicate pipeline+flowgroup
-        orchestrator = build_facade_orchestrator(
-            project_root, enforce_version=False
-        )
+        orchestrator = build_facade_orchestrator(project_root, enforce_version=False)
 
         with pytest.raises(
             ValueError, match="(?s)Duplicate.*raw_ingestions.customer_ingestion"
         ):
-            all_flowgroups = orchestrator.discover_all_flowgroups()
+            all_flowgroups = orchestrator.bootstrap.discover_all_flowgroups()
             orchestrator.validate_duplicate_pipeline_flowgroup_combinations(
                 all_flowgroups
             )

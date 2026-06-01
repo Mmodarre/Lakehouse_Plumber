@@ -7,8 +7,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
 
-from .python_file_copier import CopiedModuleRecord
 from lhp.models import FlowGroup
+from lhp.models.processing import CopiedModuleRecord
 from ..processing.substitution import EnhancedSubstitutionManager
 
 

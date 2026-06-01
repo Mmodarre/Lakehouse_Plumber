@@ -420,7 +420,7 @@ def test_validate_catches_template_resolved_duplicate_table_invisible_in_raw():
                 project_root, enforce_version=False
             )
             orchestrator = facade._orchestrator
-            raw_flowgroups = list(orchestrator.discover_all_flowgroups())
+            raw_flowgroups = list(orchestrator.bootstrap.discover_all_flowgroups())
 
             # Both flowgroups are present but their template is un-expanded:
             # zero actions, hence zero write/create_table actions to conflict.

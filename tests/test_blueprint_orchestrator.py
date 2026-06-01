@@ -80,7 +80,7 @@ flowgroups:
         "blueprint: erp\nsite_name: emea_uk\n",
     )
     orch = build_facade_orchestrator(tmp_path, enforce_version=False)
-    all_fgs = orch.discover_all_flowgroups()
+    all_fgs = orch.bootstrap.discover_all_flowgroups()
     flow_names = {fg.flowgroup for fg in all_fgs}
     assert "regular_fg" in flow_names
     assert "apac_sg_orders" in flow_names

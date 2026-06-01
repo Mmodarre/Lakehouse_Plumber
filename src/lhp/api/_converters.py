@@ -24,7 +24,7 @@ External callers MUST NOT import from here.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Iterable, List, Literal, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Literal, Optional, Sequence
 
 from lhp.api.responses import (
     BatchGenerationResponse,
@@ -52,7 +52,6 @@ from lhp.api.views import (
 if TYPE_CHECKING:
     from lhp.core.coordination.executor import PipelineValidationOutcome
     from lhp.core.processing.substitution import EnhancedSubstitutionManager
-    from lhp.core.validators._base import ValidationError
     from lhp.errors import LHPError
     from lhp.models import (
         Action,
@@ -64,6 +63,10 @@ if TYPE_CHECKING:
     )
     from lhp.models.dependencies import DependencyAnalysisResult as _InternalDepResult
     from lhp.models.processing import PipelineDelta
+
+    # Internal orchestrator type, referenced only as a quoted annotation
+    # below; never named directly in the public API surface (§1.10, §9.13).
+    _Orchestrator = Any
 
 
 def _lhp_error_to_issue_view(
@@ -124,48 +127,6 @@ def _issue_view_to_lhp_error(issue: ValidationIssueView) -> "LHPError":
         suggestions=list(issue.suggestions) or None,
         context=dict(issue.context) or None,
         doc_link=issue.doc_link,
-    )
-
-
-def _validation_error_to_issue_view(
-    err: "ValidationError",
-    *,
-    pipeline_name: Optional[str] = None,
-    flowgroup_name: Optional[str] = None,
-    severity: Literal["error", "warning"] = "error",
-) -> ValidationIssueView:
-    """Project an internal :data:`ValidationError` onto a public view.
-
-    The internal union (``Union[str, LHPError]``) has two branches:
-
-    * :class:`LHPError` — delegated to :func:`_lhp_error_to_issue_view`,
-      which decomposes the structured payload (code, category,
-      suggestions, context, doc link).
-    * plain ``str`` — a discovery / cross-flowgroup error message with no
-      structured payload, projected with an empty ``code`` and the
-      generic ``"VAL"`` category.
-
-    This is the single public mapping path from the internal
-    :data:`ValidationError` union produced by the validators behind
-    :class:`ValidationService` to the public DTO, keeping the
-    ``core`` → ``api`` edge severed.
-    """
-    from lhp.errors import LHPError
-
-    if isinstance(err, LHPError):
-        return _lhp_error_to_issue_view(
-            err,
-            pipeline_name=pipeline_name,
-            flowgroup_name=flowgroup_name,
-            severity=severity,
-        )
-    return ValidationIssueView(
-        code="",
-        category="VAL",
-        severity=severity,
-        title=str(err),
-        pipeline_name=pipeline_name,
-        flowgroup_name=flowgroup_name,
     )
 
 
@@ -671,8 +632,7 @@ def _duplicates_to_validation_response(
                 category="VAL",
                 severity="error",
                 title=(
-                    f"Duplicate flowgroup '{view.name}' in pipeline "
-                    f"'{view.pipeline}'"
+                    f"Duplicate flowgroup '{view.name}' in pipeline '{view.pipeline}'"
                 ),
                 details=(
                     "Two flowgroups in the same pipeline share the same "
@@ -716,7 +676,9 @@ def _build_substitution_manager_for_env(
     return EnhancedSubstitutionManager(substitution_file, env)
 
 
-def _locate_flowgroup_by_name(orchestrator: object, flowgroup_name: str) -> "FlowGroup":
+def _locate_flowgroup_by_name(
+    orchestrator: "_Orchestrator", flowgroup_name: str
+) -> "FlowGroup":
     """Locate the first flowgroup by name across the project, or raise.
 
     Discovery is unfiltered (walks every pipeline directory). Raises
@@ -724,7 +686,7 @@ def _locate_flowgroup_by_name(orchestrator: object, flowgroup_name: str) -> "Flo
     this into the appropriate public outcome (``None`` for
     :meth:`InspectionFacade.find_source_yaml_for_flowgroup`).
     """
-    flowgroups: Sequence["FlowGroup"] = orchestrator.discover_all_flowgroups()  # type: ignore[attr-defined]
+    flowgroups: Sequence["FlowGroup"] = orchestrator.bootstrap.discover_all_flowgroups()
     for fg in flowgroups:
         if fg.flowgroup == flowgroup_name:
             return fg
@@ -732,21 +694,17 @@ def _locate_flowgroup_by_name(orchestrator: object, flowgroup_name: str) -> "Flo
 
 
 def _flowgroup_file_paths(
-    orchestrator: object,
+    orchestrator: "_Orchestrator",
     flowgroups: Sequence["FlowGroup"],
 ) -> Dict[tuple[str, str], Path]:
     """Build a ``(pipeline, flowgroup) -> path`` map for a sequence of flowgroups.
 
-    Delegates to the orchestrator's underlying source-path lookup;
-    flowgroups with no resolvable source path are simply absent from
-    the resulting map.
+    Delegates to the orchestrator's source-path lookup; flowgroups with
+    no resolvable source path are simply absent from the resulting map.
     """
     paths: Dict[tuple[str, str], Path] = {}
     for fg in flowgroups:
-        # Intentional underscore-prefixed lookup: this closure is the
-        # single reach-through site until ``find_source_yaml_for_flowgroup``
-        # is promoted on the orchestrator.
-        path = orchestrator._find_source_yaml_for_flowgroup(fg)  # type: ignore[attr-defined]
+        path = orchestrator.discovery.find_source_yaml_for_flowgroup(fg)
         if path is not None:
             paths[(fg.pipeline, fg.flowgroup)] = path
     return paths
