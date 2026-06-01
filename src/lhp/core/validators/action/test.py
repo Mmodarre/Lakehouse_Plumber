@@ -148,6 +148,11 @@ class TestActionValidator:
             # Schema match needs source and reference
             if not action.source:
                 errors.append(f"{prefix}: Schema match test requires 'source' field")
+            elif isinstance(action.source, str) and action.source.count(".") != 2:
+                errors.append(
+                    f"{prefix}: 'source' must be a 3-part name "
+                    f"(catalog.schema.table), got '{action.source}'"
+                )
             if not action.reference:
                 errors.append(
                     f"{prefix}: Schema match test requires 'reference' field to compare schemas"

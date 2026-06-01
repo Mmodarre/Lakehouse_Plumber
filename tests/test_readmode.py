@@ -332,8 +332,12 @@ environment:
             # assertions; payload diet stripped content from the return).
             output_dir = project_root / "generated"
             orchestrator = build_facade_orchestrator(project_root)
-            orchestrator.generate_pipeline_by_field(
-                pipeline_field="test_pipeline",
+            # Single-pipeline generation now goes through the consolidated
+            # ``generate_pipelines`` (orchestrator.py:387); the per-field helper
+            # ``generate_pipeline_by_field`` was removed. A single pipeline is
+            # selected via the keyword-only ``pipeline_filter``.
+            orchestrator.generate_pipelines(
+                pipeline_filter="test_pipeline",
                 env="dev",
                 output_dir=output_dir,
             )

@@ -8,11 +8,20 @@ These tests pin the resulting contract:
   ``console.print`` per pipeline).
 - A single :func:`print_validate_summary_table` table appears AFTER
   Live exits, with one row per pipeline.
-- Each failing pipeline's :class:`LHPError` is rendered as a yellow
-  Rich Panel via :func:`render_error_panel` AFTER the summary table.
+- Each failing pipeline's structured issue is rebuilt into a transient
+  :class:`LHPError` via :func:`_issue_view_to_lhp_error` and rendered as
+  a yellow Rich Panel via :func:`render_error_panel` AFTER the summary
+  table.
 - No ``=====`` separators leak into the summary cells (the regression
-  the structured ``lhp_error`` field on :class:`ValidationIssue`
-  prevents).
+  the flat ``ValidationIssueView`` projection — no embedded
+  ``LHPError.__str__()`` — prevents).
+
+The public :class:`ValidationIssueView` no longer carries a live
+``LHPError``; the refactor decomposed it into flat, JSON-serialisable
+fields (``code``, ``category``, ``suggestions``, ``context``,
+``doc_link`` — see ``src/lhp/api/views.py``). The validate command
+bridges those flat fields back to a transient ``LHPError`` for the
+panel renderer via ``_issue_view_to_lhp_error`` (validate_command.py).
 """
 
 from io import StringIO
@@ -21,6 +30,7 @@ from unittest.mock import patch
 from rich.console import Console as RichConsole
 
 import lhp.cli.console as _lhp_console_module
+from lhp.cli.commands.validate_command import _issue_view_to_lhp_error
 from lhp.cli.error_panel import render_error_panel
 from lhp.cli.live_panel import PipelineRecord
 from lhp.cli.validate_summary import print_validate_summary_table
@@ -46,7 +56,14 @@ def _patch_consoles(stdout_console: RichConsole, stderr_console: RichConsole):
 
 
 def _build_failing_response() -> BatchValidationResponse:
-    """Construct a deterministic batch response with one failing pipeline."""
+    """Construct a deterministic batch response with one failing pipeline.
+
+    The structured issue is projected as flat fields onto
+    :class:`ValidationIssueView` (``code``, ``category``, ``context``,
+    ...) exactly as the validation workers do — the view no longer
+    carries a live :class:`LHPError`. ``err`` is built only to source
+    the same field values the converter would emit.
+    """
     err = LHPValidationError(
         category=ErrorCategory.VALIDATION,
         code_number="007",
@@ -56,24 +73,26 @@ def _build_failing_response() -> BatchValidationResponse:
     )
     failing_response = ValidationResponse(
         success=False,
-        issues=[
+        issues=(
             ValidationIssueView(
                 code=err.code,
+                category=err.category.value,
                 severity="error",
                 title=err.title,
                 details=err.details,
-                location="bronze_pipeline",
-                lhp_error=err,
+                pipeline_name="bronze_pipeline",
+                context=dict(err.context),
+                doc_link=err.doc_link,
             ),
-        ],
-        validated_pipelines=["bronze_pipeline"],
+        ),
+        validated_pipelines=("bronze_pipeline",),
     )
     return BatchValidationResponse(
         success=False,
         pipeline_responses={"bronze_pipeline": failing_response},
         total_errors=1,
         total_warnings=0,
-        validated_pipelines=["bronze_pipeline"],
+        validated_pipelines=("bronze_pipeline",),
     )
 
 
@@ -105,16 +124,24 @@ def test_validate_failure_renders_summary_table_post_live():
 
 
 def test_validate_failure_panel_uses_lhp_error_rich():
-    """Failing pipeline's LHPError renders via the rich Panel surface."""
+    """Failing pipeline's structured issue renders via the rich Panel surface.
+
+    The view carries flat fields, not a live ``LHPError``; the validate
+    command rebuilds a transient ``LHPError`` from those fields via
+    ``_issue_view_to_lhp_error`` before handing it to
+    ``render_error_panel``. This mirrors that bridge.
+    """
     batch_response = _build_failing_response()
     buf, fake = _capture()
     with _patch_consoles(fake, fake):
-        # Mirror the validate command's post-Live LHPError print loop.
+        # Mirror the validate command's post-Live LHPError print loop
+        # (validate_command.py:431-438).
         for response in batch_response.pipeline_responses.values():
             for issue in response.issues:
-                if issue.lhp_error is not None:
+                lhp_error = _issue_view_to_lhp_error(issue)
+                if lhp_error is not None:
                     _lhp_console_module.err_console.print(
-                        render_error_panel(issue.lhp_error)
+                        render_error_panel(lhp_error)
                     )
     out = buf.getvalue()
     # ``render_error_panel`` returns a Panel titled ``LHP-VAL-007   <category label>``.
@@ -128,18 +155,25 @@ def test_validate_code_column_not_dashes_in_failure_line():
     """The inline failure-line code is the real code, not the legacy ``—``.
 
     Pre-D5 the validate worker stringified LHPError so the main-thread
-    ValidationIssue.code was empty. With the structured ``lhp_error``
-    field on ValidationIssue, the validate command's ``_on_complete``
-    callback pulls ``first_lhp.code`` for the inline failure marker.
+    issue ``code`` was empty. The refactored ``ValidationIssueView``
+    carries the LHP error code directly as a flat ``code`` field
+    (``src/lhp/api/views.py``), which the validate command reads for the
+    inline failure marker — and which ``_issue_view_to_lhp_error``
+    parses back into a transient ``LHPError`` whose ``.code`` round-trips.
     """
     batch_response = _build_failing_response()
     response = batch_response.pipeline_responses["bronze_pipeline"]
-    first_lhp = next(
-        (i.lhp_error for i in response.issues if i.lhp_error is not None),
+    first_issue = next(
+        (i for i in response.issues if i.code),
         None,
     )
-    assert first_lhp is not None
-    assert first_lhp.code == "LHP-VAL-007"
+    assert first_issue is not None
+    # The flat code field is the inline failure marker source.
+    assert first_issue.code == "LHP-VAL-007"
+    # And it round-trips through the panel bridge the command uses.
+    lhp_error = _issue_view_to_lhp_error(first_issue)
+    assert lhp_error is not None
+    assert lhp_error.code == "LHP-VAL-007"
 
 
 def test_validate_issue_cell_has_no_equals_borders():

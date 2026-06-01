@@ -179,20 +179,39 @@ class TestGlobalAndPerJobAnalysis:
         ]
         mockget_flowgroups.return_value = flowgroups
 
-        # Setup mock to return a result
-        from lhp.models.dependencies import DependencyAnalysisResult
+        # Setup mock to return a result. The result DTO now carries a
+        # ``graphs`` field (models/dependencies.py:58); partition_result_by_job
+        # filters those graphs per job (analyzer.py:122) instead of re-running
+        # analyze, so the spec'd mock must expose real (empty) graphs.
+        import networkx as nx
+
+        from lhp.models.dependencies import (
+            DependencyAnalysisResult,
+            DependencyGraphs,
+        )
 
         mock_result = Mock(spec=DependencyAnalysisResult)
         mock_result.external_sources = []
         mock_result.pipeline_dependencies = {}
+        mock_result.graphs = DependencyGraphs(
+            action_graph=nx.DiGraph(),
+            flowgroup_graph=nx.DiGraph(),
+            pipeline_graph=nx.DiGraph(),
+            metadata={},
+        )
         mock_analyze.return_value = mock_result
 
         analyzer = _make_service(self.temp_dir)
 
         results, global_result = analyzer.analyze_dependencies_by_job()
 
-        # analyze_dependencies should be called: 1 for global + 2 for each job = 3 times
-        assert mock_analyze.call_count == 3
+        # Global analysis runs first: analyze() is invoked exactly once on the
+        # combined flowgroup set (service.py:253). Per-job results are then
+        # produced by partitioning that global result (service.py:259 ->
+        # partition_result_by_job), not by re-analyzing each job.
+        assert mock_analyze.call_count == 1
+        assert global_result is mock_result
+        assert set(results.keys()) == {"bronze_job", "silver_job"}
 
     @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     def test_external_sources_tracked_correctly(

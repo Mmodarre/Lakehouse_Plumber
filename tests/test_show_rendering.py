@@ -3,6 +3,14 @@
 A single syrupy snapshot pins the contract: the resolved flowgroup is
 dumped as YAML and wrapped in a Rich ``Syntax`` block inside a
 ``Panel`` whose title carries ``pipeline.flowgroup   env: ENV``.
+
+``_display_flowgroup_configuration`` now consumes a frozen
+:class:`lhp.api.views.ProcessedFlowgroupView` (built by the facade via
+``dataclasses.asdict``), not a Pydantic :class:`FlowGroup`. The test
+builds that view through the real converter
+(:func:`lhp.api._converters._flowgroup_to_processed_view`) so the
+projected surface — ``flowgroup`` summary + action-type fields, no raw
+``source`` payload — matches production.
 """
 
 from io import StringIO
@@ -10,11 +18,13 @@ from io import StringIO
 from rich.console import Console as RichConsole
 
 import lhp.cli.console as _lhp_console_module
+from lhp.api._converters import _flowgroup_to_processed_view
+from lhp.api.views import ProcessedFlowgroupView
 from lhp.cli.commands.show_command import ShowCommand
 from lhp.models import Action, ActionType, FlowGroup
 
 
-def _render(processed_fg: FlowGroup, env: str) -> str:
+def _render(processed_fg: ProcessedFlowgroupView, env: str) -> str:
     """Render the show command's flowgroup display, capturing to StringIO."""
     cmd = ShowCommand.__new__(ShowCommand)  # skip __init__ — method uses no state
     buf = StringIO()
@@ -49,4 +59,5 @@ def test_show_flowgroup_renders_yaml_panel(snapshot):
             ),
         ],
     )
-    assert _render(fg, env="dev") == snapshot
+    processed_fg = _flowgroup_to_processed_view(fg)
+    assert _render(processed_fg, env="dev") == snapshot

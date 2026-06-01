@@ -265,19 +265,19 @@ class TestGetIncludePatternsNoReload:
 
             # Calling get_include_patterns should NOT reload
             patterns = discoverer.get_include_patterns()
-            assert patterns == ["pipelines/**/*.yaml"]
+            assert patterns == ("pipelines/**/*.yaml",)
             assert mock_loader.load_project_config.call_count == 1
 
             # Call again
             patterns2 = discoverer.get_include_patterns()
-            assert patterns2 == ["pipelines/**/*.yaml"]
+            assert patterns2 == ("pipelines/**/*.yaml",)
             assert mock_loader.load_project_config.call_count == 1
 
     def test_get_include_patterns_empty_without_config(self):
-        """Returns empty list when no config loader provided."""
+        """Returns empty tuple when no config loader provided."""
         with tempfile.TemporaryDirectory() as tmp:
             discoverer = FlowgroupDiscoveryService(Path(tmp))
-            assert discoverer.get_include_patterns() == []
+            assert discoverer.get_include_patterns() == ()
 
 
 class TestDiscoverAndFilterPreDiscovered:
@@ -328,8 +328,13 @@ class TestDiscoverAndFilterPreDiscovered:
             orch = build_facade_orchestrator(root, enforce_version=False)
 
             mock_fgs = [_make_flowgroup("my_pipeline", "fg1")]
+            # The fallback path lives in the discovery service:
+            # ActionOrchestrator._discover_and_filter_flowgroups delegates to
+            # FlowgroupDiscoveryService.discover_and_filter_for_pipeline, which
+            # (when pre_discovered is None) calls its own
+            # discover_flowgroups_by_pipeline_field. Patch the service method.
             with patch.object(
-                orch,
+                orch.discovery,
                 "discover_flowgroups_by_pipeline_field",
                 return_value=mock_fgs,
             ) as mock_discover:

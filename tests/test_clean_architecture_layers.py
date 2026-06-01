@@ -63,38 +63,75 @@ class TestDataTransferObjects:
 
 class TestFacadeOnDeltaUnwrap:
     """Cover the ``_on_delta`` closure inside
-    :meth:`LakehousePlumberApplicationFacade.generate_pipelines`.
+    :meth:`GenerationFacade._do_generate_pipelines` (``src/lhp/api/facade.py``).
 
-    The closure builds the per-pipeline
-    :class:`~lhp.core.coordination.layers.GenerationResponse.original_error` from the
-    worker's :class:`~lhp.models.processing.PipelineDelta`. The contract
-    is:
+    The closure (facade.py:225) runs
+    :func:`lhp.api._converters._delta_to_generation_response`
+    (``_converters.py:171``) on each worker
+    :class:`~lhp.models.processing.PipelineDelta` to build the public,
+    frozen :class:`~lhp.api.GenerationResponse`.
 
-    1. ``delta.lhp_error`` present → live ``LHPError`` instance surfaces
-       unchanged on ``response.original_error`` (subclass identity + code
-       preserved; NO GEN-901 wrap).
+    Per constitution §4.8, ``GenerationResponse`` no longer carries a
+    live exception instance — the old ``original_error`` field was
+    removed (``responses.py:145``) and replaced by the flat string
+    ``error_code`` (+ a :class:`~lhp.api.ValidationIssueView` ``error``).
+    The error-unwrap contract therefore now surfaces as a *code* on the
+    response rather than an instance:
+
+    1. ``delta.lhp_error`` present → its ``.code`` is forwarded
+       unchanged onto ``response.error_code`` (NO GEN-901 wrap). The
+       live subclass identity / dual-inheritance shape is still asserted
+       — but on ``delta.lhp_error`` (the instance the converter reads),
+       since the response cannot legally hold it (§4.8).
     2. ``delta.lhp_error is None`` → the dispatcher
        :func:`~lhp.errors.lhp_error_from_worker_failure`
-       synthesizes the right LHPError subclass (preserving
-       ``ValueError``/``FileNotFoundError`` dual-inheritance) with
-       ``LHP-GEN-901``.
+       (``errors/types.py:250``) synthesizes the right ``LHPError``
+       subclass (preserving ``ValueError``/``FileNotFoundError``
+       dual-inheritance via ``_WORKER_ERROR_TYPE_TO_LHP_CLASS``,
+       ``types.py:234``) with ``LHP-GEN-901``; the response carries
+       ``error_code == "LHP-GEN-901"``. The dispatcher's subclass
+       mapping is asserted directly against
+       ``lhp_error_from_worker_failure``.
 
-    Tests drive the closure by mocking
-    ``orchestrator.generate_pipelines_by_fields`` to invoke its
-    ``on_pipeline_complete`` argument with a synthetic delta, then
-    inspect what the facade forwards to the user-supplied
-    ``on_pipeline_complete`` (which is where the per-pipeline
-    ``GenerationResponse`` is observable).
+    Tests drive the closure by mocking the CURRENT orchestrator method
+    ``orchestrator.generate_pipelines`` (the facade calls it at
+    facade.py:243 — NOT the removed ``generate_pipelines_by_fields``) to
+    invoke its ``on_pipeline_complete`` argument with a synthetic delta,
+    then inspect the per-pipeline ``GenerationResponse`` captured by the
+    user-supplied ``on_pipeline_complete``. The driver targets
+    ``GenerationFacade._do_generate_pipelines`` (which owns the closure)
+    directly, bypassing the public generator's project preflight so the
+    closure is exercised in isolation.
+
+    Corroborating already-passing tests (the §4.8 ``error_code`` surface
+    these now assert):
+
+    * ``tests/api/test_generate_stream_protocol.py::
+      TestGenerateGateStreamProtocol::
+      test_gate_failure_emits_exactly_one_error_then_raises`` — a worker
+      ``LHPError`` (``LHP-CFG-004``) travels back through the facade
+      unwrap with its code preserved.
+    * ``tests/api/test_generate_stream_protocol.py::
+      TestGenerateCommitFailureOptionB::
+      test_commit_oserror_surfaces_as_batch_failure_dto_not_raise`` — a
+      non-LHP failure surfaces with ``error_code is None`` (no GEN-901
+      coding of plain infra failures).
+    * ``tests/api/test_responses_contract.py`` —
+      ``failed_generation_response`` fixture (error path = ``error_code``
+      + ``error`` view, no exception field) and ``TestFieldTypeContract``
+      actively ban any ``LHPError``-typed DTO field (§4.8).
     """
 
     def _run_facade_with_delta(self, delta: PipelineDelta) -> GenerationResponse:
+        from lhp.api.facade import GenerationFacade
+
         mock_orchestrator = Mock()
 
         def _invoke_callback(*args, **kwargs):
             kwargs["on_pipeline_complete"](delta)
             return {delta.pipeline_name: delta.generated_filenames}
 
-        mock_orchestrator.generate_pipelines_by_fields.side_effect = _invoke_callback
+        mock_orchestrator.generate_pipelines.side_effect = _invoke_callback
 
         facade = LakehousePlumberApplicationFacade(mock_orchestrator)
 
@@ -103,7 +140,11 @@ class TestFacadeOnDeltaUnwrap:
         def _on_pipeline_complete(name: str, response: GenerationResponse) -> None:
             captured[name] = response
 
-        facade.generate_pipelines(
+        # Drive the closure-owning method directly (it calls
+        # ``orchestrator.generate_pipelines`` and runs ``_on_delta``),
+        # bypassing the public generator's project preflight.
+        assert isinstance(facade.generation, GenerationFacade)
+        facade.generation._do_generate_pipelines(
             pipeline_fields=[delta.pipeline_name],
             env="dev",
             output_dir=None,
@@ -111,10 +152,11 @@ class TestFacadeOnDeltaUnwrap:
         )
         return captured[delta.pipeline_name]
 
-    def test_on_delta_surfaces_live_lhp_validation_error_unchanged(self):
-        """LHPValidationError raised in worker travels via ``delta.lhp_error``
-        and shows up on ``response.original_error`` with its original code +
-        subclass identity — no GEN-901 wrap."""
+    def test_on_delta_surfaces_live_lhp_validation_error_code(self):
+        """LHPValidationError raised in worker travels via ``delta.lhp_error``;
+        its code is forwarded unchanged onto ``response.error_code`` — no
+        GEN-901 wrap. The live subclass identity is asserted on the delta
+        (the response no longer holds the instance, §4.8)."""
         original = LHPValidationError(
             category=ErrorCategory.VALIDATION,
             code_number="007",
@@ -128,13 +170,16 @@ class TestFacadeOnDeltaUnwrap:
         response = self._run_facade_with_delta(delta)
 
         assert response.is_successful() is False
-        assert response.original_error is original
-        assert response.original_error.code == "LHP-VAL-007"
-        assert isinstance(response.original_error, LHPValidationError)
+        assert response.error_code == "LHP-VAL-007"
+        # The §4.8 surface keeps the live instance off the DTO; the
+        # subclass identity it preserved is checked on the delta.
+        assert delta.lhp_error is original
+        assert isinstance(delta.lhp_error, LHPValidationError)
 
-    def test_on_delta_surfaces_live_lhp_file_error_unchanged(self):
-        """``LHPFileError`` round-trip preserves the dual-inheritance shape
-        (FileNotFoundError) as well as the original code."""
+    def test_on_delta_surfaces_live_lhp_file_error_code(self):
+        """``LHPFileError`` round-trip forwards its code onto
+        ``response.error_code``; the dual-inheritance shape
+        (FileNotFoundError) is preserved on ``delta.lhp_error``."""
         original = LHPFileError(
             category=ErrorCategory.IO,
             code_number="001",
@@ -146,17 +191,22 @@ class TestFacadeOnDeltaUnwrap:
 
         response = self._run_facade_with_delta(delta)
 
-        assert response.original_error is original
-        assert response.original_error.code == "LHP-IO-001"
-        assert isinstance(response.original_error, LHPFileError)
+        assert response.error_code == "LHP-IO-001"
+        assert delta.lhp_error is original
+        assert isinstance(delta.lhp_error, LHPFileError)
         # Dual-inheritance: ``except FileNotFoundError`` would still catch.
-        assert isinstance(response.original_error, FileNotFoundError)
+        assert isinstance(delta.lhp_error, FileNotFoundError)
 
     def test_on_delta_wraps_non_lhp_value_error_via_dispatcher(self):
         """When the worker raised a plain ``ValueError`` (lhp_error is None),
-        the facade synthesizes an ``LHPValidationError`` (not a plain
-        ``LHPError``) so callers' ``except ValueError`` handlers continue
-        to catch worker failures. The code is ``LHP-GEN-901``."""
+        the converter synthesizes a ``GEN-901`` error via
+        ``lhp_error_from_worker_failure`` and the response carries
+        ``error_code == "LHP-GEN-901"``. The dispatcher routes ``ValueError``
+        → ``LHPValidationError`` (dual-inherits ``ValueError``) — asserted
+        directly against the dispatcher, since the synthesized instance is
+        not held on the DTO (§4.8)."""
+        from lhp.errors import lhp_error_from_worker_failure
+
         delta = PipelineDelta(
             pipeline_name="test_pipeline",
             success=False,
@@ -168,17 +218,25 @@ class TestFacadeOnDeltaUnwrap:
 
         response = self._run_facade_with_delta(delta)
 
-        assert response.original_error is not None
-        assert response.original_error.code == "LHP-GEN-901"
+        assert response.error_code == "LHP-GEN-901"
         # Dispatcher routes ValueError → LHPValidationError so dual-inherit
-        # ``except ValueError`` still catches.
-        assert isinstance(response.original_error, LHPValidationError)
-        assert isinstance(response.original_error, ValueError)
+        # ``except ValueError`` still catches worker failures.
+        synthesized = lhp_error_from_worker_failure(
+            pipeline_name=delta.pipeline_name,
+            error_type=delta.error_type,
+            error_message=delta.error_message,
+            error_traceback=delta.error_traceback,
+        )
+        assert synthesized.code == "LHP-GEN-901"
+        assert isinstance(synthesized, LHPValidationError)
+        assert isinstance(synthesized, ValueError)
 
     def test_on_delta_wraps_unknown_exception_as_plain_lhp_error(self):
         """When the worker raised an exception type the dispatcher doesn't
         map (e.g. ``KeyError``), the fallback is plain ``LHPError`` with
-        ``LHP-GEN-901``."""
+        ``LHP-GEN-901``; the response carries that code."""
+        from lhp.errors import lhp_error_from_worker_failure
+
         delta = PipelineDelta(
             pipeline_name="test_pipeline",
             success=False,
@@ -190,9 +248,14 @@ class TestFacadeOnDeltaUnwrap:
 
         response = self._run_facade_with_delta(delta)
 
-        assert response.original_error is not None
-        assert response.original_error.code == "LHP-GEN-901"
-        assert isinstance(response.original_error, LHPError)
+        assert response.error_code == "LHP-GEN-901"
+        synthesized = lhp_error_from_worker_failure(
+            pipeline_name=delta.pipeline_name,
+            error_type=delta.error_type,
+            error_message=delta.error_message,
+            error_traceback=delta.error_traceback,
+        )
+        assert isinstance(synthesized, LHPError)
         # KeyError isn't in the dispatcher's stdlib mapping, so we get
         # the base class — NOT a ValueError-flavored subclass.
-        assert not isinstance(response.original_error, ValueError)
+        assert not isinstance(synthesized, ValueError)

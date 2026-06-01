@@ -3,9 +3,7 @@
 import shutil
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from lhp.core.validators import ConfigValidator
 from lhp.models import Action, ActionType, FlowGroup
@@ -171,64 +169,71 @@ class TestValidationIncludeTests:
 
 
 class TestValidatePassesPreDiscoveredFlowgroups:
-    """Test that validate command passes pre_discovered_all_flowgroups through."""
+    """Test that the validation layer forwards pre_discovered_all_flowgroups through.
 
-    def test_validate_pipeline_by_field_receives_pre_discovered(self):
-        """validate_pipelines_by_fields receives pre_discovered_all_flowgroups
-        from _validate_all_pipelines.
+    The CLI helper ``ValidateCommand._validate_all_pipelines`` (which looped
+    per-pipeline and called the removed
+    ``ActionOrchestrator.validate_pipelines_by_fields``) was consolidated. The
+    CLI now calls ``application_facade.validation.validate_pipelines(...)``
+    directly (``src/lhp/cli/commands/validate_command.py:363-373``), and the
+    ``pre_discovered_all_flowgroups`` threading is owned by
+    ``ValidationFacade._do_validate_pipelines``, which forwards it verbatim onto
+    the plural ``ActionOrchestrator.validate_pipelines(pipeline_fields=...,
+    pre_discovered_all_flowgroups=...)`` (``src/lhp/api/facade.py:418,429,465,472``;
+    ``src/lhp/core/coordination/orchestrator.py:590,597``). These tests assert
+    that forwarding seam against a mocked orchestrator.
+    """
 
-        The per-pipeline loop is replaced by a single call to the plural
-        method, so the assertion targets that one call.
-        """
-        from lhp.cli.commands.validate_command import ValidateCommand
-
-        cmd = ValidateCommand.__new__(ValidateCommand)
-        cmd.verbose = False
-        cmd.log_file = None
+    @staticmethod
+    def _facade_with_mock_orchestrator():
+        from lhp.api.facade import ValidationFacade
 
         mock_orchestrator = MagicMock()
-        mock_orchestrator.validate_pipelines_by_fields.return_value = []
+        # ``validate_pipelines`` is invoked for its on_pipeline_complete
+        # side effects; no outcomes are needed for the forwarding assertion.
+        mock_orchestrator.validate_pipelines.return_value = None
+        return ValidationFacade(mock_orchestrator), mock_orchestrator
+
+    def test_validate_pipelines_forwards_pre_discovered(self):
+        """_do_validate_pipelines forwards pre_discovered_all_flowgroups verbatim
+        onto orchestrator.validate_pipelines.
+
+        The per-pipeline loop is replaced by a single call to the plural
+        orchestrator method, so the assertion targets that one call.
+        """
+        facade, mock_orchestrator = self._facade_with_mock_orchestrator()
 
         all_flowgroups = [
             FlowGroup(pipeline="p1", flowgroup="fg1"),
             FlowGroup(pipeline="p2", flowgroup="fg2"),
         ]
 
-        cmd._validate_all_pipelines(
-            ["p1", "p2"],
-            "dev",
-            mock_orchestrator,
+        facade._do_validate_pipelines(
+            pipeline_fields=["p1", "p2"],
+            env="dev",
             include_tests=True,
-            all_flowgroups=all_flowgroups,
+            pre_discovered_all_flowgroups=all_flowgroups,
         )
 
-        # The plural method gets called exactly once with the pre-discovered
-        # list passed through verbatim.
-        assert mock_orchestrator.validate_pipelines_by_fields.call_count == 1
-        call_kwargs = mock_orchestrator.validate_pipelines_by_fields.call_args.kwargs
+        # The plural orchestrator method gets called exactly once with the
+        # pre-discovered list passed through verbatim.
+        assert mock_orchestrator.validate_pipelines.call_count == 1
+        call_kwargs = mock_orchestrator.validate_pipelines.call_args.kwargs
         assert call_kwargs["pre_discovered_all_flowgroups"] is all_flowgroups
         assert list(call_kwargs["pipeline_fields"]) == ["p1", "p2"]
 
-    def test_validate_pipeline_by_field_default_none_without_pre_discovered(self):
-        """Without all_flowgroups, pre_discovered_all_flowgroups defaults to None.
+    def test_validate_pipelines_default_none_without_pre_discovered(self):
+        """Without pre_discovered_all_flowgroups, the forwarded value is None.
 
-        The assertion targets the plural method.
+        The assertion targets the plural orchestrator method.
         """
-        from lhp.cli.commands.validate_command import ValidateCommand
+        facade, mock_orchestrator = self._facade_with_mock_orchestrator()
 
-        cmd = ValidateCommand.__new__(ValidateCommand)
-        cmd.verbose = False
-        cmd.log_file = None
-
-        mock_orchestrator = MagicMock()
-        mock_orchestrator.validate_pipelines_by_fields.return_value = []
-
-        cmd._validate_all_pipelines(
-            ["p1"],
-            "dev",
-            mock_orchestrator,
+        facade._do_validate_pipelines(
+            pipeline_fields=["p1"],
+            env="dev",
             include_tests=True,
         )
 
-        call_kwargs = mock_orchestrator.validate_pipelines_by_fields.call_args.kwargs
+        call_kwargs = mock_orchestrator.validate_pipelines.call_args.kwargs
         assert call_kwargs["pre_discovered_all_flowgroups"] is None

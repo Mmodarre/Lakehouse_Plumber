@@ -28,3 +28,8 @@ __context
 # via string forward-ref ("_InternalDepResult") in _converters.py:483, which
 # vulture does not trace.
 _InternalDepResult
+
+# Keyword param on tests/core/coordination/test_flowgroup_pool.py _FakeFormatter.
+# format_code — the fake must mirror the real CodeFormatter.format_code(code,
+# line_length=None) signature to be a faithful drop-in double; body need not read it.
+line_length

@@ -117,6 +117,11 @@ filterwarnings = [
     # constructor signature differs from a test class so pytest already
     # skips it; suppress the informational warning.
     "ignore:cannot collect test class 'TestActionView':pytest.PytestCollectionWarning",
+    # ``TestActionValidator`` is the action validator in lhp.core.validators
+    # whose name happens to match pytest's class-collection heuristic. It has
+    # an ``__init__`` constructor so pytest already skips it; suppress the
+    # informational warning.
+    "ignore:cannot collect test class 'TestActionValidator':pytest.PytestCollectionWarning",
 ]
 
 [tool.coverage.run]

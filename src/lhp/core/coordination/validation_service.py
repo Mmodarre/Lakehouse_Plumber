@@ -36,9 +36,9 @@ from lhp.core.validators import ConfigValidator
 from lhp.core.validators.cdc_fanin_compatibility_validator import (
     CdcFanInCompatibilityValidator,
 )
-from lhp.core.validators.load_validator import LoadActionValidator
+from lhp.core.validators.action.load import LoadActionValidator
 from lhp.core.validators.table_creation_validator import TableCreationValidator
-from lhp.core.validators.test_validator import TestActionValidator
+from lhp.core.validators.action.test import TestActionValidator
 from lhp.core.validators.transform_validator import TransformActionValidator
 from lhp.core.validators.write_validator import WriteActionValidator
 from lhp.errors import ErrorCategory, LHPError, LHPValidationError

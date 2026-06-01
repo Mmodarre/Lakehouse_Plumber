@@ -2,7 +2,7 @@
 
 Unit tests verify that include_tests=False filters test actions from flowgroups
 before expensive processing (presets, substitution, validation). Integration tests
-verify the parameter threads correctly through orchestrator.validate_pipeline_by_field.
+verify the parameter threads correctly through orchestrator.validate_pipelines.
 """
 
 import tempfile
@@ -259,7 +259,7 @@ class TestProcessFlowgroupIncludeTests:
 
 @pytest.mark.integration
 class TestValidatePipelineIncludeTests:
-    """Test include_tests threading through validate_pipeline_by_field."""
+    """Test include_tests threading through validate_pipelines."""
 
     @staticmethod
     def _create_project_with_invalid_test(tmp_path):
@@ -295,21 +295,36 @@ actions:
 """)
 
     def test_validate_skips_test_actions_when_false(self, tmp_path):
-        """validate_pipeline_by_field(include_tests=False) skips test action errors."""
+        """validate_pipelines(include_tests=False) skips test action errors.
+
+        The per-field ``validate_pipeline_by_field`` shim (which returned a
+        single flat ``(errors, warnings)`` tuple) was consolidated into the
+        plural ``ActionOrchestrator.validate_pipelines`` (keyword-scoped via
+        ``pipeline_filter``), which returns one ``PipelineValidationOutcome``
+        per pipeline. That DTO splits diagnostics into a string-projection
+        ``errors`` tuple AND a structured ``lhp_errors`` tuple of live
+        ``LHPError`` instances (config/action validation errors like
+        ``LHP-VAL-007`` land in ``lhp_errors``), so the legacy single-tuple
+        assertion is replaced by a combined view across both channels
+        (``src/lhp/core/coordination/orchestrator.py:590,593,596``;
+        ``executor.py:101,104-119``).
+        """
         from lhp.core.coordination.layers import build_facade_orchestrator
 
         self._create_project_with_invalid_test(tmp_path)
         orchestrator = build_facade_orchestrator(tmp_path)
 
-        errors, _ = orchestrator.validate_pipeline_by_field(
-            "test_pipeline", "dev", include_tests=False
+        outcomes = orchestrator.validate_pipelines(
+            pipeline_filter="test_pipeline", env="dev", include_tests=False
         )
+        outcome = outcomes[0]
+        all_errors = list(outcome.errors) + list(outcome.lhp_errors)
         assert (
-            len(errors) == 0
-        ), f"Expected no errors with include_tests=False, got: {errors}"
+            len(all_errors) == 0 and outcome.success is True
+        ), f"Expected no errors with include_tests=False, got: {all_errors}"
 
     def test_validate_catches_test_actions_when_true(self, tmp_path):
-        """validate_pipeline_by_field(include_tests=True) catches test action errors.
+        """validate_pipelines(include_tests=True) catches test action errors.
 
         Uses a separate orchestrator to avoid shared-state issues with
         discover_all_flowgroups caching.
@@ -319,11 +334,16 @@ actions:
         self._create_project_with_invalid_test(tmp_path)
         orchestrator = build_facade_orchestrator(tmp_path)
 
-        errors, _ = orchestrator.validate_pipeline_by_field(
-            "test_pipeline", "dev", include_tests=True
+        outcomes = orchestrator.validate_pipelines(
+            pipeline_filter="test_pipeline", env="dev", include_tests=True
         )
+        outcome = outcomes[0]
+        # Structured config-validation errors (LHP-VAL-007 for the missing
+        # ``columns`` field) land on ``lhp_errors``, not the string-projection
+        # ``errors`` tuple — assert across both channels.
+        all_errors = list(outcome.errors) + list(outcome.lhp_errors)
         assert (
-            len(errors) > 0
+            len(all_errors) > 0 and outcome.success is False
         ), "Expected validation errors with include_tests=True for missing columns"
 
     def test_validate_passes_include_tests_through_chain(self, monkeypatch):

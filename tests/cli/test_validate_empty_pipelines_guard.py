@@ -16,7 +16,6 @@ from click.testing import CliRunner
 
 from lhp.cli.commands.validate_command import ValidateCommand
 from lhp.cli.main import cli
-from lhp.core.coordination import ActionOrchestrator
 
 
 def _bare_project(project_root: Path) -> None:
@@ -85,8 +84,6 @@ class TestValidateEmptyPipelinesGuard:
         resolves to no flowgroups). Previously the scan sat inside the
         ``if not empty_no_op:`` gate.
         """
-        fake_fg = SimpleNamespace(pipeline="ignored")
-
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             _bare_project(project_root)
@@ -103,15 +100,16 @@ class TestValidateEmptyPipelinesGuard:
                 encoding="utf-8",
             )
 
+            # Source-path resolution now lives on the flowgroup view itself:
+            # ``execute`` reads ``fg.file_path`` directly (validate_command.py:305)
+            # — mirroring ``FlowgroupView.file_path`` (api/views.py:70) — rather
+            # than calling the removed ``ActionOrchestrator._find_source_yaml_for_flowgroup``.
+            fake_fg = SimpleNamespace(pipeline="ignored", file_path=bare_yaml)
+
             monkeypatch.setattr(
                 ValidateCommand,
                 "_determine_pipelines_to_validate",
                 lambda self, pipeline, orchestrator: ([], [fake_fg]),
-            )
-            monkeypatch.setattr(
-                ActionOrchestrator,
-                "_find_source_yaml_for_flowgroup",
-                lambda self, fg: bare_yaml,
             )
 
             runner = CliRunner()

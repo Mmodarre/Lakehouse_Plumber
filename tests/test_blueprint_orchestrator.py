@@ -91,8 +91,8 @@ flowgroups:
     # the originating blueprint path.
     apac_fg = next(fg for fg in all_fgs if fg.flowgroup == "apac_sg_orders")
     emea_fg = next(fg for fg in all_fgs if fg.flowgroup == "emea_uk_orders")
-    assert orch.discoverer.find_source_yaml_for_flowgroup(apac_fg) is not None
-    assert orch.discoverer.find_source_yaml_for_flowgroup(emea_fg) is not None
+    assert orch.discovery.find_source_yaml_for_flowgroup(apac_fg) is not None
+    assert orch.discovery.find_source_yaml_for_flowgroup(emea_fg) is not None
 
 
 def test_expand_blueprints_returns_synthetic_flowgroups(tmp_path):

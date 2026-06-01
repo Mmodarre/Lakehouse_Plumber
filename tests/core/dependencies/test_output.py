@@ -3,7 +3,7 @@
 import json
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, mock_open, patch
+from unittest.mock import Mock, mock_open, patch
 
 import networkx as nx
 import pytest
@@ -152,56 +152,122 @@ class TestDependencyOutputManager:
 
         assert "Invalid output formats: {'invalid_format'}" in str(exc_info.value)
 
-    def test_save_dot_format(self):
-        """Test DOT format saving."""
-        mock_analyzer = Mock()
-        mock_analyzer.export_to_dot.return_value = (
-            "digraph pipeline_dependencies { pipeline1 -> pipeline2; }"
-        )
+    def test_save_dot_format_renders_real_dot_content(self):
+        """DOT save writes the REAL ``export_to_dot`` rendering, not a mock.
+
+        ``save_dot_format`` does ``del analyzer`` and calls the module-level
+        ``export_to_dot`` on the real graphs (the old ``analyzer.export_to_dot``
+        seam was removed). This test mocks the file-I/O seam (``builtins.open``)
+        to capture what is actually written, then asserts the real renderer's
+        structure: a ``digraph`` header, node identifiers wrapped in double
+        quotes, an escaped ``\\n`` inside the pipeline-level label, and a quoted
+        edge line. It would FAIL if the serializer dropped quoting or stopped
+        escaping newlines.
+        """
+        # A bare Mock with a dead ``export_to_dot`` attribute — the real code
+        # must NOT touch it (it does ``del analyzer`` then calls the pure
+        # module-level serializer). If the code regressed to call the analyzer,
+        # this poisoned return value would surface in the written content.
+        poisoned_analyzer = Mock()
+        poisoned_analyzer.export_to_dot.return_value = "POISONED-SHOULD-NOT-APPEAR"
 
         graphs = self.create_mock_graphs()
         output_path = self.temp_dir / "dependencies.dot"
 
-        result_path = self.output_manager.save_dot_format(
-            mock_analyzer, graphs, output_path
+        m = mock_open()
+        with patch("builtins.open", m):
+            result_path = self.output_manager.save_dot_format(
+                poisoned_analyzer, graphs, output_path, level="pipeline"
+            )
+
+        assert result_path == output_path
+        # File-I/O seam opened for writing with utf-8.
+        m.assert_called_once_with(output_path, "w", encoding="utf-8")
+
+        # Reconstruct the exact bytes handed to the file handle.
+        written = "".join(
+            call.args[0] for call in m.return_value.write.call_args_list
         )
 
-        assert result_path.exists()
-        assert result_path == output_path
-        content = result_path.read_text()
-        assert "digraph pipeline_dependencies" in content
-        assert "pipeline1 -> pipeline2" in content
+        # The dead analyzer seam was never used.
+        poisoned_analyzer.export_to_dot.assert_not_called()
+        assert "POISONED-SHOULD-NOT-APPEAR" not in written
 
-        # Verify analyzer was called with correct parameters
-        mock_analyzer.export_to_dot.assert_called_once_with(graphs, "pipeline")
+        # Real renderer structure: header + quoted nodes + escaped newline label.
+        assert written.startswith("digraph pipeline_dependencies {")
+        assert "rankdir=LR;" in written
+        # Node identifiers are double-quoted (regression guard on quoting).
+        assert '"pipeline1" [label=' in written
+        assert '"pipeline2" [label=' in written
+        # Pipeline-level labels embed an ESCAPED newline (literal backslash-n),
+        # never a raw newline that would break the DOT line.
+        assert '"pipeline1\\n(1 flowgroups)"' in written
+        assert "pipeline1\n(1 flowgroups)" not in written  # not a raw newline
+        # Edge line: both endpoints quoted.
+        assert '"pipeline1" -> "pipeline2";' in written
 
-    def test_save_json_format(self):
-        """Test JSON format saving."""
-        mock_analyzer = Mock()
-        test_data = {
-            "metadata": {"total_pipelines": 2},
-            "pipelines": {"pipeline1": {"depends_on": []}},
-        }
-        mock_analyzer.export_to_json.return_value = test_data
+        # Cross-check: identical to the pure serializer output.
+        from lhp.core.dependencies.output import export_to_dot
+
+        assert written == export_to_dot(graphs, "pipeline")
+
+    def test_save_json_format_renders_real_json_with_generation_info(self):
+        """JSON save writes the REAL ``export_to_json`` output plus ``generation_info``.
+
+        ``save_json_format`` does ``del analyzer`` and calls the module-level
+        ``export_to_json`` on the real result (the old ``analyzer.export_to_json``
+        seam was removed), then injects a ``generation_info`` block before
+        ``json.dump``. This test mocks the file-I/O seam (``builtins.open``) to
+        capture the serialized bytes and asserts the real structure: the
+        ``generation_info`` block is present and well-formed, and the pipeline
+        graph content (metadata / per-pipeline ``depends_on`` / execution
+        stages / external sources) reflects the REAL analysis result. It would
+        FAIL if the serializer dropped a section or the manager stopped adding
+        ``generation_info``.
+        """
+        poisoned_analyzer = Mock()
+        poisoned_analyzer.export_to_json.return_value = {"POISONED": True}
 
         result = self.create_mock_analysis_result()
         output_path = self.temp_dir / "dependencies.json"
 
-        result_path = self.output_manager.save_json_format(
-            mock_analyzer, result, output_path
-        )
+        m = mock_open()
+        with patch("builtins.open", m):
+            result_path = self.output_manager.save_json_format(
+                poisoned_analyzer, result, output_path
+            )
 
-        assert result_path.exists()
         assert result_path == output_path
+        m.assert_called_once_with(output_path, "w", encoding="utf-8")
 
-        # Verify JSON content
-        with open(result_path, "r") as f:
-            saved_data = json.load(f)
+        # ``json.dump`` writes in chunks; reassemble and parse the real bytes.
+        written = "".join(
+            call.args[0] for call in m.return_value.write.call_args_list
+        )
+        saved = json.loads(written)
 
-        assert saved_data == test_data
+        # The dead analyzer seam was never used.
+        poisoned_analyzer.export_to_json.assert_not_called()
+        assert "POISONED" not in saved
 
-        # Verify analyzer was called
-        mock_analyzer.export_to_json.assert_called_once_with(result)
+        # generation_info block (added by the manager) — present and well-formed.
+        assert "generation_info" in saved
+        gen_info = saved["generation_info"]
+        assert gen_info["generator"] == "LakehousePlumber DependencyAnalysisService"
+        assert gen_info["version"] == "1.0"
+        assert "generated_at" in gen_info  # ISO timestamp from datetime.isoformat()
+
+        # Real serializer structure reflecting the actual result.
+        assert saved["metadata"]["total_pipelines"] == 2
+        assert saved["metadata"]["total_stages"] == 2
+        assert saved["metadata"]["has_circular_dependencies"] is False
+        assert set(saved["pipelines"].keys()) == {"pipeline1", "pipeline2"}
+        assert saved["pipelines"]["pipeline1"]["depends_on"] == []
+        assert saved["pipelines"]["pipeline2"]["depends_on"] == ["pipeline1"]
+        assert saved["pipelines"]["pipeline2"]["stage"] == 1
+        assert saved["execution_stages"] == [["pipeline1"], ["pipeline2"]]
+        assert saved["external_sources"] == ["external.source1"]
+        assert saved["circular_dependencies"] == []
 
     def test_save_text_format(self):
         """Test text format saving."""
@@ -331,18 +397,35 @@ class TestDependencyOutputManager:
         assert "Depends on: None" in content
         assert "Depends on: pipeline1" in content
 
-    def test_io_error_propagation(self):
-        """Test I/O errors propagate directly without wrapping."""
-        mock_analyzer = Mock()
-        mock_analyzer.export_to_dot.side_effect = IOError("Disk full")
+    def test_io_error_from_write_seam_is_wrapped_with_cause(self):
+        """An ``IOError`` from the file-write seam is wrapped, preserving the cause.
 
-        result = self.create_mock_analysis_result()
-        output_formats = ["dot"]
+        The real ``save_dot_format`` renders via the pure ``export_to_dot`` and
+        only touches the filesystem at ``open(...).write(...)``. When that write
+        seam raises ``IOError``, the manager re-raises ``IOError`` with the
+        target path in the message and chains the original via ``from e``
+        (constitution §7.3). This mocks the I/O seam to raise and asserts both
+        the wrapping message and the ``__cause__`` chain — it would FAIL if the
+        manager swallowed the error or lost the cause.
+        """
+        analyzer = Mock()  # never used by the DOT path (``del analyzer``)
+        graphs = self.create_mock_graphs()
+        output_path = self.temp_dir / "dependencies.dot"
 
-        with pytest.raises(IOError, match="Disk full"):
-            self.output_manager.save_outputs(
-                mock_analyzer, result, output_formats, self.temp_dir
-            )
+        handle = mock_open().return_value
+        original = IOError("Disk full")
+        handle.write.side_effect = original
+
+        with patch("builtins.open", return_value=handle):
+            with pytest.raises(IOError) as exc_info:
+                self.output_manager.save_dot_format(analyzer, graphs, output_path)
+
+        # Wrapped message mentions the target path and the original error.
+        assert "Failed to save DOT file" in str(exc_info.value)
+        assert str(output_path) in str(exc_info.value)
+        assert "Disk full" in str(exc_info.value)
+        # Cause chain preserved (§7.3 ``raise ... from e``).
+        assert exc_info.value.__cause__ is original
 
     def test_file_generation_summary(self):
         """Test file generation summary in save_outputs."""

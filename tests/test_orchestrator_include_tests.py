@@ -47,12 +47,19 @@ project:
         if self.test_dir.exists():
             shutil.rmtree(self.test_dir)
 
-    def test_generate_pipeline_by_field_accepts_include_tests_parameter(self):
-        """Test that generate_pipeline_by_field method accepts include_tests parameter."""
+    def test_generate_pipelines_accepts_include_tests_parameter(self):
+        """Test that generate_pipelines method accepts include_tests parameter.
+
+        The per-field ``generate_pipeline_by_field`` shim was consolidated into
+        the plural ``ActionOrchestrator.generate_pipelines`` (keyword-scoped via
+        ``pipeline_filter`` / ``pipeline_fields``); ``include_tests`` is now a
+        keyword-only parameter on that one method
+        (``src/lhp/core/coordination/orchestrator.py:387,395``).
+        """
         import inspect
 
         # Check method signature to verify include_tests parameter exists
-        signature = inspect.signature(self.orchestrator.generate_pipeline_by_field)
+        signature = inspect.signature(self.orchestrator.generate_pipelines)
         params = list(signature.parameters.keys())
 
         # Should have include_tests parameter

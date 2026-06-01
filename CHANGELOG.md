@@ -7,6 +7,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Test remediation — `generators/test/` branch-coverage hardening
+
+**Summary.** A test-trust pass over the test-action leaf generators: raised
+`src/lhp/generators/test/` to 100% branch coverage (was ~70% pure-branch) with
+mutation-resistant tests that pin each output variant as-written, and recorded
+one intentional cross-generator asymmetry as deferred (decided, not changed).
+
+**Changed.**
+
+- Hardened branch coverage of `src/lhp/generators/test/` to 100% (was ~70%
+  pure-branch); 13 new mutation-resistant tests pin each test-action output
+  variant (empty `source`, `on_violation` routing, no-bounds range, backticked
+  FQN, etc.).
+
+**Deferred (decided; tracked for follow-up).**
+
+- **`TEST-GEN-SOURCE-FALLBACK-ASYMMETRY`** — `schema_match` rejects bad/empty
+  `source` (VAL-022) while the other 7 test-action leaf generators silently
+  substitute a literal fallback table; new branch-coverage tests pin this
+  asymmetry *as-written*. Whether the fallback leaves should also reject
+  bad/empty source is a separate validator decision, deliberately not bundled
+  into this coverage work.
+
+### Test remediation — coverage hardening, obsolete-test cleanup, vulture allowlist
+
+**Summary.** A test-trust pass: encoded a known production safety bug as a
+strict `xfail` so it self-reports when fixed, completed a partial §1 validator
+relocation, removed an obsolete Python-3.8 compatibility test, recorded a
+suspected product bug behind a tracked skip, and added one false-positive
+vulture allowlist entry.
+
+**Changed.**
+
+- **§1 validator relocation (partial).** The `load` and `test` action
+  validators moved into the new `core/validators/action/` sub-package (the §1
+  taxonomy home). All other validators remain under `core/validators/`.
+- **Obsolete test removed.** Deleted `tests/test_python38_compatibility.py`
+  (see `OBSOLETE-PY38` below).
+- **Vulture allowlist.** Added one false-positive entry to
+  `vulture_whitelist.py` (see "Vulture allowlist addition" below).
+
+**Deferred (decided; tracked for follow-up).**
+
+- **`MONITORING-RMTREE-DEFER`** (task B10/Q3) —
+  `MonitoringFinalizerService.cleanup_artifacts` uses a naive substring match
+  (`'FLOWGROUP_ID = "monitoring"' in content`) before a destructive
+  `shutil.rmtree`, so a generated dir whose `monitoring.py` contains that marker
+  only inside a comment or string literal would be wrongly deleted. A safety
+  test encodes this as `xfail(strict=True)` in
+  `tests/core/coordination/test_monitoring_service.py`; the production fix in
+  `monitoring_service.py` is deferred to the owner. (Strict xfail = it will flip
+  to a failure and alert when the bug is fixed.)
+- **`§1-CONSOLIDATION-DEFER`** (tasks A1/A2/Q1) — only the `load` and `test`
+  action validators were moved into the new `core/validators/action/`
+  sub-package (the §1 taxonomy home). The remaining validators and any
+  `BaseValidator` base-taxonomy intentionally stay in the parent
+  `core/validators/` package; completing the taxonomy is owned by the larger §1
+  refactor chunk. (The §2.1/§9.1 single-home rule is already satisfied — all
+  validators remain under `core/validators/`.)
+
+**Notable.**
+
+- **`OBSOLETE-PY38`** (task C10) — deleted
+  `tests/test_python38_compatibility.py`; the project requires `python >=3.11`
+  (`pyproject.toml`), so the Python-3.8 compatibility test was obsolete (and it
+  also asserted a removed method).
+- **`VAL-054-INVESTIGATE`** (out of scope; recorded for a separate fix) —
+  suspected product bug: a non-hashable blueprint raises `TypeError` instead of
+  `LHP-VAL-054`. Tracked by the skip at `tests/test_blueprint_parser.py:330`.
+  Not addressed in this chunk.
+- **Vulture allowlist addition** (task D2) — added one `vulture_whitelist.py`
+  entry: the `line_length` keyword param on the `_FakeFormatter.format_code`
+  test double in `tests/core/coordination/test_flowgroup_pool.py`, which must
+  mirror the real `CodeFormatter.format_code(code, line_length=None)` signature
+  to be a faithful drop-in (body need not read it). False positive, not dead
+  code.
+
 ### Stage 2 — Parallel Execution Consolidation — one flat per-flowgroup engine
 
 **Summary.** `lhp generate` and `lhp validate` now run through a single

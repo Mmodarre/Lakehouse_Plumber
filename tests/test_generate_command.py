@@ -8,7 +8,51 @@ from unittest.mock import Mock, patch
 import pytest
 
 from lhp.cli.commands.generate_command import GenerateCommand
-from lhp.api.responses import GenerationResponse
+from lhp.api import (
+    BatchGenerationResponse,
+    FlowgroupView,
+    GenerationCompleted,
+    GenerationResponse,
+    OperationStarted,
+)
+from lhp.api.responses import ValidationResponse
+
+
+def _flowgroup_view(pipeline: str = "test_pipeline", file_path=None) -> FlowgroupView:
+    """Build a minimal :class:`FlowgroupView` for discovery mocks.
+
+    ``execute()`` reads ``fg.pipeline`` (in ``_get_pipeline_names``) and
+    ``fg.file_path`` (in the deprecation scan), so both fields are set.
+    """
+    return FlowgroupView(
+        name="fg1",
+        pipeline=pipeline,
+        file_path=file_path,
+    )
+
+
+def _ok_validation_response() -> ValidationResponse:
+    """A passing duplicate-flowgroup check (`success=True`, no issues)."""
+    return ValidationResponse(
+        success=True,
+        issues=(),
+        validated_pipelines=(),
+    )
+
+
+def _generation_stream(batch_response: BatchGenerationResponse):
+    """Yield the facade event stream the CLI consumes.
+
+    ``GenerationFacade.generate_pipelines`` is a generator: it yields an
+    ``OperationStarted`` first, then a terminal ``GenerationCompleted``
+    whose ``response`` is the aggregate ``BatchGenerationResponse``.
+    """
+
+    def _stream(*args, **kwargs):
+        yield OperationStarted(operation_name="generate", env=kwargs.get("env"))
+        yield GenerationCompleted(response=batch_response)
+
+    return _stream
 
 
 @pytest.fixture
@@ -50,11 +94,19 @@ class TestGenerateCommandExecute:
     """Test execute method of GenerateCommand."""
 
     def test_execute_no_pipelines_found(self, generate_command, temp_project):
-        """Test execute when no pipelines are found."""
+        """Test execute when no pipelines are found.
+
+        Discovery now flows through ``facade.inspection.list_flowgroups()``
+        (generate_command.py:218); an empty result drives ``_get_pipeline_names``
+        (generate_command.py:497) to ``[]``, raising LHP-CFG-014.
+        """
         from lhp.errors import LHPConfigError
 
         mock_facade_instance = Mock()
-        mock_facade_instance.orchestrator.discover_all_flowgroups.return_value = []
+        mock_facade_instance.inspection.list_flowgroups.return_value = ()
+        mock_facade_instance.inspection.validate_duplicate_flowgroups.return_value = (
+            _ok_validation_response()
+        )
         mock_facade_instance.state_manager = Mock()
 
         with (
@@ -78,9 +130,14 @@ class TestGenerateCommandExecute:
                 generate_command.execute("dev")
 
     def test_execute_basic_flow(self, generate_command, temp_project):
-        """Test basic execute flow."""
-        from lhp.api.responses import BatchGenerationResponse
-        from lhp.models import FlowGroup
+        """Test basic execute flow.
+
+        ``execute()`` discovers via ``inspection.list_flowgroups()`` then drives
+        ``generation.generate_pipelines(...)`` (generate_command.py:336), whose
+        terminal ``GenerationCompleted`` event carries the aggregate
+        ``BatchGenerationResponse``.
+        """
+        from lhp.models import FlowGroup  # noqa: F401  (kept for parity / clarity)
 
         output_dir = temp_project / "generated" / "dev"
         output_dir.mkdir(parents=True)
@@ -94,20 +151,25 @@ class TestGenerateCommandExecute:
             performance_info={},
         )
 
-        mock_facade_instance = Mock()
-        mock_facade_instance.orchestrator.discover_all_flowgroups.return_value = [
-            FlowGroup(pipeline="test_pipeline", flowgroup="fg1", actions=[])
-        ]
-        mock_facade_instance.state_manager = Mock()
-        # New flow calls application_facade.generate_pipelines once with all
-        # pipeline names; mock returns a BatchGenerationResponse aggregating
-        # per-pipeline GenerationResponse objects.
-        mock_facade_instance.generate_pipelines.return_value = BatchGenerationResponse(
+        batch_response = BatchGenerationResponse(
             success=True,
             pipeline_responses={"test_pipeline": mock_response},
             total_files_written=1,
             aggregate_generated_filenames=("test.py",),
             output_location=output_dir,
+        )
+
+        mock_facade_instance = Mock()
+        mock_facade_instance.inspection.list_flowgroups.return_value = (
+            _flowgroup_view(),
+        )
+        mock_facade_instance.inspection.validate_duplicate_flowgroups.return_value = (
+            _ok_validation_response()
+        )
+        mock_facade_instance.state_manager = Mock()
+        # The new flow consumes the event stream from the generation facade.
+        mock_facade_instance.generation.generate_pipelines.side_effect = (
+            _generation_stream(batch_response)
         )
 
         with (
@@ -130,15 +192,16 @@ class TestGenerateCommandExecute:
         ):
             generate_command.execute("dev")
 
-            # Verify key methods were called
-            mock_facade_instance.orchestrator.discover_all_flowgroups.assert_called_once()
-            mock_facade_instance.generate_pipelines.assert_called_once()
+            # Verify key methods were called on the current facade surface.
+            mock_facade_instance.inspection.list_flowgroups.assert_called_once()
+            mock_facade_instance.generation.generate_pipelines.assert_called_once()
 
     def test_execute_with_dry_run(self, generate_command, temp_project):
-        """Test execute with dry-run flag."""
-        from lhp.api.responses import BatchGenerationResponse
-        from lhp.models import FlowGroup
+        """Test execute with dry-run flag.
 
+        In dry-run, ``execute()`` passes ``output_dir=None`` to
+        ``generation.generate_pipelines`` (generate_command.py:339).
+        """
         mock_response = GenerationResponse(
             success=True,
             generated_filenames=("test.py",),
@@ -148,17 +211,24 @@ class TestGenerateCommandExecute:
             performance_info={"dry_run": True},
         )
 
-        mock_facade_instance = Mock()
-        mock_facade_instance.orchestrator.discover_all_flowgroups.return_value = [
-            FlowGroup(pipeline="test_pipeline", flowgroup="fg1", actions=[])
-        ]
-        mock_facade_instance.state_manager = Mock()
-        mock_facade_instance.generate_pipelines.return_value = BatchGenerationResponse(
+        batch_response = BatchGenerationResponse(
             success=True,
             pipeline_responses={"test_pipeline": mock_response},
             total_files_written=0,
             aggregate_generated_filenames=("test.py",),
             output_location=None,
+        )
+
+        mock_facade_instance = Mock()
+        mock_facade_instance.inspection.list_flowgroups.return_value = (
+            _flowgroup_view(),
+        )
+        mock_facade_instance.inspection.validate_duplicate_flowgroups.return_value = (
+            _ok_validation_response()
+        )
+        mock_facade_instance.state_manager = Mock()
+        mock_facade_instance.generation.generate_pipelines.side_effect = (
+            _generation_stream(batch_response)
         )
 
         with (
@@ -182,26 +252,37 @@ class TestGenerateCommandExecute:
             generate_command.execute("dev", dry_run=True)
 
             # Verify dry_run results in output_dir=None passed to the
-            # batch facade (the facade method is the new single entry point).
-            call_kwargs = mock_facade_instance.generate_pipelines.call_args.kwargs
+            # generation facade (the new single entry point).
+            call_kwargs = (
+                mock_facade_instance.generation.generate_pipelines.call_args.kwargs
+            )
             assert call_kwargs["output_dir"] is None
 
     def test_execute_with_no_bundle(self, generate_command, temp_project):
-        """Test execute with no_bundle flag."""
-        from lhp.api.responses import BatchGenerationResponse
-        from lhp.models import FlowGroup
+        """Test execute with no_bundle flag.
 
-        mock_facade_instance = Mock()
-        mock_facade_instance.orchestrator.discover_all_flowgroups.return_value = [
-            FlowGroup(pipeline="test_pipeline", flowgroup="fg1", actions=[])
-        ]
-        mock_facade_instance.state_manager = Mock()
-        mock_facade_instance.generate_pipelines.return_value = BatchGenerationResponse(
+        With ``no_bundle=True``, ``should_enable_bundle_support`` returns
+        False so the bundle phase is skipped and ``_handle_bundle_operations``
+        (generate_command.py:411) is never invoked.
+        """
+        batch_response = BatchGenerationResponse(
             success=True,
             pipeline_responses={},
             total_files_written=0,
             aggregate_generated_filenames=(),
             output_location=temp_project / "generated" / "dev",
+        )
+
+        mock_facade_instance = Mock()
+        mock_facade_instance.inspection.list_flowgroups.return_value = (
+            _flowgroup_view(),
+        )
+        mock_facade_instance.inspection.validate_duplicate_flowgroups.return_value = (
+            _ok_validation_response()
+        )
+        mock_facade_instance.state_manager = Mock()
+        mock_facade_instance.generation.generate_pipelines.side_effect = (
+            _generation_stream(batch_response)
         )
 
         with (
@@ -240,7 +321,10 @@ class TestGenerateCommandExecute:
         from lhp.errors import LHPConfigError
 
         mock_facade_instance = Mock()
-        mock_facade_instance.orchestrator.discover_all_flowgroups.return_value = []
+        mock_facade_instance.inspection.list_flowgroups.return_value = ()
+        mock_facade_instance.inspection.validate_duplicate_flowgroups.return_value = (
+            _ok_validation_response()
+        )
         mock_facade_instance.state_manager = Mock()
 
         captured: list = []
@@ -293,7 +377,10 @@ class TestGenerateCommandExecute:
         from lhp.errors import LHPConfigError
 
         mock_facade_instance = Mock()
-        mock_facade_instance.orchestrator.discover_all_flowgroups.return_value = []
+        mock_facade_instance.inspection.list_flowgroups.return_value = ()
+        mock_facade_instance.inspection.validate_duplicate_flowgroups.return_value = (
+            _ok_validation_response()
+        )
         mock_facade_instance.state_manager = Mock()
 
         captured: list = []
@@ -336,23 +423,32 @@ class TestGenerateCommandExecute:
         assert deprecation_entries, "Expected a deprecation warning to be recorded"
 
     def test_execute_with_custom_output(self, generate_command, temp_project):
-        """Test execute with custom output directory."""
-        from lhp.api.responses import BatchGenerationResponse
-        from lhp.models import FlowGroup
+        """Test execute with custom output directory.
 
+        ``output`` resolves to ``project_root / output`` (generate_command.py:112)
+        and, when not dry-run, reaches ``generation.generate_pipelines`` as the
+        ``output_dir`` kwarg (generate_command.py:339).
+        """
         custom_output = temp_project / "custom_output"
 
-        mock_facade_instance = Mock()
-        mock_facade_instance.orchestrator.discover_all_flowgroups.return_value = [
-            FlowGroup(pipeline="test_pipeline", flowgroup="fg1", actions=[])
-        ]
-        mock_facade_instance.state_manager = Mock()
-        mock_facade_instance.generate_pipelines.return_value = BatchGenerationResponse(
+        batch_response = BatchGenerationResponse(
             success=True,
             pipeline_responses={},
             total_files_written=0,
             aggregate_generated_filenames=(),
             output_location=custom_output,
+        )
+
+        mock_facade_instance = Mock()
+        mock_facade_instance.inspection.list_flowgroups.return_value = (
+            _flowgroup_view(),
+        )
+        mock_facade_instance.inspection.validate_duplicate_flowgroups.return_value = (
+            _ok_validation_response()
+        )
+        mock_facade_instance.state_manager = Mock()
+        mock_facade_instance.generation.generate_pipelines.side_effect = (
+            _generation_stream(batch_response)
         )
 
         with (
@@ -375,6 +471,8 @@ class TestGenerateCommandExecute:
         ):
             generate_command.execute("dev", output=str(custom_output))
 
-            # Verify custom output_dir reached the batch facade method
-            call_kwargs = mock_facade_instance.generate_pipelines.call_args.kwargs
+            # Verify custom output_dir reached the generation facade method
+            call_kwargs = (
+                mock_facade_instance.generation.generate_pipelines.call_args.kwargs
+            )
             assert call_kwargs["output_dir"] == custom_output

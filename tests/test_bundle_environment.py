@@ -216,6 +216,20 @@ environment:
         config = captured_context["pipeline_config"]
         assert config["environment"]["dependencies"] == ["msal==1.31.0"]
 
+        # Companion real-render assertion: drive the REAL template renderer
+        # (fresh manager, no mock) and verify the substituted value lands in
+        # valid resource YAML under resources.pipelines.<name>_pipeline.
+        real_manager = BundleManager(
+            project_root=temp_project,
+            pipeline_config_path=str(config_path),
+        )
+        rendered = real_manager.generate_resource_file_content(
+            "test_pipeline", output_dir, "dev"
+        )
+        parsed = yaml.safe_load(rendered)
+        pipeline = parsed["resources"]["pipelines"]["test_pipeline_pipeline"]
+        assert pipeline["environment"]["dependencies"] == ["msal==1.31.0"]
+
     def test_environment_inherited_from_project_defaults(self, temp_project):
         """project_defaults environment flows to pipeline config."""
         config_path = temp_project / "config" / "pipeline_config.yaml"
@@ -251,6 +265,19 @@ schema: "${schema}"
 
         config = captured_context["pipeline_config"]
         assert config["environment"]["dependencies"] == ["msal==1.31.0"]
+
+        # Companion real-render assertion: inherited environment must reach the
+        # emitted resource YAML, not just the resolved context dict.
+        real_manager = BundleManager(
+            project_root=temp_project,
+            pipeline_config_path=str(config_path),
+        )
+        rendered = real_manager.generate_resource_file_content(
+            "test_pipeline", output_dir, "dev"
+        )
+        parsed = yaml.safe_load(rendered)
+        pipeline = parsed["resources"]["pipelines"]["test_pipeline_pipeline"]
+        assert pipeline["environment"]["dependencies"] == ["msal==1.31.0"]
 
     def test_environment_pipeline_overrides_project_defaults(self, temp_project):
         """Pipeline-specific environment replaces project defaults (lists replace, not append)."""
@@ -291,6 +318,19 @@ environment:
         config = captured_context["pipeline_config"]
         # Lists replace, not append — only the pipeline-specific value should remain
         assert config["environment"]["dependencies"] == ["requests>=2.28.0"]
+
+        # Companion real-render assertion: the list-replace result must be the
+        # only environment dependency emitted in the resource YAML.
+        real_manager = BundleManager(
+            project_root=temp_project,
+            pipeline_config_path=str(config_path),
+        )
+        rendered = real_manager.generate_resource_file_content(
+            "test_pipeline", output_dir, "dev"
+        )
+        parsed = yaml.safe_load(rendered)
+        pipeline = parsed["resources"]["pipelines"]["test_pipeline_pipeline"]
+        assert pipeline["environment"]["dependencies"] == ["requests>=2.28.0"]
 
 
 class TestEnvironmentValidation:
@@ -569,6 +609,26 @@ configuration:
             config["configuration"]["spark.databricks.delta.minFileSize"] == "134217728"
         )
 
+        # Companion real-render assertion: substituted configuration value must
+        # appear (as a quoted string) in the emitted resource YAML, alongside
+        # the LHP-managed bundle.sourcePath default.
+        real_manager = BundleManager(
+            project_root=temp_project,
+            pipeline_config_path=str(config_path),
+        )
+        rendered = real_manager.generate_resource_file_content(
+            "test_pipeline", output_dir, "dev"
+        )
+        parsed = yaml.safe_load(rendered)
+        rendered_config = parsed["resources"]["pipelines"]["test_pipeline_pipeline"][
+            "configuration"
+        ]
+        assert rendered_config["spark.databricks.delta.minFileSize"] == "134217728"
+        assert (
+            rendered_config["bundle.sourcePath"]
+            == "${workspace.file_path}/generated/${bundle.target}"
+        )
+
     def test_configuration_inherited_from_project_defaults(self, temp_project):
         """project_defaults configuration flows to pipeline config."""
         config_path = temp_project / "config" / "pipeline_config.yaml"
@@ -606,6 +666,21 @@ schema: "${schema}"
             config["configuration"]["pipelines.incompatibleViewCheck.enabled"]
             == "false"
         )
+
+        # Companion real-render assertion: inherited configuration entry must
+        # land in the emitted resource YAML.
+        real_manager = BundleManager(
+            project_root=temp_project,
+            pipeline_config_path=str(config_path),
+        )
+        rendered = real_manager.generate_resource_file_content(
+            "test_pipeline", output_dir, "dev"
+        )
+        parsed = yaml.safe_load(rendered)
+        rendered_config = parsed["resources"]["pipelines"]["test_pipeline_pipeline"][
+            "configuration"
+        ]
+        assert rendered_config["pipelines.incompatibleViewCheck.enabled"] == "false"
 
     def test_configuration_pipeline_overrides_project_defaults(self, temp_project):
         """Pipeline-specific configuration deep-merges with project defaults."""
@@ -654,6 +729,24 @@ configuration:
         )
         # Pipeline-specific addition
         assert config["configuration"]["spark.sql.shuffle.partitions"] == "200"
+
+        # Companion real-render assertion: the deep-merged configuration
+        # (override + preserved default + addition) must all appear in the
+        # emitted resource YAML.
+        real_manager = BundleManager(
+            project_root=temp_project,
+            pipeline_config_path=str(config_path),
+        )
+        rendered = real_manager.generate_resource_file_content(
+            "test_pipeline", output_dir, "dev"
+        )
+        parsed = yaml.safe_load(rendered)
+        rendered_config = parsed["resources"]["pipelines"]["test_pipeline_pipeline"][
+            "configuration"
+        ]
+        assert rendered_config["pipelines.incompatibleViewCheck.enabled"] == "true"
+        assert rendered_config["spark.databricks.delta.minFileSize"] == "134217728"
+        assert rendered_config["spark.sql.shuffle.partitions"] == "200"
 
 
 class TestConfigurationValidation:

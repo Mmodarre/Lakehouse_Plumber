@@ -195,7 +195,7 @@ def test_blueprint_discoverer_emits_warning_on_load_errors(tmp_path, caplog):
     blueprints = disco.discover_blueprints()
 
     with caplog.at_level(
-        logging.WARNING, logger="lhp.core.services.blueprint_discoverer"
+        logging.WARNING, logger="lhp.core.discovery.blueprint_discoverer"
     ):
         instances = disco.discover_instances(blueprints)
 
@@ -210,7 +210,7 @@ def test_blueprint_discoverer_emits_warning_on_load_errors(tmp_path, caplog):
         r
         for r in caplog.records
         if r.levelno == logging.WARNING
-        and r.name == "lhp.core.services.blueprint_discoverer"
+        and r.name == "lhp.core.discovery.blueprint_discoverer"
     ]
     assert len(warnings) == 1
     msg = warnings[0].getMessage()
@@ -238,7 +238,7 @@ def test_blueprint_discoverer_silent_on_non_instance_files(tmp_path, caplog):
     blueprints = disco.discover_blueprints()
 
     with caplog.at_level(
-        logging.WARNING, logger="lhp.core.services.blueprint_discoverer"
+        logging.WARNING, logger="lhp.core.discovery.blueprint_discoverer"
     ):
         instances = disco.discover_instances(blueprints)
 
@@ -251,7 +251,7 @@ def test_blueprint_discoverer_silent_on_non_instance_files(tmp_path, caplog):
         r
         for r in caplog.records
         if r.levelno == logging.WARNING
-        and r.name == "lhp.core.services.blueprint_discoverer"
+        and r.name == "lhp.core.discovery.blueprint_discoverer"
     ]
     assert warnings == [], (
         "Non-instance files (regular flowgroups) must not produce "

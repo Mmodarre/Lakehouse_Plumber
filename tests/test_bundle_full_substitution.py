@@ -18,19 +18,19 @@ from lhp.core.loaders.pipeline_config_loader import PipelineConfigLoader
 
 class TestFullPipelineConfigSubstitution:
     """Test full substitution support for pipeline_config.yaml"""
-    
+
     @pytest.fixture
     def temp_project(self):
         """Create temporary project structure"""
         temp_dir = tempfile.mkdtemp()
         project_root = Path(temp_dir)
-        
+
         # Create directories
         (project_root / "substitutions").mkdir(parents=True)
         (project_root / "config").mkdir(parents=True)
         (project_root / "pipelines").mkdir(parents=True)
         (project_root / "generated").mkdir(parents=True)
-        
+
         # Create dev substitution file with comprehensive tokens
         sub_content = {
             "dev": {
@@ -40,17 +40,17 @@ class TestFullPipelineConfigSubstitution:
                 "policy_id": "dev-policy-123",
                 "ops_email": "dev-ops@company.com",
                 "environment": "development",
-                "event_log_catalog": "dev_meta"
+                "event_log_catalog": "dev_meta",
             }
         }
         with open(project_root / "substitutions" / "dev.yaml", "w") as f:
             yaml.dump(sub_content, f)
-        
+
         yield project_root
-        
+
         # Cleanup
         shutil.rmtree(temp_dir)
-    
+
     @pytest.fixture
     def pipeline_config_with_tokens(self, temp_project):
         """Create pipeline_config.yaml with tokens across various fields"""
@@ -85,128 +85,226 @@ event_log:
         config_path = temp_project / "config" / "pipeline_config.yaml"
         with open(config_path, "w") as f:
             f.write(config_content)
-        
+
         return config_path
-    
-    def test_full_substitution_node_type_and_policy(self, temp_project, pipeline_config_with_tokens):
+
+    def test_full_substitution_node_type_and_policy(
+        self, temp_project, pipeline_config_with_tokens
+    ):
         """Test token substitution in node_type_id and policy_id"""
         manager = BundleManager(
             project_root=temp_project,
-            pipeline_config_path=str(pipeline_config_with_tokens)
+            pipeline_config_path=str(pipeline_config_with_tokens),
         )
-        
+
         # Mock template renderer to capture context
         captured_context = None
+
         def mock_render(template_name, context):
             nonlocal captured_context
             captured_context = context
             return "mock_content"
-        
+
         manager.template_renderer.render_template = mock_render
-        
+
         # Generate resource content
         output_dir = temp_project / "generated"
-        result = manager.generate_resource_file_content("test_pipeline", output_dir, "dev")
-        
+        result = manager.generate_resource_file_content(
+            "test_pipeline", output_dir, "dev"
+        )
+
         # Verify substitution occurred
         assert captured_context is not None
         config = captured_context["pipeline_config"]
-        
+
         # Check clusters substitution
         assert config["clusters"][0]["node_type_id"] == "Standard_D8ds_v5"
         assert config["clusters"][0]["policy_id"] == "dev-policy-123"
-    
-    def test_full_substitution_email_recipients(self, temp_project, pipeline_config_with_tokens):
+
+        # Companion real-render assertion: drive the REAL renderer (fresh
+        # manager, no mock) and verify substituted cluster values land in valid
+        # resource YAML under resources.pipelines.<name>_pipeline.
+        real_manager = BundleManager(
+            project_root=temp_project,
+            pipeline_config_path=str(pipeline_config_with_tokens),
+        )
+        rendered = real_manager.generate_resource_file_content(
+            "test_pipeline", output_dir, "dev"
+        )
+        parsed = yaml.safe_load(rendered)
+        pipeline = parsed["resources"]["pipelines"]["test_pipeline_pipeline"]
+        assert pipeline["clusters"][0]["node_type_id"] == "Standard_D8ds_v5"
+        assert pipeline["clusters"][0]["policy_id"] == "dev-policy-123"
+
+    def test_full_substitution_email_recipients(
+        self, temp_project, pipeline_config_with_tokens
+    ):
         """Test token substitution in notification email list"""
         manager = BundleManager(
             project_root=temp_project,
-            pipeline_config_path=str(pipeline_config_with_tokens)
+            pipeline_config_path=str(pipeline_config_with_tokens),
         )
-        
+
         captured_context = None
+
         def mock_render(template_name, context):
             nonlocal captured_context
             captured_context = context
             return "mock_content"
-        
+
         manager.template_renderer.render_template = mock_render
-        
+
         output_dir = temp_project / "generated"
-        result = manager.generate_resource_file_content("test_pipeline", output_dir, "dev")
-        
+        result = manager.generate_resource_file_content(
+            "test_pipeline", output_dir, "dev"
+        )
+
         # Verify email substitution
         config = captured_context["pipeline_config"]
-        assert config["notifications"][0]["email_recipients"][0] == "dev-ops@company.com"
-    
+        assert (
+            config["notifications"][0]["email_recipients"][0] == "dev-ops@company.com"
+        )
+
+        # Companion real-render assertion: substituted email recipient must
+        # appear in the emitted notifications block of the resource YAML.
+        real_manager = BundleManager(
+            project_root=temp_project,
+            pipeline_config_path=str(pipeline_config_with_tokens),
+        )
+        rendered = real_manager.generate_resource_file_content(
+            "test_pipeline", output_dir, "dev"
+        )
+        parsed = yaml.safe_load(rendered)
+        pipeline = parsed["resources"]["pipelines"]["test_pipeline_pipeline"]
+        assert (
+            pipeline["notifications"][0]["email_recipients"][0] == "dev-ops@company.com"
+        )
+
     def test_full_substitution_tags(self, temp_project, pipeline_config_with_tokens):
         """Test token substitution in tag values"""
         manager = BundleManager(
             project_root=temp_project,
-            pipeline_config_path=str(pipeline_config_with_tokens)
+            pipeline_config_path=str(pipeline_config_with_tokens),
         )
-        
+
         captured_context = None
+
         def mock_render(template_name, context):
             nonlocal captured_context
             captured_context = context
             return "mock_content"
-        
+
         manager.template_renderer.render_template = mock_render
-        
+
         output_dir = temp_project / "generated"
-        result = manager.generate_resource_file_content("test_pipeline", output_dir, "dev")
-        
+        result = manager.generate_resource_file_content(
+            "test_pipeline", output_dir, "dev"
+        )
+
         # Verify tag substitution
         config = captured_context["pipeline_config"]
         assert config["tags"]["environment"] == "development"
         assert config["tags"]["team"] == "data-engineering"  # Literal value preserved
-    
-    def test_full_substitution_event_log(self, temp_project, pipeline_config_with_tokens):
+
+        # Companion real-render assertion: substituted and literal tag values
+        # must both appear in the emitted tags block of the resource YAML.
+        real_manager = BundleManager(
+            project_root=temp_project,
+            pipeline_config_path=str(pipeline_config_with_tokens),
+        )
+        rendered = real_manager.generate_resource_file_content(
+            "test_pipeline", output_dir, "dev"
+        )
+        parsed = yaml.safe_load(rendered)
+        pipeline = parsed["resources"]["pipelines"]["test_pipeline_pipeline"]
+        assert pipeline["tags"]["environment"] == "development"
+        assert pipeline["tags"]["team"] == "data-engineering"
+
+    def test_full_substitution_event_log(
+        self, temp_project, pipeline_config_with_tokens
+    ):
         """Test token substitution in nested event_log structure"""
         manager = BundleManager(
             project_root=temp_project,
-            pipeline_config_path=str(pipeline_config_with_tokens)
+            pipeline_config_path=str(pipeline_config_with_tokens),
         )
-        
+
         captured_context = None
+
         def mock_render(template_name, context):
             nonlocal captured_context
             captured_context = context
             return "mock_content"
-        
+
         manager.template_renderer.render_template = mock_render
-        
+
         output_dir = temp_project / "generated"
-        result = manager.generate_resource_file_content("test_pipeline", output_dir, "dev")
-        
+        result = manager.generate_resource_file_content(
+            "test_pipeline", output_dir, "dev"
+        )
+
         # Verify event_log substitution
         config = captured_context["pipeline_config"]
         assert config["event_log"]["catalog"] == "dev_meta"
         assert config["event_log"]["name"] == "test_events"  # Literal preserved
         assert config["event_log"]["schema"] == "_meta"  # Literal preserved
-    
-    def test_catalog_schema_validation_still_works(self, temp_project, pipeline_config_with_tokens):
+
+        # Companion real-render assertion: nested event_log values (substituted
+        # + literal) must appear in the emitted resource YAML.
+        real_manager = BundleManager(
+            project_root=temp_project,
+            pipeline_config_path=str(pipeline_config_with_tokens),
+        )
+        rendered = real_manager.generate_resource_file_content(
+            "test_pipeline", output_dir, "dev"
+        )
+        parsed = yaml.safe_load(rendered)
+        pipeline = parsed["resources"]["pipelines"]["test_pipeline_pipeline"]
+        assert pipeline["event_log"]["catalog"] == "dev_meta"
+        assert pipeline["event_log"]["name"] == "test_events"
+        assert pipeline["event_log"]["schema"] == "_meta"
+
+    def test_catalog_schema_validation_still_works(
+        self, temp_project, pipeline_config_with_tokens
+    ):
         """Test that catalog/schema validation is still enforced after substitution"""
         manager = BundleManager(
             project_root=temp_project,
-            pipeline_config_path=str(pipeline_config_with_tokens)
+            pipeline_config_path=str(pipeline_config_with_tokens),
         )
-        
+
         captured_context = None
+
         def mock_render(template_name, context):
             nonlocal captured_context
             captured_context = context
             return "mock_content"
-        
+
         manager.template_renderer.render_template = mock_render
-        
+
         output_dir = temp_project / "generated"
-        result = manager.generate_resource_file_content("test_pipeline", output_dir, "dev")
-        
+        result = manager.generate_resource_file_content(
+            "test_pipeline", output_dir, "dev"
+        )
+
         # Verify catalog/schema were resolved and validated
         assert captured_context["catalog"] == "dev_catalog"
         assert captured_context["schema"] == "bronze_dev"
-    
+
+        # Companion real-render assertion: resolved catalog/schema must be
+        # emitted as keys under resources.pipelines.<name>_pipeline.
+        real_manager = BundleManager(
+            project_root=temp_project,
+            pipeline_config_path=str(pipeline_config_with_tokens),
+        )
+        rendered = real_manager.generate_resource_file_content(
+            "test_pipeline", output_dir, "dev"
+        )
+        parsed = yaml.safe_load(rendered)
+        pipeline = parsed["resources"]["pipelines"]["test_pipeline_pipeline"]
+        assert pipeline["catalog"] == "dev_catalog"
+        assert pipeline["schema"] == "bronze_dev"
+
     def test_missing_substitution_file_uses_raw_config(self, temp_project):
         """Test that missing substitution file gracefully uses raw config"""
         # Create config with tokens
@@ -223,44 +321,58 @@ clusters:
         config_path = temp_project / "config" / "pipeline_config.yaml"
         with open(config_path, "w") as f:
             f.write(config_content)
-        
+
         # Remove substitution file
         (temp_project / "substitutions" / "dev.yaml").unlink()
-        
+
         manager = BundleManager(
-            project_root=temp_project,
-            pipeline_config_path=str(config_path)
+            project_root=temp_project, pipeline_config_path=str(config_path)
         )
-        
+
         captured_context = None
+
         def mock_render(template_name, context):
             nonlocal captured_context
             captured_context = context
             return "mock_content"
-        
+
         manager.template_renderer.render_template = mock_render
-        
+
         output_dir = temp_project / "generated"
-        result = manager.generate_resource_file_content("test_pipeline", output_dir, "dev")
-        
+        result = manager.generate_resource_file_content(
+            "test_pipeline", output_dir, "dev"
+        )
+
         # Verify raw values are used (no substitution)
         config = captured_context["pipeline_config"]
         assert config["catalog"] == "prod_catalog"
         assert config["schema"] == "prod_schema"
         assert config["clusters"][0]["node_type_id"] == "Standard_D16ds_v5"
-    
+
+        # Companion real-render assertion: with the substitution file removed
+        # the raw catalog/schema must still produce valid resource YAML.
+        # (clusters are gated behind serverless=false in the template, so with
+        # serverless=true they are intentionally omitted from output.)
+        real_manager = BundleManager(
+            project_root=temp_project,
+            pipeline_config_path=str(config_path),
+        )
+        rendered = real_manager.generate_resource_file_content(
+            "test_pipeline", output_dir, "dev"
+        )
+        parsed = yaml.safe_load(rendered)
+        pipeline = parsed["resources"]["pipelines"]["test_pipeline_pipeline"]
+        assert pipeline["catalog"] == "prod_catalog"
+        assert pipeline["schema"] == "prod_schema"
+        assert pipeline["serverless"] is True
+
     def test_mixed_literal_and_token_values(self, temp_project):
         """Test configuration with both literal values and tokens"""
         # Create substitution file
-        sub_content = {
-            "dev": {
-                "catalog": "dev_catalog",
-                "bronze_schema": "bronze_dev"
-            }
-        }
+        sub_content = {"dev": {"catalog": "dev_catalog", "bronze_schema": "bronze_dev"}}
         with open(temp_project / "substitutions" / "dev.yaml", "w") as f:
             yaml.dump(sub_content, f)
-        
+
         # Create config with mixed values
         config_content = """
 ---
@@ -274,34 +386,53 @@ continuous: true
         config_path = temp_project / "config" / "pipeline_config.yaml"
         with open(config_path, "w") as f:
             f.write(config_content)
-        
+
         manager = BundleManager(
-            project_root=temp_project,
-            pipeline_config_path=str(config_path)
+            project_root=temp_project, pipeline_config_path=str(config_path)
         )
-        
+
         captured_context = None
+
         def mock_render(template_name, context):
             nonlocal captured_context
             captured_context = context
             return "mock_content"
-        
+
         manager.template_renderer.render_template = mock_render
-        
+
         output_dir = temp_project / "generated"
-        result = manager.generate_resource_file_content("mixed_pipeline", output_dir, "dev")
-        
+        result = manager.generate_resource_file_content(
+            "mixed_pipeline", output_dir, "dev"
+        )
+
         config = captured_context["pipeline_config"]
-        
+
         # Tokens resolved
         assert config["catalog"] == "dev_catalog"
         assert config["schema"] == "bronze_dev"
-        
+
         # Literals preserved
         assert config["serverless"] == False
         assert config["edition"] == "ADVANCED"
         assert config["continuous"] == True
-    
+
+        # Companion real-render assertion: substituted catalog/schema plus
+        # preserved literals must all land in the emitted resource YAML.
+        real_manager = BundleManager(
+            project_root=temp_project,
+            pipeline_config_path=str(config_path),
+        )
+        rendered = real_manager.generate_resource_file_content(
+            "mixed_pipeline", output_dir, "dev"
+        )
+        parsed = yaml.safe_load(rendered)
+        pipeline = parsed["resources"]["pipelines"]["mixed_pipeline_pipeline"]
+        assert pipeline["catalog"] == "dev_catalog"
+        assert pipeline["schema"] == "bronze_dev"
+        assert pipeline["serverless"] is False
+        assert pipeline["edition"] == "ADVANCED"
+        assert pipeline["continuous"] is True
+
     def test_partial_catalog_schema_definition_raises_error(self, temp_project):
         """Direct call to ``generate_resource_file_content`` bypassing preflight.
 
@@ -324,8 +455,7 @@ serverless: true
             f.write(config_content)
 
         manager = BundleManager(
-            project_root=temp_project,
-            pipeline_config_path=str(config_path)
+            project_root=temp_project, pipeline_config_path=str(config_path)
         )
 
         output_dir = temp_project / "generated"
@@ -333,11 +463,13 @@ serverless: true
         from lhp.errors import LHPConfigError
 
         with pytest.raises(LHPConfigError) as exc_info:
-            manager.generate_resource_file_content("invalid_pipeline", output_dir, "dev")
+            manager.generate_resource_file_content(
+                "invalid_pipeline", output_dir, "dev"
+            )
 
         assert exc_info.value.code == "LHP-GEN-001"
         assert "preflight" in str(exc_info.value).lower()
-    
+
     def test_empty_catalog_after_substitution_raises_error(self, temp_project):
         """Direct call to ``generate_resource_file_content`` bypassing preflight.
 
@@ -346,15 +478,10 @@ serverless: true
         the internal-error guard catches preflight bypass.
         """
         # Create substitution with empty value
-        sub_content = {
-            "dev": {
-                "catalog": "",
-                "bronze_schema": "bronze_dev"
-            }
-        }
+        sub_content = {"dev": {"catalog": "", "bronze_schema": "bronze_dev"}}
         with open(temp_project / "substitutions" / "dev.yaml", "w") as f:
             yaml.dump(sub_content, f)
-        
+
         config_content = """
 ---
 pipeline: empty_catalog_pipeline
@@ -365,38 +492,36 @@ serverless: true
         config_path = temp_project / "config" / "pipeline_config.yaml"
         with open(config_path, "w") as f:
             f.write(config_content)
-        
+
         manager = BundleManager(
-            project_root=temp_project,
-            pipeline_config_path=str(config_path)
+            project_root=temp_project, pipeline_config_path=str(config_path)
         )
-        
+
         output_dir = temp_project / "generated"
-        
+
         # Empty strings are treated as missing due to falsy evaluation in
         # Python, so the internal-error guard fires for "missing/empty
         # resolved catalog/schema".
         from lhp.errors import LHPConfigError
 
         with pytest.raises(LHPConfigError) as exc_info:
-            manager.generate_resource_file_content("empty_catalog_pipeline", output_dir, "dev")
+            manager.generate_resource_file_content(
+                "empty_catalog_pipeline", output_dir, "dev"
+            )
 
         assert exc_info.value.code == "LHP-GEN-001"
         assert "preflight" in str(exc_info.value).lower()
-    
+
     def test_unresolved_tokens_pass_through(self, temp_project):
         """Test that unresolved tokens pass through (EnhancedSubstitutionManager behavior)"""
         # Create substitution with some but not all tokens
         sub_content = {
-            "dev": {
-                "catalog": "dev_catalog",
-                "bronze_schema": "bronze_dev"
-            }
+            "dev": {"catalog": "dev_catalog", "bronze_schema": "bronze_dev"}
             # Missing: nonexistent_token
         }
         with open(temp_project / "substitutions" / "dev.yaml", "w") as f:
             yaml.dump(sub_content, f)
-        
+
         config_content = """
 ---
 pipeline: unresolved_pipeline
@@ -409,53 +534,74 @@ tags:
         config_path = temp_project / "config" / "pipeline_config.yaml"
         with open(config_path, "w") as f:
             f.write(config_content)
-        
+
         manager = BundleManager(
-            project_root=temp_project,
-            pipeline_config_path=str(config_path)
+            project_root=temp_project, pipeline_config_path=str(config_path)
         )
-        
+
         captured_context = None
+
         def mock_render(template_name, context):
             nonlocal captured_context
             captured_context = context
             return "mock_content"
-        
+
         manager.template_renderer.render_template = mock_render
-        
+
         output_dir = temp_project / "generated"
-        result = manager.generate_resource_file_content("unresolved_pipeline", output_dir, "dev")
-        
+        result = manager.generate_resource_file_content(
+            "unresolved_pipeline", output_dir, "dev"
+        )
+
         config = captured_context["pipeline_config"]
-        
+
         # Resolved tokens work
         assert config["catalog"] == "dev_catalog"
         assert config["schema"] == "bronze_dev"
-        
+
         # Unresolved tokens pass through (EnhancedSubstitutionManager preserves them)
         # This is expected behavior - not an error
         assert "{nonexistent_token}" in config["tags"]["unknown"]
 
+        # Companion real-render assertion: resolved tokens land in valid resource
+        # YAML; the unresolved "{nonexistent_token}" passes through into the tags
+        # block. Because the deprecated {token} braces are emitted unquoted, YAML
+        # parses "{nonexistent_token}" as a single-key flow mapping — assert that
+        # real nested structure rather than truthiness.
+        real_manager = BundleManager(
+            project_root=temp_project,
+            pipeline_config_path=str(config_path),
+        )
+        rendered = real_manager.generate_resource_file_content(
+            "unresolved_pipeline", output_dir, "dev"
+        )
+        parsed = yaml.safe_load(rendered)
+        pipeline = parsed["resources"]["pipelines"]["unresolved_pipeline_pipeline"]
+        assert pipeline["catalog"] == "dev_catalog"
+        assert pipeline["schema"] == "bronze_dev"
+        # Unresolved token surfaced into the tags block (flow-mapping form).
+        assert "nonexistent_token" in pipeline["tags"]["unknown"]
+
 
 class TestSubstitutionWithExistingTests:
     """Ensure full substitution doesn't break existing test scenarios"""
-    
+
     def test_backward_compatibility_no_tokens(self):
         """Test that configs without tokens still work"""
         temp_dir = tempfile.mkdtemp()
         project_root = Path(temp_dir)
-        
+
         try:
             # Setup
             (project_root / "substitutions").mkdir(parents=True)
             (project_root / "config").mkdir(parents=True)
             (project_root / "generated").mkdir(parents=True)
-            
+
             # Create substitution file (but won't be used)
             sub_content = {"dev": {"catalog": "dev_catalog"}}
             with open(project_root / "substitutions" / "dev.yaml", "w") as f:
                 yaml.dump(sub_content, f)
-            
+
             # Create config WITHOUT tokens
             config_content = """
 ---
@@ -467,28 +613,43 @@ serverless: true
             config_path = project_root / "config" / "pipeline_config.yaml"
             with open(config_path, "w") as f:
                 f.write(config_content)
-            
+
             manager = BundleManager(
-                project_root=project_root,
-                pipeline_config_path=str(config_path)
+                project_root=project_root, pipeline_config_path=str(config_path)
             )
-            
+
             captured_context = None
+
             def mock_render(template_name, context):
                 nonlocal captured_context
                 captured_context = context
                 return "mock_content"
-            
+
             manager.template_renderer.render_template = mock_render
-            
+
             output_dir = project_root / "generated"
-            result = manager.generate_resource_file_content("no_tokens_pipeline", output_dir, "dev")
-            
+            result = manager.generate_resource_file_content(
+                "no_tokens_pipeline", output_dir, "dev"
+            )
+
             # Verify literals are preserved
             config = captured_context["pipeline_config"]
             assert config["catalog"] == "literal_catalog"
             assert config["schema"] == "literal_schema"
-            
+
+            # Companion real-render assertion: literal catalog/schema must land
+            # in valid resource YAML under resources.pipelines.<name>_pipeline.
+            real_manager = BundleManager(
+                project_root=project_root,
+                pipeline_config_path=str(config_path),
+            )
+            rendered = real_manager.generate_resource_file_content(
+                "no_tokens_pipeline", output_dir, "dev"
+            )
+            parsed = yaml.safe_load(rendered)
+            pipeline = parsed["resources"]["pipelines"]["no_tokens_pipeline_pipeline"]
+            assert pipeline["catalog"] == "literal_catalog"
+            assert pipeline["schema"] == "literal_schema"
+
         finally:
             shutil.rmtree(temp_dir)
-

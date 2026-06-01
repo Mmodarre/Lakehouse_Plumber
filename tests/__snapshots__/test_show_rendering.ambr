@@ -2,22 +2,32 @@
 # name: test_show_flowgroup_renders_yaml_panel
   '''
   ╭─ bronze_pipeline.customer_bronze   env: dev ─────────────────────────────────╮
-  │    1 pipeline: bronze_pipeline                                               │
-  │    2 flowgroup: customer_bronze                                              │
-  │    3 presets:                                                                │
-  │    4 - bronze_defaults                                                       │
-  │    5 actions:                                                                │
-  │    6 - name: load_customer                                                   │
-  │    7   type: load                                                            │
-  │    8   source:                                                               │
-  │    9     type: cloudfiles                                                    │
-  │   10     path: /Volumes/raw/customer                                         │
-  │   11   target: v_customer_raw                                                │
-  │   12 - name: write_customer                                                  │
-  │   13   type: write                                                           │
-  │   14   source: v_customer_raw                                                │
-  │   15   target: customer_bronze                                               │
-  │   16                                                                         │
+  │    1 flowgroup:                                                              │
+  │    2   name: customer_bronze                                                 │
+  │    3   pipeline: bronze_pipeline                                             │
+  │    4   file_path: null                                                       │
+  │    5   presets:                                                              │
+  │    6   - bronze_defaults                                                     │
+  │    7   template: null                                                        │
+  │    8   load_action_count: 1                                                  │
+  │    9   transform_action_count: 0                                             │
+  │   10   write_action_count: 1                                                 │
+  │   11   test_action_count: 0                                                  │
+  │   12   job_name: null                                                        │
+  │   13 actions:                                                                │
+  │   14 - name: load_customer                                                   │
+  │   15   action_type: load                                                     │
+  │   16   target: v_customer_raw                                                │
+  │   17   description: null                                                     │
+  │   18   transform_type: null                                                  │
+  │   19   test_type: null                                                       │
+  │   20 - name: write_customer                                                  │
+  │   21   action_type: write                                                    │
+  │   22   target: customer_bronze                                               │
+  │   23   description: null                                                     │
+  │   24   transform_type: null                                                  │
+  │   25   test_type: null                                                       │
+  │   26                                                                         │
   ╰──────────────────────────────────────────────────────────────────────────────╯
   
   '''

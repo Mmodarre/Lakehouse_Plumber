@@ -8,10 +8,10 @@
 # isort: skip_file
 from ._base import BaseActionValidator
 from .cdc_fanin_compatibility_validator import CdcFanInCompatibilityValidator
-from .load_validator import LoadActionValidator
+from .action.load import LoadActionValidator
 from .transform_validator import TransformActionValidator
 from .write_validator import WriteActionValidator
-from .test_validator import TestActionValidator
+from .action.test import TestActionValidator
 from .table_creation_validator import TableCreationValidator, action_creates_table
 
 # Domain-level validators (consolidated under §9.4 in Week 3)
