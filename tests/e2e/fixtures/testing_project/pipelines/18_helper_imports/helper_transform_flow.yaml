@@ -1,0 +1,38 @@
+# Transitive helper-copying E2E fixture (python-transform path).
+# The transform entry imports a LOCAL helper sub-package (helpers.transforms)
+# which itself does an intra-package relative import (from .util import clean).
+# LHP copies the entry + the whole helpers/ closure into custom_python_functions/,
+# prefix-rewrites the absolute-local import on the entry, and preserves the
+# relative import inside helpers/transforms.py verbatim.
+pipeline: helper_imports
+flowgroup: helper_transform_flow
+
+actions:
+  - name: load_helper_seed
+    type: load
+    source:
+      type: sql
+      sql: "SELECT 1 AS id, '  alpha  ' AS name"
+    target: v_helper_seed
+    description: "Seed rows for the helper-backed transform"
+
+  - name: transform_with_helper
+    type: transform
+    transform_type: python
+    source: v_helper_seed
+    module_path: "py_functions/helper_demo_transform.py"
+    function_name: "transform_with_helper"
+    parameters:
+      spark: spark
+      parameters: {}
+    target: v_helper_enriched
+    description: "Enrich seed rows via the imported helper closure"
+
+  - name: write_helper_enriched
+    type: write
+    source: v_helper_enriched
+    write_target:
+      type: materialized_view
+      database: "${catalog}.${bronze_schema}"
+      table: "helper_enriched"
+      comment: "Rows enriched via a transitive helper closure"

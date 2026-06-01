@@ -1,0 +1,28 @@
+# Transitive helper-copying E2E fixture (custom-data-source path).
+# The custom data source entry imports the same LOCAL helper sub-package. Because
+# the class is registered by-value, LHP emits register_pickle_by_value so the
+# embedded helper closure travels with the class to the executor.
+pipeline: helper_imports
+flowgroup: helper_source_flow
+
+actions:
+  - name: load_from_helper_source
+    type: load
+    source:
+      type: custom_datasource
+      module_path: "py_functions/helper_demo_source.py"
+      custom_datasource_class: "HelperBackedSource"
+      options:
+        endpoint: "https://api.example.com"
+    target: v_helper_source_data
+    description: "Load data from a custom source backed by a helper closure"
+
+  - name: write_helper_source_data
+    type: write
+    source: v_helper_source_data
+    write_target:
+      type: streaming_table
+      database: "${catalog}.${bronze_schema}"
+      table: "helper_source_data"
+      create_table: true
+    description: "Write helper-backed custom source data to a streaming table"

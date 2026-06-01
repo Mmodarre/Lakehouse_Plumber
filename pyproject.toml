@@ -54,6 +54,7 @@ dev = [
     "liccheck>=0.9.0",
     "pre-commit>=3.0.0",
     "build>=1.0",  # used by tests/test_packaging.py to build a wheel for package-data assertions
+    "cloudpickle>=3.0.0",  # used by the pickle-by-value round-trip test; the upstream lib pyspark vendors for register_pickle_by_value
 ]
 
 [project.urls]

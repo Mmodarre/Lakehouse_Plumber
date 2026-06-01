@@ -6,7 +6,7 @@ from lhp.core.codegen.operational_metadata import (
 )
 from lhp.core.codegen.python_file_copier import (
     PythonFileCopier,
-    compute_copy_record,
+    compute_copy_records,
     copy_user_module_for_pipeline,
 )
 from lhp.core.codegen.secret_code_generator import SecretCodeGenerator
@@ -23,7 +23,7 @@ __all__ = [
     "SecretCodeGenerator",
     "TemplateRenderer",
     "TestReportingHookGenerator",
-    "compute_copy_record",
+    "compute_copy_records",
     "copy_user_module_for_pipeline",
     "extract_future_imports",
     "generate_test_reporting_hook",

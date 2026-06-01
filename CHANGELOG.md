@@ -7,6 +7,103 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Transitive helper-module copying for user Python functions
+
+**Summary.** When a user Python function — a `python` load/transform function, a
+custom data source, a custom sink, or a snapshot-CDC `source_function` — imports
+a **local** helper module or sub-package, LHP now copies the entry file **and
+its transitive local helpers** into `custom_python_functions/`, preserving
+sub-package directory structure. Previously only the single named file was
+copied, so any local helper it imported raised `ModuleNotFoundError` at pipeline
+runtime. Local imports are now rewritten so the copied closure resolves under
+`custom_python_functions.…` while external/stdlib imports are left untouched.
+
+**Added.**
+
+- **Transitive local-helper copy.** A referenced local helper module is copied
+  alongside the entry file, recursively, into `custom_python_functions/` with
+  its sub-package layout preserved (a referenced helper **package** is copied in
+  full; synthesized empty `__init__.py` files are emitted for any namespace
+  directory in the closure that lacks one). External and standard-library
+  imports are never copied.
+- **Import rewriting for the copied closure.** Absolute-local imports are
+  prefix-rewritten to `custom_python_functions.…`; intra-package **relative**
+  imports (`from .x import y`) are preserved as-is; external/stdlib imports are
+  left untouched.
+- **New validation errors.**
+  - **`LHP-VAL-023`** — the Python-function import-root directory must not
+    itself be a package ("Rule A": the root must not contain `__init__.py`).
+  - **`LHP-VAL-024`** — a local helper must be imported via `from x import y`,
+    not a plain dotted `import x.y`.
+  - **`LHP-VAL-025`** — a referenced local helper module was not found on disk
+    during closure resolution.
+
+  The three codes are constructed **inline** at their raise sites (per the
+  in-repo precedent; see `ERRORS-CODES-DEFER` below), not via a code registry.
+
+**Changed.**
+
+- **Single generic syntax-error contract — `LHP-IO-003`.** Parsing of *any*
+  user source file (snapshot `source_function` signatures, helper-closure
+  discovery) now raises one uniform, path-parameterized **`LHP-IO-003`**
+  ("Python syntax error in source file") on a `SyntaxError`, replacing the
+  snapshot-specific syntax-error construction. The message is parameterized by
+  the offending file path; the previously snapshot-specific
+  `example`/`details`/`context` were dropped so the contract is identical across
+  all AST consumers.
+- **Python-function path-anchoring docs corrected.** The `module_path` /
+  `source_function` source-file paths are resolved relative to the **project
+  root**, not the YAML file location; the docs (and paired skill reference) that
+  said "relative to your YAML file location" were corrected (DR-6). See
+  deferrals for the SQL `sql_path` case, which is **not** changed here.
+
+**Removed (behavior change — DR-1, resolved as DELETE).**
+
+- **Dead file-level AST import-hoist path.**
+  `ImportManager.add_imports_from_file` / `_extract_with_ast` (and its 5
+  orphaned test fixtures) are deleted. The path had **zero** production callers
+  and silently swallowed `SyntaxError` (an inner `except SyntaxError` plus an
+  outer `except Exception`). Originally scoped as a swallow→raise refactor onto
+  the generic `LHP-IO-003` contract; resolved instead by **deletion**, since the
+  path was provably dead (reachable only from `tests/test_import_manager.py`,
+  which kept it invisible to vulture). The live `add_import` /
+  `get_consolidated_imports` / `add_imports_from_expression` surface is
+  unchanged.
+
+**Whole-sub-package copy consequence (intended).** Because a referenced helper
+*package* is copied **in full**, a syntactically-broken but otherwise *unrelated*
+sibling module inside that package now surfaces **`LHP-IO-003`** at generate
+time. This is intentional. AST-pruned partial-package copy (copying only the
+modules actually reached by the import closure) is **deferred** — see below.
+
+**Deferred / decisions (tracked for follow-up).**
+
+- **`ERRORS-CODES-DEFER`.** No `lhp/errors/codes.py` was created — that file does
+  not exist, and the new `LHP-VAL-023/024/025` errors are constructed **inline**
+  at their raise sites following existing repo precedent
+  (`LHPError(category=ErrorCategory.VALIDATION, code_number="0NN", …)`). Spec
+  §3.6/§3.8's "add the code to `codes.py`" is deferred to that separate work
+  item; `errors/formatter.py` was **not** grown with new factory methods.
+- **AST-pruned partial-package copy deferred** (spec §3.8/§7). Whole-sub-package
+  copy is the current behavior; copying only the closure-reached modules within
+  a package (which would suppress the unrelated-broken-sibling `LHP-IO-003`
+  above) is a follow-up.
+- **Dry-run "would-be-copied helper modules" reporting deferred** (spec §7).
+  `--dry-run` does not yet enumerate the helper modules a real run would copy.
+- **SQL `sql_path` doc anchoring NOT changed** (DR-6). The SQL `sql_path`
+  "relative to your YAML file location" statements use a **different** resolver
+  and are a separate, pre-existing question; only the Python
+  `module_path`/`source_function` anchoring docs were corrected here.
+- **Pre-existing §5.4 direct-module-import debt left untouched.** The
+  `external_file_loader` direct-module import in
+  `generators/write/snapshot_cdc_source_function.py` is pre-existing §5.4 debt
+  and was **not** changed by this work.
+- **Pre-existing `LHP-IO-003` overload observed (not deepened).** `LHP-IO-003`
+  already carries **three** meanings (syntax error / multi-document /
+  instance-not-found); the "canonical" syntax-error contract added here is the
+  syntax-error meaning specifically. Disambiguating the overloaded code is
+  out of scope for this change.
+
 ### Parallel-worker performance instrumentation — propagated per-category timers + event counts
 
 **Summary.** Instrumentation-only change that makes the parallel

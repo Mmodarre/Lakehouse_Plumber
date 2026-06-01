@@ -18,13 +18,14 @@ from pathlib import Path
 import pytest
 
 from lhp.core.codegen import PythonFileCopier
+from lhp.core.codegen.python_file_copier import compute_copy_records
 from lhp.errors import PythonFunctionConflictError
 from lhp.models.processing import CopiedModuleRecord
 
 
 def _record(source_path: str, custom_dir: Path, *, stem: str) -> CopiedModuleRecord:
     """Build a record whose dest is ``custom_dir/<stem>.py`` (mirrors
-    ``compute_copy_record``'s flat layout) without touching disk."""
+    ``compute_copy_records``' flat entry layout) without touching disk."""
     return CopiedModuleRecord(
         source_path=source_path,
         dest_path=custom_dir / f"{stem}.py",
@@ -169,3 +170,92 @@ class TestPlanInitStemEdgeCase:
             copier.plan([record])
 
         assert exc_info.value.code_number == "019"
+
+
+def _make_entry_with_helper(root: Path, entry_stem: str) -> Path:
+    """Entry under ``root`` importing a shared ``helpers.shared`` leaf helper."""
+    helpers = root / "helpers"
+    helpers.mkdir(parents=True, exist_ok=True)
+    (helpers / "__init__.py").write_text("")
+    (helpers / "shared.py").write_text("def s():\n    return 1\n")
+    entry = root / f"{entry_stem}.py"
+    entry.write_text("from helpers.shared import s\n")
+    return entry
+
+
+@pytest.mark.unit
+class TestPlanMultiRecordFromComputeCopyRecords:
+    """plan() over the real multi-record output of compute_copy_records:
+    the planned set must equal what apply() actually writes to disk."""
+
+    def test_plan_matches_apply_for_entry_plus_closure(self, tmp_path):
+        root = tmp_path / "py_functions"
+        entry = _make_entry_with_helper(root, "entry")
+        cfd = tmp_path / "out" / "custom_python_functions"
+
+        records = compute_copy_records(
+            entry, "py_functions/entry.py", cfd, {"source_parse_cache": {}}
+        )
+
+        planned = PythonFileCopier().plan(records)
+        planned_dests = {r.dest_path for r in planned}
+
+        # Apply to a real copier and compare against what landed on disk.
+        apply_copier = PythonFileCopier()
+        for record in records:
+            apply_copier.apply_copy_record(record)
+        written = {
+            Path(p)
+            for p in apply_copier.get_copied_files()
+            if not p.endswith("__init__.py") or "helpers" in p
+        }
+
+        # Every planned module dest exists on disk; the planner did not invent
+        # or drop any module write relative to apply.
+        for dest in planned_dests:
+            assert dest.exists(), f"planned dest not written: {dest}"
+        assert planned_dests <= written
+
+    def test_cross_source_collision_on_shared_helper_dest_raises_019(self, tmp_path):
+        """Two DISTINCT real helper files both targeting
+        ``custom_python_functions/sib.py`` raise LHP-VAL-019.
+
+        The entries have distinct stems (so the entry dests do NOT collide)
+        and import a FLAT sibling helper (no package -> no ``__init__.py`` to
+        collide first), isolating the clash to ``sib.py`` reached from two
+        different real source files. The closure record's ``source_path`` is
+        the real resolved path, so this is a genuine cross-source clash, not a
+        dedup."""
+        root_a = tmp_path / "proj_a" / "py_functions"
+        root_b = tmp_path / "proj_b" / "py_functions"
+        root_a.mkdir(parents=True)
+        root_b.mkdir(parents=True)
+        (root_a / "entry_a.py").write_text("from sib import f\n")
+        (root_a / "sib.py").write_text("def f():\n    return 'a'\n")
+        (root_b / "entry_b.py").write_text("from sib import f\n")
+        (root_b / "sib.py").write_text("def f():\n    return 'b'\n")
+
+        # Shared destination dir forces the helper collision: both closures
+        # target custom_python_functions/sib.py from different real files.
+        cfd = tmp_path / "out" / "custom_python_functions"
+        recs_a = compute_copy_records(
+            root_a / "entry_a.py",
+            "proj_a/py_functions/entry_a.py",
+            cfd,
+            {"source_parse_cache": {}},
+        )
+        recs_b = compute_copy_records(
+            root_b / "entry_b.py",
+            "proj_b/py_functions/entry_b.py",
+            cfd,
+            {"source_parse_cache": {}},
+        )
+
+        with pytest.raises(PythonFunctionConflictError) as exc_info:
+            PythonFileCopier().plan(recs_a + recs_b)
+
+        assert exc_info.value.code_number == "019"
+        assert exc_info.value.destination == str(cfd / "sib.py")
+        # The two clashing sources are the distinct real helper paths.
+        assert exc_info.value.existing_source == str((root_a / "sib.py").resolve())
+        assert exc_info.value.new_source == str((root_b / "sib.py").resolve())

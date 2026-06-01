@@ -541,6 +541,36 @@ Create file `py_functions/part_snapshot_func.py`:
 .. seealso::
   - For more information on ``create_auto_cdc_from_snapshot_flow`` see the `Databricks snapshot CDC documentation <https://docs.databricks.com/aws/en/ldp/developer/ldp-python-ref-apply-changes-from-snapshot>`_
 
+**Importing local helper modules**
+
+A snapshot ``source_function`` may import local helper modules that live alongside it. LHP
+follows those imports and copies the whole transitive closure of local helpers into
+``custom_python_functions/``, preserving sub-package structure, so the function imports
+cleanly at runtime. (The ``source_function`` file path itself is resolved relative to the
+project root.)
+
+The directory that holds your function file is the **import root** against which "local"
+is decided:
+
+- **Rule A — the import root must not itself be a package.** It may not contain an
+  ``__init__.py`` at its top level, or generation fails with ``LHP-VAL-023``; keep the
+  function file flat and put helpers in a sub-directory.
+- **Rule B — referenced helper packages are copied in full**, with their directory
+  structure preserved, so ``__init__.py`` side effects and intra-package imports keep working.
+
+Imports inside copied files are reconciled as follows:
+
+- **Absolute local imports are prefix-rewritten** — ``from helpers.dates import to_date``
+  becomes ``from custom_python_functions.helpers.dates import to_date`` (aliases preserved).
+- **Relative imports are preserved unchanged** — ``from .sibling import x`` inside a helper
+  package is copied verbatim.
+- **External and standard-library imports are left untouched.**
+- **Plain dotted imports of a local module are rejected** with ``LHP-VAL-024``
+  (use ``from helpers.dates import ...`` instead of ``import helpers.dates``).
+- A local import whose target file or package member is missing on disk fails with
+  ``LHP-VAL-025``; a syntactically broken sibling inside a copied package surfaces
+  ``LHP-IO-003`` at generate time.
+
 **The above YAML examples translate to the following PySpark code**
 
 **For table source (Option 1):**
@@ -675,7 +705,7 @@ Create file `py_functions/part_snapshot_func.py`:
   - `stored_as_scd_type` must be "1" or "2"
   - Can use either `track_history_column_list` OR `track_history_except_column_list` (mutually exclusive)
   - When using `source_function`, the Python function is embedded directly into the generated DLT code
-  - Function file paths are relative to the YAML file location
+  - Function file paths are relative to the project root
   - **Substitution support**: Python functions support ``${token}`` and ``${secret:scope/key}`` substitutions
   - **Parameters support**: Use ``parameters`` inside ``source_function`` to bind keyword arguments via ``functools.partial``. The function must use a ``*`` separator for keyword-only args. Substitution tokens in parameter values are resolved before binding.
 

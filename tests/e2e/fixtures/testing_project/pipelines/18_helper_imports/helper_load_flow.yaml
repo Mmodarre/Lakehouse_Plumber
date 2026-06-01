@@ -1,0 +1,29 @@
+# Helper-copying E2E fixture (python LOAD funnel).
+# The python-load entry imports TWO local helpers via absolute-local imports:
+#   * helpers.aggregate -> which itself does a transitive ABSOLUTE helper->helper
+#     import (from helpers.other import tag), rewritten inside the copied helper;
+#   * helpers.sub.deep -> a NESTED sub-package member, copied with structure
+#     preserved. Both entry imports are prefix-rewritten to custom_python_functions.*.
+pipeline: helper_imports
+flowgroup: helper_load_flow
+
+actions:
+  - name: load_with_helper
+    type: load
+    readMode: batch
+    source:
+      type: python
+      module_path: "py_functions/helper_demo_load.py"
+      function_name: "load_helper_rows"
+      parameters: {}
+    target: v_helper_loaded
+    description: "Load rows via a python function backed by the helper closure"
+
+  - name: write_helper_loaded
+    type: write
+    source: v_helper_loaded
+    write_target:
+      type: materialized_view
+      database: "${catalog}.${bronze_schema}"
+      table: "helper_loaded"
+      comment: "Rows loaded via a python function backed by a helper closure"

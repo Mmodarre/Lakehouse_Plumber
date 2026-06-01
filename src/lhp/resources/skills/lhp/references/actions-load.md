@@ -284,3 +284,24 @@ Port 9093 for Event Hubs. Namespace format: `<namespace>.servicebus.windows.net`
 - Framework uses `name()` return value for `.format()`, not the class name
 - Source code is automatically copied to generated pipeline, import management handled
 - Supports substitution variables in Python files (`{token}`, `${secret:scope/key}`)
+
+---
+
+## Local helper imports (python function + custom_datasource)
+
+When an entry module (`type: python` or `type: custom_datasource`) imports local helper
+modules, LHP copies the **whole transitive closure** of local helpers into
+`custom_python_functions/`, **preserving sub-package structure**. The directory holding the
+entry file is the **import root**.
+
+- **Rule A:** the import root must NOT itself be a package (no `__init__.py` at its top) →
+  else `LHP-VAL-023`. Keep the entry flat; put helpers in a sub-directory.
+- **Rule B:** a referenced helper **package is copied in full** (every `.py` under it),
+  structure preserved.
+- **Import rewrite:** absolute-local imports are prefix-rewritten
+  (`from helpers.x import y` → `from custom_python_functions.helpers.x import y`, aliases
+  kept); **relative imports (`from .x import y`) are preserved unchanged**; external/stdlib
+  imports untouched.
+- **`import helpers.x` (plain dotted local) → `LHP-VAL-024`** (use `from helpers.x import ...`).
+- Missing local helper → `LHP-VAL-025`; a broken sibling inside a copied package →
+  `LHP-IO-003` at generate time.

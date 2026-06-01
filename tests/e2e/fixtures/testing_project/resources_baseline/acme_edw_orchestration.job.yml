@@ -46,6 +46,10 @@ resources:
           pipeline_task:
             pipeline_id: ${resources.pipelines.custom_datasource_pipeline.id}
             full_refresh: false
+        - task_key: helper_imports_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.helper_imports_pipeline.id}
+            full_refresh: false
         - task_key: kafka_sample_pipeline_pipeline
           pipeline_task:
             pipeline_id: ${resources.pipelines.kafka_sample_pipeline_pipeline.id}

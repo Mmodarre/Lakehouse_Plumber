@@ -82,6 +82,19 @@ Transform actions manipulate data between views — SQL queries, Python function
 - Copied files include "DO NOT EDIT" warning headers
 - Substitution variables supported in Python files
 - Always edit originals, never the copied files
+- `module_path` is relative to the **project root**
+
+**Local helper imports:** when an entry module imports local helpers, LHP copies the whole
+transitive closure into `custom_python_functions/`, **preserving sub-package structure**
+(e.g. `custom_python_functions/helpers/date_change.py`). The directory holding the entry is
+the **import root**.
+- **Rule A:** import root must NOT be a package (no `__init__.py` at its top) → `LHP-VAL-023`.
+- **Rule B:** a referenced helper **package is copied in full**, structure preserved.
+- **Rewrite:** absolute-local imports prefix-rewritten (`from helpers.x import y` →
+  `from custom_python_functions.helpers.x import y`); **relative imports (`from .x import y`)
+  preserved unchanged**; external/stdlib untouched.
+- `import helpers.x` (plain dotted local) → `LHP-VAL-024` (use `from helpers.x import ...`);
+  missing helper → `LHP-VAL-025`; broken sibling in a copied package → `LHP-IO-003`.
 
 ---
 
