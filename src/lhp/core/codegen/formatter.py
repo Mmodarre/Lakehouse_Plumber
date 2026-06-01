@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from ...errors import ErrorCategory, LHPConfigError
-from ...utils.performance_timer import perf_timer
 
 
 def _read_black_config() -> Dict[str, Any]:
@@ -337,22 +336,6 @@ class CodeFormatter:
                 indented_lines.append(" " * indent + line.strip())
 
         return "\n".join(indented_lines)
-
-
-def format_code(code: str, line_length: Optional[int] = None) -> str:
-    """Convenience function to format code.
-
-    Args:
-        code: Python code to format
-        line_length: Maximum line length (if None, reads from pyproject.toml)
-
-    Returns:
-        Formatted code
-    """
-    with perf_timer("CodeFormatter.__init__", category="formatter_init"):
-        formatter = CodeFormatter()
-    with perf_timer("CodeFormatter.format_code", category="black_format"):
-        return formatter.format_code(code, line_length)
 
 
 def organize_imports(code: str) -> str:

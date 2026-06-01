@@ -3,7 +3,7 @@
 import traceback
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple
 
 if TYPE_CHECKING:
     from lhp.errors import LHPError
@@ -159,6 +159,9 @@ class FlowgroupOutcome:
     ``(path, content)``): dropping it would silently lose the monitoring
     flowgroup's extra modules across the process boundary.
 
+    ``perf`` is an optional in-worker timing/event-export payload attached
+    later by the worker pool (via ``dataclasses.replace``); ``None`` by default.
+
     ``frozen=True, slots=True`` for immutability across the spawn boundary
     and a smaller per-instance footprint (no per-instance ``__dict__``).
     """
@@ -172,6 +175,7 @@ class FlowgroupOutcome:
     copy_records: Tuple[CopiedModuleRecord, ...] = ()
     lhp_error: Optional["LHPError"] = None
     errors: Tuple[str, ...] = ()
+    perf: Optional[Dict[str, Any]] = None
 
     @classmethod
     def ok(

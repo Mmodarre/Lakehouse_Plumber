@@ -97,7 +97,7 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
 
         # Resolve local variables FIRST (before templates)
         if flowgroup.variables:
-            with perf_timer(f"local_vars [{fg}]"):
+            with perf_timer(f"local_vars [{fg}]", category="local_vars"):
                 self.logger.debug(
                     f"Resolving {len(flowgroup.variables)} local variable(s): {list(flowgroup.variables.keys())}"
                 )
@@ -110,7 +110,7 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
                 flowgroup = FlowGroup(**resolved_dict)
 
         if flowgroup.use_template:
-            with perf_timer(f"template_expand [{fg}]"):
+            with perf_timer(f"template_expand [{fg}]", category="template_expand"):
                 self.logger.debug(
                     f"Expanding template '{flowgroup.use_template}' with parameters: {list((flowgroup.template_parameters or {}).keys())}"
                 )
@@ -145,7 +145,9 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
         if flowgroup.use_template:
             # Apply template-level presets to template-generated actions
             if template and template.presets:
-                with perf_timer(f"template_presets [{fg}]"):
+                with perf_timer(
+                    f"template_presets [{fg}]", category="template_presets"
+                ):
                     self.logger.debug(f"Applying template presets: {template.presets}")
                     template_preset_config = self.preset_manager.resolve_preset_chain(
                         template.presets
@@ -156,7 +158,7 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
 
         # Apply flowgroup-level presets (may override template presets)
         if flowgroup.presets:
-            with perf_timer(f"fg_presets [{fg}]"):
+            with perf_timer(f"fg_presets [{fg}]", category="fg_presets"):
                 self.logger.debug(
                     f"Applying flowgroup-level presets: {flowgroup.presets}"
                 )
@@ -165,7 +167,7 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
                 )
                 flowgroup = self.apply_preset_config(flowgroup, preset_config)
 
-        with perf_timer(f"substitution [{fg}]"):
+        with perf_timer(f"substitution [{fg}]", category="substitution"):
             self.logger.debug(
                 f"Applying environment substitutions for env '{substitution_mgr.env}'"
             )
@@ -173,7 +175,7 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
             substituted_dict = substitution_mgr.substitute_yaml(flowgroup_dict)
 
         # Validate no unresolved tokens (skip if validation disabled)
-        with perf_timer(f"token_validation [{fg}]"):
+        with perf_timer(f"token_validation [{fg}]", category="token_validation"):
             if not substitution_mgr.skip_validation:
                 validation_errors = substitution_mgr.validate_no_unresolved_tokens(
                     substituted_dict
@@ -204,7 +206,7 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
 
         # Normalize legacy 'database' fields to catalog/schema
         # REMOVE_AT_V1.0.0: Remove this import + call when database field is dropped
-        with perf_timer(f"namespace_normalize [{fg}]"):
+        with perf_timer(f"namespace_normalize [{fg}]", category="namespace_normalize"):
             from .namespace_normalizer import normalize_namespace_fields
 
             substituted_dict = normalize_namespace_fields(substituted_dict)
@@ -217,7 +219,7 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
             self.logger.debug(
                 f"Validating processed flowgroup '{processed_flowgroup.flowgroup}'"
             )
-            with perf_timer(f"fg_validation [{fg}]"):
+            with perf_timer(f"fg_validation [{fg}]", category="fg_validation"):
                 try:
                     errors = self.config_validator.validate_flowgroup(
                         processed_flowgroup
@@ -244,7 +246,7 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
                     # Re-raise LHPError as-is (it's already well-formatted)
                     raise
 
-        with perf_timer(f"secret_validation [{fg}]"):
+        with perf_timer(f"secret_validation [{fg}]", category="secret_validation"):
             secret_errors = self.secret_validator.validate_secret_references(
                 substitution_mgr.secret_references
             )

@@ -145,7 +145,9 @@ class CodeGenerationService(BaseCodeGenerationService):
             f"Starting code generation for flowgroup '{fg}' in pipeline '{flowgroup.pipeline}'"
         )
 
-        with perf_timer(f"resolve_dependencies [{fg}]"):
+        with perf_timer(
+            f"resolve_dependencies [{fg}]", category="resolve_dependencies"
+        ):
             ordered_actions = self.dependency_resolver.resolve_dependencies(
                 flowgroup.actions
             )
@@ -170,7 +172,9 @@ class CodeGenerationService(BaseCodeGenerationService):
                 )
                 return ""
 
-        with perf_timer(f"generate_action_sections [{fg}]"):
+        with perf_timer(
+            f"generate_action_sections [{fg}]", category="generate_action_sections"
+        ):
             (
                 generated_sections,
                 all_imports,
@@ -192,7 +196,7 @@ class CodeGenerationService(BaseCodeGenerationService):
         # templates can naively wrap values in Python string literals; the
         # post-pass rewrites whole-string placeholders to bare
         # ``dbutils.secrets.get(...)`` calls and embedded ones to f-strings.
-        with perf_timer(f"assemble_code [{fg}]"):
+        with perf_timer(f"assemble_code [{fg}]", category="assemble_code"):
             complete_code = self._secrets.apply(generated_sections, substitution_mgr)
             return self._assembler.assemble(
                 flowgroup,

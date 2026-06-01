@@ -33,6 +33,8 @@ class PerfSummary:
         self._counts: dict[str, int] = {}
         # Phases that nest inside another phase; excluded from %/total math.
         self._sub_phase_timings: dict[str, list[tuple[str, float]]] = {}
+        # Accumulating event counters (contrast with _counts, which overwrites).
+        self._event_counts: dict[str, int] = {}
 
     def record(self, category: str, duration: float) -> None:
         """Record a duration for a named category (thread-safe)."""
@@ -63,6 +65,41 @@ class PerfSummary:
         with self._lock:
             self._counts[name] = value
 
+    def incr_event(self, name: str, n: int = 1) -> None:
+        """Accumulate an event counter by ``n`` (thread-safe).
+
+        Contrast with :meth:`record_count`, which SETS/overwrites the value.
+        Event counters add, so repeated calls aggregate across the run.
+        """
+        with self._lock:
+            self._event_counts[name] = self._event_counts.get(name, 0) + n
+
+    def export_for_merge(self) -> dict:
+        """Return a picklable, detached copy of timings and event counts.
+
+        Intended for shipping a worker's metrics back to a coordinator for
+        merging. Phases / sub-phases are EXCLUDED (coordinator-owned). The
+        returned collections are copies, so the result is pickle-safe and
+        does not alias internal state.
+        """
+        with self._lock:
+            return {
+                "timings": {k: list(v) for k, v in self._timings.items()},
+                "events": dict(self._event_counts),
+            }
+
+    def merge(self, payload: dict) -> None:
+        """Merge a payload produced by :meth:`export_for_merge` (thread-safe).
+
+        Per-category durations are extended; event counters accumulate.
+        Defensive about missing ``timings`` / ``events`` keys.
+        """
+        with self._lock:
+            for cat, durs in payload.get("timings", {}).items():
+                self._timings.setdefault(cat, []).extend(durs)
+            for name, value in payload.get("events", {}).items():
+                self._event_counts[name] = self._event_counts.get(name, 0) + value
+
     def reset(self) -> None:
         """Clear all collected timings."""
         with self._lock:
@@ -70,6 +107,7 @@ class PerfSummary:
             self._phase_timings.clear()
             self._counts.clear()
             self._sub_phase_timings.clear()
+            self._event_counts.clear()
 
     def log_summary(self) -> None:
         """Log the aggregated summary at INFO level to perf logger."""
@@ -88,6 +126,7 @@ class PerfSummary:
             timings = {k: list(v) for k, v in self._timings.items()}
             counts = dict(self._counts)
             sub_phase_timings = {k: list(v) for k, v in self._sub_phase_timings.items()}
+            event_counts = dict(self._event_counts)
 
         # Project shape (counts)
         if counts:
@@ -122,6 +161,12 @@ class PerfSummary:
                     f"[PERF]   {category:<22s} cnt={cnt:<4d} "
                     f"avg={avg:.3f}s  min={mn:.3f}s  max={mx:.3f}s  total={total:>7.2f}s"
                 )
+
+        # Event counters (accumulating)
+        if event_counts:
+            lines.append("[PERF] Event counts:")
+            for name in sorted(event_counts):
+                lines.append(f"[PERF]   {name:<35s} {event_counts[name]:>8d}")
 
         lines.append("[PERF] =============================================")
 
@@ -281,6 +326,32 @@ def record_count(name: str, value: int) -> None:
     """
     if _enabled:
         _summary.record_count(name, value)
+
+
+def incr_event(name: str, n: int = 1) -> None:
+    """Accumulate an event counter by ``n`` in the perf summary.
+
+    No-op when ``--perf`` is disabled. Unlike ``record_count`` (which
+    overwrites), event counters add, so repeated calls aggregate.
+    """
+    if _enabled:
+        _summary.incr_event(name, n)
+
+
+def export_perf_for_merge() -> dict:
+    """Return a picklable copy of timings and event counts for merging.
+
+    See ``PerfSummary.export_for_merge`` for the dict shape. Always callable;
+    returns empty collections (``{"timings": {}, "events": {}}``) when perf
+    timing is disabled.
+    """
+    return _summary.export_for_merge()
+
+
+def merge_perf(payload: Optional[dict]) -> None:
+    """Merge a payload produced by ``export_perf_for_merge`` into the summary."""
+    if payload:
+        _summary.merge(payload)
 
 
 def get_perf_summary() -> dict:

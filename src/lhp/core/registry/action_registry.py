@@ -16,6 +16,7 @@ from ...errors import (
     ErrorFormatter,
     LHPValidationError,
 )
+from ...utils.performance_timer import perf_timer
 
 logger = logging.getLogger(__name__)
 
@@ -75,31 +76,34 @@ class ActionRegistry:
         self, action_type: ActionType, sub_type: str | None = None
     ) -> BaseActionGenerator:
         """Implement generator factory method."""
-        logger.debug(
-            f"Looking up generator for action_type={action_type}, sub_type={sub_type}"
-        )
-        # Add error handling and validation
-        if not isinstance(action_type, ActionType):
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="009",
-                title="Invalid action type",
-                details=f"Invalid action type: {action_type}. Must be an ActionType enum.",
-                suggestions=[
-                    f"Use one of the valid ActionType values: {[t.value for t in ActionType]}",
-                    "Check that the 'type' field in your action configuration is correct",
-                ],
-                context={"Provided": str(action_type)},
+        with perf_timer(
+            f"get_generator [{action_type}/{sub_type}]", category="get_generator"
+        ):
+            logger.debug(
+                f"Looking up generator for action_type={action_type}, sub_type={sub_type}"
             )
+            # Add error handling and validation
+            if not isinstance(action_type, ActionType):
+                raise LHPValidationError(
+                    category=ErrorCategory.VALIDATION,
+                    code_number="009",
+                    title="Invalid action type",
+                    details=f"Invalid action type: {action_type}. Must be an ActionType enum.",
+                    suggestions=[
+                        f"Use one of the valid ActionType values: {[t.value for t in ActionType]}",
+                        "Check that the 'type' field in your action configuration is correct",
+                    ],
+                    context={"Provided": str(action_type)},
+                )
 
-        if action_type == ActionType.LOAD:
-            if not sub_type:
-                raise ErrorFormatter.missing_required_field(
-                    field_name="sub_type",
-                    component_type="action",
-                    component_name="load action",
-                    field_description="Load actions require a sub_type to determine the data source.",
-                    example_config="""actions:
+            if action_type == ActionType.LOAD:
+                if not sub_type:
+                    raise ErrorFormatter.missing_required_field(
+                        field_name="sub_type",
+                        component_type="action",
+                        component_name="load action",
+                        field_description="Load actions require a sub_type to determine the data source.",
+                        example_config="""actions:
   - name: load_data
     type: load
     sub_type: cloudfiles  # Required for load actions
@@ -107,19 +111,19 @@ class ActionRegistry:
     source:
       type: cloudfiles
       path: /path/to/files""",
-                )
+                    )
 
-            # Convert string to enum if needed
-            if isinstance(sub_type, str):
-                try:
-                    sub_type = LoadSourceType(sub_type)
-                except ValueError as e:
-                    valid_types = [t.value for t in LoadSourceType]
-                    raise ErrorFormatter.unknown_type_with_suggestion(
-                        value_type="load sub_type",
-                        provided_value=sub_type,
-                        valid_values=valid_types,
-                        example_usage="""actions:
+                # Convert string to enum if needed
+                if isinstance(sub_type, str):
+                    try:
+                        sub_type = LoadSourceType(sub_type)
+                    except ValueError as e:
+                        valid_types = [t.value for t in LoadSourceType]
+                        raise ErrorFormatter.unknown_type_with_suggestion(
+                            value_type="load sub_type",
+                            provided_value=sub_type,
+                            valid_values=valid_types,
+                            example_usage="""actions:
   - name: load_csv_files
     type: load
     sub_type: cloudfiles  # ← Valid sub_type
@@ -128,33 +132,33 @@ class ActionRegistry:
       type: cloudfiles
       path: /path/to/files/*.csv
       format: csv""",
-                    ) from e
+                        ) from e
 
-            if sub_type not in self._load_generators:
-                raise LHPValidationError(
-                    category=ErrorCategory.ACTION,
-                    code_number="001",
-                    title=f"No generator for load type: {sub_type}",
-                    details=f"No generator is registered for load type '{sub_type}'.",
-                    suggestions=[
-                        f"Use a valid load sub_type: {[t.value for t in self._load_generators.keys()]}",
-                    ],
-                    context={"Sub Type": str(sub_type)},
+                if sub_type not in self._load_generators:
+                    raise LHPValidationError(
+                        category=ErrorCategory.ACTION,
+                        code_number="001",
+                        title=f"No generator for load type: {sub_type}",
+                        details=f"No generator is registered for load type '{sub_type}'.",
+                        suggestions=[
+                            f"Use a valid load sub_type: {[t.value for t in self._load_generators.keys()]}",
+                        ],
+                        context={"Sub Type": str(sub_type)},
+                    )
+
+                logger.debug(
+                    f"Resolved load generator: {self._load_generators[sub_type].__name__}"
                 )
+                return self._load_generators[sub_type]()
 
-            logger.debug(
-                f"Resolved load generator: {self._load_generators[sub_type].__name__}"
-            )
-            return self._load_generators[sub_type]()
-
-        elif action_type == ActionType.TRANSFORM:
-            if not sub_type:
-                raise ErrorFormatter.missing_required_field(
-                    field_name="sub_type",
-                    component_type="action",
-                    component_name="transform action",
-                    field_description="Transform actions require a sub_type to determine the transform method.",
-                    example_config="""actions:
+            elif action_type == ActionType.TRANSFORM:
+                if not sub_type:
+                    raise ErrorFormatter.missing_required_field(
+                        field_name="sub_type",
+                        component_type="action",
+                        component_name="transform action",
+                        field_description="Transform actions require a sub_type to determine the transform method.",
+                        example_config="""actions:
   - name: transform_data
     type: transform
     sub_type: sql  # Required for transform actions
@@ -162,19 +166,19 @@ class ActionRegistry:
     target: v_transformed_data
     sql: |
       SELECT * FROM $source""",
-                )
+                    )
 
-            # Convert string to enum if needed
-            if isinstance(sub_type, str):
-                try:
-                    sub_type = TransformType(sub_type)
-                except ValueError as e:
-                    valid_types = [t.value for t in TransformType]
-                    raise ErrorFormatter.unknown_type_with_suggestion(
-                        value_type="transform sub_type",
-                        provided_value=sub_type,
-                        valid_values=valid_types,
-                        example_usage="""actions:
+                # Convert string to enum if needed
+                if isinstance(sub_type, str):
+                    try:
+                        sub_type = TransformType(sub_type)
+                    except ValueError as e:
+                        valid_types = [t.value for t in TransformType]
+                        raise ErrorFormatter.unknown_type_with_suggestion(
+                            value_type="transform sub_type",
+                            provided_value=sub_type,
+                            valid_values=valid_types,
+                            example_usage="""actions:
   - name: transform_data
     type: transform
     sub_type: sql  # ← Valid sub_type
@@ -182,33 +186,33 @@ class ActionRegistry:
     target: v_transformed_data
     sql: |
       SELECT * FROM $source WHERE active = true""",
-                    ) from e
+                        ) from e
 
-            if sub_type not in self._transform_generators:
-                raise LHPValidationError(
-                    category=ErrorCategory.ACTION,
-                    code_number="001",
-                    title=f"No generator for transform type: {sub_type}",
-                    details=f"No generator is registered for transform type '{sub_type}'.",
-                    suggestions=[
-                        f"Use a valid transform sub_type: {[t.value for t in self._transform_generators.keys()]}",
-                    ],
-                    context={"Sub Type": str(sub_type)},
+                if sub_type not in self._transform_generators:
+                    raise LHPValidationError(
+                        category=ErrorCategory.ACTION,
+                        code_number="001",
+                        title=f"No generator for transform type: {sub_type}",
+                        details=f"No generator is registered for transform type '{sub_type}'.",
+                        suggestions=[
+                            f"Use a valid transform sub_type: {[t.value for t in self._transform_generators.keys()]}",
+                        ],
+                        context={"Sub Type": str(sub_type)},
+                    )
+
+                logger.debug(
+                    f"Resolved transform generator: {self._transform_generators[sub_type].__name__}"
                 )
+                return self._transform_generators[sub_type]()
 
-            logger.debug(
-                f"Resolved transform generator: {self._transform_generators[sub_type].__name__}"
-            )
-            return self._transform_generators[sub_type]()
-
-        elif action_type == ActionType.WRITE:
-            if not sub_type:
-                raise ErrorFormatter.missing_required_field(
-                    field_name="sub_type",
-                    component_type="action",
-                    component_name="write action",
-                    field_description="Write actions require a sub_type to determine the target type.",
-                    example_config="""actions:
+            elif action_type == ActionType.WRITE:
+                if not sub_type:
+                    raise ErrorFormatter.missing_required_field(
+                        field_name="sub_type",
+                        component_type="action",
+                        component_name="write action",
+                        field_description="Write actions require a sub_type to determine the target type.",
+                        example_config="""actions:
   - name: write_to_table
     type: write
     sub_type: streaming_table  # Required for write actions
@@ -218,19 +222,19 @@ class ActionRegistry:
       catalog: my_catalog
       schema: my_schema
       table: my_table""",
-                )
+                    )
 
-            # Convert string to enum if needed
-            if isinstance(sub_type, str):
-                try:
-                    sub_type = WriteTargetType(sub_type)
-                except ValueError as e:
-                    valid_types = [t.value for t in WriteTargetType]
-                    raise ErrorFormatter.unknown_type_with_suggestion(
-                        value_type="write sub_type",
-                        provided_value=sub_type,
-                        valid_values=valid_types,
-                        example_usage="""actions:
+                # Convert string to enum if needed
+                if isinstance(sub_type, str):
+                    try:
+                        sub_type = WriteTargetType(sub_type)
+                    except ValueError as e:
+                        valid_types = [t.value for t in WriteTargetType]
+                        raise ErrorFormatter.unknown_type_with_suggestion(
+                            value_type="write sub_type",
+                            provided_value=sub_type,
+                            valid_values=valid_types,
+                            example_usage="""actions:
   - name: write_to_table
     type: write
     sub_type: streaming_table  # ← Valid sub_type
@@ -240,75 +244,75 @@ class ActionRegistry:
       catalog: my_catalog
       schema: my_schema
       table: my_table""",
-                    ) from e
+                        ) from e
 
-            if sub_type not in self._write_generators:
-                raise LHPValidationError(
-                    category=ErrorCategory.ACTION,
-                    code_number="001",
-                    title=f"No generator for write type: {sub_type}",
-                    details=f"No generator is registered for write type '{sub_type}'.",
-                    suggestions=[
-                        f"Use a valid write sub_type: {[t.value for t in self._write_generators.keys()]}",
-                    ],
-                    context={"Sub Type": str(sub_type)},
+                if sub_type not in self._write_generators:
+                    raise LHPValidationError(
+                        category=ErrorCategory.ACTION,
+                        code_number="001",
+                        title=f"No generator for write type: {sub_type}",
+                        details=f"No generator is registered for write type '{sub_type}'.",
+                        suggestions=[
+                            f"Use a valid write sub_type: {[t.value for t in self._write_generators.keys()]}",
+                        ],
+                        context={"Sub Type": str(sub_type)},
+                    )
+
+                logger.debug(
+                    f"Resolved write generator: {self._write_generators[sub_type].__name__}"
                 )
+                return self._write_generators[sub_type]()
 
-            logger.debug(
-                f"Resolved write generator: {self._write_generators[sub_type].__name__}"
-            )
-            return self._write_generators[sub_type]()
+            elif action_type == ActionType.TEST:
+                # For test actions, sub_type is the test_type
+                if not sub_type:
+                    # Default to a basic test type if not specified
+                    sub_type = "row_count"
 
-        elif action_type == ActionType.TEST:
-            # For test actions, sub_type is the test_type
-            if not sub_type:
-                # Default to a basic test type if not specified
-                sub_type = "row_count"
-
-            # Convert string to enum if needed
-            if isinstance(sub_type, str):
-                try:
-                    sub_type = TestActionType(sub_type)
-                except ValueError as e:
-                    valid_types = [t.value for t in TestActionType]
-                    raise ErrorFormatter.unknown_type_with_suggestion(
-                        value_type="test_type",
-                        provided_value=sub_type,
-                        valid_values=valid_types,
-                        example_usage="""actions:
+                # Convert string to enum if needed
+                if isinstance(sub_type, str):
+                    try:
+                        sub_type = TestActionType(sub_type)
+                    except ValueError as e:
+                        valid_types = [t.value for t in TestActionType]
+                        raise ErrorFormatter.unknown_type_with_suggestion(
+                            value_type="test_type",
+                            provided_value=sub_type,
+                            valid_values=valid_types,
+                            example_usage="""actions:
   - name: test_row_count
     type: test
     test_type: row_count  # ← Valid test_type
     source: [v_source, v_target]
     on_violation: fail""",
-                    ) from e
+                        ) from e
 
-            if sub_type not in self._test_generators:
-                raise LHPValidationError(
-                    category=ErrorCategory.ACTION,
-                    code_number="001",
-                    title=f"No generator for test type: {sub_type}",
-                    details=f"No generator is registered for test type '{sub_type}'.",
-                    suggestions=[
-                        f"Use a valid test type: {[t.value for t in self._test_generators.keys()]}",
-                    ],
-                    context={"Sub Type": str(sub_type)},
+                if sub_type not in self._test_generators:
+                    raise LHPValidationError(
+                        category=ErrorCategory.ACTION,
+                        code_number="001",
+                        title=f"No generator for test type: {sub_type}",
+                        details=f"No generator is registered for test type '{sub_type}'.",
+                        suggestions=[
+                            f"Use a valid test type: {[t.value for t in self._test_generators.keys()]}",
+                        ],
+                        context={"Sub Type": str(sub_type)},
+                    )
+
+                logger.debug(
+                    f"Resolved test generator: {self._test_generators[sub_type].__name__}"
                 )
+                return self._test_generators[sub_type]()
 
-            logger.debug(
-                f"Resolved test generator: {self._test_generators[sub_type].__name__}"
-            )
-            return self._test_generators[sub_type]()
-
-        else:
-            raise ErrorFormatter.unknown_type_with_suggestion(
-                value_type="action type",
-                provided_value=str(action_type),
-                valid_values=[t.value for t in ActionType],
-                example_usage="""actions:
+            else:
+                raise ErrorFormatter.unknown_type_with_suggestion(
+                    value_type="action type",
+                    provided_value=str(action_type),
+                    valid_values=[t.value for t in ActionType],
+                    example_usage="""actions:
   - name: my_action
     type: load  # Valid types: load, transform, write, test""",
-            )
+                )
 
     def list_generators(self) -> Dict[str, list]:
         """List all available generators."""

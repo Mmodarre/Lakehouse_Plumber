@@ -10,7 +10,6 @@ import pytest
 from lhp.core.codegen.formatter import (
     CodeFormatter,
     _read_black_config,
-    format_code,
     format_sql,
     organize_imports,
 )
@@ -334,18 +333,6 @@ class TestReadBlackConfig:
 
 class TestConvenienceFunctions:
     """Tests for module-level convenience functions."""
-
-    def test_format_code_delegates_to_formatter(self):
-        """format_code() creates a CodeFormatter and calls format_code."""
-        result = format_code("x=1\n")
-        assert "x" in result
-        # Black should produce "x = 1\n" if available
-        assert "=" in result
-
-    def test_format_code_with_line_length(self):
-        """format_code() passes line_length through."""
-        result = format_code("x = 1\n", line_length=120)
-        assert "x" in result
 
     def test_organize_imports_delegates_to_formatter(self):
         """organize_imports() creates a CodeFormatter and organizes imports."""

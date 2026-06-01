@@ -2,20 +2,11 @@
 
 import pytest
 
-from lhp.core.codegen.formatter import format_code, format_sql, organize_imports
+from lhp.core.codegen.formatter import format_sql, organize_imports
 
 
 class TestCodeFormatter:
     """Test code formatting utilities."""
-
-    def test_format_code(self):
-        """Test Python code formatting."""
-        unformatted = """def hello(  name   ):
-    return    f"Hello {name}"
-"""
-        formatted = format_code(unformatted)
-        assert "def hello(name):" in formatted
-        assert '    return f"Hello {name}"' in formatted
 
     def test_organize_imports(self):
         """Test import organization."""

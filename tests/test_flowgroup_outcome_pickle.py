@@ -25,6 +25,7 @@ classes, not assumed):
 """
 
 import pickle
+from dataclasses import FrozenInstanceError, replace
 from pathlib import Path
 
 import pytest
@@ -250,6 +251,38 @@ class TestFlowgroupOutcomePickle:
         _assert_scaffold_preserved(restored, outcome)
         assert restored.success is False
         assert restored.errors == ("unknown error",)
+
+    def test_outcome_with_perf_payload_round_trips_by_value(self):
+        """Case 7: an outcome carrying a populated ``perf`` payload (the
+        optional in-worker timing/event-export dict attached by the worker
+        pool via ``dataclasses.replace``) round-trips under whole-object
+        ``==``, preserves the dict verbatim, and stays frozen."""
+        perf = {
+            "timings": {"resolve_dependencies": [0.1, 0.2]},
+            "events": {"snapshot_sigcache_hit": 2},
+        }
+        base = FlowgroupOutcome.ok(
+            "pipe_a",
+            "fg_a",
+            resolved_flowgroup=_make_flowgroup(),
+            formatted_code="import dlt\n",
+        )
+        outcome = replace(base, perf=perf)
+
+        # Sanity: the payload landed on the field before we pickle.
+        assert outcome.perf == perf
+
+        restored = _round_trip(outcome)
+
+        # Whole-object equality holds: a plain dict compares by value.
+        assert restored == outcome
+        _assert_scaffold_preserved(restored, outcome)
+        assert restored.perf == outcome.perf
+        assert restored.perf == perf
+
+        # Frozenness is preserved across the round-trip.
+        with pytest.raises(FrozenInstanceError):
+            restored.perf = {"mutated": True}
 
 
 if __name__ == "__main__":  # pragma: no cover

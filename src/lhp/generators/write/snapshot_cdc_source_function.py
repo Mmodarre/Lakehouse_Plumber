@@ -31,6 +31,7 @@ from typing import Any, Dict, NamedTuple, Optional
 
 from ...core.loaders.external_file_loader import resolve_external_file_path
 from ...errors import ErrorCategory, LHPError
+from ...utils.performance_timer import incr_event
 
 logger = logging.getLogger(__name__)
 
@@ -141,9 +142,16 @@ def resolve_source_function(
         signature = signature_cache.get(cache_key)
 
     if signature is None:
+        # MISS: a parse is about to run (fires even when there is no cache).
+        incr_event("snapshot_sigcache_miss")
         signature = _extract_function_signature(resolved_path, file_name, function_name)
         if signature_cache is not None:
             signature_cache[cache_key] = signature
+    elif signature_cache is not None:
+        # HIT: a populated cache actually returned a signature. Guarded on
+        # both conditions (not a blanket else) so a "no cache" path that
+        # somehow produced a signature would not be miscounted as a hit.
+        incr_event("snapshot_sigcache_hit")
 
     # Validate THIS flowgroup's parameters against the cached signature.
     if parameters:

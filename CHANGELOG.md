@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Parallel-worker performance instrumentation — propagated per-category timers + event counts
+
+**Summary.** Instrumentation-only change that makes the parallel
+flowgroup-processing path observable under `--perf`. Spawn-context workers now
+export their per-category timings and event counts back to the parent process,
+where they are merged into the single coordinator `PerfSummary` so `lhp generate
+--perf` reports the *aggregate* worker cost rather than only parent-process
+spans. This is **output-neutral**: generated pipeline code, file hashes, and CLI
+behavior with `--perf` off are byte-for-byte unchanged — only the `--perf`
+summary gains rows. No optimization is performed here; this change exists to
+**measure** so the actual tuning work can be driven by real numbers.
+
+**Added.**
+
+- **Worker-to-parent perf propagation.** Each spawned worker exports a picklable
+  perf payload (`export_perf_for_merge` / `PerfSummary.export_for_merge`) on its
+  `FlowgroupOutcome`; the coordinator merges it (`merge_perf` /
+  `PerfSummary.merge`) as outcomes complete. Per-category timers now surface from
+  inside workers: `resolve_dependencies`, `assemble_code`,
+  `generate_action_sections`, `get_generator`, `jinja_render`, `preset_resolve`,
+  `schema_parse`, and `black_format`.
+- **New `Event counts:` block in the perf summary.** Counter events
+  (`incr_event` / `PerfSummary._event_counts`) are exported and merged alongside
+  timers. The first counters wired in are `snapshot_sigcache_hit` and
+  `snapshot_sigcache_miss`, exposing the snapshot-CDC source-function signature
+  cache hit/miss ratio.
+- **`FlowgroupOutcome.perf`** — an optional, picklable in-worker
+  timing/event-export payload (`Optional[Dict[str, Any]]`) carried back on the
+  result DTO; `None` when `--perf` is off (merge is then a no-op).
+
+**Removed.**
+
+- **Dead module-level `format_code` convenience function** in
+  `core/codegen/formatter.py`. It had zero `src/` callers; the live
+  `CodeFormatter.format_code` *method* is unchanged. Subtractive — reduces
+  surface, no behavior change.
+
+**Out of scope (follow-up, driven by these numbers).** The actual
+optimizations the instrumentation is meant to inform are **separate** work and
+are intentionally **not** included here: worker-count tuning, generator-instance
+and Jinja `Environment` reuse across flowgroups, preset-resolution memoization,
+and schema-parse caching. They will be sized and prioritized from the timings
+and hit/miss counts this change now produces.
+
+**Tests.** New `tests/test_generate_perf_propagation.py` (worker→parent perf
+merge on the generate path) and `tests/test_schema_transform_perf.py`
+(`schema_parse` timer), plus extensions to the perf-timer, formatter, snapshot
+source-function, and outcome-pickle suites. The T1 perf-timer unit tests were
+added to the existing `tests/unit/test_performance_timer.py` rather than a
+strict §8.2 mirror path (`tests/utils/...`), because neither that nor
+`tests/unit/utils/` exists — extending the existing file is the lower-risk
+choice per §10.4 (inherited test-layout debt).
+
 ### Eliminate inspection-path facade reach-throughs
 
 **Summary.** `lhp stats --pipeline <X>` (and any other filtered

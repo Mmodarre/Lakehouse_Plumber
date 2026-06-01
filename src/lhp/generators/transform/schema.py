@@ -9,6 +9,7 @@ from ...core.registry import BaseActionGenerator
 from ...errors import ErrorCategory, ErrorFormatter, LHPValidationError
 from lhp.models import Action
 from ...parsers.schema_transform_parser import SchemaTransformParser
+from ...utils.performance_timer import perf_timer
 
 logger = logging.getLogger(__name__)
 
@@ -241,4 +242,5 @@ enforcement: permissive  # Keep all columns, apply transforms""",
         )
 
         # Parse the schema file
-        return self.schema_parser.parse_file(resolved_path)
+        with perf_timer(f"schema_parse [{schema_file_path}]", category="schema_parse"):
+            return self.schema_parser.parse_file(resolved_path)

@@ -47,7 +47,7 @@ from typing import TYPE_CHECKING, Dict, List, Mapping, NamedTuple, Sequence, Tup
 from lhp.models import FlowGroupContext
 
 from ...models.processing import FlowgroupOutcome
-from ...utils.performance_timer import perf_timer
+from ...utils.performance_timer import is_perf_enabled, merge_perf, perf_timer
 from ._cross_flowgroup_issues import build_cross_flowgroup_issues
 from ._flowgroup_pool import (
     WorkerMode,
@@ -251,6 +251,7 @@ def _run_flowgroup_pool_core(
         workers = min(max(1, max_workers), len(worklist))
         ctx_mp = multiprocessing.get_context("spawn")
         parent_level = logging.getLogger().level
+        perf_on = is_perf_enabled()
         with (
             perf_timer(
                 f"flowgroup_flat_pool [{len(worklist)} flowgroups, "
@@ -260,7 +261,7 @@ def _run_flowgroup_pool_core(
                 max_workers=workers,
                 mp_context=ctx_mp,
                 initializer=_init_flowgroup_worker,
-                initargs=(parent_level, worker_state),
+                initargs=(parent_level, worker_state, perf_on),
             ) as executor,
         ):
             future_to_key: Dict[Future, Tuple[str, FlowGroupContext]] = {}
@@ -305,6 +306,13 @@ def _run_flowgroup_pool_core(
                         fg_name,
                         errors=(f"Flowgroup '{fg_name}': {exc}",),
                     )
+
+                # Merge the worker's perf payload into the coordinator
+                # singleton (no-op when --perf is off / payload is None).
+                # Only the normal as_completed path carries worker perf; the
+                # submit-failure outcome above is coordinator-constructed with
+                # perf=None, so merging it would be a redundant no-op.
+                merge_perf(outcome.perf)
 
                 bucket = progress[pipeline]
                 bucket.results.append(outcome)

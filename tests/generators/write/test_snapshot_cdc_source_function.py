@@ -274,6 +274,74 @@ class TestSyntaxAndMissingFunction:
         assert exc_info.value.code_number == "004"
 
 
+class TestSignatureCacheEventCounters:
+    """The resolver increments perf event counters on cache miss / hit.
+
+    Instrumentation only: ``incr_event`` is a no-op unless perf timing is
+    enabled, so these counts are observable only inside an
+    ``enable_perf_timing`` window. The E2E fixture cannot prove a HIT (its
+    two snapshot-CDC flowgroups reference different source files, so each
+    is a miss), hence this focused in-process test.
+    """
+
+    @pytest.fixture
+    def _perf_window(self, tmp_path):
+        """Enable perf timing for the test and fully reset it afterward.
+
+        Mirrors the reset pattern in tests/unit/test_performance_timer.py so
+        the module-level singleton does not leak into other tests.
+        """
+        import lhp.utils.performance_timer as pt
+
+        pt._enabled = False
+        pt._start_wall_clock = None
+        pt._summary.reset()
+        for handler in pt._perf_logger.handlers[:]:
+            handler.close()
+            pt._perf_logger.removeHandler(handler)
+
+        pt.enable_perf_timing(tmp_path)
+        yield pt
+
+        pt._enabled = False
+        pt._start_wall_clock = None
+        pt._summary.reset()
+        for handler in pt._perf_logger.handlers[:]:
+            handler.close()
+            pt._perf_logger.removeHandler(handler)
+
+    def test_miss_then_hit_counts(self, _perf_window, tmp_path):
+        """Same file + shared cache: 1st call misses, 2nd call hits.
+
+        ``snapshot()`` (get_perf_summary) does not expose event counts; the
+        public inspection path for events is ``export_perf_for_merge``.
+        """
+        pt = _perf_window
+        body = "def my_func(latest, *, catalog):\n    return None\n"
+        file_name = _write_source(str(tmp_path), "funcs.py", body)
+
+        shared_cache: dict = {}
+        ctx = {
+            "project_root": Path(tmp_path),
+            "source_function_signature_cache": shared_cache,
+        }
+
+        # First call: cache empty -> MISS (parse runs, signature stored).
+        resolve_source_function(
+            {"file": file_name, "function": "my_func"},
+            context=ctx,
+        )
+        # Second call: same file, populated cache -> HIT (no parse).
+        resolve_source_function(
+            {"file": file_name, "function": "my_func"},
+            context=ctx,
+        )
+
+        events = pt.export_perf_for_merge()["events"]
+        assert events.get("snapshot_sigcache_miss") == 1
+        assert events.get("snapshot_sigcache_hit") == 1
+
+
 class TestValidateFunctionParametersDirect:
     """Direct unit tests for _validate_function_parameters on FunctionSignature."""
 

@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Union
 from lhp.models import Preset
 from ..parsers.yaml_parser import YAMLParser
 from ..errors import ErrorFormatter
+from ..utils.performance_timer import perf_timer
 
 logger = logging.getLogger(__name__)
 
@@ -34,13 +35,14 @@ class PresetManager:
 
     def resolve_preset_chain(self, preset_names: List[str]) -> Dict[str, Any]:
         """Resolve a chain of presets with inheritance."""
-        logger.debug(f"Resolving preset chain: {preset_names}")
-        resolved = {}
-        for preset_name in preset_names:
-            preset_config = self._resolve_preset_inheritance(preset_name)
-            resolved = self._deep_merge(resolved, preset_config)
-        logger.debug(f"Preset chain resolved with {len(resolved)} top-level keys")
-        return resolved
+        with perf_timer("preset_resolve", category="preset_resolve"):
+            logger.debug(f"Resolving preset chain: {preset_names}")
+            resolved = {}
+            for preset_name in preset_names:
+                preset_config = self._resolve_preset_inheritance(preset_name)
+                resolved = self._deep_merge(resolved, preset_config)
+            logger.debug(f"Preset chain resolved with {len(resolved)} top-level keys")
+            return resolved
 
     def _resolve_preset_inheritance(
         self, preset_name: str, visited: Optional[set] = None

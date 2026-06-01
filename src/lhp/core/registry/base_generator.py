@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
 import yaml
 from jinja2 import Environment
 
+from ...utils.performance_timer import perf_timer
+
 if TYPE_CHECKING:
     from lhp.models import Action
     from ..codegen.imports.manager import ImportManager
@@ -113,8 +115,9 @@ class BaseActionGenerator(ABC):
 
     def render_template(self, template_name: str, context: Dict[str, Any]) -> str:
         """Render Jinja2 template."""
-        template = self.env.get_template(template_name)
-        return template.render(**context)
+        with perf_timer(f"jinja_render [{template_name}]", category="jinja_render"):
+            template = self.env.get_template(template_name)
+            return template.render(**context)
 
     def _get_operational_metadata(
         self, action: Action, context: Dict[str, Any], target_type: str = "view"

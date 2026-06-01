@@ -41,6 +41,7 @@ Pickle / spawn invariants (same contract as :mod:`._pool`):
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -49,6 +50,13 @@ from typing import TYPE_CHECKING, Any, List, Literal, Mapping, Optional
 from lhp.models import FlowGroupContext
 
 from ...models.processing import FlowgroupOutcome
+from ...utils.performance_timer import (
+    enable_perf_timing,
+    export_perf_for_merge,
+    is_perf_enabled,
+    perf_timer,
+    reset_perf_summary,
+)
 from .._interfaces import BaseCodeGenerationService, BaseFlowgroupResolutionService
 
 if TYPE_CHECKING:
@@ -155,22 +163,65 @@ class _FlowgroupWorkerState:
 _flowgroup_state: Optional[_FlowgroupWorkerState] = None
 
 
-def _init_flowgroup_worker(level: int, state: _FlowgroupWorkerState) -> None:
+def _init_flowgroup_worker(
+    level: int, state: _FlowgroupWorkerState, perf_on: bool
+) -> None:
     """Pool initializer: configure logger and stash flowgroup worker state.
 
     Called once per spawned worker by :class:`ProcessPoolExecutor` via
-    ``initializer=`` / ``initargs=(level, state)``. The captured state
+    ``initializer=`` / ``initargs=(level, state, perf_on)``. The captured state
     pickles once at pool startup instead of once per submitted task.
     Calls the shared :func:`_init_worker_logger` (defined in this module)
     that silences worker stdlib loggers (workers must not write to OS
     stderr; all diagnostics travel back on the returned DTO).
+
+    When ``perf_on`` is set, re-enables perf timing in this spawned worker
+    (spawn re-imports the module with ``_enabled = False``). The
+    ``project_root=None`` form records ONLY into the in-memory singleton and
+    attaches NO :class:`FileHandler` (so workers emit no per-line perf log);
+    the parent collects the aggregate via :func:`_process_one_flowgroup`'s
+    perf envelope.
     """
     _init_worker_logger(level)
     global _flowgroup_state
     _flowgroup_state = state
+    if perf_on:
+        enable_perf_timing(project_root=None)
 
 
 def _process_one_flowgroup(
+    ctx: FlowGroupContext,
+    *,
+    mode: WorkerMode,
+) -> FlowgroupOutcome:
+    """Single-wave worker entry: perf envelope around the impl.
+
+    Preserves the exact public name :func:`_process_one_flowgroup` (it is
+    in :mod:`.executor`'s ``__all__`` and is monkeypatched by engine tests
+    — constitution §5.6 bars renaming it). Localizes ALL perf concern in
+    this one wrapper so the DTO constructors and the impl stay perf-free:
+
+    - When perf is enabled in this worker, :func:`reset_perf_summary`
+      scopes the in-memory singleton to THIS flowgroup (one task per
+      ProcessPoolExecutor worker at a time → race-free), the impl runs (its
+      ``perf_timer`` calls fire into the singleton), and the aggregate is
+      attached to the returned outcome via :func:`dataclasses.replace`.
+    - When perf is off, the impl's outcome is returned unchanged
+      (``perf=None``), preserving the zero-overhead contract.
+
+    NEVER raises (the impl is total); ``dataclasses.replace`` on a frozen
+    outcome cannot raise here.
+    """
+    perf_on = is_perf_enabled()
+    if perf_on:
+        reset_perf_summary()
+    outcome = _process_one_flowgroup_impl(ctx, mode=mode)
+    if perf_on:
+        return dataclasses.replace(outcome, perf=export_perf_for_merge())
+    return outcome
+
+
+def _process_one_flowgroup_impl(
     ctx: FlowGroupContext,
     *,
     mode: WorkerMode,
@@ -279,7 +330,8 @@ def _process_one_flowgroup(
             phase_a_records=records,
             auxiliary_files=ctx_out.auxiliary_files,
         )
-        formatted = state.formatter.format_code(code)
+        with perf_timer(f"black_format [{flowgroup_name}]", category="black_format"):
+            formatted = state.formatter.format_code(code)
     except Exception as exc:
         # Codegen errors and Black-parse LHP-CFG-031 both land here. Per
         # §5.6 the worker still does not raise; the resolved flowgroup is
