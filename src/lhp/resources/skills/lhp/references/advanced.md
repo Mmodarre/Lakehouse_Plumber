@@ -6,6 +6,7 @@
 - [Dependency Analysis](#dependency-analysis)
 - [Multi-Job Orchestration](#multi-job-orchestration)
 - [CI/CD Patterns](#cicd-patterns)
+- [Custom Python Functions & Local Helpers](#custom-python-functions--local-helpers)
 
 ---
 
@@ -230,3 +231,49 @@ lhp generate --env $ENV
 lhp deps --format job --job-config config/job_config.yaml --bundle-output
 databricks bundle deploy --target $ENV
 ```
+
+---
+
+## Custom Python Functions & Local Helpers
+
+User Python entry modules — python load/transform (`module_path`), custom data source
+(`module_path`), custom sink (`module_path`), and snapshot CDC `source_function` — are
+copied into `generated/<pipeline>/custom_python_functions/` at generate time. All of these
+paths are resolved relative to the **project root** (not the YAML file's location).
+
+**Transitive local-helper copying.** When an entry module imports a local helper
+module/sub-package, LHP copies the entry **and** its transitive local helpers into
+`custom_python_functions/`, **mirroring sub-package structure**:
+
+```
+custom_python_functions/
+├── __init__.py                 # LHP package marker
+├── entry_module.py             # entry, flat; local imports rewritten
+└── helpers/                    # referenced helper sub-package, copied in full
+    ├── __init__.py             # copied from your project
+    └── date_change.py          # copied; relative imports preserved
+```
+
+The directory holding the entry file is the **import root**. An import is *local* iff its
+top dotted segment resolves to a `.py` file or package under that root.
+
+- **Rule A:** the import root must NOT itself be a package (no `__init__.py` at its top) →
+  `LHP-VAL-023`. Keep the entry flat; put helpers in a sub-directory.
+- **Rule B (whole-sub-package copy):** a referenced helper **package is copied in full**
+  (every `.py` under it), structure preserved — so `__init__.py` side effects and
+  intra-package imports keep working.
+- **Import rewriting:** absolute-local imports are prefix-rewritten
+  (`from helpers.x import y` → `from custom_python_functions.helpers.x import y`, aliases
+  kept); **intra-package relative imports (`from .x import y`) are preserved unchanged**
+  (first-class inside helper packages); external/stdlib imports are untouched.
+- **Plain-dotted-local** (`import helpers.x`) is rejected with `LHP-VAL-024` — use
+  `from helpers.x import ...` instead.
+- **Missing local helper** → `LHP-VAL-025`.
+- A syntactically broken sibling inside a copied package surfaces `LHP-IO-003` at generate
+  time (a consequence of whole-package copy).
+
+**Pickle interaction (custom data source / sink):** `register_pickle_by_value` registers the
+top-level `custom_python_functions` package, so every copied descendant
+(`custom_python_functions.helpers.*`) is pickled by value with no change to the registration
+line — which is why helpers are mirrored under `custom_python_functions/` rather than placed
+elsewhere on `sys.path`.

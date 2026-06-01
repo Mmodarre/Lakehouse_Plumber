@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 class CopiedModuleRecord:
     """Pure-compute description of a user Python module copy.
 
-    Produced in Phase A by :func:`compute_copy_record` with no side
+    Produced in Phase A by :func:`compute_copy_records` with no side
     effects — no filesystem writes, no state mutation. Replayed in
     Phase B by :meth:`PythonFileCopier.apply_copy_record`.
     """

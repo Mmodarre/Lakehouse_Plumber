@@ -3,11 +3,14 @@
 import logging
 import threading
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from ...errors import ErrorCategory, LHPValidationError, PythonFunctionConflictError
 from ...models.processing import CopiedModuleRecord
 from ..loaders.external_file_loader import resolve_external_file_path
+from .imports import parse_user_module
+from .python_dependency_resolver import resolve_local_closure
+from .python_import_rewriter import rewrite_local_imports
 
 logger = logging.getLogger(__name__)
 
@@ -186,7 +189,7 @@ class PythonFileCopier:
         :meth:`get_copied_files`.
 
         Args:
-            record: Result of :func:`compute_copy_record`.
+            record: One record from :func:`compute_copy_records`.
         """
         self.ensure_init_file(record.custom_functions_dir)
         self.copy_python_file(record.source_path, record.dest_path, record.content)
@@ -234,78 +237,166 @@ class PythonFileCopier:
         return tuple(planned)
 
 
-def compute_copy_record(
+def _apply_substitution(content: str, context: dict) -> str:
+    """Run body substitution and mirror discovered secret refs onto ``context``.
+
+    No-op when no ``substitution_manager`` is present. The manager is the
+    canonical secret-reference source; ``context["secret_references"]`` mirrors
+    them for downstream consumers. Both are per-flowgroup (per-worker), so the
+    mutation is thread-safe and the repeated ``set.update`` across closure files
+    is idempotent.
+    """
+    substitution_mgr = context.get("substitution_manager")
+    if substitution_mgr is None:
+        return content
+    processed: str = substitution_mgr._process_string(content)
+    secret_target = context.get("secret_references")
+    if secret_target is not None:
+        secret_target.update(substitution_mgr.secret_references)
+    return processed
+
+
+def _build_module_content(
+    source_path: Path,
+    header_path: str,
+    root: Path,
+    context: dict,
+    build_header: Callable[[str], str],
+) -> str:
+    """Read, rewrite-then-substitute, and prepend the header for one module.
+
+    Ordering is load-bearing for the byte-offset import surgery in
+    :func:`rewrite_local_imports`: it consumes offsets from a tree parsed from
+    the file's *original* (un-substituted) text — exactly the tree
+    :func:`parse_user_module` cached. So this rewrites the original (cache hit,
+    no re-parse), THEN substitutes (which may shift byte lengths), THEN prepends
+    the header. Substituting first could shift the import spans out from under
+    the cached offsets and corrupt the rewrite.
+    """
+    cache = context.get("source_parse_cache")
+    original = source_path.read_text()
+    tree = parse_user_module(source_path, cache=cache)
+    rewritten = rewrite_local_imports(original, tree, root)
+    return build_header(header_path) + _apply_substitution(rewritten, context)
+
+
+def compute_copy_records(
     source_file: Optional[Path],
     module_path: str,
     custom_functions_dir: Path,
     context: dict,
     *,
     inline_source: Optional[str] = None,
-) -> CopiedModuleRecord:
-    """Phase A pure compute: read source, substitute, build header.
+) -> list[CopiedModuleRecord]:
+    """Phase A pure compute: the entry module plus its local-helper closure.
 
-    Returns a :class:`CopiedModuleRecord` describing the file that would be
-    written, without touching the filesystem (writes) or the state manager.
-    Safe to call from worker threads — the only filesystem touch is reading
-    the source file, which is idempotent.
+    Returns the :class:`CopiedModuleRecord` list for ``module_path`` without
+    touching the filesystem (writes) or the state manager — worker-thread safe;
+    the only I/O is reading the source files. Absolute-local imports are
+    prefix-rewritten to ``custom_python_functions.``; relative/external imports
+    are preserved.
 
-    The caller-supplied ``context`` may carry a ``substitution_manager`` and
-    a ``secret_references`` collection. When present, the substitution
-    manager processes the file contents and any discovered secret references
-    are merged into ``secret_references`` for downstream rendering. Both the
-    substitution manager and the secret_references dict are expected to be
-    per-flowgroup (per-worker) so this mutation is thread-safe.
+    Record identity:
+
+    - Entry: flat ``dest = custom_functions_dir / f"{stem}.py"``,
+      ``source_path = module_path`` (the user-facing string).
+    - Closure: ``dest = custom_functions_dir / rel_path`` (structure mirrored),
+      ``source_path = str(resolved_helper_path)`` — the REAL on-disk path, so a
+      helper shared by two entries dedups and a cross-source clash raises
+      ``LHP-VAL-019`` via :func:`_register_copy`.
+
+    Header paths are project-root-relative: the entry uses ``module_path``; each
+    helper uses ``Path(module_path).parent / rel_path`` (``module_path``'s dir is
+    the closure root ``R`` relative to the project root; ``rel_path`` is relative
+    to ``R``). This string join is used rather than
+    ``resolved_path.relative_to(project_root)`` because the resolver fully
+    resolves helper paths while ``spec_dir`` is not, so ``relative_to`` would
+    spuriously fail (e.g. ``/var`` vs ``/private/var`` on macOS).
+
+    When ``source_file is None`` (the ``inline_source`` / ``auxiliary_files``
+    synthetic-flowgroup path — no disk root, no local-helper concept), returns a
+    single entry record with NO closure discovery and NO rewrite, byte-identical
+    to the pre-closure behavior.
 
     Args:
-        source_file: Resolved path to the user's source ``.py`` file. May
-            be ``None`` when ``inline_source`` is supplied.
-        module_path: User-facing relative path; used in the LHP-SOURCE
-            header so generated headers point back to the original location.
-        custom_functions_dir: Destination directory for the copied module.
-        context: Generation context. Reads ``substitution_manager`` and
-            ``secret_references`` only.
-        inline_source: Optional pre-loaded source content. When provided,
-            the disk read is skipped — used for synthetic flowgroups
-            (e.g. monitoring) whose source is generated in memory.
+        source_file: Path to the user's source ``.py`` file (the closure entry;
+            its resolved parent is the import root ``R``). ``None`` ⇒ inline.
+        module_path: User-facing project-root-relative path; the LHP-SOURCE
+            header and the entry record's ``source_path``.
+        custom_functions_dir: Destination directory for the copied modules.
+        context: Reads ``substitution_manager``, ``secret_references``,
+            ``source_parse_cache``.
+        inline_source: Pre-loaded source; skips the disk read and closure
+            discovery (synthetic flowgroups, e.g. monitoring).
 
     Returns:
-        A :class:`CopiedModuleRecord` describing the planned copy. The
-        record's ``dest_path`` is ``custom_functions_dir / f"{stem}.py"``.
+        The entry record followed by closure records (helpers + any synthesized
+        namespace ``__init__.py``), in resolver order.
     """
     from ...utils.file_header import build_lhp_source_header
 
-    module_name = Path(module_path).stem
-    dest_file = custom_functions_dir / f"{module_name}.py"
+    dest_file = custom_functions_dir / f"{Path(module_path).stem}.py"
 
-    if inline_source is not None:
-        original_content = inline_source
-    else:
-        assert (
-            source_file is not None
-        ), "compute_copy_record requires either source_file or inline_source"
-        original_content = source_file.read_text()
+    if source_file is None:
+        assert inline_source is not None, (
+            "compute_copy_records requires either source_file or inline_source"
+        )
+        content = build_lhp_source_header(module_path) + _apply_substitution(
+            inline_source, context
+        )
+        return [
+            CopiedModuleRecord(
+                source_path=module_path,
+                dest_path=dest_file,
+                content=content,
+                module_path=module_path,
+                custom_functions_dir=custom_functions_dir,
+            )
+        ]
 
-    substitution_mgr = context.get("substitution_manager")
-    if substitution_mgr is not None:
-        original_content = substitution_mgr._process_string(original_content)
+    # Resolve the import root once. The resolver resolves every discovered
+    # helper path (``Path.resolve()``) before taking it ``relative_to(root)``,
+    # so ``root`` must be the resolved entry directory or that subtraction
+    # raises ``ValueError`` whenever a symlink sits on the path (e.g. the
+    # macOS ``/tmp`` -> ``/private/tmp`` link, or a symlinked project dir).
+    # The rewriter only probes ``root / seg`` on disk, which is symlink-
+    # transparent, so a resolved root is correct there too.
+    root = source_file.resolve().parent
+    records: List[CopiedModuleRecord] = [
+        CopiedModuleRecord(
+            source_path=module_path,
+            dest_path=dest_file,
+            content=_build_module_content(
+                source_file, module_path, root, context, build_lhp_source_header
+            ),
+            module_path=module_path,
+            custom_functions_dir=custom_functions_dir,
+        )
+    ]
 
-        # Track secret references discovered during substitution. The
-        # substitution manager is the canonical source; the context-level
-        # accumulator mirrors them for downstream consumers (e.g. tests).
-        secret_refs = substitution_mgr.secret_references
-        secret_target = context.get("secret_references")
-        if secret_target is not None:
-            secret_target.update(secret_refs)
-
-    full_content = build_lhp_source_header(module_path) + original_content
-
-    return CopiedModuleRecord(
-        source_path=module_path,
-        dest_path=dest_file,
-        content=full_content,
-        module_path=module_path,
-        custom_functions_dir=custom_functions_dir,
+    helper_root = Path(module_path).parent
+    closure = resolve_local_closure(
+        source_file, root, cache=context.get("source_parse_cache")
     )
+    for rm in closure:
+        header_path = str(helper_root / rm.rel_path)
+        if rm.is_synthesized_init:
+            content = build_lhp_source_header(header_path)
+        else:
+            content = _build_module_content(
+                rm.source_path, header_path, root, context, build_lhp_source_header
+            )
+        records.append(
+            CopiedModuleRecord(
+                source_path=str(rm.source_path),
+                dest_path=custom_functions_dir / rm.rel_path,
+                content=content,
+                module_path=module_path,
+                custom_functions_dir=custom_functions_dir,
+            )
+        )
+
+    return records
 
 
 def copy_user_module_for_pipeline(
@@ -317,36 +408,31 @@ def copy_user_module_for_pipeline(
     """Resolve, validate, and copy a user Python module into the pipeline output.
 
     Shared by python LOAD/TRANSFORM and the custom_datasource/custom_sink
-    generators so that all four emit identical error messages and follow the
-    same flat ``custom_python_functions/<leaf>.py`` layout.
+    generators so all four emit identical error messages. Resolves
+    ``module_path`` relative to ``context["spec_dir"]`` (or CWD) via
+    :func:`resolve_external_file_path`, validates flowgroup context, then
+    delegates to :func:`compute_copy_records` (entry + transitive helper
+    closure) and replays the records. In dry-run (``output_dir is None``) the
+    copy is skipped and the leaf name is still returned so import lines render.
 
-    Resolves ``module_path`` relative to ``context["spec_dir"]`` (or CWD) via
-    :func:`resolve_external_file_path`, validates that flowgroup context is
-    present, then delegates to :meth:`PythonFileCopier.copy_user_module`. In
-    dry-run (``context["output_dir"] is None``) the copy is skipped and the
-    leaf module name is returned anyway so import lines can still be rendered.
-
-    Synthetic flowgroups (e.g. the monitoring pipeline) may pre-populate the
-    ``context["auxiliary_files"]`` mapping (sourced from
-    :class:`FlowGroupContext`): ``{module_path: source_str}``. When
-    ``module_path`` is found there, the on-disk lookup is skipped and the
-    source content is copied directly into ``custom_python_functions/<leaf>.py``.
+    Synthetic flowgroups (e.g. monitoring) may pre-populate
+    ``context["auxiliary_files"]`` (``{module_path: source_str}``); a match
+    there skips the on-disk lookup and copies the inline source directly (no
+    closure discovery).
 
     Args:
         module_path: User-facing path to the module file (e.g.
-            ``"loaders/my_loader.py"``). Must end in ``.py`` — caller is
-            responsible for that check; here we treat it as an opaque path
-            and use ``Path(module_path).stem`` as the import-time module name.
-        context: Generation context. Reads ``spec_dir``, ``flowgroup``,
-            ``output_dir``, ``python_file_copier``, ``auxiliary_files`` plus
-            the keys :meth:`PythonFileCopier.copy_user_module` consumes.
-        component_label: Human-readable label inserted into error messages,
-            e.g. ``"Python load action"``, ``"Custom data source"``.
+            ``"loaders/my_loader.py"``). The caller guarantees the ``.py``
+            suffix; ``Path(module_path).stem`` is the import-time module name.
+        context: Reads ``spec_dir``, ``flowgroup``, ``output_dir``,
+            ``python_file_copier``, ``auxiliary_files``, ``phase_a_records``,
+            plus the keys :func:`compute_copy_records` consumes.
+        component_label: Label inserted into error messages, e.g.
+            ``"Python load action"``, ``"Custom data source"``.
 
     Returns:
-        The leaf module name (e.g. ``"my_loader"`` for
-        ``"loaders/my_loader.py"``), suitable for use in
-        ``from custom_python_functions.<name> import ...``.
+        The leaf module name (``"my_loader"`` for ``"loaders/my_loader.py"``),
+        for use in ``from custom_python_functions.<name> import ...``.
 
     Raises:
         LHPError: when the resolved source file does not exist (and no inline
@@ -390,11 +476,12 @@ def copy_user_module_for_pipeline(
     custom_functions_dir = output_dir / "custom_python_functions"
 
     # When the caller supplies a phase_a_records list on the context, append
-    # a CopiedModuleRecord and let the replay step handle disk writes — no
-    # disk write, no state mutation here. When the carrier is absent
-    # (test-only direct generator drives), compute and apply immediately:
-    # file is written but state is not tracked from this path.
-    record = compute_copy_record(
+    # the records and let the replay step handle disk writes — no disk write,
+    # no state mutation here. When the carrier is absent (test-only direct
+    # generator drives), compute and apply immediately: files are written but
+    # state is not tracked from this path. Either way, the entry's leaf module
+    # name is returned unchanged so import lines never churn.
+    records = compute_copy_records(
         source_file,
         module_path,
         custom_functions_dir,
@@ -404,9 +491,10 @@ def copy_user_module_for_pipeline(
 
     phase_a_records = context.get("phase_a_records")
     if phase_a_records is not None:
-        phase_a_records.append(record)
+        phase_a_records.extend(records)
         return Path(module_path).stem
 
     python_copier = context.get("python_file_copier") or PythonFileCopier()
-    python_copier.apply_copy_record(record)
+    for record in records:
+        python_copier.apply_copy_record(record)
     return Path(module_path).stem

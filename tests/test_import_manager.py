@@ -5,14 +5,12 @@ Tests cover:
 - Basic import collection functionality
 - Conflict resolution (wildcard precedence, submodule conflicts)
 - Import sorting and categorization
-- AST processing for file-based imports
 - Integration with BaseActionGenerator and other components
 - Error handling and edge cases (90% coverage target)
 - Real-world scenarios
 """
 
 import tempfile
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -110,62 +108,32 @@ class TestImportManagerBasics:
         imports = self.manager.get_consolidated_imports()
         assert isinstance(imports, list)
 
-    def test_file_import_extraction(self):
-        """Test extraction of imports from Python files."""
-        # Read our test fixture files
-        fixtures_dir = Path(__file__).parent / "fixtures" / "import_manager"
-
-        # Test basic imports file
-        basic_file = fixtures_dir / "basic_imports.py"
-        source_code = basic_file.read_text()
-
-        cleaned_source = self.manager.add_imports_from_file(source_code)
-
-        # Check that imports were extracted
-        imports = self.manager.get_consolidated_imports()
-        assert len(imports) > 0
-        assert any("import os" in imp for imp in imports)
-        assert any("pathlib" in imp for imp in imports)
-
-        # Check that source was cleaned (imports removed but structure preserved)
-        assert "def sample_function" in cleaned_source
-        assert "import os" not in cleaned_source
-
-        stats = self.manager.get_stats()
-        assert stats["file_imports"] > 0
-
-    def test_file_import_mixed_sources(self):
-        """Test combining manual, expression, and file imports."""
+    def test_mixed_sources(self):
+        """Test combining manual and expression imports."""
         # Add from different sources
         self.manager.add_import("import custom_module")
+        self.manager.add_import("from pathlib import Path")
         self.manager.add_imports_from_expression("F.lit('test')")
-
-        fixtures_dir = Path(__file__).parent / "fixtures" / "import_manager"
-        basic_file = fixtures_dir / "basic_imports.py"
-        self.manager.add_imports_from_file(basic_file.read_text())
 
         imports = self.manager.get_consolidated_imports()
         stats = self.manager.get_stats()
 
         # Should have imports from all sources
-        assert stats["manual_imports"] >= 1
+        assert stats["manual_imports"] >= 2
         assert stats["expression_imports"] >= 1
-        assert stats["file_imports"] >= 1
         assert stats["total_unique"] == len(imports)
 
         # Check for specific imports from each source
         assert "import custom_module" in imports
         assert any("pathlib" in imp for imp in imports)
+        assert any("functions" in imp for imp in imports)
 
     def test_clear_functionality(self):
         """Test clearing all collected imports."""
         # Add various imports
         self.manager.add_import("import os")
+        self.manager.add_import("from pathlib import Path")
         self.manager.add_imports_from_expression("F.current_timestamp()")
-
-        fixtures_dir = Path(__file__).parent / "fixtures" / "import_manager"
-        basic_file = fixtures_dir / "basic_imports.py"
-        self.manager.add_imports_from_file(basic_file.read_text())
 
         # Verify imports exist
         assert len(self.manager.get_consolidated_imports()) > 0
@@ -178,7 +146,6 @@ class TestImportManagerBasics:
         assert len(imports) == 0
         assert stats["manual_imports"] == 0
         assert stats["expression_imports"] == 0
-        assert stats["file_imports"] == 0
         assert stats["total_unique"] == 0
 
 
@@ -246,17 +213,16 @@ class TestConflictResolution:
 
     def test_complex_conflict_scenario(self):
         """Test complex scenarios with multiple types of conflicts."""
-        # Mix of manual, expression, and file imports with conflicts
+        # Mix of manual and expression imports with conflicts
         self.manager.add_import("from pyspark.sql import functions as F")
         self.manager.add_import("import os")
 
         # Add from expression (should detect F usage)
         self.manager.add_imports_from_expression("F.current_timestamp()")
 
-        # Add from file (contains wildcard imports)
-        fixtures_dir = Path(__file__).parent / "fixtures" / "import_manager"
-        wildcard_file = fixtures_dir / "wildcard_conflicts.py"
-        self.manager.add_imports_from_file(wildcard_file.read_text())
+        # Add wildcard imports that conflict with the parent-module aliases
+        self.manager.add_import("from pyspark.sql.functions import *")
+        self.manager.add_import("from pyspark.sql.types import *")
 
         imports = self.manager.get_consolidated_imports()
 
@@ -567,68 +533,6 @@ class TestImportSorting:
             assert imp in imports
 
 
-class TestASTProcessing:
-    """Test AST processing for file-based imports."""
-
-    def setup_method(self):
-        """Setup for each test method."""
-        self.manager = ImportManager()
-
-    def test_valid_python_file_processing(self):
-        """Test processing of valid Python files."""
-        fixtures_dir = Path(__file__).parent / "fixtures" / "import_manager"
-
-        # Test basic imports file
-        basic_file = fixtures_dir / "basic_imports.py"
-        source_code = basic_file.read_text()
-
-        cleaned_source = self.manager.add_imports_from_file(source_code)
-
-        # Verify imports were extracted
-        imports = self.manager.get_consolidated_imports()
-        assert len(imports) > 0
-
-        # Verify source was cleaned but structure preserved
-        assert "def sample_function" in cleaned_source
-        assert "import os" not in cleaned_source
-        assert "from pathlib import Path" not in cleaned_source
-
-    def test_invalid_syntax_file_handling(self):
-        """Test graceful handling of files with syntax errors."""
-        fixtures_dir = Path(__file__).parent / "fixtures" / "import_manager"
-
-        # Test file with syntax errors
-        invalid_file = fixtures_dir / "invalid_syntax.py"
-        source_code = invalid_file.read_text()
-
-        # Should not crash, should return original source
-        cleaned_source = self.manager.add_imports_from_file(source_code)
-
-        # Should return original source unchanged
-        assert cleaned_source == source_code
-
-        # Should still be able to get consolidated imports
-        imports = self.manager.get_consolidated_imports()
-        assert isinstance(imports, list)
-
-    def test_complex_file_processing(self):
-        """Test processing of complex Python files with mixed imports."""
-        fixtures_dir = Path(__file__).parent / "fixtures" / "import_manager"
-
-        # Test mixed imports file
-        mixed_file = fixtures_dir / "mixed_imports.py"
-        source_code = mixed_file.read_text()
-
-        cleaned_source = self.manager.add_imports_from_file(source_code)
-
-        # Verify various import types were extracted
-        imports = self.manager.get_consolidated_imports()
-        assert len(imports) > 5  # Should have many imports
-
-        # Verify function code is preserved
-        assert "def complex_function" in cleaned_source
-
-
 class TestExtractFutureImports:
     """Tests for the AST-based ``extract_future_imports`` helper.
 
@@ -668,7 +572,7 @@ class TestExtractFutureImports:
         # AST guarantee: a literal "from __future__" inside a triple-quoted
         # string is just data, not an import statement, and must NOT be
         # extracted. This is the AST-vs-regex correctness check.
-        source = 'DOCS = """\n' "from __future__ import annotations\n" '"""\n' "z = 3\n"
+        source = 'DOCS = """\nfrom __future__ import annotations\n"""\nz = 3\n'
         future_lines, cleaned = extract_future_imports(source)
 
         assert future_lines == []
@@ -745,13 +649,11 @@ class TestIntegration:
 
     def test_custom_datasource_integration(self):
         """Test integration with CustomDataSourceLoadGenerator scenario."""
-        # Simulate the custom datasource scenario
-        fixtures_dir = Path(__file__).parent / "fixtures" / "import_manager"
-        custom_source = fixtures_dir / "custom_datasource.py"
-
-        # Extract imports from custom source
-        source_code = custom_source.read_text()
-        cleaned_source = self.manager.add_imports_from_file(source_code)
+        # Simulate the custom datasource scenario: a wildcard import alongside
+        # a parent-module alias that must be resolved in favor of the wildcard.
+        self.manager.add_import("from pyspark.sql.functions import *")
+        self.manager.add_import("from pyspark.sql.types import *")
+        self.manager.add_import("from pyspark import pipelines as dp")
 
         # Add operational metadata imports
         self.manager.add_imports_from_expression("F.current_timestamp()")
@@ -785,7 +687,6 @@ class TestErrorHandling:
         self.manager.add_import("")
         self.manager.add_import("   ")
         self.manager.add_imports_from_expression("")
-        self.manager.add_imports_from_file("")
 
         imports = self.manager.get_consolidated_imports()
         assert len(imports) == 0
@@ -819,22 +720,6 @@ class TestErrorHandling:
             self.manager.add_imports_from_expression(expr)
 
         # Should not crash
-        imports = self.manager.get_consolidated_imports()
-        assert isinstance(imports, list)
-
-    def test_file_processing_edge_cases(self):
-        """Test file processing edge cases."""
-        edge_cases = [
-            "",  # Empty file
-            "# Just comments\n# More comments",  # Comments only
-            "'''Triple quoted string'''",  # String only
-            "pass",  # Single statement
-        ]
-
-        for source in edge_cases:
-            cleaned = self.manager.add_imports_from_file(source)
-            assert isinstance(cleaned, str)
-
         imports = self.manager.get_consolidated_imports()
         assert isinstance(imports, list)
 
@@ -893,24 +778,19 @@ class TestUtilityMethods:
         """Test statistics and debug information methods."""
         # Add various imports
         self.manager.add_import("import os")
+        self.manager.add_import("from pathlib import Path")
         self.manager.add_imports_from_expression("F.current_timestamp()")
-
-        fixtures_dir = Path(__file__).parent / "fixtures" / "import_manager"
-        basic_file = fixtures_dir / "basic_imports.py"
-        self.manager.add_imports_from_file(basic_file.read_text())
 
         # Test stats
         stats = self.manager.get_stats()
-        assert stats["manual_imports"] >= 1
+        assert stats["manual_imports"] >= 2
         assert stats["expression_imports"] >= 1
-        assert stats["file_imports"] >= 1
         assert stats["total_unique"] > 0
 
         # Test debug info
         debug_info = self.manager.debug_info()
         assert "manual_imports" in debug_info
         assert "expression_imports" in debug_info
-        assert "file_imports" in debug_info
         assert "consolidated" in debug_info
         assert "stats" in debug_info
 
@@ -924,12 +804,12 @@ class TestRealWorldScenarios:
 
     def test_custom_datasource_complete_scenario(self):
         """Test complete custom datasource scenario like our currency_api_source.py fix."""
-        # Simulate the exact scenario we fixed
-        fixtures_dir = Path(__file__).parent / "fixtures" / "import_manager"
-
-        # 1. Extract imports from custom source file
-        custom_source = fixtures_dir / "custom_datasource.py"
-        self.manager.add_imports_from_file(custom_source.read_text())
+        # Simulate the exact scenario we fixed: a custom source contributes a
+        # wildcard functions import that must win over the parent-module alias.
+        # 1. Imports a custom source file would contribute
+        self.manager.add_import("from pyspark.sql import functions as F")
+        self.manager.add_import("from pyspark.sql.functions import *")
+        self.manager.add_import("from pyspark.sql.types import *")
 
         # 2. Add operational metadata imports
         self.manager.add_imports_from_expression("F.current_timestamp()")
@@ -980,9 +860,9 @@ class TestRealWorldScenarios:
         self.manager.add_import("from pyspark.sql import functions as F")
 
         # Custom source imports (with conflicts)
-        fixtures_dir = Path(__file__).parent / "fixtures" / "import_manager"
-        wildcard_file = fixtures_dir / "wildcard_conflicts.py"
-        self.manager.add_imports_from_file(wildcard_file.read_text())
+        self.manager.add_import("from pyspark.sql.functions import *")
+        self.manager.add_import("from pyspark.sql.types import StructType")
+        self.manager.add_import("from pyspark.sql.types import *")
 
         # Operational metadata imports
         self.manager.add_imports_from_expression("F.input_file_name()")

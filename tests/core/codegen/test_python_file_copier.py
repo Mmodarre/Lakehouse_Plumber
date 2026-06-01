@@ -259,7 +259,7 @@ class TestCopyUserModuleBodySubstitution:
     Token/secret substitution of a user module's *body* is the copier's
     responsibility and only runs when ``output_dir`` is a real path. Here we
     drive the real public entry point ``copy_user_module_for_pipeline`` with a
-    tmp_path ``output_dir`` so ``compute_copy_record`` actually calls
+    tmp_path ``output_dir`` so ``compute_copy_records`` actually calls
     ``substitution_manager._process_string`` and writes the substituted file
     into ``custom_python_functions/<stem>.py``.
     """

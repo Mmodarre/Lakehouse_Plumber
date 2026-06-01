@@ -47,6 +47,14 @@ class GenerationContextBuilder:
         # internal`` so strict-mypy (§4.3, binds only ``lhp/api/``) does not
         # gate the loosened type.
         self._source_function_signature_cache: Dict[str, Any] = {}
+        # Companion per-builder cache for parsed ASTs (``ast.Module``),
+        # shared by every path-keyed AST consumer (snapshot-CDC signature
+        # extraction and helper-closure discovery) so each user file is
+        # parsed at most once per pipeline. Same lifecycle, key convention
+        # (resolved absolute path str), and §4.3 ``Any`` rationale as the
+        # signature cache above; the value is an ``ast.Module``, typed
+        # ``Any`` to avoid importing ``ast`` into a typing-only position.
+        self._source_parse_cache: Dict[str, Any] = {}
 
     def build(
         self,
@@ -92,6 +100,13 @@ class GenerationContextBuilder:
             # the per-flowgroup work is the cheap param check. See __init__ for
             # the §4.3 type rationale.
             "source_function_signature_cache": self._source_function_signature_cache,
+            # Per-builder tree cache (same dict object across every flowgroup
+            # context this builder produces). Keyed by the resolved absolute
+            # path (str) of a user source file; shared by snapshot-CDC
+            # signature extraction and helper-closure discovery so each file
+            # is parsed once per pipeline. See __init__ for the §4.3 type
+            # rationale.
+            "source_parse_cache": self._source_parse_cache,
         }
 
     def collect_outputs(self, generator) -> Tuple[Set[str], Set[str]]:

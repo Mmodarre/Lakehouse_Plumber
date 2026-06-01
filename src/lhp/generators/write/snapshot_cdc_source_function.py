@@ -29,6 +29,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, NamedTuple, Optional
 
+from lhp.core.codegen.imports import parse_user_module
+
 from ...core.loaders.external_file_loader import resolve_external_file_path
 from ...errors import ErrorCategory, LHPError
 from ...utils.performance_timer import incr_event
@@ -102,9 +104,9 @@ def resolve_source_function(
     # contract for the type checker (narrowing ``Optional`` away) and act
     # as a cheap defensive guard; they are not a user-facing error path.
     assert file_name is not None, "source_function.file enforced upstream by validator"
-    assert (
-        function_name is not None
-    ), "source_function.function enforced upstream by validator"
+    assert function_name is not None, (
+        "source_function.function enforced upstream by validator"
+    )
 
     # ``resolve_external_file_path`` raises a rich LHPFileError (IO-004,
     # via ``ErrorFormatter.file_not_found`` with structured search
@@ -136,6 +138,13 @@ def resolve_source_function(
     signature_cache: Optional[Dict[str, Any]] = (
         context.get("source_function_signature_cache") if context else None
     )
+    # Per-pipeline tree cache lives in the shared parse substrate (one parse
+    # contract, DR-5: two caches, one parse). The substrate parses + caches
+    # the ast.Module; the signature cache above stores the extracted
+    # FunctionSignature on top.
+    tree_cache: Optional[Dict[str, Any]] = (
+        context.get("source_parse_cache") if context else None
+    )
 
     signature: Optional[FunctionSignature] = None
     if signature_cache is not None:
@@ -144,7 +153,9 @@ def resolve_source_function(
     if signature is None:
         # MISS: a parse is about to run (fires even when there is no cache).
         incr_event("snapshot_sigcache_miss")
-        signature = _extract_function_signature(resolved_path, file_name, function_name)
+        signature = _extract_function_signature(
+            resolved_path, file_name, function_name, tree_cache
+        )
         if signature_cache is not None:
             signature_cache[cache_key] = signature
     elif signature_cache is not None:
@@ -164,41 +175,20 @@ def _extract_function_signature(
     resolved_path: Path,
     file_name: str,
     function_name: str,
+    tree_cache: Optional[Dict[str, Any]],
 ) -> FunctionSignature:
     """Parse-once body invoked on a cache miss.
 
     ``file_name`` is the original config reference, used only in error messages.
+    The parse + its IO/003 syntax-error contract live in the shared substrate
+    (``parse_user_module``); ``tree_cache`` is the per-pipeline tree cache so
+    a file is parsed at most once regardless of how many consumers request it.
 
     Raises:
-        LHPError: IO/003 (syntax error) or IO/004 (function not found).
+        LHPError: IO/003 (syntax error, from the substrate) or IO/004
+            (function not found).
     """
-    source_code = resolved_path.read_text(encoding="utf-8")
-
-    try:
-        tree = ast.parse(source_code)
-    except SyntaxError as e:
-        raise LHPError(
-            category=ErrorCategory.IO,
-            code_number="003",
-            title="Python syntax error in function file",
-            details=f"The function file '{file_name}' contains invalid Python syntax: {e}",
-            suggestions=[
-                "Check the Python syntax in your function file",
-                "Ensure proper indentation (use spaces, not tabs)",
-                "Verify all parentheses, brackets, and quotes are properly closed",
-                "Test the file independently: python -m py_compile your_file.py",
-            ],
-            example="""Valid function file example:
-from typing import Optional, Tuple
-from pyspark.sql import DataFrame
-
-def my_snapshot_function(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, int]]:
-    if latest_version is None:
-        df = spark.read.table("my_table")
-        return (df, 1)
-    return None""",
-            context={"File": file_name, "Syntax Error": str(e)},
-        ) from e
+    tree = parse_user_module(resolved_path, cache=tree_cache)
 
     func_node = _find_function_node(tree, function_name)
 

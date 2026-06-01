@@ -146,6 +146,19 @@ For full-snapshot CDC using `create_auto_cdc_from_snapshot_flow()`.
 - With `source_function`: action is **self-contained** — no `source` field at action level needed
 - Self-contained snapshot CDC is **exempt** from "must have Load action" requirement
 - `source` and `source_function` are **mutually exclusive**
+- `source_function.file` is resolved relative to the **project root**
+
+**Local helper imports** (snapshot `source_function`, custom sink, custom datasource): when
+the entry module imports local helpers, LHP copies the whole transitive closure into
+`custom_python_functions/`, **preserving sub-package structure**. The directory holding the
+entry file is the **import root**.
+- **Rule A:** import root must NOT be a package (no `__init__.py` at its top) → `LHP-VAL-023`.
+- **Rule B:** a referenced helper **package is copied in full**, structure preserved.
+- **Rewrite:** absolute-local imports prefix-rewritten (`from helpers.x import y` →
+  `from custom_python_functions.helpers.x import y`); **relative imports (`from .x import y`)
+  preserved unchanged**; external/stdlib untouched.
+- `import helpers.x` (plain dotted local) → `LHP-VAL-024` (use `from helpers.x import ...`);
+  missing helper → `LHP-VAL-025`; broken sibling in a copied package → `LHP-IO-003`.
 
 ---
 

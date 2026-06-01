@@ -1,9 +1,9 @@
 """Unified import management orchestrator for generated pipeline modules.
 
-:class:`ImportManager` is a facade that collects imports from three sources
-(manual ``add_import`` calls, PySpark-expression detection, file-level AST
-extraction), then delegates conflict resolution and sorting to the
-module-level helpers in :mod:`.resolver` and :mod:`.categorizer`.
+:class:`ImportManager` is a facade that collects imports from two sources
+(manual ``add_import`` calls and PySpark-expression detection), then
+delegates conflict resolution and sorting to the module-level helpers in
+:mod:`.resolver` and :mod:`.categorizer`.
 
 Per CODING_CONSTITUTION §5.5, no service-to-service class calls: the
 manager only invokes free functions from the sibling modules.
@@ -31,7 +31,6 @@ class ImportManager:
 
     * Manual imports added via :meth:`add_import` (backward-compatible API).
     * Expression-based detection through :class:`ImportDetector`.
-    * File-level AST extraction via :meth:`add_imports_from_file`.
 
     Conflict resolution and sorting are pure functions in the sibling
     modules; this class only holds collection state and orchestrates the
@@ -45,6 +44,8 @@ class ImportManager:
         # report provenance.
         self._manual_imports: Set[str] = set()
         self._expression_imports: Set[str] = set()
+        # Retained for get_stats/debug_info output shape; no longer populated
+        # since file-level AST import hoisting (add_imports_from_file) was removed.
         self._file_imports: Set[str] = set()
 
         # Reuse the existing AST-based detector for PySpark expressions.
@@ -148,58 +149,6 @@ class ImportManager:
             self.logger.debug(
                 f"Expression import detection failed for '{expression}': {e}"
             )
-
-    def add_imports_from_file(self, source_code: str) -> str:
-        """Extract imports from a Python source file and return cleaned source.
-
-        Uses AST parsing; on parse failure, returns the original source
-        unchanged so caller paths are never broken by bad input.
-
-        Args:
-            source_code: Full Python source code.
-
-        Returns:
-            Source code with import statements removed (blanks kept to
-            preserve line numbers for debuggers / tracebacks).
-        """
-        try:
-            return self._extract_with_ast(source_code)
-        except Exception as e:
-            self.logger.warning(f"File import extraction failed: {e}")
-            return source_code
-
-    def _extract_with_ast(self, source_code: str) -> str:
-        """Extract top-level imports via AST and blank the original lines."""
-        try:
-            tree = ast.parse(source_code)
-            source_lines = source_code.split("\n")
-            imports: List[str] = []
-            lines_to_remove: Set[int] = set()
-
-            for node in tree.body:
-                if isinstance(node, (ast.Import, ast.ImportFrom)):
-                    import_line = source_lines[node.lineno - 1].strip()
-                    imports.append(import_line)
-                    lines_to_remove.add(node.lineno - 1)
-
-            self._file_imports.update(imports)
-
-            cleaned_lines: List[str] = []
-            for i, line in enumerate(source_lines):
-                if i not in lines_to_remove:
-                    cleaned_lines.append(line)
-                else:
-                    # Preserve line numbering for traceback fidelity.
-                    cleaned_lines.append("")
-
-            return "\n".join(cleaned_lines)
-
-        except SyntaxError as e:
-            self.logger.warning(f"AST parsing failed (invalid Python): {e}")
-            return source_code
-        except Exception as e:
-            self.logger.warning(f"Unexpected error in import extraction: {e}")
-            return source_code
 
     def get_consolidated_imports(self) -> List[str]:
         """Return the final consolidated, sorted, deduplicated import list.

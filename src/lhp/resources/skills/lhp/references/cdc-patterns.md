@@ -268,3 +268,20 @@ When implementing SCD2 (any CDC source):
 **PostgreSQL-specific additions:**
 - [ ] Exclude `__START_AT` and `__END_AT` WAL metadata in transforms
 - [ ] Exclude audit columns (`created_at`, `modified_at`, etc.) if not needed in target
+
+## Snapshot CDC `source_function`
+
+For snapshot CDC, the data source can be a Python function (`source_function`) instead of a
+table. The function file path (`source_function.file`) is resolved relative to the
+**project root**, and the function is embedded into the generated pipeline.
+
+**Local helper imports:** when the `source_function` module imports local helpers, LHP copies
+the whole transitive closure into `custom_python_functions/`, **preserving sub-package
+structure**. The directory holding the function file is the **import root**.
+- **Rule A:** import root must NOT be a package (no `__init__.py` at its top) → `LHP-VAL-023`.
+- **Rule B:** a referenced helper **package is copied in full**, structure preserved.
+- **Rewrite:** absolute-local imports prefix-rewritten (`from helpers.x import y` →
+  `from custom_python_functions.helpers.x import y`); **relative imports (`from .x import y`)
+  preserved unchanged**; external/stdlib untouched.
+- `import helpers.x` (plain dotted local) → `LHP-VAL-024` (use `from helpers.x import ...`);
+  missing helper → `LHP-VAL-025`; broken sibling in a copied package → `LHP-IO-003`.

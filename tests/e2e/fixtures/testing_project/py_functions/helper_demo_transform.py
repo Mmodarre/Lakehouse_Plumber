@@ -1,0 +1,15 @@
+"""Entry module (python-transform) for the transitive helper-copying E2E fixture.
+
+Imports a LOCAL helper sub-package via an absolute-local import; LHP copies the
+helper closure into ``custom_python_functions/`` and prefix-rewrites this import
+to ``from custom_python_functions.helpers.transforms import enrich``.
+"""
+
+from pyspark.sql import DataFrame
+
+from helpers.transforms import enrich
+
+
+def transform_with_helper(df_input: DataFrame, spark, parameters) -> DataFrame:
+    """Enrich the input DataFrame using the imported helper closure."""
+    return enrich(df_input)
