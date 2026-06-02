@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
-from ...errors import ErrorCategory, LHPConfigError, LHPError, LHPValidationError
+from ...errors import ErrorFactory, LHPError, codes
 
 logger = logging.getLogger(__name__)
 
@@ -114,9 +114,8 @@ class EnhancedSubstitutionManager:
             # Re-raise LHPError as-is (it's already well-formatted)
             raise
         except Exception as e:
-            raise LHPConfigError(
-                category=ErrorCategory.CONFIG,
-                code_number="020",
+            raise ErrorFactory.config_error(
+                codes.CFG_020,
                 title="Failed to load substitution file",
                 details=f"Error loading substitution file {file_path}: {e}",
                 suggestions=[
@@ -233,9 +232,8 @@ class EnhancedSubstitutionManager:
                 scope = self.default_secret_scope
                 key = secret_ref
                 if not scope:
-                    raise LHPValidationError(
-                        category=ErrorCategory.CONFIG,
-                        code_number="008",
+                    raise ErrorFactory.config_error(
+                        codes.CFG_008,
                         title="Missing default secret scope",
                         details=f"No default secret scope configured for secret reference: {secret_ref}",
                         suggestions=[

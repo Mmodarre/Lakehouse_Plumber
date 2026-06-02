@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-
 from lhp.generators.write.streaming_table import StreamingTableWriteGenerator
 from lhp.models import Action, FlowGroup
 

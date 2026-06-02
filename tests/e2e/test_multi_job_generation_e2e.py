@@ -1,14 +1,15 @@
 """End-to-end tests for multi-job generation feature."""
 
-import pytest
 from pathlib import Path
+
+import pytest
 import yaml
 
 
 @pytest.mark.e2e
 class TestMultiJobE2E:
     """End-to-end tests for complete multi-job workflow."""
-    
+
     def test_complete_multi_job_workflow(self, tmp_path):
         """Test complete workflow: flowgroups with job_name → job generation."""
         # TODO: Create complete LHP project structure
@@ -20,7 +21,7 @@ class TestMultiJobE2E:
         # TODO: Assert all files have valid YAML
         # TODO: Assert job configs merged correctly
         pass
-    
+
     def test_single_job_backward_compatibility(self, tmp_path):
         """Test that existing projects without job_name still work."""
         # TODO: Create project WITHOUT job_name in flowgroups
@@ -28,7 +29,7 @@ class TestMultiJobE2E:
         # TODO: Assert single job file generated
         # TODO: Assert no master job generated
         pass
-    
+
     def test_validation_prevents_mixed_usage(self, tmp_path):
         """Test that validation prevents mixed job_name usage."""
         # TODO: Create project with mixed job_name usage
@@ -41,7 +42,7 @@ class TestMultiJobE2E:
 @pytest.mark.e2e
 class TestCLIIntegration:
     """Test CLI integration with multi-job generation."""
-    
+
     def test_cli_output_shows_multiple_jobs(self, capsys, tmp_path):
         """Test that CLI displays multiple generated job files."""
         # TODO: Create multi-job project
@@ -51,14 +52,14 @@ class TestCLIIntegration:
         # TODO: Assert each job file listed
         # TODO: Assert master job listed
         pass
-    
+
     def test_pipeline_filter_blocked_with_job_name(self, tmp_path):
         """Test that --pipeline flag is blocked when job_name is used."""
         # TODO: Create project with job_name
         # TODO: Run lhp deps --pipeline bronze_pipeline
         # TODO: Assert command fails with appropriate error
         pass
-    
+
     def test_bundle_output_directory_structure(self, tmp_path):
         """Test that --bundle-output creates correct structure."""
         # TODO: Create project with job_name
@@ -70,7 +71,7 @@ class TestCLIIntegration:
 
 class TestJobConfigMerging:
     """Test job config merging in E2E scenarios."""
-    
+
     def test_project_defaults_applied_to_all_jobs(self, tmp_path):
         """Test that project_defaults apply to all generated jobs."""
         # TODO: Create project with project_defaults (e.g., tags)
@@ -79,7 +80,7 @@ class TestJobConfigMerging:
         # TODO: Parse generated YAMLs
         # TODO: Assert all jobs have project_defaults applied
         pass
-    
+
     def test_job_specific_overrides_work(self, tmp_path):
         """Test that job-specific configs override project_defaults."""
         # TODO: Create project with defaults
@@ -88,7 +89,7 @@ class TestJobConfigMerging:
         # TODO: Parse generated YAMLs
         # TODO: Assert override applied to specific job only
         pass
-    
+
     def test_tags_deep_merge(self, tmp_path):
         """Test that tags are deep-merged correctly."""
         # TODO: Create project with project_defaults.tags
@@ -101,7 +102,7 @@ class TestJobConfigMerging:
 
 class TestMasterJobGeneration:
     """Test master orchestration job generation."""
-    
+
     def test_master_job_contains_all_jobs(self, tmp_path):
         """Test that master job references all individual jobs."""
         # TODO: Create project with 3 jobs
@@ -110,7 +111,7 @@ class TestMasterJobGeneration:
         # TODO: Assert 3 job_task entries
         # TODO: Assert correct job_id references
         pass
-    
+
     def test_master_job_respects_dependencies(self, tmp_path):
         """Test that master job creates correct task dependencies."""
         # TODO: Create project where job B depends on job A
@@ -118,7 +119,7 @@ class TestMasterJobGeneration:
         # TODO: Parse master job YAML
         # TODO: Assert job B task has depends_on: job A
         pass
-    
+
     def test_master_job_naming(self, tmp_path):
         """Test master job naming convention."""
         # TODO: Create project named "my_project"
@@ -129,7 +130,7 @@ class TestMasterJobGeneration:
 
 class TestErrorHandling:
     """Test error handling in E2E scenarios."""
-    
+
     def test_invalid_job_name_format_caught(self, tmp_path):
         """Test that invalid job_name format is caught."""
         # TODO: Create flowgroup with invalid job_name (e.g., with spaces)
@@ -137,7 +138,7 @@ class TestErrorHandling:
         # TODO: Assert validation error raised
         # TODO: Assert error message shows format rules
         pass
-    
+
     def test_malformed_job_config_caught(self, tmp_path):
         """Test that malformed job_config.yaml is caught."""
         # TODO: Create project with invalid YAML in job_config
@@ -148,14 +149,14 @@ class TestErrorHandling:
 
 class TestOutputFormats:
     """Test multi-job generation with different output formats."""
-    
+
     def test_job_format_only(self, tmp_path):
         """Test generating only job format with multi-job."""
         # TODO: Create multi-job project
         # TODO: Run lhp deps -f job
         # TODO: Assert only job YAMLs generated (not dot, json, text)
         pass
-    
+
     def test_all_formats_with_multi_job(self, tmp_path):
         """Test generating all formats with multi-job."""
         # TODO: Create multi-job project
@@ -172,4 +173,3 @@ class TestOutputFormats:
 # TODO: Add performance tests for large projects
 # TODO: Add tests for concurrent job generation
 # TODO: Consider using pytest-bdd for scenario-based testing
-

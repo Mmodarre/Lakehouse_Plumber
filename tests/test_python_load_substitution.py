@@ -409,7 +409,7 @@ class TestPythonLoadHardError:
         generator = PythonLoadGenerator()
         with pytest.raises(LHPError) as exc_info:
             generator.generate(action, {})
-        # Surfaced via ErrorFormatter.file_not_found.
+        # Surfaced via ErrorFactory.file_not_found.
         assert "Python load action module file" in str(exc_info.value)
 
     def test_bare_module_name_rejected(self):

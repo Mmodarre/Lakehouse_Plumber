@@ -1,42 +1,57 @@
-"""Text-only formatter for LHP errors.
+"""Single error-construction factory for LHP (TARGET §6).
 
-Produces multi-line plain-text descriptions of ``LHPError`` instances
-for log files and non-Rich consoles. Rich Panel rendering is handled
-by ``lhp.cli.error_panel.render_error_panel``.
+Each method sources its ``(category, number)`` pair from
+:mod:`lhp.errors.codes` (never re-typed as a literal) and returns — does
+not raise — the constructed error.
+
+Internal module per constitution §1.7: no ``:stability:`` annotations and
+not re-exported from ``lhp/api/``.
 """
 
-# JUSTIFIED: cohesive text-rendering pipeline; splitting would scatter the
-# formatting taxonomy (configuration_conflict, missing_required_field,
-# validation_errors, dependency_cycle, schema_syntax_error, ...) across files
-# and obscure the rendering contract. Every method here is a single static
-# factory mapping a domain situation to an LHPError; they share no state and
-# co-locating them keeps the error-code taxonomy auditable in one place.
+# JUSTIFIED: ErrorFactory is the single cohesive error-construction
+# taxonomy mandated by TARGET §6 — ~24 public methods, over the §3.2
+# ≤15 cap, and >500 lines (§3.3). TARGET §6 explicitly sanctions a
+# "~25 factory-method" class here: each method maps one domain
+# situation to one LHPError subclass, sourcing its (category, number)
+# from errors/codes.py. The 17 intent constructors carry verbatim
+# multi-line example blocks that drive most of the line count and
+# CANNOT be compressed without breaking byte-identity, and the 7
+# generic per-category constructors add the overloaded-code coverage.
+# They share no state and
+# co-locating them keeps the error-code taxonomy auditable in one
+# place; splitting to module functions or per-category files would
+# scatter the taxonomy and is NOT what TARGET §6 wants (single factory
+# class) — see LOCAL spec §2.3 / OD-4 (RESOLVED: single class).
 
 from __future__ import annotations
 
 from difflib import get_close_matches
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Tuple
 
-from .categories import ErrorCategory
+from . import codes
+from .codes import ErrorCode
 from .types import LHPConfigError, LHPError, LHPFileError, LHPValidationError
 
 
-class ErrorFormatter:
-    """Utility class for formatting common errors."""
+class ErrorFactory:
+    """Build well-formed ``LHPError`` subclasses from the code registry."""
+
+    # Intent-named constructors.
 
     @staticmethod
     def configuration_conflict(
-        action_name: str, field_pairs: List[tuple], preset_name: Optional[str] = None
+        action_name: str,
+        field_pairs: List[Tuple[str, str]],
+        preset_name: Optional[str] = None,
     ) -> LHPConfigError:
-        """Format configuration conflict errors."""
-
-        conflicts = []
-        examples = []
+        """Build a configuration-conflict error. Returns code LHP-CFG-001."""
+        code = codes.CFG_001
+        conflicts: List[str] = []
+        examples: List[str] = []
 
         for old_field, new_field in field_pairs:
             conflicts.append(f"• '{old_field}' (legacy) vs '{new_field}' (new format)")
 
-            # Generate example for this conflict
             if "cloudFiles." in new_field:
                 examples.append(f"""Option 1 (Recommended - New format):
   options:
@@ -61,8 +76,8 @@ Option 2 (Legacy - will be deprecated):
             )
 
         return LHPConfigError(
-            category=ErrorCategory.CONFIG,
-            code_number="001",
+            category=code.category,
+            code_number=code.number,
             title=f"Configuration conflict in action '{action_name}'",
             details=details,
             suggestions=suggestions,
@@ -83,10 +98,11 @@ Option 2 (Legacy - will be deprecated):
         suggestion: str,
         example: Optional[str] = None,
     ) -> LHPValidationError:
-        """Format incompatible Delta options errors."""
+        """Build an incompatible-options error. Returns code LHP-VAL-013."""
+        code = codes.VAL_013
         return LHPValidationError(
-            category=ErrorCategory.VALIDATION,
-            code_number="013",
+            category=code.category,
+            code_number=code.number,
             title=f"Incompatible options in action '{action_name}'",
             details=(
                 f"Options '{option_a}' and '{option_b}' cannot be used together. "
@@ -112,11 +128,11 @@ Option 2 (Legacy - will be deprecated):
         field_description: str,
         example_config: str,
     ) -> LHPValidationError:
-        """Format missing required field errors."""
-
+        """Build a missing-required-field error. Returns code LHP-VAL-001."""
+        code = codes.VAL_001
         return LHPValidationError(
-            category=ErrorCategory.VALIDATION,
-            code_number="001",
+            category=code.category,
+            code_number=code.number,
             title=f"Missing required field '{field_name}'",
             details=f"The {component_type} '{component_name}' requires a '{field_name}' field. {field_description}",
             suggestions=[
@@ -135,13 +151,13 @@ Option 2 (Legacy - will be deprecated):
     def file_not_found(
         file_path: str, search_locations: List[str], file_type: str = "file"
     ) -> LHPFileError:
-        """Format file not found errors."""
-
+        """Build a file-not-found error. Returns code LHP-IO-001."""
+        code = codes.IO_001
         locations_text = "\n".join([f"  • {loc}" for loc in search_locations])
 
         return LHPFileError(
-            category=ErrorCategory.IO,
-            code_number="001",
+            category=code.category,
+            code_number=code.number,
             title=f"{file_type.capitalize()} not found",
             details=f"Could not find {file_type}: '{file_path}'",
             suggestions=[
@@ -163,9 +179,8 @@ Option 2 (Legacy - will be deprecated):
         valid_values: List[str],
         example_usage: str,
     ) -> LHPConfigError:
-        """Format unknown type errors with suggestions."""
-
-        # Find close matches
+        """Build an unknown-type error with suggestions. Returns code LHP-ACT-001."""
+        code = codes.ACT_001
         suggestions = get_close_matches(provided_value, valid_values, n=3, cutoff=0.6)
 
         did_you_mean = ""
@@ -176,8 +191,8 @@ Option 2 (Legacy - will be deprecated):
         valid_list = "\n".join([f"  • {v}" for v in sorted(valid_values)])
 
         return LHPConfigError(
-            category=ErrorCategory.ACTION,
-            code_number="001",
+            category=code.category,
+            code_number=code.number,
             title=f"Unknown {value_type}: '{provided_value}'",
             details=f"'{provided_value}' is not a valid {value_type}.{did_you_mean}",
             suggestions=[
@@ -192,13 +207,12 @@ Option 2 (Legacy - will be deprecated):
     def validation_errors(
         component_name: str, component_type: str, errors: List[str]
     ) -> LHPValidationError:
-        """Format validation errors with clear explanations."""
-
-        error_details = []
-        suggestions = []
+        """Build an aggregate validation error. Returns code LHP-VAL-002."""
+        code = codes.VAL_002
+        error_details: List[str] = []
+        suggestions: List[str] = []
 
         for error in errors:
-            # Parse common validation errors and provide specific help
             if "Missing source" in error:
                 error_details.append("✗ Missing source view or configuration")
                 suggestions.append(
@@ -216,8 +230,8 @@ Option 2 (Legacy - will be deprecated):
                 error_details.append(f"✗ {error}")
 
         return LHPValidationError(
-            category=ErrorCategory.VALIDATION,
-            code_number="002",
+            category=code.category,
+            code_number=code.number,
             title=f"Validation failed for {component_type} '{component_name}'",
             details="\n".join(error_details),
             suggestions=suggestions,
@@ -242,15 +256,16 @@ actions:
         file_path: str,
         error_message: str,
         context: Optional[str] = None,
-    ) -> "LHPConfigError":
-        """Format YAML parsing errors."""
+    ) -> LHPConfigError:
+        """Build a YAML-parse error. Returns code LHP-CFG-009."""
+        code = codes.CFG_009
         details = f"Failed to parse YAML file '{file_path}': {error_message}"
         if context:
             details += f"\nContext: {context}"
 
         return LHPConfigError(
-            category=ErrorCategory.CONFIG,
-            code_number="009",
+            category=code.category,
+            code_number=code.number,
             title="YAML parsing error",
             details=details,
             suggestions=[
@@ -268,10 +283,11 @@ actions:
         replacement: str,
         example: Optional[str] = None,
     ) -> LHPConfigError:
-        """Format deprecated field warnings as errors."""
+        """Build a deprecated-field error. Returns code LHP-CFG-010."""
+        code = codes.CFG_010
         return LHPConfigError(
-            category=ErrorCategory.CONFIG,
-            code_number="010",
+            category=code.category,
+            code_number=code.number,
             title=f"Deprecated field '{field_name}' in action '{action_name}'",
             details=(
                 f"The field '{field_name}' has been removed. "
@@ -293,11 +309,12 @@ actions:
         valid_values: List[str],
         example: Optional[str] = None,
     ) -> LHPValidationError:
-        """Format invalid field value errors."""
+        """Build an invalid-field-value error. Returns code LHP-VAL-006."""
+        code = codes.VAL_006
         valid_list = ", ".join(f"'{v}'" for v in valid_values)
         return LHPValidationError(
-            category=ErrorCategory.VALIDATION,
-            code_number="006",
+            category=code.category,
+            code_number=code.number,
             title=f"Invalid value for '{field_name}'",
             details=(
                 f"Action '{action_name}' has invalid value '{value}' "
@@ -317,14 +334,13 @@ actions:
 
     @staticmethod
     def dependency_cycle(cycle_components: List[str]) -> LHPError:
-        """Format circular dependency errors."""
-
-        # Create visual representation of the cycle
+        """Build a circular-dependency error. Returns code LHP-DEP-001."""
+        code = codes.DEP_001
         cycle_visual = " → ".join(cycle_components + [cycle_components[0]])
 
         return LHPError(
-            category=ErrorCategory.DEPENDENCY,
-            code_number="001",
+            category=code.category,
+            code_number=code.number,
             title="Circular dependency detected",
             details=f"The following components form a dependency cycle:\n\n{cycle_visual}",
             suggestions=[
@@ -349,12 +365,13 @@ actions:
         action_type: str,
         provided: str,
         valid_modes: List[str],
-    ) -> "LHPValidationError":
-        """Format invalid readMode errors."""
+    ) -> LHPValidationError:
+        """Build an invalid-readMode error. Returns code LHP-VAL-007."""
+        code = codes.VAL_007
         valid_list = ", ".join(f"'{m}'" for m in valid_modes)
         return LHPValidationError(
-            category=ErrorCategory.VALIDATION,
-            code_number="007",
+            category=code.category,
+            code_number=code.number,
             title=f"Invalid readMode '{provided}' in action '{action_name}'",
             details=(
                 f"Action '{action_name}' (type: {action_type}) has readMode "
@@ -379,11 +396,12 @@ actions:
         expected_type: str,
         actual_type: str,
         example: Optional[str] = None,
-    ) -> "LHPValidationError":
-        """Format invalid field type errors."""
+    ) -> LHPValidationError:
+        """Build an invalid-field-type error. Returns code LHP-VAL-008."""
+        code = codes.VAL_008
         return LHPValidationError(
-            category=ErrorCategory.VALIDATION,
-            code_number="008",
+            category=code.category,
+            code_number=code.number,
             title=f"Invalid type for field '{field_name}' in action '{action_name}'",
             details=(
                 f"Expected '{field_name}' to be {expected_type}, but got {actual_type}."
@@ -406,12 +424,13 @@ actions:
         action_name: str,
         action_type: str,
         expected_formats: List[str],
-    ) -> "LHPValidationError":
-        """Format invalid source format errors."""
+    ) -> LHPValidationError:
+        """Build an invalid-source-format error. Returns code LHP-VAL-012."""
+        code = codes.VAL_012
         formats = "\n".join(f"  - {fmt}" for fmt in expected_formats)
         return LHPValidationError(
-            category=ErrorCategory.VALIDATION,
-            code_number="012",
+            category=code.category,
+            code_number=code.number,
             title=f"Invalid source format in action '{action_name}'",
             details=(
                 f"The source configuration for {action_type} action "
@@ -432,10 +451,11 @@ actions:
         template_name: str,
         available_templates: List[str],
         templates_dir: Optional[str] = None,
-    ) -> "LHPConfigError":
-        """Format template not found errors."""
+    ) -> LHPConfigError:
+        """Build a template-not-found error. Returns code LHP-CFG-027."""
+        code = codes.CFG_027
         matches = get_close_matches(template_name, available_templates, n=3, cutoff=0.6)
-        suggestions = []
+        suggestions: List[str] = []
         if matches:
             suggestions.append(f"Did you mean: {', '.join(repr(m) for m in matches)}?")
         if available_templates:
@@ -447,8 +467,8 @@ actions:
             suggestions.append(f"Ensure the template file exists in {templates_dir}/")
 
         return LHPConfigError(
-            category=ErrorCategory.CONFIG,
-            code_number="027",
+            category=code.category,
+            code_number=code.number,
             title=f"Template '{template_name}' not found",
             details=f"No template named '{template_name}' was found.",
             suggestions=suggestions,
@@ -460,8 +480,9 @@ actions:
         template_name: str,
         missing_params: List[str],
         available_params: Optional[List[str]] = None,
-    ) -> "LHPConfigError":
-        """Format missing template parameters errors."""
+    ) -> LHPConfigError:
+        """Build a missing-template-parameters error. Returns code LHP-CFG-012."""
+        code = codes.CFG_012
         missing_list = ", ".join(f"'{p}'" for p in missing_params)
         suggestions = [
             f"Add the missing parameters to template_parameters: {missing_list}",
@@ -471,8 +492,8 @@ actions:
                 f"Available parameters: {', '.join(sorted(available_params))}"
             )
         return LHPConfigError(
-            category=ErrorCategory.CONFIG,
-            code_number="012",
+            category=code.category,
+            code_number=code.number,
             title=f"Missing required template parameters for '{template_name}'",
             details=(
                 f"Template '{template_name}' requires the following parameters "
@@ -493,16 +514,17 @@ actions:
         line_content: Optional[str],
         expected_format: str,
         example: Optional[str] = None,
-    ) -> "LHPValidationError":
-        """Format schema syntax errors."""
+    ) -> LHPValidationError:
+        """Build a schema-syntax error. Returns code LHP-VAL-011."""
+        code = codes.VAL_011
         details = f"Invalid syntax in schema file '{file_path}'."
         if line_content:
             details += f"\nProblematic content: {line_content}"
         details += f"\nExpected format: {expected_format}"
 
         return LHPValidationError(
-            category=ErrorCategory.VALIDATION,
-            code_number="011",
+            category=code.category,
+            code_number=code.number,
             title="Schema syntax error",
             details=details,
             suggestions=[
@@ -518,12 +540,171 @@ actions:
     def preset_not_found(
         preset_name: str,
         available_presets: List[str],
-    ) -> "LHPConfigError":
-        """Format preset not found errors."""
-        return ErrorFormatter.unknown_type_with_suggestion(
+    ) -> LHPConfigError:
+        """Build a preset-not-found error. Returns code LHP-ACT-001."""
+        return ErrorFactory.unknown_type_with_suggestion(
             value_type="preset",
             provided_value=preset_name,
             valid_values=available_presets,
             example_usage=f"""presets:
   - {available_presets[0] if available_presets else "my_preset"}""",
         )
+
+    # Generic per-category constructors (overloaded codes).
+
+    @staticmethod
+    def validation_error(
+        code: ErrorCode,
+        title: str,
+        details: str,
+        suggestions: Optional[List[str]] = None,
+        example: Optional[str] = None,
+        context: Optional[dict[str, Any]] = None,
+        doc_link: Optional[str] = None,
+    ) -> LHPValidationError:
+        """Build a generic VALIDATION error from any VAL ErrorCode."""
+        return LHPValidationError(
+            category=code.category,
+            code_number=code.number,
+            title=title,
+            details=details,
+            suggestions=suggestions,
+            example=example,
+            context=context,
+            doc_link=doc_link,
+        )
+
+    @staticmethod
+    def config_error(
+        code: ErrorCode,
+        title: str,
+        details: str,
+        suggestions: Optional[List[str]] = None,
+        example: Optional[str] = None,
+        context: Optional[dict[str, Any]] = None,
+        doc_link: Optional[str] = None,
+    ) -> LHPConfigError:
+        """Build a generic CONFIG error from any CFG ErrorCode."""
+        return LHPConfigError(
+            category=code.category,
+            code_number=code.number,
+            title=title,
+            details=details,
+            suggestions=suggestions,
+            example=example,
+            context=context,
+            doc_link=doc_link,
+        )
+
+    @staticmethod
+    def io_error(
+        code: ErrorCode,
+        title: str,
+        details: str,
+        suggestions: Optional[List[str]] = None,
+        example: Optional[str] = None,
+        context: Optional[dict[str, Any]] = None,
+        doc_link: Optional[str] = None,
+    ) -> LHPFileError:
+        """Build a generic IO error from any IO ErrorCode."""
+        return LHPFileError(
+            category=code.category,
+            code_number=code.number,
+            title=title,
+            details=details,
+            suggestions=suggestions,
+            example=example,
+            context=context,
+            doc_link=doc_link,
+        )
+
+    @staticmethod
+    def action_error(
+        code: ErrorCode,
+        title: str,
+        details: str,
+        suggestions: Optional[List[str]] = None,
+        example: Optional[str] = None,
+        context: Optional[dict[str, Any]] = None,
+        doc_link: Optional[str] = None,
+    ) -> LHPConfigError:
+        """Build a generic ACTION error from any ACT ErrorCode."""
+        return LHPConfigError(
+            category=code.category,
+            code_number=code.number,
+            title=title,
+            details=details,
+            suggestions=suggestions,
+            example=example,
+            context=context,
+            doc_link=doc_link,
+        )
+
+    @staticmethod
+    def dependency_error(
+        code: ErrorCode,
+        title: str,
+        details: str,
+        suggestions: Optional[List[str]] = None,
+        example: Optional[str] = None,
+        context: Optional[dict[str, Any]] = None,
+        doc_link: Optional[str] = None,
+    ) -> LHPError:
+        """Build a generic DEPENDENCY error from any DEP ErrorCode."""
+        return LHPError(
+            category=code.category,
+            code_number=code.number,
+            title=title,
+            details=details,
+            suggestions=suggestions,
+            example=example,
+            context=context,
+            doc_link=doc_link,
+        )
+
+    @staticmethod
+    def general_error(
+        code: ErrorCode,
+        title: str,
+        details: str,
+        suggestions: Optional[List[str]] = None,
+        example: Optional[str] = None,
+        context: Optional[dict[str, Any]] = None,
+        doc_link: Optional[str] = None,
+    ) -> LHPError:
+        """Build a generic GENERAL error from any GEN ErrorCode."""
+        return LHPError(
+            category=code.category,
+            code_number=code.number,
+            title=title,
+            details=details,
+            suggestions=suggestions,
+            example=example,
+            context=context,
+            doc_link=doc_link,
+        )
+
+    @staticmethod
+    def cloudfiles_error(
+        code: ErrorCode,
+        title: str,
+        details: str,
+        suggestions: Optional[List[str]] = None,
+        example: Optional[str] = None,
+        context: Optional[dict[str, Any]] = None,
+        doc_link: Optional[str] = None,
+    ) -> LHPError:
+        """Build a generic CLOUDFILES error from any CF ErrorCode."""
+        return LHPError(
+            category=code.category,
+            code_number=code.number,
+            title=title,
+            details=details,
+            suggestions=suggestions,
+            example=example,
+            context=context,
+            doc_link=doc_link,
+        )
+
+
+__all__ = ["ErrorFactory"]

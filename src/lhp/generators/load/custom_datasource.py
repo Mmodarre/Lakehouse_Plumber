@@ -4,11 +4,12 @@ import logging
 import re
 from pathlib import Path
 
+from lhp.core.codegen import copy_user_module_for_pipeline
+from lhp.errors import ErrorFactory
+from lhp.models import Action
+
 from ...core.loaders.external_file_loader import load_external_file_text
 from ...core.registry import BaseActionGenerator
-from ...errors import ErrorFormatter
-from lhp.models import Action
-from lhp.core.codegen import copy_user_module_for_pipeline
 
 
 class CustomDataSourceLoadGenerator(BaseActionGenerator):
@@ -71,7 +72,7 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
         """Generate custom data source load code via copy-and-import."""
         source_config = action.source
         if isinstance(source_config, str):
-            raise ErrorFormatter.invalid_source_format(
+            raise ErrorFactory.invalid_source_format(
                 action_name=action.name,
                 action_type="custom_datasource",
                 expected_formats=[
@@ -95,7 +96,7 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
 
         # Validate required fields
         if not module_path:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="module_path",
                 component_type="Custom data source load action",
                 component_name=action.name,
@@ -113,7 +114,7 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
             )
 
         if not custom_datasource_class:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="custom_datasource_class",
                 component_type="Custom data source load action",
                 component_name=action.name,

@@ -2,14 +2,11 @@
 
 import logging
 
-from ...core.registry import BaseActionGenerator
-from lhp.models import Action
-from ...errors import (
-    ErrorCategory,
-    ErrorFormatter,
-    LHPValidationError,
-)
 from lhp.core.codegen import copy_user_module_for_pipeline
+from lhp.models import Action
+
+from ...core.registry import BaseActionGenerator
+from ...errors import ErrorFactory, codes
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +39,7 @@ class PythonTransformGenerator(BaseActionGenerator):
                 parameters = substitution_mgr.substitute_yaml(parameters)
 
         if not module_path:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="module_path",
                 component_type="Python transform action",
                 component_name=action.name,
@@ -57,7 +54,7 @@ class PythonTransformGenerator(BaseActionGenerator):
     function_name: "transform"                     # Required""",
             )
         if not function_name:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="function_name",
                 component_type="Python transform action",
                 component_name=action.name,
@@ -118,9 +115,8 @@ class PythonTransformGenerator(BaseActionGenerator):
     def _extract_source_views_from_action_source(self, source) -> list:
         """Extract source view names from action.source field."""
         if source is None:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="014",
+            raise ErrorFactory.validation_error(
+                codes.VAL_014,
                 title="Missing source for Python transform",
                 details="Python transform source cannot be None - transforms require input data.",
                 suggestions=[
@@ -134,9 +130,8 @@ class PythonTransformGenerator(BaseActionGenerator):
         elif isinstance(source, list):
             return source  # Multiple source views
         else:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="014",
+            raise ErrorFactory.validation_error(
+                codes.VAL_014,
                 title="Invalid source type for Python transform",
                 details=(
                     f"Python transform source must be a string or list of strings, "

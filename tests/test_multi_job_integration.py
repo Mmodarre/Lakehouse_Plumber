@@ -1,15 +1,17 @@
 """Integration tests for multi-job orchestration workflow."""
 
-import pytest
+import tempfile
 from pathlib import Path
+from unittest.mock import Mock, patch
+
+import pytest
+import yaml
+
 from lhp.core.coordination.validation_service import ValidationService
 from lhp.core.dependencies.service import DependencyAnalysisService
 from lhp.core.jobs.job_generator import JobGenerator
-from lhp.models import FlowGroup, Action, ActionType, ProjectConfig
 from lhp.errors import LHPError
-from unittest.mock import Mock, patch
-import tempfile
-import yaml
+from lhp.models import Action, ActionType, FlowGroup, ProjectConfig
 
 
 def _make_service(project_root):
@@ -34,6 +36,7 @@ class TestMultiJobWorkflow:
     def teardown_method(self):
         """Clean up test fixtures."""
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     # NOTE: These integration tests were removed due to logic issues:
@@ -42,9 +45,10 @@ class TestMultiJobWorkflow:
     # 3. test_backward_compat_single_job_no_master - Tests YAML validity, not actual behavior
     #
     # TODO: Rewrite these tests using real project structures and YAML files instead of mocks
-    @patch('lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups')
-    def test_validation_failure_stops_workflow(self, mockget_flowgroups,
-                                               sample_flowgroups_mixed_job_name):
+    @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
+    def test_validation_failure_stops_workflow(
+        self, mockget_flowgroups, sample_flowgroups_mixed_job_name
+    ):
         """Test that validation failure stops the workflow early."""
         mockget_flowgroups.return_value = sample_flowgroups_mixed_job_name
 
@@ -56,4 +60,3 @@ class TestMultiJobWorkflow:
 
         assert exc_info.value.code == "LHP-VAL-002"
         assert "Inconsistent job_name usage" in exc_info.value.title
-

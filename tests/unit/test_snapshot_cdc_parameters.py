@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from lhp.core.processing.substitution import EnhancedSubstitutionManager
-from lhp.core.validators.dlt_cdc_validators import SnapshotCdcConfigValidator
+from lhp.core.validators import SnapshotCdcConfigValidator
 from lhp.errors import LHPError
 from lhp.generators.write.streaming_table import (
     SourceFunctionResult,

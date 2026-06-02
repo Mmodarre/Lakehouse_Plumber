@@ -12,8 +12,9 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
-from ...errors import ErrorCategory, LHPError, LHPValidationError
 from lhp.models import Blueprint, BlueprintInstance, ProjectConfig
+
+from ...errors import ErrorFactory, LHPError, codes
 from ...parsers.blueprint_parser import BlueprintParser
 from ...parsers.yaml_loader import load_yaml_documents_all
 from ...utils.file_pattern_matcher import discover_files_with_patterns
@@ -92,9 +93,8 @@ class BlueprintDiscoverer:
                 blueprint = self.blueprint_parser.parse_blueprint_file(path)
                 if blueprint.name in registry:
                     existing_path = registry[blueprint.name][1]
-                    raise LHPValidationError(
-                        category=ErrorCategory.VALIDATION,
-                        code_number="046",
+                    raise ErrorFactory.validation_error(
+                        codes.VAL_046,
                         title=f"Duplicate blueprint name '{blueprint.name}'",
                         details=(
                             f"Two blueprint files declare the same name "

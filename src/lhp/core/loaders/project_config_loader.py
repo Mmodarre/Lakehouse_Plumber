@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from ...errors import ErrorCategory, LHPError
+from lhp.errors import ErrorFactory, LHPError, codes
 from lhp.models import (
     EventLogConfig,
     MonitoringConfig,
@@ -22,6 +22,8 @@ from ._event_log_config_parser import parse_event_log_config
 from ._include_patterns_parser import parse_include_patterns
 from ._monitoring_config_parser import (
     _validate_monitoring_config as _validate_monitoring_config_impl,
+)
+from ._monitoring_config_parser import (
     parse_monitoring_config,
 )
 from ._operational_metadata_config_parser import parse_operational_metadata_config
@@ -64,15 +66,18 @@ class ProjectConfigLoader:
             self.logger.info(f"Loaded project configuration from {self.config_file}")
             return project_config
 
+        except LHPError:
+            # Well-formed LHPError from a sub-parser — propagate the specific
+            # code unchanged; never swallow/re-wrap.
+            raise
         except ValueError as e:
             # yaml_loader converts YAML and file errors to ValueError with clear context
             error_msg = str(e)
             self.logger.exception(f"Project configuration loading failed: {error_msg}")
 
             if "Invalid YAML" in error_msg:
-                raise LHPError(
-                    category=ErrorCategory.CONFIG,
-                    code_number="001",
+                raise ErrorFactory.config_error(
+                    codes.CFG_001,
                     title="Invalid project configuration YAML",
                     details=error_msg,
                     suggestions=[
@@ -87,9 +92,8 @@ class ProjectConfigLoader:
                 f"Error loading project configuration from {self.config_file}: {e}"
             )
             self.logger.exception(error_msg)
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="002",
+            raise ErrorFactory.config_error(
+                codes.CFG_002,
                 title="Project configuration loading failed",
                 details=error_msg,
                 suggestions=[

@@ -18,7 +18,7 @@ from lhp.api import (
     PresetView,
     TemplateView,
 )
-from lhp.errors import ErrorCategory, LHPConfigError
+from lhp.errors import ErrorFactory, codes
 
 from .. import console as _console_module
 from ..render import (
@@ -43,9 +43,8 @@ class ListCommand(BaseCommand):
         presets_dir = project_root / "presets"
 
         if not presets_dir.exists():
-            raise LHPConfigError(
-                category=ErrorCategory.CONFIG,
-                code_number="016",
+            raise ErrorFactory.config_error(
+                codes.CFG_016,
                 title="No presets directory found",
                 details="The presets/ directory does not exist in this project.",
                 suggestions=[
@@ -96,9 +95,8 @@ class ListCommand(BaseCommand):
         templates_dir = project_root / "templates"
 
         if not templates_dir.exists():
-            raise LHPConfigError(
-                category=ErrorCategory.CONFIG,
-                code_number="017",
+            raise ErrorFactory.config_error(
+                codes.CFG_017,
                 title="No templates directory found",
                 details="The templates/ directory does not exist in this project.",
                 suggestions=[
@@ -217,9 +215,7 @@ class ListCommand(BaseCommand):
 
         _console_module.console.print(f"Total instances: {total_instances}")
 
-    def _display_preset_descriptions(
-        self, presets: "tuple[PresetView, ...]"
-    ) -> None:
+    def _display_preset_descriptions(self, presets: "tuple[PresetView, ...]") -> None:
         described = [
             preset
             for preset in presets
@@ -232,16 +228,12 @@ class ListCommand(BaseCommand):
             _console_module.console.print(Text(f"{preset.name}:", style="bold"))
             _console_module.console.print(f"   {preset.description}")
 
-    def _display_template_details(
-        self, templates: "tuple[TemplateView, ...]"
-    ) -> None:
+    def _display_template_details(self, templates: "tuple[TemplateView, ...]") -> None:
         _console_module.console.print(Text("Template Details", style="bold dim"))
         for template in templates:
             _console_module.console.print(Text(f"{template.name}:", style="bold"))
             if template.description:
-                _console_module.console.print(
-                    f"   Description: {template.description}"
-                )
+                _console_module.console.print(f"   Description: {template.description}")
 
             if template.parameters:
                 _console_module.console.print("   Parameters:")

@@ -22,7 +22,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from ...errors import ErrorCategory, LHPError
 from lhp.models import (
     Action,
     ActionType,
@@ -31,6 +30,8 @@ from lhp.models import (
     MonitoringConfig,
     ProjectConfig,
 )
+
+from ...errors import ErrorFactory, codes
 from ..codegen.template_renderer import TemplateRenderer
 from ..loaders.external_file_loader import load_external_file_text
 
@@ -375,9 +376,8 @@ class MonitoringPipelineBuilder:
 
         if sql_path:
             if not self.project_root:
-                raise LHPError(
-                    category=ErrorCategory.CONFIG,
-                    code_number="008",
+                raise ErrorFactory.config_error(
+                    codes.CFG_008,
                     title="Cannot resolve sql_path without project root",
                     details=(
                         f"Materialized view '{mv_name}' uses sql_path but "

@@ -7,10 +7,8 @@ from typing import Any, Dict, List
 
 import yaml
 
+from ..errors import ErrorFactory
 from ..parsers.yaml_parser import YAMLParser
-from ..errors import (
-    ErrorFormatter,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +56,7 @@ class SchemaTransformParser:
             ValueError: If file format is invalid.
         """
         if not file_path.exists():
-            raise ErrorFormatter.file_not_found(
+            raise ErrorFactory.file_not_found(
                 file_path=str(file_path),
                 search_locations=[str(file_path.parent)],
                 file_type="schema transform file",
@@ -90,7 +88,7 @@ class SchemaTransformParser:
             ValueError: If format is invalid.
         """
         if not schema_str or not schema_str.strip():
-            raise ErrorFormatter.schema_syntax_error(
+            raise ErrorFactory.schema_syntax_error(
                 file_path="<inline>",
                 line_content=None,
                 expected_format="Non-empty schema with column definitions",
@@ -144,7 +142,7 @@ class SchemaTransformParser:
         lines = [line.strip() for line in text.strip().split("\n") if line.strip()]
 
         if not lines:
-            raise ErrorFormatter.schema_syntax_error(
+            raise ErrorFactory.schema_syntax_error(
                 file_path="<inline>",
                 line_content=None,
                 expected_format="One or more column definition lines",
@@ -186,7 +184,7 @@ class SchemaTransformParser:
         has_legacy = "column_mapping" in data or "type_casting" in data
 
         if has_columns and has_legacy:
-            raise ErrorFormatter.schema_syntax_error(
+            raise ErrorFactory.schema_syntax_error(
                 file_path="<schema>",
                 line_content="Found both 'columns' and 'column_mapping'/'type_casting'",
                 expected_format="Either 'columns' (arrow format) OR 'column_mapping'/'type_casting' (legacy format), not both",
@@ -201,7 +199,7 @@ class SchemaTransformParser:
         elif has_legacy:
             return self.parse_legacy_format(data)
         else:
-            raise ErrorFormatter.schema_syntax_error(
+            raise ErrorFactory.schema_syntax_error(
                 file_path="<schema>",
                 line_content=str(list(data.keys())),
                 expected_format="'columns' (arrow format) or 'column_mapping'/'type_casting' (legacy format)",
@@ -231,7 +229,7 @@ class SchemaTransformParser:
 
         # Validate columns exist
         if not columns:
-            raise ErrorFormatter.schema_syntax_error(
+            raise ErrorFactory.schema_syntax_error(
                 file_path="<schema>",
                 line_content=None,
                 expected_format="At least one column definition in 'columns' list",
@@ -248,7 +246,7 @@ class SchemaTransformParser:
 
         for col_def in columns:
             if not isinstance(col_def, str):
-                raise ErrorFormatter.schema_syntax_error(
+                raise ErrorFactory.schema_syntax_error(
                     file_path="<schema>",
                     line_content=str(col_def),
                     expected_format="String column definition",
@@ -264,7 +262,7 @@ class SchemaTransformParser:
 
                 # Check for duplicate source column
                 if source_col in source_columns_seen:
-                    raise ErrorFormatter.schema_syntax_error(
+                    raise ErrorFactory.schema_syntax_error(
                         file_path="<schema>",
                         line_content=col_def,
                         expected_format="Each source column can only be mapped once",
@@ -274,7 +272,7 @@ class SchemaTransformParser:
 
                 # Check for duplicate target column
                 if target_col in target_columns_seen:
-                    raise ErrorFormatter.schema_syntax_error(
+                    raise ErrorFactory.schema_syntax_error(
                         file_path="<schema>",
                         line_content=col_def,
                         expected_format="Each target column must be unique",
@@ -299,7 +297,7 @@ class SchemaTransformParser:
 
                 # Check if this column already has a type cast defined
                 if col_name in type_casting:
-                    raise ErrorFormatter.schema_syntax_error(
+                    raise ErrorFactory.schema_syntax_error(
                         file_path="<schema>",
                         line_content=col_def,
                         expected_format="Each column can only have one type cast",
@@ -308,7 +306,7 @@ class SchemaTransformParser:
 
                 # Check if this column was used as source in rename operation
                 if col_name in source_columns_seen:
-                    raise ErrorFormatter.schema_syntax_error(
+                    raise ErrorFactory.schema_syntax_error(
                         file_path="<schema>",
                         line_content=col_def,
                         expected_format="Cannot cast a column that is used as source in a rename operation",
@@ -331,7 +329,7 @@ class SchemaTransformParser:
                 # Pass-through columns are allowed (enforcement will be validated at action level)
                 # Check for duplicate
                 if col_name in target_columns_seen:
-                    raise ErrorFormatter.schema_syntax_error(
+                    raise ErrorFactory.schema_syntax_error(
                         file_path="<schema>",
                         line_content=col_def,
                         expected_format="Each column must appear only once",
@@ -343,7 +341,7 @@ class SchemaTransformParser:
                 continue
 
             # If no pattern matched, it's invalid syntax
-            raise ErrorFormatter.schema_syntax_error(
+            raise ErrorFactory.schema_syntax_error(
                 file_path="<schema>",
                 line_content=col_def,
                 expected_format="'old -> new: TYPE', 'old -> new', 'col: TYPE', or 'col' (pass-through)",

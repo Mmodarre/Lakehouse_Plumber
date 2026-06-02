@@ -3,10 +3,11 @@
 import logging
 from pathlib import Path
 
+from lhp.models import Action
+
 from ...core.loaders.external_file_loader import load_external_file_text
 from ...core.registry import BaseActionGenerator
-from ...errors import ErrorFormatter
-from lhp.models import Action
+from ...errors import ErrorFactory
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,7 @@ class SQLTransformGenerator(BaseActionGenerator):
                 action.sql_path, project_root, file_type="SQL file"
             ).strip()
         else:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="sql/sql_path",
                 component_type="SQL transform action",
                 component_name=action.name,

@@ -3,7 +3,7 @@
 import logging
 from typing import Any
 
-from ...errors import ErrorCategory, LHPError
+from lhp.errors import ErrorFactory, codes
 from lhp.models import EventLogConfig
 
 logger = logging.getLogger(__name__)
@@ -12,9 +12,8 @@ logger = logging.getLogger(__name__)
 def parse_event_log_config(event_log_data: Any) -> EventLogConfig:
     """Parse and validate the ``event_log`` mapping into an :class:`EventLogConfig`."""
     if not isinstance(event_log_data, dict):
-        raise LHPError(
-            category=ErrorCategory.CONFIG,
-            code_number="006",
+        raise ErrorFactory.config_error(
+            codes.CFG_006,
             title="Invalid event_log configuration",
             details=f"event_log must be a mapping, got {type(event_log_data).__name__}",
             suggestions=[
@@ -32,9 +31,8 @@ def parse_event_log_config(event_log_data: Any) -> EventLogConfig:
             name_suffix=event_log_data.get("name_suffix", ""),
         )
     except Exception as e:
-        raise LHPError(
-            category=ErrorCategory.CONFIG,
-            code_number="006",
+        raise ErrorFactory.config_error(
+            codes.CFG_006,
             title="Error parsing event_log configuration",
             details=f"Failed to parse event_log configuration: {e}",
             suggestions=[
@@ -58,9 +56,8 @@ def _validate_event_log_config(config: EventLogConfig) -> None:
             missing.append("catalog")
         if not config.schema_:
             missing.append("schema")
-        raise LHPError(
-            category=ErrorCategory.CONFIG,
-            code_number="007",
+        raise ErrorFactory.config_error(
+            codes.CFG_007,
             title="Incomplete event_log configuration",
             details=(
                 f"event_log is enabled but missing required fields: {', '.join(missing)}. "

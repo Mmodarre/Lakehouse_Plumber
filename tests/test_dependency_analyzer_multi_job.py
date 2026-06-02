@@ -8,8 +8,8 @@ import pytest
 
 from lhp.core.coordination.validation_service import ValidationService
 from lhp.core.dependencies.service import DependencyAnalysisService
-from lhp.models import Action, ActionType, FlowGroup, ProjectConfig
 from lhp.errors import ErrorCategory, LHPError
+from lhp.models import Action, ActionType, FlowGroup, ProjectConfig
 
 
 def _make_service(project_root):
@@ -166,9 +166,7 @@ class TestGlobalAndPerJobAnalysis:
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
-    @patch(
-        "lhp.core.dependencies.analyzer.DependencyAnalyzer.analyze"
-    )
+    @patch("lhp.core.dependencies.analyzer.DependencyAnalyzer.analyze")
     def test_global_analysis_runs_first(
         self, mock_analyze, mockget_flowgroups, create_flowgroup
     ):

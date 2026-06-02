@@ -2,9 +2,10 @@
 
 import logging
 
-from ...core.registry import BaseActionGenerator
+from lhp.errors import ErrorFactory
 from lhp.models import Action
-from ...errors import ErrorFormatter
+
+from ...core.registry import BaseActionGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ class JDBCLoadGenerator(BaseActionGenerator):
         """Generate JDBC load code with secret substitution."""
         source_config = action.source
         if isinstance(source_config, str):
-            raise ErrorFormatter.invalid_source_format(
+            raise ErrorFactory.invalid_source_format(
                 action_name=action.name,
                 action_type="jdbc load",
                 expected_formats=[

@@ -2,12 +2,10 @@
 
 import logging
 
-from ...core.registry import BaseActionGenerator
 from lhp.models import Action
-from ...errors import (
-    ErrorCategory,
-    LHPValidationError,
-)
+
+from ...core.registry import BaseActionGenerator
+from ...errors import ErrorFactory, codes
 
 logger = logging.getLogger(__name__)
 
@@ -60,9 +58,8 @@ class TempTableTransformGenerator(BaseActionGenerator):
         elif isinstance(source, dict):
             return source.get("view", source.get("source", ""))
         else:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="016",
+            raise ErrorFactory.validation_error(
+                codes.VAL_016,
                 title="Missing source view for temp table transform",
                 details=(
                     f"Temp table transform must have a source view, "

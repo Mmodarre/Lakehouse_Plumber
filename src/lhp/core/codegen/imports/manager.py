@@ -76,14 +76,10 @@ class ImportManager:
                 existing_bindings = self._extract_from_import_bindings(existing)
                 for name, module in new_bindings.items():
                     if name in existing_bindings and existing_bindings[name] != module:
-                        from lhp.errors import (
-                            ErrorCategory,
-                            LHPValidationError,
-                        )
+                        from lhp.errors import ErrorFactory, codes
 
-                        raise LHPValidationError(
-                            category=ErrorCategory.VALIDATION,
-                            code_number="021",
+                        raise ErrorFactory.validation_error(
+                            codes.VAL_021,
                             title="Import name collision",
                             details=(
                                 f"Two imports bind the local name '{name}' "

@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import Union
 
-from ..errors import ErrorCategory, LHPConfigError
+from ..errors import ErrorFactory, codes
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +37,8 @@ def should_enable_bundle_support(
     :stability: provisional
     """
     if project_root is None:
-        raise LHPConfigError(
-            category=ErrorCategory.CONFIG,
-            code_number="028",
+        raise ErrorFactory.config_error(
+            codes.CFG_028,
             title="Invalid project_root argument",
             details="project_root cannot be None when checking bundle support.",
             suggestions=[

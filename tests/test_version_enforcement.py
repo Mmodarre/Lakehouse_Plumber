@@ -1,9 +1,10 @@
 """Tests for version enforcement functionality."""
 
 import os
-import pytest
-from unittest.mock import patch, MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from lhp.api.facade import LakehousePlumberApplicationFacade
 from lhp.errors import LHPError
@@ -53,10 +54,15 @@ required_lhp_version: ">=0.4.0,<0.5.0"
 """)
 
         # Mock get_version to return a compatible version
-        with patch('lhp.core.coordination.orchestrator.get_version', return_value='0.4.1'):
+        with patch(
+            "lhp.core.coordination.orchestrator.get_version", return_value="0.4.1"
+        ):
             facade = LakehousePlumberApplicationFacade.for_project(tmp_path)
             # Inspecting orchestrator-internal state (construction-time concern).
-            assert facade._orchestrator.project_config.required_lhp_version == ">=0.4.0,<0.5.0"
+            assert (
+                facade._orchestrator.project_config.required_lhp_version
+                == ">=0.4.0,<0.5.0"
+            )
 
     def test_non_matching_version_requirement_fails(self, tmp_path):
         """Test that non-matching version requirement raises LHPError."""
@@ -69,7 +75,9 @@ required_lhp_version: ">=0.5.0,<0.6.0"
 """)
 
         # Mock get_version to return an incompatible version
-        with patch('lhp.core.coordination.orchestrator.get_version', return_value='0.4.1'):
+        with patch(
+            "lhp.core.coordination.orchestrator.get_version", return_value="0.4.1"
+        ):
             with pytest.raises(LHPError) as exc_info:
                 LakehousePlumberApplicationFacade.for_project(tmp_path)
 
@@ -88,7 +96,9 @@ version: "1.0"
 required_lhp_version: "==0.4.1"
 """)
 
-        with patch('lhp.core.coordination.orchestrator.get_version', return_value='0.4.1'):
+        with patch(
+            "lhp.core.coordination.orchestrator.get_version", return_value="0.4.1"
+        ):
             facade = LakehousePlumberApplicationFacade.for_project(tmp_path)
             # Inspecting orchestrator-internal state (construction-time concern).
             assert facade._orchestrator.project_config.required_lhp_version == "==0.4.1"
@@ -102,7 +112,9 @@ version: "1.0"
 required_lhp_version: "==0.4.1"
 """)
 
-        with patch('lhp.core.coordination.orchestrator.get_version', return_value='0.4.2'):
+        with patch(
+            "lhp.core.coordination.orchestrator.get_version", return_value="0.4.2"
+        ):
             with pytest.raises(LHPError) as exc_info:
                 LakehousePlumberApplicationFacade.for_project(tmp_path)
 
@@ -121,13 +133,17 @@ required_lhp_version: "~=0.4.1"
 """)
 
         # Should pass for 0.4.x versions
-        with patch('lhp.core.coordination.orchestrator.get_version', return_value='0.4.5'):
+        with patch(
+            "lhp.core.coordination.orchestrator.get_version", return_value="0.4.5"
+        ):
             facade = LakehousePlumberApplicationFacade.for_project(tmp_path)
             # Inspecting orchestrator-internal state (construction-time concern).
             assert facade._orchestrator.project_config.required_lhp_version == "~=0.4.1"
 
         # Should fail for 0.5.x versions
-        with patch('lhp.core.coordination.orchestrator.get_version', return_value='0.5.0'):
+        with patch(
+            "lhp.core.coordination.orchestrator.get_version", return_value="0.5.0"
+        ):
             with pytest.raises(LHPError):
                 LakehousePlumberApplicationFacade.for_project(tmp_path)
 
@@ -141,14 +157,19 @@ required_lhp_version: ">=0.5.0,<0.6.0"
 """)
 
         # Mock incompatible version but set bypass env var
-        with patch('lhp.core.coordination.orchestrator.get_version', return_value='0.4.1'):
+        with patch(
+            "lhp.core.coordination.orchestrator.get_version", return_value="0.4.1"
+        ):
             # Test various bypass values
             for bypass_value in ["1", "true", "yes", "TRUE", "YES"]:
                 with patch.dict(os.environ, {"LHP_IGNORE_VERSION": bypass_value}):
                     # Should not raise error
                     facade = LakehousePlumberApplicationFacade.for_project(tmp_path)
                     # Inspecting orchestrator-internal state (construction-time concern).
-                    assert facade._orchestrator.project_config.required_lhp_version == ">=0.5.0,<0.6.0"
+                    assert (
+                        facade._orchestrator.project_config.required_lhp_version
+                        == ">=0.5.0,<0.6.0"
+                    )
 
     def test_bypass_environment_variable_case_insensitive(self, tmp_path):
         """Test that bypass environment variable is case insensitive."""
@@ -159,7 +180,9 @@ version: "1.0"
 required_lhp_version: ">=0.5.0,<0.6.0"
 """)
 
-        with patch('lhp.core.coordination.orchestrator.get_version', return_value='0.4.1'):
+        with patch(
+            "lhp.core.coordination.orchestrator.get_version", return_value="0.4.1"
+        ):
             with patch.dict(os.environ, {"LHP_IGNORE_VERSION": "True"}):
                 facade = LakehousePlumberApplicationFacade.for_project(tmp_path)
                 # Inspecting orchestrator-internal state (construction-time concern).
@@ -175,11 +198,18 @@ required_lhp_version: ">=0.5.0,<0.6.0"
 """)
 
         # Mock incompatible version but disable enforcement
-        with patch('lhp.core.coordination.orchestrator.get_version', return_value='0.4.1'):
+        with patch(
+            "lhp.core.coordination.orchestrator.get_version", return_value="0.4.1"
+        ):
             # Should not raise error when enforcement is disabled
-            facade = LakehousePlumberApplicationFacade.for_project(tmp_path, enforce_version=False)
+            facade = LakehousePlumberApplicationFacade.for_project(
+                tmp_path, enforce_version=False
+            )
             # Inspecting orchestrator-internal state (construction-time concern).
-            assert facade._orchestrator.project_config.required_lhp_version == ">=0.5.0,<0.6.0"
+            assert (
+                facade._orchestrator.project_config.required_lhp_version
+                == ">=0.5.0,<0.6.0"
+            )
             assert facade._orchestrator.enforce_version is False
 
     def test_invalid_version_spec_raises_error(self, tmp_path):
@@ -191,7 +221,9 @@ version: "1.0"
 required_lhp_version: "invalid_spec"
 """)
 
-        with patch('lhp.core.coordination.orchestrator.get_version', return_value='0.4.1'):
+        with patch(
+            "lhp.core.coordination.orchestrator.get_version", return_value="0.4.1"
+        ):
             with pytest.raises(LHPError) as exc_info:
                 LakehousePlumberApplicationFacade.for_project(tmp_path)
 
@@ -210,16 +242,18 @@ required_lhp_version: ">=0.4.0,<0.5.0"
 """)
 
         # Mock ImportError for packaging by patching the specific import path
-        with patch('lhp.core.coordination.orchestrator.get_version', return_value='0.4.1'):
+        with patch(
+            "lhp.core.coordination.orchestrator.get_version", return_value="0.4.1"
+        ):
             # Create a custom import function that raises ImportError only for packaging imports
-            original_import = __builtins__['__import__']
+            original_import = __builtins__["__import__"]
 
             def mock_import(name, *args, **kwargs):
-                if 'packaging' in name:
+                if "packaging" in name:
                     raise ImportError("No module named 'packaging'")
                 return original_import(name, *args, **kwargs)
 
-            with patch('builtins.__import__', side_effect=mock_import):
+            with patch("builtins.__import__", side_effect=mock_import):
                 with pytest.raises(LHPError) as exc_info:
                     LakehousePlumberApplicationFacade.for_project(tmp_path)
 
@@ -237,20 +271,26 @@ required_lhp_version: ">=0.4.0,<0.5.0,!=0.4.3"
 """)
 
         # Should pass for allowed versions
-        with patch('lhp.core.coordination.orchestrator.get_version', return_value='0.4.1'):
+        with patch(
+            "lhp.core.coordination.orchestrator.get_version", return_value="0.4.1"
+        ):
             facade = LakehousePlumberApplicationFacade.for_project(tmp_path)
             # Inspecting orchestrator-internal state (construction-time concern).
             assert facade._orchestrator.project_config is not None
 
         # Should fail for excluded version
-        with patch('lhp.core.coordination.orchestrator.get_version', return_value='0.4.3'):
+        with patch(
+            "lhp.core.coordination.orchestrator.get_version", return_value="0.4.3"
+        ):
             with pytest.raises(LHPError):
                 LakehousePlumberApplicationFacade.for_project(tmp_path)
 
     def test_no_project_config_skips_check(self, tmp_path):
         """Test that missing project config skips version checking."""
         # No lhp.yaml file
-        with patch('lhp.core.coordination.orchestrator.get_version', return_value='0.4.1'):
+        with patch(
+            "lhp.core.coordination.orchestrator.get_version", return_value="0.4.1"
+        ):
             facade = LakehousePlumberApplicationFacade.for_project(tmp_path)
             # Inspecting orchestrator-internal state (construction-time concern).
             assert facade._orchestrator.project_config is None
@@ -264,7 +304,9 @@ version: "2.0"
 required_lhp_version: ">=0.5.0,<0.6.0"
 """)
 
-        with patch('lhp.core.coordination.orchestrator.get_version', return_value='0.4.1'):
+        with patch(
+            "lhp.core.coordination.orchestrator.get_version", return_value="0.4.1"
+        ):
             with pytest.raises(LHPError) as exc_info:
                 LakehousePlumberApplicationFacade.for_project(tmp_path)
 

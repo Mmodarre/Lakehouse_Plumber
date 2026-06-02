@@ -14,6 +14,7 @@ from typing import Dict, List
 import networkx as nx
 
 from lhp.models import FlowGroup
+
 from ...models.dependencies import (
     DependencyAnalysisResult,
     DependencyGraphs,

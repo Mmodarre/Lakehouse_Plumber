@@ -5,12 +5,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, List
 
-from ...errors import LHPError
 from lhp.models import Action, ActionType, FlowGroup
-from ._base import ValidationError
-from .config_field_validator import ConfigFieldValidator
 
-# Distinct from the sibling :class:`.config_field_validator.ConfigFieldValidator`,
+from ...errors import LHPError
+from ._base import ValidationError
+from .field.config_field import ConfigFieldValidator
+
+# Distinct from the sibling :class:`.field.config_field.ConfigFieldValidator`,
 # which performs strict per-field schema validation on individual
 # configuration objects. ``ConfigValidator`` is the per-flowgroup aggregator
 # that composes the action validators (LoadActionValidator,
@@ -26,7 +27,7 @@ from .config_field_validator import ConfigFieldValidator
 # ``lhp.core.dependencies.dependency_resolver`` must NOT be collapsed to
 # the package-level ``..dependencies`` import. Module-level imports here
 # would close cycles via:
-#   - validators -> registry -> generators.load -> validators.kafka_validator
+#   - validators -> registry -> generators.load -> validators.field.kafka_options
 #   - config_validator -> dependencies/__init__ -> dependencies.service ->
 #     coordination/__init__ -> coordination.validation_service ->
 #     config_validator

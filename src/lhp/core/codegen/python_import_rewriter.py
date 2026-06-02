@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import NoReturn
 
 from lhp.core.codegen.python_dependency_resolver import resolve_module_on_disk
-from lhp.errors import ErrorCategory, LHPValidationError
+from lhp.errors import ErrorFactory, codes
 
 _CUSTOM_FUNCTIONS_PREFIX = "custom_python_functions"
 
@@ -48,9 +48,8 @@ def _raise_plain_dotted_local(dotted: str) -> NoReturn:
         "Reference helpers with an explicit 'from <module> import <name>' "
         "rather than a plain dotted import of a local module"
     )
-    raise LHPValidationError(
-        category=ErrorCategory.VALIDATION,
-        code_number="024",
+    raise ErrorFactory.validation_error(
+        codes.VAL_024,
         title="Local helper imported with a plain dotted import",
         details=(
             f"The local helper '{dotted}' is imported with 'import {dotted}'. "

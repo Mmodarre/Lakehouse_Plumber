@@ -8,9 +8,10 @@ Tests cover the changes made to base_generator.py for ImportManager support:
 - Error handling and edge cases
 """
 
-import pytest
-from unittest.mock import Mock, patch
 from pathlib import Path
+from unittest.mock import Mock, patch
+
+import pytest
 
 from lhp.core.registry import BaseActionGenerator
 from lhp.models import Action, ActionType

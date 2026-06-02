@@ -3,7 +3,7 @@
 import logging
 from typing import Any, Dict
 
-from ...errors import ErrorCategory, LHPError
+from lhp.errors import ErrorFactory, codes
 from lhp.models import (
     MetadataColumnConfig,
     MetadataPresetConfig,
@@ -40,11 +40,12 @@ def parse_operational_metadata_config(
                 )
 
             except Exception as e:
-                error_msg = f"Error parsing column '{col_name}' in operational metadata: {e}"
+                error_msg = (
+                    f"Error parsing column '{col_name}' in operational metadata: {e}"
+                )
                 logger.exception(error_msg)
-                raise LHPError(
-                    category=ErrorCategory.CONFIG,
-                    code_number="003",
+                raise ErrorFactory.config_error(
+                    codes.CFG_003,
                     title="Invalid operational metadata column configuration",
                     details=error_msg,
                     suggestions=[
@@ -72,11 +73,12 @@ def parse_operational_metadata_config(
                 )
 
             except Exception as e:
-                error_msg = f"Error parsing preset '{preset_name}' in operational metadata: {e}"
+                error_msg = (
+                    f"Error parsing preset '{preset_name}' in operational metadata: {e}"
+                )
                 logger.exception(error_msg)
-                raise LHPError(
-                    category=ErrorCategory.CONFIG,
-                    code_number="004",
+                raise ErrorFactory.config_error(
+                    codes.CFG_004,
                     title="Invalid operational metadata preset configuration",
                     details=error_msg,
                     suggestions=[
@@ -111,9 +113,8 @@ def _validate_preset_references(config: ProjectOperationalMetadataConfig) -> Non
             if column_name not in defined_columns:
                 error_msg = f"Preset '{preset_name}' references undefined column '{column_name}'"
                 logger.error(error_msg)
-                raise LHPError(
-                    category=ErrorCategory.CONFIG,
-                    code_number="005",
+                raise ErrorFactory.config_error(
+                    codes.CFG_005,
                     title="Invalid preset column reference",
                     details=error_msg,
                     suggestions=[

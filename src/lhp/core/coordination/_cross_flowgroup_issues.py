@@ -25,8 +25,8 @@ from __future__ import annotations
 
 from typing import List, Tuple
 
-from .._interfaces import CrossFlowgroupCheckResult
 from ...errors import ErrorCategory, LHPError, LHPValidationError
+from .._interfaces import CrossFlowgroupCheckResult
 
 _TABLE_CREATION_SUGGESTIONS: List[str] = [
     "Ensure each target table has exactly one action with create_table: true",

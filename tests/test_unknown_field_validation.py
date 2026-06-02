@@ -2,7 +2,7 @@
 
 import pytest
 
-from lhp.core.validators.config_field_validator import ConfigFieldValidator
+from lhp.core.validators import ConfigFieldValidator
 from lhp.errors import LHPError
 
 

@@ -3,7 +3,6 @@
 import logging
 from typing import Dict, Type
 
-from .base_generator import BaseActionGenerator
 from lhp.models import (
     ActionType,
     LoadSourceType,
@@ -11,12 +10,13 @@ from lhp.models import (
     TransformType,
     WriteTargetType,
 )
+
 from ...errors import (
-    ErrorCategory,
-    ErrorFormatter,
-    LHPValidationError,
+    ErrorFactory,
+    codes,
 )
 from ...utils.performance_timer import perf_timer
+from .base_generator import BaseActionGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -84,9 +84,8 @@ class ActionRegistry:
             )
             # Add error handling and validation
             if not isinstance(action_type, ActionType):
-                raise LHPValidationError(
-                    category=ErrorCategory.VALIDATION,
-                    code_number="009",
+                raise ErrorFactory.validation_error(
+                    codes.VAL_009,
                     title="Invalid action type",
                     details=f"Invalid action type: {action_type}. Must be an ActionType enum.",
                     suggestions=[
@@ -98,7 +97,7 @@ class ActionRegistry:
 
             if action_type == ActionType.LOAD:
                 if not sub_type:
-                    raise ErrorFormatter.missing_required_field(
+                    raise ErrorFactory.missing_required_field(
                         field_name="sub_type",
                         component_type="action",
                         component_name="load action",
@@ -119,7 +118,7 @@ class ActionRegistry:
                         sub_type = LoadSourceType(sub_type)
                     except ValueError as e:
                         valid_types = [t.value for t in LoadSourceType]
-                        raise ErrorFormatter.unknown_type_with_suggestion(
+                        raise ErrorFactory.unknown_type_with_suggestion(
                             value_type="load sub_type",
                             provided_value=sub_type,
                             valid_values=valid_types,
@@ -135,9 +134,8 @@ class ActionRegistry:
                         ) from e
 
                 if sub_type not in self._load_generators:
-                    raise LHPValidationError(
-                        category=ErrorCategory.ACTION,
-                        code_number="001",
+                    raise ErrorFactory.action_error(
+                        codes.ACT_001,
                         title=f"No generator for load type: {sub_type}",
                         details=f"No generator is registered for load type '{sub_type}'.",
                         suggestions=[
@@ -153,7 +151,7 @@ class ActionRegistry:
 
             elif action_type == ActionType.TRANSFORM:
                 if not sub_type:
-                    raise ErrorFormatter.missing_required_field(
+                    raise ErrorFactory.missing_required_field(
                         field_name="sub_type",
                         component_type="action",
                         component_name="transform action",
@@ -174,7 +172,7 @@ class ActionRegistry:
                         sub_type = TransformType(sub_type)
                     except ValueError as e:
                         valid_types = [t.value for t in TransformType]
-                        raise ErrorFormatter.unknown_type_with_suggestion(
+                        raise ErrorFactory.unknown_type_with_suggestion(
                             value_type="transform sub_type",
                             provided_value=sub_type,
                             valid_values=valid_types,
@@ -189,9 +187,8 @@ class ActionRegistry:
                         ) from e
 
                 if sub_type not in self._transform_generators:
-                    raise LHPValidationError(
-                        category=ErrorCategory.ACTION,
-                        code_number="001",
+                    raise ErrorFactory.action_error(
+                        codes.ACT_001,
                         title=f"No generator for transform type: {sub_type}",
                         details=f"No generator is registered for transform type '{sub_type}'.",
                         suggestions=[
@@ -207,7 +204,7 @@ class ActionRegistry:
 
             elif action_type == ActionType.WRITE:
                 if not sub_type:
-                    raise ErrorFormatter.missing_required_field(
+                    raise ErrorFactory.missing_required_field(
                         field_name="sub_type",
                         component_type="action",
                         component_name="write action",
@@ -230,7 +227,7 @@ class ActionRegistry:
                         sub_type = WriteTargetType(sub_type)
                     except ValueError as e:
                         valid_types = [t.value for t in WriteTargetType]
-                        raise ErrorFormatter.unknown_type_with_suggestion(
+                        raise ErrorFactory.unknown_type_with_suggestion(
                             value_type="write sub_type",
                             provided_value=sub_type,
                             valid_values=valid_types,
@@ -247,9 +244,8 @@ class ActionRegistry:
                         ) from e
 
                 if sub_type not in self._write_generators:
-                    raise LHPValidationError(
-                        category=ErrorCategory.ACTION,
-                        code_number="001",
+                    raise ErrorFactory.action_error(
+                        codes.ACT_001,
                         title=f"No generator for write type: {sub_type}",
                         details=f"No generator is registered for write type '{sub_type}'.",
                         suggestions=[
@@ -275,7 +271,7 @@ class ActionRegistry:
                         sub_type = TestActionType(sub_type)
                     except ValueError as e:
                         valid_types = [t.value for t in TestActionType]
-                        raise ErrorFormatter.unknown_type_with_suggestion(
+                        raise ErrorFactory.unknown_type_with_suggestion(
                             value_type="test_type",
                             provided_value=sub_type,
                             valid_values=valid_types,
@@ -288,9 +284,8 @@ class ActionRegistry:
                         ) from e
 
                 if sub_type not in self._test_generators:
-                    raise LHPValidationError(
-                        category=ErrorCategory.ACTION,
-                        code_number="001",
+                    raise ErrorFactory.action_error(
+                        codes.ACT_001,
                         title=f"No generator for test type: {sub_type}",
                         details=f"No generator is registered for test type '{sub_type}'.",
                         suggestions=[
@@ -305,7 +300,7 @@ class ActionRegistry:
                 return self._test_generators[sub_type]()
 
             else:
-                raise ErrorFormatter.unknown_type_with_suggestion(
+                raise ErrorFactory.unknown_type_with_suggestion(
                     value_type="action type",
                     provided_value=str(action_type),
                     valid_values=[t.value for t in ActionType],

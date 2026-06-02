@@ -25,8 +25,7 @@ import pytest
 
 from lhp.bundle.exceptions import BundleResourceError
 from lhp.bundle.manager import BundleManager
-from lhp.errors import LHPConfigError
-
+from lhp.errors import LHPError
 
 # ---------------------------------------------------------------------------
 # Test helpers (real config files, not mocks; PipelineConfigLoader fakes are
@@ -161,7 +160,7 @@ def test_missing_catalog_and_schema_raises_config_error(tmp_path):
 
     manager = BundleManager(project_root, str(config_path.relative_to(project_root)))
 
-    with pytest.raises(LHPConfigError) as exc_info:
+    with pytest.raises(LHPError) as exc_info:
         manager.generate_resource_file_content("pipeline_a", generated_root, "dev")
 
     assert exc_info.value.code == "LHP-GEN-001"
@@ -318,7 +317,7 @@ def test_incomplete_catalog_pairing_raises_config_error(tmp_path):
 
     manager = BundleManager(project_root, str(config_path.relative_to(project_root)))
 
-    with pytest.raises(LHPConfigError) as exc_info:
+    with pytest.raises(LHPError) as exc_info:
         manager.generate_resource_file_content("pipeline_a", generated_root, "dev")
 
     assert exc_info.value.code == "LHP-GEN-001"
@@ -367,9 +366,9 @@ def test_bundle_manager_does_not_mutate_databricks_yml(tmp_path):
     manager.sync_resources_with_generated_files(generated_root, "dev")
 
     post_hash = hashlib.sha256(databricks_yml.read_bytes()).hexdigest()
-    assert pre_hash == post_hash, (
-        "databricks.yml was mutated by sync; it must remain untouched."
-    )
+    assert (
+        pre_hash == post_hash
+    ), "databricks.yml was mutated by sync; it must remain untouched."
 
 
 @pytest.mark.unit

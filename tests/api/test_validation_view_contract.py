@@ -17,6 +17,7 @@ Six contracts are covered:
    reconstruct via ``ValidationIssueView(**...)``, and assert
    field-by-field equality.
 """
+
 from __future__ import annotations
 
 import dataclasses
@@ -29,7 +30,6 @@ import pytest
 
 from lhp.api.responses import JSONValue
 from lhp.api.views import ValidationIssueView
-
 
 # The view's ``context`` field is typed ``Mapping[str, JSONValue]`` and
 # defaults to a plain ``dict`` (see ``src/lhp/api/views.py:50``). Helpers
@@ -176,9 +176,7 @@ class TestPickleRoundTrip:
         restored = pickle.loads(pickle.dumps(picklable_view))
         assert restored == picklable_view
 
-    def test_warning_view_round_trip(
-        self, warning_view: ValidationIssueView
-    ) -> None:
+    def test_warning_view_round_trip(self, warning_view: ValidationIssueView) -> None:
         """An unstructured warning round-trips cleanly.
 
         The default ``context`` factory in ``views.py`` is ``dict``, so

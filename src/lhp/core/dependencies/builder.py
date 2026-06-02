@@ -45,8 +45,9 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple
 
 import networkx as nx
 
-from ...errors import ErrorCategory, LHPError
 from lhp.models import Action, ActionType, FlowGroup, FlowGroupContext
+
+from ...errors import ErrorCategory, LHPError
 from ...models.dependencies import DependencyGraphs
 from ...utils.source_extractor import extract_action_sources
 from ..discovery.blueprint_discoverer import BlueprintDiscoverer

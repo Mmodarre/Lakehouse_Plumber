@@ -62,8 +62,7 @@ from ..loaders.version_enforcement import enforce_version_requirements
 from ..processing import TemplateEngine
 from ..processing.blueprint_expander import BlueprintExpander
 from ..registry import ActionRegistry, OrchestrationDependencies
-from ..validators import ConfigValidator
-from ..validators.secret_validator import SecretValidator
+from ..validators import ConfigValidator, SecretValidator
 from ._flowgroup_pool import _FlowgroupWorkerState
 from .bootstrap_service import FlowgroupBootstrapService
 from .executor import (

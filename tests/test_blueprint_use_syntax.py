@@ -14,8 +14,8 @@ import logging
 import pytest
 from pydantic import ValidationError
 
-from lhp.models import BlueprintInstance
 from lhp.errors import LHPValidationError  # noqa: F401
+from lhp.models import BlueprintInstance
 
 
 def _new_form() -> dict:

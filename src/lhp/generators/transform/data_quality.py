@@ -5,11 +5,12 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Union
 
+from lhp.models import Action
+
 from ...core.loaders.external_file_loader import resolve_external_file_path
 from ...core.processing.dqe import DQEParser
 from ...core.registry import BaseActionGenerator
-from ...errors import ErrorCategory, ErrorFormatter, LHPError
-from lhp.models import Action
+from ...errors import ErrorFactory, codes
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class DataQualityTransformGenerator(BaseActionGenerator):
         # Data quality transforms require stream mode
         readMode = action.readMode or "stream"
         if readMode != "stream":
-            raise ErrorFormatter.invalid_read_mode(
+            raise ErrorFactory.invalid_read_mode(
                 action_name=action.name,
                 action_type="data_quality",
                 provided=readMode,
@@ -40,7 +41,7 @@ class DataQualityTransformGenerator(BaseActionGenerator):
         # Read expectations from file
         expectations_file = action.expectations_file
         if not expectations_file:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="expectations_file",
                 component_type="Data quality transform action",
                 component_name=action.name,
@@ -65,7 +66,9 @@ class DataQualityTransformGenerator(BaseActionGenerator):
         dq_mode = getattr(action, "mode", None) or "dqe"
 
         if dq_mode == "quarantine":
-            return self._generate_quarantine_mode(action, expectations, flowgroup_config)
+            return self._generate_quarantine_mode(
+                action, expectations, flowgroup_config
+            )
         else:
             return self._generate_dqe_mode(action, expectations, flowgroup_config)
 
@@ -158,9 +161,8 @@ class DataQualityTransformGenerator(BaseActionGenerator):
 
         # Defensive check (validator should catch this first)
         if not all_expectations:
-            raise LHPError(
-                category=ErrorCategory.VALIDATION,
-                code_number="014",
+            raise ErrorFactory.validation_error(
+                codes.VAL_014,
                 title="Quarantine mode requires at least one expectation",
                 details=(
                     f"Action '{action.name}' has mode='quarantine' but "
@@ -184,8 +186,8 @@ class DataQualityTransformGenerator(BaseActionGenerator):
             {"name": name, "rule": rule} for name, rule in all_expectations.items()
         ]
 
-        add_operational_metadata, metadata_columns = (
-            self._get_operational_metadata(action, flowgroup_config)
+        add_operational_metadata, metadata_columns = self._get_operational_metadata(
+            action, flowgroup_config
         )
 
         from ...core.codegen.operational_metadata import OperationalMetadataService

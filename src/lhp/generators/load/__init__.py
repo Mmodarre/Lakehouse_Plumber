@@ -1,12 +1,12 @@
 """Load action generators."""
 
 from .cloudfiles import CloudFilesLoadGenerator
-from .delta import DeltaLoadGenerator
-from .sql import SQLLoadGenerator
-from .jdbc import JDBCLoadGenerator
-from .python import PythonLoadGenerator
 from .custom_datasource import CustomDataSourceLoadGenerator
+from .delta import DeltaLoadGenerator
+from .jdbc import JDBCLoadGenerator
 from .kafka import KafkaLoadGenerator
+from .python import PythonLoadGenerator
+from .sql import SQLLoadGenerator
 
 __all__ = [
     "CloudFilesLoadGenerator",

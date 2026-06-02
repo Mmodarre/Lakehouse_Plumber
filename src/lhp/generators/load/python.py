@@ -2,10 +2,11 @@
 
 import logging
 
-from ...core.registry import BaseActionGenerator
-from lhp.models import Action
-from ...errors import ErrorFormatter
 from lhp.core.codegen import copy_user_module_for_pipeline
+from lhp.errors import ErrorFactory
+from lhp.models import Action
+
+from ...core.registry import BaseActionGenerator
 
 
 class PythonLoadGenerator(BaseActionGenerator):
@@ -25,7 +26,7 @@ class PythonLoadGenerator(BaseActionGenerator):
         """Generate Python load code."""
         source_config = action.source
         if isinstance(source_config, str):
-            raise ErrorFormatter.invalid_source_format(
+            raise ErrorFactory.invalid_source_format(
                 action_name=action.name,
                 action_type="python load",
                 expected_formats=[
@@ -49,7 +50,7 @@ class PythonLoadGenerator(BaseActionGenerator):
         parameters = source_config.get("parameters", {})
 
         if not module_path:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="module_path",
                 component_type="Python load action",
                 component_name=action.name,
@@ -72,7 +73,7 @@ class PythonLoadGenerator(BaseActionGenerator):
         # now follows the same copy-and-import convention as the rest of
         # the family (transform/python, custom_datasource, custom_sink).
         if not module_path.endswith(".py"):
-            raise ErrorFormatter.file_not_found(
+            raise ErrorFactory.file_not_found(
                 file_path=module_path,
                 search_locations=[
                     "module_path must be a path to a Python file ending in .py",

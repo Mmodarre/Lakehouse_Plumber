@@ -18,7 +18,7 @@ from typing import Any, Iterable
 
 from ..core.loaders.pipeline_config_loader import PipelineConfigLoader
 from ..core.processing.substitution import EnhancedSubstitutionManager
-from ..errors import ErrorCategory, LHPConfigError
+from ..errors import ErrorFactory, LHPConfigError, codes
 
 logger = logging.getLogger(__name__)
 
@@ -90,9 +90,8 @@ def require_pipeline_config_flag(
     error up-front, before any wipes occur.
     """
     if bundle_enabled and not pipeline_config_path:
-        raise LHPConfigError(
-            category=ErrorCategory.CONFIG,
-            code_number="023",
+        raise ErrorFactory.config_error(
+            codes.CFG_023,
             title="--pipeline-config is required when bundle support is enabled",
             details=(
                 "databricks.yml is present (bundle support is enabled) but the "
@@ -211,9 +210,8 @@ def _build_aggregated_error(failures: _PreflightFailures, env: str) -> LHPConfig
         lines = "\n".join(formatter(items))
         sections.append(f"{header} ({len(items)}):\n{lines}")
 
-    return LHPConfigError(
-        category=ErrorCategory.CONFIG,
-        code_number="026",
+    return ErrorFactory.config_error(
+        codes.CFG_026,
         title=f"Catalog/schema validation failed for {failures.total()} pipeline(s)",
         details="\n\n".join(sections),
         suggestions=[

@@ -8,13 +8,13 @@ from lhp.api import (
     ValidationIssueView,
     ValidationResponse,
 )
-from lhp.models.processing import PipelineDelta
 from lhp.errors import (
     ErrorCategory,
     LHPError,
     LHPFileError,
     LHPValidationError,
 )
+from lhp.models.processing import PipelineDelta
 
 
 class TestDataTransferObjects:
@@ -46,9 +46,15 @@ class TestDataTransferObjects:
         response = ValidationResponse(
             success=False,
             issues=[
-                ValidationIssueView(code="", category="VAL", severity="error", title="Error 1"),
-                ValidationIssueView(code="", category="VAL", severity="error", title="Error 2"),
-                ValidationIssueView(code="", category="VAL", severity="warning", title="Warning 1"),
+                ValidationIssueView(
+                    code="", category="VAL", severity="error", title="Error 1"
+                ),
+                ValidationIssueView(
+                    code="", category="VAL", severity="error", title="Error 2"
+                ),
+                ValidationIssueView(
+                    code="", category="VAL", severity="warning", title="Warning 1"
+                ),
             ],
             validated_pipelines=["pipeline1"],
         )

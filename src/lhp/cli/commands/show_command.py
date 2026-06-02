@@ -27,7 +27,7 @@ from lhp.api import (
     ProjectConfigView,
     SubstitutionView,
 )
-from lhp.errors import ErrorCategory, LHPError
+from lhp.errors import ErrorFactory, codes
 
 from .. import console as _console_module
 from ..render import render_command_header
@@ -53,9 +53,8 @@ class ShowCommand(BaseCommand):
         """
         if instance_path:
             if flowgroup:
-                raise LHPError(
-                    category=ErrorCategory.CONFIG,
-                    code_number="057",
+                raise ErrorFactory.config_error(
+                    codes.CFG_057,
                     title="Cannot pass both flowgroup and --instance",
                     details=(
                         "Use either FLOWGROUP positional argument OR --instance "
@@ -69,9 +68,8 @@ class ShowCommand(BaseCommand):
             return
 
         if not flowgroup:
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="058",
+            raise ErrorFactory.config_error(
+                codes.CFG_058,
                 title="Missing flowgroup argument",
                 details="Provide a flowgroup name OR --instance <path>.",
                 suggestions=[
@@ -115,9 +113,8 @@ class ShowCommand(BaseCommand):
                     f"Available flowgroups: {', '.join(available)}",
                 )
 
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="013",
+            raise ErrorFactory.config_error(
+                codes.CFG_013,
                 title=f"Flowgroup '{flowgroup}' not found",
                 details=f"No flowgroup named '{flowgroup}' was found in the project.",
                 suggestions=suggestions,
@@ -147,9 +144,8 @@ class ShowCommand(BaseCommand):
         if not instance_path.is_absolute():
             instance_path = (project_root / instance_path).resolve()
         if not instance_path.exists():
-            raise LHPError(
-                category=ErrorCategory.IO,
-                code_number="003",
+            raise ErrorFactory.io_error(
+                codes.IO_003,
                 title="Instance file not found",
                 details=f"No file at {instance_path}",
                 suggestions=[
@@ -193,9 +189,8 @@ class ShowCommand(BaseCommand):
         )
         blueprints = discoverer.discover_blueprints()
         if not blueprints:
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="056",
+            raise ErrorFactory.config_error(
+                codes.CFG_056,
                 title="No blueprints in project",
                 details=(
                     "Cannot resolve an instance file because no blueprints "
@@ -607,9 +602,8 @@ class ShowCommand(BaseCommand):
                     f"Available environments: {', '.join(available_envs)}",
                 )
 
-            raise LHPError(
-                category=ErrorCategory.IO,
-                code_number="006",
+            raise ErrorFactory.io_error(
+                codes.IO_006,
                 title=f"Substitution file not found for environment '{env}'",
                 details=f"Expected file: {sub_file}",
                 suggestions=suggestions,

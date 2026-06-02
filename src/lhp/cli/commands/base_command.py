@@ -47,15 +47,14 @@ class BaseCommand:
         Raises:
             LHPError: If not in a LakehousePlumber project
         """
-        from ...errors import ErrorCategory, LHPError
+        from ...errors import ErrorFactory, codes
 
         if self._project_root is None:
             self._project_root = _find_project_root()
 
         if not self._project_root:
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="011",
+            raise ErrorFactory.config_error(
+                codes.CFG_011,
                 title="Not in a LakehousePlumber project directory",
                 details="No lhp.yaml file found in the current directory or any parent.",
                 suggestions=[
@@ -79,7 +78,7 @@ class BaseCommand:
         Raises:
             LHPFileError: If substitution file doesn't exist
         """
-        from ...errors import ErrorCategory, LHPFileError
+        from ...errors import ErrorFactory, codes
 
         project_root = self.ensure_project_root()
         substitution_file = project_root / "substitutions" / f"{env}.yaml"
@@ -100,9 +99,8 @@ class BaseCommand:
                     f"Available environments: {', '.join(available_envs)}",
                 )
 
-            raise LHPFileError(
-                category=ErrorCategory.IO,
-                code_number="006",
+            raise ErrorFactory.io_error(
+                codes.IO_006,
                 title=f"Substitution file not found for environment '{env}'",
                 details=f"Expected file: {substitution_file}",
                 suggestions=suggestions,

@@ -3,14 +3,11 @@
 import logging
 from typing import Any, Dict
 
-from ...core.registry import BaseActionGenerator
+from lhp.errors import ErrorFactory, codes
 from lhp.models import Action
-from ...errors import (
-    ErrorCategory,
-    ErrorFormatter,
-    LHPValidationError,
-)
-from ...core.validators.kafka_validator import KafkaOptionsValidator
+
+from ...core.registry import BaseActionGenerator
+from ...core.validators.field.kafka_options import KafkaOptionsValidator
 
 
 class KafkaLoadGenerator(BaseActionGenerator):
@@ -35,7 +32,7 @@ class KafkaLoadGenerator(BaseActionGenerator):
         # Kafka is always streaming
         readMode = action.readMode or source_config.get("readMode", "stream")
         if readMode != "stream":
-            raise ErrorFormatter.invalid_read_mode(
+            raise ErrorFactory.invalid_read_mode(
                 action_name=action.name,
                 action_type="kafka",
                 provided=readMode,
@@ -45,7 +42,7 @@ class KafkaLoadGenerator(BaseActionGenerator):
         # Extract configuration
         bootstrap_servers = source_config.get("bootstrap_servers")
         if not bootstrap_servers:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="bootstrap_servers",
                 component_type="Kafka load action",
                 component_name=action.name,
@@ -94,7 +91,7 @@ class KafkaLoadGenerator(BaseActionGenerator):
             options = source_config["options"]
             # Validate options is a dictionary
             if not isinstance(options, dict):
-                raise ErrorFormatter.invalid_field_type(
+                raise ErrorFactory.invalid_field_type(
                     action_name=action.name,
                     field_name="options",
                     expected_type="a dictionary (mapping)",
@@ -148,7 +145,7 @@ class KafkaLoadGenerator(BaseActionGenerator):
         provided_methods = [k for k, v in subscription_methods.items() if v is not None]
 
         if len(provided_methods) == 0:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="subscribe/subscribePattern/assign",
                 component_type="Kafka load action",
                 component_name=action_name,
@@ -160,9 +157,8 @@ class KafkaLoadGenerator(BaseActionGenerator):
   # assign: '{"topic": [0, 1]}'   # Option 3: specific partitions""",
             )
         elif len(provided_methods) > 1:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="009",
+            raise ErrorFactory.validation_error(
+                codes.VAL_009,
                 title=f"Multiple subscription methods in Kafka action '{action_name}'",
                 details=(
                     f"Kafka action '{action_name}' specifies multiple subscription methods: "
@@ -215,7 +211,7 @@ class KafkaLoadGenerator(BaseActionGenerator):
         """
         # Check for mandatory kafka.bootstrap.servers
         if "kafka.bootstrap.servers" not in reader_options:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="kafka.bootstrap.servers",
                 component_type="Kafka load action",
                 component_name=action_name,

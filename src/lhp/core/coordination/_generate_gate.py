@@ -31,9 +31,9 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence, Tuple
 
 from ...errors import (
-    ErrorCategory,
+    ErrorFactory,
     LHPError,
-    LHPValidationError,
+    codes,
     lhp_error_from_worker_failure,
 )
 from ..codegen.python_file_copier import PythonFileCopier
@@ -118,9 +118,8 @@ def raise_aggregate_failure(
         )
 
     by_pipeline: Dict[str, str] = {f.label_key: f.label_value for f in failures}
-    raise LHPValidationError(
-        category=ErrorCategory.VALIDATION,
-        code_number="902",
+    raise ErrorFactory.validation_error(
+        codes.VAL_902,
         title=f"{len(failures)} {noun}(s) failed",
         details=(
             f"{len(failures)} of {total} {noun}s "

@@ -21,9 +21,9 @@ from lhp.core.validators import (
     ConfigValidator,
     TableCreationValidator,
 )
+from lhp.errors import LHPConfigError
 from lhp.generators.write.streaming_table import StreamingTableWriteGenerator
 from lhp.models import Action, ActionType, FlowGroup
-from lhp.errors import LHPConfigError
 
 # ---------------------------------------------------------------------------
 # Helpers

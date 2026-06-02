@@ -1,7 +1,8 @@
 """Extended tests for ProjectConfigLoader covering edge cases and error paths."""
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 from lhp.core.loaders import ProjectConfigLoader
 from lhp.errors import LHPError
@@ -11,20 +12,19 @@ class TestLoadProjectConfig:
     """Tests for load_project_config method."""
 
     def test_empty_yaml_raises_error(self, tmp_path):
-        """Empty YAML file raises LHPError (wrapped as CFG-002).
+        """Empty YAML file raises LHPError with the specific IO-003 code.
 
         An empty file yields 0 documents from yaml.safe_load_all, triggering
-        MultiDocumentError (LHP-IO-003) inside yaml_loader, which is then caught
-        by load_project_config's except Exception handler and wrapped as CFG-002.
+        MultiDocumentError (LHP-IO-003) inside yaml_loader. That is an LHPError,
+        so load_project_config's `except LHPError` guard re-raises it unchanged --
+        the specific IO-003 code surfaces instead of a re-wrapped CFG-002.
         """
         config_file = tmp_path / "lhp.yaml"
         config_file.write_text("")
         loader = ProjectConfigLoader(tmp_path)
         with pytest.raises(LHPError) as exc_info:
             loader.load_project_config()
-        assert "LHP-CFG-002" in exc_info.value.code
-        # Original error details are preserved in the message
-        assert "IO-003" in str(exc_info.value)
+        assert exc_info.value.code == "LHP-IO-003"
 
     def test_missing_config_file_returns_none(self, tmp_path):
         """Non-existent lhp.yaml returns None."""
@@ -33,17 +33,20 @@ class TestLoadProjectConfig:
         assert result is None
 
     def test_invalid_yaml_syntax(self, tmp_path):
-        """Invalid YAML syntax is handled gracefully.
+        """Invalid YAML syntax raises LHPError with the specific CFG-009 code.
 
-        The yaml_loader converts YAML errors to LHPConfigError (a ValueError subclass).
-        load_project_config catches ValueError, but the 'Invalid YAML' substring check
-        does not match the yaml_loader's error format, so the function returns None.
+        The yaml_loader converts YAML errors to LHPConfigError (LHP-CFG-009).
+        That is an LHPError, so load_project_config's `except LHPError` guard
+        re-raises it unchanged rather than silently swallowing it (the previous
+        behavior, where the 'Invalid YAML' substring check missed the
+        yaml_loader's format and the function fell through to return None).
         """
         config_file = tmp_path / "lhp.yaml"
         config_file.write_text("name: test\n  invalid: indentation error")
         loader = ProjectConfigLoader(tmp_path)
-        result = loader.load_project_config()
-        assert result is None
+        with pytest.raises(LHPError) as exc_info:
+            loader.load_project_config()
+        assert exc_info.value.code == "LHP-CFG-009"
 
     def test_null_document_yaml_returns_none(self, tmp_path):
         """YAML file with only '---' (null document) returns None.
@@ -87,21 +90,21 @@ class TestLoadProjectConfig:
 class TestParseIncludePatterns:
     """Tests for _parse_include_patterns method.
 
-    Note: LHPError raised inside _parse_include_patterns propagates through
-    _parse_project_config and is caught by load_project_config's except Exception
-    handler, which wraps it as CFG-002. The original error code appears in the
-    wrapped error's message string.
+    Note: a well-formed LHPError raised inside _parse_include_patterns propagates
+    through _parse_project_config and is re-raised unchanged by
+    load_project_config's `except LHPError` guard, so the specific sub-parser
+    code (CFG-003/CFG-004) surfaces directly -- it is no longer re-wrapped as
+    CFG-002.
     """
 
     def test_non_list_include_raises_error(self, tmp_path):
-        """Non-list include field raises LHPError (originally CFG-003, wrapped as CFG-002)."""
+        """Non-list include field raises LHPError with the specific CFG-003 code."""
         config_file = tmp_path / "lhp.yaml"
         config_file.write_text("name: test\ninclude: not_a_list\n")
         loader = ProjectConfigLoader(tmp_path)
         with pytest.raises(LHPError) as exc_info:
             loader.load_project_config()
-        assert "LHP-CFG-002" in exc_info.value.code
-        assert "CFG-003" in str(exc_info.value)
+        assert exc_info.value.code == "LHP-CFG-003"
 
     def test_non_string_element_raises_error(self, tmp_path):
         """Non-string element in include list raises LHPError (originally CFG-004)."""
@@ -110,8 +113,7 @@ class TestParseIncludePatterns:
         loader = ProjectConfigLoader(tmp_path)
         with pytest.raises(LHPError) as exc_info:
             loader.load_project_config()
-        assert "LHP-CFG-002" in exc_info.value.code
-        assert "CFG-004" in str(exc_info.value)
+        assert exc_info.value.code == "LHP-CFG-004"
 
     def test_valid_include_patterns(self, tmp_path):
         """Valid glob patterns in include list are accepted."""
@@ -130,14 +132,13 @@ class TestParseEventLogConfig:
     """Tests for _parse_event_log_config method."""
 
     def test_non_dict_event_log_raises_error(self, tmp_path):
-        """Non-dict event_log value raises LHPError (originally CFG-006, wrapped as CFG-002)."""
+        """Non-dict event_log value raises LHPError with the specific CFG-006 code."""
         config_file = tmp_path / "lhp.yaml"
         config_file.write_text("name: test\nevent_log: not_a_dict\n")
         loader = ProjectConfigLoader(tmp_path)
         with pytest.raises(LHPError) as exc_info:
             loader.load_project_config()
-        assert "LHP-CFG-002" in exc_info.value.code
-        assert "CFG-006" in str(exc_info.value)
+        assert exc_info.value.code == "LHP-CFG-006"
 
     def test_valid_event_log_config(self, tmp_path):
         """Valid event_log config is parsed correctly."""
@@ -158,8 +159,7 @@ class TestParseEventLogConfig:
         loader = ProjectConfigLoader(tmp_path)
         with pytest.raises(LHPError) as exc_info:
             loader.load_project_config()
-        assert "LHP-CFG-002" in exc_info.value.code
-        assert "CFG-007" in str(exc_info.value)
+        assert exc_info.value.code == "LHP-CFG-007"
 
 
 class TestValidatePresetReferences:
@@ -182,8 +182,7 @@ class TestValidatePresetReferences:
         loader = ProjectConfigLoader(tmp_path)
         with pytest.raises(LHPError) as exc_info:
             loader.load_project_config()
-        assert "LHP-CFG-002" in exc_info.value.code
-        assert "CFG-005" in str(exc_info.value)
+        assert exc_info.value.code == "LHP-CFG-005"
 
     def test_preset_references_valid_column(self, tmp_path):
         """Preset referencing a defined column passes validation."""
@@ -238,8 +237,7 @@ class TestParseOperationalMetadata:
         loader = ProjectConfigLoader(tmp_path)
         with pytest.raises(LHPError) as exc_info:
             loader.load_project_config()
-        assert "LHP-CFG-002" in exc_info.value.code
-        assert "CFG-003" in str(exc_info.value)
+        assert exc_info.value.code == "LHP-CFG-003"
 
     def test_dict_col_config_with_all_fields(self, tmp_path):
         """Full dict column config with all optional fields is parsed correctly."""

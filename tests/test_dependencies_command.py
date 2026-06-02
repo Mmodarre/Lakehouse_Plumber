@@ -8,13 +8,13 @@ from unittest.mock import MagicMock, Mock, call, patch
 import click
 import pytest
 
-from lhp.cli.commands.dependencies_command import DependenciesCommand
 from lhp.api.responses import (
     DependencyAnalysisResult,
     DependencyOutputEntry,
     DependencyOutputsResult,
 )
 from lhp.api.views import FlowgroupView
+from lhp.cli.commands.dependencies_command import DependenciesCommand
 from lhp.errors import ErrorCategory, LHPError
 
 
@@ -259,9 +259,7 @@ class TestDependenciesCommand:
             self.command.execute(job_name=custom_job_name, output_format="job")
 
             # New facade signature: kwargs-only — assert via kwargs["job_name"].
-            call_args = (
-                mock_facade.inspection.save_dependency_outputs.call_args
-            )
+            call_args = mock_facade.inspection.save_dependency_outputs.call_args
             assert call_args.kwargs["job_name"] == custom_job_name
 
 
@@ -339,12 +337,8 @@ class TestDependenciesCommandPipelineFilter:
         mock_facade_cls.for_project.return_value = mock_facade
 
         flowgroups = (
-            _make_flowgroup_view(
-                name="fg1", pipeline="bronze_pipeline", job_name=None
-            ),
-            _make_flowgroup_view(
-                name="fg2", pipeline="silver_pipeline", job_name=None
-            ),
+            _make_flowgroup_view(name="fg1", pipeline="bronze_pipeline", job_name=None),
+            _make_flowgroup_view(name="fg2", pipeline="silver_pipeline", job_name=None),
         )
         mock_facade.inspection.list_flowgroups.return_value = flowgroups
 
@@ -357,9 +351,7 @@ class TestDependenciesCommandPipelineFilter:
             DependencyOutputsResult(
                 success=True,
                 entries=(
-                    DependencyOutputEntry(
-                        format_name="dot", label="", path=deps_path
-                    ),
+                    DependencyOutputEntry(format_name="dot", label="", path=deps_path),
                 ),
                 output_dir=self.temp_dir,
             )

@@ -5,13 +5,14 @@ Tests the EventLogConfig model, ProjectConfigLoader parsing/validation,
 and BundleManager injection logic.
 """
 
-import pytest
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from lhp.models import EventLogConfig, ProjectConfig
+import pytest
+
 from lhp.core.loaders import ProjectConfigLoader
 from lhp.errors import LHPError
+from lhp.models import EventLogConfig, ProjectConfig
 
 
 class TestEventLogConfigModel:

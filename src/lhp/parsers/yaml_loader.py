@@ -13,13 +13,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import yaml
 
-from ..errors import (
-    ErrorCategory,
-    ErrorFormatter,
-    LHPConfigError,
-    LHPError,
-    MultiDocumentError,
-)
+from ..errors import ErrorFactory, LHPError, MultiDocumentError, codes
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +69,7 @@ def load_yaml_file(
         return content
 
     except yaml.YAMLError as e:
-        raise ErrorFormatter.yaml_parse_error(
+        raise ErrorFactory.yaml_parse_error(
             file_path=str(file_path),
             error_message=str(e),
             context=error_context,
@@ -83,7 +77,7 @@ def load_yaml_file(
     except FileNotFoundError as e:
         if isinstance(e, LHPError):
             raise  # Already an LHPFileError
-        raise ErrorFormatter.file_not_found(
+        raise ErrorFactory.file_not_found(
             file_path=str(file_path),
             search_locations=[str(file_path.parent)],
             file_type="YAML file",
@@ -93,9 +87,8 @@ def load_yaml_file(
             raise  # Re-raise LHPError as-is
 
         context = error_context or f"file {file_path}"
-        raise LHPConfigError(
-            category=ErrorCategory.IO,
-            code_number="002",
+        raise ErrorFactory.io_error(
+            codes.IO_002,
             title="Error reading YAML file",
             details=f"Error reading {context}: {e}",
             suggestions=[
@@ -192,7 +185,7 @@ def load_yaml_documents_all(
         return documents
 
     except yaml.YAMLError as e:
-        raise ErrorFormatter.yaml_parse_error(
+        raise ErrorFactory.yaml_parse_error(
             file_path=str(file_path),
             error_message=str(e),
             context=error_context,
@@ -200,7 +193,7 @@ def load_yaml_documents_all(
     except FileNotFoundError as e:
         if isinstance(e, LHPError):
             raise  # Already an LHPFileError
-        raise ErrorFormatter.file_not_found(
+        raise ErrorFactory.file_not_found(
             file_path=str(file_path),
             search_locations=[str(file_path.parent)],
             file_type="YAML file",
@@ -210,9 +203,8 @@ def load_yaml_documents_all(
             raise  # Re-raise LHPError as-is
 
         context = error_context or f"file {file_path}"
-        raise LHPConfigError(
-            category=ErrorCategory.IO,
-            code_number="002",
+        raise ErrorFactory.io_error(
+            codes.IO_002,
             title="Error reading YAML file",
             details=f"Error reading {context}: {e}",
             suggestions=[

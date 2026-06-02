@@ -37,7 +37,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from ...errors import ErrorCategory, LHPConfigError
+from ...errors import ErrorFactory, codes
 from ...models.dependencies import DependencyAnalysisResult, DependencyGraphs
 from ..jobs.job_generator import JobGenerator
 
@@ -333,9 +333,8 @@ class DependencyOutputManager:
         valid_formats = {"dot", "json", "text", "job"}
         invalid_formats = set(output_formats) - valid_formats
         if invalid_formats:
-            raise LHPConfigError(
-                category=ErrorCategory.CONFIG,
-                code_number="014",
+            raise ErrorFactory.config_error(
+                codes.CFG_014,
                 title="Invalid output format(s)",
                 details=f"Invalid output formats: {invalid_formats}. Valid formats: {valid_formats}",
                 suggestions=[

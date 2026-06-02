@@ -1,24 +1,18 @@
 """Validator for job_name property in flowgroups."""
 
-import re
 import logging
+import re
 from typing import List
+
 from lhp.models import FlowGroup
-from ...errors import LHPError, ErrorCategory
+
+from ....errors import ErrorFactory, codes
 
 logger = logging.getLogger(__name__)
 
 
 def validate_job_name_format(job_name: str) -> bool:
-    """
-    Validate that job_name contains only alphanumeric characters, underscores, and hyphens.
-
-    Args:
-        job_name: The job name to validate
-
-    Returns:
-        True if valid, False otherwise
-    """
+    """Validate that job_name contains only alphanumeric characters, underscores, and hyphens."""
     if not job_name:
         return False
 
@@ -34,38 +28,31 @@ def validate_job_names(flowgroups: List[FlowGroup]) -> None:
     Enforces "all or nothing" rule: if ANY flowgroup has job_name, ALL must have it.
     Also validates job_name format for valid characters.
 
-    Args:
-        flowgroups: List of flowgroups to validate
-
     Raises:
         LHPError: If validation fails (mixed job_name usage or invalid format)
     """
     if not flowgroups:
         return
 
-    # Separate flowgroups with and without job_name
     with_job_name = []
     without_job_name = []
     invalid_format = []
 
     for fg in flowgroups:
         if fg.job_name:
-            # Validate format
             if not validate_job_name_format(fg.job_name):
                 invalid_format.append((fg.flowgroup, fg.job_name))
             with_job_name.append(fg.flowgroup)
         else:
             without_job_name.append(fg.flowgroup)
 
-    # Check for invalid formats first
     if invalid_format:
         invalid_list = "\n".join(
             [f"  - {flowgroup}: '{job_name}'" for flowgroup, job_name in invalid_format]
         )
 
-        raise LHPError(
-            category=ErrorCategory.VALIDATION,
-            code_number="001",
+        raise ErrorFactory.validation_error(
+            codes.VAL_001,
             title="Invalid job_name format",
             details=(
                 f"Found {len(invalid_format)} flowgroup(s) with invalid job_name format.\n"
@@ -83,14 +70,12 @@ def validate_job_names(flowgroups: List[FlowGroup]) -> None:
             },
         )
 
-    # Check for "all or nothing" violation
     if with_job_name and without_job_name:
         with_list = "\n".join([f"  - {fg}" for fg in with_job_name])
         without_list = "\n".join([f"  - {fg}" for fg in without_job_name])
 
-        raise LHPError(
-            category=ErrorCategory.VALIDATION,
-            code_number="002",
+        raise ErrorFactory.validation_error(
+            codes.VAL_002,
             title="Inconsistent job_name usage",
             details=(
                 f"Found {len(with_job_name)} flowgroup(s) WITH job_name and "
@@ -111,7 +96,6 @@ def validate_job_names(flowgroups: List[FlowGroup]) -> None:
             },
         )
 
-    # Log validation success
     if with_job_name:
         unique_jobs = set(fg.job_name for fg in flowgroups if fg.job_name)
         logger.info(

@@ -44,40 +44,28 @@ def action_creates_table(action: Action) -> bool:
 
 
 class TableCreationValidator:
-    """Validator for table creation rules across flowgroups."""
-
     def validate(self, flowgroups: List[FlowGroup]) -> List[str]:
         """Validate table creation rules across the entire pipeline.
 
         Rules:
         1. Each streaming table must have exactly one creator (create_table: true)
         2. All other actions writing to the same table must have create_table: false
-
-        Args:
-            flowgroups: List of all flowgroups in the pipeline
-
-        Returns:
-            List of validation error messages
         """
         logger.debug(
             f"Validating table creation rules across {len(flowgroups)} flowgroup(s)"
         )
         errors = []
 
-        # Track table creators and users
         table_creators = defaultdict(list)  # table_name -> List[creator_action_info]
         table_users = defaultdict(list)  # table_name -> List[user_action_info]
 
-        # Collect all write actions across flowgroups
         for flowgroup in flowgroups:
             for action in flowgroup.actions:
                 if action.type == ActionType.WRITE and action.write_target:
-                    # Get full table name
                     table_name = self._get_full_table_name(action.write_target)
                     if not table_name:
-                        continue  # Skip if we can't determine table name
+                        continue
 
-                    # Check if this action creates the table
                     creates_table = self._action_creates_table(action)
 
                     action_info = {
@@ -91,7 +79,6 @@ class TableCreationValidator:
                     else:
                         table_users[table_name].append(action_info)
 
-        # Validate rules
         all_tables = set(table_creators.keys()) | set(table_users.keys())
         logger.debug(f"Found {len(all_tables)} unique table(s) across write actions")
 
@@ -110,10 +97,8 @@ class TableCreationValidator:
             elif len(creators) > 1:
                 creator_names = [f"{c['flowgroup']}.{c['action']}" for c in creators]
 
-                # Create a proper LHPError for multiple table creators
-                from ...errors import ErrorCategory, LHPConfigError
+                from ....errors import ErrorFactory, codes
 
-                # Build example configuration string
                 parts = table_name.split(".")
                 catalog_name = parts[0] if len(parts) >= 3 else ""
                 schema_name = parts[1] if len(parts) >= 3 else parts[0]
@@ -142,9 +127,8 @@ class TableCreationValidator:
                     "    create_table: false   # ← All others should have this"
                 )
 
-                raise LHPConfigError(
-                    category=ErrorCategory.CONFIG,
-                    code_number="004",
+                raise ErrorFactory.config_error(
+                    codes.CFG_004,
                     title=f"Multiple table creators detected: '{table_name}'",
                     details=f"Table '{table_name}' has multiple actions with 'create_table: true'. Only one action can create a table.",
                     suggestions=[
@@ -171,7 +155,6 @@ class TableCreationValidator:
     def _get_full_table_name(
         self, write_target: Union[Dict[str, Any], Any]
     ) -> Optional[str]:
-        """Extract the full table name from write target configuration."""
         if isinstance(write_target, dict):
             catalog = write_target.get("catalog")
             schema = write_target.get("schema")
@@ -187,6 +170,5 @@ class TableCreationValidator:
         return f"{catalog}.{schema}.{table}"
 
     def _action_creates_table(self, action: Action) -> bool:
-        """Internal forwarder kept for back-compat — calls module-level
-        ``action_creates_table``."""
+        """Back-compat forwarder to module-level ``action_creates_table``."""
         return action_creates_table(action)

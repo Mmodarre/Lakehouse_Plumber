@@ -45,11 +45,10 @@ class SkillCommand(BaseCommand):
         skill_md_path = install_dir / "SKILL.md"
 
         if not force and (marker_path.exists() or skill_md_path.exists()):
-            from ...errors import ErrorCategory, LHPFileError
+            from ...errors import ErrorFactory, codes
 
-            raise LHPFileError(
-                category=ErrorCategory.IO,
-                code_number="020",
+            raise ErrorFactory.io_error(
+                codes.IO_020,
                 title="LHP skill already installed",
                 details=(
                     f"A skill installation already exists at {install_dir}. "
@@ -92,11 +91,10 @@ class SkillCommand(BaseCommand):
         installed_version = self._read_marker(install_dir)
 
         if installed_version is None:
-            from ...errors import ErrorCategory, LHPFileError
+            from ...errors import ErrorFactory, codes
 
-            raise LHPFileError(
-                category=ErrorCategory.IO,
-                code_number="021",
+            raise ErrorFactory.io_error(
+                codes.IO_021,
                 title="LHP skill is not installed",
                 details=(
                     f"No marker file found at {install_dir / MARKER_FILE}. "

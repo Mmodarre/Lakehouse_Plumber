@@ -3,10 +3,11 @@
 import logging
 from pathlib import Path
 
+from lhp.errors import ErrorFactory
+from lhp.models import Action
+
 from ...core.loaders.external_file_loader import load_external_file_text
 from ...core.registry import BaseActionGenerator
-from ...errors import ErrorFormatter
-from lhp.models import Action
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ class SQLLoadGenerator(BaseActionGenerator):
                 source_config, context.get("spec_dir"), context
             )
         else:
-            raise ErrorFormatter.invalid_source_format(
+            raise ErrorFactory.invalid_source_format(
                 action_name=action.name,
                 action_type="sql load",
                 expected_formats=[
@@ -88,7 +89,7 @@ class SQLLoadGenerator(BaseActionGenerator):
                 source_config["sql_path"], project_root, file_type="SQL file"
             ).strip()
         else:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="sql/sql_path",
                 component_type="SQL load action",
                 component_name="sql source config",

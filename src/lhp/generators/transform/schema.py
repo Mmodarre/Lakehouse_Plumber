@@ -4,10 +4,11 @@ import logging
 from pathlib import Path
 from typing import Any, Dict
 
+from lhp.models import Action
+
 from ...core.loaders.external_file_loader import resolve_external_file_path
 from ...core.registry import BaseActionGenerator
-from ...errors import ErrorCategory, ErrorFormatter, LHPValidationError
-from lhp.models import Action
+from ...errors import ErrorFactory, codes
 from ...parsers.schema_transform_parser import SchemaTransformParser
 from ...utils.performance_timer import perf_timer
 
@@ -32,7 +33,7 @@ class SchemaTransformGenerator(BaseActionGenerator):
         # Validate source format - must be a string (view name only)
         if isinstance(action.source, dict):
             # Old format detected - raise clear error
-            raise ErrorFormatter.deprecated_field(
+            raise ErrorFactory.deprecated_field(
                 action_name=action.name,
                 field_name="source (nested dict format)",
                 replacement="source as a simple view name string, with schema_file/schema_inline at action level",
@@ -48,7 +49,7 @@ New format:
             )
 
         if not isinstance(action.source, str):
-            raise ErrorFormatter.invalid_field_type(
+            raise ErrorFactory.invalid_field_type(
                 action_name=action.name,
                 field_name="source",
                 expected_type="a string (view name)",
@@ -61,9 +62,8 @@ New format:
         has_schema_file = action.schema_file is not None
 
         if has_schema_inline and has_schema_file:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="013",
+            raise ErrorFactory.validation_error(
+                codes.VAL_013,
                 title=f"Conflicting schema definitions in action '{action.name}'",
                 details=(
                     f"Schema transform action '{action.name}' specifies both 'schema_inline' "
@@ -81,7 +81,7 @@ New format:
             )
 
         if not has_schema_inline and not has_schema_file:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="schema_inline or schema_file",
                 component_type="Schema transform action",
                 component_name=action.name,
@@ -126,7 +126,7 @@ New format:
 
         # Validate enforcement value
         if enforcement not in ["strict", "permissive"]:
-            raise ErrorFormatter.invalid_field_value(
+            raise ErrorFactory.invalid_field_value(
                 action_name=action.name,
                 field_name="enforcement",
                 value=enforcement,

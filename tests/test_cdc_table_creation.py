@@ -1,15 +1,17 @@
 """Test CDC mode table creation fix."""
 
-import pytest
-from pathlib import Path
 import tempfile
+from pathlib import Path
+
+import pytest
 
 from lhp.generators.write.streaming_table import StreamingTableWriteGenerator
 from lhp.models import Action, ActionType
 
+
 def test_cdc_mode_creates_table_and_flow():
     """Test that CDC mode generates both table creation and CDC flow."""
-    
+
     # Create a CDC write action
     action = Action(
         name="write_customer_scd",
@@ -18,17 +20,18 @@ def test_cdc_mode_creates_table_and_flow():
         write_target={
             "type": "streaming_table",
             "mode": "cdc",
-            "catalog": "catalog", "schema": "schema",
+            "catalog": "catalog",
+            "schema": "schema",
             "table": "dim_customer",
             "cdc_config": {
                 "keys": ["customer_id"],
                 "sequence_by": "_commit_timestamp",
                 "scd_type": 2,
-                "track_history_column_list": ["name", "address", "phone"]
-            }
-        }
+                "track_history_column_list": ["name", "address", "phone"],
+            },
+        },
     )
-    
+
     # Generate code
     generator = StreamingTableWriteGenerator()
     context = {
@@ -38,16 +41,16 @@ def test_cdc_mode_creates_table_and_flow():
                     "streaming_table": {
                         "table_properties": {
                             "delta.enableChangeDataFeed": "true",
-                            "quality": "silver"
+                            "quality": "silver",
                         }
                     }
                 }
             }
         }
     }
-    
+
     code = generator.generate(action, context)
-    
+
     # Verify both table creation and CDC flow are present
     assert "dp.create_streaming_table(" in code
     assert 'name="catalog.schema.dim_customer"' in code
@@ -56,15 +59,16 @@ def test_cdc_mode_creates_table_and_flow():
     assert 'keys=["customer_id"]' in code
     assert "stored_as_scd_type=2" in code
     assert 'track_history_column_list=["name", "address", "phone"]' in code
-    
+
     # Ensure table is created before CDC flow
     table_pos = code.find("dp.create_streaming_table(")
     cdc_pos = code.find("dp.create_auto_cdc_flow(")
     assert table_pos < cdc_pos, "Table must be created before CDC flow"
 
+
 def test_cdc_mode_with_all_parameters():
     """Test CDC mode with all supported parameters including new ones."""
-    
+
     # Create a comprehensive CDC write action
     action = Action(
         name="write_comprehensive_cdc",
@@ -73,7 +77,8 @@ def test_cdc_mode_with_all_parameters():
         write_target={
             "type": "streaming_table",
             "mode": "cdc",
-            "catalog": "catalog", "schema": "schema",
+            "catalog": "catalog",
+            "schema": "schema",
             "table": "comprehensive_table",
             "cdc_config": {
                 "keys": ["id", "partition_key"],
@@ -83,16 +88,16 @@ def test_cdc_mode_with_all_parameters():
                 "apply_as_deletes": "operation = 'DELETE'",
                 "apply_as_truncates": "operation = 'TRUNCATE'",
                 "column_list": ["id", "name", "status", "updated_at"],
-            }
-        }
+            },
+        },
     )
-    
+
     # Generate code
     generator = StreamingTableWriteGenerator()
     context = {"expectations": []}
-    
+
     code = generator.generate(action, context)
-    
+
     # Verify all parameters are present
     assert "dp.create_streaming_table(" in code
     assert "dp.create_auto_cdc_flow(" in code
@@ -100,13 +105,14 @@ def test_cdc_mode_with_all_parameters():
     assert 'sequence_by="_commit_timestamp"' in code
     assert "stored_as_scd_type=1" in code
     assert "ignore_null_updates=True" in code
-    assert 'apply_as_deletes="operation = \'DELETE\'"' in code
-    assert 'apply_as_truncates="operation = \'TRUNCATE\'"' in code
+    assert "apply_as_deletes=\"operation = 'DELETE'\"" in code
+    assert "apply_as_truncates=\"operation = 'TRUNCATE'\"" in code
     assert 'column_list=["id", "name", "status", "updated_at"]' in code
+
 
 def test_cdc_mode_with_except_column_list():
     """Test CDC mode with except_column_list parameter."""
-    
+
     # Create a CDC write action with except_column_list
     action = Action(
         name="write_cdc_except_columns",
@@ -115,30 +121,38 @@ def test_cdc_mode_with_except_column_list():
         write_target={
             "type": "streaming_table",
             "mode": "cdc",
-            "catalog": "catalog", "schema": "schema",
+            "catalog": "catalog",
+            "schema": "schema",
             "table": "filtered_table",
             "cdc_config": {
                 "keys": ["id"],
                 "sequence_by": "_timestamp",
                 "scd_type": 1,
-                "except_column_list": ["internal_field1", "internal_field2", "_metadata"],
-            }
-        }
+                "except_column_list": [
+                    "internal_field1",
+                    "internal_field2",
+                    "_metadata",
+                ],
+            },
+        },
     )
-    
+
     # Generate code
     generator = StreamingTableWriteGenerator()
     context = {"expectations": []}
-    
+
     code = generator.generate(action, context)
-    
+
     # Verify except_column_list is properly generated
     assert "dp.create_auto_cdc_flow(" in code
-    assert 'except_column_list=["internal_field1", "internal_field2", "_metadata"]' in code
+    assert (
+        'except_column_list=["internal_field1", "internal_field2", "_metadata"]' in code
+    )
+
 
 def test_cdc_mode_with_struct_sequence_by():
     """Test CDC mode with struct() for sequence_by using list format."""
-    
+
     # Create a CDC write action with list sequence_by
     action = Action(
         name="write_cdc_struct_sequence",
@@ -147,32 +161,37 @@ def test_cdc_mode_with_struct_sequence_by():
         write_target={
             "type": "streaming_table",
             "mode": "cdc",
-            "catalog": "catalog", "schema": "schema",
+            "catalog": "catalog",
+            "schema": "schema",
             "table": "events_table",
             "cdc_config": {
                 "keys": ["event_id", "user_id"],
-                "sequence_by": ["event_timestamp", "sequence_number"],  # List format -> struct()
+                "sequence_by": [
+                    "event_timestamp",
+                    "sequence_number",
+                ],  # List format -> struct()
                 "scd_type": 1,
                 "ignore_null_updates": True,
-            }
-        }
+            },
+        },
     )
-    
+
     # Generate code
     generator = StreamingTableWriteGenerator()
     context = {"expectations": []}
-    
+
     code = generator.generate(action, context)
-    
+
     # Verify struct() is properly generated and import is added
     assert "from pyspark.sql.functions import struct" in generator.imports
     assert "dp.create_auto_cdc_flow(" in code
     assert 'sequence_by=struct("event_timestamp", "sequence_number")' in code
     assert 'keys=["event_id", "user_id"]' in code
 
+
 def test_cdc_mode_string_sequence_by_still_works():
     """Test CDC mode with traditional string sequence_by still works."""
-    
+
     # Create a CDC write action with string sequence_by
     action = Action(
         name="write_cdc_string_sequence",
@@ -181,34 +200,36 @@ def test_cdc_mode_string_sequence_by_still_works():
         write_target={
             "type": "streaming_table",
             "mode": "cdc",
-            "catalog": "catalog", "schema": "schema",
+            "catalog": "catalog",
+            "schema": "schema",
             "table": "test_table",
             "cdc_config": {
                 "keys": ["id"],
                 "sequence_by": "_timestamp",  # String format (traditional)
                 "scd_type": 1,
-            }
-        }
+            },
+        },
     )
-    
+
     # Generate code
     generator = StreamingTableWriteGenerator()
     context = {"expectations": []}
-    
+
     code = generator.generate(action, context)
-    
+
     # Verify string sequence_by is properly generated
     assert "dp.create_auto_cdc_flow(" in code
     assert 'sequence_by="_timestamp"' in code
     # Should not have struct import for string sequence_by
-    assert "from pyspark.sql.functions import struct" not in generator.imports 
+    assert "from pyspark.sql.functions import struct" not in generator.imports
+
 
 def test_cdc_schema_validation():
     """Test CDC schema validation for required __START_AT and __END_AT columns."""
     from lhp.core.validators import ConfigValidator
-    
+
     validator = ConfigValidator()
-    
+
     # Test valid CDC schema with required columns
     action = Action(
         name="valid_cdc_with_schema",
@@ -217,21 +238,22 @@ def test_cdc_schema_validation():
         write_target={
             "type": "streaming_table",
             "mode": "cdc",
-            "catalog": "catalog", "schema": "schema",
+            "catalog": "catalog",
+            "schema": "schema",
             "table": "test_table",
             "table_schema": "id BIGINT, name STRING, __START_AT TIMESTAMP, __END_AT TIMESTAMP",
             "cdc_config": {
                 "keys": ["id"],
                 "sequence_by": "_timestamp",
                 "scd_type": 2,
-            }
-        }
+            },
+        },
     )
-    
+
     errors = validator.validate_action(action, 0)
-    cdc_errors = [e for e in errors if '__START_AT' in e or '__END_AT' in e]
+    cdc_errors = [e for e in errors if "__START_AT" in e or "__END_AT" in e]
     assert len(cdc_errors) == 0
-    
+
     # Test invalid CDC schema missing __START_AT
     action = Action(
         name="invalid_cdc_missing_start",
@@ -240,20 +262,21 @@ def test_cdc_schema_validation():
         write_target={
             "type": "streaming_table",
             "mode": "cdc",
-            "catalog": "catalog", "schema": "schema",
+            "catalog": "catalog",
+            "schema": "schema",
             "table": "test_table",
             "table_schema": "id BIGINT, name STRING, __END_AT TIMESTAMP",
             "cdc_config": {
                 "keys": ["id"],
                 "sequence_by": "_timestamp",
                 "scd_type": 2,
-            }
-        }
+            },
+        },
     )
-    
+
     errors = validator.validate_action(action, 0)
     assert any("CDC schema must include '__START_AT'" in error for error in errors)
-    
+
     # Test invalid CDC schema missing __END_AT
     action = Action(
         name="invalid_cdc_missing_end",
@@ -262,20 +285,21 @@ def test_cdc_schema_validation():
         write_target={
             "type": "streaming_table",
             "mode": "cdc",
-            "catalog": "catalog", "schema": "schema",
+            "catalog": "catalog",
+            "schema": "schema",
             "table": "test_table",
             "table_schema": "id BIGINT, name STRING, __START_AT TIMESTAMP",
             "cdc_config": {
                 "keys": ["id"],
                 "sequence_by": "_timestamp",
                 "scd_type": 2,
-            }
-        }
+            },
+        },
     )
-    
+
     errors = validator.validate_action(action, 0)
     assert any("CDC schema must include '__END_AT'" in error for error in errors)
-    
+
     # Test CDC schema validation only applies to CDC mode
     action = Action(
         name="non_cdc_no_validation",
@@ -284,12 +308,13 @@ def test_cdc_schema_validation():
         write_target={
             "type": "streaming_table",
             "mode": "standard",
-            "catalog": "catalog", "schema": "schema",
+            "catalog": "catalog",
+            "schema": "schema",
             "table": "test_table",
             "table_schema": "id BIGINT, name STRING",  # No __START_AT/__END_AT required
-        }
+        },
     )
-    
+
     errors = validator.validate_action(action, 0)
-    cdc_errors = [e for e in errors if '__START_AT' in e or '__END_AT' in e]
-    assert len(cdc_errors) == 0 
+    cdc_errors = [e for e in errors if "__START_AT" in e or "__END_AT" in e]
+    assert len(cdc_errors) == 0

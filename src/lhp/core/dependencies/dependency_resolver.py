@@ -5,9 +5,10 @@ from collections import defaultdict, deque
 from typing import Dict, List, Optional, Tuple
 
 from lhp.models import Action, ActionType
+
 from ...errors import (
-    ErrorCategory,
-    LHPValidationError,
+    ErrorFactory,
+    codes,
 )
 from ...utils.source_extractor import extract_action_sources, is_cdc_write_action
 
@@ -217,9 +218,8 @@ class DependencyResolver:
         if len(result) != len(actions):
             unprocessed = [name for name, degree in in_degree.items() if degree > 0]
             cycle_visual = " -> ".join(unprocessed + [unprocessed[0]])
-            raise LHPValidationError(
-                category=ErrorCategory.DEPENDENCY,
-                code_number="001",
+            raise ErrorFactory.dependency_error(
+                codes.DEP_001,
                 title="Circular dependency detected",
                 details=f"Circular dependency detected involving: {unprocessed}\n\n{cycle_visual}",
                 suggestions=[

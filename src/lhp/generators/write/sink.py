@@ -3,9 +3,10 @@
 import logging
 from typing import Any, Dict
 
-from ...core.registry import BaseActionGenerator
 from lhp.models import Action
-from ...errors import ErrorFormatter
+
+from ...core.registry import BaseActionGenerator
+from ...errors import ErrorFactory
 from .sinks import (
     CustomSinkWriteGenerator,
     DeltaSinkWriteGenerator,
@@ -48,7 +49,7 @@ class SinkWriteGenerator(BaseActionGenerator):
         )
 
         if sink_type not in self.generators:
-            raise ErrorFormatter.unknown_type_with_suggestion(
+            raise ErrorFactory.unknown_type_with_suggestion(
                 value_type="sink_type",
                 provided_value=str(sink_type),
                 valid_values=list(self.generators.keys()),

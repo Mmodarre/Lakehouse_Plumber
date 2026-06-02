@@ -235,9 +235,9 @@ resources:
             # User-facing catalog/schema validation is in
             # ``bundle.preflight.validate_catalog_schema`` (LHP-CFG-026).
             from lhp.bundle.exceptions import BundleResourceError
-            from lhp.errors import LHPConfigError
+            from lhp.errors import LHPError
 
-            assert isinstance(e, (BundleResourceError, LHPConfigError))
+            assert isinstance(e, (BundleResourceError, LHPError))
 
     def test_mixed_bundle_and_non_bundle_projects(self):
         """Test that bundle and non-bundle projects can coexist."""

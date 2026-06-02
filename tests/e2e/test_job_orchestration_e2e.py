@@ -5,11 +5,12 @@ Tests the complete workflow of generating job orchestration files using
 the `lhp deps -b` command with and without job configuration.
 """
 
-import pytest
-import shutil
-import os
 import hashlib
+import os
+import shutil
 from pathlib import Path
+
+import pytest
 from click.testing import CliRunner
 
 from lhp.cli.main import cli

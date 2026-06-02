@@ -4,8 +4,9 @@ import logging
 from abc import abstractmethod
 from typing import Any, Dict, List
 
-from ....core.registry import BaseActionGenerator
 from lhp.models import Action
+
+from ....core.registry import BaseActionGenerator
 
 logger = logging.getLogger(__name__)
 

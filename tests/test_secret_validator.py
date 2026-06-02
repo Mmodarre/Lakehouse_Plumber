@@ -3,7 +3,7 @@
 import pytest
 
 from lhp.core.processing.substitution import SecretReference
-from lhp.core.validators.secret_validator import SecretValidator
+from lhp.core.validators import SecretValidator
 
 
 class TestSecretValidator:

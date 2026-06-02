@@ -6,8 +6,8 @@ to attach the right ``from pyspark...`` imports to generated code.
 """
 
 import ast
-import re
 import logging
+import re
 from typing import Set
 
 

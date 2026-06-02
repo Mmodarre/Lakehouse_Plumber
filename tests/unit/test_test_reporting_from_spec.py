@@ -10,6 +10,7 @@ from lhp.core.codegen.tst_reporting_hook_generator import (
     HOOK_FILENAME,
     TestReportingHookGenerator,
 )
+from lhp.errors import LHPError
 from lhp.models import (
     Action,
     ActionType,
@@ -17,7 +18,6 @@ from lhp.models import (
     ProjectConfig,
     TestReportingConfig,
 )
-from lhp.errors import LHPError
 
 
 @pytest.mark.unit

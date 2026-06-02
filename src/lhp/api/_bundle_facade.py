@@ -173,11 +173,10 @@ def _missing_pipeline_config_error() -> Exception:
     so :meth:`BundleFacade.validate_bundle_assets` can surface a stable
     error code when invoked without a configured ``pipeline_config_path``.
     """
-    from lhp.errors import ErrorCategory, LHPConfigError
+    from lhp.errors import ErrorFactory, codes
 
-    return LHPConfigError(
-        category=ErrorCategory.CONFIG,
-        code_number="023",
+    return ErrorFactory.config_error(
+        codes.CFG_023,
         title="pipeline_config is required for bundle validation",
         details=(
             "Bundle preflight requires a pipeline_config.yaml that defines "

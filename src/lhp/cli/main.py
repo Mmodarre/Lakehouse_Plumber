@@ -1,5 +1,10 @@
 """LakehousePlumber CLI - Main entry point."""
 
+# JUSTIFIED: §3.3 — this module is oversize (>500 lines) pending the CLI presenter
+# extraction tracked as CLI-PRESENTER-DEFER (see CHANGELOG [Unreleased]). It was
+# not refactored in the architecture-residual-cleanup change. Remove this block
+# once the presenter extraction lands and the file drops back under 500 lines.
+
 # TODO(Phase 9.2): redistribute version-resolution helpers to cli/_version.py after presenter extraction lands
 
 import logging

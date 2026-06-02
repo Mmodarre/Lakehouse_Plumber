@@ -27,7 +27,7 @@ from ...api import (
     collect_response,
     should_enable_bundle_support,
 )
-from ...errors import ErrorCategory, LHPConfigError, LHPError
+from ...errors import ErrorCategory, ErrorFactory, LHPConfigError, LHPError, codes
 from ...utils.performance_timer import log_perf_summary, perf_timer
 from ..generate_summary import print_summary_table
 from ..live_panel import (
@@ -233,9 +233,8 @@ class GenerateCommand(BaseCommand):
                         )
 
                     if not pipelines_to_generate:
-                        raise LHPConfigError(
-                            category=ErrorCategory.CONFIG,
-                            code_number="014",
+                        raise ErrorFactory.config_error(
+                            codes.CFG_014,
                             title="No flowgroups found in project",
                             details=(
                                 "No flowgroup YAML files were found in the "
@@ -575,9 +574,8 @@ def _require_pipeline_config_flag(
     """
     if not bundle_enabled or pipeline_config_path:
         return
-    raise LHPConfigError(
-        category=ErrorCategory.CONFIG,
-        code_number="023",
+    raise ErrorFactory.config_error(
+        codes.CFG_023,
         title="--pipeline-config is required when bundle support is enabled",
         details=(
             "databricks.yml is present (bundle support is enabled) but the "
@@ -620,9 +618,8 @@ def _raise_duplicate_flowgroups(response) -> None:
             details_lines.append(f"  first occurrence: {first}")
         if duplicate:
             details_lines.append(f"  duplicate: {duplicate}")
-    raise LHPConfigError(
-        category=ErrorCategory.VALIDATION,
-        code_number="DUPFG",
+    raise ErrorFactory.validation_error(
+        codes.VAL_DUPFG,
         title=title,
         details="\n".join(details_lines) or "Duplicate flowgroup name detected.",
         suggestions=[

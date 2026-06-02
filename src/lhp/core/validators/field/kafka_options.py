@@ -1,7 +1,8 @@
 """Shared Kafka options validator for sources and sinks."""
 
-from typing import Dict, Any
-from ...errors import ErrorCategory, ErrorFormatter, LHPValidationError
+from typing import Any, Dict
+
+from ....errors import ErrorFactory, codes
 
 
 class KafkaOptionsValidator:
@@ -89,10 +90,6 @@ class KafkaOptionsValidator:
     def validate_msk_iam_auth(options: Dict[str, Any], action_name: str) -> None:
         """Validate AWS MSK IAM authentication configuration.
 
-        Args:
-            options: Options dictionary with kafka.* prefixed keys
-            action_name: Name of the action for error messages
-
         Raises:
             ValueError: If required MSK IAM options are missing
         """
@@ -104,9 +101,8 @@ class KafkaOptionsValidator:
             }
             missing = required_msk_options - set(options.keys())
             if missing:
-                raise LHPValidationError(
-                    category=ErrorCategory.VALIDATION,
-                    code_number="017",
+                raise ErrorFactory.validation_error(
+                    codes.VAL_017,
                     title=f"Missing MSK IAM options in action '{action_name}'",
                     details=f"Kafka action '{action_name}': AWS MSK IAM authentication requires: {', '.join(sorted(missing))}",
                     suggestions=[
@@ -124,10 +120,6 @@ class KafkaOptionsValidator:
     def validate_event_hubs_oauth(options: Dict[str, Any], action_name: str) -> None:
         """Validate Azure Event Hubs OAuth configuration.
 
-        Args:
-            options: Options dictionary with kafka.* prefixed keys
-            action_name: Name of the action for error messages
-
         Raises:
             ValueError: If required OAuth options are missing
         """
@@ -140,9 +132,8 @@ class KafkaOptionsValidator:
             }
             missing = required_oauth_options - set(options.keys())
             if missing:
-                raise LHPValidationError(
-                    category=ErrorCategory.VALIDATION,
-                    code_number="018",
+                raise ErrorFactory.validation_error(
+                    codes.VAL_018,
                     title=f"Missing OAuth options in action '{action_name}'",
                     details=f"Kafka action '{action_name}': OAuth authentication requires: {', '.join(sorted(missing))}",
                     suggestions=[
@@ -176,7 +167,6 @@ class KafkaOptionsValidator:
         """
         processed_options = {}
 
-        # Determine which special options are allowed
         allowed_special = (
             cls.SOURCE_ONLY_OPTIONS if is_source else cls.SINK_ONLY_OPTIONS
         )
@@ -186,7 +176,7 @@ class KafkaOptionsValidator:
             if not key.startswith("kafka.") and key not in allowed_special:
                 # Check if it's a known kafka option that should have prefix
                 if key in cls.KNOWN_KAFKA_OPTIONS:
-                    raise ErrorFormatter.configuration_conflict(
+                    raise ErrorFactory.configuration_conflict(
                         action_name=action_name,
                         field_pairs=[(key, f"kafka.{key}")],
                         preset_name=None,
@@ -195,11 +185,9 @@ class KafkaOptionsValidator:
             # Preserve original type for all options
             processed_options[key] = value
 
-        # Validate MSK IAM if configured
         if processed_options.get("kafka.sasl.mechanism") == "AWS_MSK_IAM":
             cls.validate_msk_iam_auth(processed_options, action_name)
 
-        # Validate Event Hubs OAuth if configured
         if processed_options.get("kafka.sasl.mechanism") == "OAUTHBEARER":
             cls.validate_event_hubs_oauth(processed_options, action_name)
 

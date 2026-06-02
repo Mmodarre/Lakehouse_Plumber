@@ -6,9 +6,10 @@ integer, array, object) when resolving {{ template_param }} expressions.
 Consolidated from five per-type files into one parametrized suite.
 """
 
-import pytest
-from pathlib import Path
 import tempfile
+from pathlib import Path
+
+import pytest
 
 from lhp.core.processing import TemplateEngine
 
@@ -523,11 +524,18 @@ class TestArrayConversion:
 
         result = engine._render_value(template_data, params)
 
-        assert result["table_config"]["cluster_columns"] == ["c_customer_id", "c_region"]
+        assert result["table_config"]["cluster_columns"] == [
+            "c_customer_id",
+            "c_region",
+        ]
         assert result["metadata"] == ["created_at", "updated_at", "source_file"]
 
     def test_array_with_template_expressions_in_items(self, engine):
-        template_array = ["{{ prefix }}_column1", "{{ prefix }}_column2", "static_column"]
+        template_array = [
+            "{{ prefix }}_column1",
+            "{{ prefix }}_column2",
+            "static_column",
+        ]
         params = {"prefix": "fact"}
         result = engine._render_value(template_array, params)
         assert result == ["fact_column1", "fact_column2", "static_column"]

@@ -38,7 +38,6 @@ from tests.performance.benchmark import (
     summarize,
 )
 
-
 FIXTURES = ["performance_testing", "performance_testing_blueprint"]
 
 
@@ -100,7 +99,5 @@ def test_release_benchmark_no_regressions(fixture_name: str, cwd_guard) -> None:
 
     if result.regressions:
         pytest.fail(
-            _format_failure_message(
-                result, fixture_name, baseline["lhp_version"]
-            )
+            _format_failure_message(result, fixture_name, baseline["lhp_version"])
         )

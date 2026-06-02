@@ -30,12 +30,12 @@ from unittest.mock import patch
 from rich.console import Console as RichConsole
 
 import lhp.cli.console as _lhp_console_module
+from lhp.api.responses import BatchValidationResponse, ValidationResponse
+from lhp.api.views import ValidationIssueView
 from lhp.cli.commands.validate_command import _issue_view_to_lhp_error
 from lhp.cli.error_panel import render_error_panel
 from lhp.cli.live_panel import PipelineRecord
 from lhp.cli.validate_summary import print_validate_summary_table
-from lhp.api.responses import BatchValidationResponse, ValidationResponse
-from lhp.api.views import ValidationIssueView
 from lhp.errors import ErrorCategory, LHPValidationError
 
 
@@ -140,9 +140,7 @@ def test_validate_failure_panel_uses_lhp_error_rich():
             for issue in response.issues:
                 lhp_error = _issue_view_to_lhp_error(issue)
                 if lhp_error is not None:
-                    _lhp_console_module.err_console.print(
-                        render_error_panel(lhp_error)
-                    )
+                    _lhp_console_module.err_console.print(render_error_panel(lhp_error))
     out = buf.getvalue()
     # ``render_error_panel`` returns a Panel titled ``LHP-VAL-007   <category label>``.
     assert "LHP-VAL-007" in out

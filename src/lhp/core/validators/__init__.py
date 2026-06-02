@@ -7,24 +7,25 @@
 
 # isort: skip_file
 from ._base import BaseActionValidator
-from .cdc_fanin_compatibility_validator import CdcFanInCompatibilityValidator
+from .compatibility.cdc_fanin import CdcFanInCompatibilityValidator
 from .action.load import LoadActionValidator
-from .transform_validator import TransformActionValidator
-from .write_validator import WriteActionValidator
+from .action.transform import TransformActionValidator
+from .action.write import WriteActionValidator
 from .action.test import TestActionValidator
-from .table_creation_validator import TableCreationValidator, action_creates_table
+from .compatibility.table_creation import TableCreationValidator, action_creates_table
 
-# Domain-level validators (consolidated under §9.4 in Week 3)
-from .config_field_validator import ConfigFieldValidator
-from .secret_validator import SecretValidator
-from .dlt_cdc_validators import (
+# Domain-level validators (sorted into the action/pipeline/field/compatibility
+# taxonomy under §9.4).
+from .field.config_field import ConfigFieldValidator
+from .field.secret_reference import SecretValidator
+from .compatibility import (
     DltTableOptionsValidator,
     CdcConfigValidator,
     SnapshotCdcConfigValidator,
     CdcSchemaValidator,
 )
-from .job_name_validator import validate_job_names, validate_job_name_format
-from .kafka_validator import KafkaOptionsValidator
+from .pipeline.job_name import validate_job_names, validate_job_name_format
+from .field.kafka_options import KafkaOptionsValidator
 
 # Project-wide aggregator (composes the action/structural validators above).
 from .config_validator import ConfigValidator

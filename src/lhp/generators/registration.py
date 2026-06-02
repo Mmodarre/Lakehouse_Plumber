@@ -6,8 +6,8 @@ legal downward edge and ``core`` never imports ``generators``. The composition
 root (``lhp/__init__.py``) imports this module so registration runs before any
 ``ActionRegistry`` is constructed.
 """
+
 from lhp.core.registry import register_generators
-from lhp.models import LoadSourceType, TransformType, WriteTargetType, TestActionType
 from lhp.generators.load import (
     CloudFilesLoadGenerator,
     CustomDataSourceLoadGenerator,
@@ -16,6 +16,17 @@ from lhp.generators.load import (
     KafkaLoadGenerator,
     PythonLoadGenerator,
     SQLLoadGenerator,
+)
+from lhp.generators.test import (
+    AllLookupsFoundTestGenerator,
+    CompletenessTestGenerator,
+    CustomExpectationsTestGenerator,
+    CustomSqlTestGenerator,
+    RangeTestGenerator,
+    ReferentialIntegrityTestGenerator,
+    RowCountTestGenerator,
+    SchemaMatchTestGenerator,
+    UniquenessTestGenerator,
 )
 from lhp.generators.transform import (
     DataQualityTransformGenerator,
@@ -29,17 +40,7 @@ from lhp.generators.write import (
     SinkWriteGenerator,
     StreamingTableWriteGenerator,
 )
-from lhp.generators.test import (
-    AllLookupsFoundTestGenerator,
-    CompletenessTestGenerator,
-    CustomExpectationsTestGenerator,
-    CustomSqlTestGenerator,
-    RangeTestGenerator,
-    ReferentialIntegrityTestGenerator,
-    RowCountTestGenerator,
-    SchemaMatchTestGenerator,
-    UniquenessTestGenerator,
-)
+from lhp.models import LoadSourceType, TestActionType, TransformType, WriteTargetType
 
 
 def register_all() -> None:

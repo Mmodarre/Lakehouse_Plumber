@@ -1,10 +1,10 @@
 """Sink write generators."""
 
 from .base_sink import BaseSinkWriteGenerator
-from .delta_sink import DeltaSinkWriteGenerator
-from .kafka_sink import KafkaSinkWriteGenerator
 from .custom_sink import CustomSinkWriteGenerator
+from .delta_sink import DeltaSinkWriteGenerator
 from .foreachbatch_sink import ForEachBatchSinkWriteGenerator
+from .kafka_sink import KafkaSinkWriteGenerator
 
 __all__ = [
     "BaseSinkWriteGenerator",

@@ -8,12 +8,13 @@ from jinja2 import Environment, Template
 
 from lhp.models import Action
 from lhp.models import Template as TemplateModel
-from ...parsers.yaml_parser import YAMLParser
+
 from ...errors import (
-    ErrorCategory,
-    ErrorFormatter,
+    ErrorFactory,
     LHPValidationError,
+    codes,
 )
+from ...parsers.yaml_parser import YAMLParser
 
 
 class TemplateEngine:
@@ -112,7 +113,7 @@ class TemplateEngine:
         """
         template = self.get_template(template_name)
         if not template:
-            raise ErrorFormatter.template_not_found(
+            raise ErrorFactory.template_not_found(
                 template_name=template_name,
                 available_templates=sorted(self._available_templates),
                 templates_dir=str(self.templates_dir) if self.templates_dir else None,
@@ -160,7 +161,7 @@ class TemplateEngine:
 
         if missing_params:
             all_param_names = [p["name"] for p in template.parameters]
-            raise ErrorFormatter.missing_template_parameters(
+            raise ErrorFactory.missing_template_parameters(
                 template_name=template.name,
                 missing_params=sorted(missing_params),
                 available_params=all_param_names,
@@ -258,9 +259,8 @@ class TemplateEngine:
 
                 result = json.loads(rendered)
                 if not isinstance(result, list):
-                    raise LHPValidationError(
-                        category=ErrorCategory.VALIDATION,
-                        code_number="009",
+                    raise ErrorFactory.validation_error(
+                        codes.VAL_009,
                         title="Invalid template parameter type",
                         details=f"Expected array but got {type(result).__name__}.",
                         suggestions=[
@@ -276,9 +276,8 @@ class TemplateEngine:
 
                     result = ast.literal_eval(rendered)
                     if not isinstance(result, list):
-                        raise LHPValidationError(
-                            category=ErrorCategory.VALIDATION,
-                            code_number="009",
+                        raise ErrorFactory.validation_error(
+                            codes.VAL_009,
                             title="Invalid template parameter type",
                             details=f"Expected array but got {type(result).__name__}.",
                             suggestions=[
@@ -288,9 +287,8 @@ class TemplateEngine:
                         )
                     return result
                 except (ValueError, SyntaxError) as e:
-                    raise LHPValidationError(
-                        category=ErrorCategory.VALIDATION,
-                        code_number="009",
+                    raise ErrorFactory.validation_error(
+                        codes.VAL_009,
                         title="Invalid array template parameter",
                         details=(
                             f"Invalid array template parameter: '{rendered}'. "
@@ -307,9 +305,8 @@ class TemplateEngine:
             except LHPValidationError:
                 raise
             except Exception as e:
-                raise LHPValidationError(
-                    category=ErrorCategory.VALIDATION,
-                    code_number="009",
+                raise ErrorFactory.validation_error(
+                    codes.VAL_009,
                     title="Failed to parse array template parameter",
                     details=f"Failed to parse array template parameter: '{rendered}'. Error: {e}",
                     suggestions=[
@@ -331,9 +328,8 @@ class TemplateEngine:
 
                 result = json.loads(rendered)
                 if not isinstance(result, dict):
-                    raise LHPValidationError(
-                        category=ErrorCategory.VALIDATION,
-                        code_number="009",
+                    raise ErrorFactory.validation_error(
+                        codes.VAL_009,
                         title="Invalid template parameter type",
                         details=f"Expected object but got {type(result).__name__}.",
                         suggestions=[
@@ -349,9 +345,8 @@ class TemplateEngine:
 
                     result = ast.literal_eval(rendered)
                     if not isinstance(result, dict):
-                        raise LHPValidationError(
-                            category=ErrorCategory.VALIDATION,
-                            code_number="009",
+                        raise ErrorFactory.validation_error(
+                            codes.VAL_009,
                             title="Invalid template parameter type",
                             details=f"Expected object but got {type(result).__name__}.",
                             suggestions=[
@@ -361,9 +356,8 @@ class TemplateEngine:
                         )
                     return result
                 except (ValueError, SyntaxError) as e:
-                    raise LHPValidationError(
-                        category=ErrorCategory.VALIDATION,
-                        code_number="009",
+                    raise ErrorFactory.validation_error(
+                        codes.VAL_009,
                         title="Invalid object template parameter",
                         details=(
                             f"Invalid object template parameter: '{rendered}'. "
@@ -380,9 +374,8 @@ class TemplateEngine:
             except LHPValidationError:
                 raise
             except Exception as e:
-                raise LHPValidationError(
-                    category=ErrorCategory.VALIDATION,
-                    code_number="009",
+                raise ErrorFactory.validation_error(
+                    codes.VAL_009,
                     title="Failed to parse object template parameter",
                     details=f"Failed to parse object template parameter: '{rendered}'. Error: {e}",
                     suggestions=[
@@ -400,9 +393,8 @@ class TemplateEngine:
             try:
                 return int(rendered)
             except (ValueError, OverflowError) as e:
-                raise LHPValidationError(
-                    category=ErrorCategory.VALIDATION,
-                    code_number="009",
+                raise ErrorFactory.validation_error(
+                    codes.VAL_009,
                     title="Invalid integer template parameter",
                     details=f"Invalid integer template parameter: '{rendered}'. Error: {e}",
                     suggestions=[

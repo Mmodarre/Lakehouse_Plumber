@@ -1,13 +1,13 @@
 """Unit tests for monitoring config parsing and validation in ProjectConfigLoader."""
 
-import pytest
 from pathlib import Path
 from unittest.mock import patch
 
-from lhp.core.loaders import ProjectConfigLoader
-from lhp.models import EventLogConfig, MonitoringConfig
-from lhp.errors import LHPError
+import pytest
 
+from lhp.core.loaders import ProjectConfigLoader
+from lhp.errors import LHPError
+from lhp.models import EventLogConfig, MonitoringConfig
 
 # Path (relative to project root / tmp_path) used across tests as the monitoring
 # job config location. The `loader` fixture creates this file so validation passes.

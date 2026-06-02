@@ -5,7 +5,7 @@ import threading
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
-from ...errors import ErrorCategory, LHPValidationError, PythonFunctionConflictError
+from ...errors import ErrorFactory, PythonFunctionConflictError, codes
 from ...models.processing import CopiedModuleRecord
 from ..loaders.external_file_loader import resolve_external_file_path
 from .imports import parse_user_module
@@ -338,9 +338,9 @@ def compute_copy_records(
     dest_file = custom_functions_dir / f"{Path(module_path).stem}.py"
 
     if source_file is None:
-        assert inline_source is not None, (
-            "compute_copy_records requires either source_file or inline_source"
-        )
+        assert (
+            inline_source is not None
+        ), "compute_copy_records requires either source_file or inline_source"
         content = build_lhp_source_header(module_path) + _apply_substitution(
             inline_source, context
         )
@@ -454,9 +454,8 @@ def copy_user_module_for_pipeline(
         source_file = None
 
     if not flowgroup:
-        raise LHPValidationError(
-            category=ErrorCategory.VALIDATION,
-            code_number="015",
+        raise ErrorFactory.validation_error(
+            codes.VAL_015,
             title=f"Missing flowgroup context for {component_label} file copying",
             details=(
                 "Flowgroup context is required for Python file copying but "

@@ -17,7 +17,6 @@ from pathlib import Path
 
 import pytest
 
-from lhp.models.processing import PipelineDelta
 from lhp.errors import (
     ErrorCategory,
     LHPConfigError,
@@ -25,6 +24,7 @@ from lhp.errors import (
     LHPValidationError,
     MultiDocumentError,
 )
+from lhp.models.processing import PipelineDelta
 
 
 class TestPipelineDeltaSerialization:

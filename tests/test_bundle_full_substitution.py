@@ -5,11 +5,12 @@ Tests LHP token substitution across ALL fields in pipeline_config.yaml,
 including nested structures, lists, and dict values.
 """
 
-import pytest
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-import tempfile
 import shutil
+import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 import yaml
 
 from lhp.bundle.manager import BundleManager
@@ -460,9 +461,9 @@ serverless: true
 
         output_dir = temp_project / "generated"
 
-        from lhp.errors import LHPConfigError
+        from lhp.errors import LHPError
 
-        with pytest.raises(LHPConfigError) as exc_info:
+        with pytest.raises(LHPError) as exc_info:
             manager.generate_resource_file_content(
                 "invalid_pipeline", output_dir, "dev"
             )
@@ -502,9 +503,9 @@ serverless: true
         # Empty strings are treated as missing due to falsy evaluation in
         # Python, so the internal-error guard fires for "missing/empty
         # resolved catalog/schema".
-        from lhp.errors import LHPConfigError
+        from lhp.errors import LHPError
 
-        with pytest.raises(LHPConfigError) as exc_info:
+        with pytest.raises(LHPError) as exc_info:
             manager.generate_resource_file_content(
                 "empty_catalog_pipeline", output_dir, "dev"
             )

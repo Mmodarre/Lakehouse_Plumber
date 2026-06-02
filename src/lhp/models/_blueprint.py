@@ -5,7 +5,7 @@ from typing import Any, ClassVar, Dict, List, Optional, Set, Union
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from ..errors import ErrorCategory, LHPValidationError
+from ..errors import ErrorFactory, codes
 from ._action import Action
 
 logger = logging.getLogger(__name__)
@@ -104,9 +104,8 @@ class BlueprintInstance(BaseModel):
             file_path = info.context.get("file_path")
 
         if has_use and has_legacy:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="061",
+            raise ErrorFactory.validation_error(
+                codes.VAL_061,
                 title="Conflicting blueprint instance syntax",
                 details=(
                     "Instance file uses both 'use_blueprint:' (new) and "
@@ -124,9 +123,8 @@ class BlueprintInstance(BaseModel):
             allowed = {"use_blueprint", "parameters", "overrides"}
             extras = sorted(k for k in data if k not in allowed)
             if extras:
-                raise LHPValidationError(
-                    category=ErrorCategory.VALIDATION,
-                    code_number="061",
+                raise ErrorFactory.validation_error(
+                    codes.VAL_061,
                     title="Mixing blueprint instance syntax forms",
                     details=(
                         "Instance file uses 'use_blueprint:' but also has "

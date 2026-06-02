@@ -2,9 +2,9 @@
 
 import logging
 import re
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 
-from ...errors import LHPError, ErrorCategory
+from ...errors import ErrorFactory, codes
 
 
 class LocalVariableResolver:
@@ -128,9 +128,8 @@ class LocalVariableResolver:
         """
         errors = self._find_unresolved(data, path)
         if errors:
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="011",
+            raise ErrorFactory.config_error(
+                codes.CFG_011,
                 title="Undefined local variable(s) detected",
                 details=f"Found {len(errors)} undefined variable(s):\n\n"
                 + "\n".join(f"  • {e}" for e in errors[:10]),

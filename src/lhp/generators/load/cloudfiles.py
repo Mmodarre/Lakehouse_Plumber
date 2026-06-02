@@ -4,14 +4,16 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+from lhp.errors import ErrorFactory, LHPError, codes
+from lhp.models import Action
+
+from ...core.codegen.struct_type_emitter import emit_struct_type_code
 from ...core.loaders.external_file_loader import (
     is_file_path,
     load_external_file_text,
     resolve_external_file_path,
 )
 from ...core.registry import BaseActionGenerator
-from ...errors import ErrorCategory, ErrorFormatter, LHPError, LHPValidationError
-from lhp.models import Action
 from ...parsers.schema_parser import SchemaParser
 
 
@@ -65,7 +67,7 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
         # CloudFiles requires stream mode
         readMode = action.readMode or source_config.get("readMode", "stream")
         if readMode != "stream":
-            raise ErrorFormatter.invalid_read_mode(
+            raise ErrorFactory.invalid_read_mode(
                 action_name=action.name,
                 action_type="cloudfiles",
                 provided=readMode,
@@ -108,7 +110,7 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             options = source_config["options"]
             # Validate options is a dictionary
             if not isinstance(options, dict):
-                raise ErrorFormatter.invalid_field_type(
+                raise ErrorFactory.invalid_field_type(
                     action_name=action.name,
                     field_name="options",
                     expected_type="a dictionary (mapping)",
@@ -168,14 +170,17 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
         # Validate mandatory options
         self._validate_mandatory_options(reader_options, file_format)
 
-        # Process schema hints for better formatting
+        # Process schema hints into render data (template emits the code, §9.14)
         schema_hints_variable = None
-        schema_hints_lines = []
+        schema_hints_label = None
+        schema_hints_columns = []
         if "cloudFiles.schemaHints" in reader_options:
-            schema_hints_variable, schema_hints_lines = (
-                self._create_schema_hints_variable(
-                    reader_options["cloudFiles.schemaHints"], action.target
-                )
+            (
+                schema_hints_variable,
+                schema_hints_label,
+                schema_hints_columns,
+            ) = self._create_schema_hints_variable(
+                reader_options["cloudFiles.schemaHints"], action.target
             )
             # Remove from reader_options since we'll use the variable instead
             del reader_options["cloudFiles.schemaHints"]
@@ -194,7 +199,8 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             "schema_code_lines": schema_code_lines,
             "schema_variable": schema_variable,
             "schema_hints_variable": schema_hints_variable,
-            "schema_hints_lines": schema_hints_lines,
+            "schema_hints_label": schema_hints_label,
+            "schema_hints_columns": schema_hints_columns,
             "description": action.description
             or f"Load data from {file_format} files at {path}",
             "add_operational_metadata": add_operational_metadata,
@@ -225,7 +231,7 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
                 not key.startswith("cloudFiles.")
                 and key in self.known_cloudfiles_options
             ):
-                raise ErrorFormatter.configuration_conflict(
+                raise ErrorFactory.configuration_conflict(
                     action_name=action_name,
                     field_pairs=[(key, f"cloudFiles.{key}")],
                     preset_name=None,
@@ -298,9 +304,8 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             # Validate schema
             errors = self.schema_parser.validate_schema(schema_data)
             if errors:
-                raise LHPValidationError(
-                    category=ErrorCategory.VALIDATION,
-                    code_number="011",
+                raise ErrorFactory.validation_error(
+                    codes.VAL_011,
                     title="Schema validation failed",
                     details=f"Schema file '{schema_file_path}' failed validation: {'; '.join(errors)}",
                     suggestions=[
@@ -313,9 +318,7 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
                     },
                 )
 
-            variable_name, code_lines = self.schema_parser.to_struct_type_code(
-                schema_data
-            )
+            variable_name, code_lines = emit_struct_type_code(schema_data)
 
             # Add the imports to the generator
             for line in code_lines:
@@ -345,7 +348,7 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
                     f"Project root: {Path.cwd() / schema_file_path}"
                 )
 
-            raise ErrorFormatter.file_not_found(
+            raise ErrorFactory.file_not_found(
                 file_path=str(schema_file_path),
                 search_locations=search_locations,
                 file_type="schema file",
@@ -354,9 +357,8 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             # Re-raise LHPError as-is (it's already well-formatted)
             raise
         except Exception as e:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="011",
+            raise ErrorFactory.validation_error(
+                codes.VAL_011,
                 title=f"Error processing schema file '{schema_file_path}'",
                 details=f"Failed to process schema file '{schema_file_path}': {e}",
                 suggestions=[
@@ -414,7 +416,7 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             # Check for preset name in the source config
             preset_name = source_config.get("preset")
 
-            raise ErrorFormatter.configuration_conflict(
+            raise ErrorFactory.configuration_conflict(
                 action_name=action_name,
                 field_pairs=field_pairs,
                 preset_name=preset_name,
@@ -422,15 +424,23 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
 
     def _create_schema_hints_variable(
         self, schema_hints: str, target_view: str
-    ) -> Tuple[str, List[str]]:
-        """Create a formatted schema hints variable for better readability.
+    ) -> Tuple[str, str, List[str]]:
+        """Parse schema hints into the data the template needs to render them.
+
+        Code generation itself lives in ``templates/load/cloudfiles.py.j2`` per
+        constitution §9.14 / §2.10 — this method only performs data
+        transformation (paren-aware column parsing + variable naming).
 
         Args:
             schema_hints: The schema hints string (e.g., "col1 TYPE1, col2 TYPE2, ...")
             target_view: The target view name to use for variable naming
 
         Returns:
-            Tuple of (variable_name, code_lines)
+            Tuple of (variable_name, clean_target, columns):
+                variable_name - the assignment target name (also used for the
+                    ``.option("cloudFiles.schemaHints", ...)`` reference)
+                clean_target - the label used in the "# Schema hints for ..." comment
+                columns - the parsed schema-hint columns, one per list entry
         """
         # Create variable name based on target view
         clean_target = target_view.replace("v_", "").replace("_raw", "")
@@ -460,24 +470,7 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
         if current_col.strip():
             columns.append(current_col.strip())
 
-        # Format each column with proper indentation
-        code_lines = [
-            f"# Schema hints for {clean_target} table",
-            f'{variable_name} = """',
-        ]
-
-        # Add each column on its own line with indentation
-        for i, column in enumerate(columns):
-            if i == len(columns) - 1:  # Last column doesn't need comma
-                code_lines.append(f"    {column}")
-            else:
-                code_lines.append(f"    {column},")
-
-        code_lines.extend(
-            ['""".strip().replace("\\n", " ")', ""]  # Empty line for separation
-        )
-
-        return variable_name, code_lines
+        return variable_name, clean_target, columns
 
     def _validate_mandatory_options(
         self, reader_options: Dict[str, Any], file_format: str

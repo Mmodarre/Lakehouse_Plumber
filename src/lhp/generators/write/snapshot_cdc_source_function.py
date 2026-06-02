@@ -32,7 +32,7 @@ from typing import Any, Dict, NamedTuple, Optional
 from lhp.core.codegen.imports import parse_user_module
 
 from ...core.loaders.external_file_loader import resolve_external_file_path
-from ...errors import ErrorCategory, LHPError
+from ...errors import ErrorFactory, codes
 from ...utils.performance_timer import incr_event
 
 logger = logging.getLogger(__name__)
@@ -104,14 +104,14 @@ def resolve_source_function(
     # contract for the type checker (narrowing ``Optional`` away) and act
     # as a cheap defensive guard; they are not a user-facing error path.
     assert file_name is not None, "source_function.file enforced upstream by validator"
-    assert function_name is not None, (
-        "source_function.function enforced upstream by validator"
-    )
+    assert (
+        function_name is not None
+    ), "source_function.function enforced upstream by validator"
 
     # ``resolve_external_file_path`` raises a rich LHPFileError (IO-004,
-    # via ``ErrorFormatter.file_not_found`` with structured search
-    # locations) when the file is missing. Resolve first so we have a
-    # stable ABSOLUTE-PATH cache key before reading.
+    # via the shared external-file loader's file-not-found path with
+    # structured search locations) when the file is missing. Resolve first
+    # so we have a stable ABSOLUTE-PATH cache key before reading.
     project_root = context.get("project_root", Path.cwd()) if context else Path.cwd()
     resolved_path = resolve_external_file_path(
         file_name, project_root, file_type="snapshot source function file"
@@ -193,9 +193,8 @@ def _extract_function_signature(
     func_node = _find_function_node(tree, function_name)
 
     if func_node is None:
-        raise LHPError(
-            category=ErrorCategory.IO,
-            code_number="004",
+        raise ErrorFactory.io_error(
+            codes.IO_004,
             title=f"Function '{function_name}' not found in file",
             details=f"The function '{function_name}' is not defined in the file '{file_name}'",
             suggestions=[
@@ -263,9 +262,8 @@ def _validate_function_parameters(
     # Type guard: validate parameter values
     for key, value in parameters.items():
         if not isinstance(value, _ALLOWED_PARAM_TYPES):
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="005",
+            raise ErrorFactory.config_error(
+                codes.CFG_005,
                 title="Unsupported parameter type in source_function",
                 details=(
                     f"Parameter '{key}' has type '{type(value).__name__}', "
@@ -290,9 +288,8 @@ def _validate_function_parameters(
     # Check for unknown parameter names
     unknown = set(parameters.keys()) - kw_only_names
     if unknown:
-        raise LHPError(
-            category=ErrorCategory.CONFIG,
-            code_number="006",
+        raise ErrorFactory.config_error(
+            codes.CFG_006,
             title="Unknown parameters for source_function",
             details=(
                 f"Parameters {sorted(unknown)} are not keyword-only arguments "

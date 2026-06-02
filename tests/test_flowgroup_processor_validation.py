@@ -8,8 +8,7 @@ import pytest
 from lhp.core.processing import TemplateEngine
 from lhp.core.processing.flowgroup_resolver import FlowgroupResolutionService
 from lhp.core.processing.substitution import EnhancedSubstitutionManager
-from lhp.core.validators import ConfigValidator
-from lhp.core.validators.secret_validator import SecretValidator
+from lhp.core.validators import ConfigValidator, SecretValidator
 from lhp.errors import LHPError
 from lhp.models import Action, ActionType, FlowGroup
 from lhp.presets.preset_manager import PresetManager

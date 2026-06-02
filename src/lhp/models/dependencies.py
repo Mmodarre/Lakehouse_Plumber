@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 
 import networkx as nx
 
-from ..errors import ErrorCategory, LHPValidationError
+from ..errors import ErrorFactory, codes
 
 
 @dataclass
@@ -25,9 +25,8 @@ class DependencyGraphs:
             "pipeline": self.pipeline_graph,
         }
         if level not in level_map:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="020",
+            raise ErrorFactory.validation_error(
+                codes.VAL_020,
                 title="Unknown dependency graph level",
                 details=f"Unknown level: '{level}'.",
                 suggestions=[

@@ -3,7 +3,7 @@
 import logging
 from typing import Any
 
-from ...errors import ErrorCategory, LHPError
+from lhp.errors import ErrorFactory, codes
 from lhp.models import TestReportingConfig
 
 logger = logging.getLogger(__name__)
@@ -12,9 +12,8 @@ logger = logging.getLogger(__name__)
 def parse_test_reporting_config(test_reporting_data: Any) -> TestReportingConfig:
     """Parse and validate the ``test_reporting`` mapping. ``module_path`` and ``function_name`` are required."""
     if not isinstance(test_reporting_data, dict):
-        raise LHPError(
-            category=ErrorCategory.CONFIG,
-            code_number="009",
+        raise ErrorFactory.config_error(
+            codes.CFG_009,
             title="Invalid test_reporting configuration",
             details=f"test_reporting must be a mapping, got {type(test_reporting_data).__name__}",
             suggestions=[
@@ -30,9 +29,8 @@ def parse_test_reporting_config(test_reporting_data: Any) -> TestReportingConfig
         missing.append("function_name")
 
     if missing:
-        raise LHPError(
-            category=ErrorCategory.CONFIG,
-            code_number="009",
+        raise ErrorFactory.config_error(
+            codes.CFG_009,
             title="Incomplete test_reporting configuration",
             details=f"test_reporting is missing required fields: {', '.join(missing)}",
             suggestions=[
@@ -49,9 +47,8 @@ def parse_test_reporting_config(test_reporting_data: Any) -> TestReportingConfig
             config_file=test_reporting_data.get("config_file"),
         )
     except Exception as e:
-        raise LHPError(
-            category=ErrorCategory.CONFIG,
-            code_number="009",
+        raise ErrorFactory.config_error(
+            codes.CFG_009,
             title="Error parsing test_reporting configuration",
             details=f"Failed to parse test_reporting configuration: {e}",
             suggestions=[

@@ -10,8 +10,9 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from ..errors import ErrorCategory, LHPConfigError, LHPError, LHPValidationError
 from lhp.models import Blueprint, BlueprintInstance
+
+from ..errors import ErrorFactory, LHPError, codes
 from .yaml_loader import load_yaml_documents_all
 
 if TYPE_CHECKING:
@@ -52,9 +53,8 @@ class BlueprintParser:
         documents = self._load_documents(path, error_context=f"blueprint file {path}")
 
         if not documents:
-            raise LHPConfigError(
-                category=ErrorCategory.CONFIG,
-                code_number="047",
+            raise ErrorFactory.config_error(
+                codes.CFG_047,
                 title="Empty blueprint file",
                 details=f"No content found in blueprint file {path}",
                 suggestions=[
@@ -65,9 +65,8 @@ class BlueprintParser:
             )
 
         if len(documents) > 1:
-            raise LHPConfigError(
-                category=ErrorCategory.CONFIG,
-                code_number="048",
+            raise ErrorFactory.config_error(
+                codes.CFG_048,
                 title="Multi-document blueprint file",
                 details=(
                     f"Blueprint file {path} contains {len(documents)} YAML "
@@ -82,9 +81,8 @@ class BlueprintParser:
 
         doc = documents[0]
         if not self.looks_like_blueprint(doc):
-            raise LHPConfigError(
-                category=ErrorCategory.CONFIG,
-                code_number="049",
+            raise ErrorFactory.config_error(
+                codes.CFG_049,
                 title="File is not a blueprint",
                 details=(
                     f"{path} is configured as a blueprint (matches blueprint_include "
@@ -103,9 +101,8 @@ class BlueprintParser:
         except LHPError:
             raise
         except Exception as e:
-            raise LHPConfigError(
-                category=ErrorCategory.CONFIG,
-                code_number="050",
+            raise ErrorFactory.config_error(
+                codes.CFG_050,
                 title="Invalid blueprint definition",
                 details=f"Error parsing blueprint {path}: {e}",
                 suggestions=[
@@ -143,9 +140,8 @@ class BlueprintParser:
         documents = self._load_documents(path, error_context=f"instance file {path}")
 
         if not documents:
-            raise LHPConfigError(
-                category=ErrorCategory.CONFIG,
-                code_number="051",
+            raise ErrorFactory.config_error(
+                codes.CFG_051,
                 title="Empty instance file",
                 details=f"No content found in instance file {path}",
                 suggestions=[
@@ -155,9 +151,8 @@ class BlueprintParser:
             )
 
         if len(documents) > 1:
-            raise LHPConfigError(
-                category=ErrorCategory.CONFIG,
-                code_number="052",
+            raise ErrorFactory.config_error(
+                codes.CFG_052,
                 title="Multi-document instance file",
                 details=(
                     f"Instance file {path} contains {len(documents)} YAML "
@@ -176,9 +171,8 @@ class BlueprintParser:
         if not isinstance(doc, dict) or not (
             "use_blueprint" in doc or "blueprint" in doc
         ):
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="053",
+            raise ErrorFactory.validation_error(
+                codes.VAL_053,
                 title="Instance file missing blueprint reference",
                 details=(
                     f"Instance file {path} must declare a top-level "
@@ -215,9 +209,8 @@ class BlueprintParser:
             ]
             if close:
                 suggestions.insert(0, f"Did you mean '{close[0]}'?")
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="041",
+            raise ErrorFactory.validation_error(
+                codes.VAL_041,
                 title="Instance references unknown blueprint",
                 details=details,
                 suggestions=suggestions,
@@ -236,9 +229,8 @@ class BlueprintParser:
         except LHPError:
             raise
         except Exception as e:
-            raise LHPConfigError(
-                category=ErrorCategory.CONFIG,
-                code_number="054",
+            raise ErrorFactory.config_error(
+                codes.CFG_054,
                 title="Invalid instance definition",
                 details=f"Error parsing instance {path}: {e}",
                 suggestions=[
@@ -259,9 +251,8 @@ class BlueprintParser:
           set ``{use_blueprint, parameters, overrides}``.
         """
         if "use_blueprint" in doc and "blueprint" in doc:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="061",
+            raise ErrorFactory.validation_error(
+                codes.VAL_061,
                 title="Conflicting blueprint instance syntax",
                 details=(
                     f"Instance file {path} uses both 'use_blueprint:' (new) "
@@ -280,9 +271,8 @@ class BlueprintParser:
         extras = sorted(k for k in doc if k not in allowed)
         if not extras:
             return
-        raise LHPValidationError(
-            category=ErrorCategory.VALIDATION,
-            code_number="061",
+        raise ErrorFactory.validation_error(
+            codes.VAL_061,
             title="Mixing blueprint instance syntax forms",
             details=(
                 f"Instance file {path} uses 'use_blueprint:' but also has "
@@ -331,9 +321,8 @@ class BlueprintParser:
                     f"blueprint '{blueprint.name}'"
                 )
 
-        raise LHPValidationError(
-            category=ErrorCategory.VALIDATION,
-            code_number="043",
+        raise ErrorFactory.validation_error(
+            codes.VAL_043,
             title="Unknown parameter key in instance",
             details=(
                 f"Instance {path} contains unknown parameter key(s) {unknown!r}. "
@@ -359,9 +348,8 @@ class BlueprintParser:
         if not missing:
             return
 
-        raise LHPValidationError(
-            category=ErrorCategory.VALIDATION,
-            code_number="042",
+        raise ErrorFactory.validation_error(
+            codes.VAL_042,
             title="Required parameter missing in instance",
             details=(
                 f"Instance {path} for blueprint '{blueprint.name}' is missing "

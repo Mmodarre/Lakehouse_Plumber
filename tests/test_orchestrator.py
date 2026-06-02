@@ -647,8 +647,7 @@ class TestOrchestratorDependencyInjection:
         from lhp.core.processing import TemplateEngine
         from lhp.core.processing.flowgroup_resolver import FlowgroupResolutionService
         from lhp.core.registry import OrchestrationDependencies
-        from lhp.core.validators import ConfigValidator
-        from lhp.core.validators.secret_validator import SecretValidator
+        from lhp.core.validators import ConfigValidator, SecretValidator
         from lhp.presets.preset_manager import PresetManager
 
         with tempfile.TemporaryDirectory() as tmpdir:

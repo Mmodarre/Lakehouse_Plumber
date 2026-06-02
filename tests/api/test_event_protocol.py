@@ -27,6 +27,7 @@ Tests import strictly from :mod:`lhp.api` and :mod:`lhp.errors` — no
 internal modules — so the suite doubles as a guard against the
 public-surface contract leaking implementation details.
 """
+
 from __future__ import annotations
 
 import dataclasses
@@ -41,8 +42,8 @@ import pytest
 from lhp.api import (
     BatchGenerationResponse,
     BatchValidationResponse,
-    BundleSyncResult,
     BundleSyncCompleted,
+    BundleSyncResult,
     ErrorEmitted,
     GenerationCompleted,
     LakehousePlumberApplicationFacade,
@@ -56,10 +57,7 @@ from lhp.errors.categories import ErrorCategory
 from lhp.errors.types import LHPError
 from lhp.models import FlowGroup
 
-
-_FIXTURE_PATH = (
-    Path(__file__).parent.parent / "e2e" / "fixtures" / "testing_project"
-)
+_FIXTURE_PATH = Path(__file__).parent.parent / "e2e" / "fixtures" / "testing_project"
 
 
 @pytest.fixture
@@ -105,9 +103,7 @@ def _injected_error() -> LHPError:
 class TestValidatePipelinesProtocol:
     """Stream-protocol invariants for ``ValidationFacade.validate_pipelines``."""
 
-    def test_validate_pipelines_yields_operation_started_first(
-        self, project_facade
-    ):
+    def test_validate_pipelines_yields_operation_started_first(self, project_facade):
         facade, _ = project_facade
         events = list(
             facade.validation.validate_pipelines(pipeline_fields=(), env="dev")
@@ -116,9 +112,7 @@ class TestValidatePipelinesProtocol:
         assert events[0].operation_name == "validate_pipelines"
         assert events[0].env == "dev"
 
-    def test_validate_pipelines_yields_completed_last_on_success(
-        self, project_facade
-    ):
+    def test_validate_pipelines_yields_completed_last_on_success(self, project_facade):
         facade, _ = project_facade
         events = list(
             facade.validation.validate_pipelines(pipeline_fields=(), env="dev")
@@ -140,9 +134,7 @@ class TestValidatePipelinesProtocol:
             side_effect=injected,
         )
         collected: list[LHPEvent] = []
-        gen = facade.validation.validate_pipelines(
-            pipeline_fields=(), env="dev"
-        )
+        gen = facade.validation.validate_pipelines(pipeline_fields=(), env="dev")
         with pytest.raises(LHPError) as exc_info:
             for event in gen:
                 collected.append(event)
@@ -151,16 +143,10 @@ class TestValidatePipelinesProtocol:
         assert isinstance(collected[-1], ErrorEmitted)
         assert collected[-1].lhp_error is injected
 
-    def test_validate_pipelines_returns_fresh_generator_per_call(
-        self, project_facade
-    ):
+    def test_validate_pipelines_returns_fresh_generator_per_call(self, project_facade):
         facade, _ = project_facade
-        gen_a = facade.validation.validate_pipelines(
-            pipeline_fields=(), env="dev"
-        )
-        gen_b = facade.validation.validate_pipelines(
-            pipeline_fields=(), env="dev"
-        )
+        gen_a = facade.validation.validate_pipelines(pipeline_fields=(), env="dev")
+        gen_b = facade.validation.validate_pipelines(pipeline_fields=(), env="dev")
         assert gen_a is not gen_b
         events_a = list(gen_a)
         events_b = list(gen_b)
@@ -169,9 +155,7 @@ class TestValidatePipelinesProtocol:
         assert isinstance(events_b[0], OperationStarted)
         assert isinstance(events_b[-1], ValidationCompleted)
 
-    def test_validate_pipelines_no_error_emitted_on_success(
-        self, project_facade
-    ):
+    def test_validate_pipelines_no_error_emitted_on_success(self, project_facade):
         facade, _ = project_facade
         events = list(
             facade.validation.validate_pipelines(pipeline_fields=(), env="dev")
@@ -379,9 +363,7 @@ class TestCollectResponse:
     ):
         facade, _ = project_facade
         response = collect_response(
-            facade.validation.validate_pipelines(
-                pipeline_fields=(), env="dev"
-            )
+            facade.validation.validate_pipelines(pipeline_fields=(), env="dev")
         )
         assert isinstance(response, BatchValidationResponse)
 
@@ -400,9 +382,7 @@ class TestCollectResponse:
         self, project_facade, output_dir
     ):
         facade, _ = project_facade
-        response = collect_response(
-            facade.bundle.sync_resources("dev", output_dir)
-        )
+        response = collect_response(facade.bundle.sync_resources("dev", output_dir))
         assert isinstance(response, BundleSyncResult)
 
     def test_collect_response_reraises_on_lhp_error(self):
@@ -500,9 +480,7 @@ class TestEventPickleRoundTrip:
         assert pickle.loads(pickle.dumps(lhp_event)) == lhp_event
 
         # OperationStarted
-        started = OperationStarted(
-            operation_name="validate_pipelines", env="dev"
-        )
+        started = OperationStarted(operation_name="validate_pipelines", env="dev")
         assert pickle.loads(pickle.dumps(started)) == started
 
         # GenerationCompleted (with BatchGenerationResponse)

@@ -1,17 +1,11 @@
 """Schema parser for converting YAML schema files to Spark formats."""
 
 import logging
-import re
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Union
 
+from ..errors import ErrorFactory, LHPError, codes
 from ..parsers.yaml_parser import YAMLParser
-from ..errors import (
-    ErrorCategory,
-    ErrorFormatter,
-    LHPError,
-    LHPValidationError,
-)
 
 
 class SchemaParser:
@@ -20,26 +14,6 @@ class SchemaParser:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.yaml_parser = YAMLParser()
-
-        # Mapping of our schema types to Spark types
-        self.type_mapping = {
-            "STRING": "StringType()",
-            "BIGINT": "LongType()",
-            "INT": "IntegerType()",
-            "INTEGER": "IntegerType()",
-            "LONG": "LongType()",
-            "DOUBLE": "DoubleType()",
-            "FLOAT": "FloatType()",
-            "BOOLEAN": "BooleanType()",
-            "DATE": "DateType()",
-            "TIMESTAMP": "TimestampType()",
-            "BINARY": "BinaryType()",
-            "BYTE": "ByteType()",
-            "SHORT": "ShortType()",
-        }
-
-        # For decimal types, we need special handling
-        self.decimal_pattern = r"DECIMAL\((\d+),(\d+)\)"
 
     def parse_schema_file(
         self, schema_file_path: Path, spec_dir: Path | None = None
@@ -58,7 +32,7 @@ class SchemaParser:
             schema_file_path = spec_dir / schema_file_path
 
         if not schema_file_path.exists():
-            raise ErrorFormatter.file_not_found(
+            raise ErrorFactory.file_not_found(
                 file_path=str(schema_file_path),
                 search_locations=[str(schema_file_path.parent)]
                 + ([str(spec_dir)] if spec_dir else []),
@@ -73,9 +47,8 @@ class SchemaParser:
             # Re-raise LHPError as-is (it's already well-formatted)
             raise
         except Exception as e:
-            raise LHPValidationError(
-                category=ErrorCategory.CONFIG,
-                code_number="007",
+            raise ErrorFactory.config_error(
+                codes.CFG_007,
                 title="Schema file parsing error",
                 details=f"Error parsing schema file {schema_file_path}: {e}",
                 suggestions=[
@@ -85,46 +58,6 @@ class SchemaParser:
                 ],
                 context={"file": str(schema_file_path)},
             ) from e
-
-    def to_struct_type_code(self, schema_data: Dict[str, Any]) -> Tuple[str, List[str]]:
-        """Convert schema data to Spark StructType code.
-
-        Args:
-            schema_data: Parsed schema dictionary
-
-        Returns:
-            Tuple of (variable_name, code_lines)
-        """
-        if "columns" not in schema_data:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="016",
-                title="Missing 'columns' field in schema",
-                details="Schema must have a 'columns' field defining the column structure.",
-                suggestions=[
-                    "Add a 'columns' key with a list of column definitions",
-                    "Each column needs 'name' and 'type' fields",
-                ],
-                example="columns:\n  - name: id\n    type: BIGINT\n  - name: name\n    type: STRING",
-                context={"schema": str(schema_data.get("name", "<unknown>"))},
-            )
-
-        schema_name = schema_data.get("name", "schema")
-        variable_name = f"{schema_name}_schema"
-
-        imports = [
-            "from pyspark.sql.types import StructType, StructField, StringType, LongType, IntegerType, DoubleType, FloatType, BooleanType, DateType, TimestampType, DecimalType, BinaryType, ByteType, ShortType"
-        ]
-
-        code_lines = [f"{variable_name} = StructType(["]
-
-        for column in schema_data["columns"]:
-            field_code = self._generate_struct_field(column)
-            code_lines.append(f"    {field_code},")
-
-        code_lines.append("])")
-
-        return variable_name, imports + [""] + code_lines
 
     def to_schema_hints(self, schema_data: Dict[str, Any]) -> str:
         """Convert schema data to cloudFiles.schemaHints string.
@@ -136,9 +69,8 @@ class SchemaParser:
             Schema hints string for Auto Loader
         """
         if "columns" not in schema_data:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="016",
+            raise ErrorFactory.validation_error(
+                codes.VAL_016,
                 title="Missing 'columns' field in schema",
                 details="Schema must have a 'columns' field to generate schema hints.",
                 suggestions=[
@@ -160,53 +92,6 @@ class SchemaParser:
             hints.append(f"{name} {col_type}{constraint}")
 
         return ", ".join(hints)
-
-    def _generate_struct_field(self, column: Dict[str, Any]) -> str:
-        """Generate StructField code for a column.
-
-        Args:
-            column: Column definition dictionary
-
-        Returns:
-            StructField code string
-        """
-        name = column["name"]
-        col_type = column["type"]
-        nullable = column.get("nullable", True)
-        comment = column.get("comment", "")
-
-        # Convert type to Spark type
-        spark_type = self._convert_to_spark_type(col_type)
-
-        # Build metadata if comment exists
-        metadata = "{}" if not comment else f'{{"comment": "{comment}"}}'
-
-        return f'StructField("{name}", {spark_type}, {nullable}, {metadata})'
-
-    def _convert_to_spark_type(self, col_type: str) -> str:
-        """Convert schema type to Spark type code.
-
-        Args:
-            col_type: Column type string (e.g., 'STRING', 'DECIMAL(18,2)')
-
-        Returns:
-            Spark type code string
-        """
-        col_type = col_type.upper().strip()
-
-        # Handle DECIMAL types specially
-        decimal_match = re.match(self.decimal_pattern, col_type)
-        if decimal_match:
-            precision, scale = decimal_match.groups()
-            return f"DecimalType({precision}, {scale})"
-
-        # Handle regular types
-        if col_type in self.type_mapping:
-            return self.type_mapping[col_type]
-
-        # Default to StringType for unknown types
-        self.logger.warning(f"Unknown type '{col_type}', defaulting to StringType")
-        return "StringType()"
 
     def validate_schema(
         self, schema_data: Dict[str, Any]

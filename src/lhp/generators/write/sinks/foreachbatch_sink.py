@@ -5,9 +5,8 @@ from pathlib import Path
 from typing import Any, Dict
 
 from lhp.models import Action
-from ....errors import (
-    ErrorFormatter,
-)
+
+from ....errors import ErrorFactory
 from .base_sink import BaseSinkWriteGenerator
 
 
@@ -55,7 +54,7 @@ class ForEachBatchSinkWriteGenerator(BaseSinkWriteGenerator):
 
         # Validate required fields (should already be validated, but double-check)
         if not sink_name:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="sink_name",
                 component_type="ForEachBatch sink write action",
                 component_name=action.name,
@@ -79,7 +78,7 @@ class ForEachBatchSinkWriteGenerator(BaseSinkWriteGenerator):
         elif batch_handler:
             batch_handler_code = batch_handler
         else:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="module_path or batch_handler",
                 component_type="ForEachBatch sink write action",
                 component_name=action.name,
@@ -108,7 +107,7 @@ class ForEachBatchSinkWriteGenerator(BaseSinkWriteGenerator):
 
         # Extract source view (single source only)
         if not action.source:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="source",
                 component_type="ForEachBatch sink write action",
                 component_name=action.name,
@@ -124,7 +123,7 @@ class ForEachBatchSinkWriteGenerator(BaseSinkWriteGenerator):
             )
 
         if not isinstance(action.source, str):
-            raise ErrorFormatter.invalid_field_type(
+            raise ErrorFactory.invalid_field_type(
                 action_name=action.name,
                 field_name="source",
                 expected_type="a string (single view name)",
@@ -181,7 +180,7 @@ class ForEachBatchSinkWriteGenerator(BaseSinkWriteGenerator):
         handler_path = project_root / module_path
 
         if not handler_path.exists():
-            raise ErrorFormatter.file_not_found(
+            raise ErrorFactory.file_not_found(
                 file_path=str(handler_path),
                 search_locations=[
                     f"Relative to project root: {project_root / module_path}",

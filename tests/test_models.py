@@ -1,12 +1,24 @@
 """Tests for core data models of LakehousePlumber."""
 
 import pytest
-from lhp.models import ActionType, LoadSourceType, TransformType, WriteTargetType, Action, FlowGroup, Template, Preset, TestActionType, ViolationAction
+
+from lhp.models import (
+    Action,
+    ActionType,
+    FlowGroup,
+    LoadSourceType,
+    Preset,
+    Template,
+    TestActionType,
+    TransformType,
+    ViolationAction,
+    WriteTargetType,
+)
 
 
 class TestModels:
     """Test the core data models."""
-    
+
     def test_action_type_enum(self):
         """Test ActionType enum values."""
         assert ActionType.LOAD.value == "load"
@@ -14,12 +26,12 @@ class TestModels:
         assert ActionType.WRITE.value == "write"
         # Test for new TEST action type
         assert ActionType.TEST.value == "test"
-    
+
     def test_test_type_enum(self):
         """Test TestActionType enum exists with all required test types."""
         # Test that TestActionType enum exists
         assert TestActionType is not None
-        
+
         # Test all 9 test types exist
         assert TestActionType.ROW_COUNT.value == "row_count"
         assert TestActionType.UNIQUENESS.value == "uniqueness"
@@ -30,16 +42,16 @@ class TestModels:
         assert TestActionType.ALL_LOOKUPS_FOUND.value == "all_lookups_found"
         assert TestActionType.CUSTOM_SQL.value == "custom_sql"
         assert TestActionType.CUSTOM_EXPECTATIONS.value == "custom_expectations"
-    
+
     def test_violation_action_enum(self):
         """Test ViolationAction enum exists with required values."""
         # Test that ViolationAction enum exists
         assert ViolationAction is not None
-        
+
         # Test violation action values
         assert ViolationAction.FAIL.value == "fail"
         assert ViolationAction.WARN.value == "warn"
-    
+
     def test_action_model(self):
         """Test Action model creation."""
         action = Action(
@@ -47,12 +59,12 @@ class TestModels:
             type=ActionType.LOAD,
             source={"type": "cloudfiles", "path": "/test/path"},
             target="test_view",
-            description="Test action"
+            description="Test action",
         )
         assert action.name == "test_action"
         assert action.type == ActionType.LOAD
         assert action.target == "test_view"
-    
+
     def test_flowgroup_model(self):
         """Test FlowGroup model creation."""
         flowgroup = FlowGroup(
@@ -61,13 +73,18 @@ class TestModels:
             presets=["bronze_layer"],
             actions=[
                 Action(name="load_data", type=ActionType.LOAD, target="raw_data"),
-                Action(name="clean_data", type=ActionType.TRANSFORM, source="raw_data", target="clean_data")
-            ]
+                Action(
+                    name="clean_data",
+                    type=ActionType.TRANSFORM,
+                    source="raw_data",
+                    target="clean_data",
+                ),
+            ],
         )
         assert flowgroup.pipeline == "test_pipeline"
         assert len(flowgroup.actions) == 2
         assert flowgroup.presets == ["bronze_layer"]
-    
+
     def test_preset_model(self):
         """Test Preset model creation."""
         preset = Preset(
@@ -75,7 +92,7 @@ class TestModels:
             version="1.0",
             extends="base_preset",
             description="Bronze layer preset",
-            defaults={"schema_evolution": "addNewColumns"}
+            defaults={"schema_evolution": "addNewColumns"},
         )
         assert preset.name == "bronze_layer"
         assert preset.extends == "base_preset"
@@ -83,4 +100,4 @@ class TestModels:
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"]) 
+    pytest.main([__file__, "-v"])

@@ -3,7 +3,7 @@
 import logging
 from typing import Any, Dict, List
 
-from lhp.errors import ErrorCategory, LHPValidationError
+from lhp.errors import ErrorFactory, codes
 from lhp.models import Action
 
 from ._base import BaseTestActionGenerator
@@ -83,9 +83,8 @@ class SchemaMatchTestGenerator(BaseTestActionGenerator):
             if len(parts) != 3 or not all(parts):
                 invalid = True
         if invalid:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="022",
+            raise ErrorFactory.validation_error(
+                codes.VAL_022,
                 title="Invalid table identifier for schema_match",
                 details=(
                     f"Field '{field}' for the schema_match test must be a "

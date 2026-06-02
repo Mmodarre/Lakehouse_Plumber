@@ -15,7 +15,7 @@ from ...api import (
     FlowgroupView,
     LakehousePlumberApplicationFacade,
 )
-from ...errors import ErrorCategory, LHPError
+from ...errors import ErrorFactory, codes
 from .. import console as _console_module
 from ..render import render_command_header
 from .base_command import BaseCommand
@@ -62,9 +62,7 @@ class DependenciesCommand(BaseCommand):
 
         # Route through the §9.24-clean facade bootstrap so every domain
         # call goes via a sub-facade (no orchestrator reach-through).
-        application_facade = LakehousePlumberApplicationFacade.for_project(
-            project_root
-        )
+        application_facade = LakehousePlumberApplicationFacade.for_project(project_root)
 
         output_formats = self._parse_output_formats(output_format)
         output_path = self._resolve_output_path(output_dir, project_root)
@@ -146,9 +144,8 @@ class DependenciesCommand(BaseCommand):
         available_pipelines = {fg.pipeline for fg in flowgroups}
 
         if available_pipelines and pipeline not in available_pipelines:
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="002",
+            raise ErrorFactory.config_error(
+                codes.CFG_002,
                 title=f"Pipeline '{pipeline}' not found",
                 details=f"The specified pipeline '{pipeline}' does not exist in the project.",
                 suggestions=[
@@ -164,13 +161,10 @@ class DependenciesCommand(BaseCommand):
                 },
             )
 
-        pipeline_flowgroups = tuple(
-            fg for fg in flowgroups if fg.pipeline == pipeline
-        )
+        pipeline_flowgroups = tuple(fg for fg in flowgroups if fg.pipeline == pipeline)
         if any(fg.job_name for fg in pipeline_flowgroups):
-            raise LHPError(
-                category=ErrorCategory.VALIDATION,
-                code_number="003",
+            raise ErrorFactory.validation_error(
+                codes.VAL_003,
                 title="Pipeline filter not supported with job_name",
                 details=(
                     "Cannot use --pipeline filter when job_name is defined in flowgroups.\n\n"
@@ -261,17 +255,13 @@ class DependenciesCommand(BaseCommand):
             # Single-file outputs collapse to a one-line render; the
             # ``job`` format may be either single or multi-job (label
             # populated for multi-job entries).
-            multi = len(entries) > 1 or (
-                len(entries) == 1 and entries[0].label
-            )
+            multi = len(entries) > 1 or (len(entries) == 1 and entries[0].label)
             if multi:
                 _console_module.console.print(
                     f"  {format_name.upper()} (multiple jobs):"
                 )
                 for entry in entries:
-                    file_size = (
-                        entry.path.stat().st_size if entry.path.exists() else 0
-                    )
+                    file_size = entry.path.stat().st_size if entry.path.exists() else 0
                     if entry.label == "_master":
                         _console_module.console.print(
                             f"    Master Job: {entry.path} ({file_size:,} bytes)"

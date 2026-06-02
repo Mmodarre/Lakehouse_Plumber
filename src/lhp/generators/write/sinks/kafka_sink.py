@@ -4,7 +4,8 @@ import logging
 from typing import Any, Dict
 
 from lhp.models import Action
-from ....core.validators.kafka_validator import KafkaOptionsValidator
+
+from ....core.validators.field.kafka_options import KafkaOptionsValidator
 from .base_sink import BaseSinkWriteGenerator
 
 logger = logging.getLogger(__name__)

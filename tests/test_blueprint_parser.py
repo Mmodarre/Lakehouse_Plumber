@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from lhp.parsers.blueprint_parser import BlueprintParser
 from lhp.errors import ErrorCategory, LHPError
+from lhp.parsers.blueprint_parser import BlueprintParser
 
 pytestmark = pytest.mark.unit
 

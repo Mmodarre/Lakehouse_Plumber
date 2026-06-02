@@ -15,7 +15,7 @@ Key features:
 from pathlib import Path
 from typing import List, Optional, Union
 
-from ...errors import ErrorCategory, ErrorFormatter, LHPFileError
+from lhp.errors import ErrorFactory, codes
 
 
 def is_file_path(value: str) -> bool:
@@ -99,7 +99,7 @@ def resolve_external_file_path(
             return file_path
         else:
             search_locations = [f"Absolute path: {file_path}"]
-            raise ErrorFormatter.file_not_found(
+            raise ErrorFactory.file_not_found(
                 str(file_path), search_locations, file_type
             )
 
@@ -118,7 +118,7 @@ def resolve_external_file_path(
             additional_path = additional_dir / file_path
             search_locations.append(f"Additional location: {additional_path}")
 
-    raise ErrorFormatter.file_not_found(str(file_path), search_locations, file_type)
+    raise ErrorFactory.file_not_found(str(file_path), search_locations, file_type)
 
 
 def load_external_file_text(
@@ -156,9 +156,8 @@ def load_external_file_text(
     try:
         return resolved_path.read_text(encoding=encoding)
     except UnicodeDecodeError as e:
-        raise LHPFileError(
-            category=ErrorCategory.IO,
-            code_number="004",
+        raise ErrorFactory.io_error(
+            codes.IO_004,
             title=f"File encoding error: {file_type}",
             details=f"Could not read '{resolved_path}' as {encoding} text: {e}",
             suggestions=[
@@ -168,9 +167,8 @@ def load_external_file_text(
             context={"File": str(resolved_path), "Encoding": encoding},
         ) from e
     except PermissionError as e:
-        raise LHPFileError(
-            category=ErrorCategory.IO,
-            code_number="005",
+        raise ErrorFactory.io_error(
+            codes.IO_005,
             title=f"Permission denied: {file_type}",
             details=f"Cannot read '{resolved_path}': permission denied.",
             suggestions=[

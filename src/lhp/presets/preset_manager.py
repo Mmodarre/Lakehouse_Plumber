@@ -5,8 +5,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from lhp.models import Preset
+
+from ..errors import ErrorFactory, codes
 from ..parsers.yaml_parser import YAMLParser
-from ..errors import ErrorFormatter
 from ..utils.performance_timer import perf_timer
 
 logger = logging.getLogger(__name__)
@@ -57,19 +58,17 @@ class PresetManager:
             Merged preset configuration
 
         Raises:
-            LHPConfigError: If preset is not found or circular inheritance detected
+            LHPConfigError: If the preset is not found (LHP-ACT-001).
+            LHPError: If circular inheritance is detected (LHP-DEP-022).
         """
         if visited is None:
             visited = set()
 
         # Cycle detection
         if preset_name in visited:
-            from ..errors import ErrorCategory, LHPConfigError
-
             cycle_path = " -> ".join(list(visited) + [preset_name])
-            raise LHPConfigError(
-                category=ErrorCategory.DEPENDENCY,
-                code_number="022",
+            raise ErrorFactory.dependency_error(
+                codes.DEP_022,
                 title="Circular preset inheritance detected",
                 details=(
                     f"Preset '{preset_name}' creates a circular inheritance chain: {cycle_path}"
@@ -82,7 +81,7 @@ class PresetManager:
             )
 
         if preset_name not in self.presets:
-            raise ErrorFormatter.preset_not_found(
+            raise ErrorFactory.preset_not_found(
                 preset_name=preset_name,
                 available_presets=sorted(self.presets.keys()),
             )

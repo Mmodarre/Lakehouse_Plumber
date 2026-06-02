@@ -3,8 +3,11 @@
 No Rich/colorama/click dependencies — Rich rendering lives in
 ``lhp.cli.error_panel.render_error_panel``.
 """
+
+from . import codes
 from .categories import ErrorCategory
-from .formatter import ErrorFormatter
+from .codes import ErrorCode
+from .factory import ErrorFactory
 from .types import (
     BundleConfigurationError,
     BundleResourceError,
@@ -23,7 +26,9 @@ __all__ = [
     "BundleConfigurationError",
     "BundleResourceError",
     "ErrorCategory",
-    "ErrorFormatter",
+    "ErrorCode",
+    "ErrorFactory",
+    "codes",
     "LHPConfigError",
     "LHPError",
     "LHPFileError",

@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yaml
 
-from lhp.core.validators.transform_validator import TransformActionValidator
+from lhp.core.validators import TransformActionValidator
 from lhp.models import Action, ActionType, QuarantineConfig, TransformType
 
 
@@ -219,7 +219,9 @@ class TestQuarantineValidation:
         errors = validator._validate_data_quality_transform(action, "test")
         assert any("unexpected format" in e for e in errors)
 
-    def test_list_expectations_with_fail_action_warns(self, validator, tmp_path, caplog):
+    def test_list_expectations_with_fail_action_warns(
+        self, validator, tmp_path, caplog
+    ):
         """List-format expectations with failureAction: fail should warn."""
         exp_file = tmp_path / "expectations.yaml"
         exp_file.write_text(
@@ -285,7 +287,7 @@ class TestQuarantineValidation:
         action.transform_type = "bogus_type"
 
         with patch(
-            "lhp.core.validators.transform_validator.TransformType",
+            "lhp.core.validators.action.transform.TransformType",
             side_effect=ValueError("invalid"),
         ):
             errors = validator._validate_transform_type(action, "test")

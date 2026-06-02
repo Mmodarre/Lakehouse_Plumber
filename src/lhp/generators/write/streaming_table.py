@@ -4,6 +4,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List
 
+from lhp.models import Action
+
 from ...core.codegen import copy_user_module_for_pipeline
 from ...core.loaders.external_file_loader import (
     is_file_path,
@@ -12,8 +14,7 @@ from ...core.loaders.external_file_loader import (
 )
 from ...core.processing.dqe import DQEParser
 from ...core.registry import BaseActionGenerator
-from ...errors import ErrorFormatter
-from lhp.models import Action
+from ...errors import ErrorFactory
 from ...parsers.schema_parser import SchemaParser
 from .snapshot_cdc_source_function import (
     SourceFunctionResult,
@@ -35,7 +36,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         """Generate streaming table code."""
         target_config = action.write_target
         if not target_config:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="write_target",
                 component_type="Streaming table write action",
                 component_name=action.name,
@@ -154,9 +155,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
                 component_label="snapshot source function",
             )
             alias = f"_snap_{module_name}"
-            self.add_import(
-                f"import custom_python_functions.{module_name} as {alias}"
-            )
+            self.add_import(f"import custom_python_functions.{module_name} as {alias}")
             self.add_pre_pipeline_statement(f"{alias}.spark = spark")
             self.add_pre_pipeline_statement(f"{alias}.dbutils = dbutils")
             source_expression = self._build_source_expression(result, alias)
@@ -334,9 +333,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             )
             return []
 
-    def _build_source_expression(
-        self, result: SourceFunctionResult, alias: str
-    ) -> str:
+    def _build_source_expression(self, result: SourceFunctionResult, alias: str) -> str:
         """Build the source= expression for snapshot CDC.
 
         The function is referenced through the copied module's import alias

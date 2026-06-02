@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Tuple
 
-from lhp.errors import ErrorCategory, LHPError
+from lhp.errors import ErrorFactory, codes
 from lhp.utils.performance_timer import incr_event
 
 logger = logging.getLogger(__name__)
@@ -76,9 +76,8 @@ def parse_user_module(path: Path, *, cache: Optional[dict]) -> ast.Module:
     try:
         tree = ast.parse(source_code)
     except SyntaxError as e:
-        raise LHPError(
-            category=ErrorCategory.IO,
-            code_number="003",
+        raise ErrorFactory.io_error(
+            codes.IO_003,
             title="Python syntax error in source file",
             details=f"The Python file '{path}' contains invalid Python syntax: {e}",
             suggestions=[

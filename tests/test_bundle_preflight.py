@@ -17,7 +17,6 @@ from lhp.bundle.preflight import (
 )
 from lhp.errors import ErrorCategory, LHPConfigError
 
-
 # ---------------------------------------------------------------------------
 # Fixture helpers — same idiom as test_bundle_manager_simplified.py
 # ---------------------------------------------------------------------------
@@ -60,9 +59,7 @@ def _write_substitutions(
 @pytest.mark.unit
 def test_require_pipeline_config_flag_raises_when_bundle_enabled_and_no_pc():
     with pytest.raises(LHPConfigError) as exc_info:
-        require_pipeline_config_flag(
-            bundle_enabled=True, pipeline_config_path=None
-        )
+        require_pipeline_config_flag(bundle_enabled=True, pipeline_config_path=None)
     assert exc_info.value.code == "LHP-CFG-023"
     assert exc_info.value.code_number == "023"
     assert exc_info.value.category == ErrorCategory.CONFIG
@@ -71,9 +68,7 @@ def test_require_pipeline_config_flag_raises_when_bundle_enabled_and_no_pc():
 @pytest.mark.unit
 def test_require_pipeline_config_flag_passes_when_bundle_disabled():
     # No exception
-    require_pipeline_config_flag(
-        bundle_enabled=False, pipeline_config_path=None
-    )
+    require_pipeline_config_flag(bundle_enabled=False, pipeline_config_path=None)
 
 
 @pytest.mark.unit
@@ -263,9 +258,7 @@ def test_validate_groups_all_three_categories(tmp_path: Path):
 
     failures = exc_info.value.context["failures"]
     assert failures["both_missing"] == ["missing_both"]
-    assert [d["pipeline_name"] for d in failures["incomplete"]] == [
-        "missing_catalog"
-    ]
+    assert [d["pipeline_name"] for d in failures["incomplete"]] == ["missing_catalog"]
     assert [d["pipeline_name"] for d in failures["empty_after_substitution"]] == [
         "empty_sub"
     ]

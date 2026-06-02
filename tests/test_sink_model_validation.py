@@ -2,6 +2,7 @@
 
 import pytest
 from pydantic import ValidationError
+
 from lhp.models import WriteTarget, WriteTargetType
 
 
@@ -19,9 +20,9 @@ class TestSinkModelValidation:
             type=WriteTargetType.SINK,
             sink_type="delta",
             sink_name="test_delta_sink",
-            options={"tableName": "catalog.schema.table"}
+            options={"tableName": "catalog.schema.table"},
         )
-        
+
         assert write_target.type == WriteTargetType.SINK
         assert write_target.sink_type == "delta"
         assert write_target.sink_name == "test_delta_sink"
@@ -34,9 +35,9 @@ class TestSinkModelValidation:
             sink_type="kafka",
             sink_name="test_kafka_sink",
             bootstrap_servers="localhost:9092",
-            topic="test_topic"
+            topic="test_topic",
         )
-        
+
         assert write_target.type == WriteTargetType.SINK
         assert write_target.sink_type == "kafka"
         assert write_target.sink_name == "test_kafka_sink"
@@ -53,10 +54,10 @@ class TestSinkModelValidation:
             topic="events_topic",
             options={
                 "kafka.security.protocol": "SASL_SSL",
-                "kafka.sasl.mechanism": "PLAIN"
-            }
+                "kafka.sasl.mechanism": "PLAIN",
+            },
         )
-        
+
         assert write_target.bootstrap_servers == "kafka1:9092,kafka2:9092"
         assert write_target.topic == "events_topic"
         assert write_target.options["kafka.security.protocol"] == "SASL_SSL"
@@ -74,10 +75,10 @@ class TestSinkModelValidation:
                 "kafka.sasl.mechanism": "OAUTHBEARER",
                 "kafka.sasl.jaas.config": "test_config",
                 "kafka.sasl.oauthbearer.token.endpoint.url": "https://token.endpoint",
-                "kafka.security.protocol": "SASL_SSL"
-            }
+                "kafka.security.protocol": "SASL_SSL",
+            },
         )
-        
+
         assert write_target.sink_type == "kafka"
         assert write_target.bootstrap_servers == "my-ns.servicebus.windows.net:9093"
         assert write_target.options["kafka.sasl.mechanism"] == "OAUTHBEARER"
@@ -89,9 +90,9 @@ class TestSinkModelValidation:
             sink_type="custom",
             sink_name="test_custom_sink",
             module_path="sinks/my_sink.py",
-            custom_sink_class="MyCustomDataSink"
+            custom_sink_class="MyCustomDataSink",
         )
-        
+
         assert write_target.type == WriteTargetType.SINK
         assert write_target.sink_type == "custom"
         assert write_target.sink_name == "test_custom_sink"
@@ -109,10 +110,10 @@ class TestSinkModelValidation:
             options={
                 "endpoint": "https://api.example.com",
                 "api_key": "secret_key",
-                "batch_size": 1000
-            }
+                "batch_size": 1000,
+            },
         )
-        
+
         assert write_target.options["endpoint"] == "https://api.example.com"
         assert write_target.options["api_key"] == "secret_key"
         assert write_target.options["batch_size"] == 1000
@@ -124,9 +125,9 @@ class TestSinkModelValidation:
             sink_type="kafka",
             sink_name="test_sink",
             bootstrap_servers="localhost:9092",
-            topic="test_topic"
+            topic="test_topic",
         )
-        
+
         # Should not raise - database and table are optional for sinks
         assert write_target.database is None
         assert write_target.table is None
@@ -136,9 +137,9 @@ class TestSinkModelValidation:
         write_target = WriteTarget(
             type=WriteTargetType.STREAMING_TABLE,
             database="catalog.schema",
-            table="test_table"
+            table="test_table",
         )
-        
+
         assert write_target.type == WriteTargetType.STREAMING_TABLE
         assert write_target.database == "catalog.schema"
         assert write_target.table == "test_table"
@@ -148,9 +149,9 @@ class TestSinkModelValidation:
         write_target = WriteTarget(
             type=WriteTargetType.MATERIALIZED_VIEW,
             database="catalog.schema",
-            table="test_view"
+            table="test_view",
         )
-        
+
         assert write_target.type == WriteTargetType.MATERIALIZED_VIEW
         assert write_target.database == "catalog.schema"
         assert write_target.table == "test_view"
@@ -160,9 +161,9 @@ class TestSinkModelValidation:
         write_target = WriteTarget(
             type=WriteTargetType.STREAMING_TABLE,
             database="catalog.schema",
-            table="test_table"
+            table="test_table",
         )
-        
+
         # Sink fields should be None for non-sink write targets
         assert write_target.sink_type is None
         assert write_target.sink_name is None
@@ -178,9 +179,9 @@ class TestSinkModelValidation:
             sink_type="delta",
             sink_name="test_sink",
             comment="Test sink for external Delta table",
-            options={"tableName": "external.schema.table"}
+            options={"tableName": "external.schema.table"},
         )
-        
+
         assert write_target.comment == "Test sink for external Delta table"
 
     def test_dict_conversion(self):
@@ -191,12 +192,12 @@ class TestSinkModelValidation:
             sink_name="test_sink",
             bootstrap_servers="localhost:9092",
             topic="test_topic",
-            options={"kafka.security.protocol": "PLAINTEXT"}
+            options={"kafka.security.protocol": "PLAINTEXT"},
         )
-        
+
         # Convert to dict (Pydantic model_dump)
         write_target_dict = write_target.model_dump()
-        
+
         assert write_target_dict["type"] == "sink"
         assert write_target_dict["sink_type"] == "kafka"
         assert write_target_dict["sink_name"] == "test_sink"
@@ -210,18 +211,11 @@ class TestSinkModelValidation:
             "sink_type": "kafka",
             "sink_name": "test_sink",
             "bootstrap_servers": "localhost:9092",
-            "topic": "test_topic"
+            "topic": "test_topic",
         }
-        
+
         write_target = WriteTarget(**config_dict)
-        
+
         assert write_target.type == WriteTargetType.SINK
         assert write_target.sink_type == "kafka"
         assert write_target.sink_name == "test_sink"
-
-
-
-
-
-
-

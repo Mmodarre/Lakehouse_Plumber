@@ -20,8 +20,7 @@ generated FK join silently omits columns, testing the wrong constraint.
 """
 
 from lhp.core.registry import ActionRegistry
-from lhp.core.validators import TestActionValidator
-from lhp.core.validators.config_field_validator import ConfigFieldValidator
+from lhp.core.validators import ConfigFieldValidator, TestActionValidator
 from lhp.models import Action
 
 PREFIX = "Action[0] 'test_action'"

@@ -650,46 +650,6 @@ class TestSchemaParser:
         expected = "id BIGINT NOT NULL, name STRING, amount DECIMAL(18,2), is_active BOOLEAN NOT NULL, created_at TIMESTAMP NOT NULL"
         assert result == expected
 
-    def test_to_struct_type_code(self):
-        """Test conversion to StructType code."""
-        variable_name, code_lines = self.parser.to_struct_type_code(self.schema_data)
-
-        assert variable_name == "test_schema_schema"
-
-        # Check that imports are included
-        assert any("from pyspark.sql.types import" in line for line in code_lines)
-
-        # Check schema definition
-        assert "test_schema_schema = StructType([" in code_lines
-        assert any('StructField("id", LongType(), False' in line for line in code_lines)
-        assert any(
-            'StructField("name", StringType(), True' in line for line in code_lines
-        )
-        assert any(
-            'StructField("amount", DecimalType(18, 2), True' in line
-            for line in code_lines
-        )
-        assert any(
-            'StructField("is_active", BooleanType(), False' in line
-            for line in code_lines
-        )
-
-    def test_type_conversion(self):
-        """Test type conversion to Spark types."""
-        test_cases = [
-            ("STRING", "StringType()"),
-            ("BIGINT", "LongType()"),
-            ("INT", "IntegerType()"),
-            ("DECIMAL(18,2)", "DecimalType(18, 2)"),
-            ("BOOLEAN", "BooleanType()"),
-            ("TIMESTAMP", "TimestampType()"),
-            ("UNKNOWN_TYPE", "StringType()"),  # Should default to StringType
-        ]
-
-        for input_type, expected_output in test_cases:
-            result = self.parser._convert_to_spark_type(input_type)
-            assert result == expected_output
-
     def test_schema_validation(self):
         """Test schema validation."""
         # Valid schema

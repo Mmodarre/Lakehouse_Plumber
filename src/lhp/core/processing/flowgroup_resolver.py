@@ -11,8 +11,9 @@ import dataclasses
 import logging
 from typing import Any, Dict
 
-from ...errors import LHPError, LHPValidationError
 from lhp.models import ActionType, FlowGroup, FlowGroupContext
+
+from ...errors import ErrorFactory, LHPError, codes
 from ...utils.performance_timer import perf_timer
 from .._interfaces import BaseFlowgroupResolutionService
 from .local_variables import LocalVariableResolver
@@ -122,18 +123,22 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
                     f"Template '{flowgroup.use_template}' expanded into {len(template_actions)} action(s)"
                 )
                 # Add template actions to existing actions
-                flowgroup = flowgroup.model_copy(update={
-                    "actions": [*flowgroup.actions, *template_actions]
-                })
+                flowgroup = flowgroup.model_copy(
+                    update={"actions": [*flowgroup.actions, *template_actions]}
+                )
 
         # Filter test actions when include_tests=False
         # Placed after template expansion so template-generated test actions are also caught
         tests_were_filtered = False
         if not include_tests:
             pre_filter_count = len(flowgroup.actions)
-            flowgroup = flowgroup.model_copy(update={
-                "actions": [a for a in flowgroup.actions if a.type != ActionType.TEST]
-            })
+            flowgroup = flowgroup.model_copy(
+                update={
+                    "actions": [
+                        a for a in flowgroup.actions if a.type != ActionType.TEST
+                    ]
+                }
+            )
             filtered_count = pre_filter_count - len(flowgroup.actions)
             if filtered_count > 0:
                 tests_were_filtered = True
@@ -181,11 +186,8 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
                     substituted_dict
                 )
                 if validation_errors:
-                    from ...errors import ErrorCategory
-
-                    raise LHPError(
-                        category=ErrorCategory.CONFIG,
-                        code_number="010",
+                    raise ErrorFactory.config_error(
+                        codes.CFG_010,
                         title="Unresolved substitution tokens detected",
                         details=f"Found {len(validation_errors)} unresolved token(s):\n\n"
                         + "\n".join(f"  • {e}" for e in validation_errors[:5]),
@@ -225,11 +227,8 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
                         processed_flowgroup
                     )
                     if errors:
-                        from ...errors import ErrorCategory
-
-                        raise LHPValidationError(
-                            category=ErrorCategory.VALIDATION,
-                            code_number="007",
+                        raise ErrorFactory.validation_error(
+                            codes.VAL_007,
                             title="FlowGroup validation failed",
                             details="\n\n".join(str(e) for e in errors),
                             suggestions=[
@@ -251,11 +250,8 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
                 substitution_mgr.secret_references
             )
             if secret_errors:
-                from ...errors import ErrorCategory
-
-                raise LHPError(
-                    category=ErrorCategory.VALIDATION,
-                    code_number="008",
+                raise ErrorFactory.validation_error(
+                    codes.VAL_008,
                     title="Secret validation failed",
                     details="\n\n".join(secret_errors),
                     suggestions=[

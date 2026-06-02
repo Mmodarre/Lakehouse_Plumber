@@ -17,6 +17,7 @@ Four contracts are covered per view:
 5. Field-type contract — no bare ``Any``, no ``Dict``/``List``, no
    ``Exception``/``LHPError``, no Pydantic ``BaseModel``.
 """
+
 from __future__ import annotations
 
 import dataclasses
@@ -28,7 +29,6 @@ from typing import Mapping, get_type_hints
 import pytest
 
 from lhp.api.views import SecretReferenceView, SubstitutionView
-
 
 # ---------------------------------------------------------------------------
 # Helpers — JSON-shape projections.
@@ -55,12 +55,16 @@ def _substitution_to_json_safe_dict(view: SubstitutionView) -> dict[str, object]
         # (nested dicts/lists of scalars), so serialise as-is.
         "raw_mappings": dict(view.raw_mappings),
         # Tuple[SecretReferenceView, ...] → list of dicts.
-        "secret_references": [_secret_to_json_safe_dict(r) for r in view.secret_references],
+        "secret_references": [
+            _secret_to_json_safe_dict(r) for r in view.secret_references
+        ],
         "default_secret_scope": view.default_secret_scope,
     }
 
 
-def _substitution_from_json_safe_dict(payload: Mapping[str, object]) -> SubstitutionView:
+def _substitution_from_json_safe_dict(
+    payload: Mapping[str, object],
+) -> SubstitutionView:
     refs_payload = payload["secret_references"]
     assert isinstance(refs_payload, list)
     return SubstitutionView(
@@ -209,7 +213,9 @@ class TestJSONRoundTrip:
         assert dict(restored.raw_mappings) == dict(
             populated_substitution_view.raw_mappings
         )
-        assert restored.secret_references == populated_substitution_view.secret_references
+        assert (
+            restored.secret_references == populated_substitution_view.secret_references
+        )
         assert (
             restored.default_secret_scope
             == populated_substitution_view.default_secret_scope
@@ -301,17 +307,15 @@ class TestFieldTypeContract:
             "default_secret_scope",
         }
         missing = required - field_names
-        assert not missing, (
-            f"SubstitutionView is missing required fields: {missing}."
-        )
+        assert not missing, f"SubstitutionView is missing required fields: {missing}."
 
     def test_secret_reference_view_required_fields_present(self) -> None:
         field_names = {f.name for f in dataclasses.fields(SecretReferenceView)}
         required = {"scope", "key"}
         missing = required - field_names
-        assert not missing, (
-            f"SecretReferenceView is missing required fields: {missing}."
-        )
+        assert (
+            not missing
+        ), f"SecretReferenceView is missing required fields: {missing}."
 
 
 # ---------------------------------------------------------------------------

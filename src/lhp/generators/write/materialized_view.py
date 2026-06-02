@@ -3,14 +3,15 @@
 import logging
 from pathlib import Path
 
+from lhp.models import Action
+
 from ...core.loaders.external_file_loader import (
     is_file_path,
     load_external_file_text,
     resolve_external_file_path,
 )
 from ...core.registry import BaseActionGenerator
-from ...errors import ErrorCategory, ErrorFormatter, LHPValidationError
-from lhp.models import Action
+from ...errors import ErrorFactory, codes
 from ...parsers.schema_parser import SchemaParser
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
         """Generate materialized view code."""
         target_config = action.write_target
         if not target_config:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="write_target",
                 component_type="Materialized view write action",
                 component_name=action.name,
@@ -176,9 +177,8 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
                 )
                 return str(first_item)
         else:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="017",
+            raise ErrorFactory.validation_error(
+                codes.VAL_017,
                 title="Invalid source configuration for materialized view write",
                 details=(
                     "Materialized view write requires a valid source configuration. "

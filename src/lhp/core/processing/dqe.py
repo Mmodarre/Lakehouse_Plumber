@@ -4,8 +4,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Union
 
-
-from ...errors import ErrorFormatter, LHPError
+from ...errors import ErrorFactory, LHPError
 
 
 class DQEParser:
@@ -112,7 +111,7 @@ class DQEParser:
             List of expectation dictionaries
         """
         if not expectations_file.exists():
-            raise ErrorFormatter.file_not_found(
+            raise ErrorFactory.file_not_found(
                 file_path=str(expectations_file),
                 search_locations=[str(expectations_file.parent)],
                 file_type="expectations file",

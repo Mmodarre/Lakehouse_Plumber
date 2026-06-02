@@ -10,9 +10,9 @@ import pytest
 from lhp.core.coordination.validation_service import ValidationService
 from lhp.core.dependencies.output import export_to_dot, export_to_json
 from lhp.core.dependencies.service import DependencyAnalysisService
+from lhp.errors import ErrorCategory, LHPError
 from lhp.models import Action, ActionType, FlowGroup, ProjectConfig
 from lhp.models.dependencies import DependencyAnalysisResult, DependencyGraphs
-from lhp.errors import ErrorCategory, LHPError
 
 
 def _make_service(project_root):
@@ -654,7 +654,9 @@ class TestDependencyAnalysisService:
         mockget_flowgroups.side_effect = mockget_flowgroups_filter
 
         # Analyze only pipeline_a
-        result = self.analyzer.analyze(self.analyzer._builder.build(pipeline_filter="pipeline_a"))
+        result = self.analyzer.analyze(
+            self.analyzer._builder.build(pipeline_filter="pipeline_a")
+        )
 
         # Should only have one pipeline
         assert len(result.pipeline_dependencies) == 1
@@ -718,7 +720,9 @@ class TestDependencyAnalysisService:
         flowgroup2.actions = [load_action]
 
         with patch.object(
-            self.analyzer._builder, "get_flowgroups", return_value=[flowgroup1, flowgroup2]
+            self.analyzer._builder,
+            "get_flowgroups",
+            return_value=[flowgroup1, flowgroup2],
         ):
             graphs = self.analyzer._builder.build()
 
@@ -754,8 +758,6 @@ class TestDependencyAnalysisService:
         assert "invalid_level" in error_msg
         assert "Unknown dependency graph level" in error_msg
 
-    
-
     @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     def test_shared_view_targets_across_pipelines_no_phantom_cycles(
         self, mockget_flowgroups
@@ -763,6 +765,7 @@ class TestDependencyAnalysisService:
         """View targets are pipeline-scoped: identical view names across
         sibling pipelines (e.g. blueprint expansion into site_a/b/c) must
         not create cross-pipeline dependency edges or cycles."""
+
         def make_site_actions(site: str):
             return [
                 {
@@ -1238,7 +1241,9 @@ class TestWriteTargetExtraction:
         flowgroup.pipeline = "p"
         flowgroup.actions = [action]
         mockget_flowgroups.return_value = [flowgroup]
-        self.analyzer._builder._flowgroup_file_paths["gold_fg"] = self.temp_dir / "mv.yaml"
+        self.analyzer._builder._flowgroup_file_paths["gold_fg"] = (
+            self.temp_dir / "mv.yaml"
+        )
 
         with pytest.raises(LHPError) as exc_info:
             self.analyzer._builder.build()
@@ -1293,7 +1298,9 @@ class TestWriteTargetExtraction:
         flowgroup.pipeline = "p"
         flowgroup.actions = [action]
         mockget_flowgroups.return_value = [flowgroup]
-        self.analyzer._builder._flowgroup_file_paths["sink_fg"] = self.temp_dir / "s.yaml"
+        self.analyzer._builder._flowgroup_file_paths["sink_fg"] = (
+            self.temp_dir / "s.yaml"
+        )
 
         with pytest.raises(LHPError) as exc_info:
             self.analyzer._builder.build()

@@ -14,9 +14,9 @@ import logging
 import os
 from typing import Any, Optional
 
-from ...errors import ErrorCategory, LHPError
-from ...utils.version import get_version
+from lhp.errors import ErrorFactory, LHPError, codes
 
+from ...utils.version import get_version
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +55,8 @@ def enforce_version_requirements(
         from packaging.specifiers import SpecifierSet
         from packaging.version import Version
     except ImportError as exc:
-        raise LHPError(
-            category=ErrorCategory.CONFIG,
-            code_number="006",
+        raise ErrorFactory.config_error(
+            codes.CFG_006,
             title="Missing packaging dependency",
             details="The 'packaging' library is required for version range checking but is not installed.",
             suggestions=[
@@ -75,9 +74,8 @@ def enforce_version_requirements(
         actual_ver = Version(actual_version)
 
         if actual_ver not in spec_set:
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="007",
+            raise ErrorFactory.config_error(
+                codes.CFG_007,
                 title="LakehousePlumber version requirement not satisfied",
                 details=f"Project requires LakehousePlumber version '{required_spec}', but version '{actual_version}' is installed.",
                 suggestions=[
@@ -94,9 +92,8 @@ def enforce_version_requirements(
     except Exception as e:
         if isinstance(e, LHPError):
             raise
-        raise LHPError(
-            category=ErrorCategory.CONFIG,
-            code_number="008",
+        raise ErrorFactory.config_error(
+            codes.CFG_008,
             title="Invalid version requirement specification",
             details=f"Could not parse version requirement '{required_spec}': {e}",
             suggestions=[

@@ -20,8 +20,7 @@ stay in sync with that source.
 import pytest
 
 from lhp.core.registry import ActionRegistry
-from lhp.core.validators import TestActionValidator
-from lhp.core.validators.config_field_validator import ConfigFieldValidator
+from lhp.core.validators import ConfigFieldValidator, TestActionValidator
 from lhp.models import Action
 
 PREFIX = "Action[0] 'test_action'"
@@ -39,9 +38,9 @@ def _errors_for(**kwargs) -> list:
 
 
 def _assert_has(errors: list, substring: str) -> None:
-    assert any(substring in e for e in errors), (
-        f"Expected an error containing {substring!r}; got: {errors}"
-    )
+    assert any(
+        substring in e for e in errors
+    ), f"Expected an error containing {substring!r}; got: {errors}"
 
 
 # ===========================================================================

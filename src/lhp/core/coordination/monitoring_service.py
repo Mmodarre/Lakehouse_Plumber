@@ -12,7 +12,7 @@ from typing import Optional, Sequence
 
 from lhp.core._interfaces import BaseMonitoringFinalizerService
 from lhp.core.registry import OrchestrationDependencies
-from lhp.errors import ErrorCategory, LHPError, LHPFileError
+from lhp.errors import ErrorFactory, codes
 from lhp.models import FlowGroup, ProjectConfig
 from lhp.utils.file_header import write_normalized
 
@@ -154,9 +154,8 @@ class MonitoringFinalizerService(BaseMonitoringFinalizerService):
         # ProjectConfigLoader validation (tests), and tokenized paths only
         # resolve at this stage.
         if not job_config_rel_path:
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="008",
+            raise ErrorFactory.config_error(
+                codes.CFG_008,
                 title="Monitoring job_config_path is required",
                 details=(
                     "monitoring.job_config_path must be set when monitoring is enabled."
@@ -169,9 +168,8 @@ class MonitoringFinalizerService(BaseMonitoringFinalizerService):
 
         job_config_file = self.project_root / job_config_rel_path
         if not job_config_file.is_file():
-            raise LHPFileError(
-                category=ErrorCategory.IO,
-                code_number="001",
+            raise ErrorFactory.io_error(
+                codes.IO_001,
                 title="Monitoring job_config file not found",
                 details=(
                     f"monitoring.job_config_path points to '{job_config_rel_path}', "
@@ -191,9 +189,8 @@ class MonitoringFinalizerService(BaseMonitoringFinalizerService):
             with open(job_config_file, "r", encoding="utf-8") as f:
                 raw_job_config = yaml.safe_load(f) or {}
         except yaml.YAMLError as e:
-            raise LHPFileError(
-                category=ErrorCategory.IO,
-                code_number="002",
+            raise ErrorFactory.io_error(
+                codes.IO_002,
                 title="Invalid monitoring job_config YAML",
                 details=f"Failed to parse {job_config_file}: {e}",
                 suggestions=["Fix the YAML syntax in the monitoring job config"],
@@ -201,9 +198,8 @@ class MonitoringFinalizerService(BaseMonitoringFinalizerService):
             ) from e
 
         if not isinstance(raw_job_config, dict):
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="008",
+            raise ErrorFactory.config_error(
+                codes.CFG_008,
                 title="Invalid monitoring job_config structure",
                 details=(
                     f"{job_config_file} must contain a YAML mapping at the top level, "

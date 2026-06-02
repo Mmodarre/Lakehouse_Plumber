@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from ...errors import ErrorCategory, LHPError
+from lhp.errors import ErrorFactory, codes
 from lhp.models import (
     EventLogConfig,
     MonitoringConfig,
@@ -27,9 +27,8 @@ def parse_monitoring_config(
         monitoring_data = {}
 
     if not isinstance(monitoring_data, dict):
-        raise LHPError(
-            category=ErrorCategory.CONFIG,
-            code_number="008",
+        raise ErrorFactory.config_error(
+            codes.CFG_008,
             title="Invalid monitoring configuration",
             details=f"monitoring must be a mapping, got {type(monitoring_data).__name__}",
             suggestions=[
@@ -43,9 +42,8 @@ def parse_monitoring_config(
     raw_mvs = monitoring_data.get("materialized_views")
     if raw_mvs is not None:
         if not isinstance(raw_mvs, list):
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="008",
+            raise ErrorFactory.config_error(
+                codes.CFG_008,
                 title="Invalid monitoring materialized_views",
                 details="materialized_views must be a list of view definitions",
                 suggestions=[
@@ -56,9 +54,8 @@ def parse_monitoring_config(
         mv_configs = []
         for mv_data in raw_mvs:
             if not isinstance(mv_data, dict):
-                raise LHPError(
-                    category=ErrorCategory.CONFIG,
-                    code_number="008",
+                raise ErrorFactory.config_error(
+                    codes.CFG_008,
                     title="Invalid materialized view entry",
                     details=f"Each materialized_view must be a mapping, got {type(mv_data).__name__}",
                     suggestions=[
@@ -85,18 +82,13 @@ def parse_monitoring_config(
             ),
             checkpoint_path=monitoring_data.get("checkpoint_path", ""),
             job_config_path=monitoring_data.get("job_config_path"),
-            max_concurrent_streams=monitoring_data.get(
-                "max_concurrent_streams", 10
-            ),
+            max_concurrent_streams=monitoring_data.get("max_concurrent_streams", 10),
             materialized_views=mv_configs,
-            enable_job_monitoring=monitoring_data.get(
-                "enable_job_monitoring", False
-            ),
+            enable_job_monitoring=monitoring_data.get("enable_job_monitoring", False),
         )
     except Exception as e:
-        raise LHPError(
-            category=ErrorCategory.CONFIG,
-            code_number="008",
+        raise ErrorFactory.config_error(
+            codes.CFG_008,
             title="Error parsing monitoring configuration",
             details=f"Failed to parse monitoring configuration: {e}",
             suggestions=[
@@ -125,9 +117,8 @@ def _validate_monitoring_config(
         return
 
     if not event_log_config or not event_log_config.enabled:
-        raise LHPError(
-            category=ErrorCategory.CONFIG,
-            code_number="008",
+        raise ErrorFactory.config_error(
+            codes.CFG_008,
             title="Monitoring requires event_log",
             details=(
                 "monitoring is enabled but event_log is either missing or disabled. "
@@ -141,9 +132,8 @@ def _validate_monitoring_config(
         )
 
     if not config.checkpoint_path:
-        raise LHPError(
-            category=ErrorCategory.CONFIG,
-            code_number="008",
+        raise ErrorFactory.config_error(
+            codes.CFG_008,
             title="Monitoring checkpoint_path is required",
             details=(
                 "monitoring.checkpoint_path must be set when monitoring is enabled. "
@@ -157,9 +147,8 @@ def _validate_monitoring_config(
         )
 
     if not config.job_config_path:
-        raise LHPError(
-            category=ErrorCategory.CONFIG,
-            code_number="008",
+        raise ErrorFactory.config_error(
+            codes.CFG_008,
             title="Monitoring job_config_path is required",
             details=(
                 "monitoring.job_config_path must be set when monitoring is enabled. "
@@ -181,9 +170,8 @@ def _validate_monitoring_config(
     if not _SUBSTITUTION_TOKEN_PATTERN.search(config.job_config_path):
         job_config_file = project_root / config.job_config_path
         if not job_config_file.is_file():
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="008",
+            raise ErrorFactory.config_error(
+                codes.CFG_008,
                 title="Monitoring job_config file not found",
                 details=(
                     f"monitoring.job_config_path points to '{config.job_config_path}', "
@@ -200,9 +188,8 @@ def _validate_monitoring_config(
         seen_names: Dict[str, int] = {}
         for i, mv in enumerate(config.materialized_views):
             if not mv.name:
-                raise LHPError(
-                    category=ErrorCategory.CONFIG,
-                    code_number="008",
+                raise ErrorFactory.config_error(
+                    codes.CFG_008,
                     title="Materialized view missing name",
                     details=f"Materialized view at index {i} has no 'name' field",
                     suggestions=[
@@ -212,9 +199,8 @@ def _validate_monitoring_config(
                 )
 
             if mv.name in seen_names:
-                raise LHPError(
-                    category=ErrorCategory.CONFIG,
-                    code_number="008",
+                raise ErrorFactory.config_error(
+                    codes.CFG_008,
                     title="Duplicate materialized view name",
                     details=(
                         f"Materialized view name '{mv.name}' appears at "
@@ -227,9 +213,8 @@ def _validate_monitoring_config(
             seen_names[mv.name] = i
 
             if mv.sql and mv.sql_path:
-                raise LHPError(
-                    category=ErrorCategory.CONFIG,
-                    code_number="008",
+                raise ErrorFactory.config_error(
+                    codes.CFG_008,
                     title="Ambiguous materialized view SQL source",
                     details=(
                         f"Materialized view '{mv.name}' specifies both 'sql' and 'sql_path'. "

@@ -7,6 +7,111 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Architecture residual cleanup — error-code registry + factory, validator taxonomy, codegen templatization, docs facade
+
+**Summary.** Five workstreams that bring the codebase in line with the target
+architecture's residual items: a single-source-of-truth error-code registry plus
+an `ErrorFactory` (replacing `ErrorFormatter`), the validator-taxonomy
+reorganization into `core/validators/{action,pipeline,field,compatibility}/`,
+moving cloudfiles schema-hint / `StructType` code-as-strings into Jinja2
+templates, and rewriting the stale `docs/api.rst` orchestrator-leak references
+onto the public facade. Each lands with a new mechanical gate. The §4.7
+error-code-string contract is **preserved** (codes are byte-identical) and
+generated pipeline output is **byte-identical** (e2e baselines unchanged). This
+closes the `ERRORS-CODES-MIGRATION-DEFER` deferral; the remaining/new deferrals
+are catalogued below, each with a tracking ID.
+
+**Added.**
+
+- **Error-code registry — `lhp/errors/codes.py` (TARGET §6).** Single source of
+  truth for error codes: 93 `(category, number)` `ErrorCode` constants plus
+  `ALL_CODES`. A drift test (`tests/errors/test_codes.py`) enforces that no stray
+  literal `code_number=` survives outside the registry.
+- **`ErrorFactory` — `lhp/errors/factory.py` (TARGET §6).** The single
+  error-construction factory: 17 intent methods plus 7 generic per-category
+  constructors. It canonicalizes the raised exception class by category. The
+  ~260 `raise` sites and all former formatter call-sites were migrated onto it.
+- **`core/codegen/struct_type_emitter.py` + `templates/load/struct_type.py.j2`
+  (§9.14 / §2.10).** cloudfiles schema-hints and `StructType` emission moved out
+  of Python string-assembly into a dedicated emitter + Jinja2 template. The
+  repo-wide code-as-strings count is now **0**.
+- **New `LHP-2.1` directory-membership gate** in `check_placement.py` — pins each
+  validator to its taxonomy subdirectory.
+- **New `check_docs_orchestrator_leak` gate (`LHP-9.13-docs`).** Flags
+  orchestrator-leak references in `docs/api.rst`, preventing the pattern from
+  returning.
+
+**Changed.**
+
+- **`ErrorFormatter` removed; all construction routes through `ErrorFactory`.**
+  Error-code strings are **byte-identical** — the §4.7 contract is preserved.
+- **Validators reorganized into the §2.1 / TARGET §1 taxonomy.** The 9 validators
+  now live under `core/validators/{action,pipeline,field,compatibility}/`; the
+  top level holds only `__init__.py` / `_base.py` / `config_validator.py`. The 3
+  oversize validators (`dlt_cdc`, `action/transform`, `field/config_field`) were
+  split into per-class + helper modules, all ≤200L. Public import names are
+  unchanged.
+- **`docs/api.rst` orchestrator-leak references rewritten to the public facade**
+  `lhp.api.LakehousePlumberApplicationFacade` (§9.13).
+
+**Fixed.**
+
+- **Latent config-load swallow bug in
+  `ProjectConfigLoader.load_project_config`.** A malformed project config now
+  surfaces the **specific** error code instead of silently returning `None` /
+  collapsing to a generic `CFG-002`.
+
+**Closed deferral.**
+
+- **`ERRORS-CODES-MIGRATION-DEFER` — CLOSED.** The full Option-B migration
+  shipped: codes registry + `ErrorFactory` + all raise/formatter sites migrated +
+  `ErrorFormatter` deleted. (This supersedes the earlier `ERRORS-CODES-DEFER`
+  note recorded under the helper-module-copying entry.)
+
+**Deferred (decided; tracked for follow-up).**
+
+- **`VALIDATOR-CONTRACT-DEFER`** — Phase C: `BaseValidator` contract uniformity,
+  `ConfigValidator` dissolution, and the `BaseActionValidator` → `BaseValidator`
+  rename. Not started (separate spec).
+- **`VALIDATOR-SIZE-TARGET-DEFER`** — 4 validator files still exceed the TARGET §1
+  ≤200L aspiration (`action/write.py` 328, `compatibility/cdc_fanin.py` 275,
+  `config_validator.py` 228, `action/test.py` 212). Pre-existing; the §3.3
+  mechanical gate (≤500) passes; out of Phase B's named-3 scope;
+  `config_validator.py` is intentionally left for Phase C dissolution.
+  User-waived for this PR.
+- **`VALIDATOR-EXCEPT-SWALLOW-DEFER`** — 3 validator sites use
+  `except ValueError: ... pass` (`action/write.py`, `action/load.py`,
+  `action/transform.py`-area). These are currently safe (the helpers return
+  lists, do not raise) but would silently swallow a canonicalized
+  `LHPValidationError` if those helpers ever start raising. Latent fragility; add
+  an `except (LHPError): raise` guard in a follow-up.
+- **`DOCS-STALE-AUTOMODULE-DEFER`** — `docs/api.rst` still has stale
+  `automodule::` directives for other moved/internal modules (e.g.
+  `lhp.utils.error_formatter`, `lhp.core.template_engine`, `lhp.core.validator`,
+  `lhp.models.config`, `lhp.utils.substitution`) that fail a strict Sphinx build.
+  Same class as the orchestrator leak; out of Part 5's scope (which scoped only
+  the orchestrator).
+- **`GEN-FSTRING-GATE-DEFER`** — now **only** the optional CI heuristic gate; the
+  actual code is §9.14 / §2.10-clean after the Part-4 templatization, so this is
+  no longer a code-debt item, just an optional future guard.
+- **`CLI-PRESENTER-DEFER`** — unchanged (separate spec).
+- **`CORE-FILE-BUDGET-DRIFT`** — the documented ≤80 core-file budget is stale;
+  this refactor adds files (new `core/codegen/struct_type_emitter.py`, validator
+  subdir splits). The budget needs re-baselining.
+
+**Pre-existing debt (not introduced by this work; left out of scope per user
+decision).**
+
+- **`src/lhp/cli/main.py` (509L) exceeds the §3.3 500-line limit** — pre-existing,
+  user-accepted as out-of-scope.
+- **77 files are black-dirty** (pre-existing single-quote style, untouched by this
+  refactor); only refactor-touched files were black-formatted. A tree-wide
+  `black` pass is a separate follow-up.
+- **`ErrorFactory.cloudfiles_error` has 0 callers** (the CLOUDFILES category has
+  no codes yet); kept for category-complete factory taxonomy.
+- **`vulture_whitelist.py` needed no additions** — vulture is clean at
+  `--min-confidence 80`; the pre-existing whitelist entries remain audited.
+
 ### Generation hot-path optimization — `lhp generate` substantially faster on large projects
 
 **Summary.** This lands the optimization work the prior perf-instrumentation

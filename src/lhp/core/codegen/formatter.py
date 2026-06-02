@@ -16,7 +16,7 @@ import sys
 import sysconfig
 from pathlib import Path
 
-from ...errors import ErrorCategory, LHPConfigError
+from ...errors import ErrorFactory, codes
 
 logger = logging.getLogger(__name__)
 
@@ -75,9 +75,8 @@ def _ruff_exe() -> str:
     if found:
         return found
 
-    raise LHPConfigError(
-        category=ErrorCategory.CONFIG,
-        code_number="034",
+    raise ErrorFactory.config_error(
+        codes.CFG_034,
         title="ruff executable not found",
         details=(
             "LHP could not locate the ``ruff`` executable required for the "
@@ -121,9 +120,8 @@ def assert_generated_python_valid(code: str, flowgroup: str) -> None:
     try:
         ast.parse(code)
     except SyntaxError as e:
-        raise LHPConfigError(
-            category=ErrorCategory.CONFIG,
-            code_number="031",
+        raise ErrorFactory.config_error(
+            codes.CFG_031,
             title="Generated source failed to parse",
             details=(
                 f"LHP produced Python source code that could not be parsed: {e}. "
@@ -176,9 +174,8 @@ def format_generated_tree(output_dir: Path) -> None:
     cmd = [_ruff_exe(), *_RUFF_FORMAT_BASE_ARGS, str(output_dir)]
     result = subprocess.run(cmd, check=False, capture_output=True, text=True)
     if result.returncode != 0:
-        raise LHPConfigError(
-            category=ErrorCategory.CONFIG,
-            code_number="033",
+        raise ErrorFactory.config_error(
+            codes.CFG_033,
             title="ruff failed to format generated code",
             details=(
                 "The terminal `ruff format` pass over the generated output "

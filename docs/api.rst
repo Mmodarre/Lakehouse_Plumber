@@ -75,9 +75,10 @@ These symbols are the recommended entry points for programmatic use.
 
    * - Symbol
      - Summary
-   * - ``lhp.core.orchestrator.ActionOrchestrator``
-     - Drives end-to-end pipeline generation: discovery, expansion,
-       validation, code generation, and bundle synchronization.
+   * - ``lhp.api.LakehousePlumberApplicationFacade``
+     - Public entry point; construct via ``.for_project(project_root)``. Drives
+       discovery, validation, code generation, and bundle sync through its
+       sub-facades.
    * - ``lhp.parsers.yaml_parser.YAMLParser``
      - Parses and validates LHP YAML files into Pydantic models. Use to load
        FlowGroups, Presets, and Templates without invoking the full pipeline.
@@ -166,13 +167,13 @@ Package root: ``lhp``
    :undoc-members:
    :show-inheritance:
 
-Orchestrator: ``lhp.core.orchestrator``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Application facade: ``lhp.api.facade``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: lhp.core.orchestrator
+.. automodule:: lhp.api.facade
    :no-members:
 
-.. autoclass:: lhp.core.orchestrator.ActionOrchestrator
+.. autoclass:: lhp.api.LakehousePlumberApplicationFacade
    :members:
    :show-inheritance:
    :member-order: bysource
@@ -297,8 +298,8 @@ Notes on usage
   Unexpected exceptions indicate a bug; file an issue with the traceback.
 - Pydantic v2 powers ``lhp.models.config``. Treat the models as immutable
   once constructed; use ``model_copy(update=...)`` for derived instances.
-- ``ActionOrchestrator`` is not thread-safe. Construct one instance per
-  pipeline run. ``CachingYAMLParser`` is thread-safe and shared internally.
+- Construct one ``LakehousePlumberApplicationFacade`` per run; it is not
+  thread-safe. ``CachingYAMLParser`` is thread-safe and shared internally.
 
 See also
 --------

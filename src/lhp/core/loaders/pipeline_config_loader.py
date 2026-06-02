@@ -10,7 +10,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-from ...errors import ErrorCategory, LHPError, LHPFileError, LHPValidationError
+from lhp.errors import ErrorFactory, codes
 
 logger = logging.getLogger(__name__)
 
@@ -109,9 +109,8 @@ class PipelineConfigLoader:
 
         # Check file exists
         if not config_path.exists():
-            raise LHPFileError(
-                category=ErrorCategory.IO,
-                code_number="001",
+            raise ErrorFactory.io_error(
+                codes.IO_001,
                 title="Pipeline config file not found",
                 details=f"Pipeline config file not found: {config_file_path}",
                 suggestions=[
@@ -176,9 +175,8 @@ class PipelineConfigLoader:
 
                 # Validate non-empty list
                 if not pipeline_names:
-                    raise LHPError(
-                        category=ErrorCategory.VALIDATION,
-                        code_number="005",
+                    raise ErrorFactory.validation_error(
+                        codes.VAL_005,
                         title="Empty pipeline list",
                         details=(
                             f"Document {idx+1} in pipeline config has an empty pipeline list. "
@@ -193,9 +191,8 @@ class PipelineConfigLoader:
 
                 # Validate: monitoring alias cannot be in a pipeline list
                 if self.MONITORING_ALIAS in pipeline_names and len(pipeline_names) > 1:
-                    raise LHPValidationError(
-                        category=ErrorCategory.VALIDATION,
-                        code_number="011",
+                    raise ErrorFactory.validation_error(
+                        codes.VAL_011,
                         title="Monitoring alias cannot be in a pipeline list",
                         details=(
                             f"'{self.MONITORING_ALIAS}' must be used as a standalone pipeline entry, "
@@ -218,9 +215,8 @@ class PipelineConfigLoader:
                 for pipeline_name in pipeline_names:
                     # Validate for duplicates
                     if pipeline_name in seen_pipelines:
-                        raise LHPError(
-                            category=ErrorCategory.VALIDATION,
-                            code_number="006",
+                        raise ErrorFactory.validation_error(
+                            codes.VAL_006,
                             title="Duplicate pipeline name",
                             details=(
                                 f"pipeline '{pipeline_name}' in document {idx+1} was already defined "
@@ -277,9 +273,8 @@ class PipelineConfigLoader:
 
         # Check: collision — both alias and actual name defined
         if self.monitoring_pipeline_name in self.pipeline_configs:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="010",
+            raise ErrorFactory.validation_error(
+                codes.VAL_010,
                 title="Duplicate monitoring pipeline configuration",
                 details=(
                     f"Both '{self.MONITORING_ALIAS}' alias and the actual monitoring pipeline "
@@ -354,9 +349,8 @@ class PipelineConfigLoader:
         # Validate edition
         if "edition" in config:
             if config["edition"] not in self.ALLOWED_EDITIONS:
-                raise LHPValidationError(
-                    category=ErrorCategory.VALIDATION,
-                    code_number="009",
+                raise ErrorFactory.validation_error(
+                    codes.VAL_009,
                     title="Invalid pipeline edition",
                     details=(
                         f"Invalid edition '{config['edition']}'. "
@@ -372,9 +366,8 @@ class PipelineConfigLoader:
         # Validate channel
         if "channel" in config:
             if config["channel"] not in self.ALLOWED_CHANNELS:
-                raise LHPValidationError(
-                    category=ErrorCategory.VALIDATION,
-                    code_number="009",
+                raise ErrorFactory.validation_error(
+                    codes.VAL_009,
                     title="Invalid pipeline channel",
                     details=(
                         f"Invalid channel '{config['channel']}'. "
@@ -390,9 +383,8 @@ class PipelineConfigLoader:
         # Validate environment (if present, must be a dict)
         if "environment" in config:
             if not isinstance(config["environment"], dict):
-                raise LHPValidationError(
-                    category=ErrorCategory.VALIDATION,
-                    code_number="009",
+                raise ErrorFactory.validation_error(
+                    codes.VAL_009,
                     title="Invalid 'environment' field type",
                     details=(
                         f"Invalid 'environment' value: expected a dictionary, "
@@ -409,9 +401,8 @@ class PipelineConfigLoader:
         # Validate configuration (if present, must be a dict with string values)
         if "configuration" in config:
             if not isinstance(config["configuration"], dict):
-                raise LHPValidationError(
-                    category=ErrorCategory.VALIDATION,
-                    code_number="009",
+                raise ErrorFactory.validation_error(
+                    codes.VAL_009,
                     title="Invalid 'configuration' field type",
                     details=(
                         f"Invalid 'configuration' value: expected a dictionary, "
@@ -425,9 +416,8 @@ class PipelineConfigLoader:
                 )
             for key, value in config["configuration"].items():
                 if not isinstance(value, str):
-                    raise LHPValidationError(
-                        category=ErrorCategory.VALIDATION,
-                        code_number="009",
+                    raise ErrorFactory.validation_error(
+                        codes.VAL_009,
                         title=f"Invalid configuration value for key '{key}'",
                         details=(
                             f"Invalid configuration value for key '{key}': expected a string, "
@@ -451,9 +441,8 @@ class PipelineConfigLoader:
         # opaque failures at `databricks bundle deploy`.
         if "permissions" in config:
             if not isinstance(config["permissions"], list):
-                raise LHPValidationError(
-                    category=ErrorCategory.VALIDATION,
-                    code_number="009",
+                raise ErrorFactory.validation_error(
+                    codes.VAL_009,
                     title="Invalid 'permissions' field type",
                     details=(
                         f"Invalid 'permissions' value: expected a list, "
@@ -475,9 +464,8 @@ class PipelineConfigLoader:
             identity_keys = {"user_name", "group_name", "service_principal_name"}
             for idx, entry in enumerate(config["permissions"]):
                 if not isinstance(entry, dict):
-                    raise LHPValidationError(
-                        category=ErrorCategory.VALIDATION,
-                        code_number="009",
+                    raise ErrorFactory.validation_error(
+                        codes.VAL_009,
                         title=f"Invalid permissions entry at index {idx}",
                         details=(
                             f"Permissions entry {idx} must be a dict, "
@@ -493,9 +481,8 @@ class PipelineConfigLoader:
                         },
                     )
                 if "level" not in entry or not isinstance(entry["level"], str):
-                    raise LHPValidationError(
-                        category=ErrorCategory.VALIDATION,
-                        code_number="009",
+                    raise ErrorFactory.validation_error(
+                        codes.VAL_009,
                         title=f"Permissions entry {idx} missing 'level'",
                         details=(
                             f"Permissions entry {idx} must have a string 'level' "
@@ -513,9 +500,8 @@ class PipelineConfigLoader:
                     )
                 present = [k for k in identity_keys if k in entry]
                 if len(present) != 1:
-                    raise LHPValidationError(
-                        category=ErrorCategory.VALIDATION,
-                        code_number="009",
+                    raise ErrorFactory.validation_error(
+                        codes.VAL_009,
                         title=f"Permissions entry {idx} has invalid identity keys",
                         details=(
                             f"Permissions entry {idx} must have exactly one of "

@@ -3,13 +3,10 @@
 import logging
 from typing import Any, Dict
 
-from ...core.registry import BaseActionGenerator
+from lhp.errors import ErrorFactory, codes
 from lhp.models import Action
-from ...errors import (
-    ErrorCategory,
-    ErrorFormatter,
-    LHPValidationError,
-)
+
+from ...core.registry import BaseActionGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +35,7 @@ class DeltaLoadGenerator(BaseActionGenerator):
 
         for field, message in removed_fields.items():
             if field in source_config:
-                raise ErrorFormatter.deprecated_field(
+                raise ErrorFactory.deprecated_field(
                     action_name=action.name,
                     field_name=field,
                     replacement=message,
@@ -67,7 +64,7 @@ class DeltaLoadGenerator(BaseActionGenerator):
             options = source_config["options"]
             # Validate options is a dictionary
             if not isinstance(options, dict):
-                raise ErrorFormatter.invalid_field_type(
+                raise ErrorFactory.invalid_field_type(
                     action_name=action.name,
                     field_name="options",
                     expected_type="a dictionary (mapping)",
@@ -79,9 +76,8 @@ class DeltaLoadGenerator(BaseActionGenerator):
             for key, value in options.items():
                 # Validate option values
                 if value is None or value == "":
-                    raise LHPValidationError(
-                        category=ErrorCategory.VALIDATION,
-                        code_number="010",
+                    raise ErrorFactory.validation_error(
+                        codes.VAL_010,
                         title=f"Invalid option value in action '{action.name}'",
                         details=(
                             f"Delta load action '{action.name}': option '{key}' has an "
@@ -119,7 +115,7 @@ class DeltaLoadGenerator(BaseActionGenerator):
 
         # readChangeFeed + skipChangeCommits: contradictory
         if has_cdf and has_skip:
-            raise ErrorFormatter.incompatible_options(
+            raise ErrorFactory.incompatible_options(
                 action_name=action.name,
                 option_a="readChangeFeed",
                 option_b="skipChangeCommits",
@@ -129,7 +125,7 @@ class DeltaLoadGenerator(BaseActionGenerator):
 
         # readChangeFeed + versionAsOf: CDF vs time travel
         if has_cdf and has_version_as_of:
-            raise ErrorFormatter.incompatible_options(
+            raise ErrorFactory.incompatible_options(
                 action_name=action.name,
                 option_a="readChangeFeed",
                 option_b="versionAsOf",
@@ -139,7 +135,7 @@ class DeltaLoadGenerator(BaseActionGenerator):
 
         # readChangeFeed + timestampAsOf: CDF vs time travel
         if has_cdf and has_timestamp_as_of:
-            raise ErrorFormatter.incompatible_options(
+            raise ErrorFactory.incompatible_options(
                 action_name=action.name,
                 option_a="readChangeFeed",
                 option_b="timestampAsOf",
@@ -149,7 +145,7 @@ class DeltaLoadGenerator(BaseActionGenerator):
 
         # startingVersion + startingTimestamp: ambiguous start
         if has_starting_version and has_starting_timestamp:
-            raise ErrorFormatter.incompatible_options(
+            raise ErrorFactory.incompatible_options(
                 action_name=action.name,
                 option_a="startingVersion",
                 option_b="startingTimestamp",
@@ -159,7 +155,7 @@ class DeltaLoadGenerator(BaseActionGenerator):
 
         # versionAsOf + timestampAsOf: ambiguous snapshot
         if has_version_as_of and has_timestamp_as_of:
-            raise ErrorFormatter.incompatible_options(
+            raise ErrorFactory.incompatible_options(
                 action_name=action.name,
                 option_a="versionAsOf",
                 option_b="timestampAsOf",
@@ -169,7 +165,7 @@ class DeltaLoadGenerator(BaseActionGenerator):
 
         # endingVersion/endingTimestamp + stream: ending bounds are batch-only
         if is_stream and has_ending_version:
-            raise ErrorFormatter.incompatible_options(
+            raise ErrorFactory.incompatible_options(
                 action_name=action.name,
                 option_a="endingVersion",
                 option_b="readMode: stream",
@@ -178,7 +174,7 @@ class DeltaLoadGenerator(BaseActionGenerator):
             )
 
         if is_stream and has_ending_timestamp:
-            raise ErrorFormatter.incompatible_options(
+            raise ErrorFactory.incompatible_options(
                 action_name=action.name,
                 option_a="endingTimestamp",
                 option_b="readMode: stream",
@@ -189,9 +185,8 @@ class DeltaLoadGenerator(BaseActionGenerator):
         # Batch CDF requires a starting bound
         if has_cdf and not is_stream:
             if not has_starting_version and not has_starting_timestamp:
-                raise LHPValidationError(
-                    category=ErrorCategory.VALIDATION,
-                    code_number="013",
+                raise ErrorFactory.validation_error(
+                    codes.VAL_013,
                     title=f"Batch CDF requires a starting bound in action '{action.name}'",
                     details=(
                         f"Delta load action '{action.name}': readChangeFeed in batch mode "

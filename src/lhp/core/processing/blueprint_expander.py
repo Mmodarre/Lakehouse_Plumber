@@ -29,7 +29,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-from ...errors import ErrorCategory, LHPValidationError
 from lhp.models import (
     Blueprint,
     BlueprintFlowgroupSpec,
@@ -37,6 +36,8 @@ from lhp.models import (
     FlowGroup,
     FlowGroupContext,
 )
+
+from ...errors import ErrorFactory, codes
 from ...utils.performance_timer import perf_timer, record_count
 from .local_variables import LocalVariableResolver
 
@@ -130,9 +131,8 @@ class BlueprintExpander:
 
                     if key in seen:
                         existing_path = seen[key]
-                        raise LHPValidationError(
-                            category=ErrorCategory.VALIDATION,
-                            code_number="045",
+                        raise ErrorFactory.validation_error(
+                            codes.VAL_045,
                             title="Duplicate (pipeline, flowgroup) after expansion",
                             details=(
                                 f"Two instances produce the same flowgroup "
@@ -243,9 +243,8 @@ class BlueprintExpander:
             ("flowgroup", spec.flowgroup),
         ):
             if SUBSTITUTION_TOKEN_PATTERN.search(value):
-                raise LHPValidationError(
-                    category=ErrorCategory.VALIDATION,
-                    code_number="044",
+                raise ErrorFactory.validation_error(
+                    codes.VAL_044,
                     title=("${env_token} not allowed in blueprint " f"'{field}' field"),
                     details=(
                         f"Blueprint '{blueprint.name}' defines a flowgroup spec "
@@ -287,9 +286,8 @@ class BlueprintExpander:
         try:
             resolved = resolver.resolve({field: template})[field]
         except Exception as e:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="055",
+            raise ErrorFactory.validation_error(
+                codes.VAL_055,
                 title=f"Unresolved %{{var}} in blueprint `{field}` template",
                 details=(
                     f"Blueprint '{blueprint.name}' has `{field}: {template!r}` "

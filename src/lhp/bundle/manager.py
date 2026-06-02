@@ -18,7 +18,7 @@ from ..core.codegen.template_renderer import TemplateRenderer
 from ..core.coordination.monitoring_pipeline_builder import (
     resolve_monitoring_pipeline_name,
 )
-from ..errors import ErrorCategory, LHPConfigError, LHPError
+from ..errors import ErrorFactory, LHPError, codes
 from ..utils.performance_timer import perf_timer, record_count
 from .exceptions import BundleResourceError
 
@@ -81,9 +81,8 @@ class BundleManager:
             TypeError: If project_root is None
         """
         if project_root is None:
-            raise LHPConfigError(
-                category=ErrorCategory.CONFIG,
-                code_number="028",
+            raise ErrorFactory.config_error(
+                codes.CFG_028,
                 title="BundleManager requires a project root",
                 details="project_root cannot be None when initializing BundleManager.",
                 suggestions=[
@@ -357,9 +356,8 @@ class BundleManager:
             or not str(catalog).strip()
             or not str(schema).strip()
         ):
-            raise LHPConfigError(
-                category=ErrorCategory.GENERAL,
-                code_number="001",
+            raise ErrorFactory.general_error(
+                codes.GEN_001,
                 title="Internal error: preflight bypassed for bundle resource generation",
                 details=(
                     f"Pipeline '{pipeline_name}' reached the bundle-write phase "

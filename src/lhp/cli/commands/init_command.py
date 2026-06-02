@@ -10,7 +10,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from lhp.api import InitProjectResult, LakehousePlumberBootstrap
-from lhp.errors import ErrorCategory, LHPError, LHPFileError
+from lhp.errors import ErrorCategory, ErrorFactory, LHPError, codes
 
 from .. import console as _console_module
 from ..render import render_command_header
@@ -38,9 +38,8 @@ class InitCommand(BaseCommand):
         # check preserves the historical CLI contract (and the snapshot
         # assertion on ``LHP-IO-007`` + "already exists" rendering).
         if (project_path / "lhp.yaml").exists():
-            raise LHPFileError(
-                category=ErrorCategory.IO,
-                code_number="007",
+            raise ErrorFactory.io_error(
+                codes.IO_007,
                 title="LHP project already exists",
                 details="An lhp.yaml file already exists in this directory.",
                 suggestions=[

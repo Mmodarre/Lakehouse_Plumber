@@ -20,7 +20,7 @@ from jinja2 import (
 )
 from jinja2.exceptions import TemplateNotFound
 
-from ...errors import ErrorCategory, ErrorFormatter, LHPConfigError
+from ...errors import ErrorFactory, codes
 from ...utils.yaml_filters import dict_to_yaml
 
 logger = logging.getLogger(__name__)
@@ -117,7 +117,7 @@ class TemplateRenderer:
         try:
             template = self.env.get_template(template_name)
         except TemplateNotFound as e:
-            raise ErrorFormatter.template_not_found(
+            raise ErrorFactory.template_not_found(
                 template_name=template_name,
                 available_templates=[],
                 templates_dir="lhp.templates package",
@@ -126,9 +126,8 @@ class TemplateRenderer:
         try:
             return template.render(**context)
         except UndefinedError as e:
-            raise LHPConfigError(
-                category=ErrorCategory.CONFIG,
-                code_number="029",
+            raise ErrorFactory.config_error(
+                codes.CFG_029,
                 title="Template rendering error: undefined variable",
                 details=f"Template '{template_name}' references an undefined variable: {e}",
                 suggestions=[
@@ -138,9 +137,8 @@ class TemplateRenderer:
                 context={"Template": template_name, "Error": str(e)},
             ) from e
         except TemplateSyntaxError as e:
-            raise LHPConfigError(
-                category=ErrorCategory.CONFIG,
-                code_number="030",
+            raise ErrorFactory.config_error(
+                codes.CFG_030,
                 title="Template syntax error",
                 details=f"Template '{template_name}' has a syntax error: {e}",
                 suggestions=[

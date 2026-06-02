@@ -239,7 +239,7 @@ class TestSubstitutionErrorPaths:
         """Secret reference without scope or default_scope should raise LHPValidationError."""
         mgr = EnhancedSubstitutionManager()
 
-        with pytest.raises(LHPValidationError) as exc_info:
+        with pytest.raises(LHPConfigError) as exc_info:
             mgr._process_string("${secret:my_key}")
 
         assert exc_info.value.code == "LHP-CFG-008"

@@ -4,21 +4,20 @@ import logging
 from typing import List
 
 from lhp.models import Action, ActionType, WriteTargetType
-from ...errors import LHPError
-from .dlt_cdc_validators import (
+
+from ....errors import LHPError
+from .._base import BaseActionValidator, ValidationError
+from ..compatibility import (
     CdcConfigValidator,
     CdcSchemaValidator,
     DltTableOptionsValidator,
     SnapshotCdcConfigValidator,
 )
-from ._base import BaseActionValidator, ValidationError
 
 logger = logging.getLogger(__name__)
 
 
 class WriteActionValidator(BaseActionValidator):
-    """Validator for write actions."""
-
     def __init__(self, action_registry, field_validator, logger):
         super().__init__(action_registry, field_validator)
         self.logger = logger
@@ -28,31 +27,27 @@ class WriteActionValidator(BaseActionValidator):
         self.cdc_schema_validator = CdcSchemaValidator()
 
     def validate(self, action: Action, prefix: str) -> List[ValidationError]:
-        """Validate write action configuration."""
         logger.debug(f"Validating write action '{action.name}'")
         errors = []
 
-        # Write actions should not have a target (they are the final output)
+        # Write actions are the final output, so they should have no target.
         if action.target:
             self.logger.warning(
                 f"{prefix}: Write actions typically don't have 'target' field"
             )
 
-        # Write actions must have write_target configuration
         if not action.write_target:
             errors.append(
                 f"{prefix}: Write actions must have 'write_target' configuration"
             )
             return errors
 
-        # write_target must be a dict
         if not isinstance(action.write_target, dict):
             errors.append(
                 f"{prefix}: Write action write_target must be a configuration object"
             )
             return errors
 
-        # Must have target type
         target_type = action.write_target.get("type")
         if not target_type:
             errors.append(
@@ -60,14 +55,12 @@ class WriteActionValidator(BaseActionValidator):
             )
             return errors
 
-        # Validate target type is supported
         if not self.action_registry.is_generator_available(
             ActionType.WRITE, target_type
         ):
             errors.append(f"{prefix}: Unknown write target type '{target_type}'")
             return errors
 
-        # Strict field validation for write target configuration
         try:
             self.field_validator.validate_write_target(action.write_target, action.name)
         except LHPError as e:
@@ -77,13 +70,11 @@ class WriteActionValidator(BaseActionValidator):
             errors.append(str(e))
             return errors
 
-        # Type-specific validation
         errors.extend(self._validate_write_target_type(action, prefix, target_type))
 
-        # Validate DLT table options (applies to all write target types)
+        # DLT table options apply to all write target types.
         errors.extend(self.dlt_validator.validate(action, prefix))
 
-        # Validate mode-specific configurations for streaming tables
         if target_type == "streaming_table":
             errors.extend(self._validate_streaming_table_modes(action, prefix))
 
@@ -92,7 +83,6 @@ class WriteActionValidator(BaseActionValidator):
     def _validate_write_target_type(
         self, action: Action, prefix: str, target_type: str
     ) -> List[str]:
-        """Validate specific write target type requirements."""
         logger.debug(
             f"Validating write target type '{target_type}' for action '{action.name}'"
         )
@@ -126,7 +116,6 @@ class WriteActionValidator(BaseActionValidator):
     def _validate_table_requirements(
         self, action: Action, prefix: str, target_type: str
     ) -> List[str]:
-        """Validate common table requirements (catalog, schema, table)."""
         errors = []
         wt = action.write_target
         if not wt.get("catalog"):
@@ -138,10 +127,9 @@ class WriteActionValidator(BaseActionValidator):
         return errors
 
     def _validate_streaming_table(self, action: Action, prefix: str) -> List[str]:
-        """Validate streaming table specific requirements."""
         errors = []
 
-        # Check if this is snapshot_cdc mode, which defines source differently
+        # snapshot_cdc mode defines its source differently, so skip the check.
         mode = action.write_target.get("mode", "standard")
         if mode != "snapshot_cdc":
             if not action.source:
@@ -167,10 +155,8 @@ class WriteActionValidator(BaseActionValidator):
         return errors
 
     def _validate_materialized_view(self, action: Action, prefix: str) -> List[str]:
-        """Validate materialized view specific requirements."""
         errors = []
 
-        # Materialized view can have either source view, SQL, or sql_path
         if (
             not action.source
             and not action.write_target.get("sql")
@@ -179,7 +165,6 @@ class WriteActionValidator(BaseActionValidator):
             errors.append(
                 f"{prefix}: Materialized view must have either 'source', 'sql', or 'sql_path' in write_target"
             )
-        # If source is provided, it should be string or list
         elif action.source and not isinstance(action.source, (str, list)):
             errors.append(
                 f"{prefix}: Materialized view source must be a string or list of view names"
@@ -188,20 +173,16 @@ class WriteActionValidator(BaseActionValidator):
         return errors
 
     def _validate_sink(self, action: Action, prefix: str) -> List[str]:
-        """Validate sink write target."""
         errors = []
         sink_config = action.write_target
 
-        # Must have sink_type
         if not sink_config.get("sink_type"):
             errors.append(f"{prefix}: Sink must have 'sink_type'")
             return errors
 
-        # Must have sink_name
         if not sink_config.get("sink_name"):
             errors.append(f"{prefix}: Sink must have 'sink_name'")
 
-        # Must have source to read from
         if not action.source:
             errors.append(f"{prefix}: Sink must have 'source' to read from")
         elif not isinstance(action.source, (str, list)):
@@ -209,7 +190,6 @@ class WriteActionValidator(BaseActionValidator):
                 f"{prefix}: Sink source must be a string or list of view names"
             )
 
-        # Type-specific validation
         sink_type = sink_config["sink_type"]
 
         if sink_type == "delta":
@@ -234,7 +214,6 @@ class WriteActionValidator(BaseActionValidator):
         errors = []
         sink_config = action.write_target
 
-        # Delta sinks must have options
         if not sink_config.get("options"):
             errors.append(
                 f"{prefix}: Delta sink requires 'options' with either 'tableName' or 'path'"
@@ -245,7 +224,6 @@ class WriteActionValidator(BaseActionValidator):
         has_table_name = "tableName" in options
         has_path = "path" in options
 
-        # Must have exactly one: tableName or path
         if not has_table_name and not has_path:
             errors.append(
                 f"{prefix}: Delta sink options must include either 'tableName' or 'path'"
@@ -255,7 +233,6 @@ class WriteActionValidator(BaseActionValidator):
                 f"{prefix}: Delta sink options cannot have both 'tableName' and 'path'. Use one or the other."
             )
 
-        # Validate tableName is a 3-part name if present
         if has_table_name:
             table_name_val = options["tableName"]
             if isinstance(table_name_val, str) and table_name_val.count(".") != 2:
@@ -270,21 +247,18 @@ class WriteActionValidator(BaseActionValidator):
         return errors
 
     def _validate_kafka_sink(self, action: Action, prefix: str) -> List[str]:
-        """Validate Kafka/Event Hubs sink configuration."""
         errors = []
         sink_config = action.write_target
 
-        # Required fields
         if not sink_config.get("bootstrap_servers"):
             errors.append(f"{prefix}: Kafka sink must have 'bootstrap_servers'")
 
         if not sink_config.get("topic"):
             errors.append(f"{prefix}: Kafka sink must have 'topic'")
 
-        # Validate options using shared validator
         if sink_config.get("options"):
             try:
-                from .kafka_validator import KafkaOptionsValidator
+                from ..field.kafka_options import KafkaOptionsValidator
 
                 validator = KafkaOptionsValidator()
                 validator.process_options(
@@ -296,11 +270,9 @@ class WriteActionValidator(BaseActionValidator):
         return errors
 
     def _validate_custom_sink(self, action: Action, prefix: str) -> List[str]:
-        """Validate custom Python sink configuration."""
         errors = []
         sink_config = action.write_target
 
-        # Required fields
         if not sink_config.get("module_path"):
             errors.append(f"{prefix}: Custom sink must have 'module_path'")
 
@@ -310,17 +282,14 @@ class WriteActionValidator(BaseActionValidator):
         return errors
 
     def _validate_foreachbatch_sink(self, action: Action, prefix: str) -> List[str]:
-        """Validate ForEachBatch sink configuration."""
         errors = []
         sink_config = action.write_target
 
-        # ForEachBatch sinks only support single source view (string)
         if action.source and not isinstance(action.source, str):
             errors.append(
                 f"{prefix}: ForEachBatch sink only supports single source view (string), not list or dict"
             )
 
-        # Must have either module_path OR batch_handler (not both, not neither)
         has_module_path = bool(sink_config.get("module_path"))
         has_batch_handler = bool(sink_config.get("batch_handler"))
 
@@ -333,7 +302,6 @@ class WriteActionValidator(BaseActionValidator):
                 f"{prefix}: ForEachBatch sink must have either 'module_path' or 'batch_handler'"
             )
 
-        # Validate batch_handler is not empty if provided
         if has_batch_handler:
             batch_handler = sink_config.get("batch_handler", "").strip()
             if not batch_handler:
@@ -344,7 +312,6 @@ class WriteActionValidator(BaseActionValidator):
         return errors
 
     def _validate_streaming_table_modes(self, action: Action, prefix: str) -> List[str]:
-        """Validate streaming table mode-specific configurations."""
         errors = []
 
         mode = action.write_target.get("mode", "standard")
@@ -353,7 +320,6 @@ class WriteActionValidator(BaseActionValidator):
             errors.extend(self.snapshot_cdc_validator.validate(action, prefix))
         elif mode == "cdc":
             errors.extend(self.cdc_validator.validate(action, prefix))
-            # Validate CDC schema if provided
             if action.write_target.get("table_schema") or action.write_target.get(
                 "schema"
             ):

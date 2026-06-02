@@ -3,7 +3,7 @@
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
-from ...errors import ErrorCategory, LHPError
+from lhp.errors import ErrorFactory, codes
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +37,8 @@ def parse_include_patterns(
 def _parse_include_list(include_data: Any) -> List[str]:
     """Parse and validate a single include-pattern list."""
     if not isinstance(include_data, list):
-        raise LHPError(
-            category=ErrorCategory.CONFIG,
-            code_number="003",
+        raise ErrorFactory.config_error(
+            codes.CFG_003,
             title="Invalid include field type",
             details=f"Include field must be a list of strings, got {type(include_data).__name__}",
             suggestions=[
@@ -51,9 +50,8 @@ def _parse_include_list(include_data: Any) -> List[str]:
     validated_patterns = []
     for i, pattern in enumerate(include_data):
         if not isinstance(pattern, str):
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="004",
+            raise ErrorFactory.config_error(
+                codes.CFG_004,
                 title="Invalid include pattern type",
                 details=f"Include pattern at index {i} must be a string, got {type(pattern).__name__}",
                 suggestions=[
@@ -63,9 +61,8 @@ def _parse_include_list(include_data: Any) -> List[str]:
             )
 
         if not _validate_include_pattern(pattern):
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="005",
+            raise ErrorFactory.config_error(
+                codes.CFG_005,
                 title="Invalid include pattern",
                 details=f"Include pattern '{pattern}' is not a valid glob pattern",
                 suggestions=[

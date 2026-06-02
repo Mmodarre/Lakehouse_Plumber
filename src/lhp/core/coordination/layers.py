@@ -12,8 +12,6 @@ from pathlib import Path
 from typing import Optional
 
 
-
-
 def build_facade_orchestrator(
     project_root: Path,
     *,
@@ -38,8 +36,7 @@ def build_facade_orchestrator(
     from lhp.core.loaders import ProjectConfigLoader
     from lhp.core.processing import TemplateEngine
     from lhp.core.processing.flowgroup_resolver import FlowgroupResolutionService
-    from lhp.core.validators import ConfigValidator
-    from lhp.core.validators.secret_validator import SecretValidator
+    from lhp.core.validators import ConfigValidator, SecretValidator
     from lhp.presets.preset_manager import PresetManager
 
     project_config = ProjectConfigLoader(project_root).load_project_config()
@@ -69,6 +66,3 @@ def build_facade_orchestrator(
         validation_service=validation_service,
         config_validator=config_validator,
     )
-
-
-

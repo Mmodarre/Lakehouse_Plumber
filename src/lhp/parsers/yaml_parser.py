@@ -8,14 +8,9 @@ import threading
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar
 
-from ..errors import (
-    ErrorCategory,
-    ErrorFormatter,
-    LHPConfigError,
-    LHPError,
-    LHPValidationError,
-)
 from lhp.models import ActionType, FlowGroup, Preset, Template
+
+from ..errors import ErrorFactory, LHPError, codes
 from .yaml_loader import load_yaml_documents_all, load_yaml_file
 
 _CacheValueT = TypeVar("_CacheValueT")
@@ -48,9 +43,8 @@ class YAMLParser:
             elif isinstance(e, ValueError):
                 # For backward compatibility, convert back to generic error for non-LHPErrors
                 if "File not found" in str(e):
-                    raise LHPConfigError(
-                        category=ErrorCategory.IO,
-                        code_number="004",
+                    raise ErrorFactory.io_error(
+                        codes.IO_004,
                         title="Error reading YAML file",
                         details=f"Error reading {file_path}: {e}",
                         suggestions=[
@@ -61,9 +55,8 @@ class YAMLParser:
                     ) from e
                 raise  # Re-raise ValueError as-is for YAML errors
             else:
-                raise LHPConfigError(
-                    category=ErrorCategory.IO,
-                    code_number="004",
+                raise ErrorFactory.io_error(
+                    codes.IO_004,
                     title="Error reading YAML file",
                     details=f"Error reading {file_path}: {e}",
                     suggestions=[
@@ -80,7 +73,7 @@ class YAMLParser:
         Pydantic's own validation rejects unknown action types, but produces a
         generic ValidationError. Doing the check here lets us emit a friendlier
         LHP-ACT-001 with a did-you-mean suggestion sourced from
-        ``ErrorFormatter.unknown_type_with_suggestion``.
+        ``ErrorFactory.unknown_type_with_suggestion``.
 
         Args:
             doc: A single parsed YAML document (one flowgroup's worth, or an
@@ -104,7 +97,7 @@ class YAMLParser:
             if action_type is None:
                 continue  # Missing type: Pydantic enforces required field
             if action_type not in valid_values:
-                error = ErrorFormatter.unknown_type_with_suggestion(
+                error = ErrorFactory.unknown_type_with_suggestion(
                     value_type="action type",
                     provided_value=str(action_type),
                     valid_values=valid_values,
@@ -160,9 +153,8 @@ class YAMLParser:
             ValueError: For duplicate flowgroup names, mixed syntax, or parsing errors
         """
         if not documents:
-            raise LHPConfigError(
-                category=ErrorCategory.CONFIG,
-                code_number="005",
+            raise ErrorFactory.config_error(
+                codes.CFG_005,
                 title="Empty flowgroup file",
                 details=f"No content found in {file_path}",
                 suggestions=[
@@ -194,9 +186,8 @@ class YAMLParser:
             # construct a FlowGroup from a BlueprintFlowgroupSpec and crash with
             # an opaque error about missing `actions:` and unresolved %{var}.
             if BlueprintParser.looks_like_blueprint(doc):
-                raise LHPConfigError(
-                    category=ErrorCategory.CONFIG,
-                    code_number="040",
+                raise ErrorFactory.config_error(
+                    codes.CFG_040,
                     title="Blueprint file in flowgroup directory",
                     details=(
                         f"{file_path} appears to be a blueprint (has 'parameters' "
@@ -246,9 +237,8 @@ class YAMLParser:
                     # Check for duplicate flowgroup name
                     fg_name = fg_config.get("flowgroup")
                     if fg_name in seen_flowgroup_names:
-                        raise LHPValidationError(
-                            category=ErrorCategory.VALIDATION,
-                            code_number="013",
+                        raise ErrorFactory.validation_error(
+                            codes.VAL_013,
                             title=f"Duplicate flowgroup name '{fg_name}'",
                             details=f"Duplicate flowgroup name '{fg_name}' in file {file_path}. Each flowgroup must have a unique name.",
                             suggestions=[
@@ -277,9 +267,8 @@ class YAMLParser:
                 # Check for duplicate flowgroup name
                 fg_name = doc.get("flowgroup")
                 if fg_name in seen_flowgroup_names:
-                    raise LHPValidationError(
-                        category=ErrorCategory.VALIDATION,
-                        code_number="013",
+                    raise ErrorFactory.validation_error(
+                        codes.VAL_013,
                         title=f"Duplicate flowgroup name '{fg_name}'",
                         details=f"Duplicate flowgroup name '{fg_name}' in file {file_path}. Each flowgroup must have a unique name.",
                         suggestions=[
@@ -304,9 +293,8 @@ class YAMLParser:
 
         # Check for mixed syntax
         if uses_array_syntax and uses_regular_syntax:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="014",
+            raise ErrorFactory.validation_error(
+                codes.VAL_014,
                 title="Mixed flowgroup syntax",
                 details=f"Mixed syntax detected in {file_path}: cannot use both multi-document (---) and flowgroups array syntax in the same file.",
                 suggestions=[
@@ -341,9 +329,8 @@ class YAMLParser:
 
         # Check for multiple documents
         if len(documents) > 1:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="015",
+            raise ErrorFactory.validation_error(
+                codes.VAL_015,
                 title="Multiple documents in single-flowgroup parse",
                 details=f"File {file_path} contains multiple flowgroups (multiple documents). Use parse_flowgroups_from_file() instead.",
                 suggestions=[
@@ -355,9 +342,8 @@ class YAMLParser:
 
         # Check for array syntax
         if documents and "flowgroups" in documents[0]:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="015",
+            raise ErrorFactory.validation_error(
+                codes.VAL_015,
                 title="Array syntax in single-flowgroup parse",
                 details=f"File {file_path} contains multiple flowgroups (array syntax). Use parse_flowgroups_from_file() instead.",
                 suggestions=[
@@ -518,9 +504,7 @@ class CachingYAMLParser:
             path,
             self._cache,
             lambda: self._parser._flowgroups_from_documents(
-                self.load_documents_all(
-                    path, error_context=f"flowgroup file {path}"
-                ),
+                self.load_documents_all(path, error_context=f"flowgroup file {path}"),
                 path,
             ),
             label="Flowgroup",

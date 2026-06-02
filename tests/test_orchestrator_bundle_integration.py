@@ -6,11 +6,12 @@ while ensuring bundle synchronization is handled at the CLI level only.
 Bundle sync is no longer called from within orchestrator methods.
 """
 
-import pytest
-import tempfile
 import shutil
+import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
+
+import pytest
 
 from lhp.api import LakehousePlumberApplicationFacade, collect_response
 
@@ -23,10 +24,10 @@ class TestOrchestratorBundleBehavior:
         self.temp_dir = Path(tempfile.mkdtemp())
         self.project_root = self.temp_dir / "test_project"
         self.project_root.mkdir()
-        
+
         # Create basic project structure
         self._create_test_project()
-        
+
         self.facade = LakehousePlumberApplicationFacade.for_project(
             self.project_root, enforce_version=False
         )
@@ -41,7 +42,7 @@ class TestOrchestratorBundleBehavior:
         (self.project_root / "lhp.yaml").write_text("""name: test_project
 version: "1.0"
 """)
-        
+
         # Create substitutions
         sub_dir = self.project_root / "substitutions"
         sub_dir.mkdir()
@@ -50,11 +51,11 @@ version: "1.0"
   raw_schema: raw
   bronze_schema: bronze
 """)
-        
+
         # Create pipelines directory with test flowgroup
         pipelines_dir = self.project_root / "pipelines" / "test_pipeline"
         pipelines_dir.mkdir(parents=True)
-        
+
         flowgroup_yaml = pipelines_dir / "test_flowgroup.yaml"
         flowgroup_yaml.write_text("""
 flowgroup: test_flowgroup
@@ -78,18 +79,18 @@ actions:
         # Create templates directory
         templates_dir = self.project_root / "templates"
         templates_dir.mkdir()
-        
+
         # Create presets directory
         presets_dir = self.project_root / "presets"
         presets_dir.mkdir()
 
-    @patch('lhp.bundle.manager.BundleManager')
+    @patch("lhp.bundle.manager.BundleManager")
     def test_orchestrator_does_not_call_bundle_sync(self, mock_bundle_manager_class):
         """Should NOT call bundle sync - this is now handled at CLI level only."""
         # Mock bundle manager
         mock_bundle_manager = Mock()
         mock_bundle_manager_class.return_value = mock_bundle_manager
-        
+
         # Generate files
         output_dir = self.project_root / "generated"
         batch = collect_response(
@@ -99,9 +100,7 @@ actions:
                 output_dir=output_dir,
             )
         )
-        generated_files = batch.pipeline_responses[
-            "test_pipeline"
-        ].generated_filenames
+        generated_files = batch.pipeline_responses["test_pipeline"].generated_filenames
 
         # Verify files were generated
         assert len(generated_files) == 1
@@ -118,7 +117,7 @@ actions:
 bundle:
   name: test_project
 """)
-        
+
         # Generate files
         output_dir = self.project_root / "generated"
         batch = collect_response(
@@ -128,9 +127,7 @@ bundle:
                 output_dir=output_dir,
             )
         )
-        generated_files = batch.pipeline_responses[
-            "test_pipeline"
-        ].generated_filenames
+        generated_files = batch.pipeline_responses["test_pipeline"].generated_filenames
 
         # Verify files were generated correctly
         assert len(generated_files) == 1
@@ -156,9 +153,7 @@ bundle:
                 output_dir=output_dir,
             )
         )
-        generated_files = batch.pipeline_responses[
-            "test_pipeline"
-        ].generated_filenames
+        generated_files = batch.pipeline_responses["test_pipeline"].generated_filenames
 
         # Verify normal generation behavior
         assert isinstance(generated_files, tuple)
@@ -169,8 +164,8 @@ bundle:
         assert filename == "test_flowgroup.py"
         assert isinstance(code, str)
         assert len(code) > 0
-        
+
         # Verify file structure
         assert "from pyspark import pipelines as dp" in code
         assert "test_pipeline" in code
-        assert "test_flowgroup" in code 
+        assert "test_flowgroup" in code

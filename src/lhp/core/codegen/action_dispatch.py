@@ -8,9 +8,10 @@ from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Set, Tuple
 
-from ...errors import ErrorCategory, LHPError, LHPValidationError
 from lhp.models import Action, ActionType, FlowGroup, TransformType
 from lhp.models.processing import CopiedModuleRecord
+
+from ...errors import ErrorFactory, LHPError, codes
 from ..processing.substitution import EnhancedSubstitutionManager
 
 if TYPE_CHECKING:
@@ -215,9 +216,8 @@ class ActionDispatcher:
                 raise  # Re-raise LHPError as-is
             except Exception as e:
                 action_names = [a.name for a in actions]
-                raise LHPError(
-                    category=ErrorCategory.ACTION,
-                    code_number="002",
+                raise ErrorFactory.action_error(
+                    codes.ACT_002,
                     title="Write action code generation failed",
                     details=(
                         f"Error generating code for write actions {action_names}: {e}"
@@ -350,9 +350,8 @@ class ActionDispatcher:
         except LHPError:
             raise
         except Exception as e:
-            raise LHPError(
-                category=ErrorCategory.ACTION,
-                code_number="002",
+            raise ErrorFactory.action_error(
+                codes.ACT_002,
                 title=f"Action code generation failed for '{action.name}'",
                 details=f"Error generating code for action '{action.name}': {e}",
                 suggestions=[
@@ -395,9 +394,8 @@ class ActionDispatcher:
             return action.test_type or "row_count"  # Default to row_count test
 
         else:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="009",
+            raise ErrorFactory.validation_error(
+                codes.VAL_009,
                 title=f"Unknown action type: {action.type}",
                 details=f"Cannot determine sub-type for unknown action type '{action.type}'.",
                 suggestions=[

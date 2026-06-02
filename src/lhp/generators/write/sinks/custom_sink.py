@@ -5,10 +5,11 @@ import re
 from pathlib import Path
 from typing import Any, Dict
 
-from ....core.loaders.external_file_loader import load_external_file_text
-from ....errors import ErrorFormatter
-from lhp.models import Action
 from lhp.core.codegen import copy_user_module_for_pipeline
+from lhp.models import Action
+
+from ....core.loaders.external_file_loader import load_external_file_text
+from ....errors import ErrorFactory
 from .base_sink import BaseSinkWriteGenerator
 
 
@@ -83,7 +84,7 @@ class CustomSinkWriteGenerator(BaseSinkWriteGenerator):
 
         # Validate required fields
         if not module_path:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="module_path",
                 component_type="Custom sink write action",
                 component_name=action.name,
@@ -104,7 +105,7 @@ class CustomSinkWriteGenerator(BaseSinkWriteGenerator):
             )
 
         if not custom_sink_class:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="custom_sink_class",
                 component_type="Custom sink write action",
                 component_name=action.name,

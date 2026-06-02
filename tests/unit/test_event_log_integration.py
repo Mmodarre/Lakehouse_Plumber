@@ -5,11 +5,11 @@ Tests the full round-trip: lhp.yaml event_log → BundleManager → rendered YAM
 including substitution token resolution, pipeline_config overrides, and backward compatibility.
 """
 
-import pytest
-import tempfile
 import shutil
+import tempfile
 from pathlib import Path
 
+import pytest
 import yaml
 
 from lhp.bundle.manager import BundleManager

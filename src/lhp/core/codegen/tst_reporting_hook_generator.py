@@ -11,8 +11,9 @@ from typing import Any, Dict, List, Optional
 
 from jinja2 import Environment
 
-from ...errors import ErrorCategory, LHPError
 from lhp.models import ActionType, FlowGroup, ProjectConfig
+
+from ...errors import ErrorFactory, codes
 from ...utils.file_header import build_lhp_source_header, write_normalized
 from ..processing.substitution import EnhancedSubstitutionManager
 from .template_renderer import get_lhp_template_loader
@@ -160,9 +161,8 @@ class TestReportingHookGenerator:
                 if action.type == ActionType.TEST and action.test_id:
                     table_name = action.resolved_test_target
                     if table_name in test_id_map:
-                        raise LHPError(
-                            category=ErrorCategory.CONFIG,
-                            code_number="009",
+                        raise ErrorFactory.config_error(
+                            codes.CFG_009,
                             title="Duplicate test_id table mapping",
                             details=(
                                 f"Test actions '{table_name}' maps to both "
@@ -186,9 +186,8 @@ class TestReportingHookGenerator:
 
         config_path = self.project_root / config.config_file
         if not config_path.exists():
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="009",
+            raise ErrorFactory.config_error(
+                codes.CFG_009,
                 title="Test reporting config file not found",
                 details=f"Config file not found: {config_path}",
                 suggestions=[
@@ -216,9 +215,8 @@ class TestReportingHookGenerator:
         source_file = self.project_root / config.module_path
 
         if not source_file.exists():
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="009",
+            raise ErrorFactory.config_error(
+                codes.CFG_009,
                 title="Test reporting provider module not found",
                 details=f"Provider module not found: {source_file}",
                 suggestions=[

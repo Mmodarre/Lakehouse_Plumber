@@ -16,7 +16,7 @@ import logging
 import re
 from typing import Any, Dict
 
-from ...errors import ErrorCategory, LHPConfigError
+from ...errors import ErrorFactory, codes
 
 logger = logging.getLogger(__name__)
 
@@ -103,12 +103,11 @@ def _normalize_write_target(wt: Dict[str, Any], action_name: str) -> None:
         del wt["database"]  # REMOVE_AT_V1.0.0: database field removal
         logger.warning(
             f"Action '{action_name}': {_DEPRECATION_MSG} "
-            f"(database: \"{database}\" → catalog: \"{catalog}\", schema: \"{schema}\")"
+            f'(database: "{database}" → catalog: "{catalog}", schema: "{schema}")'
         )
     else:
-        raise LHPConfigError(
-            category=ErrorCategory.CONFIG,
-            code_number="011",
+        raise ErrorFactory.config_error(
+            codes.CFG_011,
             title=f"Invalid 'database' field in write target for action '{action_name}'",
             details=(
                 f"The 'database' field value '{database}' does not contain a dot separator. "
@@ -116,9 +115,9 @@ def _normalize_write_target(wt: Dict[str, Any], action_name: str) -> None:
             ),
             suggestions=[
                 "Migrate to the new format with explicit 'catalog' and 'schema' fields:",
-                f"  catalog: \"your_catalog\"",
-                f"  schema: \"{database}\"",
-                "Or fix the database field to include both: database: \"catalog.{database}\"",
+                f'  catalog: "your_catalog"',
+                f'  schema: "{database}"',
+                'Or fix the database field to include both: database: "catalog.{database}"',
             ],
             context={
                 "Action": action_name,
@@ -163,12 +162,11 @@ def _normalize_delta_source(source: Dict[str, Any], action_name: str) -> None:
         del source["database"]  # REMOVE_AT_V1.0.0
         logger.warning(
             f"Action '{action_name}': {_DEPRECATION_MSG} "
-            f"(database: \"{database}\" → catalog: \"{cat}\", schema: \"{schema}\")"
+            f'(database: "{database}" → catalog: "{cat}", schema: "{schema}")'
         )
     else:
-        raise LHPConfigError(
-            category=ErrorCategory.CONFIG,
-            code_number="012",
+        raise ErrorFactory.config_error(
+            codes.CFG_012,
             title=f"Invalid 'database' field in delta source for action '{action_name}'",
             details=(
                 f"The 'database' field value '{database}' does not contain a dot separator "
@@ -177,9 +175,9 @@ def _normalize_delta_source(source: Dict[str, Any], action_name: str) -> None:
             ),
             suggestions=[
                 "Migrate to the new format with explicit 'catalog' and 'schema' fields:",
-                f"  catalog: \"your_catalog\"",
-                f"  schema: \"{database}\"",
-                "Or fix the database field to include both: database: \"catalog.{database}\"",
+                f'  catalog: "your_catalog"',
+                f'  schema: "{database}"',
+                'Or fix the database field to include both: database: "catalog.{database}"',
             ],
             context={
                 "Action": action_name,
@@ -200,29 +198,28 @@ def _check_schema_not_ddl(config: Dict[str, Any], action_name: str) -> None:
         return
 
     if " " in schema_val and _DDL_PATTERN.search(schema_val):
-        raise LHPConfigError(
-            category=ErrorCategory.CONFIG,
-            code_number="013",
+        raise ErrorFactory.config_error(
+            codes.CFG_013,
             title=f"'schema' field contains DDL in action '{action_name}'",
             details=(
                 f"The 'schema' field value looks like a DDL column definition:\n"
-                f"  schema: \"{schema_val}\"\n\n"
+                f'  schema: "{schema_val}"\n\n'
                 f"Since v0.7.8, the 'schema' field in write_target represents the "
                 f"Unity Catalog schema name (namespace), not a table DDL definition."
             ),
             suggestions=[
                 "Rename 'schema' to 'table_schema' for DDL definitions:",
-                f"  table_schema: \"{schema_val}\"",
+                f'  table_schema: "{schema_val}"',
                 "And set 'schema' to the UC schema name:",
-                "  schema: \"your_schema_name\"",
+                '  schema: "your_schema_name"',
             ],
             example=(
                 "write_target:\n"
                 "  type: streaming_table\n"
-                "  catalog: \"my_catalog\"\n"
-                "  schema: \"my_schema\"            # UC namespace\n"
-                "  table: \"my_table\"\n"
-                "  table_schema: \"id BIGINT, ...\"  # DDL definition"
+                '  catalog: "my_catalog"\n'
+                '  schema: "my_schema"            # UC namespace\n'
+                '  table: "my_table"\n'
+                '  table_schema: "id BIGINT, ..."  # DDL definition'
             ),
             context={
                 "Action": action_name,

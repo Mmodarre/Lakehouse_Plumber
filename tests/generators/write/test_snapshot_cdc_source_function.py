@@ -44,7 +44,7 @@ def _write_source(tmpdir: str, name: str, body: str) -> str:
 class TestResolveSourceFunctionFileNotFound:
     """File-not-found resolution delegates to external_file_loader.
 
-    The shared ``ErrorFormatter.file_not_found`` raises IO/001 (not IO/004)
+    The shared ``ErrorFactory.file_not_found`` raises IO/001 (not IO/004)
     for a missing FILE; IO/004 is reserved for a missing FUNCTION inside an
     existing file (see TestSyntaxAndMissingFunction).
     """

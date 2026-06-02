@@ -16,7 +16,7 @@ from lhp.models import (
     ProjectOperationalMetadataConfig,
 )
 
-from ....errors import ErrorCategory, LHPError
+from ....errors import ErrorFactory, LHPError, codes
 from ..imports import ImportDetector
 
 logger = logging.getLogger(__name__)
@@ -251,9 +251,8 @@ class OperationalMetadataCatalog:
             if isinstance(e, LHPError):
                 raise
             else:
-                raise LHPError(
-                    category=ErrorCategory.CONFIG,
-                    code_number="008",
+                raise ErrorFactory.config_error(
+                    codes.CFG_008,
                     title="Error processing operational metadata selection",
                     details=f"An error occurred while processing operational metadata selection: {str(e)}",
                     suggestions=[
@@ -277,9 +276,8 @@ class OperationalMetadataCatalog:
                         expression = self._apply_substitutions(column_config.expression)
                         result[column_name] = expression
                     except Exception as e:
-                        raise LHPError(
-                            category=ErrorCategory.CONFIG,
-                            code_number="009",
+                        raise ErrorFactory.config_error(
+                            codes.CFG_009,
                             title="Error applying substitutions to metadata column",
                             details=f"Failed to apply substitutions to column '{column_name}': {str(e)}",
                             suggestions=[
@@ -327,9 +325,8 @@ class OperationalMetadataCatalog:
                     f"Ignoring unknown metadata columns: {', '.join(sorted(invalid_columns))}"
                 )
                 return set(selection) - invalid_columns
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="006",
+            raise ErrorFactory.config_error(
+                codes.CFG_006,
                 title="Invalid operational metadata column references",
                 details=f"The following columns are not defined in the project configuration: {', '.join(sorted(invalid_columns))}",
                 suggestions=[
@@ -344,9 +341,8 @@ class OperationalMetadataCatalog:
     def _validate_target_type(self, target_type: str) -> None:
         valid_types = ["streaming_table", "materialized_view", "view"]
         if target_type not in valid_types:
-            raise LHPError(
-                category=ErrorCategory.CONFIG,
-                code_number="008",
+            raise ErrorFactory.config_error(
+                codes.CFG_008,
                 title="Invalid target type for operational metadata",
                 details=f"Target type '{target_type}' is not supported for operational metadata.",
                 suggestions=[

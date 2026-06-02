@@ -19,7 +19,7 @@ from lhp.api import (
     should_enable_bundle_support,
 )
 from lhp.cli.exit_codes import ExitCode
-from lhp.errors import ErrorCategory, LHPConfigError, LHPError
+from lhp.errors import ErrorCategory, ErrorFactory, LHPError, codes
 
 from ..error_panel import render_error_panel
 from ..warning_panel import render_warning_panel
@@ -54,9 +54,8 @@ def _require_pipeline_config_flag(
     """
     if not bundle_enabled or pipeline_config_path:
         return
-    raise LHPConfigError(
-        category=ErrorCategory.CONFIG,
-        code_number="023",
+    raise ErrorFactory.config_error(
+        codes.CFG_023,
         title="--pipeline-config is required when bundle support is enabled",
         details=(
             "databricks.yml is present (bundle support is enabled) but the "
@@ -506,9 +505,8 @@ class ValidateCommand(BaseCommand):
                         0,
                         f"Available pipelines: {', '.join(sorted(pipeline_fields))}",
                     )
-                raise LHPConfigError(
-                    category=ErrorCategory.CONFIG,
-                    code_number="015",
+                raise ErrorFactory.config_error(
+                    codes.CFG_015,
                     title=f"Pipeline '{pipeline}' not found",
                     details=f"No flowgroup with pipeline field '{pipeline}' was found.",
                     suggestions=suggestions,
@@ -517,9 +515,8 @@ class ValidateCommand(BaseCommand):
             return [pipeline], all_flowgroups
         else:
             if not all_flowgroups:
-                raise LHPConfigError(
-                    category=ErrorCategory.CONFIG,
-                    code_number="014",
+                raise ErrorFactory.config_error(
+                    codes.CFG_014,
                     title="No flowgroups found in project",
                     details="No flowgroup YAML files were found in the pipelines/ directory.",
                     suggestions=[

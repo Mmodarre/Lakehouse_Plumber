@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from ...errors import ErrorCategory, LHPValidationError
+from ...errors import ErrorFactory, codes
 from ...models.dependencies import DependencyAnalysisResult
 from ...utils.yaml_filters import dict_to_yaml
 from ..loaders import JobConfigLoader
@@ -222,9 +222,8 @@ class JobGenerator:
             ValueError: If no pipelines found in dependency results
         """
         if not dependency_result.execution_stages:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="009",
+            raise ErrorFactory.validation_error(
+                codes.VAL_009,
                 title="No pipeline execution stages found",
                 details="No pipeline execution stages found in dependency results.",
                 suggestions=[
@@ -373,9 +372,8 @@ class JobGenerator:
             project_name = "lhp_project"
 
         if global_result is None:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="009",
+            raise ErrorFactory.validation_error(
+                codes.VAL_009,
                 title="Missing global_result for master job generation",
                 details=(
                     "global_result is required for generate_master_job(). "

@@ -7,7 +7,6 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from lhp.cli.commands.generate_command import GenerateCommand
 from lhp.api import (
     BatchGenerationResponse,
     FlowgroupView,
@@ -16,6 +15,7 @@ from lhp.api import (
     OperationStarted,
 )
 from lhp.api.responses import ValidationResponse
+from lhp.cli.commands.generate_command import GenerateCommand
 
 
 def _flowgroup_view(pipeline: str = "test_pipeline", file_path=None) -> FlowgroupView:
@@ -365,9 +365,9 @@ class TestGenerateCommandExecute:
             (cat, msg) for (cat, msg) in collector._warnings if cat == "deprecation"
         ]
         assert deprecation_entries, "Expected a deprecation warning to be recorded"
-        assert any("--force" in msg for (_, msg) in deprecation_entries), (
-            f"Expected --force mention in deprecation message, got: {deprecation_entries}"
-        )
+        assert any(
+            "--force" in msg for (_, msg) in deprecation_entries
+        ), f"Expected --force mention in deprecation message, got: {deprecation_entries}"
 
     def test_no_state_flag_emits_deprecation_warning(
         self, generate_command, temp_project

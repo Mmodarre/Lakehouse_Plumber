@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Dict, List, Literal, Optional, Sequence, Tuple
 
 from lhp.models import FlowGroup, ProjectConfig
+
 from ...models.dependencies import (
     DependencyAnalysisResult,
     DependencyGraphs,
@@ -32,16 +33,15 @@ from ...models.dependencies import (
 from ...parsers.blueprint_parser import BlueprintParser
 from ...parsers.yaml_parser import CachingYAMLParser, YAMLParser
 from ...presets.preset_manager import PresetManager
-from ..coordination import ValidationService
 from .._interfaces import BaseDependencyAnalysisService
+from ..coordination import ValidationService
 from ..discovery.blueprint_discoverer import BlueprintDiscoverer
 from ..discovery.flowgroup_discoverer import FlowgroupDiscoveryService
 from ..loaders import ProjectConfigLoader
 from ..processing import TemplateEngine
 from ..processing.blueprint_expander import BlueprintExpander
 from ..processing.flowgroup_resolver import FlowgroupResolutionService
-from ..validators import ConfigValidator
-from ..validators.secret_validator import SecretValidator
+from ..validators import ConfigValidator, SecretValidator
 from . import output
 from .analyzer import DependencyAnalyzer
 from .builder import DependencyGraphBuilder
@@ -201,7 +201,7 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         Raises:
             LHPError: If ``job_name`` validation fails.
         """
-        from ..validators.job_name_validator import validate_job_names
+        from ..validators import validate_job_names
 
         self.logger.info("Starting multi-job dependency analysis...")
 

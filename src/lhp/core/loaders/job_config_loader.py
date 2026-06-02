@@ -20,7 +20,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import yaml
 
-from ...errors import ErrorCategory, LHPFileError
+from lhp.errors import ErrorFactory, codes
 
 logger = logging.getLogger(__name__)
 
@@ -62,9 +62,8 @@ class JobConfigLoader:
         if config_file_path:
             full_config_path = project_root / config_file_path
             if not full_config_path.exists():
-                raise LHPFileError(
-                    category=ErrorCategory.IO,
-                    code_number="001",
+                raise ErrorFactory.io_error(
+                    codes.IO_001,
                     title="Job config file not found",
                     details=f"Job config file not found: {config_file_path} (looking in {project_root})",
                     suggestions=[
@@ -92,9 +91,7 @@ class JobConfigLoader:
             documents = [doc for doc in documents if doc is not None]
 
             if not documents:
-                logger.debug(
-                    f"Empty config file at {full_config_path}, using defaults"
-                )
+                logger.debug(f"Empty config file at {full_config_path}, using defaults")
                 return {}, {}
 
             if len(documents) == 1:
@@ -112,7 +109,9 @@ class JobConfigLoader:
             project_defaults: Dict[str, Any] = {}
             job_specific_configs: Dict[str, Dict[str, Any]] = {}
             seen_job_names: set = set()
-            first_seen: Dict[str, int] = {}  # Track which document first defined each job_name
+            first_seen: Dict[str, int] = (
+                {}
+            )  # Track which document first defined each job_name
 
             for idx, doc in enumerate(documents):
                 if "project_defaults" in doc:
@@ -135,11 +134,8 @@ class JobConfigLoader:
                         continue
 
                     if not job_names:
-                        from ...errors import LHPError
-
-                        raise LHPError(
-                            category=ErrorCategory.VALIDATION,
-                            code_number="003",
+                        raise ErrorFactory.validation_error(
+                            codes.VAL_003,
                             title="Empty job_name list",
                             details=(
                                 f"Document {idx+1} in {full_config_path} has an empty job_name list. "
@@ -156,11 +152,8 @@ class JobConfigLoader:
 
                     for job_name in job_names:
                         if job_name in seen_job_names:
-                            from ...errors import LHPError
-
-                            raise LHPError(
-                                category=ErrorCategory.VALIDATION,
-                                code_number="004",
+                            raise ErrorFactory.validation_error(
+                                codes.VAL_004,
                                 title="Duplicate job_name",
                                 details=(
                                     f"job_name '{job_name}' in document {idx+1} was already defined "
@@ -197,7 +190,5 @@ class JobConfigLoader:
             return project_defaults, job_specific_configs
 
         except yaml.YAMLError as e:
-            logger.exception(
-                f"Invalid YAML in job config file {full_config_path}: {e}"
-            )
+            logger.exception(f"Invalid YAML in job config file {full_config_path}: {e}")
             raise

@@ -6,12 +6,9 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from lhp.models import FlowGroup
+
+from ...errors import ErrorFactory, codes
 from ...parsers.yaml_parser import YAMLParser
-from ...errors import (
-    ErrorCategory,
-    LHPConfigError,
-    LHPFileError,
-)
 from ...utils.performance_timer import perf_timer
 from .._interfaces import BaseFlowgroupDiscoveryService
 
@@ -69,9 +66,7 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
             return tuple(self.discover_all_flowgroups())
         return tuple(self.discover_flowgroups_by_pipeline_field(pipeline_filter))
 
-    def _legacy_discover_flowgroups_by_dir(
-        self, pipeline_dir: Path
-    ) -> List[FlowGroup]:
+    def _legacy_discover_flowgroups_by_dir(self, pipeline_dir: Path) -> List[FlowGroup]:
         """
         Discover all flowgroups in a specific pipeline directory.
 
@@ -174,7 +169,6 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
 
         return matching_flowgroups
 
-
     def discover_and_filter_for_pipeline(
         self,
         *,
@@ -201,9 +195,8 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
         if use_directory_discovery:
             pipeline_dir = self.project_root / "pipelines" / pipeline_identifier
             if not pipeline_dir.exists():
-                raise LHPFileError(
-                    category=ErrorCategory.IO,
-                    code_number="001",
+                raise ErrorFactory.io_error(
+                    codes.IO_001,
                     title="Pipeline directory not found",
                     details=f"Pipeline directory not found: {pipeline_dir}",
                     suggestions=[
@@ -240,9 +233,8 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
 
         if not all_flowgroups:
             if use_directory_discovery:
-                raise LHPConfigError(
-                    category=ErrorCategory.CONFIG,
-                    code_number="014",
+                raise ErrorFactory.config_error(
+                    codes.CFG_014,
                     title="No flowgroups found",
                     details=f"No flowgroups found in pipeline: {pipeline_identifier}",
                     suggestions=[
@@ -432,9 +424,7 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
                 if self._source_path_index is None:
                     with perf_timer("build_source_path_index [fallback]"):
                         self._source_path_index = self._build_source_path_index()
-        return self._source_path_index.get(
-            (flowgroup.pipeline, flowgroup.flowgroup)
-        )
+        return self._source_path_index.get((flowgroup.pipeline, flowgroup.flowgroup))
 
     def register_synthetic_sources(
         self, synthetic_sources: Dict[Tuple[str, str], Path]
@@ -457,8 +447,8 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
                 # Trigger eager build via the standard discovery path so the
                 # index reflects on-disk flowgroups too.
                 pairs = self.discover_all_flowgroups_with_paths()
-                self._source_path_index = (
-                    self._build_source_path_index_from_pairs(pairs)
+                self._source_path_index = self._build_source_path_index_from_pairs(
+                    pairs
                 )
             for key, blueprint_path in synthetic_sources.items():
                 # Synthetic entries always win — they are the only authoritative

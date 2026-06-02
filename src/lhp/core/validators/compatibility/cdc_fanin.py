@@ -18,7 +18,8 @@ from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from lhp.models import Action, ActionType, FlowGroup
-from ...errors import ErrorCategory, LHPConfigError
+
+from ....errors import ErrorFactory, LHPConfigError, codes
 
 logger = logging.getLogger(__name__)
 
@@ -70,9 +71,6 @@ class CdcFanInCompatibilityValidator:
 
     def validate(self, flowgroups: List[FlowGroup]) -> List[str]:
         """Validate CDC fan-in compatibility.
-
-        Args:
-            flowgroups: All flowgroups in the pipeline.
 
         Returns:
             List of error strings. May also raise ``LHPConfigError`` for
@@ -244,9 +242,8 @@ class CdcFanInCompatibilityValidator:
             f"    # {readable_field}: <shared_value>   # ← Same value as above\n"
             "    create_table: false"
         )
-        return LHPConfigError(
-            category=ErrorCategory.CONFIG,
-            code_number="010",
+        return ErrorFactory.config_error(
+            codes.CFG_010,
             title=(
                 f"CDC fan-in mismatch on '{readable_field}' for table "
                 f"'{table_name}'"

@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import NoReturn, Optional
 
 from lhp.core.codegen.imports import local_import_targets, parse_user_module
-from lhp.errors import ErrorCategory, LHPValidationError
+from lhp.errors import ErrorFactory, codes
 
 
 @dataclass(frozen=True)
@@ -47,9 +47,8 @@ class ResolvedModule:
 
 def _raise_root_is_package(root: Path) -> NoReturn:
     """Rule A violation: the import root itself is a package (has ``__init__.py``)."""
-    raise LHPValidationError(
-        category=ErrorCategory.VALIDATION,
-        code_number="023",
+    raise ErrorFactory.validation_error(
+        codes.VAL_023,
         title="Python function root directory is a package",
         details=(
             f"The directory containing your Python function, '{root}', "
@@ -70,9 +69,8 @@ def _raise_root_is_package(root: Path) -> NoReturn:
 
 def _raise_missing_helper(module: str, importer: Path) -> NoReturn:
     """VAL-025: a local-classified import has no file/package on disk."""
-    raise LHPValidationError(
-        category=ErrorCategory.VALIDATION,
-        code_number="025",
+    raise ErrorFactory.validation_error(
+        codes.VAL_025,
         title="Local helper module not found",
         details=(
             f"The module '{module}', imported by '{importer}', was classified "

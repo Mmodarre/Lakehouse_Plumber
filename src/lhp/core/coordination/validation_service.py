@@ -32,16 +32,16 @@ from lhp.core._interfaces import (
     BaseValidationService,
     CrossFlowgroupCheckResult,
 )
-from lhp.core.validators import ConfigValidator
-from lhp.core.validators.cdc_fanin_compatibility_validator import (
+from lhp.core.validators import (
     CdcFanInCompatibilityValidator,
+    ConfigValidator,
+    LoadActionValidator,
+    TableCreationValidator,
+    TestActionValidator,
+    TransformActionValidator,
+    WriteActionValidator,
 )
-from lhp.core.validators.action.load import LoadActionValidator
-from lhp.core.validators.table_creation_validator import TableCreationValidator
-from lhp.core.validators.action.test import TestActionValidator
-from lhp.core.validators.transform_validator import TransformActionValidator
-from lhp.core.validators.write_validator import WriteActionValidator
-from lhp.errors import ErrorCategory, LHPError, LHPValidationError
+from lhp.errors import ErrorFactory, LHPError, codes
 from lhp.models import FlowGroup, ProjectConfig
 
 
@@ -131,9 +131,8 @@ class ValidationService(BaseValidationService):
         )
         if not errors:
             return None
-        return LHPValidationError(
-            category=ErrorCategory.VALIDATION,
-            code_number="009",
+        return ErrorFactory.validation_error(
+            codes.VAL_009,
             title="Duplicate pipeline+flowgroup combinations found",
             details="Duplicate pipeline+flowgroup combinations found:\n"
             + "\n".join(f"  - {e}" for e in errors),
@@ -202,4 +201,3 @@ class ValidationService(BaseValidationService):
             table_creation_errors=table_errors,
             cdc_fanin_errors=cdc_errors,
         )
-
