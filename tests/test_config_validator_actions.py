@@ -187,7 +187,9 @@ class TestConfigValidatorActions:
             mock_available.assert_called_with(ActionType.WRITE, "unknown_type")
 
         # Test 5: Write action with target field should log warning (line 277-279)
-        with patch.object(validator.logger, "warning") as mock_warning:
+        # WriteActionValidator emits via its own module logger (not the injected
+        # ConfigValidator logger), so patch the write module's logger directly.
+        with patch("lhp.core.validators.action.write.logger") as mock_logger:
             action = Action(
                 name="test_write_with_target",
                 type=ActionType.WRITE,
@@ -204,8 +206,8 @@ class TestConfigValidatorActions:
             errors = validator.validate_action(action, 0)
 
             # Should log warning (line 277-279)
-            mock_warning.assert_called_once()
-            warning_call = mock_warning.call_args[0][0]
+            mock_logger.warning.assert_called_once()
+            warning_call = mock_logger.warning.call_args[0][0]
             assert "Write actions typically don't have 'target' field" in warning_call
             assert len(errors) == 0  # Should not be an error, just a warning
 

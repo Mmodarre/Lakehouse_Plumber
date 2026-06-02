@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Validator decomposition — `write` / `test` / `cdc_fanin` into the free-function helper idiom + shared three-part-name check
+
+**Changed.**
+
+- **`write`, `test`, and `cdc_fanin` validators decomposed into the established
+  free-function helper idiom.** Logic moved into package-private `_`-prefixed
+  modules (`_write_sinks.py`, `_test_requirements.py`, `_cdc_fanin_messages.py`),
+  bringing each parent file under the 200-line architectural aspiration.
+- **Shared `require_three_part_name` helper added
+  (`core/validators/action/_name_checks.py`).** De-duplicates 7 copies of the
+  `catalog.schema.table` name check across the write, test, and
+  data-quality-transform validators. Validation messages are unchanged.
+- **Redundant injected `logger` removed from `WriteActionValidator`'s
+  constructor.** It now uses the module-level logger.
+
+**Deferred (decided; tracked for follow-up).**
+
+- **`VALIDATOR-VALUEOBJECT-DEFER`** — Validators still return `List[str]` and are
+  not all stateless; the §1 end-state (`Tuple[ValidationIssue, ...]` returns,
+  `BaseValidator` rename) is a separate, larger chunk requiring a
+  `ValidationIssue` DTO design first and rewriting many string-asserting tests.
+- **`CONFIG-VALIDATOR-200L-DEFER`** — `config_validator.py` (228 lines)
+  intentionally left above the §1 ≤200-line aspiration: it is a
+  comment-dominated composition root (documented lazy-import-cycle rationale),
+  passes the §3.3 ≤500 gate, and will be rewritten by the value-object migration
+  above. Splitting it now would scatter a cohesive composition root (§3.6).
+- **`CDC-FANIN-NAME-HELPERS-KEPT-PRIVATE`** — `cdc_fanin`'s `_full_name` /
+  `_is_cdc` kept private to `CdcFanInCompatibilityValidator` (only one caller,
+  §3.6); NOT added to the existing `_cdc_helpers.py`, which belongs to
+  `CdcConfigValidator`.
+
 ### Architecture residual cleanup — error-code registry + factory, validator taxonomy, codegen templatization, docs facade
 
 **Summary.** Five workstreams that bring the codebase in line with the target

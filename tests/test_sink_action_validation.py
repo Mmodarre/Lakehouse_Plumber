@@ -1,11 +1,13 @@
 """Test sink action validation."""
 
-import logging
-
 import pytest
 
 from lhp.core.registry import ActionRegistry
 from lhp.core.validators import ConfigFieldValidator, WriteActionValidator
+from lhp.core.validators.action._write_sinks import (
+    validate_delta_sink,
+    validate_sink,
+)
 from lhp.models import Action, ActionType
 
 
@@ -14,11 +16,10 @@ class TestSinkActionValidation:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.logger = logging.getLogger(__name__)
         self.action_registry = ActionRegistry()
         self.field_validator = ConfigFieldValidator()
         self.validator = WriteActionValidator(
-            self.action_registry, self.field_validator, self.logger
+            self.action_registry, self.field_validator
         )
 
     # Delta Sink Validation
@@ -511,7 +512,7 @@ class TestSinkActionValidation:
             },
         )
 
-        errors = self.validator._validate_delta_sink(action, "test_delta_sink")
+        errors = validate_delta_sink(action, "test_delta_sink")
 
         # Should have error about both being present
         assert any("cannot have both" in err.lower() for err in errors)
@@ -530,7 +531,7 @@ class TestSinkActionValidation:
             },
         )
 
-        errors = self.validator._validate_delta_sink(action, "test_delta_sink")
+        errors = validate_delta_sink(action, "test_delta_sink")
 
         # Should have error about missing both tableName and path
         assert len(errors) > 0
@@ -540,7 +541,7 @@ class TestSinkActionValidation:
         )
 
     def test_validate_sink_error_paths(self):
-        """Test error paths in _validate_sink method."""
+        """Test error paths in the validate_sink free function."""
         # Test missing sink_type (early return)
         action = Action(
             name="test_sink",
@@ -549,7 +550,7 @@ class TestSinkActionValidation:
             write_target={"type": "sink", "sink_name": "test_sink"},
         )
 
-        errors = self.validator._validate_sink(action, "test_sink")
+        errors = validate_sink(action, "test_sink")
         assert len(errors) == 1
         assert "sink_type" in errors[0].lower()
 
@@ -565,7 +566,7 @@ class TestSinkActionValidation:
             },
         )
 
-        errors = self.validator._validate_sink(action, "test_sink")
+        errors = validate_sink(action, "test_sink")
         assert any("sink_name" in err.lower() for err in errors)
 
         # Test missing source
@@ -580,7 +581,7 @@ class TestSinkActionValidation:
             },
         )
 
-        errors = self.validator._validate_sink(action, "test_sink")
+        errors = validate_sink(action, "test_sink")
         assert any("source" in err.lower() for err in errors)
 
         # Test invalid source type
@@ -596,5 +597,5 @@ class TestSinkActionValidation:
             },
         )
 
-        errors = self.validator._validate_sink(action, "test_sink")
+        errors = validate_sink(action, "test_sink")
         assert any("source must be a string or list" in err.lower() for err in errors)

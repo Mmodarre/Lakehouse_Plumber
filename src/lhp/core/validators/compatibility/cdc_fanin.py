@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from lhp.models import Action, ActionType, FlowGroup
 
-from ....errors import ErrorFactory, LHPConfigError, codes
+from ._cdc_fanin_messages import mismatch_error, mode_mix_message
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +98,7 @@ class CdcFanInCompatibilityValidator:
             # (a) mode uniformity: every contributor at this target must be CDC.
             non_cdc = [(fg, a) for fg, a in contributors if not self._is_cdc(a)]
             if non_cdc:
-                errors.append(self._mode_mix_message(table_name, cdc_contribs, non_cdc))
+                errors.append(mode_mix_message(table_name, cdc_contribs, non_cdc))
                 # Don't bother checking field mismatches when modes collide.
                 continue
 
@@ -106,17 +106,13 @@ class CdcFanInCompatibilityValidator:
             for field in _SHARED_CDC_CONFIG_FIELDS:
                 mismatch = self._check_equal(cdc_contribs, "cdc_config", field)
                 if mismatch:
-                    raise self._mismatch_error(
-                        table_name, "cdc_config", field, mismatch
-                    )
+                    raise mismatch_error(table_name, "cdc_config", field, mismatch)
 
             # (c) must-match write_target table-level fields
             for field in _SHARED_TARGET_FIELDS:
                 mismatch = self._check_equal(cdc_contribs, "write_target", field)
                 if mismatch:
-                    raise self._mismatch_error(
-                        table_name, "write_target", field, mismatch
-                    )
+                    raise mismatch_error(table_name, "write_target", field, mismatch)
 
         return errors
 
@@ -188,88 +184,3 @@ class CdcFanInCompatibilityValidator:
     def _values_equal(a: Any, b: Any) -> bool:
         """Equality that treats dicts/lists by value and handles None."""
         return a == b
-
-    def _mode_mix_message(
-        self,
-        table_name: str,
-        cdc_contribs: List[Tuple[FlowGroup, Action]],
-        non_cdc_contribs: List[Tuple[FlowGroup, Action]],
-    ) -> str:
-        cdc_list = ", ".join(f"{fg.flowgroup}.{a.name}" for fg, a in cdc_contribs)
-        other_list = ", ".join(
-            f"{fg.flowgroup}.{a.name} (mode={self._mode_of(a)})"
-            for fg, a in non_cdc_contribs
-        )
-        return (
-            f"Table '{table_name}': cannot mix CDC and non-CDC write actions "
-            f"targeting the same table. CDC: [{cdc_list}]. Non-CDC: [{other_list}]. "
-            f"Either use CDC mode for all contributors or split the targets."
-        )
-
-    @staticmethod
-    def _mode_of(action: Action) -> str:
-        wt = action.write_target
-        if isinstance(wt, dict):
-            return wt.get("mode", "standard")
-        return getattr(wt, "mode", "standard") or "standard"
-
-    def _mismatch_error(
-        self,
-        table_name: str,
-        scope: str,
-        field: str,
-        values_by_action: Dict[str, Any],
-    ) -> LHPConfigError:
-        """Build a rich ``LHPConfigError`` for a mismatched shared field."""
-        readable_field = f"cdc_config.{field}" if scope == "cdc_config" else field
-        example_text = (
-            "All CDC actions targeting the same table must agree on table-\n"
-            "level and CDC-key fields. For example:\n\n"
-            "- name: write_flow_1\n"
-            "  type: write\n"
-            "  source: v_source_1\n"
-            "  write_target:\n"
-            "    type: streaming_table\n"
-            "    mode: cdc\n"
-            f"    # {readable_field}: <shared_value>   # ← Must match across flows\n"
-            "    create_table: true\n\n"
-            "- name: write_flow_2\n"
-            "  type: write\n"
-            "  source: v_source_2\n"
-            "  write_target:\n"
-            "    type: streaming_table\n"
-            "    mode: cdc\n"
-            f"    # {readable_field}: <shared_value>   # ← Same value as above\n"
-            "    create_table: false"
-        )
-        return ErrorFactory.config_error(
-            codes.CFG_010,
-            title=(
-                f"CDC fan-in mismatch on '{readable_field}' for table "
-                f"'{table_name}'"
-            ),
-            details=(
-                f"Table '{table_name}' has multiple CDC write actions that "
-                f"disagree on '{readable_field}'. All CDC contributors must "
-                f"agree on this field; only per-flow fields (source, once, "
-                f"ignore_null_updates, apply_as_deletes, apply_as_truncates, "
-                f"column_list, except_column_list) may differ."
-            ),
-            suggestions=[
-                (
-                    f"Reconcile '{readable_field}' across all CDC actions "
-                    f"targeting '{table_name}'"
-                ),
-                (
-                    "If different values are needed, route the flows to "
-                    "separate target tables"
-                ),
-                "Run 'lhp validate --env <env>' for full diagnostics",
-            ],
-            example=example_text,
-            context={
-                "Table": table_name,
-                "Field": readable_field,
-                "Values by action": values_by_action,
-            },
-        )

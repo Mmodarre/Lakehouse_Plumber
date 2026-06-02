@@ -10,6 +10,8 @@ from typing import List, Optional
 
 from lhp.models import Action
 
+from ._name_checks import require_three_part_name
+
 logger = logging.getLogger(__name__)
 
 
@@ -40,21 +42,23 @@ def validate_data_quality_transform(
                     value = quarantine_config.get(field)
                     if not value:
                         errors.append(f"{prefix}: quarantine.{field} is required")
-                    elif isinstance(value, str) and value.count(".") != 2:
-                        errors.append(
-                            f"{prefix}: quarantine.{field} must be a 3-part name "
-                            f"(catalog.schema.table), got '{value}'"
+                    else:
+                        err = require_three_part_name(
+                            value, f"quarantine.{field}", prefix
                         )
+                        if err:
+                            errors.append(err)
             else:
                 for field in ("dlq_table", "source_table"):
                     value = getattr(quarantine_config, field, None)
                     if not value:
                         errors.append(f"{prefix}: quarantine.{field} is required")
-                    elif isinstance(value, str) and value.count(".") != 2:
-                        errors.append(
-                            f"{prefix}: quarantine.{field} must be a 3-part name "
-                            f"(catalog.schema.table), got '{value}'"
+                    else:
+                        err = require_three_part_name(
+                            value, f"quarantine.{field}", prefix
                         )
+                        if err:
+                            errors.append(err)
 
         validate_quarantine_expectations(action, prefix, errors, project_root)
 

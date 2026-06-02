@@ -13,14 +13,14 @@ from ..compatibility import (
     DltTableOptionsValidator,
     SnapshotCdcConfigValidator,
 )
+from ._write_sinks import validate_sink
 
 logger = logging.getLogger(__name__)
 
 
 class WriteActionValidator(BaseActionValidator):
-    def __init__(self, action_registry, field_validator, logger):
+    def __init__(self, action_registry, field_validator):
         super().__init__(action_registry, field_validator)
-        self.logger = logger
         self.dlt_validator = DltTableOptionsValidator()
         self.cdc_validator = CdcConfigValidator()
         self.snapshot_cdc_validator = SnapshotCdcConfigValidator()
@@ -32,7 +32,7 @@ class WriteActionValidator(BaseActionValidator):
 
         # Write actions are the final output, so they should have no target.
         if action.target:
-            self.logger.warning(
+            logger.warning(
                 f"{prefix}: Write actions typically don't have 'target' field"
             )
 
@@ -105,7 +105,7 @@ class WriteActionValidator(BaseActionValidator):
                     errors.extend(self._validate_materialized_view(action, prefix))
 
             elif write_type == WriteTargetType.SINK:
-                errors.extend(self._validate_sink(action, prefix))
+                errors.extend(validate_sink(action, prefix))
 
         except ValueError as e:
             logger.debug(f"Unrecognized write target type for '{action.name}': {e}")
@@ -169,145 +169,6 @@ class WriteActionValidator(BaseActionValidator):
             errors.append(
                 f"{prefix}: Materialized view source must be a string or list of view names"
             )
-
-        return errors
-
-    def _validate_sink(self, action: Action, prefix: str) -> List[str]:
-        errors = []
-        sink_config = action.write_target
-
-        if not sink_config.get("sink_type"):
-            errors.append(f"{prefix}: Sink must have 'sink_type'")
-            return errors
-
-        if not sink_config.get("sink_name"):
-            errors.append(f"{prefix}: Sink must have 'sink_name'")
-
-        if not action.source:
-            errors.append(f"{prefix}: Sink must have 'source' to read from")
-        elif not isinstance(action.source, (str, list)):
-            errors.append(
-                f"{prefix}: Sink source must be a string or list of view names"
-            )
-
-        sink_type = sink_config["sink_type"]
-
-        if sink_type == "delta":
-            errors.extend(self._validate_delta_sink(action, prefix))
-        elif sink_type == "kafka":
-            errors.extend(self._validate_kafka_sink(action, prefix))
-        elif sink_type == "custom":
-            errors.extend(self._validate_custom_sink(action, prefix))
-        elif sink_type == "foreachbatch":
-            errors.extend(self._validate_foreachbatch_sink(action, prefix))
-        else:
-            errors.append(f"{prefix}: Unknown sink_type '{sink_type}'")
-
-        return errors
-
-    def _validate_delta_sink(self, action: Action, prefix: str) -> List[str]:
-        """Validate Delta sink configuration.
-
-        Delta sinks require either 'tableName' OR 'path' (not both).
-        Other options are passed through for future DLT support.
-        """
-        errors = []
-        sink_config = action.write_target
-
-        if not sink_config.get("options"):
-            errors.append(
-                f"{prefix}: Delta sink requires 'options' with either 'tableName' or 'path'"
-            )
-            return errors
-
-        options = sink_config["options"]
-        has_table_name = "tableName" in options
-        has_path = "path" in options
-
-        if not has_table_name and not has_path:
-            errors.append(
-                f"{prefix}: Delta sink options must include either 'tableName' or 'path'"
-            )
-        elif has_table_name and has_path:
-            errors.append(
-                f"{prefix}: Delta sink options cannot have both 'tableName' and 'path'. Use one or the other."
-            )
-
-        if has_table_name:
-            table_name_val = options["tableName"]
-            if isinstance(table_name_val, str) and table_name_val.count(".") != 2:
-                errors.append(
-                    f"{prefix}: Delta sink 'tableName' must be a 3-part name "
-                    f"(catalog.schema.table), got '{table_name_val}'"
-                )
-
-        # Note: Other options are allowed and passed through silently
-        # for future DLT support (e.g., checkpointLocation, mergeSchema, etc.)
-
-        return errors
-
-    def _validate_kafka_sink(self, action: Action, prefix: str) -> List[str]:
-        errors = []
-        sink_config = action.write_target
-
-        if not sink_config.get("bootstrap_servers"):
-            errors.append(f"{prefix}: Kafka sink must have 'bootstrap_servers'")
-
-        if not sink_config.get("topic"):
-            errors.append(f"{prefix}: Kafka sink must have 'topic'")
-
-        if sink_config.get("options"):
-            try:
-                from ..field.kafka_options import KafkaOptionsValidator
-
-                validator = KafkaOptionsValidator()
-                validator.process_options(
-                    sink_config["options"], action.name, is_source=False
-                )
-            except Exception as e:
-                errors.append(f"{prefix}: {str(e)}")
-
-        return errors
-
-    def _validate_custom_sink(self, action: Action, prefix: str) -> List[str]:
-        errors = []
-        sink_config = action.write_target
-
-        if not sink_config.get("module_path"):
-            errors.append(f"{prefix}: Custom sink must have 'module_path'")
-
-        if not sink_config.get("custom_sink_class"):
-            errors.append(f"{prefix}: Custom sink must have 'custom_sink_class'")
-
-        return errors
-
-    def _validate_foreachbatch_sink(self, action: Action, prefix: str) -> List[str]:
-        errors = []
-        sink_config = action.write_target
-
-        if action.source and not isinstance(action.source, str):
-            errors.append(
-                f"{prefix}: ForEachBatch sink only supports single source view (string), not list or dict"
-            )
-
-        has_module_path = bool(sink_config.get("module_path"))
-        has_batch_handler = bool(sink_config.get("batch_handler"))
-
-        if has_module_path and has_batch_handler:
-            errors.append(
-                f"{prefix}: ForEachBatch sink must have either 'module_path' or 'batch_handler', not both"
-            )
-        elif not has_module_path and not has_batch_handler:
-            errors.append(
-                f"{prefix}: ForEachBatch sink must have either 'module_path' or 'batch_handler'"
-            )
-
-        if has_batch_handler:
-            batch_handler = sink_config.get("batch_handler", "").strip()
-            if not batch_handler:
-                errors.append(
-                    f"{prefix}: ForEachBatch sink 'batch_handler' cannot be empty"
-                )
 
         return errors
 

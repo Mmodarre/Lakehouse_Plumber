@@ -1,7 +1,5 @@
 """Test ForEachBatch sink action validation."""
 
-import logging
-
 import pytest
 
 from lhp.core.registry import ActionRegistry
@@ -14,11 +12,10 @@ class TestForEachBatchSinkValidation:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.logger = logging.getLogger(__name__)
         self.action_registry = ActionRegistry()
         self.field_validator = ConfigFieldValidator()
         self.validator = WriteActionValidator(
-            self.action_registry, self.field_validator, self.logger
+            self.action_registry, self.field_validator
         )
 
     def test_valid_foreachbatch_with_module_path(self):
