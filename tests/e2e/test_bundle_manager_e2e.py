@@ -824,7 +824,7 @@ class TestBundleManagerE2E:
             details = "\n".join(
                 f"  {i}. {diff}" for i, diff in enumerate(hash_differences, 1)
             )
-            assert False, (
+            raise AssertionError(
                 f"Generated files differ from baseline: "
                 f"{len(hash_differences)} differences found\n{details}"
             )
@@ -898,7 +898,7 @@ class TestBundleManagerE2E:
                 details = "\n".join(
                     f"  {i}. {diff}" for i, diff in enumerate(hash_differences, 1)
                 )
-                assert False, (
+                raise AssertionError(
                     f"Generated acmi_edw_raw files differ from baseline: "
                     f"{len(hash_differences)} differences\n{details}"
                 )
@@ -924,7 +924,7 @@ class TestBundleManagerE2E:
                 generated_resource_file, baseline_resource_file
             )
             if resource_hash_diff:
-                assert False, (
+                raise AssertionError(
                     f"Generated acmi_edw_raw resource file differs from baseline: "
                     f"{resource_hash_diff}"
                 )
@@ -967,7 +967,7 @@ class TestBundleManagerE2E:
 
         for env in environments:
             if empty_files[env]:
-                assert False, f"Empty files found in {env}: {empty_files[env]}"
+                raise AssertionError(f"Empty files found in {env}: {empty_files[env]}")
 
     def test_flowgroup_deletion_triggers_cleanup(self):
         """Test that deleting flowgroup YAML cleans up generated files."""
@@ -1243,7 +1243,9 @@ class TestBundleManagerE2E:
     def _verify_selective_generation(self, dev_generated_dir: Path):
         """Verify that only acmi_edw_raw pipeline was generated."""
         if not dev_generated_dir.exists():
-            assert False, f"Generated directory should exist: {dev_generated_dir}"
+            raise AssertionError(
+                f"Generated directory should exist: {dev_generated_dir}"
+            )
 
         # Get all generated pipeline directories
         generated_dirs = {d.name for d in dev_generated_dir.iterdir() if d.is_dir()}
@@ -1254,12 +1256,14 @@ class TestBundleManagerE2E:
         missing_dirs = expected_dirs - generated_dirs
 
         if unexpected_dirs:
-            assert False, (
+            raise AssertionError(
                 f"Unexpected pipeline directories generated (include filtering failed): {unexpected_dirs}"
             )
 
         if missing_dirs:
-            assert False, f"Expected pipeline directories missing: {missing_dirs}"
+            raise AssertionError(
+                f"Expected pipeline directories missing: {missing_dirs}"
+            )
 
     def _compare_file_hashes(self, file1: Path, file2: Path) -> str:
         """Compare hashes of two files, return difference description or empty string if identical."""
@@ -1395,10 +1399,10 @@ class TestBundleManagerE2E:
                 dest_file,  # Same destination!
                 conflict_header + conflict_content,
             )
-            assert False, "Expected PythonFunctionConflictError to be raised"
+            raise AssertionError("Expected PythonFunctionConflictError to be raised")
         except PythonFunctionConflictError as e:
             print("✅ Conflict correctly detected and failed with error:")
-            print(f"   {str(e)}")
+            print(f"   {e!s}")
 
             # Verify error message contains expected information
             assert "py_functions/first_source.py" in str(e), (

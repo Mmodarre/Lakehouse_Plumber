@@ -759,7 +759,7 @@ class DependencyGraphBuilder:
         return {
             "total_flowgroups": len(flowgroups),
             "total_actions": sum(len(fg.actions) for fg in flowgroups),
-            "total_pipelines": len(set(fg.pipeline for fg in flowgroups)),
+            "total_pipelines": len({fg.pipeline for fg in flowgroups}),
             "graph_sizes": {
                 "actions": len(action_graph.nodes),
                 "flowgroups": len(flowgroup_graph.nodes),

@@ -165,10 +165,10 @@ class TestClassify:
 
 
 def _make_run(**overrides) -> BenchmarkRun:
-    defaults = dict(
-        phases={"Pipeline discovery": 1.5, "Bundle sync": 0.25},
-        sub_phases={"Pipeline discovery": (("Blueprint expansion", 0.3),)},
-        categories={
+    defaults = {
+        "phases": {"Pipeline discovery": 1.5, "Bundle sync": 0.25},
+        "sub_phases": {"Pipeline discovery": (("Blueprint expansion", 0.3),)},
+        "categories": {
             "format_code": {
                 "cnt": 100,
                 "total": 5.0,
@@ -177,10 +177,10 @@ def _make_run(**overrides) -> BenchmarkRun:
                 "avg": 0.05,
             },
         },
-        counts={"blueprints": 1, "instances": 18},
-        wall_clock_seconds=2.0,
-        exit_code=0,
-    )
+        "counts": {"blueprints": 1, "instances": 18},
+        "wall_clock_seconds": 2.0,
+        "exit_code": 0,
+    }
     defaults.update(overrides)
     return BenchmarkRun(**defaults)
 
@@ -347,9 +347,9 @@ class TestCompare:
         )
         c = {"count.blueprints": _summary(2.0, unit="count")}
         result = compare(b, c, candidate_shape={"blueprints": 2})
-        assert (
-            result.regressions == ()
-        ), "shape drift must not double-fire as a count regression"
+        assert result.regressions == (), (
+            "shape drift must not double-fire as a count regression"
+        )
         assert len(result.shape_mismatches) == 1
         assert result.shape_mismatches[0].metric == "project_shape.blueprints"
 

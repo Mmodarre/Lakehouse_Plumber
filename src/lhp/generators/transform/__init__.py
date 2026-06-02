@@ -7,9 +7,9 @@ from .sql import SQLTransformGenerator
 from .temp_table import TempTableTransformGenerator
 
 __all__ = [
-    "SQLTransformGenerator",
     "DataQualityTransformGenerator",
-    "SchemaTransformGenerator",
     "PythonTransformGenerator",
+    "SQLTransformGenerator",
+    "SchemaTransformGenerator",
     "TempTableTransformGenerator",
 ]

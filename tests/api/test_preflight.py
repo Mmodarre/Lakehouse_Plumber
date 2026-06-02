@@ -17,6 +17,7 @@ a missing test-reporting provider yields the test-reporting code even with
 ``include_tests=False``; a missing catalog/schema with ``bundle_enabled``
 yields ``LHP-CFG-026``; and ``_run_project_preflight`` NEVER raises.
 """
+
 from __future__ import annotations
 
 import os
@@ -34,12 +35,8 @@ _FIXTURE_PATH = Path(__file__).parent.parent / "e2e" / "fixtures" / "testing_pro
 
 _PIPELINE_CONFIG_REL = "config/pipeline_config.yaml"
 _PROVIDER_REL = "py_functions/test_reporting_publisher.py"
-_DUP_SOURCE_REL = (
-    "pipelines/01_raw_ingestion/json_ingestions/part_ingestion.yaml"
-)
-_DUP_COPY_REL = (
-    "pipelines/01_raw_ingestion/json_ingestions/part_ingestion_dup.yaml"
-)
+_DUP_SOURCE_REL = "pipelines/01_raw_ingestion/json_ingestions/part_ingestion.yaml"
+_DUP_COPY_REL = "pipelines/01_raw_ingestion/json_ingestions/part_ingestion_dup.yaml"
 
 
 @pytest.fixture
@@ -171,9 +168,7 @@ class TestRunProjectPreflight:
 
         assert "LHP-CFG-026" not in _codes(issues)
 
-    def test_never_raises_across_all_failure_modes(
-        self, project_root: Path
-    ) -> None:
+    def test_never_raises_across_all_failure_modes(self, project_root: Path) -> None:
         """All three backend failures triggered at once: the helper composes
         them into issues and NEVER raises."""
         shutil.copyfile(

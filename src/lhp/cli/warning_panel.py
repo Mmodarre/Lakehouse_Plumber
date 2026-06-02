@@ -3,6 +3,7 @@
 CLI-side counterpart to :mod:`lhp.api.callbacks`: constitution §9.6
 forbids any ``rich.*`` import outside ``lhp.cli``.
 """
+
 from __future__ import annotations
 
 from rich.panel import Panel

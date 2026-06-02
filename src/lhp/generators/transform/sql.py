@@ -109,7 +109,6 @@ class SQLTransformGenerator(BaseActionGenerator):
         """Extract source references for DLT read calls."""
         if isinstance(source, str):
             return [source]
-        elif isinstance(source, list):
+        if isinstance(source, list):
             return source
-        else:
-            return []
+        return []

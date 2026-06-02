@@ -317,7 +317,9 @@ def test_table_creation_validation_multiple_creators():
     try:
         TableCreationValidator().validate([flowgroup])
         # If we get here, validation unexpectedly passed - this is an error
-        assert False, "Expected LHPError to be raised for multiple table creators"
+        raise AssertionError(
+            "Expected LHPError to be raised for multiple table creators"
+        )
     except Exception as e:
         # Handle LHPError by converting to string (like the orchestrator does)
         error_str = str(e)

@@ -71,7 +71,7 @@ class _SyncExecutor:
     kwargs the engine passes — the faked worker fn reads no module global.
     """
 
-    def __init__(self, *args, **kwargs) -> None:  # noqa: D401 - signature sink
+    def __init__(self, *args, **kwargs) -> None:
         self.submitted: List[tuple] = []
 
     def __enter__(self) -> "_SyncExecutor":

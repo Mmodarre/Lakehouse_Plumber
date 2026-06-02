@@ -66,8 +66,8 @@ class StatsCommand(BaseCommand):
                         )
                     )
                     return
-                stats, single_pipeline_breakdown = (
-                    self._aggregate_single_pipeline(pipeline, flowgroups)
+                stats, single_pipeline_breakdown = self._aggregate_single_pipeline(
+                    pipeline, flowgroups
                 )
 
         if stats.pipeline_count == 0:
@@ -238,15 +238,11 @@ class StatsCommand(BaseCommand):
 
         if stats.presets_used:
             self._emit_section_header("Presets Used")
-            self._emit_kv_lines(
-                [("Presets", ", ".join(stats.presets_used))]
-            )
+            self._emit_kv_lines([("Presets", ", ".join(stats.presets_used))])
 
         if stats.templates_used:
             self._emit_section_header("Templates Used")
-            self._emit_kv_lines(
-                [("Templates", ", ".join(stats.templates_used))]
-            )
+            self._emit_kv_lines([("Templates", ", ".join(stats.templates_used))])
 
         if stats.flowgroup_count > 0:
             self._display_complexity_metrics(stats)

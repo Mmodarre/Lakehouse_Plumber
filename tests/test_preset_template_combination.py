@@ -56,23 +56,23 @@ class TestPresetTemplateCombination:
 
             # Assert that preset table_properties are applied to template-generated actions
             # This should FAIL initially due to execution order bug
-            assert (
-                "delta.enableRowTracking" in generated_code
-            ), "Preset table property should be applied to template-generated write action"
+            assert "delta.enableRowTracking" in generated_code, (
+                "Preset table property should be applied to template-generated write action"
+            )
 
-            assert (
-                "delta.autoOptimize.optimizeWrite" in generated_code
-            ), "Preset table property should be applied to template-generated write action"
+            assert "delta.autoOptimize.optimizeWrite" in generated_code, (
+                "Preset table property should be applied to template-generated write action"
+            )
 
             # Also verify template was expanded correctly
-            assert (
-                "customer_data" in generated_code
-            ), "Template should be expanded with parameters"
+            assert "customer_data" in generated_code, (
+                "Template should be expanded with parameters"
+            )
 
             # Verify this is a streaming table write action from template
-            assert (
-                "dp.create_streaming_table" in generated_code
-            ), "Template should generate streaming table write action"
+            assert "dp.create_streaming_table" in generated_code, (
+                "Template should generate streaming table write action"
+            )
 
     def test_preset_only_flowgroup_still_works(self):
         """Test that preset-only flowgroups (no templates) still work correctly."""
@@ -136,13 +136,13 @@ class TestPresetTemplateCombination:
             generated_code = generated_files.get("preset_only_test.py", "")
 
             # Assert preset was applied to direct action
-            assert (
-                "delta.enableRowTracking" in generated_code
-            ), "Preset should be applied to direct write action"
+            assert "delta.enableRowTracking" in generated_code, (
+                "Preset should be applied to direct write action"
+            )
 
-            assert (
-                "manual" in generated_code
-            ), "Original table properties should be preserved"
+            assert "manual" in generated_code, (
+                "Original table properties should be preserved"
+            )
 
     def test_template_only_flowgroup_still_works(self):
         """Test that template-only flowgroups (no presets) still work correctly."""
@@ -191,18 +191,18 @@ class TestPresetTemplateCombination:
             generated_code = generated_files.get("template_only_test.py", "")
 
             # Assert template was expanded correctly
-            assert (
-                "orders_data" in generated_code
-            ), "Template should be expanded with parameters"
+            assert "orders_data" in generated_code, (
+                "Template should be expanded with parameters"
+            )
 
-            assert (
-                "template_generated" in generated_code
-            ), "Template properties should be preserved"
+            assert "template_generated" in generated_code, (
+                "Template properties should be preserved"
+            )
 
             # Should NOT have preset properties
-            assert (
-                "delta.enableRowTracking" not in generated_code
-            ), "Should not have preset properties when no preset is used"
+            assert "delta.enableRowTracking" not in generated_code, (
+                "Should not have preset properties when no preset is used"
+            )
 
     def test_preset_inheritance_with_templates(self):
         """Test preset inheritance works correctly with templates."""
@@ -290,22 +290,22 @@ class TestPresetTemplateCombination:
             generated_code = generated_files.get("inheritance_test.py", "")
 
             # Assert both base and child preset properties are applied
-            assert (
-                "base.setting" in generated_code
-            ), "Base preset properties should be inherited"
+            assert "base.setting" in generated_code, (
+                "Base preset properties should be inherited"
+            )
 
-            assert (
-                "child.setting" in generated_code
-            ), "Child preset properties should be applied"
+            assert "child.setting" in generated_code, (
+                "Child preset properties should be applied"
+            )
 
-            assert (
-                "delta.enableRowTracking" in generated_code
-            ), "Child preset should override/add properties"
+            assert "delta.enableRowTracking" in generated_code, (
+                "Child preset should override/add properties"
+            )
 
             # Template should work correctly
-            assert (
-                "inherited_data" in generated_code
-            ), "Template should be expanded with parameters"
+            assert "inherited_data" in generated_code, (
+                "Template should be expanded with parameters"
+            )
 
     def _create_project_directories(self, project_root: Path):
         """Create required project directory structure."""
@@ -508,12 +508,12 @@ class TestPresetTemplateCombination:
             )
             generated_code = result.get("template_preset_test.py", "")
 
-            assert (
-                "template.preset.applied" in generated_code
-            ), "Template preset property should be applied to generated actions"
-            assert (
-                "delta.enableRowTracking" in generated_code
-            ), "Template preset property should be applied to generated actions"
+            assert "template.preset.applied" in generated_code, (
+                "Template preset property should be applied to generated actions"
+            )
+            assert "delta.enableRowTracking" in generated_code, (
+                "Template preset property should be applied to generated actions"
+            )
 
     def test_template_and_flowgroup_presets_both_apply(self):
         """Test that both template and flowgroup presets apply, with flowgroup precedence.
@@ -630,16 +630,16 @@ class TestPresetTemplateCombination:
             generated_code = result.get("combined_preset_test.py", "")
 
             # Both presets should be applied
-            assert (
-                "from.template" in generated_code
-            ), "Template preset properties should be applied"
-            assert (
-                "from.flowgroup" in generated_code
-            ), "Flowgroup preset properties should be applied"
+            assert "from.template" in generated_code, (
+                "Template preset properties should be applied"
+            )
+            assert "from.flowgroup" in generated_code, (
+                "Flowgroup preset properties should be applied"
+            )
             # Flowgroup preset should override shared property
-            assert (
-                "flowgroup_value" in generated_code
-            ), "Flowgroup preset should override template preset for shared properties"
+            assert "flowgroup_value" in generated_code, (
+                "Flowgroup preset should override template preset for shared properties"
+            )
 
     def test_template_with_missing_preset_raises_error(self):
         """Referencing a non-existent preset RAISES a clear error.

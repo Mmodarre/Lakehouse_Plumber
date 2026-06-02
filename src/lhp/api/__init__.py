@@ -144,10 +144,8 @@ __all__: list[str] = [
     "ProcessedFlowgroupView",
     "ProjectConfigView",
     "SecretReferenceView",
-    "should_enable_bundle_support",
     "StatsResult",
     "SubstitutionView",
-    "to_dict",
     "TemplateParameterView",
     "TemplateView",
     "ValidationCompleted",
@@ -156,4 +154,6 @@ __all__: list[str] = [
     "ValidationResponse",
     "WarningCollector",
     "collect_response",
+    "should_enable_bundle_support",
+    "to_dict",
 ]

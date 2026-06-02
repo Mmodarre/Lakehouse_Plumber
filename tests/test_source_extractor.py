@@ -86,7 +86,11 @@ class TestExtractActionSources:
         action = Mock(spec=Action)
         action.type = "load"
         action.write_target = None
-        action.source = {"catalog": "bronze_catalog", "schema": "bronze", "table": "raw_events"}
+        action.source = {
+            "catalog": "bronze_catalog",
+            "schema": "bronze",
+            "table": "raw_events",
+        }
 
         result = extract_action_sources(action)
 

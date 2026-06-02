@@ -130,9 +130,9 @@ def test_summary_table_footer_uses_real_wall_clock_elapsed() -> None:
 
     out = _capture({"a": rec_a, "b": rec_b}, dry_run=False, elapsed_s=99.9)
 
-    assert (
-        "99.9s" in out
-    ), f"expected footer to render elapsed_s=99.9 verbatim; got:\n{out}"
+    assert "99.9s" in out, (
+        f"expected footer to render elapsed_s=99.9 verbatim; got:\n{out}"
+    )
     # Buggy sum would have been 0.3s — assert it isn't there so a future
     # regression that re-introduces ``sum(r.duration_s)`` is caught.
     assert "0.3s" not in out
@@ -304,9 +304,9 @@ def test_phase_marker_failed_uses_red_x_marker() -> None:
         ):
             found_cross = True
             break
-    assert (
-        found_cross
-    ), "expected ✗ glyph alongside 'Generation' in rendered failure entry"
+    assert found_cross, (
+        "expected ✗ glyph alongside 'Generation' in rendered failure entry"
+    )
 
 
 def test_phase_marker_success_path_unchanged() -> None:
@@ -351,9 +351,9 @@ def test_render_live_frame_active_phase_contains_spinner() -> None:
     assert isinstance(body, Group)
     assert _has_spinner(body) is True
     progresses = [c for c in body.renderables if isinstance(c, Progress)]
-    assert (
-        len(progresses) == 1
-    ), "frame body must include the OverallProgress (Progress) instance"
+    assert len(progresses) == 1, (
+        "frame body must include the OverallProgress (Progress) instance"
+    )
 
 
 def test_rich_handler_attached_restores_handlers_on_exit() -> None:

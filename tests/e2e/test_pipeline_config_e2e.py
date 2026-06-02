@@ -91,17 +91,17 @@ clusters:
 
         # Test 2: Verify NO line concatenation (the bug this PR fixes)
         # Use [ \t]+ to match spaces/tabs but NOT newlines
-        assert not re.search(
-            r"clusters:[ \t]+- label:", resource_content
-        ), "BUG: Cluster list item concatenated on same line as 'clusters:'"
+        assert not re.search(r"clusters:[ \t]+- label:", resource_content), (
+            "BUG: Cluster list item concatenated on same line as 'clusters:'"
+        )
         assert not re.search(
             r"node_type_id:[ \t]+\w+[ \t]+driver_node_type_id:", resource_content
         ), "BUG: Fields concatenated on same line"
 
         # Test 3: Verify proper YAML structure
-        assert re.search(
-            r"clusters:\s*\n\s+- label:", resource_content
-        ), "Cluster list should start on new line"
+        assert re.search(r"clusters:\s*\n\s+- label:", resource_content), (
+            "Cluster list should start on new line"
+        )
 
         # Test 4: Verify cluster configuration is present
         pipeline_config = parsed_yaml["resources"]["pipelines"]["acmi_edw_raw_pipeline"]
@@ -204,9 +204,9 @@ clusters:
             / "pipeline_configs"
             / "comprehensive_cluster_config.yaml"
         )
-        assert (
-            fixture_path.exists()
-        ), f"Comprehensive config fixture should exist: {fixture_path}"
+        assert fixture_path.exists(), (
+            f"Comprehensive config fixture should exist: {fixture_path}"
+        )
 
         bundle_manager = BundleManager(
             testing_project, pipeline_config_path=str(fixture_path)
@@ -311,9 +311,9 @@ clusters:
         assert re.search(r"tags:\s*\n\s+\w+:", generated_content)
 
         # Deep comparison: generated should match baseline structure
-        assert (
-            pipeline_config == baseline_config
-        ), "Generated config should match baseline structure exactly"
+        assert pipeline_config == baseline_config, (
+            "Generated config should match baseline structure exactly"
+        )
 
     def test_generate_with_instance_pool_cluster(self, testing_project):
         """Test full generation with instance pool config (no node_type_id)."""
@@ -373,9 +373,9 @@ clusters:
         assert "node_type_id" not in cluster
 
         # Verify no line concatenation
-        assert not re.search(
-            r"clusters:[ \t]+- label:", resource_content
-        ), "BUG: Cluster list item concatenated on same line as 'clusters:'"
+        assert not re.search(r"clusters:[ \t]+- label:", resource_content), (
+            "BUG: Cluster list item concatenated on same line as 'clusters:'"
+        )
 
         # Verify proper multi-line structure
         assert re.search(r"clusters:\s*\n\s+- label:", resource_content)
@@ -667,7 +667,7 @@ class TestEnvironmentDependenciesE2E:
 
         if mismatches:
             detail = "\n".join(f"  {i}. {m}" for i, m in enumerate(mismatches, 1))
-            assert False, (
+            raise AssertionError(
                 f"Resource files differ from baselines "
                 f"({len(mismatches)} mismatches):\n{detail}"
             )
@@ -893,7 +893,7 @@ class TestConfigurationBlockE2E:
 
         if mismatches:
             detail = "\n".join(f"  {i}. {m}" for i, m in enumerate(mismatches, 1))
-            assert False, (
+            raise AssertionError(
                 f"Resource files differ from baselines "
                 f"({len(mismatches)} mismatches):\n{detail}"
             )
@@ -1378,9 +1378,9 @@ class TestMonitoringPipelineE2E:
     ):
         """Hash-compare generated monitoring.py (DLT code) against variant baseline."""
         monitoring_py = self.generated_dir / pipeline_name / "monitoring.py"
-        assert (
-            monitoring_py.exists()
-        ), f"Monitoring pipeline file not generated: {monitoring_py}"
+        assert monitoring_py.exists(), (
+            f"Monitoring pipeline file not generated: {monitoring_py}"
+        )
 
         baseline_py = (
             self.monitoring_baseline_dir / variant / pipeline_name / "monitoring.py"
@@ -1428,17 +1428,17 @@ class TestMonitoringPipelineE2E:
 
         # Monitoring pipeline directory should NOT exist
         monitoring_dir = self.generated_dir / "acme_edw_event_log_monitoring"
-        assert (
-            not monitoring_dir.exists()
-        ), f"Monitoring pipeline directory should not exist: {monitoring_dir}"
+        assert not monitoring_dir.exists(), (
+            f"Monitoring pipeline directory should not exist: {monitoring_dir}"
+        )
 
         # Monitoring resource file should NOT exist
         monitoring_resource = (
             self.resources_dir / "acme_edw_event_log_monitoring.pipeline.yml"
         )
-        assert (
-            not monitoring_resource.exists()
-        ), f"Monitoring resource file should not exist: {monitoring_resource}"
+        assert not monitoring_resource.exists(), (
+            f"Monitoring resource file should not exist: {monitoring_resource}"
+        )
 
     # ------------------------------------------------------------------
     # Test 2: monitoring enabled — full generation with hash baseline
@@ -1469,26 +1469,26 @@ class TestMonitoringPipelineE2E:
         monitoring_resource = (
             self.resources_dir / "acme_edw_event_log_monitoring.pipeline.yml"
         )
-        assert (
-            monitoring_resource.exists()
-        ), f"Monitoring resource not generated: {monitoring_resource}"
+        assert monitoring_resource.exists(), (
+            f"Monitoring resource not generated: {monitoring_resource}"
+        )
 
         # Structural verification: no event_log in the resource
         parsed = yaml.safe_load(monitoring_resource.read_text())
         pipeline = parsed["resources"]["pipelines"][
             "acme_edw_event_log_monitoring_pipeline"
         ]
-        assert (
-            "event_log" not in pipeline
-        ), "Monitoring pipeline resource should NOT have event_log"
+        assert "event_log" not in pipeline, (
+            "Monitoring pipeline resource should NOT have event_log"
+        )
 
         # Hash comparison with resource baseline
         baseline_resource = (
             self.resources_baseline_dir / "acme_edw_event_log_monitoring.pipeline.yml"
         )
-        assert (
-            baseline_resource.exists()
-        ), f"Missing resource baseline: {baseline_resource}"
+        assert baseline_resource.exists(), (
+            f"Missing resource baseline: {baseline_resource}"
+        )
 
         diff = self._compare_file_hashes(monitoring_resource, baseline_resource)
         assert diff == "", f"Resource YAML mismatch:\n{diff}"
@@ -1506,23 +1506,23 @@ class TestMonitoringPipelineE2E:
 
         # Structural: directory and PIPELINE_ID
         monitoring_py = self.generated_dir / "my_custom_monitor" / "monitoring.py"
-        assert (
-            monitoring_py.exists()
-        ), f"Custom pipeline directory not created: {monitoring_py}"
+        assert monitoring_py.exists(), (
+            f"Custom pipeline directory not created: {monitoring_py}"
+        )
         content = monitoring_py.read_text()
         assert 'PIPELINE_ID = "my_custom_monitor"' in content
 
         # Default pipeline directory should NOT exist
         default_dir = self.generated_dir / "acme_edw_event_log_monitoring"
-        assert (
-            not default_dir.exists()
-        ), "Default monitoring dir should not exist with custom pipeline_name"
+        assert not default_dir.exists(), (
+            "Default monitoring dir should not exist with custom pipeline_name"
+        )
 
         # Resource YAML uses custom pipeline name
         resource_yml = self.resources_dir / "my_custom_monitor.pipeline.yml"
-        assert (
-            resource_yml.exists()
-        ), f"Custom resource YAML not generated: {resource_yml}"
+        assert resource_yml.exists(), (
+            f"Custom resource YAML not generated: {resource_yml}"
+        )
         parsed = yaml.safe_load(resource_yml.read_text())
         assert "my_custom_monitor_pipeline" in parsed["resources"]["pipelines"]
 
@@ -1539,9 +1539,9 @@ class TestMonitoringPipelineE2E:
         baseline_resource = (
             self.resources_baseline_dir / "my_custom_monitor.pipeline.yml"
         )
-        assert (
-            baseline_resource.exists()
-        ), f"Missing resource baseline: {baseline_resource}"
+        assert baseline_resource.exists(), (
+            f"Missing resource baseline: {baseline_resource}"
+        )
         diff = self._compare_file_hashes(resource_yml, baseline_resource)
         assert diff == "", f"Resource YAML mismatch:\n{diff}"
 
@@ -1571,9 +1571,9 @@ class TestMonitoringPipelineE2E:
         # Notebook SOURCES still point at the event_log catalog/schema
         notebook = self.monitoring_dir / "union_event_logs.py"
         nb_content = notebook.read_text()
-        assert (
-            "acme_edw_dev._meta.acmi_edw_bronze_event_log" in nb_content
-        ), "Notebook sources should reference the event_log catalog/schema"
+        assert "acme_edw_dev._meta.acmi_edw_bronze_event_log" in nb_content, (
+            "Notebook sources should reference the event_log catalog/schema"
+        )
 
         # Hash comparison for all three monitoring artifacts
         self._assert_monitoring_py_baseline("catalog_schema_override")
@@ -1727,9 +1727,9 @@ class TestMonitoringPipelineE2E:
 
         # monitoring.py should contain python load + jobs stats write
         monitoring_py = pipeline_dir / "monitoring.py"
-        assert (
-            monitoring_py.exists()
-        ), f"Monitoring pipeline file not generated: {monitoring_py}"
+        assert monitoring_py.exists(), (
+            f"Monitoring pipeline file not generated: {monitoring_py}"
+        )
         content = monitoring_py.read_text()
         assert "v_jobs_stats" in content
         assert "jobs_stats" in content
@@ -1752,9 +1752,9 @@ class TestMonitoringPipelineE2E:
         expected = (
             files("lhp.templates.monitoring") / "jobs_stats_loader.py"
         ).read_text(encoding="utf-8")
-        assert (
-            loader_content == expected
-        ), "Generated jobs_stats_loader.py does not match package resource"
+        assert loader_content == expected, (
+            "Generated jobs_stats_loader.py does not match package resource"
+        )
 
     # ------------------------------------------------------------------
     # Test 10b: dedicated monitoring job_config_path with rich overrides
@@ -1825,9 +1825,9 @@ class TestMonitoringPipelineE2E:
 
         exit_code, output = self._run_generate()
         assert exit_code != 0, "Expected generation to fail for missing job config"
-        assert (
-            "job_config" in output or "job_config_path" in output
-        ), f"Error message should mention job_config: {output}"
+        assert "job_config" in output or "job_config_path" in output, (
+            f"Error message should mention job_config: {output}"
+        )
 
     # ------------------------------------------------------------------
     # Test 11: monitoring pipeline picks up pipeline_config.yaml settings
@@ -1892,9 +1892,9 @@ tags:
         monitoring_resource = (
             self.resources_dir / "acme_edw_event_log_monitoring.pipeline.yml"
         )
-        assert (
-            monitoring_resource.exists()
-        ), f"Monitoring resource not generated: {monitoring_resource}"
+        assert monitoring_resource.exists(), (
+            f"Monitoring resource not generated: {monitoring_resource}"
+        )
 
         # Parse the generated resource YAML
         parsed = yaml.safe_load(monitoring_resource.read_text())
@@ -1903,12 +1903,12 @@ tags:
         ]
 
         # Verify pipeline_config settings flowed into the resource
-        assert (
-            pipeline["serverless"] is False
-        ), "serverless should be False from pipeline_config"
-        assert (
-            pipeline["edition"] == "ADVANCED"
-        ), "edition should be ADVANCED from pipeline_config"
+        assert pipeline["serverless"] is False, (
+            "serverless should be False from pipeline_config"
+        )
+        assert pipeline["edition"] == "ADVANCED", (
+            "edition should be ADVANCED from pipeline_config"
+        )
         assert pipeline["photon"] is True, "photon should be True from pipeline_config"
 
         # Verify cluster configuration
@@ -1922,9 +1922,9 @@ tags:
         assert cluster["autoscale"]["mode"] == "ENHANCED"
 
         # Verify notifications
-        assert (
-            "notifications" in pipeline
-        ), "notifications should be present from pipeline_config"
+        assert "notifications" in pipeline, (
+            "notifications should be present from pipeline_config"
+        )
         assert len(pipeline["notifications"]) == 1
         notification = pipeline["notifications"][0]
         assert "monitoring-team@example.com" in notification["email_recipients"]
@@ -1938,21 +1938,21 @@ tags:
 
         # Verify monitoring pipeline still does NOT have event_log
         # (monitoring pipeline should never self-reference its own event_log)
-        assert (
-            "event_log" not in pipeline
-        ), "Monitoring pipeline resource should NOT have event_log"
+        assert "event_log" not in pipeline, (
+            "Monitoring pipeline resource should NOT have event_log"
+        )
 
         # Verify proper YAML structure (no line concatenation)
         resource_content = monitoring_resource.read_text()
-        assert not re.search(
-            r"clusters:[ \t]+- label:", resource_content
-        ), "BUG: Cluster list item concatenated on same line as 'clusters:'"
+        assert not re.search(r"clusters:[ \t]+- label:", resource_content), (
+            "BUG: Cluster list item concatenated on same line as 'clusters:'"
+        )
         assert not re.search(
             r"notifications:[ \t]+- email_recipients:", resource_content
         ), "BUG: Notifications concatenated on same line"
-        assert not re.search(
-            r"tags:[ \t]+\w+:", resource_content
-        ), "BUG: Tags concatenated on same line"
+        assert not re.search(r"tags:[ \t]+\w+:", resource_content), (
+            "BUG: Tags concatenated on same line"
+        )
 
     # ------------------------------------------------------------------
     # Test 11: monitoring pipeline inherits project_defaults from pipeline_config
@@ -1998,9 +1998,9 @@ tags:
         monitoring_resource = (
             self.resources_dir / "acme_edw_event_log_monitoring.pipeline.yml"
         )
-        assert (
-            monitoring_resource.exists()
-        ), f"Monitoring resource not generated: {monitoring_resource}"
+        assert monitoring_resource.exists(), (
+            f"Monitoring resource not generated: {monitoring_resource}"
+        )
 
         # Parse and verify project_defaults were inherited
         parsed = yaml.safe_load(monitoring_resource.read_text())
@@ -2008,12 +2008,12 @@ tags:
             "acme_edw_event_log_monitoring_pipeline"
         ]
 
-        assert (
-            pipeline["serverless"] is False
-        ), "serverless should be False from project_defaults"
-        assert (
-            pipeline["edition"] == "PRO"
-        ), "edition should be PRO from project_defaults"
+        assert pipeline["serverless"] is False, (
+            "serverless should be False from project_defaults"
+        )
+        assert pipeline["edition"] == "PRO", (
+            "edition should be PRO from project_defaults"
+        )
         assert pipeline["photon"] is True, "photon should be True from project_defaults"
 
     # ------------------------------------------------------------------
@@ -2074,9 +2074,9 @@ tags:
         monitoring_resource = (
             self.resources_dir / "acme_edw_event_log_monitoring.pipeline.yml"
         )
-        assert (
-            monitoring_resource.exists()
-        ), f"Monitoring resource not generated: {monitoring_resource}"
+        assert monitoring_resource.exists(), (
+            f"Monitoring resource not generated: {monitoring_resource}"
+        )
 
         # Parse the generated resource YAML
         parsed = yaml.safe_load(monitoring_resource.read_text())
@@ -2085,12 +2085,12 @@ tags:
         ]
 
         # Verify alias settings flowed through to the resource
-        assert (
-            pipeline["serverless"] is False
-        ), "serverless should be False from __eventlog_monitoring alias config"
-        assert (
-            pipeline["edition"] == "ADVANCED"
-        ), "edition should be ADVANCED from alias config"
+        assert pipeline["serverless"] is False, (
+            "serverless should be False from __eventlog_monitoring alias config"
+        )
+        assert pipeline["edition"] == "ADVANCED", (
+            "edition should be ADVANCED from alias config"
+        )
         assert pipeline["photon"] is True, "photon should be True from alias config"
 
         # Verify cluster configuration from alias
@@ -2107,6 +2107,6 @@ tags:
         assert pipeline["tags"]["managed_by"] == "lhp"
 
         # Verify monitoring pipeline still does NOT have event_log
-        assert (
-            "event_log" not in pipeline
-        ), "Monitoring pipeline resource should NOT have event_log"
+        assert "event_log" not in pipeline, (
+            "Monitoring pipeline resource should NOT have event_log"
+        )

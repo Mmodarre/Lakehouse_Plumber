@@ -104,9 +104,9 @@ def resolve_source_function(
     # contract for the type checker (narrowing ``Optional`` away) and act
     # as a cheap defensive guard; they are not a user-facing error path.
     assert file_name is not None, "source_function.file enforced upstream by validator"
-    assert (
-        function_name is not None
-    ), "source_function.function enforced upstream by validator"
+    assert function_name is not None, (
+        "source_function.function enforced upstream by validator"
+    )
 
     # ``resolve_external_file_path`` raises a rich LHPFileError (IO-004,
     # via the shared external-file loader's file-not-found path with

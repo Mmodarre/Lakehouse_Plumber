@@ -38,12 +38,10 @@ class SecretCodeGenerator:
         placeholder_to_secret = self._build_placeholder_mapping(secret_refs)
 
         # Process all string literals in the code
-        result = self.string_pattern.sub(
+        return self.string_pattern.sub(
             lambda match: self._process_string_literal(match, placeholder_to_secret),
             code,
         )
-
-        return result
 
     def _build_placeholder_mapping(
         self, secret_refs: Set[SecretReference]
@@ -128,16 +126,13 @@ class SecretCodeGenerator:
             # Override if string content has conflicts
             if quote_analysis["prefer_double_for_dbutils"]:
                 return '"'
-            else:
-                return "'"
-        else:
-            # Outer string uses single quotes
-            # Default preference: double quotes for dbutils calls
-            # Override if string content has conflicts
-            if quote_analysis["prefer_single_for_dbutils"]:
-                return "'"
-            else:
-                return '"'
+            return "'"
+        # Outer string uses single quotes
+        # Default preference: double quotes for dbutils calls
+        # Override if string content has conflicts
+        if quote_analysis["prefer_single_for_dbutils"]:
+            return "'"
+        return '"'
 
     def _analyze_quote_usage(self, string_content: str) -> Dict[str, bool]:
         """Analyze quote usage in string content to determine optimal quote choice.
@@ -224,8 +219,9 @@ class SecretCodeGenerator:
         """
         if quote_char == '"':
             return f'dbutils.secrets.get(scope="{secret_ref.scope}", key="{secret_ref.key}")'
-        else:
-            return f"dbutils.secrets.get(scope='{secret_ref.scope}', key='{secret_ref.key}')"
+        return (
+            f"dbutils.secrets.get(scope='{secret_ref.scope}', key='{secret_ref.key}')"
+        )
 
     def _convert_to_fstring(
         self,

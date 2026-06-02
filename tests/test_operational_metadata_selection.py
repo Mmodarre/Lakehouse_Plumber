@@ -166,9 +166,9 @@ class TestOperationalMetadataSelection:
             "_source_file": "F.input_file_name()",
         }
 
-        assert (
-            columns == expected_columns
-        ), f"Expected {expected_columns}, got {columns}"
+        assert columns == expected_columns, (
+            f"Expected {expected_columns}, got {columns}"
+        )
 
     def test_flowgroup_adds_to_preset(self, metadata_handler):
         """Test that flowgroup adds columns to preset selection."""
@@ -214,9 +214,9 @@ class TestOperationalMetadataSelection:
             "_business_quarter": 'F.concat(F.lit("Q"), F.quarter(F.current_date()))',
         }
 
-        assert (
-            columns == expected_columns
-        ), f"Expected {expected_columns}, got {columns}"
+        assert columns == expected_columns, (
+            f"Expected {expected_columns}, got {columns}"
+        )
 
     def test_action_adds_to_flowgroup_and_preset(self, metadata_handler):
         """Test that action adds columns to both flowgroup and preset selections."""
@@ -262,9 +262,9 @@ class TestOperationalMetadataSelection:
             "_business_quarter": 'F.concat(F.lit("Q"), F.quarter(F.current_date()))',
         }
 
-        assert (
-            columns == expected_columns
-        ), f"Expected {expected_columns}, got {columns}"
+        assert columns == expected_columns, (
+            f"Expected {expected_columns}, got {columns}"
+        )
 
     def test_no_duplicates_in_additive_selection(self, metadata_handler):
         """Test that duplicate column selections don't create duplicates."""
@@ -318,9 +318,9 @@ class TestOperationalMetadataSelection:
             "_data_classification": 'F.lit("PII")',
         }
 
-        assert (
-            columns == expected_columns
-        ), f"Expected {expected_columns}, got {columns}"
+        assert columns == expected_columns, (
+            f"Expected {expected_columns}, got {columns}"
+        )
 
         # Check that each column appears exactly once
         assert len(columns) == 4, f"Expected 4 unique columns, got {len(columns)}"
@@ -595,9 +595,9 @@ class TestOperationalMetadataSelection:
             "_pipeline_name": 'F.lit("test_pipeline")',
         }
 
-        assert (
-            columns == expected_columns
-        ), f"Expected flowgroup-only columns, got {columns}"
+        assert columns == expected_columns, (
+            f"Expected flowgroup-only columns, got {columns}"
+        )
 
     def test_empty_preset_configuration(self, metadata_handler):
         """Test behavior when preset exists but has no operational_metadata."""
@@ -639,9 +639,9 @@ class TestOperationalMetadataSelection:
 
         expected_columns = {"_ingestion_timestamp": "F.current_timestamp()"}
 
-        assert (
-            columns == expected_columns
-        ), f"Expected flowgroup-only columns, got {columns}"
+        assert columns == expected_columns, (
+            f"Expected flowgroup-only columns, got {columns}"
+        )
 
     def test_unknown_column_reference(self, metadata_handler):
         """Test behavior when referencing columns not defined in project config."""
@@ -687,9 +687,9 @@ class TestOperationalMetadataSelection:
             "_pipeline_name": 'F.lit("test_pipeline")',
         }
 
-        assert (
-            columns == expected_columns
-        ), f"Expected only known columns, got {columns}"
+        assert columns == expected_columns, (
+            f"Expected only known columns, got {columns}"
+        )
 
     def test_all_empty_selections(self, metadata_handler):
         """Test behavior when all levels have empty/no selections."""
@@ -767,9 +767,9 @@ class TestOperationalMetadataSelection:
         # Should fall back to flowgroup selection
         expected_columns = {"_ingestion_timestamp": "F.current_timestamp()"}
 
-        assert (
-            columns == expected_columns
-        ), f"Expected fallback to flowgroup, got {columns}"
+        assert columns == expected_columns, (
+            f"Expected fallback to flowgroup, got {columns}"
+        )
 
     def test_empty_column_list_selections(self, metadata_handler):
         """Test behavior with explicitly empty column lists."""
@@ -858,9 +858,9 @@ class TestOperationalMetadataSelection:
             "_pipeline_name": 'F.lit("test_pipeline")',
         }
 
-        assert (
-            columns_streaming == expected_streaming
-        ), f"Streaming table should include _source_file, got {columns_streaming}"
+        assert columns_streaming == expected_streaming, (
+            f"Streaming table should include _source_file, got {columns_streaming}"
+        )
 
         # Test 2: Materialized view should exclude _source_file
         action_materialized = Action(
@@ -887,9 +887,9 @@ class TestOperationalMetadataSelection:
             "_pipeline_name": 'F.lit("test_pipeline")',
         }
 
-        assert (
-            columns_materialized == expected_materialized
-        ), f"Materialized view should exclude _source_file, got {columns_materialized}"
+        assert columns_materialized == expected_materialized, (
+            f"Materialized view should exclude _source_file, got {columns_materialized}"
+        )
 
     def test_custom_function_target_filtering(self, metadata_handler):
         """Test that custom function column with specific target filtering works."""
@@ -937,9 +937,9 @@ class TestOperationalMetadataSelection:
             "_pipeline_name": 'F.lit("test_pipeline")',
         }
 
-        assert (
-            columns_streaming == expected_streaming
-        ), f"Streaming table should include custom function, got {columns_streaming}"
+        assert columns_streaming == expected_streaming, (
+            f"Streaming table should include custom function, got {columns_streaming}"
+        )
 
         # Test 2: Materialized view should exclude custom function
         action_materialized = Action(
@@ -966,9 +966,9 @@ class TestOperationalMetadataSelection:
             "_pipeline_name": 'F.lit("test_pipeline")',
         }
 
-        assert (
-            columns_materialized == expected_materialized
-        ), f"Materialized view should exclude custom function, got {columns_materialized}"
+        assert columns_materialized == expected_materialized, (
+            f"Materialized view should exclude custom function, got {columns_materialized}"
+        )
 
     def test_mixed_target_type_filtering(self, metadata_handler):
         """Test complex scenario with multiple columns having different target type restrictions."""
@@ -1019,9 +1019,9 @@ class TestOperationalMetadataSelection:
             "_custom_function": 'custom_business_logic(F.col("revenue"))',
         }
 
-        assert (
-            columns_streaming == expected_streaming
-        ), f"Streaming table should get all applicable columns, got {columns_streaming}"
+        assert columns_streaming == expected_streaming, (
+            f"Streaming table should get all applicable columns, got {columns_streaming}"
+        )
 
         # Test materialized view gets only applicable columns
         action_materialized = Action(
@@ -1050,9 +1050,9 @@ class TestOperationalMetadataSelection:
             # _custom_function excluded (streaming_table only)
         }
 
-        assert (
-            columns_materialized == expected_materialized
-        ), f"Materialized view should exclude streaming-only columns, got {columns_materialized}"
+        assert columns_materialized == expected_materialized, (
+            f"Materialized view should exclude streaming-only columns, got {columns_materialized}"
+        )
 
     def test_target_type_filtering_with_action_additions(self, metadata_handler):
         """Test that target type filtering works when action adds columns."""
@@ -1103,9 +1103,9 @@ class TestOperationalMetadataSelection:
             "_custom_function": 'custom_business_logic(F.col("revenue"))',
         }
 
-        assert (
-            columns_streaming == expected_streaming
-        ), f"Streaming table should get all columns, got {columns_streaming}"
+        assert columns_streaming == expected_streaming, (
+            f"Streaming table should get all columns, got {columns_streaming}"
+        )
 
         # Same action config but materialized view target
         action_materialized = Action(
@@ -1138,9 +1138,9 @@ class TestOperationalMetadataSelection:
             # _source_file and _custom_function excluded (streaming_table only)
         }
 
-        assert (
-            columns_materialized == expected_materialized
-        ), f"Materialized view should exclude streaming-only columns, got {columns_materialized}"
+        assert columns_materialized == expected_materialized, (
+            f"Materialized view should exclude streaming-only columns, got {columns_materialized}"
+        )
 
     # ========================================================================
     # AST Import Detection Tests
@@ -1163,9 +1163,9 @@ class TestOperationalMetadataSelection:
 
         for expression, expected_imports in test_cases:
             detected = detector.detect_imports(expression)
-            assert (
-                detected == expected_imports
-            ), f"Expression '{expression}' should import {expected_imports}, got {detected}"
+            assert detected == expected_imports, (
+                f"Expression '{expression}' should import {expected_imports}, got {detected}"
+            )
 
     def test_complex_expression_import_detection(self, metadata_handler):
         """Test AST import detection for complex PySpark expressions."""
@@ -1199,9 +1199,9 @@ class TestOperationalMetadataSelection:
 
         for expression, expected_imports in test_cases:
             detected = detector.detect_imports(expression)
-            assert (
-                detected == expected_imports
-            ), f"Complex expression should import {expected_imports}, got {detected}"
+            assert detected == expected_imports, (
+                f"Complex expression should import {expected_imports}, got {detected}"
+            )
 
     def test_custom_function_import_detection(self, metadata_handler):
         """Test that custom functions don't get automatic imports (require explicit config)."""
@@ -1224,9 +1224,9 @@ class TestOperationalMetadataSelection:
 
         for expression, expected_imports in test_cases:
             detected = detector.detect_imports(expression)
-            assert (
-                detected == expected_imports
-            ), f"Custom function should only import PySpark functions, got {detected}"
+            assert detected == expected_imports, (
+                f"Custom function should only import PySpark functions, got {detected}"
+            )
 
     def test_metadata_handler_import_collection(self, metadata_handler):
         """Test that metadata handler correctly collects imports from selected columns."""
@@ -1274,9 +1274,9 @@ class TestOperationalMetadataSelection:
             "from my_project.logic import custom_business_logic",  # From additional_imports config
         }
 
-        assert (
-            imports == expected_imports
-        ), f"Should collect all required imports, got {imports}"
+        assert imports == expected_imports, (
+            f"Should collect all required imports, got {imports}"
+        )
 
     def test_no_imports_needed_for_empty_selection(self, metadata_handler):
         """Test that no imports are generated when no columns are selected."""
@@ -1311,9 +1311,9 @@ class TestOperationalMetadataSelection:
         # No imports needed
         imports = metadata_handler.get_required_imports(columns)
 
-        assert (
-            imports == set()
-        ), f"No imports should be needed for empty selection, got {imports}"
+        assert imports == set(), (
+            f"No imports should be needed for empty selection, got {imports}"
+        )
 
     def test_udf_import_detection(self, metadata_handler):
         """Test that UDF-related functions get correct imports."""
@@ -1347,9 +1347,9 @@ class TestOperationalMetadataSelection:
 
         for expression, expected_imports in test_cases:
             detected = detector.detect_imports(expression)
-            assert (
-                detected == expected_imports
-            ), f"UDF expression should import {expected_imports}, got {detected}"
+            assert detected == expected_imports, (
+                f"UDF expression should import {expected_imports}, got {detected}"
+            )
 
     def test_fallback_regex_detection(self, metadata_handler):
         """Test that malformed expressions fall back to regex detection."""
@@ -1424,9 +1424,9 @@ class TestOperationalMetadataSelection:
 
         # Verify we don't have duplicate entries
         import_list = list(imports)
-        assert len(import_list) == len(
-            set(import_list)
-        ), "Should not have duplicate imports"
+        assert len(import_list) == len(set(import_list)), (
+            "Should not have duplicate imports"
+        )
 
     # ========================================================================
     # Backward Compatibility Tests
@@ -1486,9 +1486,9 @@ class TestOperationalMetadataSelection:
             "_custom_function": 'custom_business_logic(F.col("revenue"))',
         }
 
-        assert (
-            columns == expected_columns
-        ), f"All columns selection should use all project columns, got {columns}"
+        assert columns == expected_columns, (
+            f"All columns selection should use all project columns, got {columns}"
+        )
 
     def test_boolean_false_backward_compatibility(self, metadata_handler):
         """Test that operational_metadata: false still works (disables metadata)."""
@@ -1529,9 +1529,9 @@ class TestOperationalMetadataSelection:
             selection or {}, "streaming_table"
         )
 
-        assert (
-            columns == {}
-        ), f"Boolean false should disable all metadata, got {columns}"
+        assert columns == {}, (
+            f"Boolean false should disable all metadata, got {columns}"
+        )
 
     def test_additive_list_configurations(self, metadata_handler):
         """Test additive behavior with list configurations across all levels."""
@@ -1582,9 +1582,9 @@ class TestOperationalMetadataSelection:
             "_custom_function": 'custom_business_logic(F.col("revenue"))',
         }
 
-        assert (
-            columns == expected_columns
-        ), f"Should combine all list configurations additively, got {columns}"
+        assert columns == expected_columns, (
+            f"Should combine all list configurations additively, got {columns}"
+        )
 
     def test_no_project_config_backward_compatibility(self, metadata_handler):
         """Test behavior when no project config exists (fallback to hardcoded defaults)."""
@@ -1637,9 +1637,9 @@ class TestOperationalMetadataSelection:
             "_flowgroup_name": 'F.lit("test_flowgroup")',
         }
 
-        assert (
-            columns == expected_columns
-        ), f"Should use hardcoded defaults when no project config, got {columns}"
+        assert columns == expected_columns, (
+            f"Should use hardcoded defaults when no project config, got {columns}"
+        )
 
     def test_various_list_configurations(self, metadata_handler):
         """Test various list-based operational metadata configurations."""
@@ -1720,9 +1720,9 @@ class TestOperationalMetadataSelection:
             "_ingestion_timestamp": "F.current_timestamp()",
             "_pipeline_name": 'F.lit("test_pipeline")',
         }
-        assert (
-            columns_simple == expected_simple
-        ), f"Simple config should match expected, got {columns_simple}"
+        assert columns_simple == expected_simple, (
+            f"Simple config should match expected, got {columns_simple}"
+        )
 
         # Full should have all columns additively combined
         expected_full = {
@@ -1732,6 +1732,6 @@ class TestOperationalMetadataSelection:
             "_business_quarter": 'F.concat(F.lit("Q"), F.quarter(F.current_date()))',
             "_data_classification": 'F.lit("PII")',
         }
-        assert (
-            columns_full == expected_full
-        ), f"Full config should combine all levels, got {columns_full}"
+        assert columns_full == expected_full, (
+            f"Full config should combine all levels, got {columns_full}"
+        )

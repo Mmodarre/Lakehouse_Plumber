@@ -31,7 +31,7 @@ class TestResourceSync:
         # Pipeline config with catalog/schema (required after refactor)
         config_file = self.project_root / "pipeline_config.yaml"
         config_file.write_text(
-            "project_defaults:\n" "  catalog: test_catalog\n" "  schema: test_schema\n"
+            "project_defaults:\n  catalog: test_catalog\n  schema: test_schema\n"
         )
         self.manager = BundleManager(
             self.project_root, pipeline_config_path=str(config_file)

@@ -6,12 +6,12 @@
 
 __all__ = [
     "BaseCommand",
-    "InitCommand",
     "GenerateCommand",
-    "ValidateCommand",
-    "StatsCommand",
+    "InitCommand",
     "ListCommand",
     "ShowCommand",
+    "StatsCommand",
+    "ValidateCommand",
 ]
 
 # Import command classes (will be added as we create them)

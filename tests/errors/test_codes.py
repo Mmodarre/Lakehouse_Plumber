@@ -274,7 +274,7 @@ def test_per_constant_code_synthesis():
         seen[ec.code] = ec.category
 
     assert not duplicates, (
-        "Duplicate rendered .code strings in ALL_CODES: " f"{sorted(set(duplicates))}"
+        f"Duplicate rendered .code strings in ALL_CODES: {sorted(set(duplicates))}"
     )
 
 

@@ -8,7 +8,6 @@
 # TODO(Phase 9.2): redistribute version-resolution helpers to cli/_version.py after presenter extraction lands
 
 import logging
-from pathlib import Path
 
 import rich_click as click
 

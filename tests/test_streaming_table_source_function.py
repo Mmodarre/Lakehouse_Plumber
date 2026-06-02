@@ -57,5 +57,5 @@ class TestAssemblyChokepointHoistsFutureFromCompleteCode:
         assert future_pos < typing_pos
 
         # The header banner still leads the file.
-        header_end = assembled.index(f"# FlowGroup: fg_test")
+        header_end = assembled.index("# FlowGroup: fg_test")
         assert header_end < future_pos

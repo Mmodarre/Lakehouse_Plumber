@@ -13,8 +13,7 @@ from lhp.models import Action, ActionType, FlowGroup, TransformType
 @pytest.fixture
 def mock_action_registry():
     """Create mock action registry."""
-    registry = Mock()
-    return registry
+    return Mock()
 
 
 @pytest.fixture

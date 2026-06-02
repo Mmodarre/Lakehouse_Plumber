@@ -52,14 +52,16 @@ def test_helper_header_path_renders_posix_separators_on_windows_host(
     """
     monkeypatch.setattr(file_header, "Path", PureWindowsPath)
 
-    result = helper_header_path("py_functions/entry.py", PureWindowsPath("sub/pkg/helper.py"))
+    result = helper_header_path(
+        "py_functions/entry.py", PureWindowsPath("sub/pkg/helper.py")
+    )
 
     # Guard: under the simulated Windows host, the pre-fix str() composition --
     # exactly Path(module_path).parent / rel_path with Path == PureWindowsPath --
     # genuinely renders backslashes; this is the byte the fix must eliminate.
-    pre_fix_composition = PureWindowsPath("py_functions/entry.py").parent / PureWindowsPath(
-        "sub/pkg/helper.py"
-    )
+    pre_fix_composition = PureWindowsPath(
+        "py_functions/entry.py"
+    ).parent / PureWindowsPath("sub/pkg/helper.py")
     assert str(pre_fix_composition) == "py_functions\\sub\\pkg\\helper.py"
 
     assert "/" in result

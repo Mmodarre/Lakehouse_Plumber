@@ -65,9 +65,7 @@ def mismatch_error(
     )
     return ErrorFactory.config_error(
         codes.CFG_010,
-        title=(
-            f"CDC fan-in mismatch on '{readable_field}' for table " f"'{table_name}'"
-        ),
+        title=(f"CDC fan-in mismatch on '{readable_field}' for table '{table_name}'"),
         details=(
             f"Table '{table_name}' has multiple CDC write actions that "
             f"disagree on '{readable_field}'. All CDC contributors must "

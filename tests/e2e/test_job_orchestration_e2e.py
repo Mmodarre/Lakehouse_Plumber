@@ -166,9 +166,9 @@ class TestJobOrchestrationE2E:
 
         # Hash comparison
         hash_diff = self._compare_file_hashes(generated_file, baseline_file)
-        assert (
-            hash_diff == ""
-        ), f"Generated file should match baseline with job config: {hash_diff}"
+        assert hash_diff == "", (
+            f"Generated file should match baseline with job config: {hash_diff}"
+        )
 
         print("✅ Job orchestration file (with job config) matches baseline")
 
@@ -205,9 +205,9 @@ class TestJobOrchestrationE2E:
         # Check all expected files exist
         for filename in expected_files:
             generated_file = self.resources_dir / filename
-            assert (
-                generated_file.exists()
-            ), f"Generated file should exist: {generated_file}"
+            assert generated_file.exists(), (
+                f"Generated file should exist: {generated_file}"
+            )
 
         # Compare each file with baseline
         baseline_dir = self.resources_baseline_dir / "indvidual_jobs"
@@ -215,14 +215,14 @@ class TestJobOrchestrationE2E:
             generated_file = self.resources_dir / filename
             baseline_file = baseline_dir / filename
 
-            assert (
-                baseline_file.exists()
-            ), f"Baseline file should exist: {baseline_file}"
+            assert baseline_file.exists(), (
+                f"Baseline file should exist: {baseline_file}"
+            )
 
             hash_diff = self._compare_file_hashes(generated_file, baseline_file)
-            assert (
-                hash_diff == ""
-            ), f"File {filename} should match baseline: {hash_diff}"
+            assert hash_diff == "", (
+                f"File {filename} should match baseline: {hash_diff}"
+            )
 
         print(
             "✅ Multi-job orchestration with default master job name matches baseline"
@@ -261,9 +261,9 @@ class TestJobOrchestrationE2E:
         # Check all expected files exist
         for filename in expected_files:
             generated_file = self.resources_dir / filename
-            assert (
-                generated_file.exists()
-            ), f"Generated file should exist: {generated_file}"
+            assert generated_file.exists(), (
+                f"Generated file should exist: {generated_file}"
+            )
 
         # Compare each file with baseline
         baseline_dir = self.resources_baseline_dir / "indvidual_jobs"
@@ -271,14 +271,14 @@ class TestJobOrchestrationE2E:
             generated_file = self.resources_dir / filename
             baseline_file = baseline_dir / filename
 
-            assert (
-                baseline_file.exists()
-            ), f"Baseline file should exist: {baseline_file}"
+            assert baseline_file.exists(), (
+                f"Baseline file should exist: {baseline_file}"
+            )
 
             hash_diff = self._compare_file_hashes(generated_file, baseline_file)
-            assert (
-                hash_diff == ""
-            ), f"File {filename} should match baseline: {hash_diff}"
+            assert hash_diff == "", (
+                f"File {filename} should match baseline: {hash_diff}"
+            )
 
         print("✅ Multi-job orchestration with custom master job name matches baseline")
 
@@ -314,15 +314,15 @@ class TestJobOrchestrationE2E:
         # Check all expected files exist
         for filename in expected_files:
             generated_file = self.resources_dir / filename
-            assert (
-                generated_file.exists()
-            ), f"Generated file should exist: {generated_file}"
+            assert generated_file.exists(), (
+                f"Generated file should exist: {generated_file}"
+            )
 
         # Verify master job file does NOT exist
         master_file = self.resources_dir / "acme_edw_master.job.yml"
-        assert (
-            not master_file.exists()
-        ), f"Master job file should NOT exist: {master_file}"
+        assert not master_file.exists(), (
+            f"Master job file should NOT exist: {master_file}"
+        )
 
         # Compare each file with baseline
         baseline_dir = self.resources_baseline_dir / "indvidual_jobs"
@@ -330,14 +330,14 @@ class TestJobOrchestrationE2E:
             generated_file = self.resources_dir / filename
             baseline_file = baseline_dir / filename
 
-            assert (
-                baseline_file.exists()
-            ), f"Baseline file should exist: {baseline_file}"
+            assert baseline_file.exists(), (
+                f"Baseline file should exist: {baseline_file}"
+            )
 
             hash_diff = self._compare_file_hashes(generated_file, baseline_file)
-            assert (
-                hash_diff == ""
-            ), f"File {filename} should match baseline: {hash_diff}"
+            assert hash_diff == "", (
+                f"File {filename} should match baseline: {hash_diff}"
+            )
 
         print("✅ Multi-job orchestration without master job matches baseline")
 
@@ -385,9 +385,9 @@ class TestJobOrchestrationE2E:
         job = job_data["resources"]["jobs"]["acme_edw_orchestration"]
 
         # trigger.file_arrival must appear with all three sub-fields intact.
-        assert (
-            "trigger" in job
-        ), "trigger block missing from generated YAML — pass-through regressed"
+        assert "trigger" in job, (
+            "trigger block missing from generated YAML — pass-through regressed"
+        )
         assert job["trigger"]["file_arrival"]["url"] == "s3://my-bucket/landing/"
         assert job["trigger"]["file_arrival"]["min_time_between_triggers_seconds"] == 60
         assert job["trigger"]["file_arrival"]["wait_after_last_change_seconds"] == 30

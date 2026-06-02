@@ -148,7 +148,7 @@ class TestAnalyzeDependenciesByJob:
         # The analysis should be similar
         assert (
             single_result.total_pipelines
-            == list(multi_result.values())[0].total_pipelines
+            == next(iter(multi_result.values())).total_pipelines
         )
 
 

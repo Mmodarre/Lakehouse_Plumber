@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 from ...parsers.blueprint_parser import BlueprintParser
 from ...parsers.yaml_parser import CachingYAMLParser, YAMLParser
 from ...presets.preset_manager import PresetManager
-from ...utils.version import (  # noqa: F401 — re-export for tests that monkeypatch `orchestrator.get_version`
+from ...utils.version import (
     get_version,
 )
 from .._interfaces import (

@@ -66,7 +66,6 @@ class TestTC01RequiredFields:
 
     # NOTE: Already covered by TestTestReportingConfig in test_test_reporting_config.py.
     # Skipping to avoid duplication.
-    pass
 
 
 # ============================================================================
@@ -81,7 +80,6 @@ class TestTC02ConfigFileDefault:
 
     # NOTE: Already covered by TestTestReportingConfig.test_required_fields.
     # Skipping to avoid duplication.
-    pass
 
 
 # ============================================================================
@@ -97,7 +95,6 @@ class TestTC03ActionTestId:
 
     # NOTE: Already covered by TestActionTestId in test_test_reporting_config.py.
     # Skipping to avoid duplication.
-    pass
 
 
 # ============================================================================
@@ -155,7 +152,6 @@ class TestTC05RejectNonDict:
     # NOTE: Already covered by TestProjectConfigLoaderTestReporting.
     #   test_rejects_non_dict_test_reporting
     # Skipping to avoid duplication.
-    pass
 
 
 # ============================================================================
@@ -170,7 +166,6 @@ class TestTC06MissingRequiredFields:
     """TC-06: _parse_test_reporting_config raises LHPConfigError on missing fields."""
 
     # NOTE: Already covered. Skipping to avoid duplication.
-    pass
 
 
 # ============================================================================
@@ -448,7 +443,7 @@ class TestTC24PythonIncompatibleLiterals:
         config_file = tmp_path / "config" / "special.yaml"
         config_file.parent.mkdir(parents=True)
         config_file.write_text(
-            "enabled: true\n" "disabled: false\n" "empty_value: null\n" "count: 42\n"
+            "enabled: true\ndisabled: false\nempty_value: null\ncount: 42\n"
         )
 
         tr = TestReportingConfig(

@@ -114,10 +114,10 @@ def _run_engine(max_workers: int) -> tuple[set[int], set[int], int]:
                 processor=_PidRecordingProcessor(),
                 # Looked up by pipeline name inside the real worker, but our
                 # fake processor ignores it, so None values are fine.
-                substitution_managers={p: None for p in flowgroups_by_pipeline},
+                substitution_managers=dict.fromkeys(flowgroups_by_pipeline),
                 include_tests=False,
                 code_generator=None,  # unused in validate mode
-                pipeline_output_dirs={p: None for p in flowgroups_by_pipeline},
+                pipeline_output_dirs=dict.fromkeys(flowgroups_by_pipeline),
                 environment="dev",
             )
             results = _run_flowgroup_pool_core(

@@ -14,6 +14,7 @@ These tests guard against silent drift in two directions:
 2. If either shortcut regresses to ``**kwargs``, the no-var-keyword
    test fails.
 """
+
 from __future__ import annotations
 
 import inspect
@@ -60,12 +61,9 @@ def test_validate_pipelines_shortcut_matches_canonical_signature() -> None:
 
 
 def test_generate_pipelines_shortcut_has_no_var_keyword() -> None:
-    sig = inspect.signature(
-        LakehousePlumberApplicationFacade.generate_pipelines
-    )
+    sig = inspect.signature(LakehousePlumberApplicationFacade.generate_pipelines)
     var_kw = [
-        p for p in sig.parameters.values()
-        if p.kind == inspect.Parameter.VAR_KEYWORD
+        p for p in sig.parameters.values() if p.kind == inspect.Parameter.VAR_KEYWORD
     ]
     assert not var_kw, (
         "generate_pipelines must not use **kwargs (§4.2). Found: "
@@ -74,12 +72,9 @@ def test_generate_pipelines_shortcut_has_no_var_keyword() -> None:
 
 
 def test_validate_pipelines_shortcut_has_no_var_keyword() -> None:
-    sig = inspect.signature(
-        LakehousePlumberApplicationFacade.validate_pipelines
-    )
+    sig = inspect.signature(LakehousePlumberApplicationFacade.validate_pipelines)
     var_kw = [
-        p for p in sig.parameters.values()
-        if p.kind == inspect.Parameter.VAR_KEYWORD
+        p for p in sig.parameters.values() if p.kind == inspect.Parameter.VAR_KEYWORD
     ]
     assert not var_kw, (
         "validate_pipelines must not use **kwargs (§4.2). Found: "

@@ -57,11 +57,10 @@ class CustomSinkWriteGenerator(BaseSinkWriteGenerator):
                     f"Extracted format name '{format_name}' from {class_name}.name() method"
                 )
                 return format_name
-            else:
-                self.logger.warning(
-                    f"Could not find name() method in {class_name}, using class name as fallback"
-                )
-                return class_name  # Fallback to class name
+            self.logger.warning(
+                f"Could not find name() method in {class_name}, using class name as fallback"
+            )
+            return class_name  # Fallback to class name
 
         except (re.error, AttributeError, IndexError) as e:
             self.logger.warning(

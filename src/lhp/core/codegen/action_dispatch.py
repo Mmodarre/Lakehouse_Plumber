@@ -82,16 +82,16 @@ class ActionDispatcher:
             f"Action type groups: {{{', '.join(f'{t.value}: {len(action_groups[t])}' for t in action_groups)}}}"
         )
 
-        common_kwargs = dict(
-            flowgroup=flowgroup,
-            substitution_mgr=substitution_mgr,
-            preset_config=preset_config,
-            output_dir=output_dir,
-            source_yaml=source_yaml,
-            env=env,
-            phase_a_records=phase_a_records,
-            auxiliary_files=auxiliary_files,
-        )
+        common_kwargs = {
+            "flowgroup": flowgroup,
+            "substitution_mgr": substitution_mgr,
+            "preset_config": preset_config,
+            "output_dir": output_dir,
+            "source_yaml": source_yaml,
+            "env": env,
+            "phase_a_records": phase_a_records,
+            "auxiliary_files": auxiliary_files,
+        }
 
         for action_type in action_types:
             if action_type not in action_groups:
@@ -378,29 +378,26 @@ class ActionDispatcher:
         if action.type == ActionType.LOAD:
             if isinstance(action.source, dict):
                 return action.source.get("type", "sql")
-            else:
-                return "sql"  # String source is SQL
+            return "sql"  # String source is SQL
 
-        elif action.type == ActionType.TRANSFORM:
+        if action.type == ActionType.TRANSFORM:
             return action.transform_type or "sql"
 
-        elif action.type == ActionType.WRITE:
+        if action.type == ActionType.WRITE:
             if action.write_target and isinstance(action.write_target, dict):
                 return action.write_target.get("type", "streaming_table")
-            else:
-                return "streaming_table"  # Default to streaming table
+            return "streaming_table"  # Default to streaming table
 
-        elif action.type == ActionType.TEST:
+        if action.type == ActionType.TEST:
             return action.test_type or "row_count"  # Default to row_count test
 
-        else:
-            raise ErrorFactory.validation_error(
-                codes.VAL_009,
-                title=f"Unknown action type: {action.type}",
-                details=f"Cannot determine sub-type for unknown action type '{action.type}'.",
-                suggestions=[
-                    "Use a valid action type: load, transform, write, test",
-                    "Check the 'type' field in your action configuration",
-                ],
-                context={"Action": action.name, "Type": str(action.type)},
-            )
+        raise ErrorFactory.validation_error(
+            codes.VAL_009,
+            title=f"Unknown action type: {action.type}",
+            details=f"Cannot determine sub-type for unknown action type '{action.type}'.",
+            suggestions=[
+                "Use a valid action type: load, transform, write, test",
+                "Check the 'type' field in your action configuration",
+            ],
+            context={"Action": action.name, "Type": str(action.type)},
+        )

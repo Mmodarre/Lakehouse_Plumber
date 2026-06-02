@@ -9,8 +9,8 @@
 # This script blocks a commit only on a REGRESSION above those Week-8
 # baselines; the file-size pool is allowed to persist at 3 until the
 # Phase-9 deferrals land. The remaining gates (stability-drift, ruff
-# B904/TRY400/RUF013, import-linter, tests/api/ contract tests) stay
-# strict (zero tolerance).
+# check src/ tests/ + ruff format --check src/ tests/, import-linter,
+# tests/api/ contract tests) stay strict (zero tolerance).
 #
 # Once the Phase-9 deferrals land, set the file-size baseline to 0 and
 # the gate behaves identically to the original strict configuration.
@@ -48,7 +48,7 @@ python scripts/check_stability_drift.py --all || exit 2
 python scripts/check_codegen_inline.py --all || exit 2
 
 if command -v ruff >/dev/null 2>&1; then
-  ruff check --select B904,TRY400,RUF013 src/ tests/ || exit 2
+  ruff check src/ tests/ && ruff format --check src/ tests/ || exit 2
 fi
 
 pre-commit run import-linter --all-files >/dev/null 2>&1 || {

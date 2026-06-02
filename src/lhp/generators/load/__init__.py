@@ -10,10 +10,10 @@ from .sql import SQLLoadGenerator
 
 __all__ = [
     "CloudFilesLoadGenerator",
-    "DeltaLoadGenerator",
-    "SQLLoadGenerator",
-    "JDBCLoadGenerator",
-    "PythonLoadGenerator",
     "CustomDataSourceLoadGenerator",
+    "DeltaLoadGenerator",
+    "JDBCLoadGenerator",
     "KafkaLoadGenerator",
+    "PythonLoadGenerator",
+    "SQLLoadGenerator",
 ]

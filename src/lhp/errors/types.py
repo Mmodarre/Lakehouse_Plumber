@@ -164,8 +164,6 @@ class LHPValidationError(LHPError, ValueError):
     ``except ValueError`` handlers continue to catch it.
     """
 
-    pass
-
 
 class PythonFunctionConflictError(LHPValidationError):
     """Raised when different Python source files would create same destination file."""
@@ -218,8 +216,6 @@ class LHPConfigError(LHPError, ValueError):
     ``except ValueError`` handlers.
     """
 
-    pass
-
 
 class LHPFileError(LHPError, FileNotFoundError):
     """LHPError subclass that is also a FileNotFoundError.
@@ -227,8 +223,6 @@ class LHPFileError(LHPError, FileNotFoundError):
     Use when replacing a bare FileNotFoundError so that existing
     ``except FileNotFoundError`` handlers continue to catch it.
     """
-
-    pass
 
 
 _WORKER_ERROR_TYPE_TO_LHP_CLASS: Dict[str, type] = {

@@ -61,9 +61,7 @@ def test_wildcard_present_rewrites_default_columns_to_bare_calls():
         catalog.default_columns["_ingestion_timestamp"].expression
         == "current_timestamp()"
     )
-    assert (
-        catalog.default_columns["_source_file"].expression == "input_file_name()"
-    )
+    assert catalog.default_columns["_source_file"].expression == "input_file_name()"
     # lit-based expressions also lose the F. prefix.
     assert catalog.default_columns["_pipeline_name"].expression.startswith("lit(")
     assert "F." not in catalog.default_columns["_pipeline_name"].expression
@@ -228,6 +226,4 @@ def test_adapt_expression_does_not_touch_unrelated_substrings():
     catalog = OperationalMetadataCatalog()
     # No bare 'F.' token, so nothing should change.
     assert catalog._adapt_expression_for_wildcard("DF.col('a')") == "DF.col('a')"
-    assert (
-        catalog._adapt_expression_for_wildcard("F.col(my_col)") == "col(my_col)"
-    )
+    assert catalog._adapt_expression_for_wildcard("F.col(my_col)") == "col(my_col)"

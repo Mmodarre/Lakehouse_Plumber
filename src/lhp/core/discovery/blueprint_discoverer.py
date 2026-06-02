@@ -115,8 +115,7 @@ class BlueprintDiscoverer:
                 registry[blueprint.name] = (blueprint, path)
 
             self.logger.info(
-                f"Discovered {len(registry)} blueprint(s): "
-                f"{sorted(registry.keys())}"
+                f"Discovered {len(registry)} blueprint(s): {sorted(registry.keys())}"
             )
             record_count("blueprints", len(registry))
             return registry

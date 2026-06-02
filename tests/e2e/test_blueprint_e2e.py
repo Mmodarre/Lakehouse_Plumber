@@ -226,9 +226,9 @@ class TestBlueprintE2E:
             )
             assert generated.exists(), f"Missing generated resource: {generated}"
             assert baseline.exists(), f"Missing baseline resource: {baseline}"
-            assert self._file_hash(generated) == self._file_hash(
-                baseline
-            ), f"Resource baseline mismatch for {pipeline}"
+            assert self._file_hash(generated) == self._file_hash(baseline), (
+                f"Resource baseline mismatch for {pipeline}"
+            )
 
         for pipeline in self.BP_PIPELINES:
             for py_file in (self.generated_dir / pipeline).rglob("*.py"):
@@ -256,12 +256,12 @@ class TestBlueprintE2E:
 
         exit_code, output = self.run_bundle_sync()
         assert exit_code != 0, "Generation should fail on duplicate identity"
-        assert (
-            "045" in output or "Duplicate" in output
-        ), f"Expected LHP-VAL-045 / 'Duplicate' in output, got:\n{output[-2000:]}"
-        assert (
-            "site_alpha.yaml" in output and "site_alpha_dup.yaml" in output
-        ), "Both conflicting instance paths should be reported"
+        assert "045" in output or "Duplicate" in output, (
+            f"Expected LHP-VAL-045 / 'Duplicate' in output, got:\n{output[-2000:]}"
+        )
+        assert "site_alpha.yaml" in output and "site_alpha_dup.yaml" in output, (
+            "Both conflicting instance paths should be reported"
+        )
 
     # ------------------------------------------------------------------
     # BP-4: Missing required parameter
@@ -271,16 +271,14 @@ class TestBlueprintE2E:
         """Removing the required `domain_id` from an instance must surface
         a parse-time error that names the missing parameter."""
         self.site_alpha_path.write_text(
-            "use_blueprint: medallion_demo\n"
-            "parameters:\n"
-            "  site_name: site_alpha\n"
+            "use_blueprint: medallion_demo\nparameters:\n  site_name: site_alpha\n"
         )
 
         exit_code, output = self.run_bundle_sync()
         assert exit_code != 0, "Generation should fail on missing required param"
-        assert (
-            "domain_id" in output
-        ), f"Error must mention missing parameter 'domain_id'. Got:\n{output[-2000:]}"
+        assert "domain_id" in output, (
+            f"Error must mention missing parameter 'domain_id'. Got:\n{output[-2000:]}"
+        )
 
     # ------------------------------------------------------------------
     # BP-6: Editing the blueprint regenerates only synthetic flowgroups
@@ -327,17 +325,17 @@ class TestBlueprintE2E:
 
         seen_pipelines = set(data.get("pipelines", {}).keys())
         for p in self.BP_PIPELINES:
-            assert (
-                p in seen_pipelines
-            ), f"Pipeline {p} missing from deps JSON; saw: {sorted(seen_pipelines)}"
+            assert p in seen_pipelines, (
+                f"Pipeline {p} missing from deps JSON; saw: {sorted(seen_pipelines)}"
+            )
 
         job_yml = self.project_root / "resources" / "acme_edw_orchestration.job.yml"
         assert job_yml.exists(), "Orchestration job YAML not generated"
         job_text = job_yml.read_text()
         for p in self.BP_PIPELINES:
-            assert (
-                f"{p}_pipeline" in job_text
-            ), f"Pipeline {p} missing from orchestration job YAML"
+            assert f"{p}_pipeline" in job_text, (
+                f"Pipeline {p} missing from orchestration job YAML"
+            )
 
     # ------------------------------------------------------------------
     # BP-10: Explicit-vs-synthetic flowgroup collision

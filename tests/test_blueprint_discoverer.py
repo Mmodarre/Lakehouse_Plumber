@@ -169,9 +169,9 @@ def test_discover_instances_uses_cached_parser_single_load(tmp_path):
 
     # Warm pass: no new physical reads (no new cache entries), only hits.
     disco.discover_instances(blueprints)
-    assert (
-        len(cache._documents_cache) == cold_documents_cache_size
-    ), "warm pass must not re-read disk"
+    assert len(cache._documents_cache) == cold_documents_cache_size, (
+        "warm pass must not re-read disk"
+    )
     assert cache._hits > cold_hits, "warm pass must produce additional hits"
 
 

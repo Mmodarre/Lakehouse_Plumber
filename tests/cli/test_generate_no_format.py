@@ -170,9 +170,9 @@ class TestGenerateNoFormat:
             "Default run left the injected source UN-formatted; the terminal "
             f"ruff-format pass did not run.\n{content!r}"
         )
-        assert (
-            "x = 1" in content
-        ), f"Expected ruff-formatted ``x = 1`` after a default run:\n{content!r}"
+        assert "x = 1" in content, (
+            f"Expected ruff-formatted ``x = 1`` after a default run:\n{content!r}"
+        )
 
     def test_no_format_skips_formatting(self, runner, tmp_path, monkeypatch):
         """(a) ``--no-format`` skips the terminal ruff-format pass: the injected
@@ -264,9 +264,9 @@ class TestGenerateNoFormat:
             f"Expected non-zero exit on LHP-CFG-031 even with --no-format; got "
             f"{result.exit_code}:\n{result.output}"
         )
-        assert (
-            "LHP-CFG-031" in result.output
-        ), f"Expected LHP-CFG-031 in error output under --no-format:\n{result.output}"
+        assert "LHP-CFG-031" in result.output, (
+            f"Expected LHP-CFG-031 in error output under --no-format:\n{result.output}"
+        )
         py_files = _py_files_under(project_root / "generated" / "dev")
         assert py_files == [], (
             "Expected ZERO generated .py files on a syntax-guard abort under "

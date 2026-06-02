@@ -171,42 +171,42 @@ actions:
         generated_content = generated_file.read_text()
 
         # Local variables should be resolved (entity = test_customer)
-        assert (
-            "v_test_customer_raw" in generated_content
-        ), "Local variable should be resolved in function name"
-        assert (
-            "v_test_customer_cleaned" in generated_content
-        ), "Local variable should be resolved in transformation view"
-        assert (
-            "test_customer" in generated_content
-        ), "Local variable should be resolved in table name"
+        assert "v_test_customer_raw" in generated_content, (
+            "Local variable should be resolved in function name"
+        )
+        assert "v_test_customer_cleaned" in generated_content, (
+            "Local variable should be resolved in transformation view"
+        )
+        assert "test_customer" in generated_content, (
+            "Local variable should be resolved in table name"
+        )
 
         # No unresolved local variables should remain
-        assert (
-            "%{entity}" not in generated_content
-        ), "No unresolved %{entity} should remain"
-        assert (
-            "%{source_table}" not in generated_content
-        ), "No unresolved %{source_table} should remain"
-        assert (
-            "%{target_table}" not in generated_content
-        ), "No unresolved %{target_table} should remain"
+        assert "%{entity}" not in generated_content, (
+            "No unresolved %{entity} should remain"
+        )
+        assert "%{source_table}" not in generated_content, (
+            "No unresolved %{source_table} should remain"
+        )
+        assert "%{target_table}" not in generated_content, (
+            "No unresolved %{target_table} should remain"
+        )
 
         # Environment variables should be resolved
-        assert (
-            "acme_edw_dev" in generated_content
-        ), "Environment variable {catalog} should be resolved"
-        assert (
-            "edw_raw" in generated_content
-        ), "Environment variable {raw_schema} should be resolved"
-        assert (
-            "edw_bronze" in generated_content
-        ), "Environment variable {bronze_schema} should be resolved"
+        assert "acme_edw_dev" in generated_content, (
+            "Environment variable {catalog} should be resolved"
+        )
+        assert "edw_raw" in generated_content, (
+            "Environment variable {raw_schema} should be resolved"
+        )
+        assert "edw_bronze" in generated_content, (
+            "Environment variable {bronze_schema} should be resolved"
+        )
 
         # Description should have local variable resolved
-        assert (
-            "Load test_customer table from raw schema" in generated_content
-        ), "Description should have %{entity} resolved to 'test_customer'"
+        assert "Load test_customer table from raw schema" in generated_content, (
+            "Description should have %{entity} resolved to 'test_customer'"
+        )
 
 
 if __name__ == "__main__":

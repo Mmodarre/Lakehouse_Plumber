@@ -250,22 +250,21 @@ class OperationalMetadataCatalog:
         except Exception as e:
             if isinstance(e, LHPError):
                 raise
-            else:
-                raise ErrorFactory.config_error(
-                    codes.CFG_008,
-                    title="Error processing operational metadata selection",
-                    details=f"An error occurred while processing operational metadata selection: {str(e)}",
-                    suggestions=[
-                        "Check your operational_metadata configuration syntax",
-                        "Verify column names are correctly specified",
-                        "Ensure selection values are proper types (list of strings)",
-                    ],
-                    context={
-                        "Selection": selection,
-                        "Target type": target_type,
-                        "Original error": str(e),
-                    },
-                ) from e
+            raise ErrorFactory.config_error(
+                codes.CFG_008,
+                title="Error processing operational metadata selection",
+                details=f"An error occurred while processing operational metadata selection: {e!s}",
+                suggestions=[
+                    "Check your operational_metadata configuration syntax",
+                    "Verify column names are correctly specified",
+                    "Ensure selection values are proper types (list of strings)",
+                ],
+                context={
+                    "Selection": selection,
+                    "Target type": target_type,
+                    "Original error": str(e),
+                },
+            ) from e
 
         result = {}
         for column_name in selected_column_names:
@@ -279,7 +278,7 @@ class OperationalMetadataCatalog:
                         raise ErrorFactory.config_error(
                             codes.CFG_009,
                             title="Error applying substitutions to metadata column",
-                            details=f"Failed to apply substitutions to column '{column_name}': {str(e)}",
+                            details=f"Failed to apply substitutions to column '{column_name}': {e!s}",
                             suggestions=[
                                 "Check the expression syntax in your column configuration",
                                 "Verify substitution placeholders are valid (e.g., ${pipeline_name})",

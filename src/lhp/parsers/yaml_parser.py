@@ -40,7 +40,7 @@ class YAMLParser:
             # Check if it's an LHPError that should be re-raised
             if isinstance(e, LHPError):
                 raise  # Re-raise LHPError as-is
-            elif isinstance(e, ValueError):
+            if isinstance(e, ValueError):
                 # For backward compatibility, convert back to generic error for non-LHPErrors
                 if "File not found" in str(e):
                     raise ErrorFactory.io_error(
@@ -54,18 +54,17 @@ class YAMLParser:
                         context={"file": str(file_path)},
                     ) from e
                 raise  # Re-raise ValueError as-is for YAML errors
-            else:
-                raise ErrorFactory.io_error(
-                    codes.IO_004,
-                    title="Error reading YAML file",
-                    details=f"Error reading {file_path}: {e}",
-                    suggestions=[
-                        "Check the file path is correct",
-                        "Ensure the file exists and is readable",
-                        "Verify the YAML syntax is correct",
-                    ],
-                    context={"file": str(file_path)},
-                ) from e
+            raise ErrorFactory.io_error(
+                codes.IO_004,
+                title="Error reading YAML file",
+                details=f"Error reading {file_path}: {e}",
+                suggestions=[
+                    "Check the file path is correct",
+                    "Ensure the file exists and is readable",
+                    "Verify the YAML syntax is correct",
+                ],
+                context={"file": str(file_path)},
+            ) from e
 
     def _validate_action_types(self, doc: Dict[str, Any], file_path: Path) -> None:
         """Pre-check ``type:`` on every action before Pydantic constructs FlowGroup.
@@ -127,13 +126,9 @@ class YAMLParser:
         """
         from .yaml_loader import load_yaml_documents_all
 
-        try:
-            documents = load_yaml_documents_all(
-                file_path, error_context=f"flowgroup file {file_path}"
-            )
-        except ValueError:
-            # Re-raise with better context
-            raise
+        documents = load_yaml_documents_all(
+            file_path, error_context=f"flowgroup file {file_path}"
+        )
 
         return self._flowgroups_from_documents(documents, file_path)
 
@@ -179,7 +174,7 @@ class YAMLParser:
         uses_regular_syntax = False
 
         # Process each document
-        for doc_index, doc in enumerate(documents, start=1):
+        for _doc_index, doc in enumerate(documents, start=1):
             # Defensive guard: catch a blueprint *definition* accidentally
             # placed under `include:` (pipelines/) instead of `blueprint_include:`.
             # Without this, the array-syntax path below would attempt to

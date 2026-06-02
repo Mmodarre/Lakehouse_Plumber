@@ -172,7 +172,7 @@ enforcement: permissive  # Keep all columns, apply transforms""",
             columns_to_include = set()
 
             # Add renamed columns (use target names)
-            for source_col, target_col in filtered_column_mapping.items():
+            for _source_col, target_col in filtered_column_mapping.items():
                 columns_to_include.add(target_col)
 
             # Add cast-only columns (not renamed)

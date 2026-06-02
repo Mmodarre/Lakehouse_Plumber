@@ -304,9 +304,9 @@ class TestGenerateCommandParallel:
         assert result.exit_code == 0, f"CLI exited {result.exit_code}: {result.output}"
 
         for name in self.PIPELINES:
-            assert (
-                name in result.output
-            ), f"Pipeline {name} missing from CLI output:\n{result.output}"
+            assert name in result.output, (
+                f"Pipeline {name} missing from CLI output:\n{result.output}"
+            )
 
     def test_parallel_output_byte_identical_to_sequential(
         self, runner, tmp_path, monkeypatch
@@ -355,9 +355,9 @@ class TestGenerateCommandParallel:
         for name in self.PIPELINES:
             par_file = par_root / "generated" / "dev" / name / f"{name}_fg.py"
             seq_file = seq_root / "generated" / "dev" / name / f"{name}_fg.py"
-            assert (
-                par_file.read_bytes() == seq_file.read_bytes()
-            ), f"Bytewise diff for {name} between parallel and sequential runs"
+            assert par_file.read_bytes() == seq_file.read_bytes(), (
+                f"Bytewise diff for {name} between parallel and sequential runs"
+            )
 
     def test_N1_one_failing_flowgroup_writes_zero_files_and_lists_failure(
         self, runner, tmp_path, monkeypatch
@@ -422,12 +422,12 @@ class TestGenerateCommandParallel:
 
         # The failure is surfaced: the bad pipeline and its unknown action
         # type both appear in the rendered error output.
-        assert (
-            "p_broken" in result.output
-        ), f"Failing pipeline 'p_broken' missing from output:\n{result.output}"
-        assert (
-            "not_a_real_action_type" in result.output
-        ), f"Offending action type missing from error output:\n{result.output}"
+        assert "p_broken" in result.output, (
+            f"Failing pipeline 'p_broken' missing from output:\n{result.output}"
+        )
+        assert "not_a_real_action_type" in result.output, (
+            f"Offending action type missing from error output:\n{result.output}"
+        )
 
     @pytest.mark.unit
     def test_snapshot_cdc_missing_source_function_function_rejected_at_generate(
@@ -519,18 +519,18 @@ class TestGenerateCommandParallel:
             cli,
             ["generate", "--env", "dev", "--max-workers", "1", "--no-bundle"],
         )
-        assert (
-            seq_result.exit_code == 0
-        ), f"max-workers=1 run failed {seq_result.exit_code}: {seq_result.output}"
+        assert seq_result.exit_code == 0, (
+            f"max-workers=1 run failed {seq_result.exit_code}: {seq_result.output}"
+        )
 
         monkeypatch.chdir(par_root)
         par_result = runner.invoke(
             cli,
             ["generate", "--env", "dev", "--max-workers", "8", "--no-bundle"],
         )
-        assert (
-            par_result.exit_code == 0
-        ), f"max-workers=8 run failed {par_result.exit_code}: {par_result.output}"
+        assert par_result.exit_code == 0, (
+            f"max-workers=8 run failed {par_result.exit_code}: {par_result.output}"
+        )
 
         seq_out = seq_root / "generated" / "dev"
         par_out = par_root / "generated" / "dev"
@@ -550,9 +550,9 @@ class TestGenerateCommandParallel:
         for rel in sorted(seq_rel, key=str):
             seq_bytes = (seq_out / rel).read_bytes()
             par_bytes = (par_out / rel).read_bytes()
-            assert (
-                seq_bytes == par_bytes
-            ), f"Bytewise diff for {rel} between --max-workers 1 and 8"
+            assert seq_bytes == par_bytes, (
+                f"Bytewise diff for {rel} between --max-workers 1 and 8"
+            )
 
     def test_N4_unparseable_generated_python_cfg031_aborts_with_zero_files(
         self, runner, tmp_path, monkeypatch
@@ -633,9 +633,9 @@ class TestGenerateCommandParallel:
             f"Expected non-zero exit on LHP-CFG-031; got {result.exit_code}:\n"
             f"{result.output}"
         )
-        assert (
-            "LHP-CFG-031" in result.output
-        ), f"Expected LHP-CFG-031 in error output:\n{result.output}"
+        assert "LHP-CFG-031" in result.output, (
+            f"Expected LHP-CFG-031 in error output:\n{result.output}"
+        )
         output_root = project_root / "generated" / "dev"
         py_files = _py_files_under(output_root)
         assert py_files == [], (

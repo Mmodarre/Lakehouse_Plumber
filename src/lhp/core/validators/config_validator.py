@@ -35,7 +35,7 @@ from .field.config_field import ConfigFieldValidator
 
 logger = logging.getLogger(__name__)
 
-from . import (
+from . import (  # noqa: E402  # placed below docstring/comment to keep cold-import cycle notes adjacent
     LoadActionValidator,
     TestActionValidator,
     TransformActionValidator,

@@ -28,7 +28,6 @@ from lhp.models import FlowGroup, ProjectConfig
 from ...models.dependencies import (
     DependencyAnalysisResult,
     DependencyGraphs,
-    PipelineDependency,
 )
 from ...parsers.blueprint_parser import BlueprintParser
 from ...parsers.yaml_parser import CachingYAMLParser, YAMLParser

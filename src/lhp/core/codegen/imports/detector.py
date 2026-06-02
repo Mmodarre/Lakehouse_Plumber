@@ -55,8 +55,7 @@ class ImportDetector:
         """
         if self.strategy == "ast":
             return self._detect_imports_ast(expression)
-        else:
-            return self._detect_imports_regex(expression)
+        return self._detect_imports_regex(expression)
 
     def _detect_imports_ast(self, expression: str) -> Set[str]:
         """Detect imports using AST parsing with regex fallback."""

@@ -24,4 +24,3 @@ class BaseActionValidator(ABC):
     @abstractmethod
     def validate(self, action: Action, prefix: str) -> List[ValidationError]:
         """Validate an action and return list of error messages."""
-        pass

@@ -54,7 +54,6 @@ from ...utils.performance_timer import (
     enable_perf_timing,
     export_perf_for_merge,
     is_perf_enabled,
-    perf_timer,
     reset_perf_summary,
 )
 from .._interfaces import BaseCodeGenerationService, BaseFlowgroupResolutionService

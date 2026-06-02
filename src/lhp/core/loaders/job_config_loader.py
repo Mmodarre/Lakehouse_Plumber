@@ -99,24 +99,23 @@ class JobConfigLoader:
                 if "project_defaults" in doc:
                     logger.info(f"Loaded project_defaults from {full_config_path}")
                     return doc["project_defaults"], {}
-                else:
-                    # Legacy single-doc format — treat entire doc as project_defaults
-                    logger.info(
-                        f"Loaded single-document job config from {full_config_path}"
-                    )
-                    return doc, {}
+                # Legacy single-doc format — treat entire doc as project_defaults
+                logger.info(
+                    f"Loaded single-document job config from {full_config_path}"
+                )
+                return doc, {}
 
             project_defaults: Dict[str, Any] = {}
             job_specific_configs: Dict[str, Dict[str, Any]] = {}
             seen_job_names: set = set()
-            first_seen: Dict[str, int] = (
-                {}
-            )  # Track which document first defined each job_name
+            first_seen: Dict[
+                str, int
+            ] = {}  # Track which document first defined each job_name
 
             for idx, doc in enumerate(documents):
                 if "project_defaults" in doc:
                     project_defaults = doc["project_defaults"]
-                    logger.info(f"Loaded project_defaults from document {idx+1}")
+                    logger.info(f"Loaded project_defaults from document {idx + 1}")
 
                 elif "job_name" in doc:
                     job_names_raw = doc["job_name"]
@@ -128,7 +127,7 @@ class JobConfigLoader:
                         job_names = job_names_raw
                     else:
                         logger.warning(
-                            f"Document {idx+1} has invalid job_name type: {type(job_names_raw)}. "
+                            f"Document {idx + 1} has invalid job_name type: {type(job_names_raw)}. "
                             f"Expected string or list. Skipping."
                         )
                         continue
@@ -138,7 +137,7 @@ class JobConfigLoader:
                             codes.VAL_003,
                             title="Empty job_name list",
                             details=(
-                                f"Document {idx+1} in {full_config_path} has an empty job_name list. "
+                                f"Document {idx + 1} in {full_config_path} has an empty job_name list. "
                                 f"At least one job name is required."
                             ),
                             suggestions=[
@@ -156,7 +155,7 @@ class JobConfigLoader:
                                 codes.VAL_004,
                                 title="Duplicate job_name",
                                 details=(
-                                    f"job_name '{job_name}' in document {idx+1} was already defined "
+                                    f"job_name '{job_name}' in document {idx + 1} was already defined "
                                     f"in document {first_seen[job_name]}. Each job_name must be unique "
                                     f"across all documents in {full_config_path}."
                                 ),
@@ -178,17 +177,17 @@ class JobConfigLoader:
                         # Deep copy config for each job to ensure independence
                         job_specific_configs[job_name] = deepcopy(job_config)
                         logger.info(
-                            f"Loaded job-specific config for '{job_name}' from document {idx+1}"
+                            f"Loaded job-specific config for '{job_name}' from document {idx + 1}"
                         )
 
                 else:
                     logger.warning(
-                        f"Document {idx+1} in {full_config_path} has neither 'project_defaults' "
+                        f"Document {idx + 1} in {full_config_path} has neither 'project_defaults' "
                         f"nor 'job_name' key - skipping"
                     )
 
             return project_defaults, job_specific_configs
 
-        except yaml.YAMLError as e:
-            logger.exception(f"Invalid YAML in job config file {full_config_path}: {e}")
+        except yaml.YAMLError:
+            logger.exception(f"Invalid YAML in job config file {full_config_path}")
             raise

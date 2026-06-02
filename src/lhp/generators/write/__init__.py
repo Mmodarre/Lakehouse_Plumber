@@ -5,7 +5,7 @@ from .sink import SinkWriteGenerator
 from .streaming_table import StreamingTableWriteGenerator
 
 __all__ = [
-    "StreamingTableWriteGenerator",
     "MaterializedViewWriteGenerator",
     "SinkWriteGenerator",
+    "StreamingTableWriteGenerator",
 ]

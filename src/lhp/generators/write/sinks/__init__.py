@@ -8,8 +8,8 @@ from .kafka_sink import KafkaSinkWriteGenerator
 
 __all__ = [
     "BaseSinkWriteGenerator",
-    "DeltaSinkWriteGenerator",
-    "KafkaSinkWriteGenerator",
     "CustomSinkWriteGenerator",
+    "DeltaSinkWriteGenerator",
     "ForEachBatchSinkWriteGenerator",
+    "KafkaSinkWriteGenerator",
 ]

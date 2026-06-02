@@ -38,7 +38,6 @@ class TestVersionUtils:
             patch("pathlib.Path.exists") as mock_exists,
             patch("builtins.open", mock_open(read_data=pyproject_content)),
         ):
-
             mock_version.side_effect = Exception("Package not found")
             mock_exists.return_value = True
 
@@ -58,7 +57,6 @@ class TestVersionUtils:
             patch("pathlib.Path.exists") as mock_exists,
             patch("builtins.open", mock_open(read_data=pyproject_content)),
         ):
-
             mock_version.side_effect = Exception("Package not found")
             mock_exists.return_value = True
 
@@ -78,7 +76,6 @@ class TestVersionUtils:
             patch("pathlib.Path.exists") as mock_exists,
             patch("builtins.open", mock_open(read_data=pyproject_content)),
         ):
-
             mock_version.side_effect = Exception("Package not found")
             # First call returns False (not in current dir), second returns True (found in parent)
             mock_exists.side_effect = [False, True]
@@ -95,7 +92,6 @@ class TestVersionUtils:
             patch("lhp.utils.version.version") as mock_version,
             patch("pathlib.Path.exists") as mock_exists,
         ):
-
             mock_version.side_effect = Exception("Package not found")
             mock_exists.return_value = False  # Never found
 
@@ -111,7 +107,6 @@ class TestVersionUtils:
             patch("lhp.utils.version.version") as mock_version,
             patch("pathlib.Path.exists") as mock_exists,
         ):
-
             mock_version.side_effect = Exception("Package not found")
             mock_exists.side_effect = Exception("File system error")
 
@@ -137,7 +132,6 @@ class TestVersionUtils:
                 patch("pathlib.Path.exists") as mock_exists,
                 patch("builtins.open", mock_open(read_data=pyproject_content)),
             ):
-
                 mock_version.side_effect = Exception("Package not found")
                 mock_exists.return_value = True
 
@@ -162,7 +156,6 @@ class TestVersionUtils:
             patch("pathlib.Path.exists") as mock_exists,
             patch("builtins.open", mock_open(read_data=pyproject_content)),
         ):
-
             mock_version.side_effect = Exception("Package not found")
             mock_exists.return_value = True
 
@@ -179,7 +172,6 @@ class TestVersionUtils:
             patch("pathlib.Path.exists") as mock_exists,
             patch("builtins.open") as mock_file,
         ):
-
             mock_version.side_effect = Exception("Package not found")
             mock_exists.return_value = True
             mock_file.side_effect = IOError("Permission denied")
@@ -196,7 +188,6 @@ class TestVersionUtils:
             patch("lhp.utils.version.version") as mock_version,
             patch("pathlib.Path.exists") as mock_exists,
         ):
-
             mock_version.side_effect = Exception("Package not found")
             mock_exists.return_value = False
 
@@ -216,7 +207,6 @@ class TestVersionUtils:
             patch("pathlib.Path.exists") as mock_exists,
             patch("builtins.open", mock_open(read_data=pyproject_content)),
         ):
-
             mock_version.side_effect = Exception("Package not found")
             # Simulate finding file on the 4th level (3 False calls, then True)
             mock_exists.side_effect = [False, False, False, True]

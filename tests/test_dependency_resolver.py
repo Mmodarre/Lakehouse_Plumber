@@ -515,9 +515,9 @@ class TestDependencyResolver:
             if "depends on 'v_part_bronze_snapshot' which is not produced by any action"
             in e
         ]
-        assert (
-            len(dependency_errors) == 0
-        ), f"Should not have false dependency error for snapshot CDC with source_function. Got errors: {errors}"
+        assert len(dependency_errors) == 0, (
+            f"Should not have false dependency error for snapshot CDC with source_function. Got errors: {errors}"
+        )
 
     def test_snapshot_cdc_source_function_no_load_action_required(self):
         """Test that flowgroup with only snapshot CDC + source_function should be valid.
@@ -567,9 +567,9 @@ class TestDependencyResolver:
         load_action_errors = [
             e for e in errors if "FlowGroup must have at least one Load action" in e
         ]
-        assert (
-            len(load_action_errors) == 0
-        ), f"Should not require load action for self-contained snapshot CDC flowgroup. Got errors: {errors}"
+        assert len(load_action_errors) == 0, (
+            f"Should not require load action for self-contained snapshot CDC flowgroup. Got errors: {errors}"
+        )
 
     def test_normal_write_action_unchanged(self):
         """Test that normal (non-CDC) write actions still work as before."""
@@ -603,15 +603,15 @@ class TestDependencyResolver:
 
         # Should pass validation - normal pattern unchanged
         errors = resolver.validate_relationships(actions)
-        assert (
-            len(errors) == 0
-        ), f"Normal write actions should still work. Got errors: {errors}"
+        assert len(errors) == 0, (
+            f"Normal write actions should still work. Got errors: {errors}"
+        )
 
         # Verify dependency detection works
         sources = resolver._get_action_sources(write_action)
-        assert sources == [
-            "v_customer_raw"
-        ], f"Normal write action should extract source correctly. Got: {sources}"
+        assert sources == ["v_customer_raw"], (
+            f"Normal write action should extract source correctly. Got: {sources}"
+        )
 
     def test_cdc_mode_with_explicit_source(self):
         """Test that CDC mode (not snapshot_cdc) with explicit source still works."""
@@ -633,9 +633,9 @@ class TestDependencyResolver:
 
         # Should extract source from cdc_config, not action.source
         sources = resolver._get_action_sources(cdc_action)
-        assert sources == [
-            "v_customer_changes"
-        ], f"CDC action should extract source from cdc_config. Got: {sources}"
+        assert sources == ["v_customer_changes"], (
+            f"CDC action should extract source from cdc_config. Got: {sources}"
+        )
 
     def test_snapshot_cdc_with_explicit_source(self):
         """Test that snapshot_cdc with explicit source (not source_function) still works."""
@@ -660,9 +660,9 @@ class TestDependencyResolver:
 
         # Should extract source from snapshot_cdc_config.source
         sources = resolver._get_action_sources(snapshot_action)
-        assert sources == [
-            "v_customer_snapshots"
-        ], f"Snapshot CDC with explicit source should work. Got: {sources}"
+        assert sources == ["v_customer_snapshots"], (
+            f"Snapshot CDC with explicit source should work. Got: {sources}"
+        )
 
     def test_mixed_action_types_coexist(self):
         """Test that different action types (normal, CDC, snapshot CDC) can coexist."""
@@ -715,9 +715,9 @@ class TestDependencyResolver:
 
         # Should validate successfully - mix of patterns should coexist
         errors = validator.validate_flowgroup(flowgroup)
-        assert (
-            len(errors) == 0
-        ), f"Mixed action types should coexist. Got errors: {errors}"
+        assert len(errors) == 0, (
+            f"Mixed action types should coexist. Got errors: {errors}"
+        )
 
     def test_malformed_cdc_config_fallback(self):
         """Test that malformed CDC configs fall back to action.source gracefully."""
@@ -740,9 +740,9 @@ class TestDependencyResolver:
 
         # Should fallback to action.source
         sources = resolver._get_action_sources(malformed_cdc)
-        assert sources == [
-            "v_fallback_source"
-        ], f"Malformed CDC should fallback to action.source. Got: {sources}"
+        assert sources == ["v_fallback_source"], (
+            f"Malformed CDC should fallback to action.source. Got: {sources}"
+        )
 
     def test_non_v_prefix_internal_views(self):
         """Test that internal views without v_ prefix are recognized correctly."""
@@ -781,9 +781,9 @@ class TestDependencyResolver:
 
         # Should not have missing dependency errors
         missing_dep_errors = [e for e in errors if "not produced by any action" in e]
-        assert (
-            len(missing_dep_errors) == 0
-        ), f"Should not have missing dependency errors. Got: {missing_dep_errors}"
+        assert len(missing_dep_errors) == 0, (
+            f"Should not have missing dependency errors. Got: {missing_dep_errors}"
+        )
 
         # Verify dependency order is correct
         ordered = resolver.resolve_dependencies(actions)
@@ -832,9 +832,9 @@ class TestDependencyResolver:
         # Should pass validation - mixed naming is fine
         errors = resolver.validate_relationships(actions)
         missing_dep_errors = [e for e in errors if "not produced by any action" in e]
-        assert (
-            len(missing_dep_errors) == 0
-        ), f"Should handle mixed naming conventions. Got: {missing_dep_errors}"
+        assert len(missing_dep_errors) == 0, (
+            f"Should handle mixed naming conventions. Got: {missing_dep_errors}"
+        )
 
         # Verify all dependencies are detected
         ordered = resolver.resolve_dependencies(actions)

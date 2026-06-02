@@ -224,9 +224,7 @@ class TestTestReportingHookGenerator:
 
         config_file = tmp_path / "config" / "ado_config.yaml"
         config_file.parent.mkdir(parents=True)
-        config_file.write_text(
-            "plan_id: 12345\n" "connection:\n" "  organization: myorg\n"
-        )
+        config_file.write_text("plan_id: 12345\nconnection:\n  organization: myorg\n")
 
         tr = TestReportingConfig(
             module_path="src/pub.py",
@@ -373,7 +371,7 @@ class TestTestReportingHookGenerator:
         """Backward compat: generate() without substitution_mgr copies verbatim."""
         provider = tmp_path / "src" / "pub.py"
         provider.parent.mkdir(parents=True)
-        provider.write_text('TARGET = "${catalog}"\n' "def pub(r, c, ctx, s): pass\n")
+        provider.write_text('TARGET = "${catalog}"\ndef pub(r, c, ctx, s): pass\n')
 
         tr = TestReportingConfig(module_path="src/pub.py", function_name="pub")
         config = _make_project_config(test_reporting=tr)

@@ -53,7 +53,9 @@ def test_wheel_contains_every_template_file(tmp_path: pathlib.Path) -> None:
         names = set(zf.namelist())
 
     expected = _tracked_template_files()
-    assert expected, "Git found no tracked files under src/lhp/templates/ — refusing to trust an empty expectation set."
+    assert expected, (
+        "Git found no tracked files under src/lhp/templates/ — refusing to trust an empty expectation set."
+    )
 
     missing = expected - names
     assert not missing, (

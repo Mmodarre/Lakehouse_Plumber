@@ -20,7 +20,7 @@ def raise_unknown_fields_error(
     config_section: str,
 ) -> None:
     """Raise a user-friendly error for unknown configuration fields."""
-    unknown_list = sorted(list(unknown_fields))
+    unknown_list = sorted(unknown_fields)
 
     suggestions = []
     for unknown_field in unknown_list:
@@ -109,6 +109,6 @@ def _calculate_similarity(str1: str, str2: str) -> float:
         return 0.8
 
     # Calculate longest common subsequence ratio
-    common_chars = sum(1 for c1, c2 in zip(str1, str2) if c1 == c2)
+    common_chars = sum(1 for c1, c2 in zip(str1, str2, strict=False) if c1 == c2)
     max_len = max(len(str1), len(str2))
     return common_chars / max_len if max_len > 0 else 0.0

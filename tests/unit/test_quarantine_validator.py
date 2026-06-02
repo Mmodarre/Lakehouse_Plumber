@@ -27,13 +27,13 @@ def validator(tmp_path):
 
 def _make_dq_action(**kwargs):
     """Helper to create a data quality action with defaults."""
-    defaults = dict(
-        name="test_dq",
-        type=ActionType.TRANSFORM,
-        transform_type=TransformType.DATA_QUALITY,
-        source="v_raw",
-        target="v_validated",
-    )
+    defaults = {
+        "name": "test_dq",
+        "type": ActionType.TRANSFORM,
+        "transform_type": TransformType.DATA_QUALITY,
+        "source": "v_raw",
+        "target": "v_validated",
+    }
     defaults.update(kwargs)
     return Action(**defaults)
 

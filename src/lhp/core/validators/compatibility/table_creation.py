@@ -34,13 +34,12 @@ def action_creates_table(action: Action) -> bool:
         if mode == "snapshot_cdc":
             return True
         return action.write_target.get("create_table", True)
-    else:
-        if action.write_target.type == WriteTargetType.MATERIALIZED_VIEW:
-            return True
-        mode = getattr(action.write_target, "mode", "standard")
-        if mode == "snapshot_cdc":
-            return True
-        return action.write_target.create_table
+    if action.write_target.type == WriteTargetType.MATERIALIZED_VIEW:
+        return True
+    mode = getattr(action.write_target, "mode", "standard")
+    if mode == "snapshot_cdc":
+        return True
+    return action.write_target.create_table
 
 
 class TableCreationValidator:
@@ -143,7 +142,7 @@ class TableCreationValidator:
                         "Conflicting Actions": creator_names,
                         "Total Creators": len(creators),
                         "Total Users": len(users),
-                        "Flowgroups": list(set(c["flowgroup"] for c in creators)),
+                        "Flowgroups": list({c["flowgroup"] for c in creators}),
                     },
                 )
 

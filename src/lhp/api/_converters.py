@@ -140,7 +140,7 @@ def _delta_to_generation_response(
     keep catching worker failures the same way they catch main-thread
     failures (preserves the dual-inheritance subclass identity).
     """
-    from lhp.errors import LHPError, lhp_error_from_worker_failure
+    from lhp.errors import lhp_error_from_worker_failure
 
     error_message: Optional[str] = None
     error_code: Optional[str] = None

@@ -223,9 +223,9 @@ class TestCLI:
                 ],
             )
 
-            assert (
-                result.exit_code == 0
-            ), f"Unexpected failure; output:\n{result.output}"
+            assert result.exit_code == 0, (
+                f"Unexpected failure; output:\n{result.output}"
+            )
             # Dry-run must not materialize bundle resource files.
             assert not (Path("resources") / "lhp").exists() or not any(
                 (Path("resources") / "lhp").iterdir()

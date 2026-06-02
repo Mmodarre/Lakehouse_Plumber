@@ -175,9 +175,7 @@ def test_adapt_expressions_called_exactly_when_import_manager_present(
     """Spy on the catalog: adapt_expressions_for_imports is called once with the
     import_manager when one is supplied, and not at all when it is None."""
     calls = []
-    original = (
-        metadata_module.OperationalMetadataCatalog.adapt_expressions_for_imports
-    )
+    original = metadata_module.OperationalMetadataCatalog.adapt_expressions_for_imports
 
     def _spy(self, import_manager=None):
         calls.append(import_manager)

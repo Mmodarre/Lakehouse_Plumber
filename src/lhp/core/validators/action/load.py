@@ -88,7 +88,7 @@ class LoadActionValidator(BaseActionValidator):
 
         except ValueError as e:
             logger.debug(f"Unrecognized load source type for '{action.name}': {e}")
-            pass  # Already handled above
+            # Already handled above
 
         return errors
 

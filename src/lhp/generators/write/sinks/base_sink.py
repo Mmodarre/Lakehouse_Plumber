@@ -22,7 +22,6 @@ class BaseSinkWriteGenerator(BaseActionGenerator):
     @abstractmethod
     def generate(self, action: Action, context: Dict[str, Any]) -> str:
         """Generate sink code - must be implemented by subclasses."""
-        pass
 
     def _extract_source_views(self, source) -> List[str]:
         """Extract source views from source configuration.
@@ -35,7 +34,7 @@ class BaseSinkWriteGenerator(BaseActionGenerator):
         """
         if isinstance(source, str):
             return [source]
-        elif isinstance(source, list):
+        if isinstance(source, list):
             # Handle list of strings or dicts with view names
             views = []
             for item in source:
@@ -44,7 +43,7 @@ class BaseSinkWriteGenerator(BaseActionGenerator):
                 elif isinstance(item, dict) and "view" in item:
                     views.append(item["view"])
             return views
-        elif isinstance(source, dict):
+        if isinstance(source, dict):
             # Single dict with view name
             if "view" in source:
                 return [source["view"]]

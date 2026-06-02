@@ -14,7 +14,6 @@ from lhp.models import (
     EventLogConfig,
     MonitoringConfig,
     ProjectConfig,
-    TestReportingConfig,
 )
 
 from ._event_log_config_parser import parse_event_log_config
@@ -136,7 +135,7 @@ class ProjectConfigLoader:
                 config_data["test_reporting"]
             )
 
-        project_config = ProjectConfig(
+        return ProjectConfig(
             name=config_data.get("name", "unnamed_project"),
             version=config_data.get("version", "1.0"),
             description=config_data.get("description"),
@@ -152,8 +151,6 @@ class ProjectConfigLoader:
             test_reporting=test_reporting_config,
             apply_formatting=config_data.get("apply_formatting", True),
         )
-
-        return project_config
 
     # Instance-method wrappers so unit tests can patch these on the class.
     def _parse_monitoring_config(

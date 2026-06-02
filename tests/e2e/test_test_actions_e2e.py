@@ -105,9 +105,9 @@ class TestTestActionsE2E:
 
         generated = self.test_actions_dir / filename
         baseline = self.test_actions_baseline_dir / filename
-        assert (
-            generated.exists()
-        ), f"{filename} should be generated under 12_test_actions/"
+        assert generated.exists(), (
+            f"{filename} should be generated under 12_test_actions/"
+        )
         assert baseline.exists(), f"Baseline {filename} should exist"
 
         diff = self._compare_file_hashes(generated, baseline)

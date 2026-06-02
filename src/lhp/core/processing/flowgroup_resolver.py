@@ -13,7 +13,7 @@ from typing import Any, Dict
 
 from lhp.models import ActionType, FlowGroup, FlowGroupContext
 
-from ...errors import ErrorFactory, LHPError, codes
+from ...errors import ErrorFactory, codes
 from ...utils.performance_timer import perf_timer
 from .._interfaces import BaseFlowgroupResolutionService
 from .local_variables import LocalVariableResolver
@@ -222,28 +222,24 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
                 f"Validating processed flowgroup '{processed_flowgroup.flowgroup}'"
             )
             with perf_timer(f"fg_validation [{fg}]", category="fg_validation"):
-                try:
-                    errors = self.config_validator.validate_flowgroup(
-                        processed_flowgroup
+                errors = self.config_validator.validate_flowgroup(processed_flowgroup)
+                if errors:
+                    # ErrorFactory.validation_error returns an LHPError, which
+                    # is already well-formatted and propagates as-is.
+                    raise ErrorFactory.validation_error(
+                        codes.VAL_007,
+                        title="FlowGroup validation failed",
+                        details="\n\n".join(str(e) for e in errors),
+                        suggestions=[
+                            "Check flowgroup configuration for the errors listed above",
+                            "Run 'lhp validate' for detailed diagnostics",
+                        ],
+                        context={
+                            "Pipeline": processed_flowgroup.pipeline,
+                            "FlowGroup": processed_flowgroup.flowgroup,
+                            "Error Count": len(errors),
+                        },
                     )
-                    if errors:
-                        raise ErrorFactory.validation_error(
-                            codes.VAL_007,
-                            title="FlowGroup validation failed",
-                            details="\n\n".join(str(e) for e in errors),
-                            suggestions=[
-                                "Check flowgroup configuration for the errors listed above",
-                                "Run 'lhp validate' for detailed diagnostics",
-                            ],
-                            context={
-                                "Pipeline": processed_flowgroup.pipeline,
-                                "FlowGroup": processed_flowgroup.flowgroup,
-                                "Error Count": len(errors),
-                            },
-                        )
-                except LHPError:
-                    # Re-raise LHPError as-is (it's already well-formatted)
-                    raise
 
         with perf_timer(f"secret_validation [{fg}]", category="secret_validation"):
             secret_errors = self.secret_validator.validate_secret_references(

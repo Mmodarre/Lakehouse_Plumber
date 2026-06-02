@@ -313,9 +313,9 @@ class TestFieldTypeContract:
         field_names = {f.name for f in dataclasses.fields(SecretReferenceView)}
         required = {"scope", "key"}
         missing = required - field_names
-        assert (
-            not missing
-        ), f"SecretReferenceView is missing required fields: {missing}."
+        assert not missing, (
+            f"SecretReferenceView is missing required fields: {missing}."
+        )
 
 
 # ---------------------------------------------------------------------------

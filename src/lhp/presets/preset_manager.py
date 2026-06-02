@@ -72,7 +72,7 @@ class PresetManager:
 
         # Cycle detection
         if preset_name in visited:
-            cycle_path = " -> ".join(path + [preset_name])
+            cycle_path = " -> ".join([*path, preset_name])
             raise ErrorFactory.dependency_error(
                 codes.DEP_022,
                 title="Circular preset inheritance detected",
@@ -101,7 +101,7 @@ class PresetManager:
                 f"Preset '{preset_name}' extends '{preset.extends}', resolving parent"
             )
             parent_config = self._resolve_preset_inheritance(
-                preset.extends, visited | {preset_name}, path + [preset_name]
+                preset.extends, visited | {preset_name}, [*path, preset_name]
             )
             result = self._deep_merge(parent_config, result)
 
@@ -110,7 +110,6 @@ class PresetManager:
     def _deep_merge(
         self, base: Dict[str, Any], override: Dict[str, Any]
     ) -> Dict[str, Any]:
-
         result = base.copy()
         for key, value in override.items():
             if (

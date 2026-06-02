@@ -55,19 +55,18 @@ class TempTableTransformGenerator(BaseActionGenerator):
         """Extract source view name from action source."""
         if isinstance(source, str):
             return source
-        elif isinstance(source, dict):
+        if isinstance(source, dict):
             return source.get("view", source.get("source", ""))
-        else:
-            raise ErrorFactory.validation_error(
-                codes.VAL_016,
-                title="Missing source view for temp table transform",
-                details=(
-                    f"Temp table transform must have a source view, "
-                    f"but got {type(source).__name__}."
-                ),
-                suggestions=[
-                    "Add a 'source' field with a view name string",
-                    "Example: source: v_raw_data",
-                ],
-                context={"Source Type": type(source).__name__},
-            )
+        raise ErrorFactory.validation_error(
+            codes.VAL_016,
+            title="Missing source view for temp table transform",
+            details=(
+                f"Temp table transform must have a source view, "
+                f"but got {type(source).__name__}."
+            ),
+            suggestions=[
+                "Add a 'source' field with a view name string",
+                "Example: source: v_raw_data",
+            ],
+            context={"Source Type": type(source).__name__},
+        )

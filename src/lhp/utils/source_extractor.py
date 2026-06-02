@@ -28,7 +28,7 @@ def extract_source_views_from_action(source: Union[str, List, Dict]) -> List[str
     """
     if isinstance(source, str):
         return [source]
-    elif isinstance(source, list):
+    if isinstance(source, list):
         result = []
         for item in source:
             if isinstance(item, str):
@@ -44,20 +44,18 @@ def extract_source_views_from_action(source: Union[str, List, Dict]) -> List[str
             else:
                 result.append(str(item))
         return result
-    elif isinstance(source, dict):
+    if isinstance(source, dict):
         catalog = source.get("catalog")
         schema = source.get("schema")
         table = source.get("table") or source.get("view") or source.get("name", "")
         if catalog and schema and table:
             return [f"{catalog}.{schema}.{table}"]
-        elif table:
+        if table:
             return [table]
-        else:
-            # Return generic "source" for non-table sources (e.g., Kafka, custom sources)
-            # This prevents empty lists that could cause issues in code generation
-            return ["source"]
-    else:
-        return ["source"]  # Fallback for unknown types
+        # Return generic "source" for non-table sources (e.g., Kafka, custom sources)
+        # This prevents empty lists that could cause issues in code generation
+        return ["source"]
+    return ["source"]  # Fallback for unknown types
 
 
 def is_cdc_write_action(action: Any) -> bool:
@@ -114,7 +112,7 @@ def extract_cdc_sources(action: Any) -> Optional[List[str]]:
             return []  # Source function is internal - no external dependencies
 
         # Priority 2: snapshot_cdc_config.source (explicit CDC source reference)
-        elif snapshot_config.get("source"):
+        if snapshot_config.get("source"):
             return [snapshot_config["source"]]
 
     # No CDC-specific source found, fallback to action.source

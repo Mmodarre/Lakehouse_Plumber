@@ -61,9 +61,7 @@ class SQLParser:
         sql_content = re.sub(r"/\*.*?\*/", "", sql_content, flags=re.DOTALL)
 
         # Normalize whitespace
-        sql_content = re.sub(r"\s+", " ", sql_content.strip())
-
-        return sql_content
+        return re.sub(r"\s+", " ", sql_content.strip())
 
     def _extract_from_from_clauses(
         self, sql_content: str, cte_names: Optional[Set[str]] = None

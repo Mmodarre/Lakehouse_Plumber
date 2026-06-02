@@ -318,9 +318,9 @@ actions:
         )
         outcome = outcomes[0]
         all_errors = list(outcome.errors) + list(outcome.lhp_errors)
-        assert (
-            len(all_errors) == 0 and outcome.success is True
-        ), f"Expected no errors with include_tests=False, got: {all_errors}"
+        assert len(all_errors) == 0 and outcome.success is True, (
+            f"Expected no errors with include_tests=False, got: {all_errors}"
+        )
 
     def test_validate_catches_test_actions_when_true(self, tmp_path):
         """validate_pipelines(include_tests=True) catches test action errors.
@@ -341,9 +341,9 @@ actions:
         # ``columns`` field) land on ``lhp_errors``, not the string-projection
         # ``errors`` tuple — assert across both channels.
         all_errors = list(outcome.errors) + list(outcome.lhp_errors)
-        assert (
-            len(all_errors) > 0 and outcome.success is False
-        ), "Expected validation errors with include_tests=True for missing columns"
+        assert len(all_errors) > 0 and outcome.success is False, (
+            "Expected validation errors with include_tests=True for missing columns"
+        )
 
     def test_validate_passes_include_tests_through_chain(self, monkeypatch):
         """Worker forwards include_tests to processor.process_flowgroup.

@@ -128,13 +128,11 @@ def _run_pipeline_cross_fg_barrier(
                 resolved, pipeline_filter=pipeline
             )
         issues.extend(build_cross_flowgroup_issues(cross_result, pipeline))
-    except Exception as exc:  # noqa: BLE001 — LHPError kept structured; rest degraded
+    except Exception as exc:
         if isinstance(exc, LHPError):
             issues.append(exc)
         else:
-            logger.exception(
-                f"Cross-flowgroup barrier raised for pipeline {pipeline}: {exc}"
-            )
+            logger.exception(f"Cross-flowgroup barrier raised for pipeline {pipeline}")
             errors.append(f"CDC fan-in validation failed: {exc}")
     return tuple(issues), tuple(errors)
 

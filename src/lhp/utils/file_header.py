@@ -1,4 +1,5 @@
 """File-header and content-normalization utilities."""
+
 from __future__ import annotations
 
 from pathlib import Path

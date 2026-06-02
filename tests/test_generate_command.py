@@ -137,7 +137,7 @@ class TestGenerateCommandExecute:
         terminal ``GenerationCompleted`` event carries the aggregate
         ``BatchGenerationResponse``.
         """
-        from lhp.models import FlowGroup  # noqa: F401  (kept for parity / clarity)
+        from lhp.models import FlowGroup
 
         output_dir = temp_project / "generated" / "dev"
         output_dir.mkdir(parents=True)
@@ -365,9 +365,9 @@ class TestGenerateCommandExecute:
             (cat, msg) for (cat, msg) in collector._warnings if cat == "deprecation"
         ]
         assert deprecation_entries, "Expected a deprecation warning to be recorded"
-        assert any(
-            "--force" in msg for (_, msg) in deprecation_entries
-        ), f"Expected --force mention in deprecation message, got: {deprecation_entries}"
+        assert any("--force" in msg for (_, msg) in deprecation_entries), (
+            f"Expected --force mention in deprecation message, got: {deprecation_entries}"
+        )
 
     def test_no_state_flag_emits_deprecation_warning(
         self, generate_command, temp_project

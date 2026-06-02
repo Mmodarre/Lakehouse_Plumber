@@ -144,7 +144,7 @@ class TestProjectConfigLoaderTestReporting:
     def test_rejects_non_dict_test_reporting(self, tmp_path):
         """Config loader raises error for non-dict test_reporting."""
         lhp_yaml = tmp_path / "lhp.yaml"
-        lhp_yaml.write_text("name: test_project\n" "test_reporting: just_a_string\n")
+        lhp_yaml.write_text("name: test_project\ntest_reporting: just_a_string\n")
         from lhp.core.loaders import ProjectConfigLoader
         from lhp.errors import LHPError
 

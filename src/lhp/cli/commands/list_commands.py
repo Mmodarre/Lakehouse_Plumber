@@ -254,4 +254,4 @@ class ListCommand(BaseCommand):
 # part of constraining itself to ``lhp.api`` per constitution §2 / §9.13;
 # downstream tests may want to type-check the helpers without re-importing
 # from the api package.
-__all__ = ["ListCommand", "BlueprintView", "PresetView", "TemplateView"]
+__all__ = ["BlueprintView", "ListCommand", "PresetView", "TemplateView"]

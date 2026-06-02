@@ -162,7 +162,7 @@ class TestPythonFileCopier:
 
         try:
             copier.copy_python_file(source2, dest_path, content)
-            assert False, "Should have raised error"
+            raise AssertionError("Should have raised error")
         except PythonFunctionConflictError as e:
             assert e.destination == str(dest_path)
             assert e.existing_source == source1

@@ -97,11 +97,8 @@ def resolve_external_file_path(
     if file_path.is_absolute():
         if file_path.exists():
             return file_path
-        else:
-            search_locations = [f"Absolute path: {file_path}"]
-            raise ErrorFactory.file_not_found(
-                str(file_path), search_locations, file_type
-            )
+        search_locations = [f"Absolute path: {file_path}"]
+        raise ErrorFactory.file_not_found(str(file_path), search_locations, file_type)
 
     # Handle relative paths - resolve from base_dir
     resolved_path = base_dir / file_path

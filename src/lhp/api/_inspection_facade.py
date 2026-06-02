@@ -268,7 +268,7 @@ class InspectionFacade:
         for path in preset_files:
             try:
                 preset = parser.parse_preset(path)
-            except Exception as exc:  # noqa: BLE001 — soft-fail per CLI
+            except Exception as exc:
                 self._logger.warning(f"Could not parse preset {path}: {exc}")
                 continue
             views.append(_preset_to_view(preset, path))
@@ -294,7 +294,7 @@ class InspectionFacade:
         for path in template_files:
             try:
                 template = parser.parse_template_raw(path)
-            except Exception as exc:  # noqa: BLE001 — soft-fail per CLI
+            except Exception as exc:
                 self._logger.warning(f"Could not parse template {path}: {exc}")
                 continue
             views.append(_template_to_view(template, path))

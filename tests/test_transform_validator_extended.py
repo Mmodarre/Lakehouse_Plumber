@@ -20,13 +20,13 @@ def _make_validator(project_root=None, project_config=None):
 
 def _make_action(**kwargs):
     """Create an Action with sensible transform defaults."""
-    defaults = dict(
-        name="test_action",
-        type=ActionType.TRANSFORM,
-        target="v_output",
-        transform_type="sql",
-        source="v_input",
-    )
+    defaults = {
+        "name": "test_action",
+        "type": ActionType.TRANSFORM,
+        "target": "v_output",
+        "transform_type": "sql",
+        "source": "v_input",
+    }
     defaults.update(kwargs)
     return Action(**defaults)
 
@@ -105,15 +105,15 @@ class TestValidatePythonTransform:
 
     def _make_python_action(self, **overrides):
         """Helper for Python transform actions."""
-        defaults = dict(
-            name="test_py",
-            type=ActionType.TRANSFORM,
-            target="v_output",
-            transform_type="python",
-            source="v_input",
-            module_path="transforms/my_transform.py",
-            function_name="my_func",
-        )
+        defaults = {
+            "name": "test_py",
+            "type": ActionType.TRANSFORM,
+            "target": "v_output",
+            "transform_type": "python",
+            "source": "v_input",
+            "module_path": "transforms/my_transform.py",
+            "function_name": "my_func",
+        }
         defaults.update(overrides)
         return Action(**defaults)
 

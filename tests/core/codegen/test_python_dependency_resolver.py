@@ -509,9 +509,7 @@ def test_rewrite_lazy_function_body_local_import_prefixed(tmp_path: Path) -> Non
 # falls inside the import node's col_offset prefix and skews the slice start.
 _DESYNC_MODULE_BYTES = 'x = "—"; from helper import thing\n'.encode("utf-8")
 _DESYNC_ROOT_HELPER = "helper.py"
-_DESYNC_EXPECTED_ALIGNED = (
-    'x = "—"; from custom_python_functions.helper import thing\n'
-)
+_DESYNC_EXPECTED_ALIGNED = 'x = "—"; from custom_python_functions.helper import thing\n'
 
 
 def test_rewrite_aligned_utf8_source_rewrites_correctly(tmp_path: Path) -> None:

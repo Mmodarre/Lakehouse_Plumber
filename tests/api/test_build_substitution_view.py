@@ -54,22 +54,26 @@ def _write_minimal_project(root: Path) -> None:
     ``substitutions/<env>.yaml``, so no ``pipelines/`` / ``templates/`` /
     ``presets/`` content is needed for this path.
     """
-    (root / "lhp.yaml").write_text(textwrap.dedent("""\
+    (root / "lhp.yaml").write_text(
+        textwrap.dedent("""\
             name: substitution_view_test_project
             version: "1.0"
-            """))
+            """)
+    )
 
     subs_dir = root / "substitutions"
     subs_dir.mkdir(parents=True, exist_ok=True)
     # Nested-map value uses block style so YAML parses it as a real dict.
-    (subs_dir / f"{ENV}.yaml").write_text(textwrap.dedent(f"""\
+    (subs_dir / f"{ENV}.yaml").write_text(
+        textwrap.dedent(f"""\
             {ENV}:
               {SCALAR_STR_KEY}: {SCALAR_STR_VALUE}
               {SCALAR_INT_KEY}: {SCALAR_INT_VALUE}
               {NESTED_KEY}:
                 prod: {NESTED_VALUE["prod"]}
                 dev: {NESTED_VALUE["dev"]}
-            """))
+            """)
+    )
 
 
 @pytest.mark.unit

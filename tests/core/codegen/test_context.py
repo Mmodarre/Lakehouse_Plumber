@@ -41,8 +41,14 @@ def test_signature_cache_is_same_object_across_flowgroup_contexts():
 
     # Same dict object (identity), so writes by one flowgroup are visible to
     # the next within the same builder/pipeline.
-    assert ctx_a["source_function_signature_cache"] is ctx_b["source_function_signature_cache"]
-    assert ctx_a["source_function_signature_cache"] is builder._source_function_signature_cache
+    assert (
+        ctx_a["source_function_signature_cache"]
+        is ctx_b["source_function_signature_cache"]
+    )
+    assert (
+        ctx_a["source_function_signature_cache"]
+        is builder._source_function_signature_cache
+    )
 
     # Starts empty and is a dict keyed by resolved absolute source path (str).
     assert ctx_a["source_function_signature_cache"] == {}

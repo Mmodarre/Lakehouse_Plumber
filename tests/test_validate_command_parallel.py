@@ -111,9 +111,9 @@ class TestValidateCommandParallel:
                         "--show-all",
                     ],
                 )
-                assert (
-                    result.exit_code == 0
-                ), f"CLI exited {result.exit_code}: {result.output}"
+                assert result.exit_code == 0, (
+                    f"CLI exited {result.exit_code}: {result.output}"
+                )
                 for name in self.PIPELINES:
                     assert name in result.output, (
                         f"Pipeline {name} missing from validate output:\n"
@@ -424,9 +424,9 @@ def test_validate_catches_template_resolved_duplicate_table_invisible_in_raw():
             # Both flowgroups are present but their template is un-expanded:
             # zero actions, hence zero write/create_table actions to conflict.
             assert {fg.flowgroup for fg in raw_flowgroups} == {"fg_alpha", "fg_beta"}
-            assert all(
-                fg.actions == [] for fg in raw_flowgroups
-            ), "raw use_template flowgroups must carry no expanded actions"
+            assert all(fg.actions == [] for fg in raw_flowgroups), (
+                "raw use_template flowgroups must carry no expanded actions"
+            )
 
             raw_cross = orchestrator.validation.validate_cross_flowgroup(
                 raw_flowgroups, pipeline_filter="dup_pipeline"
@@ -449,8 +449,8 @@ def test_validate_catches_template_resolved_duplicate_table_invisible_in_raw():
             # the fully-resolved table name.
             assert "LHP-CFG-004" in result.output, result.output
             assert "Multiple table creators" in result.output, result.output
-            assert (
-                "dev_catalog.shared_schema.shared_tbl" in result.output
-            ), result.output
+            assert "dev_catalog.shared_schema.shared_tbl" in result.output, (
+                result.output
+            )
         finally:
             os.chdir(cwd)

@@ -7,6 +7,7 @@ scalars). The parameter is typed ``Any`` because dispatch is structural.
 
 :stability: provisional
 """
+
 from __future__ import annotations
 
 import dataclasses
@@ -48,10 +49,7 @@ def to_dict(obj: Any) -> JSONValue:
     # `not isinstance(obj, type)` guard is load-bearing: is_dataclass
     # returns True for both the class object and its instances.
     if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
-        return {
-            f.name: to_dict(getattr(obj, f.name))
-            for f in dataclasses.fields(obj)
-        }
+        return {f.name: to_dict(getattr(obj, f.name)) for f in dataclasses.fields(obj)}
 
     # Non-string mapping keys recurse — if recursion produces a non-str,
     # json.dumps raises downstream, signalling that the producer chose
@@ -68,6 +66,4 @@ def to_dict(obj: Any) -> JSONValue:
     if isinstance(obj, (list, tuple)):
         return [to_dict(v) for v in obj]
 
-    raise TypeError(
-        f"to_dict cannot serialise {type(obj).__name__}: {obj!r}"
-    )
+    raise TypeError(f"to_dict cannot serialise {type(obj).__name__}: {obj!r}")

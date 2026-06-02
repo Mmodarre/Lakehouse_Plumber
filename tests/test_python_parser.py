@@ -301,8 +301,8 @@ class TestPythonParser:
 
     def test_substitution_token_preservation(self):
         """Test that substitution tokens are properly preserved."""
-        python_code = f"""
-        df = spark.sql(f"SELECT * FROM {{catalog}}.{{bronze_schema}}.raw_data")
+        python_code = """
+        df = spark.sql(f"SELECT * FROM {catalog}.{bronze_schema}.raw_data")
         """
         result = self.parser.extract_tables_from_python(python_code)
         # F-string processing should preserve known substitution tokens

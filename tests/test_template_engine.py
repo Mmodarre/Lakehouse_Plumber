@@ -169,14 +169,14 @@ actions:
             # Try to render without required parameter
             parameters = {"target_table": "orders"}  # missing source_path
 
-            with pytest.raises(ValueError, match="(?i)missing.*parameters"):
+            with pytest.raises(ValueError, match=r"(?i)missing.*parameters"):
                 engine.render_template("bronze_ingestion", parameters)
 
     def test_render_template_not_found(self):
         """Test rendering non-existent template."""
         engine = TemplateEngine()
 
-        with pytest.raises(ValueError, match="(?i)template.*not found"):
+        with pytest.raises(ValueError, match=r"(?i)template.*not found"):
             engine.render_template("non_existent", {})
 
     def test_list_templates(self):
@@ -406,9 +406,9 @@ actions:
                 actions = engine.render_template("array_test_template", parameters)
                 assert len(actions) == 1
                 action = actions[0]
-                assert (
-                    action.write_target["cluster_columns"] == expected
-                ), f"Failed for {description}"
+                assert action.write_target["cluster_columns"] == expected, (
+                    f"Failed for {description}"
+                )
 
     def test_array_template_parameters_fail_fast(self):
         """Test array parameter conversion error cases - should fail fast."""
@@ -452,9 +452,9 @@ actions:
 
                 with pytest.raises(ValueError) as exc_info:
                     engine.render_template("array_error_template", parameters)
-                assert expected_error in str(
-                    exc_info.value
-                ), f"Failed for {param_value}"
+                assert expected_error in str(exc_info.value), (
+                    f"Failed for {param_value}"
+                )
 
     def test_object_template_parameters(self):
         """Test object parameter conversion - simple objects only."""
@@ -508,9 +508,9 @@ actions:
                 actions = engine.render_template("object_test_template", parameters)
                 assert len(actions) == 1
                 action = actions[0]
-                assert (
-                    action.write_target["spark_conf"] == expected
-                ), f"Failed for {description}"
+                assert action.write_target["spark_conf"] == expected, (
+                    f"Failed for {description}"
+                )
 
     def test_object_template_parameters_fail_fast(self):
         """Test object parameter conversion error cases - should fail fast."""
@@ -606,9 +606,9 @@ actions:
                 actions = engine.render_template("boolean_test_template", parameters)
                 assert len(actions) == 1
                 action = actions[0]
-                assert (
-                    action.write_target["create_table"] == expected
-                ), f"Failed for {description}"
+                assert action.write_target["create_table"] == expected, (
+                    f"Failed for {description}"
+                )
 
     def test_boolean_template_parameters_fail_fast(self):
         """Test boolean parameter conversion error cases - should fail fast."""
@@ -713,9 +713,9 @@ actions:
                 actions = engine.render_template("integer_test_template", parameters)
                 assert len(actions) == 1
                 action = actions[0]
-                assert (
-                    action.source["max_files_per_trigger"] == expected
-                ), f"Failed for {description}"
+                assert action.source["max_files_per_trigger"] == expected, (
+                    f"Failed for {description}"
+                )
 
     def test_integer_template_parameters_fail_fast(self):
         """Test integer parameter conversion error cases - should fail fast."""
@@ -769,12 +769,12 @@ actions:
                 assert len(actions) == 1
                 action = actions[0]
                 # These should stay as strings, not convert to integers
-                assert (
-                    action.source["max_files_per_trigger"] == expected
-                ), f"Failed for {description}"
-                assert isinstance(
-                    action.source["max_files_per_trigger"], str
-                ), f"Should be string for {description}"
+                assert action.source["max_files_per_trigger"] == expected, (
+                    f"Failed for {description}"
+                )
+                assert isinstance(action.source["max_files_per_trigger"], str), (
+                    f"Should be string for {description}"
+                )
 
 
 class TestTemplateEngineCompileCache:

@@ -413,9 +413,9 @@ continuous: true
         assert config["schema"] == "bronze_dev"
 
         # Literals preserved
-        assert config["serverless"] == False
+        assert config["serverless"] is False
         assert config["edition"] == "ADVANCED"
-        assert config["continuous"] == True
+        assert config["continuous"] is True
 
         # Companion real-render assertion: substituted catalog/schema plus
         # preserved literals must all land in the emitted resource YAML.

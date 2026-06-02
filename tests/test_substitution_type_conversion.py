@@ -142,9 +142,9 @@ dev:
             "max_workers",
             "timeout",
         ]:
-            assert isinstance(
-                mgr.mappings[key], str
-            ), f"{key} should be string, got {type(mgr.mappings[key])}"
+            assert isinstance(mgr.mappings[key], str), (
+                f"{key} should be string, got {type(mgr.mappings[key])}"
+            )
 
     def test_nested_dict_preserved(self, tmp_path):
         """Test that nested dictionaries are preserved (for prefix_suffix handling)."""

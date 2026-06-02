@@ -132,7 +132,7 @@ def build_flowgroup_worklist(
     for pipeline_field in pipeline_fields:
         try:
             flowgroups = [fg for fg in all_flowgroups if fg.pipeline == pipeline_field]
-        except Exception as e:  # noqa: BLE001 — caller-facing discovery error
+        except Exception as e:
             orchestrator.logger.debug(
                 f"Pipeline '{pipeline_field}' discovery failed",
                 exc_info=True,

@@ -16,6 +16,7 @@ The sweep covers ``GenerationResponse``, ``BatchGenerationResponse``,
 ``InitProjectResult`` (the latter is added by B4 — the test skips
 gracefully if absent at collection time).
 """
+
 from __future__ import annotations
 
 import dataclasses

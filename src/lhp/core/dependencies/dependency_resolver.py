@@ -217,7 +217,7 @@ class DependencyResolver:
         # Check if all actions were processed
         if len(result) != len(actions):
             unprocessed = [name for name, degree in in_degree.items() if degree > 0]
-            cycle_visual = " -> ".join(unprocessed + [unprocessed[0]])
+            cycle_visual = " -> ".join([*unprocessed, unprocessed[0]])
             raise ErrorFactory.dependency_error(
                 codes.DEP_001,
                 title="Circular dependency detected",
@@ -252,7 +252,7 @@ class DependencyResolver:
                 elif neighbor in rec_stack:
                     # Found cycle
                     cycle_start = path.index(neighbor)
-                    return path[cycle_start:] + [neighbor]
+                    return [*path[cycle_start:], neighbor]
 
             rec_stack.remove(node)
             path.pop()

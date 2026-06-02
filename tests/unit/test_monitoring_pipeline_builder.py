@@ -428,7 +428,12 @@ class TestTemplateContext:
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
         result = builder.build(["bronze"])
 
-        expected_keys = {"sources", "target_fqn", "checkpoint_path", "max_concurrent_streams"}
+        expected_keys = {
+            "sources",
+            "target_fqn",
+            "checkpoint_path",
+            "max_concurrent_streams",
+        }
         assert set(result.template_context.keys()) == expected_keys
 
     def test_context_single_pipeline(self):

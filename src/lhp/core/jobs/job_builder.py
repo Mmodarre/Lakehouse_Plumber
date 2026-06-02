@@ -88,9 +88,7 @@ def analyze_cross_job_dependencies(
 
         for pipeline_name in job_pipelines:
             if pipeline_name in global_result.pipeline_dependencies:
-                global_pipeline_dep = global_result.pipeline_dependencies[
-                    pipeline_name
-                ]
+                global_pipeline_dep = global_result.pipeline_dependencies[pipeline_name]
 
                 for upstream_pipeline in global_pipeline_dep.depends_on:
                     upstream_job = pipeline_to_job.get(upstream_pipeline)
@@ -103,9 +101,7 @@ def analyze_cross_job_dependencies(
                         )
 
         jobs_info[job_name] = {
-            "depends_on": sorted(
-                list(depends_on_jobs)
-            ),  # Sort for deterministic output
+            "depends_on": sorted(depends_on_jobs),  # Sort for deterministic output
             "pipeline_count": len(job_pipelines),
         }
 

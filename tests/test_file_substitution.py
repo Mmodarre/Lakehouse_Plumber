@@ -403,27 +403,27 @@ class TestSQLFileSubstitution:
             code = generator.generate(action, context)
 
             # Verify substitutions were applied
-            assert (
-                "test_catalog.test_bronze.customers" in code
-            ), f"Expected substituted schema in: {code}"
-            assert (
-                "'dev' as source_env" in code
-            ), f"Expected substituted environment in: {code}"
+            assert "test_catalog.test_bronze.customers" in code, (
+                f"Expected substituted schema in: {code}"
+            )
+            assert "'dev' as source_env" in code, (
+                f"Expected substituted environment in: {code}"
+            )
             assert ">= '2024-01-01'" in code, f"Expected substituted date in: {code}"
 
             # Verify no unsubstituted tokens remain
-            assert (
-                "{catalog}" not in code
-            ), f"Unsubstituted {{catalog}} found in: {code}"
-            assert (
-                "{bronze_schema}" not in code
-            ), f"Unsubstituted {{bronze_schema}} found in: {code}"
-            assert (
-                "{environment}" not in code
-            ), f"Unsubstituted {{environment}} found in: {code}"
-            assert (
-                "{start_date}" not in code
-            ), f"Unsubstituted {{start_date}} found in: {code}"
+            assert "{catalog}" not in code, (
+                f"Unsubstituted {{catalog}} found in: {code}"
+            )
+            assert "{bronze_schema}" not in code, (
+                f"Unsubstituted {{bronze_schema}} found in: {code}"
+            )
+            assert "{environment}" not in code, (
+                f"Unsubstituted {{environment}} found in: {code}"
+            )
+            assert "{start_date}" not in code, (
+                f"Unsubstituted {{start_date}} found in: {code}"
+            )
 
             # Verify structure is preserved
             assert "@dp.temporary_view()" in code
@@ -485,26 +485,26 @@ class TestSQLFileSubstitution:
             code = generator.generate(action, context)
 
             # Verify substitutions were applied
-            assert (
-                "FROM v_customers_staging c" in code
-            ), f"Expected substituted staging view in: {code}"
-            assert (
-                "'v2.1' as version" in code
-            ), f"Expected substituted version in: {code}"
-            assert (
-                ">= '2023-12-01'" in code
-            ), f"Expected substituted cutoff date in: {code}"
+            assert "FROM v_customers_staging c" in code, (
+                f"Expected substituted staging view in: {code}"
+            )
+            assert "'v2.1' as version" in code, (
+                f"Expected substituted version in: {code}"
+            )
+            assert ">= '2023-12-01'" in code, (
+                f"Expected substituted cutoff date in: {code}"
+            )
 
             # Verify no unsubstituted tokens remain
-            assert (
-                "{staging_view}" not in code
-            ), f"Unsubstituted {{staging_view}} found in: {code}"
-            assert (
-                "{pipeline_version}" not in code
-            ), f"Unsubstituted {{pipeline_version}} found in: {code}"
-            assert (
-                "{cutoff_date}" not in code
-            ), f"Unsubstituted {{cutoff_date}} found in: {code}"
+            assert "{staging_view}" not in code, (
+                f"Unsubstituted {{staging_view}} found in: {code}"
+            )
+            assert "{pipeline_version}" not in code, (
+                f"Unsubstituted {{pipeline_version}} found in: {code}"
+            )
+            assert "{cutoff_date}" not in code, (
+                f"Unsubstituted {{cutoff_date}} found in: {code}"
+            )
 
             # Verify structure is preserved
             assert "@dp.temporary_view(" in code  # Allow for comment parameter
@@ -563,40 +563,40 @@ class TestSQLFileSubstitution:
             code = generator.generate(action, context)
 
             # Verify token substitutions
-            assert (
-                "prod_catalog.bronze.customers" in code
-            ), f"Expected token substitution in: {code}"
+            assert "prod_catalog.bronze.customers" in code, (
+                f"Expected token substitution in: {code}"
+            )
             assert "{catalog}" not in code, f"Unsubstituted token found in: {code}"
 
             # Placeholders are emitted at this layer.
-            assert (
-                "__SECRET_env_config_environment__" in code
-            ), f"Expected env placeholder in: {code}"
-            assert (
-                "__SECRET_build_info_version__" in code
-            ), f"Expected build_info placeholder in: {code}"
-            assert (
-                "__SECRET_api_keys_customer_service__" in code
-            ), f"Expected api_keys placeholder in: {code}"
+            assert "__SECRET_env_config_environment__" in code, (
+                f"Expected env placeholder in: {code}"
+            )
+            assert "__SECRET_build_info_version__" in code, (
+                f"Expected build_info placeholder in: {code}"
+            )
+            assert "__SECRET_api_keys_customer_service__" in code, (
+                f"Expected api_keys placeholder in: {code}"
+            )
 
             # Raw ${secret:...} must be fully substituted.
-            assert (
-                "${secret:env_config/environment}" not in code
-            ), f"Unsubstituted secret found in: {code}"
-            assert (
-                "${secret:build_info/version}" not in code
-            ), f"Unsubstituted secret found in: {code}"
-            assert (
-                "${secret:api_keys/customer_service}" not in code
-            ), f"Unsubstituted secret found in: {code}"
+            assert "${secret:env_config/environment}" not in code, (
+                f"Unsubstituted secret found in: {code}"
+            )
+            assert "${secret:build_info/version}" not in code, (
+                f"Unsubstituted secret found in: {code}"
+            )
+            assert "${secret:api_keys/customer_service}" not in code, (
+                f"Unsubstituted secret found in: {code}"
+            )
 
             # Bare dbutils calls only after the post-pass.
             assert "dbutils.secrets.get" not in code
 
             # Verify secret references were tracked
-            assert (
-                len(substitution_mgr.secret_references) > 0
-            ), "Expected secret references to be tracked"
+            assert len(substitution_mgr.secret_references) > 0, (
+                "Expected secret references to be tracked"
+            )
 
         finally:
             # Clean up temp file
@@ -648,9 +648,9 @@ class TestSQLFileSubstitution:
 
             # Verify original content is preserved exactly
             assert "raw.customers" in code, f"Expected original table name in: {code}"
-            assert (
-                "'production' as environment" in code
-            ), f"Expected original environment in: {code}"
+            assert "'production' as environment" in code, (
+                f"Expected original environment in: {code}"
+            )
             assert ">= '2024-01-01'" in code, f"Expected original date in: {code}"
 
             # Verify structure is preserved
@@ -733,12 +733,12 @@ def enrich_customers(df: DataFrame, spark, parameters) -> DataFrame:
             code = generator.generate(action, context)
 
             # The generated code should have the view function
-            assert (
-                "def v_customers_enriched():" in code
-            ), f"Expected view function in: {code}"
-            assert (
-                "enrich_customers(v_customers_raw_df, spark, parameters)" in code
-            ), f"Expected function call in: {code}"
+            assert "def v_customers_enriched():" in code, (
+                f"Expected view function in: {code}"
+            )
+            assert "enrich_customers(v_customers_raw_df, spark, parameters)" in code, (
+                f"Expected function call in: {code}"
+            )
 
             # Check that the copied file has substitutions applied
             copied_file = (
@@ -748,35 +748,35 @@ def enrich_customers(df: DataFrame, spark, parameters) -> DataFrame:
             )
 
             # Verify the file was copied and substitutions applied
-            assert (
-                copied_file.exists()
-            ), f"Expected copied file to exist at: {copied_file}"
+            assert copied_file.exists(), (
+                f"Expected copied file to exist at: {copied_file}"
+            )
             copied_content = copied_file.read_text()
 
             # Verify substitutions were applied in the copied file
-            assert (
-                'lit("dev")' in copied_content
-            ), f"Expected substituted environment in copied file: {copied_content}"
-            assert (
-                'lit("test_catalog")' in copied_content
-            ), f"Expected substituted catalog in copied file: {copied_content}"
-            assert (
-                'lit("2024-01-15")' in copied_content
-            ), f"Expected substituted date in copied file: {copied_content}"
-            assert (
-                'if "dev" ==' in copied_content
-            ), f"Expected substituted condition in copied file: {copied_content}"
+            assert 'lit("dev")' in copied_content, (
+                f"Expected substituted environment in copied file: {copied_content}"
+            )
+            assert 'lit("test_catalog")' in copied_content, (
+                f"Expected substituted catalog in copied file: {copied_content}"
+            )
+            assert 'lit("2024-01-15")' in copied_content, (
+                f"Expected substituted date in copied file: {copied_content}"
+            )
+            assert 'if "dev" ==' in copied_content, (
+                f"Expected substituted condition in copied file: {copied_content}"
+            )
 
             # Verify no unsubstituted tokens remain
-            assert (
-                '"{environment}"' not in copied_content
-            ), f"Unsubstituted {{environment}} found in copied file"
-            assert (
-                '"{catalog}"' not in copied_content
-            ), f"Unsubstituted {{catalog}} found in copied file"
-            assert (
-                '"{processing_date}"' not in copied_content
-            ), f"Unsubstituted {{processing_date}} found in copied file"
+            assert '"{environment}"' not in copied_content, (
+                "Unsubstituted {environment} found in copied file"
+            )
+            assert '"{catalog}"' not in copied_content, (
+                "Unsubstituted {catalog} found in copied file"
+            )
+            assert '"{processing_date}"' not in copied_content, (
+                "Unsubstituted {processing_date} found in copied file"
+            )
 
         finally:
             # Clean up temp files

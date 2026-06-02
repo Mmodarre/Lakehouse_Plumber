@@ -35,7 +35,7 @@ class TestTemplateSmartDetection:
 
             # Test template expression with boolean
             result = engine._render_value("{{ enabled }}", {"enabled": True})
-            assert result == True
+            assert result is True
 
             # Test template expression with integer
             result = engine._render_value("{{ count }}", {"count": 42})
@@ -124,7 +124,7 @@ class TestTemplateSmartDetection:
 
             # Empty template parameter (should pass None through)
             result = engine._render_value("{{ empty_param }}", {"empty_param": None})
-            assert result == None
+            assert result is None
 
             # Template in middle of string
             result = engine._render_value(

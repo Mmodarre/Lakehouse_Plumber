@@ -812,9 +812,9 @@ class TestGeneratePipelinesByFields:
                 for filename in single[name]:
                     single_code = (ref_out_dirs[name] / name / filename).read_text()
                     plural_code = (plural_out_dir / name / filename).read_text()
-                    assert (
-                        plural_code == single_code
-                    ), f"Content mismatch for {name}/{filename}"
+                    assert plural_code == single_code, (
+                        f"Content mismatch for {name}/{filename}"
+                    )
 
     def test_max_workers_1_matches_max_workers_8(self):
         """``max_workers=1`` (sequential) and ``max_workers=8`` produce
@@ -1074,9 +1074,9 @@ class TestValidatePipelinesByFields:
 
             assert len(outcomes) == 3
             for outcome in outcomes:
-                assert (
-                    outcome.success
-                ), f"Pipeline {outcome.pipeline} failed unexpectedly: {outcome.errors}"
+                assert outcome.success, (
+                    f"Pipeline {outcome.pipeline} failed unexpectedly: {outcome.errors}"
+                )
                 assert outcome.errors == ()
                 assert outcome.warnings == ()
 

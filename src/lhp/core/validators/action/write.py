@@ -109,7 +109,7 @@ class WriteActionValidator(BaseActionValidator):
 
         except ValueError as e:
             logger.debug(f"Unrecognized write target type for '{action.name}': {e}")
-            pass  # Already handled above
+            # Already handled above
 
         return errors
 

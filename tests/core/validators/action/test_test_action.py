@@ -38,9 +38,9 @@ def _errors_for(**kwargs) -> list:
 
 
 def _assert_has(errors: list, substring: str) -> None:
-    assert any(
-        substring in e for e in errors
-    ), f"Expected an error containing {substring!r}; got: {errors}"
+    assert any(substring in e for e in errors), (
+        f"Expected an error containing {substring!r}; got: {errors}"
+    )
 
 
 # ===========================================================================

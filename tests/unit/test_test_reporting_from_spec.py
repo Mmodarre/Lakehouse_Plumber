@@ -228,10 +228,12 @@ def _make_provider_file(tmp_path: Path, filename: str = "publisher.py") -> Path:
     """Create a minimal provider Python file in tmp_path."""
     provider = tmp_path / "py_functions" / filename
     provider.parent.mkdir(parents=True, exist_ok=True)
-    provider.write_text(textwrap.dedent("""\
+    provider.write_text(
+        textwrap.dedent("""\
         def publish_results(results, config, context, spark):
             return {"published": len(results), "failed": 0}
-        """))
+        """)
+    )
     return provider
 
 
@@ -365,11 +367,13 @@ class TestSpecHookGeneration:
         # Create a config_file with YAML booleans
         config_yaml = tmp_path / "config" / "reporting.yaml"
         config_yaml.parent.mkdir(parents=True, exist_ok=True)
-        config_yaml.write_text(textwrap.dedent("""\
+        config_yaml.write_text(
+            textwrap.dedent("""\
             api_url: https://dev.azure.com
             verify_ssl: true
             timeout: 30
-            """))
+            """)
+        )
 
         tr_config = TestReportingConfig(
             module_path="py_functions/publisher.py",
@@ -476,9 +480,9 @@ class TestSpecHookGeneration:
         )
 
         providers_dir = output_dir / "test_reporting_providers"
-        assert (
-            providers_dir.exists()
-        ), "test_reporting_providers/ directory should exist"
+        assert providers_dir.exists(), (
+            "test_reporting_providers/ directory should exist"
+        )
         assert (providers_dir / "__init__.py").exists(), "__init__.py should exist"
 
         copied_provider = providers_dir / "publisher.py"
@@ -522,12 +526,14 @@ class TestSpecHookGeneration:
 
         config_yaml = tmp_path / "config" / "reporting.yaml"
         config_yaml.parent.mkdir(parents=True, exist_ok=True)
-        config_yaml.write_text(textwrap.dedent("""\
+        config_yaml.write_text(
+            textwrap.dedent("""\
             enabled: true
             disabled: false
             empty_value: null
             name: "test"
-            """))
+            """)
+        )
 
         tr_config = TestReportingConfig(
             module_path="py_functions/publisher.py",

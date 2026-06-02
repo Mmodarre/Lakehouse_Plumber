@@ -244,7 +244,7 @@ class BlueprintExpander:
             if SUBSTITUTION_TOKEN_PATTERN.search(value):
                 raise ErrorFactory.validation_error(
                     codes.VAL_044,
-                    title=("${env_token} not allowed in blueprint " f"'{field}' field"),
+                    title=(f"${{env_token}} not allowed in blueprint '{field}' field"),
                     details=(
                         f"Blueprint '{blueprint.name}' defines a flowgroup spec "
                         f"with `{field}: {value!r}`, which contains a "

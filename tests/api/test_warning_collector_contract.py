@@ -4,6 +4,7 @@ Pins: (1) export from ``lhp.api``, (2) dedup on ``(category, message)``
 with insertion order, (3) pickle round-trip, (4) ``lhp.api.callbacks``
 imports nothing from ``rich`` (constitution §9.6).
 """
+
 from __future__ import annotations
 
 import ast

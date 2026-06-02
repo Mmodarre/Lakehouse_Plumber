@@ -63,7 +63,7 @@ class TransformActionValidator(BaseActionValidator):
 
         except ValueError as e:
             logger.debug(f"Unrecognized transform type for '{action.name}': {e}")
-            pass  # Already handled above
+            # Already handled above
 
         return errors
 
@@ -103,23 +103,22 @@ class TransformActionValidator(BaseActionValidator):
                         f"{prefix}: Python transform source list item {i} must be a string"
                     )
 
-        if not hasattr(action, "module_path") or not getattr(action, "module_path"):
+        if not hasattr(action, "module_path") or not action.module_path:
             errors.append(f"{prefix}: Python transform must have 'module_path'")
-        elif not isinstance(getattr(action, "module_path"), str):
+        elif not isinstance(action.module_path, str):
             errors.append(f"{prefix}: Python transform module_path must be a string")
         else:
             if self.project_root:
-
-                module_path = getattr(action, "module_path")
+                module_path = action.module_path
                 source_file = self.project_root / module_path
                 if not source_file.exists():
                     errors.append(
                         f"{prefix}: Python module file not found: {source_file}"
                     )
 
-        if not hasattr(action, "function_name") or not getattr(action, "function_name"):
+        if not hasattr(action, "function_name") or not action.function_name:
             errors.append(f"{prefix}: Python transform must have 'function_name'")
-        elif not isinstance(getattr(action, "function_name"), str):
+        elif not isinstance(action.function_name, str):
             errors.append(f"{prefix}: Python transform function_name must be a string")
 
         if hasattr(action, "parameters") and action.parameters is not None:

@@ -37,10 +37,10 @@ def _build_minimal_lhp_project(project_root: Path) -> None:
     (project_root / "templates").mkdir(exist_ok=True)
 
     (project_root / "lhp.yaml").write_text(
-        "name: max_workers_wiring_test\n" 'version: "1.0"\n'
+        'name: max_workers_wiring_test\nversion: "1.0"\n'
     )
     (project_root / "substitutions" / "dev.yaml").write_text(
-        "dev:\n" "  env: dev\n" "  catalog: test_catalog\n" "  bronze_schema: bronze\n"
+        "dev:\n  env: dev\n  catalog: test_catalog\n  bronze_schema: bronze\n"
     )
 
     # One trivial flowgroup so discovery has something to find. We don't
@@ -49,7 +49,8 @@ def _build_minimal_lhp_project(project_root: Path) -> None:
     # the assertion is purely on the constructor args).
     pdir = project_root / "pipelines" / "01_trivial"
     pdir.mkdir(parents=True, exist_ok=True)
-    (pdir / "fg1.yaml").write_text(textwrap.dedent("""\
+    (pdir / "fg1.yaml").write_text(
+        textwrap.dedent("""\
             pipeline: pipeline_trivial
             flowgroup: fg1
             actions:
@@ -67,7 +68,8 @@ def _build_minimal_lhp_project(project_root: Path) -> None:
                   database: ${catalog}.${bronze_schema}
                   table: t_fg1
                   create_table: true
-            """))
+            """)
+    )
 
 
 @pytest.mark.unit
@@ -129,7 +131,7 @@ class TestMaxWorkersWiringEndToEnd:
         # for that arg in the current codebase, but we accept both forms
         # defensively).
         found_max_workers_3 = False
-        for args, kwargs in captured_calls:
+        for _args, kwargs in captured_calls:
             if kwargs.get("max_workers") == 3:
                 found_max_workers_3 = True
                 break
@@ -138,7 +140,7 @@ class TestMaxWorkersWiringEndToEnd:
             "ActionOrchestrator.__init__ was never called with "
             "max_workers=3. The --max-workers CLI flag is NOT being "
             "propagated to the orchestrator constructor.\n"
-            f"Captured calls (args/kwargs):\n"
+            "Captured calls (args/kwargs):\n"
             + "\n".join(f"  args={a!r}\n  kwargs={k!r}" for a, k in captured_calls)
             + f"\n\nCLI exit_code={result.exit_code}\nOutput:\n{result.output}"
         )

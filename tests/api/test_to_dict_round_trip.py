@@ -12,6 +12,7 @@ walks ``dataclasses.fields`` + resolved type hints, never per-type.
 :class:`Exception` (the §9.21 exception to the "no exceptions in DTO
 fields" rule); ``to_dict`` correctly raises :class:`TypeError` on it.
 """
+
 from __future__ import annotations
 
 import datetime
@@ -152,7 +153,9 @@ _val_resp = ValidationResponse(
 _dep_entry = DependencyOutputEntry(format_name="dot", label="", path=Path("out.dot"))
 
 _INSTANCES = [
-    pytest.param(OperationStarted(operation_name="generate", env="dev"), id="OperationStarted"),
+    pytest.param(
+        OperationStarted(operation_name="generate", env="dev"), id="OperationStarted"
+    ),
     # ``response: object`` accepts any JSON shape; a primitive keeps the
     # round-trip generic (no per-type fixup).
     pytest.param(OperationCompleted(response="ok"), id="OperationCompleted"),
@@ -229,7 +232,9 @@ _INSTANCES = [
             flowgroup_count=2,
             total_actions=4,
             action_counts_by_type={"load": 2, "write": 2},
-            pipeline_breakdown=(PipelineStats(pipeline_name="p1", flowgroup_count=2, total_actions=4),),
+            pipeline_breakdown=(
+                PipelineStats(pipeline_name="p1", flowgroup_count=2, total_actions=4),
+            ),
             templates_used=("t",),
             presets_used=("p",),
         ),
@@ -248,23 +253,32 @@ _INSTANCES = [
     ),
     pytest.param(_dep_entry, id="DependencyOutputEntry"),
     pytest.param(
-        DependencyOutputsResult(success=True, entries=(_dep_entry,), output_dir=Path("out")),
+        DependencyOutputsResult(
+            success=True, entries=(_dep_entry,), output_dir=Path("out")
+        ),
         id="DependencyOutputsResult",
     ),
     pytest.param(
         FinalizeMonitoringResult(
-            success=True, monitoring_pipeline_path=Path("mon.py"), event_log_table_created=True
+            success=True,
+            monitoring_pipeline_path=Path("mon.py"),
+            event_log_table_created=True,
         ),
         id="FinalizeMonitoringResult",
     ),
     pytest.param(
         BundleSyncResult(
-            success=True, synced_file_count=3, deleted_file_count=1, bundle_path=Path("bundle.yml")
+            success=True,
+            synced_file_count=3,
+            deleted_file_count=1,
+            bundle_path=Path("bundle.yml"),
         ),
         id="BundleSyncResult",
     ),
     pytest.param(
-        BundleValidationResult(success=False, issues=("missing root_path",), error_code="LHP-CFG-001"),
+        BundleValidationResult(
+            success=False, issues=("missing root_path",), error_code="LHP-CFG-001"
+        ),
         id="BundleValidationResult",
     ),
     pytest.param(
@@ -281,13 +295,19 @@ _INSTANCES = [
     pytest.param(_action, id="ActionView"),
     pytest.param(
         ProcessedFlowgroupView(
-            flowgroup=_flowgroup, actions=(_action,), job_name="job1", variables={"k": "v"}
+            flowgroup=_flowgroup,
+            actions=(_action,),
+            job_name="job1",
+            variables={"k": "v"},
         ),
         id="ProcessedFlowgroupView",
     ),
     pytest.param(
         GeneratedCodeView(
-            flowgroup_name="fg1", pipeline="pipe1", generated_code="x = 1", target_filename="fg1.py"
+            flowgroup_name="fg1",
+            pipeline="pipe1",
+            generated_code="x = 1",
+            target_filename="fg1.py",
         ),
         id="GeneratedCodeView",
     ),
@@ -308,14 +328,18 @@ _INSTANCES = [
             version="1.0",
             instances=(
                 BlueprintInstanceView(
-                    instance_file_path=Path("i.yaml"), flowgroup_count=1, pipelines=("p1",)
+                    instance_file_path=Path("i.yaml"),
+                    flowgroup_count=1,
+                    pipelines=("p1",),
                 ),
             ),
         ),
         id="BlueprintView",
     ),
     pytest.param(
-        PresetView(name="pre1", file_path=Path("pre.yaml"), version="1.0", extends="base"),
+        PresetView(
+            name="pre1", file_path=Path("pre.yaml"), version="1.0", extends="base"
+        ),
         id="PresetView",
     ),
     pytest.param(
@@ -332,8 +356,13 @@ _INSTANCES = [
         ),
         id="TemplateView",
     ),
-    pytest.param(PipelineStats(pipeline_name="p1", flowgroup_count=2, total_actions=4), id="PipelineStats"),
-    pytest.param(SecretReferenceView(scope="kv", key="db_url"), id="SecretReferenceView"),
+    pytest.param(
+        PipelineStats(pipeline_name="p1", flowgroup_count=2, total_actions=4),
+        id="PipelineStats",
+    ),
+    pytest.param(
+        SecretReferenceView(scope="kv", key="db_url"), id="SecretReferenceView"
+    ),
     pytest.param(
         SubstitutionView(
             env="dev",

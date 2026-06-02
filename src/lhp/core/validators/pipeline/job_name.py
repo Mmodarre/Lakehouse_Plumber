@@ -97,7 +97,7 @@ def validate_job_names(flowgroups: List[FlowGroup]) -> None:
         )
 
     if with_job_name:
-        unique_jobs = set(fg.job_name for fg in flowgroups if fg.job_name)
+        unique_jobs = {fg.job_name for fg in flowgroups if fg.job_name}
         logger.info(
             f"job_name validation passed: {len(flowgroups)} flowgroups across "
             f"{len(unique_jobs)} job(s): {', '.join(sorted(unique_jobs))}"

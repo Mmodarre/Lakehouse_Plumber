@@ -810,9 +810,9 @@ def test_materialized_view_full_structure():
     function_def_line = next(
         i for i, line in enumerate(lines) if "def customer_analytics():" in line
     )
-    assert (
-        dlt_mv_line < function_def_line
-    ), "DLT decorator should come before function definition"
+    assert dlt_mv_line < function_def_line, (
+        "DLT decorator should come before function definition"
+    )
 
     # Check that imports would be at the top (handled by base generator)
     # Check specific configurations are included

@@ -185,9 +185,7 @@ class TestDependencyOutputManager:
         m.assert_called_once_with(output_path, "w", encoding="utf-8")
 
         # Reconstruct the exact bytes handed to the file handle.
-        written = "".join(
-            call.args[0] for call in m.return_value.write.call_args_list
-        )
+        written = "".join(call.args[0] for call in m.return_value.write.call_args_list)
 
         # The dead analyzer seam was never used.
         poisoned_analyzer.export_to_dot.assert_not_called()
@@ -241,9 +239,7 @@ class TestDependencyOutputManager:
         m.assert_called_once_with(output_path, "w", encoding="utf-8")
 
         # ``json.dump`` writes in chunks; reassemble and parse the real bytes.
-        written = "".join(
-            call.args[0] for call in m.return_value.write.call_args_list
-        )
+        written = "".join(call.args[0] for call in m.return_value.write.call_args_list)
         saved = json.loads(written)
 
         # The dead analyzer seam was never used.
@@ -314,9 +310,7 @@ class TestDependencyOutputManager:
             "lhp.core.dependencies.output.JobGenerator",
             return_value=mock_job_generator,
         ):
-            self.output_manager._save_job_format(
-                mock_analyzer, result, self.temp_dir
-            )
+            self.output_manager._save_job_format(mock_analyzer, result, self.temp_dir)
 
         # Verify job generator was called
         mock_job_generator.save_job_to_file.assert_called_once()

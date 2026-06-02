@@ -447,9 +447,7 @@ def compare(
                         else math.nan
                     ),
                     delta_pct=0.0,
-                    reason=(
-                        f"baseline={baseline_count}, " f"candidate={candidate_count}"
-                    ),
+                    reason=(f"baseline={baseline_count}, candidate={candidate_count}"),
                     unit="count",
                 )
             )
@@ -615,7 +613,7 @@ def capture_baseline(
 
         if result.exit_code != 0:
             raise RuntimeError(
-                f"lhp generate failed (run {i+1}/{runs}, fixture "
+                f"lhp generate failed (run {i + 1}/{runs}, fixture "
                 f"{fixture_path.name}): exit={result.exit_code}\n"
                 f"{result.output}\nException: {result.exception!r}"
             )
@@ -638,7 +636,7 @@ def capture_baseline(
         )
 
         if archive_dir is not None and perf_log.exists():
-            shutil.copy2(perf_log, archive_dir / f"run{i+1}.perf.log")
+            shutil.copy2(perf_log, archive_dir / f"run{i + 1}.perf.log")
 
     summary = summarize(benchmark_runs)
     doc = _build_baseline_doc(
@@ -665,8 +663,7 @@ def load_latest_baseline(baselines_dir: Path) -> BaselineDoc:
         raise FileNotFoundError(f"No vX.Y.Z.json baseline found under {baselines_dir}")
     candidates.sort(reverse=True)
     chosen = candidates[0][1]
-    data = json.loads(chosen.read_text(encoding="utf-8"))
-    return data  # type: ignore[return-value]
+    return json.loads(chosen.read_text(encoding="utf-8"))
 
 
 def _seed_from_log(
@@ -740,10 +737,7 @@ def _cmd_seed(args: argparse.Namespace) -> int:
     if not version.startswith("v"):
         version = f"v{version}"
     output_dir = BASELINES_DIR / args.fixture
-    print(
-        f"Seeding baseline: fixture={args.fixture} version={version} "
-        f"from={log_path}"
-    )
+    print(f"Seeding baseline: fixture={args.fixture} version={version} from={log_path}")
     target = _seed_from_log(
         perf_log_path=log_path,
         fixture_name=args.fixture,

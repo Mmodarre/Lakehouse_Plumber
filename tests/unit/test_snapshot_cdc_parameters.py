@@ -530,9 +530,9 @@ class TestValidatorParameters:
                 "keys": ["id"],
             }
             errors = validator._validate_source_configuration(config, "test_flowgroup")
-            assert any(
-                "'parameters' must be a dictionary" in e for e in errors
-            ), f"Expected validation error for parameters={bad_value!r}"
+            assert any("'parameters' must be a dictionary" in e for e in errors), (
+                f"Expected validation error for parameters={bad_value!r}"
+            )
 
     def test_no_parameters_still_valid(self, validator):
         """source_function without parameters is still valid."""

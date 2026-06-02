@@ -168,7 +168,7 @@ class PipelineConfigLoader:
                     pipeline_names = pipeline_names_raw
                 else:
                     self.logger.warning(
-                        f"Document {idx+1} has invalid pipeline type: {type(pipeline_names_raw)}. "
+                        f"Document {idx + 1} has invalid pipeline type: {type(pipeline_names_raw)}. "
                         f"Expected string or list. Skipping."
                     )
                     continue
@@ -179,7 +179,7 @@ class PipelineConfigLoader:
                         codes.VAL_005,
                         title="Empty pipeline list",
                         details=(
-                            f"Document {idx+1} in pipeline config has an empty pipeline list. "
+                            f"Document {idx + 1} in pipeline config has an empty pipeline list. "
                             f"At least one pipeline name is required."
                         ),
                         suggestions=[
@@ -219,7 +219,7 @@ class PipelineConfigLoader:
                             codes.VAL_006,
                             title="Duplicate pipeline name",
                             details=(
-                                f"pipeline '{pipeline_name}' in document {idx+1} was already defined "
+                                f"pipeline '{pipeline_name}' in document {idx + 1} was already defined "
                                 f"in document {first_seen[pipeline_name]}. Each pipeline must be unique "
                                 f"across all documents in the config file."
                             ),
@@ -246,7 +246,7 @@ class PipelineConfigLoader:
 
             else:
                 self.logger.warning(
-                    f"Document has neither 'project_defaults' nor 'pipeline' key, ignoring"
+                    "Document has neither 'project_defaults' nor 'pipeline' key, ignoring"
                 )
 
         return project_defaults, pipeline_configs

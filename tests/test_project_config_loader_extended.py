@@ -229,10 +229,7 @@ class TestParseOperationalMetadata:
         """Non-dict non-string column config raises LHPError (originally CFG-003)."""
         config_file = tmp_path / "lhp.yaml"
         config_file.write_text(
-            "name: test\n"
-            "operational_metadata:\n"
-            "  columns:\n"
-            "    bad_column: 42\n"
+            "name: test\noperational_metadata:\n  columns:\n    bad_column: 42\n"
         )
         loader = ProjectConfigLoader(tmp_path)
         with pytest.raises(LHPError) as exc_info:

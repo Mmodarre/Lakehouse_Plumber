@@ -31,7 +31,7 @@ class DltTableOptionsValidator:
             if not isinstance(spark_conf, dict):
                 errors.append(f"{prefix}: 'spark_conf' must be a dictionary")
             else:
-                for key, value in spark_conf.items():
+                for key, _value in spark_conf.items():
                     if not isinstance(key, str):
                         errors.append(
                             f"{prefix}: spark_conf key '{key}' must be a string"
@@ -47,7 +47,7 @@ class DltTableOptionsValidator:
             if not isinstance(table_properties, dict):
                 errors.append(f"{prefix}: 'table_properties' must be a dictionary")
             else:
-                for key, value in table_properties.items():
+                for key, _value in table_properties.items():
                     if not isinstance(key, str):
                         errors.append(
                             f"{prefix}: table_properties key '{key}' must be a string"

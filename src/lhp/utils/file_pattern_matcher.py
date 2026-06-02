@@ -109,12 +109,11 @@ class FilePatternMatcher:
         if "**" in pattern:
             # Recursive pattern matching
             return self._matches_recursive_pattern(file_path, pattern)
-        elif "*" in pattern or "?" in pattern:
+        if "*" in pattern or "?" in pattern:
             # Wildcard pattern matching
             return self._matches_wildcard_pattern(file_path, pattern)
-        else:
-            # Exact pattern matching
-            return self._matches_exact_pattern(file_path, pattern)
+        # Exact pattern matching
+        return self._matches_exact_pattern(file_path, pattern)
 
     def _matches_recursive_pattern(self, file_path: str, pattern: str) -> bool:
         """Match file path against recursive pattern (containing **)."""
@@ -140,7 +139,7 @@ class FilePatternMatcher:
         if prefix:
             # Check if any parent directory matches the prefix
             prefix_matched = False
-            for parent in [file_path_obj] + list(file_path_obj.parents):
+            for parent in [file_path_obj, *list(file_path_obj.parents)]:
                 parent_str = str(parent)
                 if fnmatch.fnmatch(parent_str, prefix + "*"):
                     # Check if the remaining path matches the suffix
@@ -159,9 +158,8 @@ class FilePatternMatcher:
                 return fnmatch.fnmatch(file_path, pattern)
 
             return prefix_matched
-        else:
-            # Pattern starts with **, match against suffix
-            return fnmatch.fnmatch(str(file_path_obj.name), suffix)
+        # Pattern starts with **, match against suffix
+        return fnmatch.fnmatch(str(file_path_obj.name), suffix)
 
     def _matches_wildcard_pattern(self, file_path: str, pattern: str) -> bool:
         """Match file path against wildcard pattern (containing * or ?)."""

@@ -63,15 +63,15 @@ project:
         params = list(signature.parameters.keys())
 
         # Should have include_tests parameter
-        assert (
-            "include_tests" in params
-        ), f"include_tests parameter not found in method signature. Available parameters: {params}"
+        assert "include_tests" in params, (
+            f"include_tests parameter not found in method signature. Available parameters: {params}"
+        )
 
         # Check default value
         include_tests_param = signature.parameters["include_tests"]
-        assert (
-            include_tests_param.default == False
-        ), "include_tests parameter should default to False"
+        assert include_tests_param.default is False, (
+            "include_tests parameter should default to False"
+        )
 
     def test_generate_flowgroup_code_skips_tests_when_false(self):
         """Test that _generate_flowgroup_code skips TEST actions when include_tests=False."""
@@ -256,9 +256,9 @@ project:
         result_with = self.orchestrator.codegen.generate(
             flowgroup, substitution_mgr, include_tests=True
         )
-        assert (
-            result_with != ""
-        ), "Test-only flowgroup should generate content when flag is set"
+        assert result_with != "", (
+            "Test-only flowgroup should generate content when flag is set"
+        )
         assert "DATA QUALITY TESTS" in result_with
         assert "@dp.table(" in result_with
 

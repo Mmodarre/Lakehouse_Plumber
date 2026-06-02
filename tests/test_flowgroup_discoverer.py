@@ -248,7 +248,7 @@ flowgroup: flowgroup3
             assert len(flowgroups_with_paths) == 3
 
             # All three flowgroups should have the same file path
-            for flowgroup, file_path in flowgroups_with_paths:
+            for _flowgroup, file_path in flowgroups_with_paths:
                 assert file_path == multi_file
 
             # Check all flowgroups are present

@@ -122,13 +122,11 @@ class SchemaTransformParser:
                         "Enforcement must be specified at action level only."
                     )
                 return self.parse_file_data(parsed)
-            else:
-                # Dict keys don't match expected format - YAML misinterpreted arrow lines
-                # Treat as plain arrow format
-                return self._parse_arrow_lines(schema_str)
-        else:
-            # Plain arrow format - parse as lines
+            # Dict keys don't match expected format - YAML misinterpreted arrow lines
+            # Treat as plain arrow format
             return self._parse_arrow_lines(schema_str)
+        # Plain arrow format - parse as lines
+        return self._parse_arrow_lines(schema_str)
 
     def _parse_arrow_lines(self, text: str) -> Dict[str, Any]:
         """Parse plain arrow format lines (no YAML structure).
@@ -196,15 +194,14 @@ class SchemaTransformParser:
                 f"Detected arrow format schema with {len(data.get('columns', []))} column(s)"
             )
             return self.parse_arrow_format(data)
-        elif has_legacy:
+        if has_legacy:
             return self.parse_legacy_format(data)
-        else:
-            raise ErrorFactory.schema_syntax_error(
-                file_path="<schema>",
-                line_content=str(list(data.keys())),
-                expected_format="'columns' (arrow format) or 'column_mapping'/'type_casting' (legacy format)",
-                example="columns:\n  - old_col -> new_col: TYPE\n  - col: TYPE",
-            )
+        raise ErrorFactory.schema_syntax_error(
+            file_path="<schema>",
+            line_content=str(list(data.keys())),
+            expected_format="'columns' (arrow format) or 'column_mapping'/'type_casting' (legacy format)",
+            example="columns:\n  - old_col -> new_col: TYPE\n  - col: TYPE",
+        )
 
     def parse_arrow_format(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Parse arrow format schema transform.

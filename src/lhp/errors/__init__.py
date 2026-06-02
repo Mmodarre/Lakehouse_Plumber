@@ -28,7 +28,6 @@ __all__ = [
     "ErrorCategory",
     "ErrorCode",
     "ErrorFactory",
-    "codes",
     "LHPConfigError",
     "LHPError",
     "LHPFileError",
@@ -37,5 +36,6 @@ __all__ = [
     "PythonFunctionConflictError",
     "TemplateError",
     "YAMLProcessingError",
+    "codes",
     "lhp_error_from_worker_failure",
 ]

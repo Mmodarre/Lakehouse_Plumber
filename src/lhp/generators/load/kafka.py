@@ -156,7 +156,7 @@ class KafkaLoadGenerator(BaseActionGenerator):
   # subscribePattern: "topic-.*"   # Option 2: topic pattern
   # assign: '{"topic": [0, 1]}'   # Option 3: specific partitions""",
             )
-        elif len(provided_methods) > 1:
+        if len(provided_methods) > 1:
             raise ErrorFactory.validation_error(
                 codes.VAL_009,
                 title=f"Multiple subscription methods in Kafka action '{action_name}'",
@@ -198,7 +198,6 @@ class KafkaLoadGenerator(BaseActionGenerator):
             action_name: Name of the action for error messages
         """
         # Currently no legacy options to check, but keep method for future compatibility
-        pass
 
     def _validate_mandatory_options(
         self, reader_options: Dict[str, Any], action_name: str

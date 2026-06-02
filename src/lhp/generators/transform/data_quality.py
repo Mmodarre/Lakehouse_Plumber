@@ -69,8 +69,7 @@ class DataQualityTransformGenerator(BaseActionGenerator):
             return self._generate_quarantine_mode(
                 action, expectations, flowgroup_config
             )
-        else:
-            return self._generate_dqe_mode(action, expectations, flowgroup_config)
+        return self._generate_dqe_mode(action, expectations, flowgroup_config)
 
     def _generate_dqe_mode(
         self, action: Action, expectations, flowgroup_config: Dict[str, Any]
@@ -225,10 +224,9 @@ class DataQualityTransformGenerator(BaseActionGenerator):
         """Extract source view name from source configuration."""
         if isinstance(source, str):
             return source
-        elif isinstance(source, dict):
+        if isinstance(source, dict):
             return source.get("view", source.get("source", ""))
-        else:
-            return ""
+        return ""
 
     def _load_expectations(self, action: Action, spec_dir: Path | None = None) -> List:
         """Load expectations from action configuration."""
@@ -266,18 +264,16 @@ class DataQualityTransformGenerator(BaseActionGenerator):
                 # Check if it has 'expectations' key (old format)
                 if "expectations" in data:
                     return data["expectations"]
-                else:
-                    # New format: direct dictionary of constraints
-                    return data
-            elif isinstance(data, list):
+                # New format: direct dictionary of constraints
+                return data
+            if isinstance(data, list):
                 # Direct list of expectations
                 return data
-            else:
-                logger.warning(
-                    f"Expectations file '{expectations_file}' has unexpected format "
-                    f"(expected dict or list, got {type(data).__name__}), "
-                    "proceeding with empty expectations"
-                )
+            logger.warning(
+                f"Expectations file '{expectations_file}' has unexpected format "
+                f"(expected dict or list, got {type(data).__name__}), "
+                "proceeding with empty expectations"
+            )
 
         # No expectations_file configured — return empty
         return {}

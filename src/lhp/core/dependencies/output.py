@@ -483,11 +483,10 @@ class DependencyOutputManager:
         """Resolve the output directory to use."""
         if output_dir:
             return output_dir
-        elif self.base_output_dir:
+        if self.base_output_dir:
             return self.base_output_dir
-        else:
-            # Default to .lhp/dependencies/ in current working directory
-            return Path.cwd() / ".lhp" / "dependencies"
+        # Default to .lhp/dependencies/ in current working directory
+        return Path.cwd() / ".lhp" / "dependencies"
 
     def _ensure_directory_exists(self, directory: Path) -> None:
         """Ensure output directory exists, creating it if necessary."""
@@ -651,8 +650,8 @@ class DependencyOutputManager:
                     f.write(job_yaml)
                 generated_files[job_name_key] = job_file
                 self.logger.info(f"Generated job file: {job_file}")
-            except IOError as e:
-                self.logger.exception(f"Failed to write job file {job_file}: {e}")
+            except IOError:
+                self.logger.exception(f"Failed to write job file {job_file}")
                 raise
 
         if job_generator.should_generate_master_job():
@@ -668,10 +667,8 @@ class DependencyOutputManager:
                     f.write(master_yaml)
                 generated_files["_master"] = master_file
                 self.logger.info(f"Generated master job file: {master_file}")
-            except IOError as e:
-                self.logger.exception(
-                    f"Failed to write master job file {master_file}: {e}"
-                )
+            except IOError:
+                self.logger.exception(f"Failed to write master job file {master_file}")
                 raise
         else:
             self.logger.info(

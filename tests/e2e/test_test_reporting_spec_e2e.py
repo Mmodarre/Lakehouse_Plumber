@@ -133,8 +133,7 @@ class TestTestReportingSpecE2E:
         h2 = self._file_hash(file2)
         if h1 != h2:
             return (
-                f"Hash mismatch: {file1.name} ({h1[:12]}) "
-                f"!= {file2.name} ({h2[:12]})"
+                f"Hash mismatch: {file1.name} ({h1[:12]}) != {file2.name} ({h2[:12]})"
             )
         return ""
 
@@ -157,9 +156,7 @@ class TestTestReportingSpecE2E:
                 global_data = json.load(f)
             result["version"] = global_data.get("version", "1.0")
             result["last_updated"] = global_data.get("last_updated", "")
-            result["global_dependencies"] = global_data.get(
-                "global_dependencies", {}
-            )
+            result["global_dependencies"] = global_data.get("global_dependencies", {})
             result["last_generation_context"] = global_data.get(
                 "last_generation_context", {}
             )
@@ -189,12 +186,12 @@ class TestTestReportingSpecE2E:
     def test_tc07_test_id_recognized_by_validator(self):
         """TC-07: test_id in YAML does not trigger 'Unknown field' validation error."""
         exit_code, output = self.run_validate()
-        assert (
-            exit_code == 0
-        ), f"Validation should pass with test_id in YAML. Output: {output}"
-        assert (
-            "unknown field" not in output.lower()
-        ), f"test_id should be recognized, not flagged as unknown: {output}"
+        assert exit_code == 0, (
+            f"Validation should pass with test_id in YAML. Output: {output}"
+        )
+        assert "unknown field" not in output.lower(), (
+            f"test_id should be recognized, not flagged as unknown: {output}"
+        )
 
     # TC-17: Hook generation skipped when --include-tests not passed
     def test_tc17_no_hook_without_include_tests_flag(self):
@@ -203,9 +200,9 @@ class TestTestReportingSpecE2E:
         assert exit_code == 0, f"Generation should succeed: {output}"
 
         hook_file = self.generated_dir / "acmi_edw_bronze" / "_test_reporting_hook.py"
-        assert (
-            not hook_file.exists()
-        ), "Hook file should NOT exist without --include-tests"
+        assert not hook_file.exists(), (
+            "Hook file should NOT exist without --include-tests"
+        )
 
     # TC-18: Hook generation skipped when no test_reporting in config
     def test_tc18_no_hook_without_test_reporting_config(self):
@@ -216,25 +213,25 @@ class TestTestReportingSpecE2E:
         assert exit_code == 0, f"Generation should succeed: {output}"
 
         hook_file = self.generated_dir / "acmi_edw_bronze" / "_test_reporting_hook.py"
-        assert (
-            not hook_file.exists()
-        ), "Hook file should NOT exist without test_reporting config"
+        assert not hook_file.exists(), (
+            "Hook file should NOT exist without test_reporting config"
+        )
 
     # TC-20: lhp validate --env dev --include-tests validates successfully
     def test_tc20_validate_with_include_tests_succeeds(self):
         """TC-20: lhp validate --env dev --include-tests succeeds with valid config."""
         exit_code, output = self.run_validate_with_tests()
-        assert (
-            exit_code == 0
-        ), f"Validation with --include-tests should succeed. Output: {output}"
+        assert exit_code == 0, (
+            f"Validation with --include-tests should succeed. Output: {output}"
+        )
 
     # TC-21: lhp validate --env dev (no flag) still validates file existence
     def test_tc21_validate_without_flag_checks_file_existence(self):
         """TC-21: validate without --include-tests still checks module_path exists."""
         exit_code, output = self.run_validate()
-        assert (
-            exit_code == 0
-        ), f"Validation should pass (provider file exists). Output: {output}"
+        assert exit_code == 0, (
+            f"Validation should pass (provider file exists). Output: {output}"
+        )
 
     def test_tc21b_validate_fails_when_provider_missing(self):
         """TC-21b: validate fails when module_path file doesn't exist."""
@@ -244,9 +241,9 @@ class TestTestReportingSpecE2E:
             provider.unlink()
 
         exit_code, output = self.run_validate()
-        assert (
-            exit_code != 0
-        ), f"Validation should fail when provider file is missing. Output: {output}"
+        assert exit_code != 0, (
+            f"Validation should fail when provider file is missing. Output: {output}"
+        )
 
     def test_tc22_generate_fails_when_provider_missing(self) -> None:
         """TC-22: generate fails with LHP-CFG-032 when the provider file is missing.

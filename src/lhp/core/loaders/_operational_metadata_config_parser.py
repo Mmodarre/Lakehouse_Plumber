@@ -25,7 +25,7 @@ def parse_operational_metadata_config(
                     # Shorthand: bare string is the expression.
                     col_config = {"expression": col_config}
                 elif not isinstance(col_config, dict):
-                    raise ValueError(
+                    raise TypeError(
                         f"Column configuration must be dict or string, got {type(col_config)}"
                     )
 
@@ -63,7 +63,7 @@ def parse_operational_metadata_config(
                     # Shorthand: bare list is the columns list.
                     preset_config = {"columns": preset_config}
                 elif not isinstance(preset_config, dict):
-                    raise ValueError(
+                    raise TypeError(
                         f"Preset configuration must be dict or list, got {type(preset_config)}"
                     )
 

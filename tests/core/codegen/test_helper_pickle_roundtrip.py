@@ -99,8 +99,8 @@ class TestHelperPickleByValueRoundTrip:
             sys.path.insert(0, root)
 
             # Built under tmp_path at runtime, so static analysis cannot see it.
-            import custom_python_functions  # type: ignore[import-not-found]  # noqa: PLC0415
-            from custom_python_functions.my_source import (  # type: ignore[import-not-found]  # noqa: PLC0415
+            import custom_python_functions  # type: ignore[import-not-found]
+            from custom_python_functions.my_source import (  # type: ignore[import-not-found]
                 MySource,
             )
 

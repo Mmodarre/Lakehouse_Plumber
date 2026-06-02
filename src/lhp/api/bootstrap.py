@@ -6,6 +6,7 @@ files). Construction is parameter-free; no project root is required.
 
 :stability: provisional
 """
+
 from __future__ import annotations
 
 import logging
@@ -78,18 +79,14 @@ class LakehousePlumberBootstrap:
 
         # Reject non-empty existing directory before mutating anything.
         if target_dir.exists() and any(target_dir.iterdir()):
-            logger.debug(
-                f"Refusing to scaffold into non-empty directory: {target_dir}"
-            )
+            logger.debug(f"Refusing to scaffold into non-empty directory: {target_dir}")
             return InitProjectResult(
                 success=False,
                 target_dir=target_dir,
                 created_files=(),
                 created_dirs=(),
                 bundle_enabled=bundle,
-                error_message=(
-                    f"Target directory is not empty: {target_dir}"
-                ),
+                error_message=(f"Target directory is not empty: {target_dir}"),
                 error_code="LHP-IO-007",
             )
 
@@ -103,9 +100,7 @@ class LakehousePlumberBootstrap:
             # Pre-state for diffing after the loader runs.
             pre_paths = _walk_paths(target_dir)
 
-            new_dirs.extend(
-                _create_directory_tree(target_dir, bundle=bundle)
-            )
+            new_dirs.extend(_create_directory_tree(target_dir, bundle=bundle))
 
             context = InitTemplateContext.create(
                 project_name=resolved_project_name,
@@ -119,15 +114,11 @@ class LakehousePlumberBootstrap:
             post_paths = _walk_paths(target_dir)
             delta = post_paths - pre_paths
 
-            created_files = tuple(
-                sorted(p for p in delta if p.is_file())
-            )
+            created_files = tuple(sorted(p for p in delta if p.is_file()))
             created_dirs_from_loader = [
                 p for p in delta if p.is_dir() and p not in new_dirs
             ]
-            created_dirs = tuple(
-                sorted(set(new_dirs) | set(created_dirs_from_loader))
-            )
+            created_dirs = tuple(sorted(set(new_dirs) | set(created_dirs_from_loader)))
 
             return InitProjectResult(
                 success=True,
@@ -138,9 +129,7 @@ class LakehousePlumberBootstrap:
             )
 
         except LHPError as lhp_err:
-            logger.exception(
-                f"LHP project scaffolding failed at {target_dir}"
-            )
+            logger.exception(f"LHP project scaffolding failed at {target_dir}")
             return InitProjectResult(
                 success=False,
                 target_dir=target_dir,

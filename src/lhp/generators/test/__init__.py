@@ -12,8 +12,8 @@ from .schema_match import SchemaMatchTestGenerator
 from .uniqueness import UniquenessTestGenerator
 
 __all__ = [
-    "BaseTestActionGenerator",
     "AllLookupsFoundTestGenerator",
+    "BaseTestActionGenerator",
     "CompletenessTestGenerator",
     "CustomExpectationsTestGenerator",
     "CustomSqlTestGenerator",

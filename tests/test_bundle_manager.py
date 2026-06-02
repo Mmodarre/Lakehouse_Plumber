@@ -568,27 +568,27 @@ project_defaults:
         # Test 2: Verify NO line concatenation (the original bug)
         # Should NOT have patterns like "clusters:        - label:" on SAME line
         # Use [ \t]+ to match spaces/tabs but NOT newlines
-        assert not re.search(
-            r"clusters:[ \t]+- label:", content
-        ), "Cluster list item should NOT be on same line as 'clusters:'"
+        assert not re.search(r"clusters:[ \t]+- label:", content), (
+            "Cluster list item should NOT be on same line as 'clusters:'"
+        )
         assert not re.search(
             r"node_type_id:[ \t]+\S+[ \t]+driver_node_type_id:", content
         ), "Fields should not be concatenated on same line"
-        assert not re.search(
-            r"max_workers:[ \t]+\d+[ \t]+mode:", content
-        ), "Fields should not be concatenated on same line"
+        assert not re.search(r"max_workers:[ \t]+\d+[ \t]+mode:", content), (
+            "Fields should not be concatenated on same line"
+        )
 
         # Test 3: Verify proper multi-line structure
         # Check that key YAML structures are on separate lines
-        assert re.search(
-            r"clusters:\s*\n\s+- label:", content
-        ), "Cluster list should start on new line after 'clusters:'"
-        assert re.search(
-            r"- label: default\s*\n\s+node_type_id:", content
-        ), "node_type_id should be on new line after label"
-        assert re.search(
-            r"autoscale:\s*\n\s+min_workers:", content
-        ), "Autoscale fields should be on new lines"
+        assert re.search(r"clusters:\s*\n\s+- label:", content), (
+            "Cluster list should start on new line after 'clusters:'"
+        )
+        assert re.search(r"- label: default\s*\n\s+node_type_id:", content), (
+            "node_type_id should be on new line after label"
+        )
+        assert re.search(r"autoscale:\s*\n\s+min_workers:", content), (
+            "Autoscale fields should be on new lines"
+        )
 
         # Test 4: Verify all cluster fields are present in parsed YAML
         pipeline_config = parsed_yaml["resources"]["pipelines"][
@@ -615,9 +615,9 @@ project_defaults:
                 # Next non-empty line should be list item with proper indent
                 for j in range(i + 1, len(lines)):
                     if lines[j].strip() and not lines[j].strip().startswith("#"):
-                        assert lines[j].startswith(
-                            "        - label:"
-                        ), f"Cluster list item has incorrect indentation: {lines[j]}"
+                        assert lines[j].startswith("        - label:"), (
+                            f"Cluster list item has incorrect indentation: {lines[j]}"
+                        )
                         break
                 break
 
@@ -709,9 +709,7 @@ class TestBundleManagerUtilityMethods:
         # Pipeline config with catalog/schema (required after refactor)
         config_file = self.project_root / "pipeline_config.yaml"
         config_file.write_text(
-            "project_defaults:\n"
-            "  catalog: test_catalog\n"
-            "  schema: test_schema\n"
+            "project_defaults:\n  catalog: test_catalog\n  schema: test_schema\n"
         )
         manager = BundleManager(
             self.project_root, pipeline_config_path=str(config_file)
@@ -768,9 +766,7 @@ targets:
         # Pipeline config with catalog/schema (required after refactor)
         config_file = self.project_root / "pipeline_config.yaml"
         config_file.write_text(
-            "project_defaults:\n"
-            "  catalog: test_catalog\n"
-            "  schema: test_schema\n"
+            "project_defaults:\n  catalog: test_catalog\n  schema: test_schema\n"
         )
         manager = BundleManager(
             self.project_root, pipeline_config_path=str(config_file)
@@ -783,6 +779,7 @@ targets:
         resources_dir = self.project_root / "resources" / "lhp"
         resource_file = resources_dir / "test_pipeline.pipeline.yml"
         assert resource_file.exists()
+
 
 class TestBundleManagerPermissionsAndPassthrough:
     """Template rendering for permissions + unknown-key pass-through.
@@ -906,9 +903,9 @@ project_defaults:
         # from the template (lines starting with '#').
         for line in content.splitlines():
             if "permissions:" in line:
-                assert line.lstrip().startswith(
-                    "#"
-                ), f"Unexpected active 'permissions:' line: {line!r}"
+                assert line.lstrip().startswith("#"), (
+                    f"Unexpected active 'permissions:' line: {line!r}"
+                )
 
     def test_run_as_renders_via_passthrough(self):
         content = self._render("""

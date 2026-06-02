@@ -329,9 +329,9 @@ def compute_copy_records(
     dest_file = custom_functions_dir / f"{Path(module_path).stem}.py"
 
     if source_file is None:
-        assert (
-            inline_source is not None
-        ), "compute_copy_records requires either source_file or inline_source"
+        assert inline_source is not None, (
+            "compute_copy_records requires either source_file or inline_source"
+        )
         content = build_lhp_source_header(module_path) + _apply_substitution(
             inline_source, context
         )

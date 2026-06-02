@@ -10,6 +10,7 @@ and ``_converters.py`` stays focused on per-type DTO projections.
 
 :stability: internal
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -33,12 +34,10 @@ def _build_blueprint_views(
     ``True`` — the non-verbose listing avoids the cost of expanding
     every instance.
     """
-    blueprints: Dict[str, tuple["Blueprint", Path]] = (
-        discoverer.discover_blueprints()  # type: ignore[attr-defined]
-    )
+    blueprints: Dict[str, tuple["Blueprint", Path]] = discoverer.discover_blueprints()  # type: ignore[attr-defined]
     if not blueprints:
         return ()
-    instance_counts: Dict[str, int] = {name: 0 for name in blueprints}
+    instance_counts: Dict[str, int] = dict.fromkeys(blueprints, 0)
     instances_by_blueprint: Dict[str, List[BlueprintInstanceView]] = {
         name: [] for name in blueprints
     }

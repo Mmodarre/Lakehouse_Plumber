@@ -45,7 +45,6 @@ class BaseActionGenerator(ABC):
     @abstractmethod
     def generate(self, action: Action, context: Dict[str, Any]) -> str:
         """Generate code for the action."""
-        pass
 
     def add_import(self, import_stmt: str):
         """
@@ -68,8 +67,7 @@ class BaseActionGenerator(ABC):
         """
         if self._use_import_manager and self._import_manager:
             return self._import_manager.get_consolidated_imports()
-        else:
-            return sorted(self._imports)
+        return sorted(self._imports)
 
     def add_imports_from_expression(self, expression: str):
         """
@@ -155,7 +153,7 @@ class BaseActionGenerator(ABC):
         # If using ImportManager, also register expressions for semantic tracking
         # Maintains consistency: files→_file_imports, expressions→_expression_imports
         if self._use_import_manager and self._import_manager and metadata_columns:
-            for col_name, expression in metadata_columns.items():
+            for _col_name, expression in metadata_columns.items():
                 self.add_imports_from_expression(expression)
 
         return add_metadata, metadata_columns

@@ -261,11 +261,15 @@ actions:
             return re.sub(r"\s+", "", s)
 
         assert (
-            _compact('.option("user", dbutils.secrets.get(scope="prod_db_secrets", key="username"))')
+            _compact(
+                '.option("user", dbutils.secrets.get(scope="prod_db_secrets", key="username"))'
+            )
             in compact_code
         ), "Expected bare dbutils call for 'user'; got:\n" + code
         assert (
-            _compact('.option("password", dbutils.secrets.get(scope="prod_db_secrets", key="password"))')
+            _compact(
+                '.option("password", dbutils.secrets.get(scope="prod_db_secrets", key="password"))'
+            )
             in compact_code
         ), "Expected bare dbutils call for 'password'; got:\n" + code
 

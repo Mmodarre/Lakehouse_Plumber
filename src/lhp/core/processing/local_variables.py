@@ -60,7 +60,7 @@ class LocalVariableResolver:
             After expansion: {"schema": "bronze", "table": "bronze_customers"}
         """
         max_iterations = 10
-        for iteration in range(max_iterations):
+        for _ in range(max_iterations):
             changed = False
             for var_name, var_value in self.variables.items():
                 if isinstance(var_value, str):
@@ -88,12 +88,11 @@ class LocalVariableResolver:
         """
         if isinstance(obj, str):
             return self._replace_in_string(obj)
-        elif isinstance(obj, dict):
+        if isinstance(obj, dict):
             return {k: self._substitute_recursive(v) for k, v in obj.items()}
-        elif isinstance(obj, list):
+        if isinstance(obj, list):
             return [self._substitute_recursive(item) for item in obj]
-        else:
-            return obj
+        return obj
 
     def _replace_in_string(self, text: str) -> str:
         """Replace all %{var} patterns in a string.

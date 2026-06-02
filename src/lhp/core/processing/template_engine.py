@@ -84,9 +84,9 @@ class TemplateEngine:
                         # Use raw parsing to avoid validation of template syntax like {{ table_properties }}
                         template = self.yaml_parser.parse_template_raw(template_file)
                         self._template_cache[template_name] = template
-                    except Exception as e:
+                    except Exception:
                         self.logger.exception(
-                            f"Failed to load template {template_name}: {e}"
+                            f"Failed to load template {template_name}"
                         )
                         return None
 
@@ -203,15 +203,13 @@ class TemplateEngine:
 
                 # Convert rendered result to appropriate type
                 return self._convert_template_result(rendered)
-            else:
-                # Pass through non-template strings (substitutions, static values)
-                return value
-        elif isinstance(value, dict):
-            return {k: self._render_value(v, parameters) for k, v in value.items()}
-        elif isinstance(value, list):
-            return [self._render_value(item, parameters) for item in value]
-        else:
+            # Pass through non-template strings (substitutions, static values)
             return value
+        if isinstance(value, dict):
+            return {k: self._render_value(v, parameters) for k, v in value.items()}
+        if isinstance(value, list):
+            return [self._render_value(item, parameters) for item in value]
+        return value
 
     def _compile(self, source: str) -> Template:
         """Compile an inline template, memoizing the result per source string."""

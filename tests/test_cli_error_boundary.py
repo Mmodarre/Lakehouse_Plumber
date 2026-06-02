@@ -162,7 +162,6 @@ class TestCliErrorBoundary:
         @cli_error_boundary("test op")
         def my_command():
             """My command docstring."""
-            pass
 
         assert my_command.__name__ == "my_command"
         assert my_command.__doc__ == "My command docstring."

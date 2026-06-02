@@ -221,9 +221,9 @@ class TestQuarantineE2E:
 
         exit_code, output = self.run_validate()
         assert exit_code != 0, "Validation should fail without quarantine block"
-        assert (
-            "quarantine" in output.lower()
-        ), f"Error should mention quarantine: {output}"
+        assert "quarantine" in output.lower(), (
+            f"Error should mention quarantine: {output}"
+        )
 
     def test_quarantine_runtime_rescued_data_detection(self):
         """Verify quarantine generates runtime _rescued_data detection (both branches)."""

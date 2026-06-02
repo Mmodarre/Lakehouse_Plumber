@@ -9,6 +9,7 @@ Public re-exports:
 
 Internal helpers stay in their respective modules.
 """
+
 # Eager re-exports. ActionRegistry no longer imports the per-action generator
 # families (load/transform/write/test) — those are registered into the core
 # registry from the ``generators`` layer (ABOVE ``core``) via

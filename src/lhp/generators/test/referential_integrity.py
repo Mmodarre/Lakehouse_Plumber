@@ -42,7 +42,8 @@ class ReferentialIntegrityTestGenerator(BaseTestActionGenerator):
         source_cols = config.get("source_columns", ["id"])
         ref_cols = config.get("reference_columns", ["id"])
         join_conditions = [
-            f"s.{s_col} = r.{r_col}" for s_col, r_col in zip(source_cols, ref_cols)
+            f"s.{s_col} = r.{r_col}"
+            for s_col, r_col in zip(source_cols, ref_cols, strict=False)
         ]
         ctx["source"] = source
         ctx["reference"] = reference

@@ -125,21 +125,20 @@ class PythonTransformGenerator(BaseActionGenerator):
                 ],
                 context={"Source": "None"},
             )
-        elif isinstance(source, str):
+        if isinstance(source, str):
             return [source]  # Single source view
-        elif isinstance(source, list):
+        if isinstance(source, list):
             return source  # Multiple source views
-        else:
-            raise ErrorFactory.validation_error(
-                codes.VAL_014,
-                title="Invalid source type for Python transform",
-                details=(
-                    f"Python transform source must be a string or list of strings, "
-                    f"got {type(source).__name__}."
-                ),
-                suggestions=[
-                    "Use a string for single source: source: v_raw_data",
-                    "Use a list for multiple sources: source: [v_data1, v_data2]",
-                ],
-                context={"Source Type": type(source).__name__},
-            )
+        raise ErrorFactory.validation_error(
+            codes.VAL_014,
+            title="Invalid source type for Python transform",
+            details=(
+                f"Python transform source must be a string or list of strings, "
+                f"got {type(source).__name__}."
+            ),
+            suggestions=[
+                "Use a string for single source: source: v_raw_data",
+                "Use a list for multiple sources: source: [v_data1, v_data2]",
+            ],
+            context={"Source Type": type(source).__name__},
+        )

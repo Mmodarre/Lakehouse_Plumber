@@ -381,9 +381,9 @@ class TestCLIInitBundleCommand:
 
             # LHP subdirectory should be empty initially
             lhp_contents = list(resources_lhp_dir.iterdir())
-            assert (
-                len(lhp_contents) == 0
-            ), f"LHP resources directory should be empty, found: {lhp_contents}"
+            assert len(lhp_contents) == 0, (
+                f"LHP resources directory should be empty, found: {lhp_contents}"
+            )
 
 
 class TestCLIGenerateBundleIntegration:

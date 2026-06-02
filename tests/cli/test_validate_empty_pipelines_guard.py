@@ -54,11 +54,11 @@ class TestValidateEmptyPipelinesGuard:
                 os.chdir(cwd)
 
         assert result.exit_code == 0, (
-            f"CLI exited {result.exit_code} (expected 0).\n" f"output:\n{result.output}"
+            f"CLI exited {result.exit_code} (expected 0).\noutput:\n{result.output}"
         )
 
         assert "no pipelines found to validate" in result.output.lower(), (
-            "Expected empty-pipelines warning in output. " f"output:\n{result.output}"
+            f"Expected empty-pipelines warning in output. output:\n{result.output}"
         )
 
         # Prior to T8 this warning was emitted twice (once as a Rich panel
@@ -72,9 +72,9 @@ class TestValidateEmptyPipelinesGuard:
         )
 
         # CliRunner reports SystemExit(0) via result.exception even on success.
-        assert result.exception is None or isinstance(
-            result.exception, SystemExit
-        ), f"Unexpected exception: {result.exception!r}"
+        assert result.exception is None or isinstance(result.exception, SystemExit), (
+            f"Unexpected exception: {result.exception!r}"
+        )
 
     def test_deprecation_scan_runs_when_pipelines_empty_but_flowgroups_exist(
         self, monkeypatch
@@ -121,7 +121,7 @@ class TestValidateEmptyPipelinesGuard:
                 os.chdir(cwd)
 
         assert result.exit_code == 0, (
-            f"CLI exited {result.exit_code} (expected 0).\n" f"output:\n{result.output}"
+            f"CLI exited {result.exit_code} (expected 0).\noutput:\n{result.output}"
         )
 
         assert "bare {token} substitution syntax is deprecated" in result.output, (

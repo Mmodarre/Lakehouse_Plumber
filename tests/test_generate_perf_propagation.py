@@ -235,13 +235,13 @@ class TestGeneratePerfPropagation:
         assert result.exit_code == 0, f"CLI exited {result.exit_code}: {result.output}"
 
         perf_log = project_root / ".lhp" / "logs" / "perf.log"
-        assert (
-            perf_log.exists()
-        ), f"Expected perf.log at {perf_log}; CLI output:\n{result.output}"
+        assert perf_log.exists(), (
+            f"Expected perf.log at {perf_log}; CLI output:\n{result.output}"
+        )
         text = perf_log.read_text(encoding="utf-8")
-        assert (
-            "Per-category aggregate stats:" in text
-        ), f"perf.log missing the per-category table:\n{text}"
+        assert "Per-category aggregate stats:" in text, (
+            f"perf.log missing the per-category table:\n{text}"
+        )
 
         counts = _parse_category_counts(text)
 
@@ -312,9 +312,9 @@ class TestGeneratePerfPropagation:
         assert result.exit_code == 0, f"CLI exited {result.exit_code}: {result.output}"
 
         perf_log = project_root / ".lhp" / "logs" / "perf.log"
-        assert (
-            perf_log.exists()
-        ), f"Expected perf.log at {perf_log}; CLI output:\n{result.output}"
+        assert perf_log.exists(), (
+            f"Expected perf.log at {perf_log}; CLI output:\n{result.output}"
+        )
         text = perf_log.read_text(encoding="utf-8")
         counts = _parse_category_counts(text)
 

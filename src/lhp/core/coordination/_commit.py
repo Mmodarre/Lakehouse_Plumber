@@ -121,10 +121,9 @@ def _write_python_files(
                 output_file.unlink(missing_ok=True)
             except OSError as exc:
                 logger.exception(
-                    "Failed to delete empty flowgroup file %s: %s: %s",
+                    "Failed to delete empty flowgroup file %s: %s",
                     output_file,
                     type(exc).__name__,
-                    exc.strerror or str(exc),
                 )
                 raise
             logger.info(

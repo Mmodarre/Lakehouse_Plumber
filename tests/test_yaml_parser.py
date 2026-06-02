@@ -307,15 +307,15 @@ flowgroups:
 
             # flowgroup1 - inherits everything
             assert flowgroups[0].presets == ["bronze_preset", "data_quality"]
-            assert flowgroups[0].operational_metadata == True
+            assert flowgroups[0].operational_metadata is True
 
             # flowgroup2 - overrides presets, inherits operational_metadata
             assert flowgroups[1].presets == ["silver_preset"]
-            assert flowgroups[1].operational_metadata == True
+            assert flowgroups[1].operational_metadata is True
 
             # flowgroup3 - empty list is explicit override
             assert flowgroups[2].presets == []
-            assert flowgroups[2].operational_metadata == True
+            assert flowgroups[2].operational_metadata is True
         finally:
             yaml_file.unlink()
 
@@ -340,7 +340,7 @@ flowgroups:
         try:
             flowgroups = parser.parse_flowgroups_from_file(yaml_file)
             assert len(flowgroups) == 2
-            assert flowgroups[0].operational_metadata == True
+            assert flowgroups[0].operational_metadata is True
             assert flowgroups[1].operational_metadata == ["col1", "col2"]
         finally:
             yaml_file.unlink()

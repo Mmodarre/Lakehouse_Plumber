@@ -194,11 +194,11 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             flow_name = flow_names[0]
             action_metadata = []
             for i, (source_view, flow_name_item) in enumerate(
-                zip(source_views, flow_names)
+                zip(source_views, flow_names, strict=False)
             ):
                 action_metadata.append(
                     {
-                        "action_name": f"{action.name}_{i+1}",
+                        "action_name": f"{action.name}_{i + 1}",
                         "source_view": source_view,
                         "once": action.once or False,  # Legacy: same once flag for all
                         "flow_name": flow_name_item,
@@ -224,10 +224,10 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             if len(source_views) > 1:
                 # Multiple sources: create separate append flow for each
                 for i, source_view in enumerate(source_views):
-                    flow_name = f"{base_flow_name}_{i+1}"
+                    flow_name = f"{base_flow_name}_{i + 1}"
                     action_metadata.append(
                         {
-                            "action_name": f"{action.name}_{i+1}",
+                            "action_name": f"{action.name}_{i + 1}",
                             "source_view": source_view,
                             "once": action.once or False,
                             "readMode": action.readMode,  # Preserve readMode
@@ -317,7 +317,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         """Extract source views as a list from action source."""
         if isinstance(source, str):
             return [source]
-        elif isinstance(source, list):
+        if isinstance(source, list):
             result = []
             for item in source:
                 if isinstance(item, str):
@@ -327,11 +327,10 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
                         f"Unexpected source item type {type(item).__name__}, skipping"
                     )
             return result
-        else:
-            logger.warning(
-                f"Unexpected source type {type(source).__name__}, returning empty list"
-            )
-            return []
+        logger.warning(
+            f"Unexpected source type {type(source).__name__}, returning empty list"
+        )
+        return []
 
     def _build_source_expression(self, result: SourceFunctionResult, alias: str) -> str:
         """Build the source= expression for snapshot CDC.
@@ -344,7 +343,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         if not result.parameters:
             return qualified_name
 
-        param_parts = [f"{k}={repr(v)}" for k, v in result.parameters.items()]
+        param_parts = [f"{k}={v!r}" for k, v in result.parameters.items()]
         params_str = ",\n        ".join(param_parts)
         self.add_import("from functools import partial")
         return f"partial(\n        {qualified_name},\n        {params_str}\n    )"

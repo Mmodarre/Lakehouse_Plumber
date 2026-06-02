@@ -182,9 +182,9 @@ def test_generate_walks_disk_once(tmp_path):
     assert response.success, response
     for name in ("g_alpha", "g_beta", "g_gamma"):
         pr = response.pipeline_responses.get(name)
-        assert (
-            pr is not None and pr.generated_filenames
-        ), f"Pipeline {name} produced no output: {pr}"
+        assert pr is not None and pr.generated_filenames, (
+            f"Pipeline {name} produced no output: {pr}"
+        )
 
     assert disk_walk.call_count == 1, (
         "Disk file-walk must run exactly once across a full generate "

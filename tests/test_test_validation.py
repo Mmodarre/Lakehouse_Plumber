@@ -60,9 +60,9 @@ class TestTestActionValidation:
                 **config,
             )
             errors = validator.validate_action(action, 0)
-            assert (
-                len(errors) == 0
-            ), f"Valid test_type '{test_type.value}' should not produce errors: {errors}"
+            assert len(errors) == 0, (
+                f"Valid test_type '{test_type.value}' should not produce errors: {errors}"
+            )
 
     def test_invalid_test_type(self):
         """Test that invalid test_type values are rejected."""
@@ -104,9 +104,9 @@ class TestTestActionValidation:
                 on_violation=violation,
             )
             errors = validator.validate_action(action, 0)
-            assert (
-                len(errors) == 0
-            ), f"Valid on_violation '{violation}' should not produce errors"
+            assert len(errors) == 0, (
+                f"Valid on_violation '{violation}' should not produce errors"
+            )
 
     def test_invalid_on_violation(self):
         """Test that invalid on_violation values are rejected."""

@@ -86,7 +86,9 @@ class _TableExtractor(ast.NodeVisitor):
                 and isinstance(node.value, (ast.Tuple, ast.List))
                 and len(target.elts) == len(node.value.elts)
             ):
-                for sub_target, sub_value in zip(target.elts, node.value.elts):
+                for sub_target, sub_value in zip(
+                    target.elts, node.value.elts, strict=False
+                ):
                     sub_values = self._evaluate_rhs(sub_value)
                     if sub_values and isinstance(sub_target, ast.Name):
                         self._current_scope().bind(sub_target.id, sub_values)
@@ -98,7 +100,8 @@ class _TableExtractor(ast.NodeVisitor):
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
         """Collect bindings from ``a: str = "x"`` (annotation-only skipped)."""
         if node.value is None:
-            return self.generic_visit(node)
+            self.generic_visit(node)
+            return
 
         rhs_values = self._evaluate_rhs(node.value)
         if rhs_values:
@@ -196,7 +199,7 @@ class PythonParser:
         tables.update(direct_tables)
 
         self.logger.debug(f"Found {len(tables)} table reference(s) in Python code")
-        return sorted(list(tables))
+        return sorted(tables)
 
     def extract_sql_from_python(self, python_code: str) -> List[str]:
         """
@@ -229,8 +232,8 @@ class PythonParser:
 
         except SyntaxError as e:
             self.logger.warning(f"Could not parse Python code: {e}")
-        except Exception as e:
-            self.logger.exception(f"Error extracting SQL from Python: {e}")
+        except Exception:
+            self.logger.exception("Error extracting SQL from Python")
 
         return sql_queries
 
@@ -256,8 +259,8 @@ class PythonParser:
         try:
             normalized_code = self._normalize_python_code(python_code)
             tree = ast.parse(normalized_code)
-        except Exception as e:
-            self.logger.exception(f"Error extracting direct table references: {e}")
+        except Exception:
+            self.logger.exception("Error extracting direct table references")
             return set()
 
         extractor = _TableExtractor(self)
@@ -272,15 +275,13 @@ class PythonParser:
             and node.func.attr == "sql"
             and self._is_spark_object(node.func.value)
         ):
-
             return self._get_string_argument(node, 0)
 
         # Check for createOrReplaceTempView() calls (they might contain SQL in subqueries)
-        elif isinstance(node.func, ast.Attribute) and node.func.attr in [
+        if isinstance(node.func, ast.Attribute) and node.func.attr in [
             "createOrReplaceTempView",
             "createGlobalTempView",
         ]:
-
             # These methods don't directly contain SQL, but we might want to track them
             # for completeness in future enhancements
             pass

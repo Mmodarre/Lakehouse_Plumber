@@ -46,7 +46,10 @@ class TestResolveMonitoringJobConfig:
 
     def test_new_keys_preserved(self):
         resolved = JobGenerator.resolve_monitoring_job_config(
-            {"timeout_seconds": 3600, "schedule": {"quartz_cron_expression": "0 * * * * ?"}}
+            {
+                "timeout_seconds": 3600,
+                "schedule": {"quartz_cron_expression": "0 * * * * ?"},
+            }
         )
         assert resolved["timeout_seconds"] == 3600
         assert resolved["schedule"]["quartz_cron_expression"] == "0 * * * * ?"
@@ -80,9 +83,7 @@ class TestGenerateMonitoringJobSimplified:
         # Parses as valid YAML
         parsed = yaml.safe_load(rendered)
         assert parsed["resources"]["jobs"]["my_monitor_job"]["name"] == "my_monitor_job"
-        assert (
-            parsed["resources"]["jobs"]["my_monitor_job"]["max_concurrent_runs"] == 1
-        )
+        assert parsed["resources"]["jobs"]["my_monitor_job"]["max_concurrent_runs"] == 1
 
     def test_has_pipeline_false_emits_notebook_only_job(self):
         gen = JobGenerator()

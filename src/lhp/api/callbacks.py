@@ -5,6 +5,7 @@ outside ``lhp.cli``. Rendering lives in :mod:`lhp.cli.warning_panel`.
 
 :stability: provisional
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

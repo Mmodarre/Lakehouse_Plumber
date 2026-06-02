@@ -462,7 +462,7 @@ class _SyncExecutor:
     initializer is intentionally not invoked.
     """
 
-    def __init__(self, *args, **kwargs) -> None:  # noqa: D401 - signature sink
+    def __init__(self, *args, **kwargs) -> None:
         self.submitted: List[tuple] = []
 
     def __enter__(self) -> "_SyncExecutor":
@@ -609,7 +609,7 @@ def test_flowgroup_pool_validate_barrier_on_resolved_and_pipeline_order(monkeypa
     assert single in called_pipelines, "1-flowgroup pipeline must trigger the barrier"
 
     # ---- barrier received the RESOLVED flowgroups, NOT the raw inputs ----
-    by_pipeline = {pf: fgs for (pf, fgs) in barrier.calls}
+    by_pipeline = dict(barrier.calls)
     # Multi pipeline: both resolved FGs, by identity (any order — the engine
     # passes the per-pipeline sorted outcomes' resolved set).
     assert set(map(id, by_pipeline[multi])) == {
@@ -673,7 +673,7 @@ def _drive_gate(monkeypatch, tmp_path, *, flowgroups_by_pipeline, outcomes_by_ke
         substitution_managers={p: object() for p in pipelines},
         include_tests=False,
         code_generator=_FakeCodeGen(),
-        pipeline_output_dirs={p: tmp_path for p in pipelines},
+        pipeline_output_dirs=dict.fromkeys(pipelines, tmp_path),
         environment="dev",
     )
     service = PipelineExecutionService(max_workers=4)

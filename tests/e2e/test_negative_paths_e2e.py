@@ -144,27 +144,27 @@ class TestNegativePathsE2E:
         exit_code, output = self.run_validate("--env", "dev")
         assert exit_code != 0, "Validate should fail on malformed YAML"
         lower = output.lower()
-        assert (
-            "yaml" in lower or "parse" in lower or "broken_yaml" in output
-        ), f"Expected YAML/parse error, got:\n{output[-2000:]}"
+        assert "yaml" in lower or "parse" in lower or "broken_yaml" in output, (
+            f"Expected YAML/parse error, got:\n{output[-2000:]}"
+        )
 
     def test_unknown_environment_fails(self):
         """An unknown --env value must fail (no substitution file)."""
         exit_code, output = self.run_generate("--env", "xyz")
         assert exit_code != 0, "Generate should fail on unknown environment"
         lower = output.lower()
-        assert (
-            "xyz" in output or "environment" in lower or "substitution" in lower
-        ), f"Expected env/substitution error, got:\n{output[-2000:]}"
+        assert "xyz" in output or "environment" in lower or "substitution" in lower, (
+            f"Expected env/substitution error, got:\n{output[-2000:]}"
+        )
 
     def test_missing_environment_flag_fails(self):
         """Generate requires --env; running without it must fail with a Click usage error."""
         exit_code, output = self.run_generate()
         assert exit_code != 0, "Generate should fail when --env is missing"
         lower = output.lower()
-        assert (
-            "--env" in output or "missing option" in lower or "required" in lower
-        ), f"Expected required-flag error, got:\n{output[-2000:]}"
+        assert "--env" in output or "missing option" in lower or "required" in lower, (
+            f"Expected required-flag error, got:\n{output[-2000:]}"
+        )
 
     def test_undefined_token_reference_fails(self):
         """Inserting ${nonexistent_token} into a flowgroup must surface a
@@ -245,9 +245,9 @@ class TestNegativePathsE2E:
         exit_code, output = self.run_validate("--env", "dev")
         assert exit_code != 0, "Validate should fail on invalid secret scope syntax"
         lower = output.lower()
-        assert (
-            "bad scope" in output or "secret" in lower or "scope" in lower
-        ), f"Expected secret-scope error, got:\n{output[-2000:]}"
+        assert "bad scope" in output or "secret" in lower or "scope" in lower, (
+            f"Expected secret-scope error, got:\n{output[-2000:]}"
+        )
 
     def test_unknown_action_type_fails(self):
         """type: bogus_type must surface LHP-ACT-001 cleanly (not a
@@ -323,9 +323,9 @@ class TestNegativePathsE2E:
         exit_code, output = self.run_generate("--env", "dev")
         assert exit_code != 0, "Generate should fail on duplicate (pipeline, flowgroup)"
         lower = output.lower()
-        assert (
-            "VAL-009" in output or "duplicate" in lower
-        ), f"Expected duplicate-flowgroup error, got:\n{output[-2000:]}"
+        assert "VAL-009" in output or "duplicate" in lower, (
+            f"Expected duplicate-flowgroup error, got:\n{output[-2000:]}"
+        )
 
     def test_duplicate_flowgroup_id_fails_via_validate(self) -> None:
         """Two flowgroup files with the same (pipeline, flowgroup) tuple must
@@ -372,9 +372,7 @@ class TestNegativePathsE2E:
         )
 
         exit_code, output = self.run_validate("--env", "dev")
-        assert (
-            exit_code != 0
-        ), "Validate should fail on duplicate (pipeline, flowgroup)"
+        assert exit_code != 0, "Validate should fail on duplicate (pipeline, flowgroup)"
         assert "LHP-VAL-009" in output, (
             "Validate must surface the LHP-VAL-009 duplicate-flowgroup error "
             f"code (shared §9.24 dup check). Got:\n{output[-2000:]}"
@@ -435,9 +433,9 @@ class TestNegativePathsE2E:
         )
 
         exit_code, output = self.run_validate("--env", "dev")
-        assert (
-            exit_code != 0
-        ), "Validate should fail when a target table has no creating action"
+        assert exit_code != 0, (
+            "Validate should fail when a target table has no creating action"
+        )
         assert "LHP-VAL-009" in output, (
             "Validate must surface the LHP-VAL-009 table-creation error code "
             "for a table with no creator (folded cross-flowgroup "
@@ -506,9 +504,9 @@ class TestNegativePathsE2E:
         )
 
         exit_code, output = self.run_validate("--env", "dev")
-        assert (
-            exit_code != 0
-        ), "Validate should fail when a table has multiple creating actions"
+        assert exit_code != 0, (
+            "Validate should fail when a table has multiple creating actions"
+        )
         assert "LHP-CFG-004" in output, (
             "Validate must surface the LHP-CFG-004 multiple-table-creators "
             "error code (raised by TableCreationValidator, caught and folded "
@@ -610,6 +608,6 @@ class TestNegativePathsE2E:
         exit_code, output = self.run_generate("--env", "dev")
         assert exit_code != 0, "Generate should fail on Python module collision"
         lower = output.lower()
-        assert (
-            "VAL-019" in output or "naming conflict" in lower
-        ), f"Expected Python collision error, got:\n{output[-2000:]}"
+        assert "VAL-019" in output or "naming conflict" in lower, (
+            f"Expected Python collision error, got:\n{output[-2000:]}"
+        )

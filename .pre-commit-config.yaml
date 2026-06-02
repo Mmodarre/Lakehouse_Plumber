@@ -13,26 +13,6 @@ repos:
         args: ['--maxkb=500']
       - id: check-merge-conflict
 
-  - repo: https://github.com/psf/black
-    rev: 26.3.1
-    hooks:
-      - id: black
-        files: ^(src|tests)/
-        exclude: ^(tests/e2e/fixtures/|tests/fixtures/import_manager/|tests/baselines/|tests/performance/baselines/)
-
-  - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
-    hooks:
-      - id: isort
-        files: ^(src|tests)/
-        exclude: ^(tests/e2e/fixtures/|tests/fixtures/import_manager/|tests/baselines/|tests/performance/baselines/)
-
-  - repo: https://github.com/pycqa/flake8
-    rev: 7.1.1
-    hooks:
-      - id: flake8
-        args: ['--config=.flake8']
-
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0
     hooks:
@@ -43,8 +23,9 @@ repos:
     rev: v0.13.3
     hooks:
       - id: ruff
-        name: ruff (B904 + TRY400 + RUF013 — constitution §6, §7, §9)
-        args: ['--select=B904,TRY400,RUF013', '--fix', '--exit-non-zero-on-fix']
+        args: ['--fix', '--exit-non-zero-on-fix']
+        files: ^(src|tests)/.*\.py$
+      - id: ruff-format
         files: ^(src|tests)/.*\.py$
 
   - repo: local

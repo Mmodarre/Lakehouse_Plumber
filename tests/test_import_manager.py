@@ -304,7 +304,7 @@ class TestImportSorting:
             "custom": ["from mymodule import helper", "import custom_package"],
         }
 
-        for category, imports in imports_by_category.items():
+        for _category, imports in imports_by_category.items():
             for imp in imports:
                 self.manager.add_import(imp)
 

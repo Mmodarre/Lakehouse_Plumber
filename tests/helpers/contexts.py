@@ -12,6 +12,8 @@ def wrap_in_ctx(fg: Any, source_yaml: Any = None) -> FlowGroupContext:
     return FlowGroupContext(flowgroup=fg, source_yaml=source_yaml)
 
 
-def process_unwrap(processor: Any, fg: FlowGroup, sub_mgr: Any, **kwargs: Any) -> FlowGroup:
+def process_unwrap(
+    processor: Any, fg: FlowGroup, sub_mgr: Any, **kwargs: Any
+) -> FlowGroup:
     """Call the FlowGroupContext-typed processor and unwrap the FlowGroup."""
     return processor.process_flowgroup(wrap_in_ctx(fg), sub_mgr, **kwargs).flowgroup

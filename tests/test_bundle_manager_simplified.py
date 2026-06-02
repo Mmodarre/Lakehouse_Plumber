@@ -366,15 +366,15 @@ def test_bundle_manager_does_not_mutate_databricks_yml(tmp_path):
     manager.sync_resources_with_generated_files(generated_root, "dev")
 
     post_hash = hashlib.sha256(databricks_yml.read_bytes()).hexdigest()
-    assert (
-        pre_hash == post_hash
-    ), "databricks.yml was mutated by sync; it must remain untouched."
+    assert pre_hash == post_hash, (
+        "databricks.yml was mutated by sync; it must remain untouched."
+    )
 
 
 @pytest.mark.unit
 def test_databricks_yaml_manager_module_removed():
     """The DatabricksYAMLManager module/class no longer exists after refactor."""
     with pytest.raises(ImportError):
-        from lhp.bundle.databricks_yaml_manager import (  # noqa: F401
+        from lhp.bundle.databricks_yaml_manager import (
             DatabricksYAMLManager,
         )

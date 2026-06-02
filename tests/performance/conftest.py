@@ -24,8 +24,7 @@ def pytest_collection_modifyitems(config, items):
         return
     skip_perf = pytest.mark.skip(
         reason=(
-            "performance gate; opt in with "
-            "`pytest tests/performance/ -m performance`"
+            "performance gate; opt in with `pytest tests/performance/ -m performance`"
         )
     )
     for item in items:

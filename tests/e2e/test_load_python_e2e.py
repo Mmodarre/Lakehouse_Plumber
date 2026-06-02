@@ -119,24 +119,24 @@ class TestLoadPythonE2E:
         for rel_path in artifacts:
             generated = self.pyload_dir / rel_path
             baseline = self.pyload_baseline_dir / rel_path
-            assert (
-                generated.exists()
-            ), f"{rel_path} should be generated under 15_python_load/"
+            assert generated.exists(), (
+                f"{rel_path} should be generated under 15_python_load/"
+            )
             assert baseline.exists(), f"Baseline {rel_path} should exist"
             diff = self._compare_file_hashes(generated, baseline)
             assert diff == "", f"Baseline mismatch for {rel_path}: {diff}"
 
         # Verify the pipeline resource YAML also matches its baseline.
         generated_resource = self.resources_dir / "15_python_load.pipeline.yml"
-        assert (
-            generated_resource.exists()
-        ), "15_python_load.pipeline.yml should be generated under resources/lhp/"
-        assert (
-            self.resource_baseline.exists()
-        ), "Resource baseline 15_python_load.pipeline.yml should exist"
+        assert generated_resource.exists(), (
+            "15_python_load.pipeline.yml should be generated under resources/lhp/"
+        )
+        assert self.resource_baseline.exists(), (
+            "Resource baseline 15_python_load.pipeline.yml should exist"
+        )
         resource_diff = self._compare_file_hashes(
             generated_resource, self.resource_baseline
         )
-        assert (
-            resource_diff == ""
-        ), f"Resource baseline mismatch for 15_python_load.pipeline.yml: {resource_diff}"
+        assert resource_diff == "", (
+            f"Resource baseline mismatch for 15_python_load.pipeline.yml: {resource_diff}"
+        )

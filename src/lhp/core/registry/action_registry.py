@@ -149,7 +149,7 @@ class ActionRegistry:
                 )
                 return self._load_generators[sub_type]()
 
-            elif action_type == ActionType.TRANSFORM:
+            if action_type == ActionType.TRANSFORM:
                 if not sub_type:
                     raise ErrorFactory.missing_required_field(
                         field_name="sub_type",
@@ -202,7 +202,7 @@ class ActionRegistry:
                 )
                 return self._transform_generators[sub_type]()
 
-            elif action_type == ActionType.WRITE:
+            if action_type == ActionType.WRITE:
                 if not sub_type:
                     raise ErrorFactory.missing_required_field(
                         field_name="sub_type",
@@ -259,7 +259,7 @@ class ActionRegistry:
                 )
                 return self._write_generators[sub_type]()
 
-            elif action_type == ActionType.TEST:
+            if action_type == ActionType.TEST:
                 # For test actions, sub_type is the test_type
                 if not sub_type:
                     # Default to a basic test type if not specified
@@ -299,15 +299,14 @@ class ActionRegistry:
                 )
                 return self._test_generators[sub_type]()
 
-            else:
-                raise ErrorFactory.unknown_type_with_suggestion(
-                    value_type="action type",
-                    provided_value=str(action_type),
-                    valid_values=[t.value for t in ActionType],
-                    example_usage="""actions:
+            raise ErrorFactory.unknown_type_with_suggestion(
+                value_type="action type",
+                provided_value=str(action_type),
+                valid_values=[t.value for t in ActionType],
+                example_usage="""actions:
   - name: my_action
     type: load  # Valid types: load, transform, write, test""",
-                )
+            )
 
     def is_generator_available(self, action_type: ActionType, sub_type: str) -> bool:
         """Check if a generator is available for the given action and sub type."""
@@ -315,14 +314,13 @@ class ActionRegistry:
             if action_type == ActionType.LOAD:
                 sub_type_enum = LoadSourceType(sub_type)
                 return sub_type_enum in self._load_generators
-            elif action_type == ActionType.TRANSFORM:
+            if action_type == ActionType.TRANSFORM:
                 sub_type_enum = TransformType(sub_type)
                 return sub_type_enum in self._transform_generators
-            elif action_type == ActionType.WRITE:
+            if action_type == ActionType.WRITE:
                 sub_type_enum = WriteTargetType(sub_type)
                 return sub_type_enum in self._write_generators
-            else:
-                return False
+            return False
         except ValueError as e:
             logger.debug(
                 f"Unknown sub_type '{sub_type}' for action type '{action_type}': {e}"

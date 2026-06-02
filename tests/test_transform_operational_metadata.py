@@ -95,9 +95,9 @@ class TestTransformOperationalMetadata:
         # Verify alphabetical ordering (batch_id comes before processing_timestamp)
         batch_id_pos = code.find("_batch_id")
         timestamp_pos = code.find("_processing_timestamp")
-        assert (
-            batch_id_pos < timestamp_pos
-        ), "Metadata columns should be in alphabetical order"
+        assert batch_id_pos < timestamp_pos, (
+            "Metadata columns should be in alphabetical order"
+        )
 
     def test_data_quality_transform_with_operational_metadata(
         self, project_config_with_metadata, flowgroup_with_metadata

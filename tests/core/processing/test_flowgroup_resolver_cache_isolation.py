@@ -85,15 +85,15 @@ class TestProcessFlowgroupCacheIsolation:
             assert "inline_write" in result_action_names
 
             # Discriminating assertions: the input flowgroup must be untouched.
-            assert (
-                len(fg.actions) == original_action_count
-            ), "input flowgroup was mutated (actions list grew)"
-            assert (
-                fg.actions is original_actions_list
-            ), "actions list identity changed — mutation detected"
-            assert (
-                result_ctx.flowgroup is not fg
-            ), "result must be a new instance (model_copy rebind)"
+            assert len(fg.actions) == original_action_count, (
+                "input flowgroup was mutated (actions list grew)"
+            )
+            assert fg.actions is original_actions_list, (
+                "actions list identity changed — mutation detected"
+            )
+            assert result_ctx.flowgroup is not fg, (
+                "result must be a new instance (model_copy rebind)"
+            )
 
     def test_process_flowgroup_does_not_mutate_input_actions_when_test_filter_drops_actions(
         self,
@@ -155,18 +155,18 @@ class TestProcessFlowgroupCacheIsolation:
             assert len(result_ctx.flowgroup.actions) == 2
 
             # Discriminating assertions: the input flowgroup must be untouched.
-            assert (
-                len(fg.actions) == original_action_count
-            ), "input flowgroup was mutated (actions list shrank)"
-            assert (
-                fg.actions is original_actions_list
-            ), "actions list identity changed — mutation detected"
-            assert any(
-                a.type == ActionType.TEST for a in fg.actions
-            ), "input flowgroup lost its TEST action — mutation detected"
-            assert (
-                result_ctx.flowgroup is not fg
-            ), "result must be a new instance (model_copy rebind)"
+            assert len(fg.actions) == original_action_count, (
+                "input flowgroup was mutated (actions list shrank)"
+            )
+            assert fg.actions is original_actions_list, (
+                "actions list identity changed — mutation detected"
+            )
+            assert any(a.type == ActionType.TEST for a in fg.actions), (
+                "input flowgroup lost its TEST action — mutation detected"
+            )
+            assert result_ctx.flowgroup is not fg, (
+                "result must be a new instance (model_copy rebind)"
+            )
 
 
 if __name__ == "__main__":

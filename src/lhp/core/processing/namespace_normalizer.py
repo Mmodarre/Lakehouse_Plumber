@@ -115,7 +115,7 @@ def _normalize_write_target(wt: Dict[str, Any], action_name: str) -> None:
             ),
             suggestions=[
                 "Migrate to the new format with explicit 'catalog' and 'schema' fields:",
-                f'  catalog: "your_catalog"',
+                '  catalog: "your_catalog"',
                 f'  schema: "{database}"',
                 'Or fix the database field to include both: database: "catalog.{database}"',
             ],
@@ -175,7 +175,7 @@ def _normalize_delta_source(source: Dict[str, Any], action_name: str) -> None:
             ),
             suggestions=[
                 "Migrate to the new format with explicit 'catalog' and 'schema' fields:",
-                f'  catalog: "your_catalog"',
+                '  catalog: "your_catalog"',
                 f'  schema: "{database}"',
                 'Or fix the database field to include both: database: "catalog.{database}"',
             ],

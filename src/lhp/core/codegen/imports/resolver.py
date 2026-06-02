@@ -25,9 +25,7 @@ def _is_parent_importing_child_as_alias(import_stmt: str, child_name: str) -> bo
         ``"from pyspark.sql import functions as F"`` with child=``"functions"`` -> True
         ``"from pyspark.sql import functions"`` with child=``"functions"`` -> True
     """
-    pattern = (
-        rf"from\s+[^\s]+\s+import\s+.*\b{re.escape(child_name)}\b(?:\s+as\s+\w+)?"
-    )
+    pattern = rf"from\s+[^\s]+\s+import\s+.*\b{re.escape(child_name)}\b(?:\s+as\s+\w+)?"
     return bool(re.search(pattern, import_stmt))
 
 
@@ -112,9 +110,7 @@ def resolve_conflicts(
             if is_wildcard_import(imp):
                 wildcard_modules.add(module)
 
-    detect_submodule_conflicts(
-        module_groups, wildcard_modules, parent_child_conflicts
-    )
+    detect_submodule_conflicts(module_groups, wildcard_modules, parent_child_conflicts)
 
     resolved: Set[str] = set()
     excluded_modules: Set[str] = set()

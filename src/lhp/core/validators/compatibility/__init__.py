@@ -8,8 +8,8 @@ from .snapshot_cdc import SnapshotCdcConfigValidator
 from .table_creation import TableCreationValidator, action_creates_table
 
 __all__ = [
-    "CdcFanInCompatibilityValidator",
     "CdcConfigValidator",
+    "CdcFanInCompatibilityValidator",
     "CdcSchemaValidator",
     "DltTableOptionsValidator",
     "SnapshotCdcConfigValidator",

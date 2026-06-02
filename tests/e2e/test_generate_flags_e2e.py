@@ -120,15 +120,15 @@ class TestGenerateFlagsE2E:
             "--pipeline-config",
             "config/pipeline_config.yaml",
         )
-        assert (
-            exit_code == 0
-        ), f"Filtered generate should succeed, got:\n{output[-2000:]}"
+        assert exit_code == 0, (
+            f"Filtered generate should succeed, got:\n{output[-2000:]}"
+        )
 
         bronze_dir = self.generated_dir / "acmi_edw_bronze"
         assert bronze_dir.exists(), "acmi_edw_bronze/ must be populated"
-        assert any(
-            bronze_dir.glob("*.py")
-        ), "acmi_edw_bronze/ must contain at least one .py file"
+        assert any(bronze_dir.glob("*.py")), (
+            "acmi_edw_bronze/ must contain at least one .py file"
+        )
 
         # Other pipeline dirs must NOT have .py files
         other_pipeline_pys = [
@@ -145,17 +145,17 @@ class TestGenerateFlagsE2E:
         """``--no-bundle`` keeps ``generated/dev/`` populated but leaves
         ``resources/lhp/`` empty (no pipeline.yml files)."""
         exit_code, output = self.run_generate("--env", "dev", "--no-bundle")
-        assert (
-            exit_code == 0
-        ), f"--no-bundle generate should succeed, got:\n{output[-2000:]}"
+        assert exit_code == 0, (
+            f"--no-bundle generate should succeed, got:\n{output[-2000:]}"
+        )
 
         py_files = list(self.generated_dir.rglob("*.py"))
         assert py_files, "Python output must still be generated under generated/dev/"
 
         bundle_yamls = list(self.resources_dir.glob("*.pipeline.yml"))
-        assert (
-            bundle_yamls == []
-        ), f"--no-bundle must skip resources/lhp/, found:\n{bundle_yamls}"
+        assert bundle_yamls == [], (
+            f"--no-bundle must skip resources/lhp/, found:\n{bundle_yamls}"
+        )
 
     def test_pipeline_config_explicit_path(self):
         """``--pipeline-config config/pipeline_config.yaml`` applies the
@@ -201,9 +201,9 @@ class TestGenerateFlagsE2E:
             assert exit_code == 0, f"--output generate failed:\n{output[-2000:]}"
 
             redirected_pys = list(Path(redirected).rglob("*.py"))
-            assert (
-                redirected_pys
-            ), f"--output target must contain generated .py files: {redirected}"
+            assert redirected_pys, (
+                f"--output target must contain generated .py files: {redirected}"
+            )
 
             default_pys = list(self.generated_dir.rglob("*.py"))
             assert default_pys == [], (

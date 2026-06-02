@@ -6,6 +6,7 @@ to keep resolving until D9 removes them. New code should import from
 
 # DELETE IN PHASE D9 once callers are migrated.
 """
+
 from lhp.errors import (
     BundleConfigurationError,
     BundleResourceError,

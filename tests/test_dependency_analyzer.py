@@ -909,9 +909,9 @@ class TestCycleDetection:
 
         assert len(result) >= 1
         descriptions = [desc for cycle in result for desc in cycle]
-        assert all(
-            d.startswith("action level:") for d in descriptions
-        ), f"Expected only action-level cycles, got: {descriptions}"
+        assert all(d.startswith("action level:") for d in descriptions), (
+            f"Expected only action-level cycles, got: {descriptions}"
+        )
 
     def test_flowgroup_level_cycle_only(self):
         """A cycle only in the flowgroup graph should be detected at flowgroup level."""
@@ -923,9 +923,9 @@ class TestCycleDetection:
 
         assert len(result) >= 1
         descriptions = [desc for cycle in result for desc in cycle]
-        assert all(
-            d.startswith("flowgroup level:") for d in descriptions
-        ), f"Expected only flowgroup-level cycles, got: {descriptions}"
+        assert all(d.startswith("flowgroup level:") for d in descriptions), (
+            f"Expected only flowgroup-level cycles, got: {descriptions}"
+        )
 
     def test_pipeline_level_cycle_only(self):
         """A cycle only in the pipeline graph should be detected at pipeline level."""
@@ -937,9 +937,9 @@ class TestCycleDetection:
 
         assert len(result) >= 1
         descriptions = [desc for cycle in result for desc in cycle]
-        assert all(
-            d.startswith("pipeline level:") for d in descriptions
-        ), f"Expected only pipeline-level cycles, got: {descriptions}"
+        assert all(d.startswith("pipeline level:") for d in descriptions), (
+            f"Expected only pipeline-level cycles, got: {descriptions}"
+        )
 
     def test_cycles_at_all_three_levels(self):
         """Cycles at action, flowgroup, and pipeline levels should all be reported."""
@@ -986,9 +986,9 @@ class TestCycleDetection:
 
         result = self.analyzer._analyzer._detect_circular_dependencies(graphs)
 
-        assert (
-            len(result) == 20
-        ), f"Expected exactly 20 cycles (the cap), got {len(result)}"
+        assert len(result) == 20, (
+            f"Expected exactly 20 cycles (the cap), got {len(result)}"
+        )
 
     def test_cycle_cap_across_levels(self):
         """The 20-cycle cap applies globally across all graph levels."""
@@ -1013,9 +1013,9 @@ class TestCycleDetection:
 
         result = self.analyzer._analyzer._detect_circular_dependencies(graphs)
 
-        assert (
-            len(result) == 20
-        ), f"Expected exactly 20 cycles (global cap), got {len(result)}"
+        assert len(result) == 20, (
+            f"Expected exactly 20 cycles (global cap), got {len(result)}"
+        )
 
     # ------------------------------------------------------------------ #
     # 4. No cycles -> empty list
@@ -1074,9 +1074,9 @@ class TestCycleDetection:
         assert " -> " in first_desc
         # The cycle should close back to the start node
         parts = first_desc.split(": ", 1)[1].split(" -> ")
-        assert (
-            parts[0] == parts[-1]
-        ), f"Cycle should close back to start node: {first_desc}"
+        assert parts[0] == parts[-1], (
+            f"Cycle should close back to start node: {first_desc}"
+        )
 
 
 class TestWriteTargetExtraction:

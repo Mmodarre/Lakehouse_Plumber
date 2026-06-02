@@ -103,7 +103,7 @@ def get_jobs_stats(spark, parameters) -> DataFrame:
             job_info = w.jobs.get(job_id)
             tags = {}
             if job_info.settings and job_info.settings.tags:
-                tags = {k: v for k, v in job_info.settings.tags.items()}
+                tags = dict(job_info.settings.tags)
             job_tags_cache[str(job_id)] = tags
         except Exception as e:
             print(f"[jobs_stats] Error fetching job {job_id} tags: {e}")

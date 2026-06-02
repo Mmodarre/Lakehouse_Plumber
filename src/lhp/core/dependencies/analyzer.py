@@ -265,9 +265,9 @@ class DependencyAnalyzer:
         try:
             # Use topological generations to get stages of parallel execution
             return list(nx.topological_generations(pipeline_graph))
-        except nx.NetworkXError as e:
+        except nx.NetworkXError:
             # This should not happen if circular dependencies are handled properly
-            self.logger.exception(f"Error in topological sorting: {e}")
+            self.logger.exception("Error in topological sorting")
             return []
 
     def _detect_circular_dependencies(
@@ -300,7 +300,7 @@ class DependencyAnalyzer:
                     return circular_dependencies
 
                 # Format cycle: [A, B, C] -> "A -> B -> C -> A"
-                cycle_path = list(cycle_nodes) + [cycle_nodes[0]]
+                cycle_path = [*list(cycle_nodes), cycle_nodes[0]]
                 cycle_description = f"{level_name} level: {' -> '.join(cycle_path)}"
                 circular_dependencies.append([cycle_description])
                 cycles_found += 1
@@ -324,7 +324,7 @@ class DependencyAnalyzer:
             )
             external_sources.update(node_external_sources)
 
-        return sorted(list(external_sources))
+        return sorted(external_sources)
 
     def _update_pipeline_stages(
         self,

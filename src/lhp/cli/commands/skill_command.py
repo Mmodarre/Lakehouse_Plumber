@@ -102,7 +102,7 @@ class SkillCommand(BaseCommand):
                 ),
                 suggestions=[
                     "Run `lhp skill install` to install the skill",
-                    "Run `lhp skill install --force` to take over a" " foreign install",
+                    "Run `lhp skill install --force` to take over a foreign install",
                 ],
                 context={"Install dir": str(install_dir)},
             )

@@ -205,8 +205,7 @@ class DependenciesCommand(BaseCommand):
     ) -> Path:
         if output_dir:
             return Path(output_dir).resolve()
-        else:
-            return project_root / ".lhp" / "dependencies"
+        return project_root / ".lhp" / "dependencies"
 
     def _display_analysis_summary(
         self,

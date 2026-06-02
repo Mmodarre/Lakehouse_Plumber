@@ -9,6 +9,7 @@ exception instances, no mutable collections.
 
 :stability: provisional
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -20,7 +21,7 @@ if TYPE_CHECKING:
     # types. Runtime-deferred to avoid a cycle (``views`` imports
     # ``JSONValue`` from this module) while still letting
     # ``mypy --strict`` resolve the string annotations.
-    from lhp.api.views import (  # noqa: F401
+    from lhp.api.views import (
         PipelineStats,
         ValidationIssueView,
     )

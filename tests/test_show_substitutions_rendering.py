@@ -69,19 +69,23 @@ def _write_minimal_project(root: Path) -> None:
     needed. The nested-map value uses block style so YAML parses it as a real
     ``dict`` (which is what routes it into the "maps" bucket).
     """
-    (root / "lhp.yaml").write_text(textwrap.dedent("""\
+    (root / "lhp.yaml").write_text(
+        textwrap.dedent("""\
             name: substitution_render_test_project
             version: "1.0"
-            """))
+            """)
+    )
     subs_dir = root / "substitutions"
     subs_dir.mkdir(parents=True, exist_ok=True)
-    (subs_dir / f"{ENV}.yaml").write_text(textwrap.dedent(f"""\
+    (subs_dir / f"{ENV}.yaml").write_text(
+        textwrap.dedent(f"""\
             {ENV}:
               {SCALAR_KEY}: {SCALAR_VALUE}
               {NESTED_KEY}:
                 prod: {NESTED_VALUE["prod"]}
                 dev: {NESTED_VALUE["dev"]}
-            """))
+            """)
+    )
 
 
 def _render_substitutions(project_root: Path, *, force_terminal: bool) -> str:

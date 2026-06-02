@@ -388,7 +388,7 @@ class TestCliDepsIntegration:
         ]
 
         for options in option_sets:
-            result = self.runner.invoke(cli, ["deps"] + options)
+            result = self.runner.invoke(cli, ["deps", *options])
             assert result.exit_code == 0
 
             # All should result in the same call (updated for new signature)

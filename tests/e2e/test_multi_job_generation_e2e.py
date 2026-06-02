@@ -20,7 +20,6 @@ class TestMultiJobE2E:
         # TODO: Assert master job file generated
         # TODO: Assert all files have valid YAML
         # TODO: Assert job configs merged correctly
-        pass
 
     def test_single_job_backward_compatibility(self, tmp_path):
         """Test that existing projects without job_name still work."""
@@ -28,7 +27,6 @@ class TestMultiJobE2E:
         # TODO: Run lhp deps -jc
         # TODO: Assert single job file generated
         # TODO: Assert no master job generated
-        pass
 
     def test_validation_prevents_mixed_usage(self, tmp_path):
         """Test that validation prevents mixed job_name usage."""
@@ -36,7 +34,6 @@ class TestMultiJobE2E:
         # TODO: Run lhp deps command
         # TODO: Assert command fails with clear error
         # TODO: Assert error lists flowgroups with and without job_name
-        pass
 
 
 @pytest.mark.e2e
@@ -51,14 +48,12 @@ class TestCLIIntegration:
         # TODO: Assert output shows "JOB (multiple jobs):"
         # TODO: Assert each job file listed
         # TODO: Assert master job listed
-        pass
 
     def test_pipeline_filter_blocked_with_job_name(self, tmp_path):
         """Test that --pipeline flag is blocked when job_name is used."""
         # TODO: Create project with job_name
         # TODO: Run lhp deps --pipeline bronze_pipeline
         # TODO: Assert command fails with appropriate error
-        pass
 
     def test_bundle_output_directory_structure(self, tmp_path):
         """Test that --bundle-output creates correct structure."""
@@ -66,7 +61,6 @@ class TestCLIIntegration:
         # TODO: Run lhp deps -jc --bundle-output
         # TODO: Assert files created in resources/ directory
         # TODO: Assert flat structure (no subdirectories)
-        pass
 
 
 class TestJobConfigMerging:
@@ -79,7 +73,6 @@ class TestJobConfigMerging:
         # TODO: Generate jobs
         # TODO: Parse generated YAMLs
         # TODO: Assert all jobs have project_defaults applied
-        pass
 
     def test_job_specific_overrides_work(self, tmp_path):
         """Test that job-specific configs override project_defaults."""
@@ -88,7 +81,6 @@ class TestJobConfigMerging:
         # TODO: Generate jobs
         # TODO: Parse generated YAMLs
         # TODO: Assert override applied to specific job only
-        pass
 
     def test_tags_deep_merge(self, tmp_path):
         """Test that tags are deep-merged correctly."""
@@ -97,7 +89,6 @@ class TestJobConfigMerging:
         # TODO: Generate jobs
         # TODO: Parse generated YAML
         # TODO: Assert tags deep-merged (both sets present, overrides applied)
-        pass
 
 
 class TestMasterJobGeneration:
@@ -110,7 +101,6 @@ class TestMasterJobGeneration:
         # TODO: Parse master job YAML
         # TODO: Assert 3 job_task entries
         # TODO: Assert correct job_id references
-        pass
 
     def test_master_job_respects_dependencies(self, tmp_path):
         """Test that master job creates correct task dependencies."""
@@ -118,14 +108,12 @@ class TestMasterJobGeneration:
         # TODO: Generate master job
         # TODO: Parse master job YAML
         # TODO: Assert job B task has depends_on: job A
-        pass
 
     def test_master_job_naming(self, tmp_path):
         """Test master job naming convention."""
         # TODO: Create project named "my_project"
         # TODO: Generate jobs
         # TODO: Assert master job named "my_project_master"
-        pass
 
 
 class TestErrorHandling:
@@ -137,14 +125,12 @@ class TestErrorHandling:
         # TODO: Run deps command
         # TODO: Assert validation error raised
         # TODO: Assert error message shows format rules
-        pass
 
     def test_malformed_job_config_caught(self, tmp_path):
         """Test that malformed job_config.yaml is caught."""
         # TODO: Create project with invalid YAML in job_config
         # TODO: Run deps command
         # TODO: Assert YAML parsing error raised
-        pass
 
 
 class TestOutputFormats:
@@ -155,7 +141,6 @@ class TestOutputFormats:
         # TODO: Create multi-job project
         # TODO: Run lhp deps -f job
         # TODO: Assert only job YAMLs generated (not dot, json, text)
-        pass
 
     def test_all_formats_with_multi_job(self, tmp_path):
         """Test generating all formats with multi-job."""
@@ -163,7 +148,6 @@ class TestOutputFormats:
         # TODO: Run lhp deps -f all
         # TODO: Assert job format returns dict of paths
         # TODO: Assert other formats work normally
-        pass
 
 
 # TODO: Add fixtures for:

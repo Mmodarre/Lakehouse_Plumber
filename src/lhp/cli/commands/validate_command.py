@@ -404,7 +404,7 @@ class ValidateCommand(BaseCommand):
                 if _panel is not None:
                     _console_module.err_console.print(_panel)
                 logger.info("Validate no-op: no pipelines to validate")
-                return None
+                return
 
             # Test-reporting validation (LHP-CFG-032) runs inside the shared
             # facade preflight (``_run_project_preflight``, §9.24) and is
@@ -513,18 +513,17 @@ class ValidateCommand(BaseCommand):
                     context={"Pipeline": pipeline},
                 )
             return [pipeline], all_flowgroups
-        else:
-            if not all_flowgroups:
-                raise ErrorFactory.config_error(
-                    codes.CFG_014,
-                    title="No flowgroups found in project",
-                    details="No flowgroup YAML files were found in the pipelines/ directory.",
-                    suggestions=[
-                        "Create flowgroup YAML files in pipelines/<pipeline_name>/",
-                        "Check that pipeline YAML files have the correct extension (.yaml or .yml)",
-                        "Run 'lhp init <name>' to create a new project with example files",
-                    ],
-                )
+        if not all_flowgroups:
+            raise ErrorFactory.config_error(
+                codes.CFG_014,
+                title="No flowgroups found in project",
+                details="No flowgroup YAML files were found in the pipelines/ directory.",
+                suggestions=[
+                    "Create flowgroup YAML files in pipelines/<pipeline_name>/",
+                    "Check that pipeline YAML files have the correct extension (.yaml or .yml)",
+                    "Run 'lhp init <name>' to create a new project with example files",
+                ],
+            )
 
-            pipeline_fields = {fg.pipeline for fg in all_flowgroups}
-            return sorted(pipeline_fields), all_flowgroups
+        pipeline_fields = {fg.pipeline for fg in all_flowgroups}
+        return sorted(pipeline_fields), all_flowgroups

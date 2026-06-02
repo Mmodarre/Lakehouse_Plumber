@@ -113,9 +113,9 @@ class TestTransformTempTableE2E:
         filename = "staging_chain.py"
         generated = self.temp_table_dir / filename
         baseline = self.temp_table_baseline_dir / filename
-        assert (
-            generated.exists()
-        ), f"{filename} should be generated under 16_temp_table/"
+        assert generated.exists(), (
+            f"{filename} should be generated under 16_temp_table/"
+        )
         assert baseline.exists(), f"Baseline {filename} should exist"
 
         diff = self._compare_file_hashes(generated, baseline)
@@ -123,15 +123,15 @@ class TestTransformTempTableE2E:
 
         # Verify the pipeline resource YAML also matches its baseline.
         generated_resource = self.resources_dir / "16_temp_table.pipeline.yml"
-        assert (
-            generated_resource.exists()
-        ), "16_temp_table.pipeline.yml should be generated under resources/lhp/"
-        assert (
-            self.resource_baseline.exists()
-        ), "Resource baseline 16_temp_table.pipeline.yml should exist"
+        assert generated_resource.exists(), (
+            "16_temp_table.pipeline.yml should be generated under resources/lhp/"
+        )
+        assert self.resource_baseline.exists(), (
+            "Resource baseline 16_temp_table.pipeline.yml should exist"
+        )
         resource_diff = self._compare_file_hashes(
             generated_resource, self.resource_baseline
         )
-        assert (
-            resource_diff == ""
-        ), f"Resource baseline mismatch for 16_temp_table.pipeline.yml: {resource_diff}"
+        assert resource_diff == "", (
+            f"Resource baseline mismatch for 16_temp_table.pipeline.yml: {resource_diff}"
+        )

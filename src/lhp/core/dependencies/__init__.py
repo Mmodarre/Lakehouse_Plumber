@@ -7,8 +7,8 @@ from .output import DependencyOutputManager
 from .service import DependencyAnalysisService
 
 __all__ = [
-    "DependencyAnalyzer",
     "DependencyAnalysisService",
+    "DependencyAnalyzer",
     "DependencyGraphBuilder",
     "DependencyOutputManager",
     "DependencyResolver",

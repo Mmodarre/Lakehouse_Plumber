@@ -117,9 +117,9 @@ def test_phase_tracker_render_active_phase_contains_spinner():
     rendered = pt.render()
     assert isinstance(rendered, Group)
     spinners = [c for c in rendered.renderables if isinstance(c, Spinner)]
-    assert (
-        len(spinners) >= 1
-    ), "active phase must render as a Spinner so outer Live animates it"
+    assert len(spinners) >= 1, (
+        "active phase must render as a Spinner so outer Live animates it"
+    )
 
 
 def test_phase_tracker_complete_unknown_name_is_noop():
@@ -274,9 +274,9 @@ def test_overall_progress_auto_refresh_is_disabled():
     # Rich stores ``auto_refresh`` on the Progress' internal Live, not on the
     # Progress itself; assert on the Live attribute.
     op = OverallProgress("foo", total=10)
-    assert (
-        op._progress.live.auto_refresh is False
-    ), "auto_refresh must be False — outer Live drives all refreshes"
+    assert op._progress.live.auto_refresh is False, (
+        "auto_refresh must be False — outer Live drives all refreshes"
+    )
 
 
 def test_overall_progress_task_clock_not_started_at_construction():
@@ -284,9 +284,9 @@ def test_overall_progress_task_clock_not_started_at_construction():
     constructing OverallProgress must not start the task clock.
     """
     op = OverallProgress("foo", total=10)
-    assert (
-        op._progress.tasks[0].start_time is None
-    ), "task.start_time must be None until OverallProgress.start() is called"
+    assert op._progress.tasks[0].start_time is None, (
+        "task.start_time must be None until OverallProgress.start() is called"
+    )
 
 
 def test_overall_progress_stop_before_start_leaves_clock_unstarted():
@@ -297,9 +297,9 @@ def test_overall_progress_stop_before_start_leaves_clock_unstarted():
     """
     op = OverallProgress("foo", total=10)
     op.stop()
-    assert (
-        op._progress.tasks[0].start_time is None
-    ), "stop() before start() must not start the task clock"
+    assert op._progress.tasks[0].start_time is None, (
+        "stop() before start() must not start the task clock"
+    )
 
 
 def test_overall_progress_start_does_not_activate_internal_live():
@@ -330,9 +330,9 @@ def test_overall_progress_start_starts_the_task_clock():
     """``start()`` must set ``task.start_time`` so TimeElapsedColumn ticks."""
     op = OverallProgress("foo", total=10)
     op.start()
-    assert (
-        op._progress.tasks[0].start_time is not None
-    ), "OverallProgress.start() must start the task clock (start_task)"
+    assert op._progress.tasks[0].start_time is not None, (
+        "OverallProgress.start() must start the task clock (start_task)"
+    )
 
 
 def test_overall_progress_stop_freezes_the_task_clock():
@@ -340,9 +340,9 @@ def test_overall_progress_stop_freezes_the_task_clock():
     op = OverallProgress("foo", total=10)
     op.start()
     op.stop()
-    assert (
-        op._progress.tasks[0].stop_time is not None
-    ), "OverallProgress.stop() must stop the task clock (stop_task)"
+    assert op._progress.tasks[0].stop_time is not None, (
+        "OverallProgress.stop() must stop the task clock (stop_task)"
+    )
 
 
 def test_overall_progress_stop_does_not_leave_live_on_stack():
@@ -488,9 +488,9 @@ def test_render_live_frame_wide_terminal_body_is_grid_with_wordmark():
     wordmark can occupy the right column without displacing existing content.
     """
     panel = _make_frame(console_width=120)
-    assert isinstance(
-        panel.renderable, Table
-    ), f"wide-terminal body must be a Table.grid; got {type(panel.renderable).__name__}"
+    assert isinstance(panel.renderable, Table), (
+        f"wide-terminal body must be a Table.grid; got {type(panel.renderable).__name__}"
+    )
 
 
 def test_render_live_frame_wordmark_appears_in_body_at_wide_width():

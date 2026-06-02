@@ -72,6 +72,4 @@ class JDBCLoadGenerator(BaseActionGenerator):
             "flowgroup": context.get("flowgroup"),
         }
 
-        code = self.render_template("load/jdbc.py.j2", template_context)
-
-        return code
+        return self.render_template("load/jdbc.py.j2", template_context)

@@ -254,8 +254,8 @@ class JobGenerator:
         try:
             template = self.jinja_env.get_template("bundle/job_resource.yml.j2")
             return template.render(**context)
-        except Exception as e:
-            self.logger.exception(f"Failed to render job template: {e}")
+        except Exception:
+            self.logger.exception("Failed to render job template")
             raise
 
     def save_job_to_file(
@@ -333,10 +333,8 @@ class JobGenerator:
                     f"Generated YAML for job '{job_name}' ({len(job_yaml)} bytes)"
                 )
 
-            except Exception as e:
-                self.logger.exception(
-                    f"Failed to render template for job '{job_name}': {e}"
-                )
+            except Exception:
+                self.logger.exception(f"Failed to render template for job '{job_name}'")
                 raise
 
         self.logger.info(f"Generated {len(job_yamls)} job YAML file(s)")
@@ -405,8 +403,8 @@ class JobGenerator:
             self.logger.info(f"Generated master job with {len(jobs_info)} job task(s)")
             return master_yaml
 
-        except Exception as e:
-            self.logger.exception(f"Failed to render master job template: {e}")
+        except Exception:
+            self.logger.exception("Failed to render master job template")
             raise
 
     def generate_monitoring_job(
@@ -444,8 +442,8 @@ class JobGenerator:
                 "bundle/monitoring_job_resource.yml.j2"
             )
             return template.render(**context)
-        except Exception as e:
-            self.logger.exception(f"Failed to render monitoring job template: {e}")
+        except Exception:
+            self.logger.exception("Failed to render monitoring job template")
             raise
 
     @classmethod

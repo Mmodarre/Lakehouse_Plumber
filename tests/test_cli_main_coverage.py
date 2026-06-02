@@ -246,7 +246,7 @@ class TestFindProjectRoot:
     def test_find_project_root_in_current_dir(self, tmp_path):
         """Line 116-117: finds lhp.yaml in current directory."""
         (tmp_path / "lhp.yaml").write_text("name: test\n")
-        with patch("lhp.cli.main.Path.cwd", return_value=tmp_path):
+        with patch("lhp.cli._project_root.Path.cwd", return_value=tmp_path):
             result = _find_project_root()
         assert result == tmp_path
 
@@ -255,7 +255,7 @@ class TestFindProjectRoot:
         (tmp_path / "lhp.yaml").write_text("name: test\n")
         child = tmp_path / "sub" / "deep"
         child.mkdir(parents=True)
-        with patch("lhp.cli.main.Path.cwd", return_value=child):
+        with patch("lhp.cli._project_root.Path.cwd", return_value=child):
             result = _find_project_root()
         assert result == tmp_path
 
@@ -263,6 +263,6 @@ class TestFindProjectRoot:
         """Line 119: returns None when no lhp.yaml anywhere."""
         child = tmp_path / "no_project"
         child.mkdir()
-        with patch("lhp.cli.main.Path.cwd", return_value=child):
+        with patch("lhp.cli._project_root.Path.cwd", return_value=child):
             result = _find_project_root()
         assert result is None

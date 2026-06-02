@@ -83,7 +83,7 @@ class ForEachBatchSinkWriteGenerator(BaseSinkWriteGenerator):
                 component_type="ForEachBatch sink write action",
                 component_name=action.name,
                 field_description="ForEachBatch sinks require either 'module_path' (external file) or 'batch_handler' (inline code).",
-                example_config=f"""write_target:
+                example_config="""write_target:
   type: sink
   sink_type: foreachbatch
   sink_name: "my_batch_sink"

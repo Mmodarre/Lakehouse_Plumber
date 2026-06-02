@@ -128,7 +128,7 @@ wiped.
 .. note::
    This untouched-output guarantee is not limited to preflight. ``lhp
    generate`` is **all-or-nothing**: if *any* flowgroup fails anywhere in the
-   run — per-flowgroup validation, code generation, Black formatting
+   run — per-flowgroup validation, code generation, ``ruff format``
    (``LHP-CFG-031``), a cross-flowgroup conflict, or a custom-module copy
    conflict (``LHP-VAL-019``) — the run writes **zero** files and leaves the
    output tree untouched. Multiple failures aggregate into a single

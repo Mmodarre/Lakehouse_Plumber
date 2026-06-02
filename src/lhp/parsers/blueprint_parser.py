@@ -375,8 +375,7 @@ class BlueprintParser:
             ),
             suggestions=[
                 f"Add the missing parameter(s) {missing} to {path}",
-                f"Or declare the parameter as optional on blueprint "
-                f"'{blueprint.name}'",
+                f"Or declare the parameter as optional on blueprint '{blueprint.name}'",
             ],
             context={
                 "file": str(path),

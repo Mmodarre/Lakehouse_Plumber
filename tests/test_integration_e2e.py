@@ -552,7 +552,7 @@ actions:
         )
 
         # Generate multiple times to test for memory leaks
-        for iteration in range(3):
+        for _iteration in range(3):
             for i in range(5):  # Test subset to keep test time reasonable
                 batch = collect_response(
                     facade.generation.generate_pipelines(

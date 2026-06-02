@@ -166,27 +166,25 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
         """Extract source view name from action source."""
         if isinstance(source, str):
             return source
-        elif isinstance(source, list) and source:
+        if isinstance(source, list) and source:
             first_item = source[0]
             if isinstance(first_item, str):
                 return first_item
-            else:
-                logger.warning(
-                    f"Unexpected source list item type {type(first_item).__name__}, "
-                    f"converting to string"
-                )
-                return str(first_item)
-        else:
-            raise ErrorFactory.validation_error(
-                codes.VAL_017,
-                title="Invalid source configuration for materialized view write",
-                details=(
-                    "Materialized view write requires a valid source configuration. "
-                    "Source must be a string (view name) or non-empty list of strings."
-                ),
-                suggestions=[
-                    "Provide a source view name: source: v_transformed",
-                    "Or provide a list of source views",
-                ],
-                context={"Source Type": type(source).__name__},
+            logger.warning(
+                f"Unexpected source list item type {type(first_item).__name__}, "
+                f"converting to string"
             )
+            return str(first_item)
+        raise ErrorFactory.validation_error(
+            codes.VAL_017,
+            title="Invalid source configuration for materialized view write",
+            details=(
+                "Materialized view write requires a valid source configuration. "
+                "Source must be a string (view name) or non-empty list of strings."
+            ),
+            suggestions=[
+                "Provide a source view name: source: v_transformed",
+                "Or provide a list of source views",
+            ],
+            context={"Source Type": type(source).__name__},
+        )

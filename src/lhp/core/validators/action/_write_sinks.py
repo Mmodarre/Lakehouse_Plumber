@@ -97,7 +97,7 @@ def validate_kafka_sink(action: Action, prefix: str) -> List[str]:
                 sink_config["options"], action.name, is_source=False
             )
         except Exception as e:
-            errors.append(f"{prefix}: {str(e)}")
+            errors.append(f"{prefix}: {e!s}")
 
     return errors
 

@@ -12,6 +12,7 @@ The stream protocol (constitution §5.7) guarantees:
 
 :stability: provisional
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -44,8 +45,6 @@ class LHPEvent:
 
     :stability: stable
     """
-
-    pass
 
 
 @dataclass(frozen=True)

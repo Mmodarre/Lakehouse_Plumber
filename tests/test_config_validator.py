@@ -366,9 +366,9 @@ class TestConfigValidator:
 
                 # Validation should still pass (file exists)
                 errors = validator.validate_action(action, 0)
-                assert (
-                    len(errors) == 0
-                ), f"Validation should pass even with permission issues, got: {errors}"
+                assert len(errors) == 0, (
+                    f"Validation should pass even with permission issues, got: {errors}"
+                )
 
                 # Test that generator raises appropriate error during file copying
                 from lhp.generators.transform.python import PythonTransformGenerator
@@ -386,16 +386,16 @@ class TestConfigValidator:
                 # Should raise PermissionError during file copying
                 try:
                     generator.generate(action, context)
-                    assert False, "Expected PermissionError during file copying"
+                    raise AssertionError("Expected PermissionError during file copying")
                 except PermissionError:
                     pass  # Expected
                 except Exception as e:
                     # On some systems, this might raise other exceptions like OSError
                     assert "Permission denied" in str(
                         e
-                    ) or "Operation not permitted" in str(
-                        e
-                    ), f"Expected permission-related error, got: {e}"
+                    ) or "Operation not permitted" in str(e), (
+                        f"Expected permission-related error, got: {e}"
+                    )
 
             finally:
                 # Restore permissions for cleanup
@@ -403,7 +403,7 @@ class TestConfigValidator:
                     restricted_file.chmod(
                         stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH
                     )
-                except:
+                except Exception:
                     pass  # Ignore cleanup errors
 
     def test_write_action_validation(self):
@@ -1227,12 +1227,12 @@ class TestConfigValidator:
                 function_name="transform_data",
             )
             errors = validator.validate_action(action_missing_module, 0)
-            assert (
-                len(errors) >= 1
-            ), "Should have validation error for missing module_path"
-            assert any(
-                "module_path" in error for error in errors
-            ), f"Should mention module_path in error: {errors}"
+            assert len(errors) >= 1, (
+                "Should have validation error for missing module_path"
+            )
+            assert any("module_path" in error for error in errors), (
+                f"Should mention module_path in error: {errors}"
+            )
 
             # Test missing function_name
             action_missing_function = Action(
@@ -1245,12 +1245,12 @@ class TestConfigValidator:
                 # function_name missing
             )
             errors = validator.validate_action(action_missing_function, 0)
-            assert (
-                len(errors) >= 1
-            ), "Should have validation error for missing function_name"
-            assert any(
-                "function_name" in error for error in errors
-            ), f"Should mention function_name in error: {errors}"
+            assert len(errors) >= 1, (
+                "Should have validation error for missing function_name"
+            )
+            assert any("function_name" in error for error in errors), (
+                f"Should mention function_name in error: {errors}"
+            )
 
             # Test both missing
             action_missing_both = Action(
@@ -1262,15 +1262,15 @@ class TestConfigValidator:
                 # both module_path and function_name missing
             )
             errors = validator.validate_action(action_missing_both, 0)
-            assert (
-                len(errors) >= 2
-            ), f"Should have validation errors for both missing fields, got: {errors}"
-            assert any(
-                "module_path" in error for error in errors
-            ), f"Should mention module_path in errors: {errors}"
-            assert any(
-                "function_name" in error for error in errors
-            ), f"Should mention function_name in errors: {errors}"
+            assert len(errors) >= 2, (
+                f"Should have validation errors for both missing fields, got: {errors}"
+            )
+            assert any("module_path" in error for error in errors), (
+                f"Should mention module_path in errors: {errors}"
+            )
+            assert any("function_name" in error for error in errors), (
+                f"Should mention function_name in errors: {errors}"
+            )
 
             # Test empty string values (should be treated as missing)
             action_empty_strings = Action(
@@ -1283,15 +1283,15 @@ class TestConfigValidator:
                 function_name="",  # Empty string
             )
             errors = validator.validate_action(action_empty_strings, 0)
-            assert (
-                len(errors) >= 2
-            ), f"Should have validation errors for empty strings, got: {errors}"
-            assert any(
-                "module_path" in error for error in errors
-            ), f"Should catch empty module_path: {errors}"
-            assert any(
-                "function_name" in error for error in errors
-            ), f"Should catch empty function_name: {errors}"
+            assert len(errors) >= 2, (
+                f"Should have validation errors for empty strings, got: {errors}"
+            )
+            assert any("module_path" in error for error in errors), (
+                f"Should catch empty module_path: {errors}"
+            )
+            assert any("function_name" in error for error in errors), (
+                f"Should catch empty function_name: {errors}"
+            )
 
             # Test with nonexistent file (should also be caught by validation)
             action_nonexistent_file = Action(
@@ -1304,12 +1304,12 @@ class TestConfigValidator:
                 function_name="transform_data",
             )
             errors = validator.validate_action(action_nonexistent_file, 0)
-            assert (
-                len(errors) >= 1
-            ), f"Should have validation error for nonexistent file, got: {errors}"
-            assert any(
-                "not found" in error for error in errors
-            ), f"Should mention file not found: {errors}"
+            assert len(errors) >= 1, (
+                f"Should have validation error for nonexistent file, got: {errors}"
+            )
+            assert any("not found" in error for error in errors), (
+                f"Should mention file not found: {errors}"
+            )
 
             # Test valid case for comparison
             # Create actual file to avoid file not found error
@@ -1407,9 +1407,9 @@ class TestConfigValidator:
                 # parameters field not provided - should be allowed
             )
             errors = validator.validate_action(action_no_params, 0)
-            assert (
-                len(errors) == 0
-            ), f"Missing parameters field should be allowed: {errors}"
+            assert len(errors) == 0, (
+                f"Missing parameters field should be allowed: {errors}"
+            )
 
             # Note: Type validation (non-dict types) is handled by Pydantic at the model level
             # This is the correct behavior - Pydantic ensures parameters is dict or None
@@ -1441,12 +1441,12 @@ class TestConfigValidator:
                 function_name="transform_data",
             )
             errors = validator.validate_action(action_none_source, 0)
-            assert (
-                len(errors) >= 1
-            ), f"Should have validation error for None source: {errors}"
-            assert any(
-                "source" in error for error in errors
-            ), f"Should mention source in error: {errors}"
+            assert len(errors) >= 1, (
+                f"Should have validation error for None source: {errors}"
+            )
+            assert any("source" in error for error in errors), (
+                f"Should mention source in error: {errors}"
+            )
 
             # Test source as object/dict (should fail for transforms - dicts are for load actions)
             action_dict_source = Action(
@@ -1461,9 +1461,9 @@ class TestConfigValidator:
                 function_name="transform_data",
             )
             errors = validator.validate_action(action_dict_source, 0)
-            assert (
-                len(errors) >= 1
-            ), f"Should have validation error for dict source: {errors}"
+            assert len(errors) >= 1, (
+                f"Should have validation error for dict source: {errors}"
+            )
             assert any(
                 "source" in error and ("string" in error or "list" in error)
                 for error in errors

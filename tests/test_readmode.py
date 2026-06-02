@@ -355,12 +355,12 @@ environment:
                     # Look for the read statement in the next few lines
                     for j in range(i, min(i + 10, len(lines))):
                         if "spark.read" in lines[j]:
-                            assert (
-                                "spark.read.table" in lines[j]
-                            ), "Load action should use batch mode"
-                            assert (
-                                "spark.readStream" not in lines[j]
-                            ), "Load action should not use stream mode"
+                            assert "spark.read.table" in lines[j], (
+                                "Load action should use batch mode"
+                            )
+                            assert "spark.readStream" not in lines[j], (
+                                "Load action should not use stream mode"
+                            )
                             break
 
                 # Check transform section
@@ -369,18 +369,18 @@ environment:
                     # Look for the read statement in the next few lines
                     for j in range(i, min(i + 10, len(lines))):
                         if "spark.read" in lines[j]:
-                            assert (
-                                "spark.read.table" in lines[j]
-                            ), "Transform action should use batch mode"
-                            assert (
-                                "spark.readStream" not in lines[j]
-                            ), "Transform action should not use stream mode"
+                            assert "spark.read.table" in lines[j], (
+                                "Transform action should use batch mode"
+                            )
+                            assert "spark.readStream" not in lines[j], (
+                                "Transform action should not use stream mode"
+                            )
                             break
 
             assert load_section_found, "Load action not found in generated code"
-            assert (
-                transform_section_found
-            ), "Transform action not found in generated code"
+            assert transform_section_found, (
+                "Transform action not found in generated code"
+            )
 
     def test_streaming_table_default_readmode(self):
         """Test that streaming table defaults to spark.readStream when readMode not specified."""

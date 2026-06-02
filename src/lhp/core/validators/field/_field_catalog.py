@@ -68,7 +68,7 @@ WRITE_TARGET_FIELDS = {
         "partition_columns",
         "cluster_columns",
         "spark_conf",
-        "schema",  # UC namespace schema name
+        # UC namespace schema name
         "table_schema",  # DDL table schema definition
         "row_filter",
         "temporary",
@@ -90,7 +90,7 @@ WRITE_TARGET_FIELDS = {
         "partition_columns",
         "cluster_columns",
         "spark_conf",
-        "schema",  # UC namespace schema name
+        # UC namespace schema name
         "table_schema",  # DDL table schema definition
         "row_filter",
         "temporary",
@@ -166,7 +166,7 @@ ACTION_FIELDS = {
 
 
 __all__ = [
+    "ACTION_FIELDS",
     "LOAD_SOURCE_FIELDS",
     "WRITE_TARGET_FIELDS",
-    "ACTION_FIELDS",
 ]
