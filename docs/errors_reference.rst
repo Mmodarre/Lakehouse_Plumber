@@ -81,6 +81,9 @@ Error Categories
    * - Dependency
      - ``DEP``
      - Circular dependencies between views or preset inheritance cycles
+   * - Deprecation
+     - ``DEPR``
+     - Soft-deprecation warnings for fields/syntax scheduled for removal; surfaced as warnings, not failures
 
 Configuration Errors (LHP-CFG)
 ------------------------------
@@ -1199,6 +1202,36 @@ you identify which dependency to remove or redirect.
    Run ``lhp deps --format dot --env <env>`` to generate a visual dependency
    graph that makes cycles easier to spot. See :doc:`dependency_analysis`
    for details.
+
+Deprecation Warnings (LHP-DEPR)
+-------------------------------
+
+Deprecation codes are **warnings, not failures** — generation and validation
+still succeed. They flag fields and syntax that are scheduled for removal in a
+future release so you can migrate ahead of time.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 80
+
+   * - Code
+     - Deprecated usage and replacement
+   * - ``LHP-DEPR-001``
+     - Bare-braces ``{token}`` substitution syntax. Use ``${token}`` instead
+       (the only valid non-``$`` braces form is ``%{local_var}`` for local
+       variables).
+   * - ``LHP-DEPR-002``
+     - The ``database`` field. Use ``catalog`` and ``schema`` instead.
+   * - ``LHP-DEPR-003``
+     - The schema-transform ``enforcement`` key.
+   * - ``LHP-DEPR-004``
+     - The ``database_suffix`` field. Use ``catalog`` and ``schema`` instead.
+
+.. note::
+
+   The legacy ``blueprint:`` / ``use_blueprint:`` syntax is **not** a soft
+   deprecation — mixing it with the current syntax is a hard ``LHP-VAL-061``
+   error.
 
 General Troubleshooting
 -----------------------

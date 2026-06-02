@@ -657,5 +657,27 @@ actions:
             doc_link=doc_link,
         )
 
+    @staticmethod
+    def deprecation_error(
+        code: ErrorCode,
+        title: str,
+        details: str,
+        suggestions: Optional[List[str]] = None,
+        example: Optional[str] = None,
+        context: Optional[dict[str, Any]] = None,
+        doc_link: Optional[str] = None,
+    ) -> LHPError:
+        """Build a generic DEPRECATION error from any DEPR ErrorCode."""
+        return LHPError(
+            category=code.category,
+            code_number=code.number,
+            title=title,
+            details=details,
+            suggestions=suggestions,
+            example=example,
+            context=context,
+            doc_link=doc_link,
+        )
+
 
 __all__ = ["ErrorFactory"]

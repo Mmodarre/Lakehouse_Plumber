@@ -7,7 +7,8 @@ from typing import Any, Dict, List
 
 import yaml
 
-from ..errors import ErrorFactory
+from ..errors import ErrorFactory, codes
+from ..models.deprecations import record_deprecation
 from ..parsers.yaml_parser import YAMLParser
 
 logger = logging.getLogger(__name__)
@@ -117,9 +118,13 @@ class SchemaTransformParser:
                 # Valid full YAML format - use existing parser
                 # Check if enforcement is present (should be action-level only)
                 if "enforcement" in parsed:
-                    logger.warning(
-                        "The 'enforcement' field in inline schema_inline is ignored. "
-                        "Enforcement must be specified at action level only."
+                    record_deprecation(
+                        codes.DEPR_003,
+                        title="The schema-transform 'enforcement' key is deprecated.",
+                        details=(
+                            "The 'enforcement' field in an inline 'schema_inline' is "
+                            "ignored. Specify 'enforcement' at the action level only."
+                        ),
                     )
                 return self.parse_file_data(parsed)
             # Dict keys don't match expected format - YAML misinterpreted arrow lines
@@ -172,9 +177,14 @@ class SchemaTransformParser:
         """
         # Warn if enforcement is in external file (should be action-level)
         if "enforcement" in data:
-            logger.warning(
-                "The 'enforcement' field in external schema files is deprecated. "
-                "Use action-level 'enforcement' field instead. This value will be ignored."
+            record_deprecation(
+                codes.DEPR_003,
+                title="The schema-transform 'enforcement' key is deprecated.",
+                details=(
+                    "The 'enforcement' field in an external schema file is deprecated. "
+                    "Use the action-level 'enforcement' field instead. "
+                    "This value will be ignored."
+                ),
             )
 
         # Detect format

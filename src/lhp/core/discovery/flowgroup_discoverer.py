@@ -8,9 +8,11 @@ from typing import Dict, List, Optional, Tuple
 from lhp.models import FlowGroup
 
 from ...errors import ErrorFactory, codes
+from ...models.processing import DeprecationWarningRecord
 from ...parsers.yaml_parser import YAMLParser
 from ...utils.performance_timer import perf_timer
 from .._interfaces import BaseFlowgroupDiscoveryService
+from .deprecation_scanner import scan_bare_token_deprecations
 
 
 class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
@@ -329,6 +331,55 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
             )
 
         return flowgroups_with_paths
+
+    def scan_deprecation_warnings(self) -> Tuple[DeprecationWarningRecord, ...]:
+        """Scan every pipeline YAML for the bare-``{token}`` deprecation.
+
+        Thin wrapper: collects the project's discovered YAML files (via
+        :meth:`_iter_pipeline_yaml_files`) and delegates detection to
+        :func:`deprecation_scanner.scan_bare_token_deprecations`, which is
+        the single source of truth for the bare-``{token}`` regex, the
+        ``LHP-DEPR-001`` message, and the per-file dedup.
+
+        This is the consolidated MAIN-THREAD detection point for the
+        deprecated bare-``{token}`` substitution syntax (use ``${token}``;
+        ``%{local_var}`` stays valid). It runs on the main thread because the
+        read path runs before any worker pool is spawned (workers attach a
+        ``NullHandler`` only, so their ``logger.warning`` calls never reach
+        the user). It scans EVERY file and emits EXACTLY ONE
+        :class:`DeprecationWarningRecord` per offending file.
+
+        Returns:
+            One :class:`DeprecationWarningRecord` per offending file in
+            first-seen order (empty if none).
+        """
+        return scan_bare_token_deprecations(self._iter_pipeline_yaml_files())
+
+    def _iter_pipeline_yaml_files(self) -> List[Path]:
+        """List every ``pipelines/**/*.yaml`` file the project discovers.
+
+        Backs :meth:`scan_deprecation_warnings`; mirrors the glob in
+        :meth:`discover_all_flowgroups_with_paths` (honors the project's
+        include patterns when present, else the backwards-compatible
+        ``*.yaml`` / ``*.yml`` rglob). Returns an empty list when there is no
+        ``pipelines/`` directory.
+        """
+        pipelines_dir = self.project_root / "pipelines"
+        if not pipelines_dir.exists():
+            return []
+
+        include_patterns = self.get_include_patterns()
+        if include_patterns:
+            from ...utils.file_pattern_matcher import discover_files_with_patterns
+
+            return list(
+                discover_files_with_patterns(pipelines_dir, list(include_patterns))
+            )
+
+        yaml_files: List[Path] = []
+        yaml_files.extend(pipelines_dir.rglob("*.yaml"))
+        yaml_files.extend(pipelines_dir.rglob("*.yml"))
+        return yaml_files
 
     def _build_source_path_index_from_pairs(
         self, pairs: List[Tuple[FlowGroup, Path]]

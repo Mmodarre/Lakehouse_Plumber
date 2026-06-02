@@ -7,12 +7,13 @@ and folds the per-pipeline results via
 barrier — table-creation conflicts (``LHP-VAL-009`` / ``LHP-CFG-004``) and CDC
 fan-in (``LHP-VAL-010``) — runs INSIDE the engine on the RESOLVED flowgroups
 the workers returned (§9.24 closure), and its structured
-:class:`~lhp.errors.LHPError`s land in the outcome's ``lhp_errors`` tuple via
+:class:`~lhp.errors.LHPError`s land on the outcome's ``issues`` tuple as
+:class:`~lhp.models.processing.ValidationIssueRecord`s (each carrying the live
+LHPError, not a stringified projection) via
 :func:`._cross_flowgroup_issues.build_cross_flowgroup_issues` (§9.24:
-single-sourced construction; the engine only surfaces). Both families flow into
-``lhp_errors`` rather than the stringified ``errors`` projection, so the
-validate CLI renders the structured panel (with ``code`` / ``suggestions``)
-instead of the legacy ``=====`` border.
+single-sourced construction; the engine only surfaces). Carrying the live
+error lets the validate CLI render the structured panel (with ``code`` /
+``suggestions``) instead of the legacy ``=====`` border.
 
 The spawn pool is removed the same way
 ``test_flowgroup_pool`` does it — a synchronous in-process executor + a fake
@@ -32,10 +33,8 @@ import pytest
 from lhp.core._interfaces import CrossFlowgroupCheckResult
 from lhp.core.coordination import _pool as fe
 from lhp.core.coordination._flowgroup_pool import _FlowgroupWorkerState
-from lhp.core.coordination.executor import (
-    PipelineExecutionService,
-    PipelineValidationOutcome,
-)
+from lhp.core.coordination.executor import PipelineExecutionService
+from lhp.errors import LHPError
 from lhp.models import FlowGroupContext
 from lhp.models.processing import FlowgroupOutcome
 
@@ -91,8 +90,8 @@ class _SyncExecutor:
 
 
 @pytest.mark.unit
-def test_assemble_folds_table_creation_errors_into_lhp_errors(monkeypatch):
-    """Table-creation errors fold into ``lhp_errors`` as ``LHP-VAL-009``.
+def test_assemble_folds_table_creation_errors_into_issue_records(monkeypatch):
+    """Table-creation errors fold into ``issues`` as a structured ``LHP-VAL-009``.
 
     Migrated from the deleted pipeline-batched validate-pool path. Drives the real
     :meth:`PipelineExecutionService.run_validate` (typed kwargs signature)
@@ -114,9 +113,10 @@ def test_assemble_folds_table_creation_errors_into_lhp_errors(monkeypatch):
     covered by ``test_flowgroup_pool``).
 
     Assert: the per-pipeline outcome is unsuccessful AND carries a structured
-    ``LHP-VAL-009`` in ``lhp_errors`` (not stringified into ``errors``), and
-    the boundary was invoked once with the resolved flowgroups +
-    ``pipeline_filter``.
+    ``LHP-VAL-009`` on ``issues`` (a ValidationIssueRecord whose ``issue`` is
+    the live LHPError, not a string), with no owning-flowgroup attribution
+    (cross-fg), and the boundary was invoked once with the resolved flowgroups
+    + ``pipeline_filter``.
     """
     pipeline_name = "bronze"
     resolved = _FakeFlowGroup(pipeline_name, "bronze_fg")
@@ -158,32 +158,44 @@ def test_assemble_folds_table_creation_errors_into_lhp_errors(monkeypatch):
         environment="dev",
     )
 
-    completions: List[PipelineValidationOutcome] = []
     service = PipelineExecutionService(
         validate_worker_state=worker_state,
         validation_service=validation_service,
-        on_validate_pipeline_complete=completions.append,
     )
 
-    outcomes = service.run_validate(
-        flowgroups_by_pipeline={pipeline_name: [_ctx(pipeline_name, "bronze_fg")]},
-        substitution_managers={pipeline_name: object()},
-        output_dirs={pipeline_name: None},
-        discovery_errors={},
+    # ``run_validate`` is itself the outcome generator (E4 removed the
+    # callback-firing drain adapter); drain it to a list.
+    outcomes = list(
+        service.run_validate(
+            flowgroups_by_pipeline={pipeline_name: [_ctx(pipeline_name, "bronze_fg")]},
+            substitution_managers={pipeline_name: object()},
+            output_dirs={pipeline_name: None},
+            discovery_errors={},
+        )
     )
 
-    # Exactly one outcome, and the completion callback fired once.
+    # Exactly one outcome yielded for the single pipeline.
     assert len(outcomes) == 1
-    assert [o.pipeline for o in completions] == [pipeline_name]
     outcome = outcomes[0]
 
-    # The outcome fails and the structured VAL-009 lands in ``lhp_errors``.
+    # The outcome fails and the structured VAL-009 lands on ``issues`` as a
+    # ValidationIssueRecord carrying the LIVE LHPError (not a stringified
+    # projection) at error severity.
     assert outcome.pipeline == pipeline_name
     assert outcome.success is False
-    val_009 = [e for e in outcome.lhp_errors if e.code == "LHP-VAL-009"]
-    assert len(val_009) == 1, outcome.lhp_errors
-    # The error is structured, not stringified into ``errors``.
-    assert outcome.errors == ()
+    val_009 = [
+        r
+        for r in outcome.issues
+        if isinstance(r.issue, LHPError) and r.issue.code == "LHP-VAL-009"
+    ]
+    assert len(val_009) == 1, outcome.issues
+    assert val_009[0].severity == "error"
+    # No finding degraded to a plain string — the cross-fg issue is structured.
+    assert not [r for r in outcome.issues if isinstance(r.issue, str)]
+    # A cross-flowgroup fan-in finding has no single owning flowgroup, so it
+    # carries no flowgroup attribution / source file.
+    assert val_009[0].flowgroup_name is None
+    assert val_009[0].source_file is None
 
     # The boundary was actually invoked with the RESOLVED flowgroups,
     # pipeline-filtered (the §9.24 closure runs on the resolved set).

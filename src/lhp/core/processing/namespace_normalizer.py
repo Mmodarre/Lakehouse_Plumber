@@ -17,13 +17,15 @@ import re
 from typing import Any, Dict
 
 from ...errors import ErrorFactory, codes
+from ...models.deprecations import record_deprecation
 
 logger = logging.getLogger(__name__)
 
-_DEPRECATION_MSG = (
-    "DEPRECATION: The 'database' field (e.g., database: \"catalog.schema\") is "
-    "deprecated and will be removed in v1.0.0. Use explicit 'catalog' and 'schema' "
-    "fields instead. Auto-converted for now."
+_DEPRECATION_TITLE = "The 'database' field is deprecated and will be removed in v1.0.0."
+_DEPRECATION_DETAILS = (
+    "Use explicit 'catalog' and 'schema' fields instead "
+    '(e.g. catalog: "my_catalog", schema: "my_schema"). '
+    "Auto-converted for now."
 )
 
 # Pattern to detect DDL-like values in the 'schema' field.
@@ -101,9 +103,13 @@ def _normalize_write_target(wt: Dict[str, Any], action_name: str) -> None:
         wt["catalog"] = catalog
         wt["schema"] = schema
         del wt["database"]  # REMOVE_AT_V1.0.0: database field removal
-        logger.warning(
-            f"Action '{action_name}': {_DEPRECATION_MSG} "
-            f'(database: "{database}" → catalog: "{catalog}", schema: "{schema}")'
+        record_deprecation(
+            codes.DEPR_002,
+            title=_DEPRECATION_TITLE,
+            details=(
+                f"Action '{action_name}': {_DEPRECATION_DETAILS} "
+                f'(database: "{database}" -> catalog: "{catalog}", schema: "{schema}").'
+            ),
         )
     else:
         raise ErrorFactory.config_error(
@@ -148,9 +154,13 @@ def _normalize_delta_source(source: Dict[str, Any], action_name: str) -> None:
     if catalog and "." not in str(database):
         source["schema"] = database
         del source["database"]  # REMOVE_AT_V1.0.0
-        logger.warning(
-            f"Action '{action_name}': Delta source 'database' field renamed to 'schema'. "
-            f"{_DEPRECATION_MSG}"
+        record_deprecation(
+            codes.DEPR_002,
+            title=_DEPRECATION_TITLE,
+            details=(
+                f"Action '{action_name}': Delta source 'database' field renamed "
+                f"to 'schema'. {_DEPRECATION_DETAILS}"
+            ),
         )
         return
 
@@ -160,9 +170,13 @@ def _normalize_delta_source(source: Dict[str, Any], action_name: str) -> None:
         source["catalog"] = cat
         source["schema"] = schema
         del source["database"]  # REMOVE_AT_V1.0.0
-        logger.warning(
-            f"Action '{action_name}': {_DEPRECATION_MSG} "
-            f'(database: "{database}" → catalog: "{cat}", schema: "{schema}")'
+        record_deprecation(
+            codes.DEPR_002,
+            title=_DEPRECATION_TITLE,
+            details=(
+                f"Action '{action_name}': {_DEPRECATION_DETAILS} "
+                f'(database: "{database}" -> catalog: "{cat}", schema: "{schema}").'
+            ),
         )
     else:
         raise ErrorFactory.config_error(

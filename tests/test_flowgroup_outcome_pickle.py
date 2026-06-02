@@ -33,7 +33,11 @@ import pytest
 from lhp.errors.categories import ErrorCategory
 from lhp.errors.types import LHPError, MultiDocumentError, PythonFunctionConflictError
 from lhp.models import Action, ActionType, FlowGroup
-from lhp.models.processing import CopiedModuleRecord, FlowgroupOutcome
+from lhp.models.processing import (
+    CopiedModuleRecord,
+    DeprecationWarningRecord,
+    FlowgroupOutcome,
+)
 
 
 def _round_trip(obj):
@@ -65,6 +69,15 @@ def _make_copy_record() -> CopiedModuleRecord:
         content="def transform(df):\n    return df\n",
         module_path="custom.transforms",
         custom_functions_dir=Path("generated/custom"),
+    )
+
+
+def _make_warning() -> DeprecationWarningRecord:
+    return DeprecationWarningRecord(
+        code="LHP-DEPR-002",
+        message="The {token} syntax is deprecated; use ${token}.",
+        file=Path("pipelines/fg_a.yaml"),
+        flowgroup="fg_a",
     )
 
 
@@ -283,6 +296,127 @@ class TestFlowgroupOutcomePickle:
         # Frozenness is preserved across the round-trip.
         with pytest.raises(FrozenInstanceError):
             restored.perf = {"mutated": True}
+
+
+class TestDeprecationWarningRecord:
+    """``DeprecationWarningRecord`` is a plain frozen+slots transport DTO.
+
+    It rides back beside :class:`FlowgroupOutcome` (workers run under a
+    ``NullHandler``, so ``logger.warning`` is swallowed), so it MUST be a
+    picklable value type — and explicitly NOT an ``Exception`` (exception
+    types live in ``lhp.errors``; this is a ``models`` DTO per §2.2).
+    """
+
+    def test_is_not_an_exception_subclass(self):
+        """It is a DTO, not an error: must not be an ``Exception`` subclass
+        (an exception type would have to live in ``lhp.errors``)."""
+        assert not issubclass(DeprecationWarningRecord, Exception)
+
+    def test_is_frozen(self):
+        """``frozen=True`` — mutating any field raises ``FrozenInstanceError``."""
+        record = _make_warning()
+        with pytest.raises(FrozenInstanceError):
+            record.code = "LHP-DEPR-099"
+
+    def test_uses_slots_no_instance_dict(self):
+        """``slots=True`` — no per-instance ``__dict__`` (smaller footprint
+        across the spawn boundary); fields live in ``__slots__``."""
+        record = _make_warning()
+        assert not hasattr(record, "__dict__")
+        assert set(DeprecationWarningRecord.__slots__) == {
+            "code",
+            "message",
+            "file",
+            "flowgroup",
+        }
+
+    def test_round_trips_by_value(self):
+        """A frozen dataclass of plain ``str``/``Path``/``Optional`` fields
+        compares by value, so a pickle round-trip equals the original."""
+        record = _make_warning()
+
+        restored = _round_trip(record)
+
+        assert restored == record
+        assert restored.code == "LHP-DEPR-002"
+        assert restored.message == "The {token} syntax is deprecated; use ${token}."
+        assert restored.file == Path("pipelines/fg_a.yaml")
+        assert restored.flowgroup == "fg_a"
+
+    def test_round_trips_with_none_optionals(self):
+        """``file`` and ``flowgroup`` are ``Optional`` — ``None`` survives
+        the round-trip too."""
+        record = DeprecationWarningRecord(
+            code="LHP-DEPR-001",
+            message="Deprecated.",
+            file=None,
+            flowgroup=None,
+        )
+
+        restored = _round_trip(record)
+
+        assert restored == record
+        assert restored.file is None
+        assert restored.flowgroup is None
+
+
+class TestFlowgroupOutcomeWarnings:
+    """The worker → main warnings channel on :class:`FlowgroupOutcome`."""
+
+    def test_warnings_default_to_empty_tuple(self):
+        """Existing constructors carry no ``warnings`` arg, so it defaults
+        to ``()`` on both factory paths and the bare constructor."""
+        assert FlowgroupOutcome.ok("pipe_a", "fg_a").warnings == ()
+        assert FlowgroupOutcome.failure("pipe_a", "fg_a").warnings == ()
+        assert (
+            FlowgroupOutcome(
+                pipeline="pipe_a", flowgroup_name="fg_a", success=True
+            ).warnings
+            == ()
+        )
+
+    def test_ok_outcome_carries_warnings_and_round_trips(self):
+        """An ``ok`` outcome carrying a tuple of warnings round-trips under
+        whole-object ``==`` and preserves the warnings verbatim."""
+        warning = _make_warning()
+        outcome = FlowgroupOutcome.ok(
+            "pipe_a",
+            "fg_a",
+            resolved_flowgroup=_make_flowgroup(),
+            warnings=(warning,),
+        )
+
+        # Sanity: the channel landed on the field before we pickle.
+        assert outcome.warnings == (warning,)
+
+        restored = _round_trip(outcome)
+
+        assert restored == outcome
+        _assert_scaffold_preserved(restored, outcome)
+        assert restored.warnings == (warning,)
+        assert restored.warnings[0].code == "LHP-DEPR-002"
+        assert restored.warnings[0].file == Path("pipelines/fg_a.yaml")
+
+    def test_failure_outcome_carries_warnings_and_round_trips(self):
+        """A ``failure`` outcome may also carry warnings the worker emitted
+        before failing; the string-channel failure stays a value type so it
+        round-trips under whole-object ``==``."""
+        warning = _make_warning()
+        outcome = FlowgroupOutcome.failure(
+            "pipe_a",
+            "fg_a",
+            errors=("ValueError: boom",),
+            warnings=(warning,),
+        )
+
+        assert outcome.warnings == (warning,)
+
+        restored = _round_trip(outcome)
+
+        assert restored == outcome
+        _assert_scaffold_preserved(restored, outcome)
+        assert restored.warnings == (warning,)
+        assert restored.errors == ("ValueError: boom",)
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -41,10 +41,13 @@ from lhp.errors import (
     LHPError,
     LHPValidationError,
     PythonFunctionConflictError,
+    codes,
 )
 from lhp.models import FlowGroupContext
+from lhp.models.deprecations import record_deprecation
 from lhp.models.processing import (
     CopiedModuleRecord,
+    DeprecationWarningRecord,
     FlowgroupOutcome,
     PipelineDelta,
 )
@@ -274,6 +277,99 @@ def test_validate_mode_ok_outcome_carries_resolved_no_code(monkeypatch):
     assert outcome.lhp_error is None
     # Codegen is never touched in validate mode.
     assert code_gen.calls == []
+
+
+# Worker → main deprecation-warning routing (C3)
+#
+# The worker wrapper opens a ``collect_deprecations`` scope around the impl,
+# stamped with this flowgroup's source_yaml + name. Soft-deprecation sites
+# nested under resolution / validation / codegen call ``record_deprecation``;
+# the wrapper drains them onto ``FlowgroupOutcome.warnings`` (deduped by
+# ``(code, file)``) so C2's per-pipeline merge picks them up. Workers run under
+# a NullHandler, so without this the warnings would be lost. These tests use a
+# resolver that records a deprecation during ``process_flowgroup`` (standing in
+# for the real ``database`` / ``database_suffix`` / ``enforcement`` sites).
+class _RecordingResolver(_FakeResolver):
+    """A resolver that records a deprecation while resolving the flowgroup."""
+
+    def __init__(self, *, code, n_calls: int = 1, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._code = code
+        self._n_calls = n_calls
+
+    def process_flowgroup(self, ctx, substitution_mgr, include_tests=True):
+        # Fire the same deprecation ``n_calls`` times (e.g. the inline schema
+        # path warns twice) to prove the wrapper dedups by (code, file).
+        for _ in range(self._n_calls):
+            record_deprecation(
+                self._code,
+                title="A field is deprecated.",
+                details="Use the replacement instead.",
+            )
+        return super().process_flowgroup(ctx, substitution_mgr, include_tests)
+
+
+@pytest.mark.unit
+def test_resolution_deprecation_rides_onto_validate_outcome(monkeypatch):
+    """A deprecation recorded during resolve lands on the validate outcome.
+
+    Proves the worker wrapper's collect/drain plumbing: the record is stamped
+    with the ctx's ``source_yaml`` (file) and flowgroup name, and rides on
+    ``FlowgroupOutcome.warnings`` even in validate mode (no codegen).
+    """
+    resolver = _RecordingResolver(code=codes.DEPR_002, n_calls=2)
+    _install_state(monkeypatch, resolver=resolver)
+
+    src = Path("flowgroups/fg_one.yaml")
+    outcome = _process_one_flowgroup(_ctx(source_yaml=src), mode="validate")
+
+    assert outcome.success is True
+    # Two identical (code, file) records deduped to one on the outcome.
+    assert len(outcome.warnings) == 1
+    (warning,) = outcome.warnings
+    assert isinstance(warning, DeprecationWarningRecord)
+    assert warning.code == codes.DEPR_002.code
+    assert warning.file == src
+    assert warning.flowgroup == FLOWGROUP
+
+
+@pytest.mark.unit
+def test_resolution_deprecation_rides_onto_generate_outcome(monkeypatch):
+    """The warning also rides on a generate-mode ok outcome (alongside code)."""
+    resolver = _RecordingResolver(code=codes.DEPR_004)
+    _install_state(
+        monkeypatch,
+        resolver=resolver,
+        code_generator=_FakeCodeGen(code="z = 3\n"),
+    )
+
+    outcome = _process_one_flowgroup(
+        _ctx(source_yaml=Path("flowgroups/fg_one.yaml")), mode="generate"
+    )
+
+    assert outcome.success is True
+    assert outcome.formatted_code == "z = 3\n"
+    assert [w.code for w in outcome.warnings] == [codes.DEPR_004.code]
+
+
+@pytest.mark.unit
+def test_resolution_deprecation_rides_onto_failure_outcome(monkeypatch):
+    """A deprecation recorded before a resolve failure still rides back.
+
+    The site records onto the scope, then resolution raises; the wrapper drains
+    the scope regardless of the impl's failure path, so the warning is NOT lost
+    when the flowgroup ultimately fails.
+    """
+    resolver = _RecordingResolver(code=codes.DEPR_002, raise_exc=_val_error())
+    _install_state(monkeypatch, resolver=resolver)
+
+    outcome = _process_one_flowgroup(
+        _ctx(source_yaml=Path("flowgroups/fg_one.yaml")), mode="validate"
+    )
+
+    assert outcome.success is False
+    assert isinstance(outcome.lhp_error, LHPValidationError)
+    assert [w.code for w in outcome.warnings] == [codes.DEPR_002.code]
 
 
 # Failure conversion (worker must NOT raise)
@@ -625,7 +721,7 @@ def test_flowgroup_pool_validate_barrier_on_resolved_and_pipeline_order(monkeypa
     ]
 
 
-# Generate gate: PipelineExecutionService._run_generate_engine_and_gate
+# Generate gate: PipelineExecutionService._iter_generate_deltas
 #
 # These prove the all-or-nothing GATE: the gate drives the flat
 # engine in generate mode, runs the copy-conflict dry pass, and on ANY failure
@@ -656,11 +752,13 @@ def _gate_worker_factory(outcomes_by_key):
 
 
 def _drive_gate(monkeypatch, tmp_path, *, flowgroups_by_pipeline, outcomes_by_key):
-    """Drive ``_run_generate_engine_and_gate`` with the sync-executor seam.
+    """Drive the generate gate via ``_iter_generate_deltas`` (sync-executor seam).
 
-    Returns the service's result (clean run) or lets the raise propagate.
-    Output dirs point at ``tmp_path`` per pipeline so callers can assert the
-    tree stays empty after a gate raise.
+    E3 removed the callback-firing drain adapter; the gate now lives inside the
+    source-of-truth generator :meth:`_iter_generate_deltas`. Draining it raises
+    the gate aggregate (the only thing these callers assert — they all wrap this
+    in ``pytest.raises``). Output dirs point at ``tmp_path`` per pipeline so
+    callers can assert the tree stays empty after a gate raise.
     """
     monkeypatch.setattr(fe, "ProcessPoolExecutor", _SyncExecutor)
     monkeypatch.setattr(
@@ -677,28 +775,38 @@ def _drive_gate(monkeypatch, tmp_path, *, flowgroups_by_pipeline, outcomes_by_ke
         environment="dev",
     )
     service = PipelineExecutionService(max_workers=4)
-    return service._run_generate_engine_and_gate(
-        flowgroups_by_pipeline=flowgroups_by_pipeline,
-        worker_state=worker_state,
-        validation_service=_BarrierSpy(),  # empty CrossFlowgroupCheckResult → no cross-fg issues
-        max_workers=4,
+    # Fully drain: the gate raises mid-stream (after any failure deltas).
+    return list(
+        service._iter_generate_deltas(
+            flowgroups_by_pipeline=flowgroups_by_pipeline,
+            worker_state=worker_state,
+            validation_service=_BarrierSpy(),  # empty CrossFlowgroupCheckResult → no cross-fg issues
+            max_workers=4,
+        )
     )
 
 
 def _drive_commit(monkeypatch, tmp_path, *, flowgroups_by_pipeline, outcomes_by_key):
-    """Drive ``_run_generate_engine_and_gate`` through the COMMIT step.
+    """Drive ``_iter_generate_deltas`` through the COMMIT step.
 
     Like :func:`_drive_gate` but exercises the gate-PASSED commit path: each
     pipeline gets a DISTINCT output subdir ``<tmp_path>/generated/<pipeline>``
-    (matching ``build_generate_work_units``' ``output_dir / pipeline``), the
-    env-level dir ``<tmp_path>/generated`` is threaded as the single
-    whole-env wipe target, and ``on_generate_pipeline_complete`` is spied.
+    (matching ``build_generate_work_units``' ``output_dir / pipeline``), and the
+    env-level dir ``<tmp_path>/generated`` is threaded as the single whole-env
+    wipe target.
 
-    Returns ``(deltas, completed, env_dir, pipeline_dirs)`` where ``deltas`` is
-    the method's return tuple, ``completed`` is the list the callback captured,
-    ``env_dir`` is the wiped env dir, and ``pipeline_dirs`` maps pipeline → its
-    output subdir. The output dirs are NOT pre-created here — the commit step's
-    own ``mkdir`` must create them (proving it does).
+    E3 removed the per-pipeline completion callback; the yielded deltas ARE the
+    per-pipeline stream the facade now consumes. On a clean run
+    ``_iter_generate_deltas`` yields exactly the success deltas in input order,
+    so both returned lists are that drained stream.
+
+    Returns ``(deltas, completed, env_dir, pipeline_dirs)`` where ``deltas`` and
+    ``completed`` are the drained success-delta list (kept as two names so the
+    existing assertions — one on the returned deltas, one on the per-pipeline
+    stream — read unchanged), ``env_dir`` is the wiped env dir, and
+    ``pipeline_dirs`` maps pipeline → its output subdir. The output dirs are NOT
+    pre-created here — the commit step's own ``mkdir`` must create them (proving
+    it does).
     """
     monkeypatch.setattr(fe, "ProcessPoolExecutor", _SyncExecutor)
     monkeypatch.setattr(
@@ -716,20 +824,19 @@ def _drive_commit(monkeypatch, tmp_path, *, flowgroups_by_pipeline, outcomes_by_
         pipeline_output_dirs=dict(pipeline_dirs),
         environment="dev",
     )
-    completed: List[PipelineDelta] = []
-    service = PipelineExecutionService(
-        max_workers=4, on_generate_pipeline_complete=completed.append
+    service = PipelineExecutionService(max_workers=4)
+    deltas = list(
+        service._iter_generate_deltas(
+            flowgroups_by_pipeline=flowgroups_by_pipeline,
+            worker_state=worker_state,
+            validation_service=_BarrierSpy(),
+            output_dir=env_dir,
+            project_config=None,
+            project_root=tmp_path,
+            max_workers=4,
+        )
     )
-    deltas = service._run_generate_engine_and_gate(
-        flowgroups_by_pipeline=flowgroups_by_pipeline,
-        worker_state=worker_state,
-        validation_service=_BarrierSpy(),
-        output_dir=env_dir,
-        project_config=None,
-        project_root=tmp_path,
-        max_workers=4,
-    )
-    return deltas, completed, env_dir, pipeline_dirs
+    return deltas, deltas, env_dir, pipeline_dirs
 
 
 @pytest.mark.unit
@@ -984,3 +1091,176 @@ def test_flowgroup_pool_generate_commit_skipped_and_no_wipe_on_gate_failure(
     assert stale.read_text(encoding="utf-8") == "stale = True\n"
     # And no pipeline output dir was created / written for the valid pipeline.
     assert not (env_dir / "pipe_ok").exists()
+
+
+# Worker → main warning plumbing (C2)
+#
+# Workers run under a NullHandler so their logger.warning calls are swallowed;
+# deprecation warnings ride back as structured FlowgroupOutcome.warnings instead.
+# These tests prove the engine (1) carries those worker-attached warnings up onto
+# the per-pipeline _PipelinePoolResult, and (2) MERGES them across a pipeline's
+# flowgroup outcomes, DEDUPED by (code, file) in deterministic first-seen order.
+# Same seam-swap as the validate engine test above: ProcessPoolExecutor →
+# _SyncExecutor and the worker entry → an in-process fake returning ok outcomes
+# that carry warnings.
+@pytest.mark.unit
+def test_flowgroup_pool_worker_warning_rides_back_into_pipeline_result(monkeypatch):
+    """A worker-attached DeprecationWarningRecord rides back to the result.
+
+    The single-flowgroup happy path: the worker returns an ok outcome carrying
+    one warning on ``FlowgroupOutcome.warnings``; the engine must surface it on
+    the per-pipeline ``_PipelinePoolResult.warnings`` (the worker→main hop
+    preserves the field, then ``_finalize`` collects it).
+    """
+    pipeline = "pipe_w"
+    warning = DeprecationWarningRecord(
+        code="LHP-DEPR-001",
+        message="`foo` is deprecated; use `bar`",
+        file=Path("flowgroups/fg_solo.yaml"),
+        flowgroup="fg_solo",
+    )
+
+    def _fake_worker(fg_ctx: FlowGroupContext, *, mode: str) -> FlowgroupOutcome:
+        fg_name = fg_ctx.flowgroup.flowgroup
+        return FlowgroupOutcome.ok(
+            pipeline,
+            fg_name,
+            resolved_flowgroup=_FakeFlowGroup(pipeline, fg_name),
+            warnings=(warning,),
+        )
+
+    monkeypatch.setattr(fe, "ProcessPoolExecutor", _SyncExecutor)
+    monkeypatch.setattr(fe, "_process_one_flowgroup", _fake_worker)
+
+    worker_state = _FlowgroupWorkerState(
+        processor=_FakeResolver(),
+        substitution_managers={pipeline: object()},
+        include_tests=False,
+        code_generator=_FakeCodeGen(),
+        pipeline_output_dirs={pipeline: None},
+        environment="dev",
+    )
+
+    results = _run_flowgroup_pool_core(
+        flowgroups_by_pipeline={
+            pipeline: [_ctx(pipeline=pipeline, flowgroup="fg_solo")]
+        },
+        worker_state=worker_state,
+        validation_service=_BarrierSpy(),
+        max_workers=2,
+        mode="validate",
+    )
+
+    assert len(results) == 1
+    (result,) = results
+    # The worker's warning survived the (faked) worker→main hop and was
+    # collected onto the per-pipeline result, identity-preserved.
+    assert result.warnings == (warning,)
+    assert result.warnings[0] is warning
+
+
+@pytest.mark.unit
+def test_flowgroup_pool_merges_and_dedups_warnings_by_code_file(monkeypatch):
+    """Per-pipeline warnings are MERGED + DEDUPED by (code, file), order-stable.
+
+    One pipeline, THREE flowgroups, with warnings arranged to exercise every
+    dedup branch:
+
+    * ``fg_a`` → W1 ``(DEPR-001, a.yaml)``.
+    * ``fg_b`` → W1_dup ``(DEPR-001, a.yaml)`` — SAME ``(code, file)`` as W1 but
+      a DIFFERENT message → must COLLAPSE into W1 (first-seen wins; W1's full
+      payload, incl. message/flowgroup, is kept verbatim) — and W2
+      ``(DEPR-002, a.yaml)`` — different ``code``, same file → SURVIVES.
+    * ``fg_c`` → W3 ``(DEPR-001, b.yaml)`` — same ``code``, different file →
+      SURVIVES.
+
+    Expected merge: exactly ``(W1, W2, W3)`` — three records — in deterministic
+    first-seen order. The worklist is supplied OUT of flowgroup-name order to
+    prove the order is driven by ``_finalize``'s ``flowgroup_name`` sort, NOT by
+    pool completion order.
+    """
+    pipeline = "pipe_w"
+    a_yaml = Path("flowgroups/a.yaml")
+    b_yaml = Path("flowgroups/b.yaml")
+    w1 = DeprecationWarningRecord(
+        code="LHP-DEPR-001", message="first-seen", file=a_yaml, flowgroup="fg_a"
+    )
+    w1_dup = DeprecationWarningRecord(
+        code="LHP-DEPR-001",
+        message="DUP — must be dropped",
+        file=a_yaml,
+        flowgroup="fg_b",
+    )
+    w2 = DeprecationWarningRecord(
+        code="LHP-DEPR-002",
+        message="same file, other code",
+        file=a_yaml,
+        flowgroup="fg_b",
+    )
+    w3 = DeprecationWarningRecord(
+        code="LHP-DEPR-001",
+        message="same code, other file",
+        file=b_yaml,
+        flowgroup="fg_c",
+    )
+
+    warnings_by_fg: Dict[str, tuple] = {
+        "fg_a": (w1,),
+        "fg_b": (w1_dup, w2),
+        "fg_c": (w3,),
+    }
+
+    def _fake_worker(fg_ctx: FlowGroupContext, *, mode: str) -> FlowgroupOutcome:
+        fg_name = fg_ctx.flowgroup.flowgroup
+        return FlowgroupOutcome.ok(
+            pipeline,
+            fg_name,
+            resolved_flowgroup=_FakeFlowGroup(pipeline, fg_name),
+            warnings=warnings_by_fg[fg_name],
+        )
+
+    monkeypatch.setattr(fe, "ProcessPoolExecutor", _SyncExecutor)
+    monkeypatch.setattr(fe, "_process_one_flowgroup", _fake_worker)
+
+    worker_state = _FlowgroupWorkerState(
+        processor=_FakeResolver(),
+        substitution_managers={pipeline: object()},
+        include_tests=False,
+        code_generator=_FakeCodeGen(),
+        pipeline_output_dirs={pipeline: None},
+        environment="dev",
+    )
+
+    results = _run_flowgroup_pool_core(
+        flowgroups_by_pipeline={
+            pipeline: [
+                # OUT of name order: c, a, b — to prove the dedup order is driven
+                # by the per-pipeline flowgroup_name sort, not completion order.
+                _ctx(pipeline=pipeline, flowgroup="fg_c"),
+                _ctx(pipeline=pipeline, flowgroup="fg_a"),
+                _ctx(pipeline=pipeline, flowgroup="fg_b"),
+            ]
+        },
+        worker_state=worker_state,
+        validation_service=_BarrierSpy(),
+        max_workers=4,
+        mode="validate",
+    )
+
+    assert len(results) == 1
+    (result,) = results
+
+    # Dedup collapsed (DEPR-001, a.yaml) to ONE; the two distinct-key records
+    # both survived → exactly three records.
+    assert result.warnings == (w1, w2, w3)
+    # First-seen wins: the kept (DEPR-001, a.yaml) record is fg_a's W1 (its
+    # message), NOT fg_b's W1_dup.
+    assert result.warnings[0] is w1
+    assert result.warnings[0].message == "first-seen"
+    # The dedup is keyed on (code, file) ONLY — proven by W2 (same file, other
+    # code) and W3 (same code, other file) both surviving alongside W1.
+    assert [(w.code, w.file) for w in result.warnings] == [
+        ("LHP-DEPR-001", a_yaml),
+        ("LHP-DEPR-002", a_yaml),
+        ("LHP-DEPR-001", b_yaml),
+    ]

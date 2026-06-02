@@ -177,7 +177,7 @@ class TestValidatePassesPreDiscoveredFlowgroups:
     CLI now calls ``application_facade.validation.validate_pipelines(...)``
     directly (``src/lhp/cli/commands/validate_command.py:363-373``), and the
     ``pre_discovered_all_flowgroups`` threading is owned by
-    ``ValidationFacade._do_validate_pipelines``, which forwards it verbatim onto
+    ``ValidationFacade._consume_validate_stream``, which forwards it verbatim onto
     the plural ``ActionOrchestrator.validate_pipelines(pipeline_fields=...,
     pre_discovered_all_flowgroups=...)`` (``src/lhp/api/facade.py:418,429,465,472``;
     ``src/lhp/core/coordination/orchestrator.py:590,597``). These tests assert
@@ -189,17 +189,19 @@ class TestValidatePassesPreDiscoveredFlowgroups:
         from lhp.api.facade import ValidationFacade
 
         mock_orchestrator = MagicMock()
-        # ``validate_pipelines`` is invoked for its on_pipeline_complete
-        # side effects; no outcomes are needed for the forwarding assertion.
-        mock_orchestrator.validate_pipelines.return_value = None
+        # ``orchestrator.validate_pipelines`` is now an outcome GENERATOR that
+        # the facade drains; an empty iterable suffices for the forwarding
+        # assertion (no per-pipeline outcomes needed).
+        mock_orchestrator.validate_pipelines.return_value = iter(())
         return ValidationFacade(mock_orchestrator), mock_orchestrator
 
     def test_validate_pipelines_forwards_pre_discovered(self):
-        """_do_validate_pipelines forwards pre_discovered_all_flowgroups verbatim
-        onto orchestrator.validate_pipelines.
+        """_consume_validate_stream forwards pre_discovered_all_flowgroups
+        verbatim onto orchestrator.validate_pipelines.
 
         The per-pipeline loop is replaced by a single call to the plural
-        orchestrator method, so the assertion targets that one call.
+        orchestrator method, so the assertion targets that one call. The
+        consumer is a generator, so it is drained to force the forward.
         """
         facade, mock_orchestrator = self._facade_with_mock_orchestrator()
 
@@ -208,11 +210,13 @@ class TestValidatePassesPreDiscoveredFlowgroups:
             FlowGroup(pipeline="p2", flowgroup="fg2"),
         ]
 
-        facade._do_validate_pipelines(
-            pipeline_fields=["p1", "p2"],
-            env="dev",
-            include_tests=True,
-            pre_discovered_all_flowgroups=all_flowgroups,
+        list(
+            facade._consume_validate_stream(
+                pipeline_fields=["p1", "p2"],
+                env="dev",
+                include_tests=True,
+                pre_discovered_all_flowgroups=all_flowgroups,
+            )
         )
 
         # The plural orchestrator method gets called exactly once with the
@@ -229,10 +233,12 @@ class TestValidatePassesPreDiscoveredFlowgroups:
         """
         facade, mock_orchestrator = self._facade_with_mock_orchestrator()
 
-        facade._do_validate_pipelines(
-            pipeline_fields=["p1"],
-            env="dev",
-            include_tests=True,
+        list(
+            facade._consume_validate_stream(
+                pipeline_fields=["p1"],
+                env="dev",
+                include_tests=True,
+            )
         )
 
         call_kwargs = mock_orchestrator.validate_pipelines.call_args.kwargs

@@ -1,6 +1,6 @@
 """Error category taxonomy for LHP.
 
-Four categories matching ``LHP-<CAT>-<NNN>`` error code prefix.
+Eight categories matching ``LHP-<CAT>-<NNN>`` error code prefix.
 """
 
 from enum import Enum
@@ -16,3 +16,4 @@ class ErrorCategory(Enum):
     DEPENDENCY = "DEP"  # Dependency errors
     ACTION = "ACT"  # Action type errors
     GENERAL = "GEN"  # General errors
+    DEPRECATION = "DEPR"  # Soft-deprecation warnings

@@ -1,70 +1,25 @@
-"""Pre-pool YAML scan helpers shared by ``lhp generate`` and ``lhp validate``.
+"""DEAD MODULE — pending deletion in the CLI rebuild (C5).
 
-Workers spawned by the generate/validate pools attach a ``NullHandler``
-only (see :func:`_init_worker_logger`), so any ``logger.warning``
-emitted from within :class:`EnhancedSubstitutionManager` during
-substitution cannot reach the user. The pre-pool scan in this module
-compensates by reading each discovered flowgroup YAML on the main
-thread, looking for the same deprecated bare-``{token}`` syntax, and
-recording the warning on a per-run :class:`WarningCollector`.
+This module used to host ``emit_deprecation_warning_if_needed``: the
+pre-pool, main-thread scan that read each discovered flowgroup YAML looking
+for the deprecated bare-``{token}`` substitution syntax and recorded a
+single ``WarningCollector`` entry on the FIRST match.
 
-The helper is intentionally separate from :mod:`lhp.cli.live_panel`
-(rendering) and :mod:`lhp.api.callbacks` (accumulation): one file
-per concern, importable from both command modules without a cycle.
+As of C4 that detection moved to the core flowgroup-read path —
+:meth:`lhp.core.discovery.flowgroup_discoverer.FlowgroupDiscoveryService.scan_deprecation_warnings`
+(delegating to :func:`lhp.core.discovery.deprecation_scanner.scan_bare_token_deprecations`).
+The core scan is strictly better: it scans EVERY file (no first-match
+early return) and emits one structured
+:class:`lhp.models.processing.DeprecationWarningRecord` (``LHP-DEPR-001``)
+PER offending file, exposed via the discovery-service ABC method so the
+facade can pick it up.
+
+The detection logic and both old call sites (``cli/commands/generate_command.py``
+and ``cli/commands/validate_command.py``) have been removed. This file is
+left as a tombstone rather than deleted because the CLI rebuild is a later
+phase: C5 wires ``scan_deprecation_warnings`` through the facade as
+``WarningEmitted`` events, retires the ``WarningCollector`` side channel,
+and deletes this module. It is intentionally empty and imported by nothing.
 """
 
-import re
-from pathlib import Path
-from typing import Iterable, Optional
-
-from lhp.api import WarningCollector
-
-# Scans raw YAML BEFORE any substitution pass, so it must reject every
-# non-bare syntax that LHP supports:
-#   * ``${X}``  — dollar-prefix tokens (lookbehind rejects ``$``)
-#   * ``%{X}``  — local-variable tokens (lookbehind rejects ``%``)
-#   * ``{{X}}`` — Jinja2 template parameters (lookbehind rejects ``{``,
-#     lookahead rejects ``}``; both ends required to catch the
-#     no-internal-space ``{{X}}`` case in addition to ``{{ X }}``)
-_BARE_TOKEN_PATTERN = re.compile(r"(?<![${%])\{(\w+)\}(?!\})")
-
-_DEPRECATION_MESSAGE = (
-    "The bare {token} substitution syntax is deprecated and will be removed "
-    "in v1.0. Use ${token} instead."
-)
-
-
-def emit_deprecation_warning_if_needed(
-    warning_collector: WarningCollector,
-    flowgroup_yaml_paths: Iterable[Optional[Path]],
-) -> None:
-    """Pre-pool scan: record the bare-``{token}`` deprecation warning.
-
-    Reads each YAML path on the main thread. The first match flips the
-    flag on ``warning_collector`` (further duplicates are silently
-    suppressed by the collector's dedup) and the function returns
-    immediately — no need to keep scanning after the warning has been
-    surfaced.
-
-    Args:
-        warning_collector: Per-run collector that will receive the
-            ``("deprecation", ...)`` entry on first match.
-        flowgroup_yaml_paths: Iterable of optional paths. ``None`` or
-            non-``Path`` values are skipped defensively (the orchestrator
-            returns ``Optional[Path]``; tests sometimes pass ``Mock``).
-    """
-    for path in flowgroup_yaml_paths:
-        # Defensive: skip anything that isn't an actual Path. Production
-        # callers pass ``Optional[Path]`` per the type hint, but unit
-        # tests that mock the orchestrator may surface ``Mock`` objects
-        # whose ``read_text`` returns non-string. Treat anything that
-        # isn't a real Path as "no YAML to scan".
-        if not isinstance(path, Path):
-            continue
-        try:
-            text = path.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        if _BARE_TOKEN_PATTERN.search(text):
-            warning_collector.add("deprecation", _DEPRECATION_MESSAGE)
-            return
+__all__: list[str] = []

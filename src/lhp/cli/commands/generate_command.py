@@ -41,7 +41,6 @@ from ..live_panel import (
     rich_handler_attached,
 )
 from ..warning_panel import render_warning_panel
-from ..yaml_scanner import emit_deprecation_warning_if_needed
 from .base_command import BaseCommand
 
 logger = logging.getLogger(__name__)
@@ -275,18 +274,14 @@ class GenerateCommand(BaseCommand):
                     )
                     live.update(_render())
 
-                    # Pre-pool deprecation scan: workers are silenced (NullHandler
-                    # only) so the in-worker SubstitutionManager warning cannot
-                    # reach the user. ``FlowgroupView.file_path`` already carries
-                    # the resolved source YAML for each discovered flowgroup, so
-                    # no facade round-trip is needed here.
-                    phase_tracker.start("Deprecation scan")
-                    emit_deprecation_warning_if_needed(
-                        warning_collector,
-                        (fg.file_path for fg in all_flowgroups),
-                    )
-                    phase_tracker.complete("Deprecation scan")
-                    live.update(_render())
+                    # NOTE (C4): the pre-pool bare-``{token}`` deprecation scan
+                    # was removed here. Detection moved to the core read path
+                    # (``FlowgroupDiscoveryService.scan_deprecation_warnings``),
+                    # which scans every file and emits one structured
+                    # ``DeprecationWarningRecord`` per offending file. C5 wires
+                    # that through the facade as ``WarningEmitted`` events and
+                    # retires this ``warning_collector`` side channel; until
+                    # then the bare-token warning is not surfaced by the CLI.
 
                     # Fired on the main thread by the facade, so it may touch
                     # the Live frame / PhaseTracker directly.

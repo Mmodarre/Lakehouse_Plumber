@@ -288,6 +288,7 @@ GENERIC_CASES = [
     ("action_error", codes.ACT_002, LHPConfigError),
     ("dependency_error", codes.DEP_022, LHPError),
     ("general_error", codes.GEN_901, LHPError),
+    ("deprecation_error", codes.DEPR_001, LHPError),
 ]
 
 

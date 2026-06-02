@@ -16,6 +16,7 @@ The stream protocol (constitution §5.7) guarantees:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
         BatchGenerationResponse,
         BatchValidationResponse,
         BundleSyncResult,
+        GenerationPlan,
     )
     from lhp.errors.types import LHPError
 
@@ -111,6 +113,22 @@ class BundleSyncCompleted(OperationCompleted):
 
 
 @dataclass(frozen=True)
+class GenerationPlanCompleted(OperationCompleted):
+    """Terminal success event for the plan-only generation path.
+
+    Carries a :class:`GenerationPlan` describing every file the run
+    would write, without anything having been written to disk. Like the
+    other terminal events it subclasses :class:`OperationCompleted`, so
+    :func:`lhp.api.collect_response` discovers it as the stream terminal
+    without per-type dispatch (§9.22).
+
+    :stability: provisional
+    """
+
+    response: "GenerationPlan"
+
+
+@dataclass(frozen=True)
 class ErrorEmitted(LHPEvent):
     """Yielded immediately before an :class:`LHPError` propagates from a stream op.
 
@@ -125,3 +143,106 @@ class ErrorEmitted(LHPEvent):
     """
 
     lhp_error: "LHPError"
+
+
+@dataclass(frozen=True)
+class PhaseStarted(LHPEvent):
+    """A named phase of a long-running operation has begun.
+
+    Non-terminal progress event. ``phase`` is a human-facing label
+    (e.g. ``"discovery"``, ``"generation"``, ``"bundle-sync"``) the CLI
+    renders as a live progress marker. Paired with a later
+    :class:`PhaseCompleted` carrying the same ``phase``.
+
+    :stability: provisional
+    """
+
+    phase: str
+
+
+@dataclass(frozen=True)
+class PhaseCompleted(LHPEvent):
+    """A named phase of a long-running operation has finished.
+
+    Non-terminal progress event paired with an earlier
+    :class:`PhaseStarted` of the same ``phase``. ``duration_s`` is the
+    wall-clock seconds the phase took; ``success`` is ``False`` when the
+    phase finished in a degraded / failed state (the operation may still
+    continue or raise downstream).
+
+    :stability: provisional
+    """
+
+    phase: str
+    duration_s: float
+    success: bool
+
+
+@dataclass(frozen=True)
+class PipelineStarted(LHPEvent):
+    """Per-pipeline progress event: work on ``pipeline`` has begun.
+
+    Non-terminal. Emitted once per pipeline in a multi-pipeline run so
+    consumers can render per-pipeline progress. Paired with a later
+    :class:`PipelineCompleted` or :class:`PipelineFailed`.
+
+    :stability: provisional
+    """
+
+    pipeline: str
+
+
+@dataclass(frozen=True)
+class PipelineCompleted(LHPEvent):
+    """Per-pipeline progress event: ``pipeline`` finished successfully.
+
+    Non-terminal. ``duration_s`` is the per-pipeline wall-clock seconds;
+    ``files_written`` is the number of files persisted for this pipeline.
+
+    :stability: provisional
+    """
+
+    pipeline: str
+    duration_s: float
+    files_written: int
+
+
+@dataclass(frozen=True)
+class PipelineFailed(LHPEvent):
+    """Per-pipeline progress event: ``pipeline`` failed.
+
+    Non-terminal — distinct from the stream's failure-rendezvous
+    :class:`ErrorEmitted` (which precedes a ``raise``). This event
+    records that one pipeline failed while a multi-pipeline run
+    continues. ``code`` is the LHP error code (e.g. ``"LHP-VAL-021"``)
+    and ``message`` a human-readable summary; no live exception is
+    carried, so the event stays §4.8-compliant and picklable.
+
+    :stability: provisional
+    """
+
+    pipeline: str
+    code: str
+    message: str
+
+
+@dataclass(frozen=True)
+class WarningEmitted(LHPEvent):
+    """A non-fatal warning surfaced during a long-running operation.
+
+    Non-terminal and data-only — distinct from :class:`ErrorEmitted`,
+    which precedes a ``raise``; a :class:`WarningEmitted` never halts the
+    stream. ``message`` is the positional, always-present human-readable
+    text; ``code`` / ``category`` / ``file`` / ``flowgroup`` are optional
+    structured context. The locked soft-cap emission
+    ``WarningEmitted("event buffer near limit", code="LHP-EVT-SOFT-CAP")``
+    (constitution §13 item 4) relies on this message-first field order.
+
+    :stability: provisional
+    """
+
+    message: str
+    code: str = ""
+    category: str = ""
+    file: Optional[Path] = None
+    flowgroup: Optional[str] = None

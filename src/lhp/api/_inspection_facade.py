@@ -17,8 +17,8 @@ two dependency-output paths.
 # read-only project introspection plus the two dependency-output paths
 # — and splitting further would fracture a single semantic group across
 # multiple facades. Heavy DTO-conversion bodies live in
-# :mod:`lhp.api._converters`; what remains is the per-method delegation
-# surface plus the dependency-output enumeration path.
+# :mod:`lhp.api._inspection_converters`; what remains is the per-method
+# delegation surface plus the dependency-output enumeration path.
 # TODO(INSPECTION-FACADE-SPLIT): trim or split InspectionFacade's fourteen methods into sub-facades grouped by DTO family once the inspection surface stabilises; see LOCAL/REMAINING_WORK.md §9.5.
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ from typing import (
     cast,
 )
 
-from lhp.api._converters import (
+from lhp.api._inspection_converters import (
     _build_stats_result,
     _build_substitution_manager_for_env,
     _dependency_result_to_view,

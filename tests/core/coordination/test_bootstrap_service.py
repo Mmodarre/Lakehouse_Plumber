@@ -16,6 +16,7 @@ from lhp.core.coordination.bootstrap_service import FlowgroupBootstrapService
 from lhp.core.coordination.monitoring_pipeline_builder import MonitoringBuildResult
 from lhp.core.processing.blueprint_expander import BlueprintProvenance
 from lhp.models import Blueprint, BlueprintInstance, FlowGroup, FlowGroupContext
+from lhp.models.processing import DeprecationWarningRecord
 
 
 class _FakeDiscovery(BaseFlowgroupDiscoveryService):
@@ -47,6 +48,11 @@ class _FakeDiscovery(BaseFlowgroupDiscoveryService):
     def find_source_yaml_for_flowgroup(self, fg: FlowGroup) -> Optional[Path]:
         self.source_yaml_lookups.append(fg)
         return self.source_yaml_return
+
+    def scan_deprecation_warnings(self) -> Tuple[DeprecationWarningRecord, ...]:
+        # This fake never exercises the bare-{token} scan; the read-path
+        # detection is covered by tests/core/discovery/test_deprecation_scan.py.
+        return ()
 
 
 class _FakeMonitoring(BaseMonitoringFinalizerService):

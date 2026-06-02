@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, List, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Callable, Iterator, List, Mapping, Optional, Sequence
 
 from ...models.processing import FlowgroupOutcome, PipelineDelta
 from ...utils.file_header import write_normalized
@@ -193,8 +193,8 @@ def commit_pipeline(
 ) -> PipelineDelta:
     """Write ONE pipeline's gate-approved outputs to disk; synthesize a delta.
 
-    Called once per pipeline by the generate driver
-    (:meth:`PipelineExecutionService._run_generate_engine_and_gate`) ONLY on
+    Called once per pipeline by the generate write-step driver
+    (:func:`commit_generate_results`) ONLY on
     the clean (gate-passed) path. The whole-env output wipe is the driver's
     responsibility and has already run once before this loop; this function
     re-creates the per-pipeline directory (``mkdir(parents=True,
@@ -288,23 +288,27 @@ def commit_generate_results(
     output_dir: Optional[Path],
     project_config: Optional["ProjectConfig"],
     project_root: Path,
-    on_pipeline_complete: Optional[Callable[[PipelineDelta], None]] = None,
-) -> tuple[PipelineDelta, ...]:
-    """Commit every gate-approved pipeline to disk, in INPUT pipeline order.
+) -> Iterator[PipelineDelta]:
+    """Commit every gate-approved pipeline to disk, YIELDING deltas in order.
 
     The per-pipeline commit ORCHESTRATION half of the generate write step
     (the single-pipeline mechanics are :func:`commit_pipeline`). Lives here,
     not on the executor, so the driver
-    (:meth:`PipelineExecutionService._run_generate_engine_and_gate`) stays
-    thin and the commit mechanics are single-sourced in this module
-    (constitution §3.3 size).
+    (:meth:`PipelineExecutionService._iter_generate_deltas`) stays thin and
+    the commit mechanics are single-sourced in this module (constitution
+    §3.3 size).
+
+    This is the success-delta source of the generate delta-stream: a
+    GENERATOR that wipes the whole env output tree ONCE up front
+    (:func:`_wipe_env_output_dir` — writes happen only on the gate-passed
+    path; the wipe runs lazily, when the first delta is pulled), then
+    delegates each pipeline to :func:`commit_pipeline` in INPUT pipeline
+    order, ``yield``-ing each synthesized success delta. The terminal
+    ``ruff`` pass is the driver's responsibility and runs after this
+    generator is exhausted, so it MUST be fully drained.
 
     Runs ONLY after :func:`._generate_gate.gate_or_raise` confirmed every
-    pipeline is clean. Wipes the whole env output tree ONCE up front
-    (:func:`_wipe_env_output_dir` — writes happen only on the gate-passed
-    path), then delegates each pipeline to :func:`commit_pipeline` in input
-    order, firing ``on_pipeline_complete`` (when supplied) with each
-    synthesized success delta.
+    pipeline is clean.
 
     Args:
         pool_results: The clean per-pipeline results, in input pipeline order.
@@ -317,16 +321,14 @@ def commit_generate_results(
             whole-env wipe. ``None`` for dry-run (no wipe).
         project_config: Project config; ``test_reporting`` gates the hook.
         project_root: Project root (forwarded to the hook generator).
-        on_pipeline_complete: Optional per-pipeline success-delta callback.
 
-    Returns:
+    Yields:
         One success :class:`PipelineDelta` per pipeline, in input order.
     """
     _wipe_env_output_dir(output_dir)
-    deltas: List[PipelineDelta] = []
     for result in pool_results:
         pipeline = result.pipeline
-        delta = commit_pipeline(
+        yield commit_pipeline(
             pipeline,
             result.outcomes_in_order,
             output_dir=pipeline_output_dirs.get(pipeline),
@@ -335,7 +337,3 @@ def commit_generate_results(
             include_tests=include_tests,
             substitution_mgr=substitution_managers.get(pipeline),
         )
-        deltas.append(delta)
-        if on_pipeline_complete is not None:
-            on_pipeline_complete(delta)
-    return tuple(deltas)

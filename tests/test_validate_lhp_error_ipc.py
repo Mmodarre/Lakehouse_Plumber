@@ -7,8 +7,9 @@ result channel (which uses ``pickle``); the live :class:`~lhp.errors.LHPError`
 inside it travels through :meth:`LHPError.__reduce__`, so the main thread
 unpickles it without losing subclass identity, ``code``, ``context``, or
 ``suggestions``. The validate consumer
-(:func:`._pool.assemble_validate_outcomes`) then folds that
-``lhp_error`` into :attr:`PipelineValidationOutcome.lhp_errors`.
+(:func:`._pool.assemble_validate_outcomes`) then folds that ``lhp_error`` into
+a :class:`~lhp.models.processing.ValidationIssueRecord` on
+:attr:`PipelineValidationOutcome.issues`.
 
 These tests cover:
 
@@ -19,8 +20,9 @@ These tests cover:
 - Non-LHP exceptions fall back to the string projection (``errors``
   populated, ``lhp_error`` None).
 - End-to-end: an LHPError on a worker's ``FlowgroupOutcome`` survives the
-  pickle and surfaces in :attr:`PipelineValidationOutcome.lhp_errors` (not
-  just ``errors``) through the real assemble fold.
+  pickle and surfaces as a structured ``ValidationIssueRecord`` on
+  :attr:`PipelineValidationOutcome.issues` (carrying the live error, not a
+  string) through the real assemble fold.
 """
 
 from __future__ import annotations
@@ -136,16 +138,20 @@ def test_multi_document_error_round_trip():
     assert restored.lhp_error.code == "LHP-IO-003"
 
 
-def test_worker_lhp_error_surfaces_in_pipeline_outcome_lhp_errors():
-    """An LHPError on a worker outcome lands in ``lhp_errors`` post-IPC.
+def test_worker_lhp_error_surfaces_in_pipeline_outcome_issues():
+    """An LHPError on a worker outcome lands on ``issues`` post-IPC.
 
     End-to-end of the validate IPC contract: a worker's
     :class:`FlowgroupOutcome` carrying an LHPError is pickled (the spawn
     channel), unpickled on the main thread, bucketed into a
     :class:`_PipelinePoolResult`, and folded by the REAL
-    :func:`assemble_validate_outcomes`. The structured error must surface in
-    :attr:`PipelineValidationOutcome.lhp_errors` (NOT the stringified
-    ``errors``), and the live instance identity is preserved across the fold.
+    :func:`assemble_validate_outcomes`. The structured error must surface as a
+    :class:`~lhp.models.processing.ValidationIssueRecord` on
+    :attr:`PipelineValidationOutcome.issues` whose ``issue`` is the live
+    LHPError (NOT a stringified projection); the live instance identity is
+    preserved across the fold, and the finding is attributed to its
+    originating flowgroup (``fg1``). No ``source_paths`` map is supplied here,
+    so ``source_file`` defaults to ``None``.
     """
     err = LHPValidationError(
         category=ErrorCategory.VALIDATION,
@@ -177,13 +183,18 @@ def test_worker_lhp_error_surfaces_in_pipeline_outcome_lhp_errors():
     outcome = outcomes[0]
     assert outcome.pipeline == "bronze"
     assert outcome.success is False
-    # Structured channel — NOT stringified into errors.
-    assert outcome.errors == ()
-    assert len(outcome.lhp_errors) == 1
-    surfaced: LHPError = outcome.lhp_errors[0]
+    # Exactly one finding, carrying the live structured error (not a string).
+    assert len(outcome.issues) == 1
+    record = outcome.issues[0]
+    assert record.severity == "error"
+    assert not isinstance(record.issue, str)
+    surfaced: LHPError = record.issue
     assert isinstance(surfaced, LHPValidationError)
     assert surfaced.code == "LHP-VAL-007"
     assert surfaced.context == {"action": "load_x"}
     assert surfaced.suggestions == ["Define v_missing first"]
     # Identity is preserved through the fold (the restored instance is reused).
     assert surfaced is restored_outcome.lhp_error
+    # Per-issue attribution: tagged with its flowgroup; no source map → no file.
+    assert record.flowgroup_name == "fg1"
+    assert record.source_file is None

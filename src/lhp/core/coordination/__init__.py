@@ -11,6 +11,11 @@ orchestrator-facing facade is :class:`PipelineExecutionService`
   (deferred behind ``__getattr__`` to break the
   :mod:`lhp.core.dependencies` import cycle).
 
+The generate write-step generator ``commit_generate_results`` lives in the
+private :mod:`._commit` module and is consumed only by :mod:`.executor`
+(same-package private import); it is intentionally NOT re-exported on this
+package surface.
+
 Public response DTOs (``GenerationResponse``, ``BatchGenerationResponse``,
 ``ValidationResponse``, ``BatchValidationResponse``) and view records
 (``ValidationIssueView``) live in :mod:`lhp.api.responses` /
@@ -26,7 +31,6 @@ from typing import TYPE_CHECKING, Any
 
 from lhp.core.coordination.bootstrap_service import FlowgroupBootstrapService
 from lhp.core.coordination.executor import (
-    OnValidationComplete,
     PipelineExecutionService,
     PipelineValidationOutcome,
 )
@@ -60,7 +64,6 @@ __all__ = [
     "MonitoringBuildResult",
     "MonitoringFinalizerService",
     "MonitoringPipelineBuilder",
-    "OnValidationComplete",
     "PipelineExecutionService",
     "PipelineValidationOutcome",
     "ValidationService",

@@ -137,6 +137,21 @@ GEN_001 = ErrorCode(ErrorCategory.GENERAL, "001")
 GEN_901 = ErrorCode(ErrorCategory.GENERAL, "901")
 GEN_902 = ErrorCode(ErrorCategory.GENERAL, "902")
 
+# DEPRECATION (DEPR) — soft-deprecation warnings emitted by producer tasks.
+# Frozen contract; message text is stamped at the call site via
+# ErrorFactory.deprecation_error. (blueprint: legacy is a HARD error,
+# LHP-VAL-061, NOT a soft deprecation — deliberately no slot here.)
+#   DEPR_001: bare ``{token}`` substitution syntax is deprecated; use
+#             ``${token}`` (the only valid non-``$`` braces form is
+#             ``%{local_var}`` for local variables).
+#   DEPR_002: the ``database`` field is deprecated.
+#   DEPR_003: the schema-transform ``enforcement`` key is deprecated.
+#   DEPR_004: ``database_suffix`` is deprecated.
+DEPR_001 = ErrorCode(ErrorCategory.DEPRECATION, "001")
+DEPR_002 = ErrorCode(ErrorCategory.DEPRECATION, "002")
+DEPR_003 = ErrorCode(ErrorCategory.DEPRECATION, "003")
+DEPR_004 = ErrorCode(ErrorCategory.DEPRECATION, "004")
+
 
 ALL_CODES: tuple[ErrorCode, ...] = (
     VAL_001,
@@ -233,6 +248,10 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     GEN_001,
     GEN_901,
     GEN_902,
+    DEPR_001,
+    DEPR_002,
+    DEPR_003,
+    DEPR_004,
 )
 
 
@@ -282,6 +301,10 @@ __all__ = [
     "CFG_057",
     "CFG_058",
     "CFG_059",
+    "DEPR_001",
+    "DEPR_002",
+    "DEPR_003",
+    "DEPR_004",
     "DEP_001",
     "DEP_022",
     "GEN_001",

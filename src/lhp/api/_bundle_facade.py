@@ -43,7 +43,7 @@ def _lhp_error_code_and_message(exc: BaseException) -> tuple[Optional[str], str]
     Returns the LHP error code (e.g. ``"LHP-CFG-026"``) and ``title``
     when ``exc`` is an :class:`LHPError`, otherwise ``(None, str(exc))``.
     Kept in-module so bundle failures don't have to round-trip through
-    :mod:`lhp.api._converters` for the trivial conversion.
+    :mod:`lhp.api._converters_common` for the trivial conversion.
     """
     from lhp.errors import LHPError
 

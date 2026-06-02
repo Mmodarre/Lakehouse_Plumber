@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, List, Optional, Sequence, Tuple
 
-from lhp.api._converters import _lhp_error_to_issue_view
+from lhp.api._converters_common import _lhp_error_to_issue_view
 from lhp.api.views import ValidationIssueView
 from lhp.errors import ErrorCategory, LHPConfigError
 

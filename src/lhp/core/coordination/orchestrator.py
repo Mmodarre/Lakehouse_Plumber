@@ -27,12 +27,12 @@ validate; hands to :class:`PipelineExecutionService`).
 import logging
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Generator, List, Optional, Sequence, Tuple
 
 from lhp.models import FlowGroup
 
 if TYPE_CHECKING:
-    from ...models.processing import PipelineDelta
+    from ...models.processing import DeprecationWarningRecord, PipelineDelta
 
 from ...parsers.blueprint_parser import BlueprintParser
 from ...parsers.yaml_parser import CachingYAMLParser, YAMLParser
@@ -49,7 +49,6 @@ from .._interfaces import (
     BaseMonitoringFinalizerService,
     BasePipelineExecutionService,
     BaseValidationService,
-    BaseWarningCollector,
 )
 from ..codegen.coordinator import CodeGenerationService
 from ..dependencies import DependencyAnalysisService, DependencyResolver
@@ -64,7 +63,6 @@ from ..validators import ConfigValidator, SecretValidator
 from ._flowgroup_pool import _FlowgroupWorkerState
 from .bootstrap_service import FlowgroupBootstrapService
 from .executor import (
-    OnValidationComplete,
     PipelineExecutionService,
     PipelineValidationOutcome,
 )
@@ -305,16 +303,14 @@ class ActionOrchestrator:
         apply_formatting: bool | None = None,
         pre_discovered_all_flowgroups: Optional[Sequence[FlowGroup]] = None,
         max_workers: Optional[int] = None,
-        on_pipeline_complete: Optional[Callable[["PipelineDelta"], None]] = None,
-        warning_collector: Optional[BaseWarningCollector] = None,
-    ) -> Dict[str, tuple[str, ...]]:
+    ) -> Generator["PipelineDelta", None, Tuple["DeprecationWarningRecord", ...]]:
         """Build the flat worklist, hand to PipelineExecutionService.run_generate.
 
         Exactly one of ``pipeline_filter`` (single pipeline by field) or
         ``pipeline_fields`` (batch by field list) may be supplied. When
-        both are ``None`` no pipelines are generated and an empty mapping
-        is returned (the caller is expected to discover the pipeline
-        list first; see :class:`GenerationFacade`).
+        both are ``None`` no pipelines are generated and the stream is
+        empty (the caller is expected to discover the pipeline list first;
+        see :class:`GenerationFacade`).
 
         ``apply_formatting`` is a tri-state override for the terminal
         ruff pass: ``None`` (the default) resolves to the loaded
@@ -335,10 +331,15 @@ class ActionOrchestrator:
         :meth:`PipelineExecutionService.run_generate` drives the engine in
         ``mode="generate"``, applies the all-or-nothing GATE (RAISES on any
         failure, before any write — so this method no longer wraps the call in
-        an aggregate-and-raise step), then commits each clean pipeline and
-        returns ``{pipeline -> generated filenames}`` (the per-pipeline
-        :class:`PipelineDelta`s flow through ``on_pipeline_complete``). A
-        per-pipeline discovery failure (carried in the worklist's
+        an aggregate-and-raise step), then commits each clean pipeline. This is
+        a GENERATOR: it ``yield from`` ``run_generate``, surfacing the
+        per-pipeline :class:`PipelineDelta`s in input order (every failure delta
+        first, then the gate raise per §1.4, then a success delta per committed
+        pipeline). It RETURNS (via ``StopIteration.value``, captured by the
+        facade's ``yield from``) the batch's merged + deduped worker deprecation
+        warnings for the facade to re-emit as :class:`~lhp.api.WarningEmitted`
+        events.
+        A per-pipeline discovery failure (carried in the worklist's
         ``discovery_errors`` map) aborts the whole batch inside ``run_generate``
         — generate is all-or-nothing.
         """
@@ -352,7 +353,7 @@ class ActionOrchestrator:
         elif pipeline_fields is not None:
             effective_fields = pipeline_fields
         else:
-            return {}
+            return ()
 
         self.logger.info(
             f"Starting batch pipeline generation: {len(effective_fields)} pipeline(s) for env: {env}"
@@ -372,11 +373,9 @@ class ActionOrchestrator:
                 if pre_discovered_all_flowgroups is not None
                 else None
             ),
-            warning_collector=warning_collector,
         )
         self.execution.configure_generate(
             max_workers=max_workers if max_workers is not None else self.max_workers,
-            on_pipeline_complete=on_pipeline_complete,
             environment=env,
             include_tests=include_tests,
             validation_service=self.validation,
@@ -395,16 +394,18 @@ class ActionOrchestrator:
             )
         else:
             effective_apply_formatting = apply_formatting
-        return self.execution.run_generate(
-            flowgroups_by_pipeline=flowgroups_by_pipeline,
-            substitution_managers=substitution_managers,
-            output_dirs=output_dirs,
-            discovery_errors=discovery_errors,
-            output_dir=output_dir,
-            project_config=self.project_config,
-            project_root=self.project_root,
-            max_workers=max_workers,
-            apply_formatting=effective_apply_formatting,
+        return (
+            yield from self.execution.run_generate(
+                flowgroups_by_pipeline=flowgroups_by_pipeline,
+                substitution_managers=substitution_managers,
+                output_dirs=output_dirs,
+                discovery_errors=discovery_errors,
+                output_dir=output_dir,
+                project_config=self.project_config,
+                project_root=self.project_root,
+                max_workers=max_workers,
+                apply_formatting=effective_apply_formatting,
+            )
         )
 
     def _build_generate_worker_state(
@@ -446,23 +447,35 @@ class ActionOrchestrator:
         include_tests: bool = True,
         pre_discovered_all_flowgroups: Optional[Sequence[FlowGroup]] = None,
         max_workers: Optional[int] = None,
-        on_pipeline_complete: Optional[OnValidationComplete] = None,
-        warning_collector: Optional[BaseWarningCollector] = None,
-    ) -> List[PipelineValidationOutcome]:
+    ) -> Generator[
+        PipelineValidationOutcome, None, Tuple["DeprecationWarningRecord", ...]
+    ]:
         """Build the flat worklist, hand to PipelineExecutionService.run_validate.
 
         Exactly one of ``pipeline_filter`` (single pipeline by field) or
         ``pipeline_fields`` (batch by field list) may be supplied. When
-        both are ``None`` no pipelines are validated and an empty list
-        is returned (the caller is expected to discover the pipeline
-        list first; see :class:`ValidationFacade`).
+        both are ``None`` no pipelines are validated and the stream is
+        empty (the caller is expected to discover the pipeline list first;
+        see :class:`ValidationFacade`).
 
-        Routes through the consolidated flat per-flowgroup engine:
+        Routes through the consolidated flat per-flowgroup engine,
+        mirroring :meth:`generate_pipelines`:
         :func:`flowgroup_worklist_builder.build_flowgroup_worklist` produces
         the flat four-map shape (``output_dir=None`` — validate writes
         nothing), which :meth:`PipelineExecutionService.run_validate` drives
-        in ``mode="validate"``. Cross-flowgroup validation now runs on the
+        in ``mode=\"validate\"``. Cross-flowgroup validation now runs on the
         RESOLVED flowgroups inside the engine (§9.24).
+
+        This is a GENERATOR: it ``yield from`` ``run_validate``, surfacing the
+        per-pipeline :class:`PipelineValidationOutcome`s in DETERMINISTIC INPUT
+        PIPELINE ORDER, and RETURNS (via ``StopIteration.value``, captured by
+        the facade's ``yield from``) the batch's merged + deduped worker
+        deprecation warnings for the facade to re-emit as
+        :class:`~lhp.api.WarningEmitted` events. The facade consumes this stream
+        and renders the §5.7 progress events (a paired ``PipelineStarted`` +
+        terminal per outcome). Validate REPORTS findings — there is no
+        gate/raise, so the stream simply runs to completion (a discovery failure
+        folds to an unsuccessful outcome, not a batch abort — unlike generate).
         """
         if pipeline_filter is not None and pipeline_fields is not None:
             raise ValueError(
@@ -474,7 +487,7 @@ class ActionOrchestrator:
         elif pipeline_fields is not None:
             effective_fields = pipeline_fields
         else:
-            return []
+            return ()
 
         (
             flowgroups_by_pipeline,
@@ -491,17 +504,15 @@ class ActionOrchestrator:
                 if pre_discovered_all_flowgroups is not None
                 else None
             ),
-            warning_collector=warning_collector,
         )
         self.execution.configure_validate(
             max_workers=max_workers if max_workers is not None else self.max_workers,
             include_tests=include_tests,
             validation_service=self.validation,
-            on_pipeline_complete=on_pipeline_complete,
             worker_state=self._build_validate_worker_state(env, include_tests),
         )
-        return list(
-            self.execution.run_validate(
+        return (
+            yield from self.execution.run_validate(
                 flowgroups_by_pipeline=flowgroups_by_pipeline,
                 substitution_managers=substitution_managers,
                 output_dirs=output_dirs,

@@ -61,12 +61,12 @@ class EnhancedSubstitutionManager:
         self.default_secret_scope: Optional[str] = None
         self.secret_references: Set[SecretReference] = set()
         # Per-instance flag flipped in ``_replace_tokens_in_string`` when
-        # the deprecated bare ``{token}`` syntax is encountered. Callers
-        # (the orchestrator's pipeline-by-fields methods) consult this
-        # after constructing the manager and forward a single
-        # ``WarningCollector`` entry; the worker-side ``logger.warning``
-        # path was removed because workers attach a ``NullHandler`` and
-        # never reach the user.
+        # the deprecated bare ``{token}`` syntax is encountered. The
+        # main-thread bare-token deprecation is now detected once by
+        # ``FlowgroupDiscoveryService.scan_deprecation_warnings`` and surfaced
+        # by the facade as a ``WarningEmitted`` event; the worker-side
+        # ``logger.warning`` path was removed because workers attach a
+        # ``NullHandler`` and never reach the user.
         self.has_deprecated_bare_tokens: bool = False
 
         # Add reserved tokens
@@ -270,9 +270,10 @@ class EnhancedSubstitutionManager:
         text = self.DOLLAR_TOKEN_PATTERN.sub(_lookup, text)
 
         # Flip per-instance flag the first time a deprecated bare
-        # ``{token}`` substitution actually happens. The orchestrator
-        # inspects this flag after constructing the manager and forwards
-        # a single warning to the per-run WarningCollector; emitting via
+        # ``{token}`` substitution actually happens. The main-thread
+        # bare-token deprecation is surfaced once by
+        # ``FlowgroupDiscoveryService.scan_deprecation_warnings`` (re-emitted
+        # by the facade as a ``WarningEmitted`` event); emitting via
         # logger.warning here would be silenced inside worker processes
         # (NullHandler-only loggers).
         if not self.has_deprecated_bare_tokens:

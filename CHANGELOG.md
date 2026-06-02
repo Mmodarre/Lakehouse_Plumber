@@ -7,6 +7,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Single-stream generate/validate orchestration with an in-stream event surface
+
+**Summary.** The public facade's generate/validate paths are consolidated into
+a single ordered event stream (`generate`: discover → preflight → generate →
+monitoring → bundle_sync; `validate`: discover → preflight → validate) that
+emits typed progress/diagnostic events instead of relying on out-of-band
+callbacks and standalone finalize calls. The provisional, never-released
+`WarningCollector` / `on_pipeline_complete` / `finalize_monitoring_artifacts`
+surface is removed in favour of in-stream events. A new plan-with-content
+entry point (`plan_generation`) lets callers preview every file LHP would write
+without touching the real output tree, and per-issue attribution
+(`file_path` + `flowgroup_name`) is now carried on validation issues. The
+previously-silent `database`-field deprecation now surfaces as a structured
+`WarningEmitted`, backed by a new internal `DEPRECATION` error category
+(`LHP-DEPR-001..004`). The `blueprint:` legacy syntax is **unchanged** — mixed
+syntax remains a hard `LHP-VAL-061` error, not a soft deprecation. The existing
+CLI and E2E suites are intentionally **red** pending the separate CLI-rebuild
+phase, which still consumed the removed callback/collector surface.
+
+**Added.**
+
+- **Progress events (all `:stability: provisional`).** `PhaseStarted` /
+  `PhaseCompleted`, `PipelineStarted` / `PipelineCompleted` / `PipelineFailed`,
+  and `WarningEmitted` are emitted in-stream by `generate_pipelines` /
+  `validate_pipelines`, replacing the removed `on_pipeline_complete` callback.
+- **`GenerationFacade.plan_generation(env, *, pipeline_filter=None, include_tests=False) -> Iterator[LHPEvent]`.**
+  Plan-with-content: streams the full set of files LHP would generate (via DTOs
+  `GenerationPlan` / `PlannedFileView` and the terminal event
+  `GenerationPlanCompleted`) and writes **nothing** to the real output tree.
+- **Per-issue attribution on `ValidationIssueView`.** It now carries `file_path`
+  and a populated `flowgroup_name`, so each validation issue can be traced to
+  its originating file/flowgroup.
+- **`collect_response(..., *, warnings_sink=...)`.** New keyword-only parameter
+  that surfaces `WarningEmitted` events to non-streaming callers.
+- **Internal: `ErrorCategory.DEPRECATION` + codes `LHP-DEPR-001..004`.** Covers
+  bare-`{token}` substitution (`001`), the `database` field (`002`), the
+  schema-transform `enforcement` key (`003`), and `database_suffix` (`004`). The
+  previously-silenced `database` deprecation now surfaces as a `WarningEmitted`.
+- **Consolidated single-stream generate/validate orchestration.** `generate`
+  runs discover → preflight → generate → monitoring → bundle_sync; `validate`
+  runs discover → preflight → validate — all as one ordered event stream.
+
+**Changed.**
+
+- **Monitoring finalization is now an in-stream `monitoring` phase.** It runs as
+  an ordered phase of `generate_pipelines` rather than a separate post-run
+  finalize call (see *Removed*).
+- **Event-buffer soft-cap (`LHP-EVT-SOFT-CAP`) is enforced.** The facade streams
+  emit a single `WarningEmitted("event buffer near limit",
+  code="LHP-EVT-SOFT-CAP")` once at 999 buffered events.
+- **Bundle-sync failure inside the consolidated generate stream is terminal.**
+  On a bundle-sync failure the stream emits `ErrorEmitted` and then raises (the
+  raise is terminal — **not** a `GenerationCompleted`); generated code files
+  already written to disk **persist**.
+
+**Removed.**
+
+- **`WarningCollector` (from `lhp.api`) and its ABC `BaseWarningCollector`
+  (`core/_interfaces.py`).** Provisional, never-released surface; replaced by the
+  `WarningEmitted` event. (`TARGET_ARCHITECTURE.md` §3 was amended to drop
+  `BaseWarningCollector` from the permitted `_interfaces.py` residents.)
+- **`on_pipeline_complete` callback on `generate_pipelines` / `validate_pipelines`.**
+  Replaced by the in-stream `PipelineStarted` / `PipelineCompleted` /
+  `PipelineFailed` events.
+- **`GenerationFacade.finalize_monitoring_artifacts` and the
+  `FinalizeMonitoringResult` DTO.** Monitoring finalization is now an in-stream
+  `monitoring` phase of `generate_pipelines` (see *Changed*).
+
 ### Tooling consolidation — `ruff` becomes the single linter + formatter + import-sorter
 
 **Summary.** `black`, `flake8`, and `isort` are retired in favour of a single

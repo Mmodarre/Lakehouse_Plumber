@@ -6,50 +6,43 @@ consolidated flat per-flowgroup engine
 (:func:`._pool._run_flowgroup_pool_core`, ``mode`` the only fork) for both
 validate and generate; the single-flowgroup worker entry, its captured
 :class:`_FlowgroupWorkerState`, and the worker initializer live on the
-worker seam :mod:`lhp.core.coordination._flowgroup_pool`. The worker seam
-symbols are re-exported below to preserve their import path
-(``from .executor import _FlowgroupWorkerState, _init_worker_logger, ...``)
-for tests and the pickle-by-name worker contract.
+worker seam :mod:`lhp.core.coordination._flowgroup_pool`. Those seam symbols
+are re-exported below to preserve their import path (``from .executor import
+_FlowgroupWorkerState, ...``) for tests and the pickle-by-name contract.
 
-Architectural cohesion:
-  - :class:`PipelineExecutionService` carries per-batch reconfiguration
-    (callbacks, max_workers, worker states) and the two ABC-typed methods
-    :meth:`run_generate` / :meth:`run_validate`, plus the generate-only
-    engine/gate/commit driver :meth:`_run_generate_engine_and_gate`.
-  - :class:`PipelineValidationOutcome` is the outcome dataclass returned
-    from validate to the orchestrator. It stays here (not in ``_pool.py``)
-    so the orchestrator's import surface is one module, and so the engine
-    can lazy-import it without an ``executor`` ↔ ``_pool`` cycle.
-
-Engine / worker invariants (enforced in :mod:`._pool` / :mod:`._flowgroup_pool`):
-  - Workers MUST receive only picklable collaborators.
-  - The ``PythonFileCopier`` is constructed inside each worker; the
-    main-thread instance is never pickled.
-  - Workers MUST NOT raise: failures are wrapped into a
-    :class:`~lhp.models.processing.FlowgroupOutcome` failure so the
-    coordinator aggregates deterministically.
+:class:`PipelineExecutionService` carries per-batch reconfiguration and the
+two ABC-typed methods :meth:`run_generate` / :meth:`run_validate` — both
+generators that ``yield from`` their engine source of truth
+(:meth:`_iter_generate_deltas` / :meth:`_iter_validate_outcomes`) and RETURN
+the batch's merged worker deprecation warnings via ``StopIteration.value`` for
+the facade to re-emit. :class:`PipelineValidationOutcome` (the validate outcome
+DTO) lives in the leaf module :mod:`._validation_outcome` and is re-exported
+here, so both this module and the engine import it without an
+``executor`` ↔ ``_pool`` cycle. Engine / worker invariants (picklable-only
+collaborators, never-raise workers) are documented in :mod:`._pool` /
+:mod:`._flowgroup_pool`.
 """
 
 from __future__ import annotations
 
 import dataclasses
 import logging
-from dataclasses import dataclass
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
-    Callable,
-    Dict,
+    Generator,
     Mapping,
     Optional,
     Sequence,
     Tuple,
-    TypeAlias,
 )
 
 from lhp.models import FlowGroupContext
 
-from ...models.processing import PipelineDelta
+from ...models.processing import (
+    DeprecationWarningRecord,
+    PipelineDelta,
+)
 from ...utils.performance_timer import perf_timer
 from .._interfaces import BasePipelineExecutionService
 from ..codegen.formatter import format_generated_tree
@@ -63,16 +56,17 @@ from ._flowgroup_pool import (
 )
 from ._generate_gate import (
     _AggFailure,
-    fire_pipeline_failure_deltas,
     gate_or_raise,
+    iter_pipeline_failure_deltas,
     raise_aggregate_failure,
 )
 from ._pool import _run_flowgroup_pool_core, assemble_validate_outcomes
+from ._validation_outcome import PipelineValidationOutcome
+from ._warning_merge import merge_pool_warnings
 
 if TYPE_CHECKING:
     from lhp.models import ProjectConfig
 
-    from ...errors import LHPError
     from ..processing.substitution import EnhancedSubstitutionManager
     from .validation_service import ValidationService
 
@@ -85,7 +79,6 @@ if TYPE_CHECKING:
 # only through :meth:`PipelineExecutionService.run_generate` /
 # :meth:`~PipelineExecutionService.run_validate`.
 __all__ = [
-    "OnValidationComplete",
     "PipelineExecutionService",
     "PipelineValidationOutcome",
     "_FlowgroupWorkerState",
@@ -97,31 +90,6 @@ __all__ = [
 
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True, slots=True)
-class PipelineValidationOutcome:
-    """Aggregate outcome for a single pipeline's validation.
-
-    ``errors`` is the string-projection tuple (legacy plain-string
-    errors plus stringified non-LHP exceptions and discovery failures).
-    ``lhp_errors`` is the structured tuple of live :class:`LHPError`
-    instances aggregated across the pipeline's flowgroups plus the
-    cross-flowgroup CDC fan-in check. The two are NOT alternatives at
-    the pipeline level — they coexist because plain-string errors and
-    structured errors can both originate within the same pipeline (e.g.
-    a discovery failure plus an LHPError from a worker). They ARE
-    mutually exclusive per individual issue.
-    """
-
-    pipeline: str
-    errors: Tuple[str, ...]
-    warnings: Tuple[str, ...]
-    success: bool
-    lhp_errors: Tuple["LHPError", ...] = ()
-
-
-OnValidationComplete: TypeAlias = Callable[[PipelineValidationOutcome], None]
 
 
 class PipelineExecutionService(BasePipelineExecutionService):
@@ -145,7 +113,7 @@ class PipelineExecutionService(BasePipelineExecutionService):
     only inside :func:`._pool._run_flowgroup_pool_core`. :meth:`run_validate`
     folds the per-pipeline results into :class:`PipelineValidationOutcome`s
     via :func:`._pool.assemble_validate_outcomes`; :meth:`run_generate`
-    drives the gate/commit via :meth:`_run_generate_engine_and_gate` (engine
+    drives the gate/commit via :meth:`_iter_generate_deltas` (engine
     + gate + commit).
 
     :stability: provisional
@@ -158,17 +126,11 @@ class PipelineExecutionService(BasePipelineExecutionService):
         generate_worker_state: Optional[_FlowgroupWorkerState] = None,
         validate_worker_state: Optional[_FlowgroupWorkerState] = None,
         validation_service: Optional["ValidationService"] = None,
-        on_generate_pipeline_complete: Optional[
-            Callable[["PipelineDelta"], None]
-        ] = None,
-        on_validate_pipeline_complete: Optional[OnValidationComplete] = None,
     ) -> None:
         self._max_workers = max_workers
         self._generate_worker_state = generate_worker_state
         self._validate_worker_state = validate_worker_state
         self._validation_service = validation_service
-        self._on_generate_pipeline_complete = on_generate_pipeline_complete
-        self._on_validate_pipeline_complete = on_validate_pipeline_complete
 
     def run_generate(
         self,
@@ -182,8 +144,8 @@ class PipelineExecutionService(BasePipelineExecutionService):
         project_root: Path,
         max_workers: Optional[int] = None,
         apply_formatting: bool = True,
-    ) -> Dict[str, tuple[str, ...]]:
-        """Run generate through the unified flat engine; all-or-nothing.
+    ) -> Generator[PipelineDelta, None, Tuple[DeprecationWarningRecord, ...]]:
+        """Run generate through the unified flat engine and YIELD deltas.
 
         The flat shape mirrors :meth:`run_validate`: the four
         maps come straight from
@@ -192,7 +154,7 @@ class PipelineExecutionService(BasePipelineExecutionService):
         ``output_dirs`` is ``output_dir / <pipeline>``. The generate-only
         extras (``output_dir`` env-level, ``project_config``, ``project_root``)
         are what the gate/commit driver
-        (:meth:`_run_generate_engine_and_gate`) needs and are forwarded
+        (:meth:`_iter_generate_deltas`) needs and are forwarded
         through.
 
         This method assembles the per-batch :class:`_FlowgroupWorkerState`
@@ -215,15 +177,13 @@ class PipelineExecutionService(BasePipelineExecutionService):
         work-unit builder and aborted the run; unlike validate (which REPORTS
         per-pipeline), generate refuses to write a partial tree.
 
-        Returns ``{pipeline -> generated filenames}`` for the committed
-        pipelines, in input order — the projection the orchestrator previously
-        obtained by aggregating the per-pipeline deltas (the gate now raises
-        in-place, so the orchestrator no longer aggregates); the per-pipeline
-        :class:`PipelineDelta`s flow out-of-band via
-        ``self._on_generate_pipeline_complete`` (fired in the gate-failure and
-        commit paths inside the driver), so the public response shapes
-        (``BatchGenerationResponse`` / ``GenerationResponse``) are unchanged
-        (§1.6).
+        This is a generator: it ``yield from`` the source-of-truth stream
+        :meth:`_iter_generate_deltas`, yielding per-pipeline
+        :class:`PipelineDelta`s in DETERMINISTIC INPUT PIPELINE ORDER — every
+        failure delta first, then (after the gate raises on any failure, §1.4)
+        a success delta per committed pipeline. Consumers MUST fully drain it
+        (the terminal whole-env format pass runs after the last success delta).
+        The facade/orchestrator consume this stream directly.
 
         :raises LHPError: the sole failure's error, or ``LHP-VAL-902`` (many);
             also raised for a non-empty ``discovery_errors``.
@@ -259,17 +219,18 @@ class PipelineExecutionService(BasePipelineExecutionService):
             substitution_managers=dict(substitution_managers),
             pipeline_output_dirs=dict(output_dirs),
         )
-        deltas = self._run_generate_engine_and_gate(
-            flowgroups_by_pipeline=flowgroups_by_pipeline,
-            worker_state=worker_state,
-            validation_service=self._validation_service,
-            output_dir=output_dir,
-            project_config=project_config,
-            project_root=project_root,
-            max_workers=max_workers,
-            apply_formatting=apply_formatting,
+        return (
+            yield from self._iter_generate_deltas(
+                flowgroups_by_pipeline=flowgroups_by_pipeline,
+                worker_state=worker_state,
+                validation_service=self._validation_service,
+                output_dir=output_dir,
+                project_config=project_config,
+                project_root=project_root,
+                max_workers=max_workers,
+                apply_formatting=apply_formatting,
+            )
         )
-        return {delta.pipeline_name: delta.generated_filenames for delta in deltas}
 
     def run_validate(
         self,
@@ -278,27 +239,21 @@ class PipelineExecutionService(BasePipelineExecutionService):
         substitution_managers: Mapping[str, "EnhancedSubstitutionManager"],
         output_dirs: Mapping[str, Optional[Path]],
         discovery_errors: Mapping[str, str],
-    ) -> Tuple[PipelineValidationOutcome, ...]:
-        """Run validate through the unified flat engine; one outcome per pipeline.
+    ) -> Generator[
+        PipelineValidationOutcome, None, Tuple[DeprecationWarningRecord, ...]
+    ]:
+        """Run validate through the unified flat engine and YIELD outcomes.
 
-        The flat shape supersedes the legacy
-        ``Sequence[PipelineWorkUnit]`` input: the four maps come straight
-        from :func:`flowgroup_worklist_builder.build_flowgroup_worklist`
-        (``flowgroups_by_pipeline`` keyed in pipeline-input order). This
-        method assembles the per-batch :class:`_FlowgroupWorkerState`
-        (combining the constructor-time leaf-service collaborators —
-        ``processor``, and the unused-in-validate ``code_generator`` /
-        ``formatter`` — with the call-time ``substitution_managers`` /
-        ``output_dirs``), then drives the consolidated engine in
-        ``"validate"`` mode and folds the per-pipeline results into
-        :class:`PipelineValidationOutcome`s.
-
-        Cross-flowgroup CDC fan-in (§9.24) now runs INSIDE the engine, on
-        the RESOLVED flowgroups the workers return, not on raw
-        flowgroups here — closing the validate-under-checks gap. The
-        assembly fold lives in
-        :func:`._pool.assemble_validate_outcomes`, keeping this
-        facade thin.
+        Assembles the per-batch :class:`_FlowgroupWorkerState` (constructor-time
+        leaf collaborators + call-time ``substitution_managers`` /
+        ``output_dirs``), then ``yield from`` the source-of-truth generator
+        :meth:`_iter_validate_outcomes` (so it inherits the
+        ``StopIteration.value`` warning-return), surfacing one
+        :class:`PipelineValidationOutcome` per pipeline in INPUT ORDER. Validate
+        REPORTS, never raising on findings. The
+        ``(pipeline, flowgroup) -> source-YAML`` map threaded into the fold is
+        derived HERE from each :attr:`FlowGroupContext.source_yaml` (no extra
+        discovery pass), so every finding carries its flowgroup's file.
         """
         if self._validate_worker_state is None:
             raise ValueError(
@@ -315,23 +270,76 @@ class PipelineExecutionService(BasePipelineExecutionService):
             substitution_managers=dict(substitution_managers),
             pipeline_output_dirs=dict(output_dirs),
         )
+        source_paths: dict[Tuple[str, str], Path] = {
+            (pipeline, ctx.flowgroup.flowgroup): ctx.source_yaml
+            for pipeline, contexts in flowgroups_by_pipeline.items()
+            for ctx in contexts
+            if ctx.source_yaml is not None
+        }
+        return (
+            yield from self._iter_validate_outcomes(
+                flowgroups_by_pipeline=flowgroups_by_pipeline,
+                worker_state=worker_state,
+                validation_service=self._validation_service,
+                discovery_errors=discovery_errors,
+                source_paths=source_paths,
+            )
+        )
+
+    def _iter_validate_outcomes(
+        self,
+        *,
+        flowgroups_by_pipeline: Mapping[str, Sequence[FlowGroupContext]],
+        worker_state: _FlowgroupWorkerState,
+        validation_service: "ValidationService",
+        discovery_errors: Mapping[str, str],
+        source_paths: Optional[Mapping[Tuple[str, str], Path]] = None,
+    ) -> Generator[
+        PipelineValidationOutcome, None, Tuple[DeprecationWarningRecord, ...]
+    ]:
+        """Run the flat engine in validate mode and YIELD per-pipeline outcomes.
+
+        The source of truth for the validate outcome-stream (mirrors
+        :meth:`_iter_generate_deltas` on the generate side). It drives the
+        consolidated engine in ``"validate"`` mode
+        (:func:`._pool._run_flowgroup_pool_core`, ``mode`` forks only there —
+        §4.6), then yields one :class:`PipelineValidationOutcome` per pipeline
+        in DETERMINISTIC INPUT PIPELINE ORDER (the order the engine returns its
+        buckets, NOT flowgroup-completion order). Validate REPORTS findings and
+        never raises on them — there is no gate, so this generator runs to
+        completion with no in-stream raise (unlike generate's
+        failure-deltas-then-§1.4-raise).
+
+        Cross-flowgroup CDC fan-in (§9.24) runs INSIDE the engine, on the
+        RESOLVED flowgroups the workers return, not on raw flowgroups here. The
+        per-pipeline fold lives in :func:`._pool.assemble_validate_outcomes`,
+        keeping this generator thin; ``source_paths`` (the
+        ``(pipeline, flowgroup) -> source-YAML`` map, derived from the
+        worklist's ``FlowGroupContext.source_yaml``) is threaded into it so
+        each finding is attributed to its flowgroup's file on disk.
+
+        RETURNS (via ``StopIteration.value``) the batch's worker deprecation
+        warnings, merged + deduped by ``(code, file)`` across every pipeline
+        (:func:`._pool.merge_pool_warnings`), for the facade to re-emit as
+        validate-phase :class:`~lhp.api.WarningEmitted` events.
+        """
+        if source_paths is None:
+            source_paths = {}
         pool_results = _run_flowgroup_pool_core(
             flowgroups_by_pipeline=flowgroups_by_pipeline,
             worker_state=worker_state,
-            validation_service=self._validation_service,
+            validation_service=validation_service,
             max_workers=self._max_workers,
             mode="validate",
         )
-        outcomes = assemble_validate_outcomes(
+        yield from assemble_validate_outcomes(
             pool_results,
             discovery_errors=discovery_errors,
+            source_paths=source_paths,
         )
-        if self._on_validate_pipeline_complete is not None:
-            for outcome in outcomes:
-                self._on_validate_pipeline_complete(outcome)
-        return tuple(outcomes)
+        return merge_pool_warnings(pool_results)
 
-    def _run_generate_engine_and_gate(
+    def _iter_generate_deltas(
         self,
         *,
         flowgroups_by_pipeline: Mapping[str, Sequence[FlowGroupContext]],
@@ -342,35 +350,34 @@ class PipelineExecutionService(BasePipelineExecutionService):
         project_root: Optional[Path] = None,
         max_workers: Optional[int] = None,
         apply_formatting: bool = True,
-    ) -> Tuple[PipelineDelta, ...]:
-        """Run the flat engine in generate mode, GATE, then COMMIT.
+    ) -> Generator[PipelineDelta, None, Tuple[DeprecationWarningRecord, ...]]:
+        """Run the flat engine in generate mode and YIELD per-pipeline deltas.
 
-        The generate-path driver, kept thin: it drives the generate-only
-        engine (:func:`._pool._run_flowgroup_pool_core`, ``mode`` forks
-        only there — constitution §4.6), hands the per-pipeline results to
-        :func:`._generate_gate.gate_or_raise` (copy-conflict ``019`` dry pass +
-        single-vs-``902`` shaping), commits each clean pipeline via
-        :func:`._commit.commit_generate_results` (writing the workers'
-        UNFORMATTED source verbatim), then runs the single terminal
-        :func:`..codegen.formatter.format_generated_tree` pass — one
-        ``ruff format`` over the WHOLE env ``output_dir`` (generated flowgroup
-        files, copied user modules, the test-reporting hook, and auxiliary
-        inline modules; ``ruff format`` only rewrites Python, so bundle YAML is
-        untouched). That pass is skipped when ``output_dir`` is ``None``
-        (dry-run / validate) or ``apply_formatting`` is False.
+        The source of truth for the generate delta-stream. It drives the
+        generate-only engine (:func:`._pool._run_flowgroup_pool_core`, ``mode``
+        forks only there — §4.6), then yields per-pipeline
+        :class:`~lhp.models.processing.PipelineDelta`s in DETERMINISTIC INPUT
+        PIPELINE ORDER (the order the engine returns its buckets, NOT
+        flowgroup-completion order): every failure delta first
+        (:func:`._generate_gate.iter_pipeline_failure_deltas`); then
+        :func:`._generate_gate.gate_or_raise` RAISES on ANY failure, so per §1.4
+        the raise closes the stream with the failures already observed and no
+        writes; on a clean gate, a success delta per committed pipeline via the
+        :func:`._commit.commit_generate_results` generator (whose lazy whole-env
+        wipe runs before the first commit, so a gate failure leaves prior output
+        untouched). The terminal
+        :func:`..codegen.formatter.format_generated_tree` pass runs AFTER the
+        success deltas are exhausted (consumers MUST fully drain this
+        generator); skipped when ``output_dir`` is ``None`` or
+        ``apply_formatting`` is False.
 
-        All-or-nothing: on ANY failure NO files are written and the
-        aggregate is raised. Writes — and the single whole-env wipe of
-        ``output_dir`` (so a gate failure leaves prior output untouched) —
-        happen ONLY on the gate-passed path, in input pipeline order.
-
-        ``self._on_generate_pipeline_complete`` fires once per pipeline:
-        a :class:`PipelineDelta.failure` per failing pipeline BEFORE
-        the raise (via :func:`._generate_gate.fire_pipeline_failure_deltas`, so
-        the summary lists failures), or the synthesized success delta per
-        committed pipeline (forwarded into the commit step).
-
-        Returns the per-pipeline success deltas on a clean run.
+        RETURNS (via ``StopIteration.value``, captured by the caller's
+        ``yield from``) the batch's worker-attached deprecation warnings,
+        merged + deduped by ``(code, file)`` across every pipeline
+        (:func:`._pool.merge_pool_warnings`), so the facade re-emits them as
+        generate-phase :class:`~lhp.api.WarningEmitted` events. Computed from
+        ALL pipelines' results up front; on the gate-raise path it is simply
+        not delivered (the §1.4 raise closes the stream).
 
         :raises LHPError: the sole failure's error, or ``LHP-VAL-902`` (many).
         """
@@ -383,11 +390,19 @@ class PipelineExecutionService(BasePipelineExecutionService):
             ),
             mode="generate",
         )
-        # Failure delta per failing pipeline BEFORE the gate raises.
-        fire_pipeline_failure_deltas(pool_results, self._on_generate_pipeline_complete)
+        # Worker deprecation warnings, merged + deduped across the whole batch
+        # (per-pipeline tuples are already deduped by ``(code, file)``; this
+        # second fold collapses the same warning across pipelines). Collected
+        # up front so it reflects ALL pipelines even though the gate may raise
+        # below before the success deltas are yielded.
+        warnings = merge_pool_warnings(pool_results)
+        # Failure delta per failing pipeline BEFORE the gate raises (§1.4).
+        yield from iter_pipeline_failure_deltas(pool_results)
         # Raises on ANY failure (no writes yet); returns the clean results.
         clean = gate_or_raise(pool_results)
-        deltas = commit_generate_results(
+        # Success delta per committed pipeline, in input order (the generator's
+        # lazy whole-env wipe runs before its first commit).
+        yield from commit_generate_results(
             clean,
             pipeline_output_dirs=worker_state.pipeline_output_dirs,
             substitution_managers=worker_state.substitution_managers,
@@ -395,27 +410,20 @@ class PipelineExecutionService(BasePipelineExecutionService):
             output_dir=output_dir,
             project_config=project_config,
             project_root=project_root or Path.cwd(),
-            on_pipeline_complete=self._on_generate_pipeline_complete,
         )
-        # Terminal ruff pass (main thread, timed as ``format_tree``): workers
-        # ship UNFORMATTED source written verbatim by commit, so the WHOLE env
-        # output tree is formatted ONCE here with ``ruff format`` — generated
-        # flowgroup files, copied user modules, the test-reporting hook, and
-        # auxiliary inline modules alike (``ruff format`` only rewrites Python,
-        # so bundle YAML is untouched). Skipped on dry-run/validate
-        # (``output_dir`` None) or ``--no-format`` / ``apply_formatting: false``
-        # — the in-worker AST-parse guard still runs regardless, so invalid
-        # Python fails (LHP-CFG-031) either way.
+        # Terminal ruff pass over the WHOLE env tree (main thread, timed as
+        # ``format_tree``): commit writes UNFORMATTED source verbatim, formatted
+        # ONCE here. The in-worker AST-parse guard runs regardless, so invalid
+        # Python still fails (LHP-CFG-031) when this is skipped.
         if output_dir is not None and apply_formatting:
             with perf_timer("format_tree", category="format_tree"):
                 format_generated_tree(output_dir)
-        return deltas
+        return warnings
 
     def configure_generate(
         self,
         *,
         max_workers: Optional[int] = None,
-        on_pipeline_complete: Optional[Callable[["PipelineDelta"], None]] = None,
         environment: Optional[str] = None,
         include_tests: Optional[bool] = None,
         validation_service: Optional["ValidationService"] = None,
@@ -434,8 +442,6 @@ class PipelineExecutionService(BasePipelineExecutionService):
         """
         if max_workers is not None:
             self._max_workers = max(1, max_workers)
-        if on_pipeline_complete is not None:
-            self._on_generate_pipeline_complete = on_pipeline_complete
         if validation_service is not None:
             self._validation_service = validation_service
         if worker_state is not None:
@@ -463,7 +469,6 @@ class PipelineExecutionService(BasePipelineExecutionService):
         max_workers: Optional[int] = None,
         include_tests: Optional[bool] = None,
         validation_service: Optional["ValidationService"] = None,
-        on_pipeline_complete: Optional[OnValidationComplete] = None,
         worker_state: Optional[_FlowgroupWorkerState] = None,
     ) -> None:
         """Reconfigure the per-batch parameters for the next ``run_validate``.
@@ -475,8 +480,6 @@ class PipelineExecutionService(BasePipelineExecutionService):
         """
         if max_workers is not None:
             self._max_workers = max(1, max_workers)
-        if on_pipeline_complete is not None:
-            self._on_validate_pipeline_complete = on_pipeline_complete
         if validation_service is not None:
             self._validation_service = validation_service
         if worker_state is not None:

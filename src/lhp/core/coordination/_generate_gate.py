@@ -3,7 +3,7 @@
 Coordinator-side helpers that shape a set of failing units into the
 user-facing aggregate error. Split out of
 :mod:`.executor` so the gate DRIVER there
-(:meth:`~lhp.core.coordination.executor.PipelineExecutionService._run_generate_engine_and_gate`)
+(:meth:`~lhp.core.coordination.executor.PipelineExecutionService._iter_generate_deltas`)
 stays thin (constitution §3.3 size) and the single-vs-``902`` shaping is
 single-sourced in :func:`raise_aggregate_failure`.
 
@@ -28,7 +28,7 @@ internal :class:`._pool._PipelinePoolResult` shape.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Dict, Iterator, List, Optional, Sequence, Tuple
 
 from ...errors import (
     ErrorFactory,
@@ -227,32 +227,29 @@ def descriptor_to_exception(descriptor: _AggFailure) -> "LHPError":
     )
 
 
-def fire_pipeline_failure_deltas(
+def iter_pipeline_failure_deltas(
     pool_results: Sequence["_PipelinePoolResult"],
-    on_pipeline_complete: Optional[Callable[["PipelineDelta"], None]],
-) -> None:
-    """Fire ``on_pipeline_complete`` with a failure delta per failing pipeline.
+) -> Iterator["PipelineDelta"]:
+    """Yield a failure :class:`PipelineDelta` per failing pipeline, in input order.
 
-    Called by the generate driver BEFORE :func:`gate_or_raise` raises
-    so the summary table still lists every failing pipeline. No-op when
-    no callback is registered. Each failing pipeline (per
-    :func:`pipeline_failure_descriptor`) is collapsed to its representative
-    exception (:func:`descriptor_to_exception`) and wrapped in a
-    :class:`~lhp.models.processing.PipelineDelta.failure`. Clean pipelines are
-    skipped — their success deltas are emitted later, by the commit step, only
-    if the gate passes.
+    The failure-delta source of the generate delta-stream. Consumed by the
+    driver (:meth:`PipelineExecutionService._iter_generate_deltas`) BEFORE
+    :func:`gate_or_raise` raises, so the summary table still lists every
+    failing pipeline and (per constitution §1.4) the gate raise that follows
+    closes the stream only AFTER every failure delta has been emitted. Each
+    failing pipeline (per :func:`pipeline_failure_descriptor`) is collapsed to
+    its representative exception (:func:`descriptor_to_exception`) and wrapped
+    in a :class:`~lhp.models.processing.PipelineDelta.failure`. Clean pipelines
+    are skipped — their success deltas are emitted later, by the commit step,
+    only if the gate passes.
     """
-    if on_pipeline_complete is None:
-        return
     from ...models.processing import PipelineDelta
 
     for result in pool_results:
         descriptor = pipeline_failure_descriptor(result)
         if descriptor is not None:
-            on_pipeline_complete(
-                PipelineDelta.failure(
-                    result.pipeline, descriptor_to_exception(descriptor)
-                )
+            yield PipelineDelta.failure(
+                result.pipeline, descriptor_to_exception(descriptor)
             )
 
 
@@ -262,7 +259,7 @@ def gate_or_raise(
     """Apply the all-or-nothing generate GATE; raise on any failure.
 
     The gate MECHANICS behind
-    :meth:`~lhp.core.coordination.executor.PipelineExecutionService._run_generate_engine_and_gate`
+    :meth:`~lhp.core.coordination.executor.PipelineExecutionService._iter_generate_deltas`
     (the thin driver calls the engine, then hands the per-pipeline results
     here):
 

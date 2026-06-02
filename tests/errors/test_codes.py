@@ -73,7 +73,7 @@ no-space ``_CODE_NUMBER_RE`` does not match them: spaced *assignments* like the
 ``code_number = "000"`` default in ``cli/commands/init_command.py`` and the
 ``_code_number = "020"`` class attrs on the bundle subclasses in
 ``errors/types.py``. The empty round-trip note ``code_number=""`` in
-``api/_converters.py`` is likewise excluded (the regex requires ≥1 char).
+``api/_converters_common.py`` is likewise excluded (the regex requires ≥1 char).
 
 This file lives in ``tests/errors/`` with **no** ``__init__.py`` (collection is
 ``testpaths``-based; sibling test dirs like ``tests/api/`` carry none — adding
@@ -86,7 +86,15 @@ from pathlib import Path
 import pytest
 
 from lhp.errors.categories import ErrorCategory
-from lhp.errors.codes import ALL_CODES
+from lhp.errors.codes import (
+    ALL_CODES,
+    DEPR_001,
+    DEPR_002,
+    DEPR_003,
+    DEPR_004,
+)
+from lhp.errors.factory import ErrorFactory
+from lhp.errors.types import LHPError
 
 # Repo root resolved from this file: <repo_root>/tests/errors/test_codes.py
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -370,3 +378,76 @@ def test_no_stray_literal_codes_end_state():
             "constructor — add it to _LITERAL_CODE_NUMBER_ALLOWLIST with a "
             "one-line rationale."
         )
+
+
+@pytest.mark.unit
+def test_deprecation_category_and_codes():
+    """Freeze the DEPR taxonomy: category value, four rendered codes, registry.
+
+    The DEPRECATION category and its four contiguous codes (``LHP-DEPR-001``
+    .. ``LHP-DEPR-004``) are the §7 deprecation contract that the C-slice
+    producer tasks emit via :meth:`ErrorFactory.deprecation_error`.
+    """
+    assert ErrorCategory.DEPRECATION.value == "DEPR"
+
+    expected = {
+        DEPR_001: "LHP-DEPR-001",
+        DEPR_002: "LHP-DEPR-002",
+        DEPR_003: "LHP-DEPR-003",
+        DEPR_004: "LHP-DEPR-004",
+    }
+    for code, rendered in expected.items():
+        assert code.category is ErrorCategory.DEPRECATION
+        assert code.code == rendered
+        assert code in ALL_CODES
+
+
+@pytest.mark.unit
+def test_deprecation_factory_builds_valid_lhp_error():
+    """``ErrorFactory.deprecation_error`` returns an LHPError carrying the code."""
+    err = ErrorFactory.deprecation_error(
+        code=DEPR_002,
+        title="Deprecated field 'database'",
+        details="The 'database' field is deprecated.",
+        suggestions=["Use the replacement field instead"],
+        context={"Field": "database"},
+    )
+    assert type(err) is LHPError
+    assert err.code == "LHP-DEPR-002"
+    assert err.title == "Deprecated field 'database'"
+    assert err.details == "The 'database' field is deprecated."
+
+
+@pytest.mark.unit
+def test_category_docstring_count_matches_members():
+    """``categories.py`` module docstring word-count tracks the enum size.
+
+    Guards the FREEZE-2 docstring fix: the count word ('Eight' today) must
+    equal the actual number of :class:`ErrorCategory` members so the docstring
+    never silently drifts as categories are added.
+    """
+    import lhp.errors.categories as categories_module
+
+    member_count = len(list(ErrorCategory))
+    assert member_count == 8
+
+    number_words = {
+        1: "One",
+        2: "Two",
+        3: "Three",
+        4: "Four",
+        5: "Five",
+        6: "Six",
+        7: "Seven",
+        8: "Eight",
+        9: "Nine",
+        10: "Ten",
+    }
+    expected_word = number_words[member_count]
+    docstring = categories_module.__doc__ or ""
+    assert docstring.startswith(f"{expected_word} categories matching") or (
+        f"{expected_word} categories" in docstring
+    ), (
+        f"Module docstring should state '{expected_word} categories' to match "
+        f"the {member_count} ErrorCategory members; got: {docstring!r}"
+    )

@@ -4,6 +4,11 @@ from lhp.core.codegen.operational_metadata import (
     OperationalMetadataCatalog,
     OperationalMetadataService,
 )
+from lhp.core.codegen.plan_builder import (
+    GenerationPlanResult,
+    PlannedArtifact,
+    build_generation_plan,
+)
 from lhp.core.codegen.python_file_copier import (
     PythonFileCopier,
     compute_copy_records,
@@ -16,13 +21,16 @@ from lhp.core.codegen.tst_reporting_hook_generator import TestReportingHookGener
 
 __all__ = [
     "CodeGenerationService",
+    "GenerationPlanResult",
     "ImportManager",
     "OperationalMetadataCatalog",
     "OperationalMetadataService",
+    "PlannedArtifact",
     "PythonFileCopier",
     "SecretCodeGenerator",
     "TemplateRenderer",
     "TestReportingHookGenerator",
+    "build_generation_plan",
     "compute_copy_records",
     "copy_user_module_for_pipeline",
     "extract_future_imports",

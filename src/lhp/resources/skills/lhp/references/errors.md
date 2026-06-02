@@ -17,6 +17,7 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | I/O | `IO` | Files not found, read/write failures, format issues |
 | Action | `ACT` | Unknown action types, subtypes, or preset names |
 | Dependency | `DEP` | Circular dependencies between views or preset inheritance |
+| Deprecation | `DEPR` | Soft-deprecation warnings for fields/syntax slated for removal; surfaced as warnings, not failures |
 | General | `GEN` | Worker exceptions, unexpected errors, internal-error guards (mostly post-0.8.7 parallel-generation failures) |
 
 ---
@@ -76,6 +77,19 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | Code | Trigger | Fix |
 |------|---------|-----|
 | **DEP-001** | Circular dependency (A → B → C → A) | Break the cycle; error shows full path. Use `lhp deps --format dot` to visualize |
+
+## Deprecation Warnings (LHP-DEPR)
+
+Warnings, not failures — generation/validation still succeed. They flag usage slated for removal.
+
+| Code | Deprecated usage | Replacement |
+|------|------------------|-------------|
+| **DEPR-001** | Bare-braces `{token}` substitution syntax | Use `${token}` (only non-`$` braces form is `%{local_var}` for local variables) |
+| **DEPR-002** | `database` field | Use `catalog` + `schema` |
+| **DEPR-003** | Schema-transform `enforcement` key | Remove the key |
+| **DEPR-004** | `database_suffix` field | Use `catalog` + `schema` |
+
+> **Note:** Legacy `blueprint:` / `use_blueprint:` mixed syntax is **not** a soft deprecation — it is a hard `LHP-VAL-061` error.
 
 ## General Errors (LHP-GEN)
 

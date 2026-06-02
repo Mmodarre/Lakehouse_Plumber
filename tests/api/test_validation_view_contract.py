@@ -22,12 +22,20 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import os
 import pickle
 from dataclasses import FrozenInstanceError
+from pathlib import Path
 from typing import Mapping, get_type_hints
 
 import pytest
+import yaml as _yaml
 
+from lhp.api import (
+    BatchValidationResponse,
+    LakehousePlumberApplicationFacade,
+    collect_response,
+)
 from lhp.api.responses import JSONValue
 from lhp.api.views import ValidationIssueView
 
@@ -52,6 +60,8 @@ def _to_json_safe_dict(view: ValidationIssueView) -> dict[str, JSONValue]:
         "details": view.details,
         "pipeline_name": view.pipeline_name,
         "flowgroup_name": view.flowgroup_name,
+        # Path → str for JSON-shape (None stays None).
+        "file_path": str(view.file_path) if view.file_path is not None else None,
         # Tuple → list for JSON-shape.
         "suggestions": list(view.suggestions),
         # Mapping → plain dict for JSON-shape.
@@ -66,6 +76,7 @@ def _from_json_safe_dict(payload: Mapping[str, object]) -> ValidationIssueView:
     Reverses the Tuple conversion so equality holds against the
     original instance.
     """
+    raw_file_path = payload["file_path"]
     return ValidationIssueView(
         code=payload["code"],  # type: ignore[arg-type]
         category=payload["category"],  # type: ignore[arg-type]
@@ -74,6 +85,8 @@ def _from_json_safe_dict(payload: Mapping[str, object]) -> ValidationIssueView:
         details=payload["details"],  # type: ignore[arg-type]
         pipeline_name=payload["pipeline_name"],  # type: ignore[arg-type]
         flowgroup_name=payload["flowgroup_name"],  # type: ignore[arg-type]
+        # str → Path on reconstruct (None stays None).
+        file_path=Path(raw_file_path) if raw_file_path is not None else None,  # type: ignore[arg-type]
         suggestions=tuple(payload["suggestions"]),  # type: ignore[arg-type]
         context=dict(payload["context"]),  # type: ignore[arg-type]
         doc_link=payload["doc_link"],  # type: ignore[arg-type]
@@ -325,3 +338,286 @@ class TestFlatFieldRoundTrip:
         # And the asdict output is JSON-safe (tuple → list at this step).
         round_tripped = json.loads(json.dumps(d))
         assert round_tripped["suggestions"] == ["fix x", "fix y"]
+
+
+@pytest.mark.unit
+class TestLocationFields:
+    """``file_path`` and ``flowgroup_name`` exist, default to ``None``, and
+    round-trip — frozen by FREEZE-1 (``file_path`` is added here;
+    ``flowgroup_name`` already existed). Population is Slice B's job; this
+    only guarantees the surface.
+    """
+
+    def test_file_path_field_exists_and_defaults_none(self) -> None:
+        field_names = {f.name for f in dataclasses.fields(ValidationIssueView)}
+        assert "file_path" in field_names, (
+            "ValidationIssueView must carry a file_path field (FREEZE-1)."
+        )
+        view = ValidationIssueView(
+            code="", category="VAL", severity="warning", title="t"
+        )
+        assert view.file_path is None
+
+    def test_flowgroup_name_field_exists_and_defaults_none(self) -> None:
+        field_names = {f.name for f in dataclasses.fields(ValidationIssueView)}
+        assert "flowgroup_name" in field_names, (
+            "ValidationIssueView must carry a flowgroup_name field."
+        )
+        view = ValidationIssueView(
+            code="", category="VAL", severity="warning", title="t"
+        )
+        assert view.flowgroup_name is None
+
+    def test_file_path_is_optional_path(self) -> None:
+        """The resolved annotation is ``Optional[Path]``.
+
+        ``repr`` may render either as ``typing.Optional[pathlib.Path]`` or
+        the expanded ``typing.Union[pathlib.Path, NoneType]`` depending on
+        the Python version; both encode optionality, so accept either.
+        """
+        hints = get_type_hints(ValidationIssueView)
+        text = repr(hints["file_path"])
+        assert "Path" in text and ("Optional" in text or "NoneType" in text), (
+            f"file_path must be Optional[Path]; got {text!r}"
+        )
+
+    def test_non_none_file_path_round_trips_via_to_dict(self) -> None:
+        """A populated ``file_path`` serialises to ``str`` and reconstructs to ``Path``."""
+        from lhp.api import to_dict
+
+        view = ValidationIssueView(
+            code="LHP-VAL-021",
+            category="VAL",
+            severity="error",
+            title="Missing source",
+            pipeline_name="bronze",
+            flowgroup_name="customer_ingest",
+            file_path=Path("pipelines/bronze/customer.yaml"),
+        )
+        payload = to_dict(view)
+        assert payload["file_path"] == "pipelines/bronze/customer.yaml"
+        assert payload["flowgroup_name"] == "customer_ingest"
+        wire = json.loads(json.dumps(payload))
+        restored = ValidationIssueView(
+            code=wire["code"],
+            category=wire["category"],
+            severity=wire["severity"],
+            title=wire["title"],
+            details=wire["details"],
+            pipeline_name=wire["pipeline_name"],
+            flowgroup_name=wire["flowgroup_name"],
+            file_path=Path(wire["file_path"]),
+            suggestions=tuple(wire["suggestions"]),
+            context=dict(wire["context"]),
+            doc_link=wire["doc_link"],
+        )
+        assert restored == view
+        assert isinstance(restored.file_path, Path)
+
+    def test_full_flat_field_round_trip_includes_file_path(self) -> None:
+        """The shared projection helpers carry ``file_path`` through JSON."""
+        view = ValidationIssueView(
+            code="LHP-VAL-021",
+            category="VAL",
+            severity="error",
+            title="t",
+            file_path=Path("pipelines/bronze/customer.yaml"),
+            flowgroup_name="customer_ingest",
+        )
+        wire = json.loads(json.dumps(_to_json_safe_dict(view)))
+        restored = _from_json_safe_dict(wire)
+        assert restored == view
+        assert restored.file_path == Path("pipelines/bronze/customer.yaml")
+        assert isinstance(restored.file_path, Path)
+
+
+# ---------------------------------------------------------------------------
+# Slice B (B2): per-issue attribution populated end-to-end through the public
+# validate facade. Where TestLocationFields above pins the FREEZE-1 *surface*
+# (the fields exist + round-trip), the integration test below pins the
+# *population*: a real project with KNOWN validation errors in KNOWN flowgroups
+# yields ValidationIssueViews carrying the matching flowgroup_name + file_path,
+# while a cross-flowgroup finding (no single owning flowgroup) carries None for
+# both. Imports stay strictly within lhp.api — no internal modules.
+# ---------------------------------------------------------------------------
+
+
+def _write_flowgroup_yaml(
+    project_root: Path, pipeline: str, flowgroup: str, actions: list
+) -> Path:
+    """Write one flowgroup YAML and return its path."""
+    pdir = project_root / "pipelines" / pipeline
+    pdir.mkdir(parents=True, exist_ok=True)
+    path = pdir / f"{flowgroup}.yaml"
+    with open(path, "w") as f:
+        _yaml.dump(
+            {"pipeline": pipeline, "flowgroup": flowgroup, "actions": actions}, f
+        )
+    return path
+
+
+def _streaming_write(name: str, source: str, table: str) -> dict:
+    return {
+        "name": name,
+        "type": "write",
+        "source": source,
+        "write_target": {
+            "type": "streaming_table",
+            "catalog": "${catalog}",
+            "schema": "${bronze_schema}",
+            "table": table,
+            "create_table": True,
+        },
+    }
+
+
+def _cloudfiles_load(name: str, target: str) -> dict:
+    return {
+        "name": name,
+        "type": "load",
+        "target": target,
+        "source": {"type": "cloudfiles", "path": "${landing_path}/x", "format": "json"},
+    }
+
+
+@pytest.fixture
+def attribution_project(tmp_path: Path):
+    """Write a project with three pipelines and yield (facade, fg→path map).
+
+    * ``p_attr`` / ``attr_fg`` — a write action with NO ``source``: a
+      per-flowgroup ``LHP-VAL-007`` validate ATTRIBUTES to that flowgroup +
+      file (the structured-error path through ``FlowgroupOutcome.lhp_error``).
+    * ``p_cross`` / ``cross_fg`` — one flowgroup with two ``create_table: true``
+      writes to the SAME table: a cross-flowgroup ``LHP-CFG-004`` from the
+      §9.24 barrier, which has NO single owning flowgroup (attribution None).
+    * ``p_clean`` / ``clean_fg`` — validates clean (no issues).
+    """
+    project_root = tmp_path / "proj"
+    for sub in ("presets", "templates", "substitutions"):
+        (project_root / sub).mkdir(parents=True, exist_ok=True)
+    (project_root / "lhp.yaml").write_text("name: attribution\nversion: '1.0'\n")
+    with open(project_root / "substitutions" / "dev.yaml", "w") as f:
+        _yaml.dump(
+            {
+                "dev": {
+                    "catalog": "dev_catalog",
+                    "bronze_schema": "bronze",
+                    "landing_path": "/mnt/dev/landing",
+                }
+            },
+            f,
+        )
+
+    paths: dict[tuple[str, str], Path] = {}
+    # Per-flowgroup attributed error: a write with no source.
+    paths[("p_attr", "attr_fg")] = _write_flowgroup_yaml(
+        project_root,
+        "p_attr",
+        "attr_fg",
+        [_streaming_write("w_no_source", "v_missing_source", "attr_table")],
+    )
+    # Cross-flowgroup error: two create_table writes to the same table.
+    paths[("p_cross", "cross_fg")] = _write_flowgroup_yaml(
+        project_root,
+        "p_cross",
+        "cross_fg",
+        [
+            _cloudfiles_load("load_cross", "v_cross_raw"),
+            _streaming_write("w_a", "v_cross_raw", "shared_table"),
+            _streaming_write("w_b", "v_cross_raw", "shared_table"),
+        ],
+    )
+    # Clean pipeline.
+    paths[("p_clean", "clean_fg")] = _write_flowgroup_yaml(
+        project_root,
+        "p_clean",
+        "clean_fg",
+        [
+            _cloudfiles_load("load_clean", "v_clean_raw"),
+            _streaming_write("w_clean", "v_clean_raw", "clean_table"),
+        ],
+    )
+
+    prev = os.getcwd()
+    os.chdir(project_root)
+    facade = LakehousePlumberApplicationFacade.for_project(
+        project_root, enforce_version=False
+    )
+    try:
+        yield facade, paths
+    finally:
+        os.chdir(prev)
+
+
+@pytest.mark.integration
+class TestPerIssueAttributionPopulated:
+    """B2: ValidationIssueViews carry the correct flowgroup_name + file_path."""
+
+    @staticmethod
+    def _validate(facade) -> BatchValidationResponse:
+        return collect_response(
+            facade.validation.validate_pipelines(
+                pipeline_fields=["p_attr", "p_cross", "p_clean"], env="dev"
+            )
+        )
+
+    def test_per_flowgroup_issue_carries_flowgroup_name_and_file_path(
+        self, attribution_project
+    ) -> None:
+        facade, paths = attribution_project
+        response = self._validate(facade)
+
+        attr = response.pipeline_responses["p_attr"]
+        assert attr.success is False
+        # Every finding for this pipeline is attributed to its flowgroup + file.
+        assert attr.issues, "expected at least one finding for p_attr"
+        for issue in attr.issues:
+            assert isinstance(issue, ValidationIssueView)
+            assert issue.flowgroup_name == "attr_fg"
+            assert issue.file_path == paths[("p_attr", "attr_fg")]
+            assert isinstance(issue.file_path, Path)
+
+    def test_cross_flowgroup_issue_carries_none_attribution(
+        self, attribution_project
+    ) -> None:
+        facade, _paths = attribution_project
+        response = self._validate(facade)
+
+        cross = response.pipeline_responses["p_cross"]
+        assert cross.success is False
+        # A cross-flowgroup finding has no single owning flowgroup: both the
+        # flowgroup name and the source file are None.
+        cross_cfg = [i for i in cross.issues if i.code == "LHP-CFG-004"]
+        assert cross_cfg, f"expected a cross-fg LHP-CFG-004; got {cross.issues}"
+        for issue in cross_cfg:
+            assert issue.flowgroup_name is None
+            assert issue.file_path is None
+
+    def test_clean_pipeline_has_no_issues(self, attribution_project) -> None:
+        facade, _paths = attribution_project
+        response = self._validate(facade)
+
+        clean = response.pipeline_responses["p_clean"]
+        assert clean.success is True
+        assert clean.issues == ()
+
+    def test_consumer_ignoring_new_fields_still_works(
+        self, attribution_project
+    ) -> None:
+        """A consumer that only reads code/severity/title (ignoring the new
+        location fields entirely) sees the same findings — adding
+        flowgroup_name / file_path is purely additive."""
+        facade, _paths = attribution_project
+        response = self._validate(facade)
+
+        # Project every finding down to the pre-attribution fields only.
+        legacy_view = [
+            (i.code, i.severity, bool(i.title))
+            for pr in response.pipeline_responses.values()
+            for i in pr.issues
+        ]
+        # The attributed VAL-007 and the cross-fg CFG-004 both still surface.
+        assert ("LHP-VAL-007", "error", True) in legacy_view
+        assert ("LHP-CFG-004", "error", True) in legacy_view
+        # And the run still reports overall failure (validate REPORTS).
+        assert response.success is False

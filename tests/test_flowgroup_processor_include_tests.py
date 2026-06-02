@@ -300,26 +300,25 @@ actions:
         single flat ``(errors, warnings)`` tuple) was consolidated into the
         plural ``ActionOrchestrator.validate_pipelines`` (keyword-scoped via
         ``pipeline_filter``), which returns one ``PipelineValidationOutcome``
-        per pipeline. That DTO splits diagnostics into a string-projection
-        ``errors`` tuple AND a structured ``lhp_errors`` tuple of live
-        ``LHPError`` instances (config/action validation errors like
-        ``LHP-VAL-007`` land in ``lhp_errors``), so the legacy single-tuple
-        assertion is replaced by a combined view across both channels
-        (``src/lhp/core/coordination/orchestrator.py:590,593,596``;
-        ``executor.py:101,104-119``).
+        per pipeline. That DTO carries a single ``issues`` tuple of
+        ``ValidationIssueRecord``s (each holding either a live ``LHPError`` —
+        e.g. a config/action ``LHP-VAL-007`` — or a plain string), so the
+        legacy two-channel assertion collapses to one over ``issues``.
         """
         from lhp.core.coordination.layers import build_facade_orchestrator
 
         self._create_project_with_invalid_test(tmp_path)
         orchestrator = build_facade_orchestrator(tmp_path)
 
-        outcomes = orchestrator.validate_pipelines(
-            pipeline_filter="test_pipeline", env="dev", include_tests=False
+        # ``validate_pipelines`` is now an outcome GENERATOR (E4); drain it.
+        outcomes = list(
+            orchestrator.validate_pipelines(
+                pipeline_filter="test_pipeline", env="dev", include_tests=False
+            )
         )
         outcome = outcomes[0]
-        all_errors = list(outcome.errors) + list(outcome.lhp_errors)
-        assert len(all_errors) == 0 and outcome.success is True, (
-            f"Expected no errors with include_tests=False, got: {all_errors}"
+        assert len(outcome.issues) == 0 and outcome.success is True, (
+            f"Expected no findings with include_tests=False, got: {outcome.issues}"
         )
 
     def test_validate_catches_test_actions_when_true(self, tmp_path):
@@ -333,16 +332,17 @@ actions:
         self._create_project_with_invalid_test(tmp_path)
         orchestrator = build_facade_orchestrator(tmp_path)
 
-        outcomes = orchestrator.validate_pipelines(
-            pipeline_filter="test_pipeline", env="dev", include_tests=True
+        # ``validate_pipelines`` is now an outcome GENERATOR (E4); drain it.
+        outcomes = list(
+            orchestrator.validate_pipelines(
+                pipeline_filter="test_pipeline", env="dev", include_tests=True
+            )
         )
         outcome = outcomes[0]
         # Structured config-validation errors (LHP-VAL-007 for the missing
-        # ``columns`` field) land on ``lhp_errors``, not the string-projection
-        # ``errors`` tuple — assert across both channels.
-        all_errors = list(outcome.errors) + list(outcome.lhp_errors)
-        assert len(all_errors) > 0 and outcome.success is False, (
-            "Expected validation errors with include_tests=True for missing columns"
+        # ``columns`` field) surface as ValidationIssueRecords on ``issues``.
+        assert len(outcome.issues) > 0 and outcome.success is False, (
+            "Expected validation findings with include_tests=True for missing columns"
         )
 
     def test_validate_passes_include_tests_through_chain(self, monkeypatch):

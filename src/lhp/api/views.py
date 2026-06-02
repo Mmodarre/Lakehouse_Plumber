@@ -48,6 +48,7 @@ class ValidationIssueView:
     details: Optional[str] = None
     pipeline_name: Optional[str] = None
     flowgroup_name: Optional[str] = None
+    file_path: Optional[Path] = None
     suggestions: Tuple[str, ...] = ()
     context: Mapping[str, JSONValue] = field(default_factory=dict)
     doc_link: Optional[str] = None

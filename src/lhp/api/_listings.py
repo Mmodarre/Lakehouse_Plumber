@@ -6,7 +6,8 @@ External callers MUST NOT import from here.
 Hosts the verbose blueprint-expansion logic for
 :meth:`lhp.api.facade.InspectionFacade.list_blueprints` — the
 ``BlueprintExpander`` reach lives here so the facade stays read-only
-and ``_converters.py`` stays focused on per-type DTO projections.
+and ``_inspection_converters.py`` stays focused on per-type DTO
+projections.
 
 :stability: internal
 """
@@ -16,7 +17,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, Optional
 
-from lhp.api._converters import _blueprint_to_view
+from lhp.api._inspection_converters import _blueprint_to_view
 from lhp.api.views import BlueprintInstanceView, BlueprintView
 
 if TYPE_CHECKING:

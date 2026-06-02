@@ -1,0 +1,208 @@
+"""Private §5.7 event-stream body for the plan-only generation path.
+
+Underscore-prefixed module: not part of :mod:`lhp.api`'s public surface.
+External callers MUST NOT import from here; they use
+:meth:`lhp.api.GenerationFacade.plan_generation`, which is a thin
+``yield from`` over :func:`_stream_plan_generation` here.
+
+This split exists for the same reason as :mod:`lhp.api._generation_converters`:
+to keep :mod:`lhp.api._generation_facade` under the constitution §3.3 soft cap
+(the plan path mirrors the generate path's stream wrapper, which would push the
+facade module past 500 lines if inlined). The facade method holds the public
+contract / ``:stability:`` annotation; the stream logic lives here.
+
+The body mirrors :meth:`GenerationFacade._consume_generate_stream`
+event-for-event, but the source of truth is
+:func:`~lhp.core.codegen.build_generation_plan` (generate-to-temp) rather than
+the orchestrator's commit-writing generator: it drives the UNMODIFIED real
+generate flow to a throwaway temp dir, reads the formatted tree back into a
+:class:`~lhp.api.GenerationPlan`, and discards the temp dir — the real
+``generated/<env>`` tree is never touched.
+
+:stability: internal
+"""
+
+from __future__ import annotations
+
+import time
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Iterator,
+    List,
+    Optional,
+)
+
+from lhp.api._converters_common import _issue_view_to_lhp_error
+from lhp.api._generation_converters import (
+    _delta_to_generation_response,
+    _generation_result_to_plan,
+)
+from lhp.api._preflight import _run_project_preflight
+from lhp.api.events import (
+    ErrorEmitted,
+    GenerationPlanCompleted,
+    LHPEvent,
+    OperationStarted,
+    PhaseCompleted,
+    PhaseStarted,
+    PipelineCompleted,
+    PipelineFailed,
+    PipelineStarted,
+)
+from lhp.core.codegen import build_generation_plan
+from lhp.errors import LHPError
+from lhp.utils.performance_timer import perf_timer
+
+if TYPE_CHECKING:
+    from lhp.models.processing import PipelineDelta
+
+    # Internal orchestrator type, referenced only as a quoted annotation
+    # (§1.10, §9.13) — never named directly in the public API surface.
+    _Orchestrator = Any
+
+
+def _emit_pipeline_events(
+    deltas: List["PipelineDelta"],
+) -> Iterator[LHPEvent]:
+    """Yield a ``PipelineStarted`` + single terminal per delta (no dangling).
+
+    Each delta is rendered as a :class:`PipelineStarted` immediately followed
+    by exactly ONE terminal — :class:`PipelineCompleted` (success) or
+    :class:`PipelineFailed` (failure) — so the §5.7 no-dangling-Starts and
+    ``count(PipelineStarted) == count(PipelineCompleted) + count(PipelineFailed)``
+    invariants hold. Shared by both the clean and the gate-abort paths.
+    """
+    for delta in deltas:
+        yield PipelineStarted(pipeline=delta.pipeline_name)
+        if delta.success:
+            yield PipelineCompleted(
+                pipeline=delta.pipeline_name,
+                duration_s=delta.duration_s,
+                files_written=delta.files_written,
+            )
+        else:
+            response = _delta_to_generation_response(delta, output_dir=None)
+            yield PipelineFailed(
+                pipeline=delta.pipeline_name,
+                code=response.error_code or "LHP-GEN-901",
+                message=response.error_message or "(no message)",
+            )
+
+
+def _stream_plan_generation(
+    orchestrator: "_Orchestrator",
+    *,
+    env: str,
+    pipeline_filter: Optional[str] = None,
+    include_tests: bool = False,
+) -> Iterator[LHPEvent]:
+    """Yield the full §5.7 progress stream for plan-only generation.
+
+    Implements :meth:`lhp.api.GenerationFacade.plan_generation` (see its
+    docstring for the public contract). Emits, in order:
+    :class:`OperationStarted` → paired ``discover`` / ``preflight`` phases →
+    ``generate`` phase with per-pipeline ``PipelineStarted`` + terminal pairs →
+    terminal :class:`GenerationPlanCompleted` carrying the
+    :class:`~lhp.api.GenerationPlan`.
+
+    A structured (:class:`LHPError`) failure — most importantly the
+    all-or-nothing gate aggregate — RAISES after the per-pipeline failure
+    events and a single :class:`ErrorEmitted` (§1.4), before any temp write.
+    There is NO non-LHP infra-degradation path: a plan performs no commit-time
+    disk write.
+    """
+    yield OperationStarted(operation_name="plan_generation", env=env)
+
+    # Phase: discover. Same D1 seam as ``generate_pipelines`` — no facade-owned
+    # discovery work runs here today (the plan primitive's underlying drive
+    # lazily discovers); emitted as a paired Start/Complete so the §5.7
+    # phase-pairing invariant holds.
+    discover_start = time.perf_counter()
+    yield PhaseStarted(phase="discover")
+    yield PhaseCompleted(
+        phase="discover",
+        duration_s=time.perf_counter() - discover_start,
+        success=True,
+    )
+
+    # Phase: preflight. §9.24 — single-sourced in ``_run_project_preflight``
+    # (shared with generate/validate). A plan reuses the SAME gate as a real
+    # generate, so preflight raises here too. ``bundle_enabled=False``: a plan
+    # never writes bundle resources, so the bundle catalog/schema check is not
+    # part of the plan contract. MUST sit in this OUTER generator (before the
+    # generate phase) so a preflight failure surfaces via the ErrorEmitted/raise
+    # rendezvous rather than being swallowed downstream.
+    preflight_start = time.perf_counter()
+    yield PhaseStarted(phase="preflight")
+    preflight_issues = _run_project_preflight(
+        orchestrator,
+        env=env,
+        bundle_enabled=False,
+        include_tests=include_tests,
+        pre_discovered_all_flowgroups=None,
+    )
+    if preflight_issues:
+        yield PhaseCompleted(
+            phase="preflight",
+            duration_s=time.perf_counter() - preflight_start,
+            success=False,
+        )
+        preflight_error = _issue_view_to_lhp_error(preflight_issues[0])
+        yield ErrorEmitted(lhp_error=preflight_error)
+        raise preflight_error
+    yield PhaseCompleted(
+        phase="preflight",
+        duration_s=time.perf_counter() - preflight_start,
+        success=True,
+    )
+
+    # Phase: generate (plan-only). Drive the plan primitive, emit the paired
+    # per-pipeline events from the deltas it forwards, then the terminal
+    # ``GenerationPlanCompleted``.
+    #
+    # The plan primitive forwards each ``PipelineDelta`` (IN INPUT-PIPELINE
+    # ORDER) to its ``on_pipeline_complete`` sink as it drains. A callback
+    # cannot ``yield`` into this generator, and the formatted plan tree does not
+    # exist until the primitive has fully drained (the terminal ruff pass
+    # formats the whole temp tree in one shot). So the sink only COLLECTS the
+    # deltas; the paired ``PipelineStarted`` + terminal events are emitted from
+    # the collected list AFTER the primitive returns, in forwarded (== input /
+    # commit) order. This still upholds §5.7: every Started is immediately
+    # followed by its own terminal, and the terminal plan event is yielded last.
+    generate_start = time.perf_counter()
+    yield PhaseStarted(phase="generate")
+    collected_deltas: List["PipelineDelta"] = []
+    try:
+        with perf_timer("facade.plan_generation"):
+            result = build_generation_plan(
+                orchestrator,
+                env=env,
+                pipeline_filter=pipeline_filter,
+                include_tests=include_tests,
+                on_pipeline_complete=collected_deltas.append,
+            )
+    except LHPError as exc:
+        # §1.4 rendezvous: the gate raised after forwarding every failure delta
+        # to the sink. Emit the paired per-pipeline events, then exactly one
+        # ErrorEmitted, then re-raise (bare ``raise`` keeps the cause chain,
+        # B904). No PhaseCompleted/terminal follows (the raise closes the
+        # stream). Unlike the real generate there is NO non-LHP commit-time
+        # degradation path: a plan never writes to ``generated/<env>``.
+        yield from _emit_pipeline_events(collected_deltas)
+        yield ErrorEmitted(lhp_error=exc)
+        raise
+
+    yield from _emit_pipeline_events(collected_deltas)
+    yield PhaseCompleted(
+        phase="generate",
+        duration_s=time.perf_counter() - generate_start,
+        success=True,
+    )
+    # ``output_location`` is the REAL ``generated/<env>`` directory a normal
+    # generate WOULD write to — derived the same way the CLI does
+    # (``<project_root>/generated/<env>``) — even though the run wrote only a
+    # discarded temp tree.
+    output_location = orchestrator.project_root / "generated" / env
+    plan = _generation_result_to_plan(result, output_location=output_location)
+    yield GenerationPlanCompleted(response=plan)

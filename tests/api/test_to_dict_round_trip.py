@@ -37,15 +37,22 @@ from lhp.api import (
     DependencyAnalysisResult,
     DependencyOutputEntry,
     DependencyOutputsResult,
-    FinalizeMonitoringResult,
     FlowgroupView,
     GeneratedCodeView,
     GenerationCompleted,
+    GenerationPlan,
+    GenerationPlanCompleted,
     GenerationResponse,
     InitProjectResult,
     OperationCompleted,
     OperationStarted,
+    PhaseCompleted,
+    PhaseStarted,
+    PipelineCompleted,
+    PipelineFailed,
+    PipelineStarted,
     PipelineStats,
+    PlannedFileView,
     PresetView,
     ProcessedFlowgroupView,
     ProjectConfigView,
@@ -57,6 +64,7 @@ from lhp.api import (
     ValidationCompleted,
     ValidationIssueView,
     ValidationResponse,
+    WarningEmitted,
     to_dict,
 )
 
@@ -71,6 +79,8 @@ _TYPE_NS: dict[str, Any] = {
     "BatchGenerationResponse": BatchGenerationResponse,
     "BatchValidationResponse": BatchValidationResponse,
     "BundleSyncResult": BundleSyncResult,
+    "GenerationPlan": GenerationPlan,
+    "PlannedFileView": PlannedFileView,
 }
 
 
@@ -259,14 +269,6 @@ _INSTANCES = [
         id="DependencyOutputsResult",
     ),
     pytest.param(
-        FinalizeMonitoringResult(
-            success=True,
-            monitoring_pipeline_path=Path("mon.py"),
-            event_log_table_created=True,
-        ),
-        id="FinalizeMonitoringResult",
-    ),
-    pytest.param(
         BundleSyncResult(
             success=True,
             synced_file_count=3,
@@ -375,6 +377,82 @@ _INSTANCES = [
             default_secret_scope="kv",
         ),
         id="SubstitutionView",
+    ),
+    # --- FREEZE-1 additions -------------------------------------------------
+    pytest.param(PhaseStarted(phase="discovery"), id="PhaseStarted"),
+    pytest.param(
+        PhaseCompleted(phase="generation", duration_s=1.5, success=True),
+        id="PhaseCompleted",
+    ),
+    pytest.param(PipelineStarted(pipeline="bronze"), id="PipelineStarted"),
+    pytest.param(
+        PipelineCompleted(pipeline="bronze", duration_s=2.0, files_written=3),
+        id="PipelineCompleted",
+    ),
+    pytest.param(
+        PipelineFailed(pipeline="bronze", code="LHP-VAL-021", message="boom"),
+        id="PipelineFailed",
+    ),
+    # ``WarningEmitted`` carries no live exception (unlike ``ErrorEmitted``),
+    # so it round-trips; exercise the non-None ``file`` Path field.
+    pytest.param(
+        WarningEmitted(
+            message="deprecated field used",
+            code="LHP-DEP-001",
+            category="DEP",
+            file=Path("pipelines/bronze/customer.yaml"),
+            flowgroup="customer_ingest",
+        ),
+        id="WarningEmitted",
+    ),
+    pytest.param(
+        PlannedFileView(
+            path=Path("generated/dev/bronze/customer.py"),
+            content="import dlt\n\n\n@dlt.table\ndef customer():\n    return df\n",
+            pipeline="bronze",
+            kind="flowgroup",
+        ),
+        id="PlannedFileView",
+    ),
+    pytest.param(
+        GenerationPlan(
+            files=(
+                PlannedFileView(
+                    path=Path("generated/dev/bronze/customer.py"),
+                    content="x = 1\n",
+                    pipeline="bronze",
+                    kind="flowgroup",
+                ),
+                PlannedFileView(
+                    path=Path("generated/dev/_helpers/udfs.py"),
+                    content="def f():\n    return 1\n",
+                    pipeline="bronze",
+                    kind="helper",
+                ),
+            ),
+            output_location=Path("generated/dev"),
+            pipeline_count=1,
+            file_count=2,
+        ),
+        id="GenerationPlan",
+    ),
+    pytest.param(
+        GenerationPlanCompleted(
+            response=GenerationPlan(
+                files=(
+                    PlannedFileView(
+                        path=Path("generated/dev/bronze/customer.py"),
+                        content="x = 1\n",
+                        pipeline="bronze",
+                        kind="flowgroup",
+                    ),
+                ),
+                output_location=Path("generated/dev"),
+                pipeline_count=1,
+                file_count=1,
+            )
+        ),
+        id="GenerationPlanCompleted",
     ),
 ]
 

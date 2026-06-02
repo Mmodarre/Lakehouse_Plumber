@@ -328,13 +328,16 @@ environment:
             output_dir = project_root / "generated"
             orchestrator = build_facade_orchestrator(project_root)
             # Single-pipeline generation now goes through the consolidated
-            # ``generate_pipelines`` (orchestrator.py:387); the per-field helper
+            # ``generate_pipelines`` (a generator since E3); the per-field helper
             # ``generate_pipeline_by_field`` was removed. A single pipeline is
-            # selected via the keyword-only ``pipeline_filter``.
-            orchestrator.generate_pipelines(
-                pipeline_filter="test_pipeline",
-                env="dev",
-                output_dir=output_dir,
+            # selected via the keyword-only ``pipeline_filter``. Drain the
+            # generator so the commit step actually writes the files read below.
+            list(
+                orchestrator.generate_pipelines(
+                    pipeline_filter="test_pipeline",
+                    env="dev",
+                    output_dir=output_dir,
+                )
             )
 
             # Get the generated code for test_flow

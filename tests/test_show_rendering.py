@@ -8,7 +8,7 @@ dumped as YAML and wrapped in a Rich ``Syntax`` block inside a
 :class:`lhp.api.views.ProcessedFlowgroupView` (built by the facade via
 ``dataclasses.asdict``), not a Pydantic :class:`FlowGroup`. The test
 builds that view through the real converter
-(:func:`lhp.api._converters._flowgroup_to_processed_view`) so the
+(:func:`lhp.api._inspection_converters._flowgroup_to_processed_view`) so the
 projected surface — ``flowgroup`` summary + action-type fields, no raw
 ``source`` payload — matches production.
 """
@@ -18,7 +18,7 @@ from io import StringIO
 from rich.console import Console as RichConsole
 
 import lhp.cli.console as _lhp_console_module
-from lhp.api._converters import _flowgroup_to_processed_view
+from lhp.api._inspection_converters import _flowgroup_to_processed_view
 from lhp.api.views import ProcessedFlowgroupView
 from lhp.cli.commands.show_command import ShowCommand
 from lhp.models import Action, ActionType, FlowGroup

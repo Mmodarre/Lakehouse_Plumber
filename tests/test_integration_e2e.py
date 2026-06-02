@@ -603,3 +603,274 @@ version: "1.0"
         assert bundle_manager.project_root == project_root
         assert bundle_manager.resources_dir.name == "lhp"
         assert bundle_manager.resources_dir.parent.name == "resources"
+
+
+class TestConsolidatedGenerateStream:
+    """D-generate: the FULL generate orchestration as one event stream.
+
+    Verifies that ``GenerationFacade.generate_pipelines`` absorbs discovery,
+    monitoring-finalize, and bundle-sync as in-stream phases with a SINGLE
+    terminal — replacing the former separately-CLI-called public steps.
+    """
+
+    def setup_method(self):
+        self.temp_dir = Path(tempfile.mkdtemp())
+        self.original_cwd = os.getcwd()
+
+    def teardown_method(self):
+        os.chdir(self.original_cwd)
+        shutil.rmtree(self.temp_dir)
+
+    @staticmethod
+    def _drain(events):
+        """Collect (phase_starts, phase_completes, terminals, errors, raised)."""
+        from lhp.api.events import (
+            BundleSyncCompleted,
+            ErrorEmitted,
+            GenerationCompleted,
+            PhaseCompleted,
+            PhaseStarted,
+        )
+        from lhp.errors import LHPError
+
+        phase_starts: list[str] = []
+        phase_completes: list[tuple[str, bool]] = []
+        generation_terminals = 0
+        bundle_terminals = 0
+        errors: list[str] = []
+        raised: object = None
+        try:
+            for ev in events:
+                if isinstance(ev, PhaseStarted):
+                    phase_starts.append(ev.phase)
+                elif isinstance(ev, PhaseCompleted):
+                    phase_completes.append((ev.phase, ev.success))
+                elif isinstance(ev, GenerationCompleted):
+                    generation_terminals += 1
+                elif isinstance(ev, BundleSyncCompleted):
+                    bundle_terminals += 1
+                elif isinstance(ev, ErrorEmitted):
+                    errors.append(ev.lhp_error.code)
+        except LHPError as exc:
+            raised = exc
+        return (
+            phase_starts,
+            phase_completes,
+            generation_terminals,
+            bundle_terminals,
+            errors,
+            raised,
+        )
+
+    def _base_pipeline(self, root: Path):
+        (root / "substitutions").mkdir(parents=True, exist_ok=True)
+        (root / "substitutions" / "dev.yaml").write_text(
+            "dev:\n  catalog: test_catalog\n  raw_schema: raw\n"
+        )
+        (root / "pipelines").mkdir(parents=True, exist_ok=True)
+        (root / "pipelines" / "p1.yaml").write_text(
+            "pipeline: p1\n"
+            "flowgroup: fg1\n"
+            "actions:\n"
+            "  - name: load_t\n"
+            "    type: load\n"
+            "    source:\n"
+            "      type: delta\n"
+            '      database: "{catalog}.{raw_schema}"\n'
+            "      table: t\n"
+            "    target: v_t\n"
+            "  - name: write_t\n"
+            "    type: write\n"
+            "    source: v_t\n"
+            "    write_target:\n"
+            "      type: streaming_table\n"
+            '      database: "{catalog}.bronze"\n'
+            "      table: t\n"
+        )
+
+    def _setup_monitoring_project(self) -> Path:
+        """A monitoring-enabled project (event_log + monitoring config)."""
+        root = self.temp_dir / "mon_project"
+        root.mkdir(parents=True)
+        (root / "lhp.yaml").write_text(
+            "name: monproj\n"
+            'version: "1.0"\n'
+            "event_log:\n"
+            '  catalog: "test_catalog"\n'
+            "  schema: _meta\n"
+            '  name_suffix: "_event_log"\n'
+            "monitoring:\n"
+            '  checkpoint_path: "/Volumes/test_catalog/_meta/checkpoints/event_logs"\n'
+            '  job_config_path: "config/monitoring_job_config.yaml"\n'
+        )
+        (root / "config").mkdir(exist_ok=True)
+        (root / "config" / "monitoring_job_config.yaml").write_text(
+            "max_concurrent_runs: 1\n"
+            "performance_target: STANDARD\n"
+            "queue:\n"
+            "  enabled: true\n"
+            "tags:\n"
+            "  managed_by: lakehouse_plumber\n"
+        )
+        self._base_pipeline(root)
+        return root
+
+    def _setup_bundle_project(self) -> Path:
+        """A bundle-enabled project with a pipeline_config (catalog/schema)."""
+        root = self.temp_dir / "bundle_project"
+        root.mkdir(parents=True)
+        (root / "databricks.yml").write_text(
+            "bundle:\n  name: test_bundle\n"
+            "include:\n  - resources/*.yml\n  - resources/lhp/*.yml\n"
+            "targets:\n  dev:\n    mode: development\n    default: true\n"
+            "    workspace:\n      host: test.databricks.com\n"
+        )
+        (root / "lhp.yaml").write_text('name: bundleproj\nversion: "1.0"\n')
+        (root / "config").mkdir(exist_ok=True)
+        (root / "config" / "pipeline_config.yaml").write_text(
+            "project_defaults:\n  catalog: test_catalog\n  schema: bronze\n"
+        )
+        self._base_pipeline(root)
+        return root
+
+    def test_monitoring_artifacts_produced_in_stream(self):
+        """A monitoring-enabled generate produces monitoring artifacts via the
+        in-stream ``monitoring`` phase (no separate finalize call needed)."""
+        root = self._setup_monitoring_project()
+        facade = LakehousePlumberApplicationFacade.for_project(
+            root, enforce_version=False
+        )
+        output_dir = root / "generated"
+
+        (
+            phase_starts,
+            phase_completes,
+            generation_terminals,
+            bundle_terminals,
+            errors,
+            raised,
+        ) = self._drain(
+            facade.generation.generate_pipelines(
+                pipeline_fields=["p1"], env="dev", output_dir=output_dir
+            )
+        )
+
+        assert raised is None
+        assert errors == []
+        # Single terminal; no nested BundleSyncCompleted (bundle not enabled).
+        assert generation_terminals == 1
+        assert bundle_terminals == 0
+        # The consolidated stream includes the in-stream monitoring phase.
+        assert "monitoring" in phase_starts
+        assert ("monitoring", True) in phase_completes
+        # Discover/preflight/generate precede it, in order.
+        assert phase_starts[:4] == ["discover", "preflight", "generate", "monitoring"]
+        # Monitoring artifacts were actually written (the absorbed
+        # finalize-monitoring behavior ran via the orchestrator).
+        assert (
+            output_dir.parent / "monitoring" / "dev" / "union_event_logs.py"
+        ).exists()
+        job_resources = list((root / "resources").glob("*.job.yml"))
+        assert job_resources, "monitoring job resource yml should be produced"
+
+    def test_bundle_sync_in_stream_single_terminal(self):
+        """A bundle-enabled generate runs bundle-sync as an in-stream phase,
+        producing bundle resources and exactly ONE GenerationCompleted."""
+        root = self._setup_bundle_project()
+        facade = LakehousePlumberApplicationFacade.for_project(
+            root,
+            pipeline_config_path="config/pipeline_config.yaml",
+            enforce_version=False,
+        )
+        output_dir = root / "generated"
+
+        (
+            phase_starts,
+            phase_completes,
+            generation_terminals,
+            bundle_terminals,
+            errors,
+            raised,
+        ) = self._drain(
+            facade.generation.generate_pipelines(
+                pipeline_fields=["p1"],
+                env="dev",
+                output_dir=output_dir,
+                bundle_enabled=True,
+            )
+        )
+
+        assert raised is None
+        assert errors == []
+        # Exactly ONE terminal, and it is GenerationCompleted — NOT a nested
+        # BundleSyncCompleted (the bundle-sync result is folded into the single
+        # generate stream per D2).
+        assert generation_terminals == 1
+        assert bundle_terminals == 0
+        # The stream includes the bundle_sync phase, after monitoring.
+        assert "bundle_sync" in phase_starts
+        assert ("bundle_sync", True) in phase_completes
+        assert phase_starts == [
+            "discover",
+            "preflight",
+            "generate",
+            "monitoring",
+            "bundle_sync",
+        ]
+        # Bundle resources were produced under resources/lhp/.
+        lhp_resource = root / "resources" / "lhp" / "p1.pipeline.yml"
+        assert lhp_resource.exists()
+
+    def test_bundle_sync_failure_emits_error_and_raises(self):
+        """A bundle-sync LHPError mid-stream emits ErrorEmitted then RAISES —
+        the raise is the terminal, so NO GenerationCompleted is emitted, and the
+        already-generated Python files persist on disk (§1.4 / §9.19)."""
+        from lhp.errors import LHPError
+
+        root = self._setup_bundle_project()
+        # Force a bundle-sync failure: make resources/lhp a symlink, which the
+        # wipe-and-regenerate guard refuses to delete -> BundleResourceError
+        # (LHP-CFG-020), a structured LHPError.
+        resources = root / "resources"
+        resources.mkdir(exist_ok=True)
+        symlink_target = root / "elsewhere"
+        symlink_target.mkdir(exist_ok=True)
+        os.symlink(symlink_target, resources / "lhp")
+
+        output_dir = root / "generated"
+        facade = LakehousePlumberApplicationFacade.for_project(
+            root,
+            pipeline_config_path="config/pipeline_config.yaml",
+            enforce_version=False,
+        )
+
+        (
+            phase_starts,
+            phase_completes,
+            generation_terminals,
+            bundle_terminals,
+            errors,
+            raised,
+        ) = self._drain(
+            facade.generation.generate_pipelines(
+                pipeline_fields=["p1"],
+                env="dev",
+                output_dir=output_dir,
+                bundle_enabled=True,
+            )
+        )
+
+        # The bundle_sync phase was entered and completed with success=False.
+        assert "bundle_sync" in phase_starts
+        assert ("bundle_sync", False) in phase_completes
+        # Exactly one ErrorEmitted, then a raise — and NO terminal
+        # GenerationCompleted (the raise closes the stream per §1.4).
+        assert len(errors) == 1
+        assert isinstance(raised, LHPError)
+        assert raised.code == "LHP-CFG-020"
+        assert generation_terminals == 0
+        assert bundle_terminals == 0
+        # The Python files committed by the generate phase PERSIST: the bundle
+        # failure does not roll the generated tree back (§9.19).
+        assert (output_dir / "p1").exists()
+        assert list((output_dir / "p1").glob("*.py"))

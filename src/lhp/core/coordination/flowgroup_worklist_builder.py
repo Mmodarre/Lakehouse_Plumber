@@ -42,7 +42,6 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, Tuple
 from lhp.models import FlowGroup, FlowGroupContext
 
 from ...utils.performance_timer import perf_timer
-from .._interfaces import BaseWarningCollector
 
 if TYPE_CHECKING:
     from ..orchestrator import ActionOrchestrator
@@ -56,7 +55,6 @@ def build_flowgroup_worklist(
     env: str,
     output_dir: Optional[Path],
     pre_discovered_all_flowgroups: Optional[List[FlowGroup]],
-    warning_collector: Optional[BaseWarningCollector],
 ) -> Tuple[
     Dict[str, List[FlowGroupContext]],
     Dict[str, "EnhancedSubstitutionManager"],
@@ -109,8 +107,6 @@ def build_flowgroup_worklist(
         pre_discovered_all_flowgroups: A pre-computed full flowgroup list to
             reuse (single-parse memoization); ``None`` triggers a
             fresh ``discover_all_flowgroups`` here.
-        warning_collector: Optional sink for the deprecated-bare-token
-            substitution-syntax deprecation warning; ``None`` suppresses it.
 
     Returns:
         The 4-tuple ``(flowgroups_by_pipeline, substitution_managers,
@@ -158,12 +154,10 @@ def build_flowgroup_worklist(
         sub_mgr = orchestrator._orchestration_dependencies.create_substitution_manager(
             substitution_file, env
         )
-        if warning_collector is not None and sub_mgr.has_deprecated_bare_tokens:
-            warning_collector.add(
-                "deprecation",
-                "The bare {token} substitution syntax is deprecated and will "
-                "be removed in v1.0. Use ${token} instead.",
-            )
+        # Bare-``{token}`` deprecation detection is single-sourced in
+        # ``FlowgroupDiscoveryService.scan_deprecation_warnings`` (scans every
+        # file once, one ``DeprecationWarningRecord`` per offending file, which
+        # the facade re-emits as ``WarningEmitted``) — not duplicated here.
         substitution_managers[pipeline_field] = sub_mgr
 
     return (

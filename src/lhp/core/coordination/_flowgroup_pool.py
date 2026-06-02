@@ -49,6 +49,7 @@ from typing import TYPE_CHECKING, Any, List, Literal, Mapping, Optional
 
 from lhp.models import FlowGroupContext
 
+from ...models.deprecations import collect_deprecations, drain_deprecations
 from ...models.processing import FlowgroupOutcome
 from ...utils.performance_timer import (
     enable_perf_timing,
@@ -195,30 +196,49 @@ def _process_one_flowgroup(
     *,
     mode: WorkerMode,
 ) -> FlowgroupOutcome:
-    """Single-wave worker entry: perf envelope around the impl.
+    """Single-wave worker entry: perf + deprecation envelope around the impl.
 
     Preserves the exact public name :func:`_process_one_flowgroup` (it is
     in :mod:`.executor`'s ``__all__`` and is monkeypatched by engine tests
-    — constitution §5.6 bars renaming it). Localizes ALL perf concern in
-    this one wrapper so the DTO constructors and the impl stay perf-free:
+    — constitution §5.6 bars renaming it). Localizes ALL perf concern AND
+    the worker→main deprecation-warning collection in this one wrapper so
+    the DTO constructors and the impl stay free of both:
 
+    - A :func:`~lhp.models.deprecations.collect_deprecations` scope wraps the
+      WHOLE impl (resolve + per-flowgroup validation + codegen), stamped with
+      this flowgroup's ``source_yaml`` / name. Soft-deprecation sites nested
+      anywhere under it (the ``database`` / ``database_suffix`` normalization,
+      the schema-transform ``enforcement`` key) call
+      :func:`~lhp.models.deprecations.record_deprecation`; the worker runs
+      under a ``NullHandler`` so those would otherwise be lost. The drained,
+      deduped records ride back on :attr:`FlowgroupOutcome.warnings` for the
+      coordinator to merge and re-emit as ``WarningEmitted`` events.
     - When perf is enabled in this worker, :func:`reset_perf_summary`
       scopes the in-memory singleton to THIS flowgroup (one task per
       ProcessPoolExecutor worker at a time → race-free), the impl runs (its
       ``perf_timer`` calls fire into the singleton), and the aggregate is
       attached to the returned outcome via :func:`dataclasses.replace`.
-    - When perf is off, the impl's outcome is returned unchanged
-      (``perf=None``), preserving the zero-overhead contract.
+    - When perf is off, ``perf`` stays ``None``, preserving the
+      zero-overhead contract.
 
-    NEVER raises (the impl is total); ``dataclasses.replace`` on a frozen
-    outcome cannot raise here.
+    NEVER raises (the impl is total); the scope context manager and
+    ``dataclasses.replace`` on a frozen outcome cannot raise here.
     """
     perf_on = is_perf_enabled()
     if perf_on:
         reset_perf_summary()
-    outcome = _process_one_flowgroup_impl(ctx, mode=mode)
+    with collect_deprecations(
+        file=ctx.source_yaml,
+        flowgroup=ctx.flowgroup.flowgroup,
+    ) as collector:
+        outcome = _process_one_flowgroup_impl(ctx, mode=mode)
+    warnings = drain_deprecations(collector)
+    if warnings:
+        # The impl never sets ``warnings`` itself (sites use the ambient
+        # scope), so replacing the default ``()`` is the whole attach.
+        outcome = dataclasses.replace(outcome, warnings=warnings)
     if perf_on:
-        return dataclasses.replace(outcome, perf=export_perf_for_merge())
+        outcome = dataclasses.replace(outcome, perf=export_perf_for_merge())
     return outcome
 
 

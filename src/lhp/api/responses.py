@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Mapping, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Literal, Mapping, Optional, Sequence, Tuple, Union
 
 if TYPE_CHECKING:
     # Forward references for the view DTOs used in nested response
@@ -276,27 +276,6 @@ class DependencyOutputsResult:
 
 
 @dataclass(frozen=True)
-class FinalizeMonitoringResult:
-    """Outcome of post-generation monitoring-artifact finalization.
-
-    Returned by :meth:`GenerationFacade.finalize_monitoring_artifacts`.
-    Failure information is carried via flat ``error_message`` /
-    ``error_code`` fields rather than a live exception so the DTO
-    remains picklable and constitution §4.8 compliant. ``success=True``
-    with ``monitoring_pipeline_path=None`` indicates a no-op
-    (monitoring not configured or no synthetic flowgroup was built).
-
-    :stability: provisional
-    """
-
-    success: bool
-    monitoring_pipeline_path: Optional[Path]
-    event_log_table_created: bool
-    error_message: Optional[str] = None
-    error_code: Optional[str] = None
-
-
-@dataclass(frozen=True)
 class BundleSyncResult:
     """Outcome of a bundle resource sync run.
 
@@ -357,6 +336,56 @@ class BundleEnableResult:
     created_dirs: Tuple[Path, ...]
     error_message: Optional[str] = None
     error_code: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class PlannedFileView:
+    """A single file a generation run intends to write.
+
+    Element of :class:`GenerationPlan.files`. Carries the resolved
+    target ``path``, the rendered ``content``, the owning ``pipeline``,
+    and a ``kind`` discriminator that classifies the file's role in the
+    output tree. ``kind`` is a ``Literal`` discriminator (§4.8), not a
+    free-form string, so consumers can branch exhaustively:
+
+    - ``"flowgroup"`` — a generated flowgroup module.
+    - ``"aux"`` — an auxiliary file (e.g. ``__init__.py``).
+    - ``"helper"`` — a copied transitive helper module.
+    - ``"test_hook"`` — a generated test-action hook file.
+    - ``"monitoring"`` — a synthetic monitoring-pipeline file.
+
+    Immutable and JSON-shape-compatible (§4.8): ``path`` serialises to
+    ``str`` via :func:`lhp.api.to_dict` and reconstructs to :class:`Path`.
+
+    :stability: provisional
+    """
+
+    path: Path
+    content: str
+    pipeline: str
+    kind: Literal["flowgroup", "aux", "helper", "test_hook", "monitoring"]
+
+
+@dataclass(frozen=True)
+class GenerationPlan:
+    """The full set of files a generation run intends to write.
+
+    Returned (wrapped in :class:`lhp.api.events.GenerationPlanCompleted`)
+    by the plan-only generation path: the run resolves every flowgroup
+    and renders every file but writes nothing to disk. ``files`` is a
+    frozen ``Tuple`` of :class:`PlannedFileView` — a tuple, not a
+    ``Mapping[Path, str]``, so the contract never depends on a
+    ``Path``-typed mapping key (§4.8). ``pipeline_count`` /
+    ``file_count`` are the aggregate counts; ``output_location`` is the
+    root directory the files would be written under.
+
+    :stability: provisional
+    """
+
+    files: Tuple["PlannedFileView", ...]
+    output_location: Optional[Path]
+    pipeline_count: int
+    file_count: int
 
 
 # ``ValidationIssueView`` / ``PipelineStats`` are referenced by string

@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
-    Dict,
+    Generator,
     List,
     Literal,
     Mapping,
@@ -38,7 +38,7 @@ from typing import (
 from lhp.models import FlowGroup, FlowGroupContext
 
 from ..models.dependencies import DependencyAnalysisResult, DependencyGraphs
-from ..models.processing import CopiedModuleRecord
+from ..models.processing import CopiedModuleRecord, DeprecationWarningRecord
 from .processing.substitution import EnhancedSubstitutionManager as SubstitutionManager
 
 
@@ -66,11 +66,12 @@ class CrossFlowgroupCheckResult:
 if TYPE_CHECKING:
     from lhp.models import ProjectConfig
 
-    # PipelineValidationOutcome currently lives in `core/coordination/executor.py`;
-    # it will move to `models/processing.py` (or `lhp/api/`) once the public DTO
-    # surface is consolidated. Importing under TYPE_CHECKING avoids freezing
-    # that destination here.
-    from .coordination.executor import PipelineValidationOutcome
+    from ..models.processing import PipelineDelta
+
+    # PipelineValidationOutcome lives in the leaf module
+    # `core/coordination/_validation_outcome.py` (re-exported from `.executor`);
+    # imported under TYPE_CHECKING here only for the ABC return annotation.
+    from .coordination._validation_outcome import PipelineValidationOutcome
 
 
 class BaseFlowgroupDiscoveryService(ABC):
@@ -106,6 +107,25 @@ class BaseFlowgroupDiscoveryService(ABC):
         """Return the source YAML path for a flowgroup, or ``None`` if unresolved.
 
         Multi-document (``---``) and flowgroups-array files are supported.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def scan_deprecation_warnings(self) -> Tuple[DeprecationWarningRecord, ...]:
+        """Scan all discovered flowgroup YAML for deprecated substitution syntax.
+
+        The consolidated MAIN-THREAD detection point for the deprecated
+        bare-``{token}`` substitution syntax (``LHP-DEPR-001``; use
+        ``${token}`` — ``%{local_var}`` stays valid). Scans EVERY discovered
+        file and returns EXACTLY ONE :class:`DeprecationWarningRecord` per
+        offending file (multiple bare tokens in a file collapse to one
+        record; ``file`` is that file's path, ``flowgroup`` is ``None``).
+        Files using only ``${...}`` / ``%{...}`` / ``{{...}}`` yield none.
+
+        These are main-thread warnings (the read path precedes the worker
+        pool), distinct from the worker-side warnings that ride back on
+        ``FlowgroupOutcome.warnings``. The facade wrapper merges this tuple
+        into the event stream as ``WarningEmitted`` events.
         """
         raise NotImplementedError
 
@@ -228,9 +248,10 @@ class BasePipelineExecutionService(ABC):
     consolidated flat per-flowgroup engine, differing only in ``mode`` and the
     generate-only gate/commit extras. :meth:`run_validate` returns one
     :class:`PipelineValidationOutcome` per pipeline (REPORTS, never raises);
-    :meth:`run_generate` returns ``{pipeline -> generated filenames}`` and is
-    all-or-nothing (RAISES on any failure before any write), surfacing
-    per-pipeline :class:`PipelineDelta`s via its completion callback.
+    :meth:`run_generate` is a generator yielding one :class:`PipelineDelta`
+    per pipeline and is all-or-nothing (RAISES on any failure before any
+    write — failure deltas are yielded first, then the raise closes the
+    stream per §1.4).
 
     :stability: provisional
     """
@@ -248,8 +269,8 @@ class BasePipelineExecutionService(ABC):
         project_root: Path,
         max_workers: Optional[int] = None,
         apply_formatting: bool = True,
-    ) -> Dict[str, tuple[str, ...]]:
-        """Run generate across the flat worklist; return per-pipeline filenames.
+    ) -> Generator["PipelineDelta", None, Tuple[DeprecationWarningRecord, ...]]:
+        """Run generate across the flat worklist; YIELD per-pipeline deltas.
 
         The flat four-map shape — produced by
         ``flowgroup_worklist_builder.build_flowgroup_worklist`` with a REAL
@@ -266,11 +287,19 @@ class BasePipelineExecutionService(ABC):
         ``mode="generate"`` (codegen + AST-parse guard in the worker;
         ``apply_formatting`` gates the terminal ruff pass), applies the
         all-or-nothing gate (RAISES on any failure, before any write), then
-        commits each clean pipeline. Returns ``{pipeline -> generated
-        filenames}`` for the committed pipelines, in input order; the
-        per-pipeline :class:`PipelineDelta`s flow out-of-band via the
-        ``on_generate_pipeline_complete`` callback registered on the concrete
-        service.
+        commits each clean pipeline. This is a GENERATOR yielding one
+        :class:`PipelineDelta` per pipeline in DETERMINISTIC INPUT PIPELINE
+        ORDER: every failure delta first, then — after the gate raises on any
+        failure (§1.4 closes the stream) — a success delta per committed
+        pipeline. Consumers (the facade via the orchestrator) MUST fully drain
+        it: the terminal whole-env format pass runs after the last success
+        delta.
+
+        RETURNS (via ``StopIteration.value``, captured by a ``yield from``) the
+        batch's worker-attached deprecation warnings, merged + deduped by
+        ``(code, file)``, for the facade to re-emit as
+        :class:`~lhp.api.WarningEmitted` events. Not delivered on the
+        gate-raise path (the §1.4 raise closes the stream).
 
         :raises LHPError: the sole failure's error, or ``LHP-VAL-902`` (many);
             also raised for a non-empty ``discovery_errors``.
@@ -285,8 +314,10 @@ class BasePipelineExecutionService(ABC):
         substitution_managers: Mapping[str, "SubstitutionManager"],
         output_dirs: Mapping[str, Optional[Path]],
         discovery_errors: Mapping[str, str],
-    ) -> Tuple["PipelineValidationOutcome", ...]:
-        """Run validate across the flat worklist and return one outcome per pipeline.
+    ) -> Generator[
+        "PipelineValidationOutcome", None, Tuple[DeprecationWarningRecord, ...]
+    ]:
+        """Run validate across the flat worklist; YIELD one outcome per pipeline.
 
         The flat four-map shape — produced by
         ``flowgroup_worklist_builder.build_flowgroup_worklist`` — replaces the
@@ -294,6 +325,17 @@ class BasePipelineExecutionService(ABC):
         keyed in pipeline-input order, the per-pipeline ``substitution_managers``
         and ``output_dirs``, and ``discovery_errors`` mapping a pipeline to its
         discovery-failure message.
+
+        This is a GENERATOR yielding one :class:`PipelineValidationOutcome` per
+        pipeline in DETERMINISTIC INPUT PIPELINE ORDER. Validate REPORTS and
+        never raises on findings — there is no gate, so (unlike
+        :meth:`run_generate`'s failures-then-raise) the stream simply runs to
+        completion.
+
+        RETURNS (via ``StopIteration.value``, captured by a ``yield from``) the
+        batch's worker-attached deprecation warnings, merged + deduped by
+        ``(code, file)``, for the facade to re-emit as
+        :class:`~lhp.api.WarningEmitted` events.
         """
         raise NotImplementedError
 
@@ -387,20 +429,4 @@ class BaseFlowgroupBootstrapService(ABC):
         accumulated by :meth:`discover_all_flowgroups`; falls back to a
         non-synthetic, empty-provenance envelope when no entry is found.
         """
-        raise NotImplementedError
-
-
-class BaseWarningCollector(ABC):
-    """Sink for non-fatal warnings surfaced during generation/validation.
-
-    Lets ``core`` code accept a warning sink without importing the concrete
-    :class:`lhp.api.callbacks.WarningCollector` (which inherits this ABC),
-    keeping the ``core`` → ``api`` dependency edge severed.
-
-    :stability: provisional
-    """
-
-    @abstractmethod
-    def add(self, category: str, message: str) -> None:
-        """Record a warning under the given category."""
         raise NotImplementedError

@@ -21,19 +21,25 @@ the terminal response DTO.
 
 from __future__ import annotations
 
-from typing import Iterator
+from typing import Iterator, MutableSequence, Optional
 
 from lhp.api._serialization import to_dict
 from lhp.api.bootstrap import LakehousePlumberBootstrap
-from lhp.api.callbacks import WarningCollector
 from lhp.api.events import (
     BundleSyncCompleted,
     ErrorEmitted,
     GenerationCompleted,
+    GenerationPlanCompleted,
     LHPEvent,
     OperationCompleted,
     OperationStarted,
+    PhaseCompleted,
+    PhaseStarted,
+    PipelineCompleted,
+    PipelineFailed,
+    PipelineStarted,
     ValidationCompleted,
+    WarningEmitted,
 )
 from lhp.api.facade import (
     BundleFacade,
@@ -51,10 +57,11 @@ from lhp.api.responses import (
     DependencyAnalysisResult,
     DependencyOutputEntry,
     DependencyOutputsResult,
-    FinalizeMonitoringResult,
+    GenerationPlan,
     GenerationResponse,
     InitProjectResult,
     JSONValue,
+    PlannedFileView,
     StatsResult,
     ValidationResponse,
 )
@@ -77,7 +84,11 @@ from lhp.api.views import (
 from lhp.bundle.detection import should_enable_bundle_support
 
 
-def collect_response(events: Iterator[LHPEvent]) -> object:
+def collect_response(
+    events: Iterator[LHPEvent],
+    *,
+    warnings_sink: Optional[MutableSequence["WarningEmitted"]] = None,
+) -> object:
     """Walk an LHPEvent stream and return the terminal ``response``.
 
     Callers who don't need event-level visibility use this helper::
@@ -91,16 +102,29 @@ def collect_response(events: Iterator[LHPEvent]) -> object:
     The return type is ``object`` here for typing-flexibility; the
     actual returned value is the response DTO of whichever stream was
     consumed (:class:`BatchGenerationResponse` /
-    :class:`BatchValidationResponse` / :class:`BundleSyncResult`).
-    Annotate at the call site if you need a precise type.
+    :class:`BatchValidationResponse` / :class:`BundleSyncResult` /
+    :class:`GenerationPlan`). Annotate at the call site if you need a
+    precise type.
 
     Terminal events are discovered via the :class:`OperationCompleted`
     base, so this helper does not need to enumerate concrete subclasses.
+
+    :param warnings_sink: Optional mutable sequence. When supplied, every
+        :class:`WarningEmitted` seen while draining the stream is appended
+        to it in arrival order, so non-stream callers can recover the
+        warnings the stream surfaced without iterating it themselves.
+        Defaults to ``None`` (warnings are drained and discarded, exactly
+        as before — the return value is unchanged either way). This
+        parameter and the :class:`WarningEmitted` type it collects are
+        ``:stability: provisional``; the ``:stability: stable`` guarantee
+        below covers the return contract only.
 
     :stability: stable
     """
     final_response: object = None
     for event in events:
+        if warnings_sink is not None and isinstance(event, WarningEmitted):
+            warnings_sink.append(event)
         if isinstance(event, OperationCompleted):
             final_response = event.response
     if final_response is None:
@@ -125,11 +149,12 @@ __all__: list[str] = [
     "DependencyOutputEntry",
     "DependencyOutputsResult",
     "ErrorEmitted",
-    "FinalizeMonitoringResult",
     "FlowgroupView",
     "GeneratedCodeView",
     "GenerationCompleted",
     "GenerationFacade",
+    "GenerationPlan",
+    "GenerationPlanCompleted",
     "GenerationResponse",
     "InitProjectResult",
     "InspectionFacade",
@@ -139,7 +164,13 @@ __all__: list[str] = [
     "LakehousePlumberBootstrap",
     "OperationCompleted",
     "OperationStarted",
+    "PhaseCompleted",
+    "PhaseStarted",
+    "PipelineCompleted",
+    "PipelineFailed",
+    "PipelineStarted",
     "PipelineStats",
+    "PlannedFileView",
     "PresetView",
     "ProcessedFlowgroupView",
     "ProjectConfigView",
@@ -152,7 +183,7 @@ __all__: list[str] = [
     "ValidationFacade",
     "ValidationIssueView",
     "ValidationResponse",
-    "WarningCollector",
+    "WarningEmitted",
     "collect_response",
     "should_enable_bundle_support",
     "to_dict",

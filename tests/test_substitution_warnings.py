@@ -3,8 +3,9 @@
 The legacy module-level ``_DEPRECATED_BARE_TOKEN_WARNED`` flag (and the
 ``logger.warning`` call that flipped it) was removed in Phase C of the
 LHP CLI UX Hardening Phase 2 plan. Per-instance ``has_deprecated_bare_tokens``
-is the replacement; downstream callers query it after construction and
-forward a single entry to the per-run :class:`WarningCollector`.
+is the replacement; the main-thread bare-token deprecation is now detected
+once by ``FlowgroupDiscoveryService.scan_deprecation_warnings`` and surfaced by
+the facade as a ``WarningEmitted`` event.
 """
 
 import logging
@@ -63,9 +64,10 @@ def test_no_logger_warning_emitted_from_substitution(tmp_path, caplog) -> None:
     """``substitution.py`` no longer emits ``logger.warning`` for bare tokens.
 
     The runtime ``logger.warning(...)`` was silenced inside worker
-    processes (NullHandler-only); the orchestrator now consults the
-    per-instance bool flag and forwards a single warning to the
-    per-run :class:`WarningCollector`. There must be no remaining
+    processes (NullHandler-only); the main-thread bare-token deprecation is
+    now surfaced once by
+    ``FlowgroupDiscoveryService.scan_deprecation_warnings`` (re-emitted by the
+    facade as a ``WarningEmitted`` event). There must be no remaining
     ``logger.warning`` emission from ``lhp.core.processing.substitution`` for
     deprecation.
     """

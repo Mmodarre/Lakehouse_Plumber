@@ -68,14 +68,19 @@ class TestDataTransferObjects:
 
 
 class TestFacadeOnDeltaUnwrap:
-    """Cover the ``_on_delta`` closure inside
-    :meth:`GenerationFacade._do_generate_pipelines` (``src/lhp/api/facade.py``).
+    """Cover the per-delta unwrap inside
+    :func:`lhp.api._generate_stream._consume_generate_stream`
+    (``src/lhp/api/_generate_stream.py`` — D-generate relocated this private
+    generate-phase body out of the facade for the §3.3 cap).
 
-    The closure (facade.py:225) runs
-    :func:`lhp.api._converters._delta_to_generation_response`
-    (``_converters.py:171``) on each worker
-    :class:`~lhp.models.processing.PipelineDelta` to build the public,
-    frozen :class:`~lhp.api.GenerationResponse`.
+    E3 replaced the old ``_do_generate_pipelines`` + ``_on_delta`` closure with
+    the generate-phase generator ``_consume_generate_stream``, which consumes
+    the orchestrator's delta-stream and runs
+    :func:`lhp.api._generation_converters._delta_to_generation_response`
+    on each worker :class:`~lhp.models.processing.PipelineDelta` to build the
+    public, frozen :class:`~lhp.api.GenerationResponse` and emit the §5.7
+    ``PipelineStarted`` + terminal (``PipelineFailed`` carries the unwrapped
+    LHP code).
 
     Per constitution §4.8, ``GenerationResponse`` no longer carries a
     live exception instance — the old ``original_error`` field was
@@ -99,15 +104,13 @@ class TestFacadeOnDeltaUnwrap:
        mapping is asserted directly against
        ``lhp_error_from_worker_failure``.
 
-    Tests drive the closure by mocking the CURRENT orchestrator method
-    ``orchestrator.generate_pipelines`` (the facade calls it at
-    facade.py:243 — NOT the removed ``generate_pipelines_by_fields``) to
-    invoke its ``on_pipeline_complete`` argument with a synthetic delta,
-    then inspect the per-pipeline ``GenerationResponse`` captured by the
-    user-supplied ``on_pipeline_complete``. The driver targets
-    ``GenerationFacade._do_generate_pipelines`` (which owns the closure)
-    directly, bypassing the public generator's project preflight so the
-    closure is exercised in isolation.
+    Tests drive the unwrap by mocking the orchestrator method
+    ``orchestrator.generate_pipelines`` to yield a synthetic delta (it is now a
+    generator), then inspect the §5.7 events the facade emits and the
+    per-pipeline ``GenerationResponse`` the converter builds. The driver targets
+    ``lhp.api._generate_stream._consume_generate_stream`` (the generate-phase
+    body that owns the per-delta unwrap) directly, bypassing the public
+    generator's project preflight so the unwrap is exercised in isolation.
 
     Corroborating already-passing tests (the §4.8 ``error_code`` surface
     these now assert):
@@ -129,34 +132,68 @@ class TestFacadeOnDeltaUnwrap:
     """
 
     def _run_facade_with_delta(self, delta: PipelineDelta) -> GenerationResponse:
+        import logging
+
+        from lhp.api._generate_stream import _consume_generate_stream
+        from lhp.api._generation_converters import _delta_to_generation_response
+        from lhp.api.events import PipelineCompleted, PipelineFailed, PipelineStarted
         from lhp.api.facade import GenerationFacade
 
         mock_orchestrator = Mock()
 
-        def _invoke_callback(*args, **kwargs):
-            kwargs["on_pipeline_complete"](delta)
-            return {delta.pipeline_name: delta.generated_filenames}
+        def _delta_stream(*_args, **_kwargs):
+            # E3: the orchestrator's ``generate_pipelines`` is a generator
+            # yielding per-pipeline ``PipelineDelta``s; the generate phase
+            # consumes it and unwraps each via ``_delta_to_generation_response``.
+            yield delta
 
-        mock_orchestrator.generate_pipelines.side_effect = _invoke_callback
+        mock_orchestrator.generate_pipelines.side_effect = _delta_stream
 
         facade = LakehousePlumberApplicationFacade(mock_orchestrator)
-
-        captured: dict[str, GenerationResponse] = {}
-
-        def _on_pipeline_complete(name: str, response: GenerationResponse) -> None:
-            captured[name] = response
-
-        # Drive the closure-owning method directly (it calls
-        # ``orchestrator.generate_pipelines`` and runs ``_on_delta``),
-        # bypassing the public generator's project preflight.
         assert isinstance(facade.generation, GenerationFacade)
-        facade.generation._do_generate_pipelines(
+
+        # Drive the generate-phase body directly (it consumes the orchestrator
+        # delta-stream and emits the §5.7 per-pipeline events), bypassing the
+        # public generator's project preflight so the unwrap is exercised in
+        # isolation. D-generate relocated this private generate-phase body out of
+        # the facade into ``lhp.api._generate_stream._consume_generate_stream``
+        # (a free function taking the orchestrator + logger explicitly) so the
+        # facade module stays under the §3.3 cap; the per-delta unwrap contract
+        # asserted below is unchanged. It is a generator that also RETURNS the
+        # terminal batch DTO via ``StopIteration.value``.
+        events: list = []
+        gen = _consume_generate_stream(
+            mock_orchestrator,
+            logging.getLogger(__name__),
             pipeline_fields=[delta.pipeline_name],
             env="dev",
             output_dir=None,
-            on_pipeline_complete=_on_pipeline_complete,
         )
-        return captured[delta.pipeline_name]
+        try:
+            while True:
+                events.append(next(gen))
+        except StopIteration:
+            pass
+
+        # No dangling Starts: exactly one PipelineStarted paired with one
+        # terminal for this pipeline.
+        starts = [e for e in events if isinstance(e, PipelineStarted)]
+        terminals = [
+            e for e in events if isinstance(e, (PipelineCompleted, PipelineFailed))
+        ]
+        assert [e.pipeline for e in starts] == [delta.pipeline_name]
+        assert len(terminals) == 1
+        # The facade forwards the unwrapped LHP code onto the failure event.
+        if not delta.success:
+            failed = terminals[0]
+            assert isinstance(failed, PipelineFailed)
+            assert failed.pipeline == delta.pipeline_name
+            response = _delta_to_generation_response(delta, output_dir=None)
+            assert failed.code == response.error_code
+
+        # Return the per-pipeline response the facade built (via the same
+        # converter) so the existing error_code / identity assertions hold.
+        return _delta_to_generation_response(delta, output_dir=None)
 
     def test_on_delta_surfaces_live_lhp_validation_error_code(self):
         """LHPValidationError raised in worker travels via ``delta.lhp_error``;

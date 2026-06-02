@@ -1,37 +1,28 @@
-"""Private converters from internal types to public DTO views.
+"""Private converters for the inspection direction of the public API.
 
 Underscore-prefixed module: not part of :mod:`lhp.api`'s public surface.
 External callers MUST NOT import from here.
 
+Holds the per-type DTO projections used by the inspection / listing
+facades (:class:`FlowgroupView`, :class:`ActionView`,
+:class:`ProjectConfigView`, :class:`BlueprintView`, :class:`PresetView`,
+:class:`TemplateView`, :class:`ProcessedFlowgroupView`,
+:class:`DependencyAnalysisResult`, :class:`StatsResult`) plus the
+inspection helpers (``_locate_flowgroup_by_name``,
+``_build_substitution_manager_for_env``, ``_flowgroup_file_paths``,
+``_duplicates_to_validation_response``). Bundle-specific converters live
+in :mod:`lhp.api._bundle_facade`.
+
 :stability: internal
 """
 
-# JUSTIFIED: This module is ~711 lines because it co-locates every
-# internal-type → public-DTO conversion for the inspection / generation
-# / validation API surface. There is one converter per public DTO
-# (FlowgroupView, ActionView, ProjectConfigView, BlueprintView,
-# PresetView, TemplateView, ProcessedFlowgroupView,
-# DependencyAnalysisResult, StatsResult, FinalizeMonitoringResult)
-# plus the generation/validation response-aggregators plus inspection
-# helpers (_locate_flowgroup_by_name, _build_substitution_manager_for_env,
-# _flowgroup_file_paths, _duplicates_to_validation_response) plus the
-# monitoring result builder. Bundle-specific converters live in
-# :mod:`lhp.api._bundle_facade`. Splitting further would scatter the
-# public-API conversion rules across multiple files, breaking the
-# §1.10 single-import-surface invariant and forcing facade.py to
-# import from four or five sub-paths.
-# TODO(Phase 9.5): split into per-DTO-family converter modules (flowgroup / blueprint / preset / template / processing / dependency / stats / monitoring) once the public DTO surface stabilises; see LOCAL/REMAINING_WORK.md §9.5.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Literal, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Sequence
 
 from lhp.api.responses import (
-    BatchGenerationResponse,
-    BatchValidationResponse,
     DependencyAnalysisResult,
-    FinalizeMonitoringResult,
-    GenerationResponse,
     StatsResult,
     ValidationResponse,
 )
@@ -50,9 +41,7 @@ from lhp.api.views import (
 )
 
 if TYPE_CHECKING:
-    from lhp.core.coordination.executor import PipelineValidationOutcome
     from lhp.core.processing.substitution import EnhancedSubstitutionManager
-    from lhp.errors import LHPError
     from lhp.models import (
         Action,
         Blueprint,
@@ -62,284 +51,10 @@ if TYPE_CHECKING:
         Template,
     )
     from lhp.models.dependencies import DependencyAnalysisResult as _InternalDepResult
-    from lhp.models.processing import PipelineDelta
 
     # Internal orchestrator type, referenced only as a quoted annotation
     # below; never named directly in the public API surface (§1.10, §9.13).
     _Orchestrator = Any
-
-
-def _lhp_error_to_issue_view(
-    lhp_err: "LHPError",
-    *,
-    pipeline_name: Optional[str] = None,
-    flowgroup_name: Optional[str] = None,
-    severity: Literal["error", "warning"] = "error",
-) -> ValidationIssueView:
-    """Project an :class:`LHPError` onto a public :class:`ValidationIssueView`.
-
-    Shared between the generation and validation paths.
-    """
-    return ValidationIssueView(
-        code=lhp_err.code,
-        category=lhp_err.category.value,
-        severity=severity,
-        title=lhp_err.title,
-        details=lhp_err.details or None,
-        pipeline_name=pipeline_name,
-        flowgroup_name=flowgroup_name,
-        suggestions=tuple(lhp_err.suggestions or ()),
-        context=dict(lhp_err.context or {}),
-        doc_link=lhp_err.doc_link,
-    )
-
-
-def _issue_view_to_lhp_error(issue: ValidationIssueView) -> "LHPError":
-    """Reconstruct an :class:`LHPError` from a public :class:`ValidationIssueView`.
-
-    Reverse of :func:`_lhp_error_to_issue_view`. Used by the generate
-    stream-protocol wrapper to SURFACE a preflight issue as a raised
-    error (§9.24): the preflight logic is single-sourced and returns
-    views; this rebuilds the minimal carrying ``LHPError`` so the
-    ``ErrorEmitted`` → ``raise`` rendezvous can fire with the issue's
-    code / title / details / suggestions / context / doc_link intact.
-
-    ``ValidationIssueView`` is a flattened projection (it does not retain
-    the original ``code_number``), so the number is recovered from the
-    trailing segment of ``issue.code`` (e.g. ``"LHP-VAL-009"`` → ``"009"``).
-    Unstructured views (empty ``code``) round-trip to ``code_number=""``.
-    """
-    from lhp.errors import LHPError
-    from lhp.errors.categories import ErrorCategory
-
-    try:
-        category = ErrorCategory(issue.category)
-    except ValueError:
-        category = ErrorCategory.GENERAL
-
-    code_number = issue.code.rsplit("-", 1)[-1] if "-" in issue.code else ""
-
-    return LHPError(
-        category=category,
-        code_number=code_number,
-        title=issue.title,
-        details=issue.details or "",
-        suggestions=list(issue.suggestions) or None,
-        context=dict(issue.context) or None,
-        doc_link=issue.doc_link,
-    )
-
-
-def _delta_to_generation_response(
-    delta: "PipelineDelta", *, output_dir: Optional[Path]
-) -> GenerationResponse:
-    """Build the public :class:`GenerationResponse` for a worker delta.
-
-    Synthesises an :class:`LHPError` when the worker did not produce one
-    so callers' ``except ValueError:`` / ``except FileNotFoundError:``
-    keep catching worker failures the same way they catch main-thread
-    failures (preserves the dual-inheritance subclass identity).
-    """
-    from lhp.errors import lhp_error_from_worker_failure
-
-    error_message: Optional[str] = None
-    error_code: Optional[str] = None
-    error_view: Optional[ValidationIssueView] = None
-    if not delta.success:
-        error_message = (
-            f"{delta.error_type}: {delta.error_message}"
-            if delta.error_type
-            else delta.error_message
-        )
-        if delta.lhp_error is not None:
-            lhp_err: LHPError = delta.lhp_error
-        else:
-            lhp_err = lhp_error_from_worker_failure(
-                pipeline_name=delta.pipeline_name,
-                error_type=delta.error_type or "UnknownError",
-                error_message=delta.error_message or "(no message)",
-                error_traceback=delta.error_traceback or "",
-            )
-        error_code = lhp_err.code
-        error_view = _lhp_error_to_issue_view(
-            lhp_err, pipeline_name=delta.pipeline_name
-        )
-
-    return GenerationResponse(
-        success=delta.success,
-        generated_filenames=delta.generated_filenames,
-        files_written=delta.files_written,
-        total_flowgroups=len(delta.generated_filenames),
-        output_location=output_dir,
-        performance_info={"dry_run": output_dir is None},
-        duration_s=delta.duration_s,
-        error_message=error_message,
-        error_code=error_code,
-        error=error_view,
-    )
-
-
-def _outcome_to_validation_response(
-    outcome: "PipelineValidationOutcome",
-) -> ValidationResponse:
-    """Build the public :class:`ValidationResponse` for a per-pipeline outcome.
-
-    ``outcome.lhp_errors`` and ``outcome.errors`` are NOT alternatives —
-    they can coexist when an LHPError-raising flowgroup sits in the
-    same pipeline as a string-only discovery or CDC failure.
-    """
-    issues: List[ValidationIssueView] = []
-    for lhp_err in outcome.lhp_errors:
-        issues.append(_lhp_error_to_issue_view(lhp_err, pipeline_name=outcome.pipeline))
-    for err in outcome.errors:
-        issues.append(
-            ValidationIssueView(
-                code="",
-                category="VAL",
-                severity="error",
-                title=err,
-                pipeline_name=outcome.pipeline,
-            )
-        )
-    for warn in outcome.warnings:
-        issues.append(
-            ValidationIssueView(
-                code="",
-                category="VAL",
-                severity="warning",
-                title=warn,
-                pipeline_name=outcome.pipeline,
-            )
-        )
-    return ValidationResponse(
-        success=outcome.success,
-        issues=tuple(issues),
-        validated_pipelines=(outcome.pipeline,),
-    )
-
-
-def _build_generation_batch_success(
-    pipeline_responses: Dict[str, GenerationResponse],
-    *,
-    output_dir: Optional[Path],
-) -> BatchGenerationResponse:
-    """Aggregate per-pipeline responses into a successful batch response."""
-    aggregate: tuple[str, ...] = ()
-    total_written = 0
-    for r in pipeline_responses.values():
-        aggregate = aggregate + r.generated_filenames
-        total_written += r.files_written
-    return BatchGenerationResponse(
-        success=True,
-        pipeline_responses=dict(pipeline_responses),
-        total_files_written=total_written,
-        aggregate_generated_filenames=aggregate,
-        output_location=output_dir,
-    )
-
-
-def _build_generation_batch_failure(
-    pipeline_responses: Dict[str, GenerationResponse], exc: Exception
-) -> BatchGenerationResponse:
-    """Aggregate per-pipeline responses into a failure batch response.
-
-    Only successful pipeline outputs are included in the aggregate
-    filename / counter totals; the failing exception's LHP code (if any)
-    is propagated as ``error_code`` so the CLI fail-fast boundary can
-    map it to an exit code without handling the live exception.
-    """
-    aggregate: tuple[str, ...] = ()
-    total_written = 0
-    for r in pipeline_responses.values():
-        if r.success:
-            aggregate = aggregate + r.generated_filenames
-            total_written += r.files_written
-    return BatchGenerationResponse(
-        success=False,
-        pipeline_responses=dict(pipeline_responses),
-        total_files_written=total_written,
-        aggregate_generated_filenames=aggregate,
-        output_location=None,
-        error_message=str(exc),
-        error_code=getattr(exc, "code", None),
-    )
-
-
-def _build_validation_batch(
-    pipeline_responses: Dict[str, ValidationResponse],
-    pipeline_fields: tuple[str, ...],
-    *,
-    exc: Optional[Exception] = None,
-) -> BatchValidationResponse:
-    """Aggregate per-pipeline responses into a batch validation response.
-
-    When ``exc`` is provided, the batch is marked failed and the
-    exception's LHP code (if any) is preserved on the DTO so the CLI
-    fail-fast boundary can map it to an exit code (§4.8).
-    """
-    total_errors = sum(r.error_count for r in pipeline_responses.values())
-    total_warnings = sum(r.warning_count for r in pipeline_responses.values())
-    if exc is None:
-        return BatchValidationResponse(
-            success=total_errors == 0,
-            pipeline_responses=dict(pipeline_responses),
-            total_errors=total_errors,
-            total_warnings=total_warnings,
-            validated_pipelines=pipeline_fields,
-        )
-    return BatchValidationResponse(
-        success=False,
-        pipeline_responses=dict(pipeline_responses),
-        total_errors=total_errors,
-        total_warnings=total_warnings,
-        validated_pipelines=pipeline_fields,
-        error_message=str(exc),
-        error_code=getattr(exc, "code", None),
-    )
-
-
-def _build_validation_batch_from_issues(
-    issues: tuple[ValidationIssueView, ...],
-    pipeline_fields: tuple[str, ...],
-) -> BatchValidationResponse:
-    """Fold project-preflight issues into a failed batch validation response.
-
-    Companion to :func:`_build_validation_batch`. Where that helper marks a
-    batch failed from a live ``exc`` (setting ``error_code`` /
-    ``error_message`` off the exception), this one does the same from the
-    already-decomposed :class:`ValidationIssueView` tuple returned by
-    :func:`lhp.api._preflight._run_project_preflight` — the validate path's
-    surfacing of the shared §9.24 preflight. The first structured issue (one
-    carrying an ``LHP-...`` ``code``) drives ``error_code`` / ``error_message``
-    so the CLI fail-fast boundary maps it to a non-zero exit (§4.8); the
-    message mirrors ``str(LHPError)`` (``Error [<code>]: <title>``) so the code
-    surfaces in the printed batch-failure line. ``pipeline_responses`` is empty
-    because preflight issues are project-level, not per-pipeline.
-
-    Precondition: ``issues`` is non-empty (callers short-circuit only when
-    preflight returned issues). A defensive empty-input guard still yields a
-    failed batch so a folded call never reports success.
-    """
-    first_structured = next((i for i in issues if i.code), None)
-    if first_structured is not None:
-        error_code: Optional[str] = first_structured.code
-        error_message: Optional[str] = (
-            f"Error [{first_structured.code}]: {first_structured.title}"
-        )
-    else:
-        error_code = None
-        error_message = (
-            issues[0].title if issues else "Project preflight validation failed"
-        )
-    return BatchValidationResponse(
-        success=False,
-        pipeline_responses={},
-        total_errors=len(issues),
-        total_warnings=0,
-        validated_pipelines=pipeline_fields,
-        error_message=error_message,
-        error_code=error_code,
-    )
 
 
 def _action_to_view(action: "Action") -> ActionView:
@@ -708,48 +423,3 @@ def _flowgroup_file_paths(
         if path is not None:
             paths[(fg.pipeline, fg.flowgroup)] = path
     return paths
-
-
-def _lhp_error_code_and_message(exc: BaseException) -> tuple[Optional[str], str]:
-    """Extract ``(error_code, error_message)`` from an arbitrary exception.
-
-    Returns the LHP error code (e.g. ``"LHP-CFG-026"``) and ``title``
-    when ``exc`` is an :class:`LHPError`, otherwise ``(None, str(exc))``.
-    Shared by the C4/C5 result converters so monitoring / bundle
-    failures surface a stable code on the public DTO (§4.8) without
-    leaking the live exception instance.
-    """
-    from lhp.errors import LHPError
-
-    if isinstance(exc, LHPError):
-        return exc.code, exc.title
-    return None, str(exc)
-
-
-def _finalize_monitoring_to_result(
-    *,
-    monitoring_pipeline_path: Optional[Path],
-    event_log_table_created: bool,
-    exc: Optional[BaseException] = None,
-) -> FinalizeMonitoringResult:
-    """Build a :class:`FinalizeMonitoringResult` for the C4 facade path.
-
-    ``exc=None`` indicates success; the ``monitoring_pipeline_path``
-    may still be ``None`` when monitoring is not configured (legitimate
-    no-op). When ``exc`` is provided the code / title are surfaced as
-    flat fields per §4.8.
-    """
-    if exc is None:
-        return FinalizeMonitoringResult(
-            success=True,
-            monitoring_pipeline_path=monitoring_pipeline_path,
-            event_log_table_created=event_log_table_created,
-        )
-    code, message = _lhp_error_code_and_message(exc)
-    return FinalizeMonitoringResult(
-        success=False,
-        monitoring_pipeline_path=monitoring_pipeline_path,
-        event_log_table_created=event_log_table_created,
-        error_message=message,
-        error_code=code,
-    )

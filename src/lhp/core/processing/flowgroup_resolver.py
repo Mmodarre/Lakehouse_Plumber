@@ -12,6 +12,7 @@ import logging
 from typing import Any, Dict
 
 from lhp.models import ActionType, FlowGroup, FlowGroupContext
+from lhp.models.deprecations import record_deprecation
 
 from ...errors import ErrorFactory, codes
 from ...utils.performance_timer import perf_timer
@@ -356,20 +357,38 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
         """Apply schema_suffix or database_suffix from preset to the target config.
 
         Supports both new format (schema) and legacy format (database).
-        database_suffix is deprecated — use schema_suffix instead.
+        ``database_suffix`` is deprecated — use ``schema_suffix`` instead; using
+        it emits a soft-deprecation warning (``LHP-DEPR-004``) onto the active
+        worker scope (see :mod:`lhp.models.deprecations`).
 
         REMOVE_AT_V1.0.0: Drop database_suffix support entirely.
         """
-        suffix = preset_defaults.get("schema_suffix") or preset_defaults.get(
-            "database_suffix"
-        )
+        schema_suffix = preset_defaults.get("schema_suffix")
+        # REMOVE_AT_V1.0.0: Legacy database_suffix preset key.
+        database_suffix = preset_defaults.get("database_suffix")
+
+        suffix = schema_suffix or database_suffix
         if not suffix:
             return
+
+        # Warn only when the suffix actually came from the deprecated key
+        # (``schema_suffix`` takes precedence above, so database_suffix is only
+        # the source when schema_suffix is absent/empty).
+        if not schema_suffix and database_suffix:
+            record_deprecation(
+                codes.DEPR_004,
+                title="The preset 'database_suffix' field is deprecated "
+                "and will be removed in v1.0.0.",
+                details=(
+                    "Use 'schema_suffix' instead. The deprecated 'database_suffix' "
+                    f"value ('{database_suffix}') was applied for now."
+                ),
+            )
 
         if "schema" in target:
             target["schema"] += suffix
         elif "database" in target:
-            # REMOVE_AT_V1.0.0: Legacy database_suffix path
+            # REMOVE_AT_V1.0.0: Legacy database_suffix target path
             target["database"] += suffix
 
     def deep_merge(

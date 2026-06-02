@@ -42,11 +42,26 @@ import dataclasses
 import logging
 import multiprocessing
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed
-from typing import TYPE_CHECKING, Dict, List, Mapping, NamedTuple, Sequence, Tuple
+from pathlib import Path
+from typing import (
+    TYPE_CHECKING,
+    Dict,
+    List,
+    Mapping,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 from lhp.models import FlowGroupContext
 
-from ...models.processing import FlowgroupOutcome
+from ...models.processing import (
+    DeprecationWarningRecord,
+    FlowgroupOutcome,
+    ValidationIssueRecord,
+)
 from ...utils.performance_timer import is_perf_enabled, merge_perf, perf_timer
 from ._cross_flowgroup_issues import build_cross_flowgroup_issues
 from ._flowgroup_pool import (
@@ -56,10 +71,11 @@ from ._flowgroup_pool import (
     _PipelineProgress,
     _process_one_flowgroup,
 )
+from ._warning_merge import merge_flowgroup_warnings
 
 if TYPE_CHECKING:
     from ...errors import LHPError
-    from .executor import PipelineValidationOutcome
+    from ._validation_outcome import PipelineValidationOutcome
     from .validation_service import ValidationService
 
 
@@ -79,11 +95,18 @@ logger = logging.getLogger(__name__)
 #     barrier on the RESOLVED set (§9.24), via build_cross_flowgroup_issues.
 #   - ``cross_fg_errors``  : degraded string errors for the defensive case
 #     where the barrier raises a NON-LHPError.
+#   - ``warnings``         : the pipeline's deprecation warnings, MERGED across
+#     all its flowgroup outcomes and DEDUPED by ``(code, file)`` at the merge
+#     point (``_finalize``), in deterministic first-seen order. Carries what the
+#     workers attached to ``FlowgroupOutcome.warnings`` (logged under a worker
+#     ``NullHandler``, so they ride back as structured data) for the main
+#     thread to re-emit as ``WarningEmitted`` events. Defaults to ``()``.
 class _PipelinePoolResult(NamedTuple):
     pipeline: str
     outcomes_in_order: Tuple[FlowgroupOutcome, ...]
     cross_fg_issues: Tuple["LHPError", ...]
     cross_fg_errors: Tuple[str, ...]
+    warnings: Tuple[DeprecationWarningRecord, ...] = ()
 
 
 def _run_pipeline_cross_fg_barrier(
@@ -220,6 +243,13 @@ def _run_flowgroup_pool_core(
         cross_issues, cross_errors = _run_pipeline_cross_fg_barrier(
             pipeline, ordered, validation_service
         )
+        # Merge each flowgroup outcome's worker-attached deprecation warnings
+        # into one per-pipeline collection, deduped by (code, file). Iterating
+        # ``ordered`` (sorted by flowgroup_name) gives a deterministic first-seen
+        # order independent of pool completion order. Done BEFORE the
+        # ``release_resolved`` replace below — warnings are independent of
+        # ``resolved_flowgroup``, so collecting first keeps the order stable.
+        warnings = merge_flowgroup_warnings(ordered)
         if release_resolved:
             ordered = tuple(
                 (
@@ -234,6 +264,7 @@ def _run_flowgroup_pool_core(
             outcomes_in_order=ordered,
             cross_fg_issues=cross_issues,
             cross_fg_errors=cross_errors,
+            warnings=warnings,
         )
 
     # Empty pipelines still run the (trivially empty) barrier so a
@@ -323,10 +354,79 @@ def _run_flowgroup_pool_core(
     return [results_by_pipeline[p] for p in pipelines if p in results_by_pipeline]
 
 
+def _build_validation_issue_records(
+    result: _PipelinePoolResult,
+    *,
+    discovery_errors: Mapping[str, str],
+    source_paths: Mapping[Tuple[str, str], Path],
+) -> Tuple[ValidationIssueRecord, ...]:
+    """Build the per-issue records for ONE pipeline's validate result.
+
+    The per-pipeline fold for :func:`assemble_validate_outcomes`. Each
+    finding becomes one :class:`~lhp.models.processing.ValidationIssueRecord`
+    (all error-severity on this path — validate produces no warnings here).
+    A finding with no single owning flowgroup carries
+    ``flowgroup_name=None`` / ``source_file=None``:
+
+    * a discovery failure (``pipeline in discovery_errors``) short-circuits
+      to a single record (discovery error wins over the empty message);
+    * an otherwise-empty pipeline surfaces one ``"No flowgroups found ..."``
+      record;
+    * cross-flowgroup barrier issues/errors (the §9.24 closure) span
+      flowgroups, so they too carry no owning flowgroup.
+
+    Per-flowgroup findings ARE attributed: each outcome's string ``errors``
+    and structured ``lhp_error`` (mutually exclusive per outcome → no dedup)
+    are tagged with that flowgroup and its source YAML, looked up in
+    ``source_paths`` by ``(pipeline, flowgroup_name)``.
+    """
+    pipeline = result.pipeline
+
+    def _record(
+        issue: Union["LHPError", str],
+        flowgroup_name: Optional[str],
+        source_file: Optional[Path],
+    ) -> ValidationIssueRecord:
+        return ValidationIssueRecord(
+            issue=issue,
+            flowgroup_name=flowgroup_name,
+            source_file=source_file,
+            severity="error",
+        )
+
+    # Discovery failure / empty pipeline — a single unattributed record.
+    if pipeline in discovery_errors:
+        return (_record(discovery_errors[pipeline], None, None),)
+    if not result.outcomes_in_order:
+        return (
+            _record(f"No flowgroups found for pipeline field: {pipeline}", None, None),
+        )
+
+    issues: List[ValidationIssueRecord] = []
+    for outcome in result.outcomes_in_order:
+        # Per-fg string and structured channels are mutually exclusive per
+        # FlowgroupOutcome failure → no dedup. Tag each with its flowgroup +
+        # that flowgroup's source file.
+        flowgroup_name = outcome.flowgroup_name
+        source_file = source_paths.get((pipeline, flowgroup_name))
+        issues.extend(
+            _record(err, flowgroup_name, source_file) for err in outcome.errors
+        )
+        if outcome.lhp_error is not None:
+            issues.append(_record(outcome.lhp_error, flowgroup_name, source_file))
+
+    # Cross-flowgroup barrier results (the §9.24 closure on the RESOLVED set):
+    # no single owning flowgroup, so flowgroup_name / source_file stay None.
+    issues.extend(_record(iss, None, None) for iss in result.cross_fg_issues)
+    issues.extend(_record(err, None, None) for err in result.cross_fg_errors)
+    return tuple(issues)
+
+
 def assemble_validate_outcomes(
     pool_results: Sequence[_PipelinePoolResult],
     *,
     discovery_errors: Mapping[str, str],
+    source_paths: Optional[Mapping[Tuple[str, str], Path]] = None,
 ) -> List["PipelineValidationOutcome"]:
     """Fold the flat engine's per-pipeline results into validate outcomes.
 
@@ -336,70 +436,36 @@ def assemble_validate_outcomes(
     validate REPORTS findings, never raising on them (the facade decides
     the exit code). ``PipelineExecutionService.run_validate`` points here.
 
-    Cross-fg issues come from the barrier the engine already ran on
-    RESOLVED flowgroups (``_PipelinePoolResult.cross_fg_issues`` /
-    ``.cross_fg_errors``), not from a barrier on raw flowgroups
-    (§9.24). Per pipeline: a discovery failure
-    (``pipeline in discovery_errors``) short-circuits to a single-error
-    outcome; an otherwise-empty pipeline surfaces ``"No flowgroups
-    found ..."``; else per-fg ``errors`` / ``lhp_error`` (mutually
-    exclusive per outcome → no dedup) are folded, then cross-fg
-    issues/errors appended, with ``success`` true iff both error buckets
-    are empty.
+    Each finding becomes one
+    :class:`~lhp.models.processing.ValidationIssueRecord` (built by
+    :func:`_build_validation_issue_records`) carrying its per-issue
+    attribution. ``source_paths`` is the
+    ``(pipeline, flowgroup) -> source-YAML path`` map threaded down from the
+    orchestrator (built from the discovered flowgroups' ``source_yaml``);
+    a per-flowgroup finding looks its source file up there by
+    ``(pipeline, outcome.flowgroup_name)``. A finding with no single owning
+    flowgroup — a cross-flowgroup fan-in issue, a discovery failure, or the
+    empty-pipeline message — carries ``flowgroup_name=None`` /
+    ``source_file=None``. (Defaults to ``None``, coerced to an empty map;
+    never mutated.)
+
+    ``success`` is ``True`` iff the pipeline produced no error-severity issue.
     """
-    from .executor import PipelineValidationOutcome
+    if source_paths is None:
+        source_paths = {}
+
+    from ._validation_outcome import PipelineValidationOutcome
 
     outcomes: List["PipelineValidationOutcome"] = []
     for result in pool_results:
-        pipeline = result.pipeline
-
-        # Discovery failure — report and stop (discovery error wins over the
-        # empty-flowgroups message).
-        if pipeline in discovery_errors:
-            outcomes.append(
-                PipelineValidationOutcome(
-                    pipeline=pipeline,
-                    errors=(discovery_errors[pipeline],),
-                    warnings=(),
-                    success=False,
-                )
-            )
-            continue
-
-        # Empty discovery — surface as a validation error.
-        if not result.outcomes_in_order:
-            outcomes.append(
-                PipelineValidationOutcome(
-                    pipeline=pipeline,
-                    errors=(f"No flowgroups found for pipeline field: {pipeline}",),
-                    warnings=(),
-                    success=False,
-                )
-            )
-            continue
-
-        errors: List[str] = []
-        lhp_errors_acc: List["LHPError"] = []
-        for outcome in result.outcomes_in_order:
-            # Per-fg string and structured channels are mutually exclusive
-            # per FlowgroupOutcome failure → no dedup needed.
-            errors.extend(outcome.errors)
-            if outcome.lhp_error is not None:
-                lhp_errors_acc.append(outcome.lhp_error)
-
-        # Cross-flowgroup barrier results (computed by the engine on the
-        # RESOLVED set — the §9.24 closure). Structured issues join
-        # lhp_errors; the defensive non-LHP string joins errors.
-        lhp_errors_acc.extend(result.cross_fg_issues)
-        errors.extend(result.cross_fg_errors)
-
+        issues = _build_validation_issue_records(
+            result, discovery_errors=discovery_errors, source_paths=source_paths
+        )
         outcomes.append(
             PipelineValidationOutcome(
-                pipeline=pipeline,
-                errors=tuple(errors),
-                warnings=(),
-                success=(len(errors) == 0 and len(lhp_errors_acc) == 0),
-                lhp_errors=tuple(lhp_errors_acc),
+                pipeline=result.pipeline,
+                issues=issues,
+                success=not any(r.severity == "error" for r in issues),
             )
         )
     return outcomes

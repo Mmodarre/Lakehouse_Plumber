@@ -161,6 +161,25 @@ def _build_multipipeline_project(tmpdir, pipeline_names):
     return project_root
 
 
+def _generate_filenames(orch, **kwargs) -> dict:
+    """Drain ``orch.generate_pipelines`` (now a generator yielding per-pipeline
+    ``PipelineDelta``s) into the ``{pipeline -> generated filenames}`` mapping.
+
+    E3 turned the orchestrator's ``generate_pipelines`` into a generator: it
+    ``yield from`` ``PipelineExecutionService.run_generate`` and surfaces one
+    :class:`~lhp.models.processing.PipelineDelta` per pipeline in input order
+    (the facade renders these as §5.7 per-pipeline events). This helper rebuilds
+    the projection the method used to RETURN directly — exactly
+    ``{delta.pipeline_name: delta.generated_filenames}`` — so the byte-identity
+    / determinism / empty-pipeline assertions below read unchanged. The drain
+    also fully runs the commit + terminal format pass (consumers MUST drain).
+    """
+    return {
+        delta.pipeline_name: delta.generated_filenames
+        for delta in orch.generate_pipelines(**kwargs)
+    }
+
+
 class TestActionOrchestrator:
     """Test action orchestrator functionality."""
 
@@ -543,10 +562,13 @@ class TestActionOrchestrator:
             # method here to preserve the original assertion semantics.
             orchestrator = build_facade_orchestrator(project_root)
 
-            # Should raise validation error
+            # Should raise validation error. ``generate_pipelines`` is now a
+            # generator (E3), so drain it to drive the raise.
             with pytest.raises(ValueError, match="validation failed"):
-                orchestrator.generate_pipelines(
-                    pipeline_filter="test_pipeline", env="dev"
+                list(
+                    orchestrator.generate_pipelines(
+                        pipeline_filter="test_pipeline", env="dev"
+                    )
                 )
 
     def test_dependency_resolution(self):
@@ -787,7 +809,8 @@ class TestGeneratePipelinesByFields:
                 for name in ["p_alpha", "p_beta", "p_gamma"]
             }
             single = {
-                name: ref_orch.generate_pipelines(
+                name: _generate_filenames(
+                    ref_orch,
                     pipeline_filter=name,
                     env="dev",
                     output_dir=ref_out_dirs[name],
@@ -798,7 +821,8 @@ class TestGeneratePipelinesByFields:
             # Plural: one call across all 3
             plural_orch = build_facade_orchestrator(project_root, max_workers=4)
             plural_out_dir = project_root / "plural"
-            plural = plural_orch.generate_pipelines(
+            plural = _generate_filenames(
+                plural_orch,
                 pipeline_fields=["p_alpha", "p_beta", "p_gamma"],
                 env="dev",
                 output_dir=plural_out_dir,
@@ -825,7 +849,8 @@ class TestGeneratePipelinesByFields:
             )
 
             orch1 = build_facade_orchestrator(project_root, max_workers=1)
-            out1 = orch1.generate_pipelines(
+            out1 = _generate_filenames(
+                orch1,
                 pipeline_fields=["p1", "p2", "p3", "p4"],
                 env="dev",
                 output_dir=project_root / "w1",
@@ -833,7 +858,8 @@ class TestGeneratePipelinesByFields:
             )
 
             orch8 = build_facade_orchestrator(project_root, max_workers=8)
-            out8 = orch8.generate_pipelines(
+            out8 = _generate_filenames(
+                orch8,
                 pipeline_fields=["p1", "p2", "p3", "p4"],
                 env="dev",
                 output_dir=project_root / "w8",
@@ -854,7 +880,8 @@ class TestGeneratePipelinesByFields:
             baseline: dict = None
             for run_idx in range(10):
                 orch = build_facade_orchestrator(project_root, max_workers=4)
-                run_out = orch.generate_pipelines(
+                run_out = _generate_filenames(
+                    orch,
                     pipeline_fields=["d1", "d2", "d3", "d4", "d5"],
                     env="dev",
                     output_dir=project_root / f"r{run_idx}",
@@ -872,7 +899,8 @@ class TestGeneratePipelinesByFields:
             (project_root / "pipelines" / "e_empty").mkdir()
 
             orch = build_facade_orchestrator(project_root, max_workers=2)
-            out = orch.generate_pipelines(
+            out = _generate_filenames(
+                orch,
                 pipeline_fields=["e_real", "e_empty"],
                 env="dev",
                 output_dir=project_root / "out",
@@ -886,30 +914,32 @@ class TestGeneratePipelinesByFields:
             assert out["e_empty"] == ()
             assert "e_real_fg.py" in out["e_real"]
 
-    def test_on_pipeline_complete_callback_fires_per_pipeline(self):
-        """Callback fires once per pipeline, on the main thread, with the
-        :class:`PipelineDelta` instance produced by the worker."""
-        from lhp.models.processing import PipelineDelta
+    def test_generate_pipelines_yields_one_delta_per_pipeline(self):
+        """The generator yields exactly one :class:`PipelineDelta` per pipeline.
 
+        E3 replaced the ``on_pipeline_complete`` callback with a delta STREAM:
+        ``generate_pipelines`` is now a generator yielding one
+        :class:`~lhp.models.processing.PipelineDelta` per pipeline (the facade
+        renders each as a paired ``PipelineStarted`` + terminal §5.7 event).
+        This pins the per-pipeline cardinality the callback used to guarantee —
+        on a clean run every pipeline yields exactly one success delta, in
+        input order.
+        """
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = _build_multipipeline_project(tmpdir, ["c1", "c2", "c3"])
 
-            seen: list = []
-
-            def cb(delta: PipelineDelta) -> None:
-                seen.append(delta.pipeline_name)
-
             orch = build_facade_orchestrator(project_root, max_workers=3)
-            orch.generate_pipelines(
-                pipeline_fields=["c1", "c2", "c3"],
-                env="dev",
-                output_dir=project_root / "out",
-                on_pipeline_complete=cb,
+            deltas = list(
+                orch.generate_pipelines(
+                    pipeline_fields=["c1", "c2", "c3"],
+                    env="dev",
+                    output_dir=project_root / "out",
+                )
             )
 
-            # Each pipeline fires exactly once; order may vary by completion
-            # time but the set must match.
-            assert sorted(seen) == ["c1", "c2", "c3"]
+            # One success delta per pipeline, in deterministic input order.
+            assert [d.pipeline_name for d in deltas] == ["c1", "c2", "c3"]
+            assert all(d.success for d in deltas)
 
     def test_single_lhp_failure_unwraps_original(self, monkeypatch):
         """One failing flowgroup carrying a live lhp_error → the orchestrator
@@ -945,10 +975,14 @@ class TestGeneratePipelinesByFields:
             _install_fake_generate_worker(monkeypatch, outcomes)
 
             with pytest.raises(LHPError) as excinfo:
-                orch.generate_pipelines(
-                    pipeline_fields=["p_alpha"],
-                    env="dev",
-                    output_dir=project_root / "out",
+                # generate_pipelines is now a generator; drain it so the gate
+                # raises (failure deltas are yielded first, then the raise).
+                list(
+                    orch.generate_pipelines(
+                        pipeline_fields=["p_alpha"],
+                        env="dev",
+                        output_dir=project_root / "out",
+                    )
                 )
 
             # Single failure → the ORIGINAL LHPError re-raised verbatim.
@@ -1002,10 +1036,14 @@ class TestGeneratePipelinesByFields:
             _install_fake_generate_worker(monkeypatch, outcomes)
 
             with pytest.raises(LHPError) as excinfo:
-                orch.generate_pipelines(
-                    pipeline_fields=["p_alpha", "p_beta", "p_gamma"],
-                    env="dev",
-                    output_dir=project_root / "out",
+                # Drain the generator: every failure delta is yielded, then the
+                # gate raises the LHP-VAL-902 aggregate.
+                list(
+                    orch.generate_pipelines(
+                        pipeline_fields=["p_alpha", "p_beta", "p_gamma"],
+                        env="dev",
+                        output_dir=project_root / "out",
+                    )
                 )
 
             # Many failures → synthesized LHP-VAL-902 with per-pipeline original
@@ -1041,10 +1079,13 @@ class TestGeneratePipelinesByFields:
             _install_fake_generate_worker(monkeypatch, outcomes)
 
             with pytest.raises(LHPError) as excinfo:
-                orch.generate_pipelines(
-                    pipeline_fields=["p_alpha"],
-                    env="dev",
-                    output_dir=project_root / "out",
+                # Drain the generator so the single-failure gate arm raises.
+                list(
+                    orch.generate_pipelines(
+                        pipeline_fields=["p_alpha"],
+                        env="dev",
+                        output_dir=project_root / "out",
+                    )
                 )
 
             # Non-LHP worker failures are reconstructed → LHP-GEN-901.
@@ -1061,24 +1102,26 @@ class TestValidatePipelinesByFields:
 
     def test_multi_pipeline_happy_path(self):
         """All pipelines validate cleanly: each outcome has success=True
-        and zero errors."""
+        and zero findings."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = _build_multipipeline_project(tmpdir, ["v1", "v2", "v3"])
             orch = build_facade_orchestrator(project_root, max_workers=4)
 
-            outcomes = orch.validate_pipelines(
-                pipeline_fields=["v1", "v2", "v3"],
-                env="dev",
-                include_tests=True,
+            # ``validate_pipelines`` is now an outcome GENERATOR (E4); drain it.
+            outcomes = list(
+                orch.validate_pipelines(
+                    pipeline_fields=["v1", "v2", "v3"],
+                    env="dev",
+                    include_tests=True,
+                )
             )
 
             assert len(outcomes) == 3
             for outcome in outcomes:
                 assert outcome.success, (
-                    f"Pipeline {outcome.pipeline} failed unexpectedly: {outcome.errors}"
+                    f"Pipeline {outcome.pipeline} failed unexpectedly: {outcome.issues}"
                 )
-                assert outcome.errors == ()
-                assert outcome.warnings == ()
+                assert outcome.issues == ()
 
     def test_outcomes_returned_in_input_order(self):
         """Outcomes are returned in the order of pipeline_fields input, not
@@ -1089,10 +1132,12 @@ class TestValidatePipelinesByFields:
             )
             orch = build_facade_orchestrator(project_root, max_workers=4)
 
-            outcomes = orch.validate_pipelines(
-                pipeline_fields=["z_last", "a_first", "m_mid"],
-                env="dev",
-                include_tests=True,
+            outcomes = list(
+                orch.validate_pipelines(
+                    pipeline_fields=["z_last", "a_first", "m_mid"],
+                    env="dev",
+                    include_tests=True,
+                )
             )
 
             assert [o.pipeline for o in outcomes] == [
@@ -1109,44 +1154,47 @@ class TestValidatePipelinesByFields:
             project_root = _build_multipipeline_project(tmpdir, ["real_one"])
             orch = build_facade_orchestrator(project_root)
 
-            outcomes = orch.validate_pipelines(
-                pipeline_fields=["real_one", "missing_pipeline"],
-                env="dev",
-                include_tests=True,
+            outcomes = list(
+                orch.validate_pipelines(
+                    pipeline_fields=["real_one", "missing_pipeline"],
+                    env="dev",
+                    include_tests=True,
+                )
             )
 
             by_name = {o.pipeline: o for o in outcomes}
             assert by_name["real_one"].success is True
             assert by_name["missing_pipeline"].success is False
+            # The 'No flowgroups found' finding is an unattributed string issue.
             assert any(
-                "No flowgroups found" in e for e in by_name["missing_pipeline"].errors
+                isinstance(r.issue, str) and "No flowgroups found" in r.issue
+                for r in by_name["missing_pipeline"].issues
             )
 
-    def test_single_pipeline_validate_returns_outcome_with_errors_and_warnings(
+    def test_single_pipeline_validate_returns_outcome_with_issues(
         self,
     ):
         """Single-pipeline validate via ``pipeline_filter=`` returns one
-        outcome whose ``errors`` / ``warnings`` tuples carry the legacy
-        per-pipeline diagnostics."""
+        outcome whose ``issues`` tuple carries the per-pipeline diagnostics
+        (empty on the happy path)."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = _build_multipipeline_project(tmpdir, ["shim_pipe"])
             orch = build_facade_orchestrator(project_root)
 
-            outcomes = orch.validate_pipelines(
-                pipeline_filter="shim_pipe",
-                env="dev",
-                include_tests=True,
+            outcomes = list(
+                orch.validate_pipelines(
+                    pipeline_filter="shim_pipe",
+                    env="dev",
+                    include_tests=True,
+                )
             )
 
             assert len(outcomes) == 1
             outcome = outcomes[0]
-            errors = list(outcome.errors)
-            warnings = list(outcome.warnings)
-
-            assert isinstance(errors, list)
-            assert isinstance(warnings, list)
-            # Happy-path project — no errors expected
-            assert errors == []
+            # Happy-path project — no findings expected, and the outcome
+            # reports success.
+            assert outcome.issues == ()
+            assert outcome.success is True
 
     def test_max_workers_1_matches_max_workers_8(self):
         """Sequential and parallel validation produce the same outcome set."""
@@ -1156,23 +1204,27 @@ class TestValidatePipelinesByFields:
             )
 
             orch = build_facade_orchestrator(project_root)
-            seq = orch.validate_pipelines(
-                pipeline_fields=["w1", "w2", "w3", "w4"],
-                env="dev",
-                include_tests=True,
-                max_workers=1,
+            seq = list(
+                orch.validate_pipelines(
+                    pipeline_fields=["w1", "w2", "w3", "w4"],
+                    env="dev",
+                    include_tests=True,
+                    max_workers=1,
+                )
             )
 
-            par = orch.validate_pipelines(
-                pipeline_fields=["w1", "w2", "w3", "w4"],
-                env="dev",
-                include_tests=True,
-                max_workers=8,
+            par = list(
+                orch.validate_pipelines(
+                    pipeline_fields=["w1", "w2", "w3", "w4"],
+                    env="dev",
+                    include_tests=True,
+                    max_workers=8,
+                )
             )
 
-            # Compare as tuples of (pipeline, success, errors)
+            # Compare as tuples of (pipeline, success, issues)
             def _to_compare(outcomes):
-                return [(o.pipeline, o.success, o.errors) for o in outcomes]
+                return [(o.pipeline, o.success, o.issues) for o in outcomes]
 
             assert _to_compare(seq) == _to_compare(par)
 

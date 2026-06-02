@@ -23,7 +23,6 @@ from lhp.errors import ErrorCategory, ErrorFactory, LHPError, codes
 
 from ..error_panel import render_error_panel
 from ..warning_panel import render_warning_panel
-from ..yaml_scanner import emit_deprecation_warning_if_needed
 from .base_command import BaseCommand
 
 if TYPE_CHECKING:
@@ -288,21 +287,14 @@ class ValidateCommand(BaseCommand):
                         )
                         live.update(_render())
 
-                    # Pre-pool deprecation scan: workers are silenced
-                    # (NullHandler only) so the in-worker SubstitutionManager
-                    # warning cannot reach the user. Resolve each discovered
-                    # flowgroup's source YAML on the main thread and record
-                    # the warning on ``warning_collector``; the panel renders
-                    # after Live exits. Hoisted above the ``empty_no_op``
-                    # gate so users with deprecated bare-``{token}`` syntax
-                    # still get warned when ``pipelines_to_validate`` is
-                    # empty but ``all_flowgroups`` is non-empty (e.g.
-                    # ``--pipeline foo`` filter resolves to no flowgroups).
-                    if all_flowgroups:
-                        emit_deprecation_warning_if_needed(
-                            warning_collector,
-                            (fg.file_path for fg in all_flowgroups),
-                        )
+                    # NOTE (C4): the pre-pool bare-``{token}`` deprecation scan
+                    # was removed here. Detection moved to the core read path
+                    # (``FlowgroupDiscoveryService.scan_deprecation_warnings``),
+                    # which scans every file and emits one structured
+                    # ``DeprecationWarningRecord`` per offending file. C5 wires
+                    # that through the facade as ``WarningEmitted`` events and
+                    # retires this ``warning_collector`` side channel; until
+                    # then the bare-token warning is not surfaced by the CLI.
 
                     if not empty_no_op:
                         # Seed records up front so the spinner shows
