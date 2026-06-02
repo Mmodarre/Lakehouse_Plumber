@@ -46,13 +46,17 @@ class PresetManager:
             return resolved
 
     def _resolve_preset_inheritance(
-        self, preset_name: str, visited: Optional[set] = None
+        self,
+        preset_name: str,
+        visited: Optional[set] = None,
+        path: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Resolve preset inheritance chain.
 
         Args:
             preset_name: Name of the preset to resolve
             visited: Set of already-visited preset names (cycle detection)
+            path: Ordered list of visited preset names (deterministic cycle path)
 
         Returns:
             Merged preset configuration
@@ -63,10 +67,12 @@ class PresetManager:
         """
         if visited is None:
             visited = set()
+        if path is None:
+            path = []
 
         # Cycle detection
         if preset_name in visited:
-            cycle_path = " -> ".join(list(visited) + [preset_name])
+            cycle_path = " -> ".join(path + [preset_name])
             raise ErrorFactory.dependency_error(
                 codes.DEP_022,
                 title="Circular preset inheritance detected",
@@ -95,7 +101,7 @@ class PresetManager:
                 f"Preset '{preset_name}' extends '{preset.extends}', resolving parent"
             )
             parent_config = self._resolve_preset_inheritance(
-                preset.extends, visited | {preset_name}
+                preset.extends, visited | {preset_name}, path + [preset_name]
             )
             result = self._deep_merge(parent_config, result)
 
@@ -120,7 +126,9 @@ class PresetManager:
                 and isinstance(result.get(key), list)
             ):
                 # Special handling for operational_metadata lists - combine them
-                result[key] = list(set(result[key] + value))  # Merge and deduplicate
+                result[key] = list(
+                    dict.fromkeys(result[key] + value)
+                )  # Order-preserving dedup
                 logger.debug(
                     f"Merged operational_metadata lists: {len(result[key])} entries after dedup"
                 )

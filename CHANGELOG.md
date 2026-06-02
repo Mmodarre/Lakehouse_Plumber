@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Deferred-defect fixes — malformed-secret rejection, referential-integrity column-count check, deterministic operational-metadata ordering
+
+**Summary.** Closes four deferred defects previously recorded as `known_bug`
+tests, plus a follow-on that makes operational-metadata code generation
+deterministic end-to-end. Three of the four were silent-acceptance bugs
+(malformed input passing through unrejected) and two were
+hash-seed-non-deterministic ordering bugs. Generated pipeline output for the
+e2e testing-project fixture is **byte-identical** after the fixes — the
+determinism work removes the dependence on `PYTHONHASHSEED` across runs rather
+than changing today's output.
+
+**Added.**
+
+- **New error code `LHP-CFG-059` ("Malformed secret reference").** Malformed
+  secret references — `${secret:scope/}` (empty key), `${secret:/key}` (empty
+  scope), and `${secret:}` (empty both) — are now rejected at substitution time
+  instead of passing through silently as literal text.
+
+**Fixed.**
+
+- **Malformed secret references are now rejected (`LHP-CFG-059`).**
+  `${secret:scope/}`, `${secret:/key}`, and `${secret:}` previously passed
+  through substitution silently as literal text; they now fail with the new
+  `LHP-CFG-059` error.
+- **Referential-integrity and lookup tests now reject a column-count
+  mismatch.** Referential-integrity test actions (and the analogous
+  `all_lookups_found` lookup test) previously **silently accepted** a mismatch
+  between the two column lists; a column-count mismatch between the lists is now
+  rejected.
+- **`operational_metadata` preset-merge dedup is now insertion-order
+  preserving.** The merge previously deduplicated via `set()`, so the resulting
+  order was non-deterministic under `PYTHONHASHSEED`; it now preserves
+  first-seen insertion order deterministically.
+- **Circular-inheritance cycle-path messages in preset resolution are now
+  deterministic.** The cycle-path message is now built from an ordered path
+  rather than iterating a `set`, so the reported cycle is reproducible across
+  runs.
+- **Operational-metadata code generation now emits columns in a deterministic,
+  first-seen order end-to-end.** The codegen path no longer routes column
+  collections through `set`. Generated output for the e2e testing-project
+  fixture is **byte-identical** after the fix — the fixture's emitted order
+  already matched the deterministic order, so this removes the hash-seed
+  dependence across runs rather than changing today's output.
+
+**Deferred (decided; tracked for follow-up).**
+
+- **`SCHEMA-TEMPLATE-SORT-DEFER`** — `templates/transform/schema.py.j2` omits
+  the `|sort` filter used by sibling operational-metadata templates; output is
+  now deterministic via order-preserving `metadata.py` but the template remains
+  stylistically inconsistent. `|sort` intentionally not added to preserve
+  insertion-order semantics.
+
 ### Validator decomposition — `write` / `test` / `cdc_fanin` into the free-function helper idiom + shared three-part-name check
 
 **Changed.**

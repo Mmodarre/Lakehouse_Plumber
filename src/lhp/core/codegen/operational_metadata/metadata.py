@@ -7,7 +7,7 @@ expression adaptation for wildcard-import-aware codegen.
 
 import logging
 import re
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 from lhp.models import (
     Action,
@@ -239,13 +239,13 @@ class OperationalMetadataCatalog:
 
         self._validate_target_type(target_type)
         available_columns = self._get_available_columns()
-        selected_column_names = set()
+        selected_column_names: Dict[str, None] = {}
 
         try:
             for level in ("preset", "flowgroup", "action"):
                 if level in selection and selection[level] is not None:
                     selected_column_names.update(
-                        self._extract_column_names(selection[level])
+                        dict.fromkeys(self._extract_column_names(selection[level]))
                     )
         except Exception as e:
             if isinstance(e, LHPError):
@@ -307,14 +307,15 @@ class OperationalMetadataCatalog:
             return self.project_config.columns
         return self.default_columns
 
-    def _extract_column_names(self, selection, context: str = "metadata") -> set:
+    def _extract_column_names(self, selection, context: str = "metadata") -> List[str]:
         """Extract column names from selection (a list of strings).
 
         ``context="metadata"`` is lenient (logs and drops unknown columns);
-        any other context is strict and raises ``LHPError``.
+        any other context is strict and raises ``LHPError``. Returns the
+        column names in the order they appear in ``selection``.
         """
         if not isinstance(selection, list):
-            return set()
+            return []
 
         available_columns = set(self._get_available_columns().keys())
         invalid_columns = set(selection) - available_columns
@@ -324,7 +325,7 @@ class OperationalMetadataCatalog:
                 logger.warning(
                     f"Ignoring unknown metadata columns: {', '.join(sorted(invalid_columns))}"
                 )
-                return set(selection) - invalid_columns
+                return [c for c in selection if c not in invalid_columns]
             raise ErrorFactory.config_error(
                 codes.CFG_006,
                 title="Invalid operational metadata column references",
@@ -336,7 +337,7 @@ class OperationalMetadataCatalog:
                 ],
             )
 
-        return set(selection)
+        return list(selection)
 
     def _validate_target_type(self, target_type: str) -> None:
         valid_types = ["streaming_table", "materialized_view", "view"]

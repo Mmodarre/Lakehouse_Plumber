@@ -323,19 +323,6 @@ site_id: SG001
     assert exc.value.code.endswith("-053")
 
 
-# OWNER: @mmodarre
-# ISSUE: https://github.com/Mmodarre/Lakehouse_Plumber/issues/wk6-fixup-lhp-val-054-spec-ambiguity
-# EXPIRY: 2026-08-01
-# REDUCED-GATE: pytest tests/test_blueprint_parser.py::test_instance_invalid_definition_raises_054 --collect-only
-@pytest.mark.skip(
-    reason=(
-        "Spec ambiguity: 054 is documented for 'Invalid instance definition "
-        "(Pydantic validation failed)' but the parser performs a dict-membership "
-        "lookup on `blueprint` before Pydantic re-validation, so non-hashable "
-        "shapes raise TypeError instead of LHP-VAL-054. Filed as likely product "
-        "bug; this test is preserved to record the contract."
-    )
-)
 def test_instance_invalid_definition_raises_054(tmp_path):
     parser = BlueprintParser()
     blueprints = _make_blueprint(parser, tmp_path)

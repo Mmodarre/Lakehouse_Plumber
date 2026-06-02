@@ -122,6 +122,7 @@ CFG_054 = ErrorCode(ErrorCategory.CONFIG, "054")
 CFG_056 = ErrorCode(ErrorCategory.CONFIG, "056")
 CFG_057 = ErrorCode(ErrorCategory.CONFIG, "057")
 CFG_058 = ErrorCode(ErrorCategory.CONFIG, "058")
+CFG_059 = ErrorCode(ErrorCategory.CONFIG, "059")
 
 # DEPENDENCY (DEP)
 DEP_001 = ErrorCode(ErrorCategory.DEPENDENCY, "001")
@@ -224,6 +225,7 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     CFG_056,
     CFG_057,
     CFG_058,
+    CFG_059,
     DEP_001,
     DEP_022,
     ACT_001,
@@ -323,6 +325,7 @@ __all__ = [
     "CFG_056",
     "CFG_057",
     "CFG_058",
+    "CFG_059",
     "DEP_001",
     "DEP_022",
     "ACT_001",

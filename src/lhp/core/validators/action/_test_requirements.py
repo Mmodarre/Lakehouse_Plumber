@@ -9,7 +9,7 @@ from typing import List
 
 from lhp.models import Action
 
-from ._name_checks import require_three_part_name
+from ._name_checks import require_equal_length, require_three_part_name
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +64,15 @@ def validate_test_type_requirements(
             errors.append(
                 f"{prefix}: Referential integrity test requires 'reference_columns' field"
             )
+        err = require_equal_length(
+            action.source_columns,
+            action.reference_columns,
+            "'source_columns'",
+            "'reference_columns'",
+            prefix,
+        )
+        if err:
+            errors.append(err)
 
     elif test_type == "completeness":
         if not action.source:
@@ -118,6 +127,15 @@ def validate_test_type_requirements(
             errors.append(
                 f"{prefix}: All lookups found test requires 'lookup_result_columns' field"
             )
+        err = require_equal_length(
+            action.lookup_columns,
+            action.lookup_result_columns,
+            "'lookup_columns'",
+            "'lookup_result_columns'",
+            prefix,
+        )
+        if err:
+            errors.append(err)
 
     elif test_type == "custom_sql":
         if not action.source and not action.sql:

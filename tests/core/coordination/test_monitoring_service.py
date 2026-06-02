@@ -205,14 +205,6 @@ def test_finalize_raises_cfg008_when_job_config_not_a_mapping(tmp_path):
 
 
 @pytest.mark.unit
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "MONITORING-RMTREE-DEFER: substring match deletes dirs whose "
-        "monitoring.py contains the marker in a comment/string; product fix "
-        "owned by owner"
-    ),
-)
 def test_cleanup_does_not_delete_dir_with_marker_only_in_comment(tmp_path):
     """A user pipeline whose ``monitoring.py`` mentions the marker only inside
     a comment/string (a false match) must NOT be ``rmtree``d.

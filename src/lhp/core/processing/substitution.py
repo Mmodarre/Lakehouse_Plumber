@@ -42,7 +42,7 @@ class EnhancedSubstitutionManager:
     # runs on raw YAML and therefore uses a stricter pattern.
     DEFAULT_TOKEN_PATTERN = re.compile(r"\{(\w+)\}")
     DOLLAR_TOKEN_PATTERN = re.compile(r"\$\{(\w+)\}")
-    SECRET_PATTERN = re.compile(r"\$\{secret:([^}]+)\}")
+    SECRET_PATTERN = re.compile(r"\$\{secret:([^}]*)\}")
     UNRESOLVED_TOKEN_PATTERN = re.compile(r"\{(?!dbutils\.)(\w+)\}")
 
     def __init__(
@@ -232,6 +232,20 @@ class EnhancedSubstitutionManager:
                         example="secrets:\n  default_scope: my-scope\n\n# Then use: ${secret:my_key}\n# Or explicit: ${secret:my-scope/my_key}",
                         context={"secret_ref": secret_ref, "env": self.env},
                     )
+
+            # Fail-fast subset of SecretValidator (§9.24): inline to avoid a processing⇄validators.field import cycle.
+            if not scope or not key:
+                raise ErrorFactory.config_error(
+                    codes.CFG_059,
+                    title="Malformed secret reference",
+                    details=f"Secret reference is malformed (empty scope or key): {match.group(0)}",
+                    suggestions=[
+                        "Use the full scope/key format with both parts non-empty: ${secret:scope/key}",
+                        "Or configure a default scope and reference just the key: ${secret:my_key}",
+                    ],
+                    example="${secret:my-scope/my_key}",
+                    context={"secret_ref": match.group(0), "env": self.env},
+                )
 
             # Resolve scope alias if it exists
             actual_scope = self.secret_scopes.get(scope, scope)
