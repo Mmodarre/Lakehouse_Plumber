@@ -238,8 +238,8 @@ class MonitoringFinalizerService(BaseMonitoringFinalizerService):
     def cleanup_artifacts(self, env: str, output_dir: Path) -> None:
         """Remove existing monitoring artifacts before writing new ones.
 
-        Lifted verbatim from
-        ``ActionOrchestrator._cleanup_monitoring_artifacts``.
+        Invoked from :meth:`finalize_artifacts` as the first step of the
+        reconcile pass.
         """
         monitoring_dir = self.project_root / "monitoring" / env
         if monitoring_dir.exists():

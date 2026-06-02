@@ -307,56 +307,6 @@ class YAMLParser:
 
         return flowgroups
 
-    def parse_flowgroup(self, file_path: Path) -> FlowGroup:
-        """Parse a FlowGroup YAML file.
-
-        Note: This method only supports single-flowgroup files. If the file contains
-        multiple flowgroups (via --- separator or flowgroups array), use
-        parse_flowgroups_from_file() instead.
-        """
-        from .yaml_loader import load_yaml_documents_all
-
-        # Check if file contains multiple flowgroups
-        try:
-            documents = load_yaml_documents_all(file_path)
-        except ValueError as e:
-            # If we can't even load it, fall back to original behavior
-            self.logger.debug(
-                f"Multi-document load failed for {file_path}, falling back to single-document parse: {e}"
-            )
-            content = self.parse_file(file_path)
-            return FlowGroup(**content)
-
-        # Check for multiple documents
-        if len(documents) > 1:
-            raise ErrorFactory.validation_error(
-                codes.VAL_015,
-                title="Multiple documents in single-flowgroup parse",
-                details=f"File {file_path} contains multiple flowgroups (multiple documents). Use parse_flowgroups_from_file() instead.",
-                suggestions=[
-                    "Use parse_flowgroups_from_file() for multi-document YAML files",
-                    "Split into separate files if single-flowgroup parsing is needed",
-                ],
-                context={"file": str(file_path)},
-            )
-
-        # Check for array syntax
-        if documents and "flowgroups" in documents[0]:
-            raise ErrorFactory.validation_error(
-                codes.VAL_015,
-                title="Array syntax in single-flowgroup parse",
-                details=f"File {file_path} contains multiple flowgroups (array syntax). Use parse_flowgroups_from_file() instead.",
-                suggestions=[
-                    "Use parse_flowgroups_from_file() for array-syntax YAML files",
-                    "Split into separate files if single-flowgroup parsing is needed",
-                ],
-                context={"file": str(file_path)},
-            )
-
-        # Single flowgroup - use original parsing
-        content = self.parse_file(file_path)
-        return FlowGroup(**content)
-
     def parse_template_raw(self, file_path: Path) -> Template:
         """Parse a Template YAML file with raw actions (no Action object creation).
 
@@ -413,7 +363,6 @@ class CachingYAMLParser:
         self._max_cache_size: int = max_cache_size
         self._lock: threading.RLock = threading.RLock()
         self._hits: int = 0
-        self._misses: int = 0
 
     def reserve_capacity(self, n: int) -> None:
         """Raise the shared cache ceiling to hold a known bounded working set.
@@ -454,7 +403,7 @@ class CachingYAMLParser:
         label: str,
     ) -> _CacheValueT:
         """Cache-shell shared by every sub-cache: mtime-keyed lookup, FIFO
-        eviction at the shared ``max_cache_size`` ceiling, hit/miss counters.
+        eviction at the shared ``max_cache_size`` ceiling, hit counter.
 
         ``loader`` is the no-arg fallback invoked on cache miss (and on the
         OSError fast-path where the key can't be computed).
@@ -477,8 +426,6 @@ class CachingYAMLParser:
                     f"{label} cache hit for {path} (hits={self._hits})"
                 )
                 return cache[cache_key]
-
-            self._misses += 1
 
             if len(cache) >= self._max_cache_size:
                 # Remove ~10% of entries (FIFO approximation)
@@ -515,8 +462,7 @@ class CachingYAMLParser:
     ) -> List[Dict[str, Any]]:
         """Load all YAML documents from a file with mtime-keyed caching.
 
-        Hit/miss counters are shared with the flowgroup sub-cache;
-        ``get_cache_stats()`` reports per-sub-cache sizes separately.
+        Hit/miss counters are shared with the flowgroup sub-cache.
         """
         return self._cached_load(
             path,
@@ -524,36 +470,6 @@ class CachingYAMLParser:
             lambda: load_yaml_documents_all(path, error_context=error_context),
             label="Documents",
         )
-
-    def clear_cache(self) -> None:
-        """Clear all cached entries across both sub-caches."""
-        with self._lock:
-            self._cache.clear()
-            self._documents_cache.clear()
-            self._hits = 0
-            self._misses = 0
-
-    def get_cache_stats(self) -> Dict[str, Any]:
-        """Get cache performance statistics.
-
-        Hit/miss counters are aggregated across both sub-caches (flowgroup
-        parsing and raw-document loading). Sub-cache sizes are reported
-        separately for visibility.
-
-        Returns:
-            Dictionary with cache hits, misses, hit rate, and per-sub-cache sizes
-        """
-        with self._lock:
-            total: int = self._hits + self._misses
-            hit_rate: float = (self._hits / total * 100) if total > 0 else 0
-            return {
-                "hits": self._hits,
-                "misses": self._misses,
-                "total": total,
-                "hit_rate_percent": round(hit_rate, 1),
-                "cache_size": len(self._cache),
-                "documents_cache_size": len(self._documents_cache),
-            }
 
     def __getattr__(self, name: str) -> Any:
         """Delegate other methods to base parser.

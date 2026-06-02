@@ -284,36 +284,3 @@ class TestParseOperationalMetadata:
         assert "basic" in config.operational_metadata.presets
         preset = config.operational_metadata.presets["basic"]
         assert preset.columns == ["col_a", "col_b"]
-
-
-class TestGetOperationalMetadataConfig:
-    """Tests for get_operational_metadata_config method."""
-
-    def test_config_without_operational_metadata_returns_none(self, tmp_path):
-        """Config without operational_metadata section returns None."""
-        config_file = tmp_path / "lhp.yaml"
-        config_file.write_text("name: test\n")
-        loader = ProjectConfigLoader(tmp_path)
-        result = loader.get_operational_metadata_config()
-        assert result is None
-
-    def test_config_with_operational_metadata_returns_config(self, tmp_path):
-        """Config with operational_metadata returns the parsed config."""
-        config_file = tmp_path / "lhp.yaml"
-        config_file.write_text(
-            "name: test\n"
-            "operational_metadata:\n"
-            "  columns:\n"
-            "    ingestion_time:\n"
-            '      expression: "current_timestamp()"\n'
-        )
-        loader = ProjectConfigLoader(tmp_path)
-        result = loader.get_operational_metadata_config()
-        assert result is not None
-        assert "ingestion_time" in result.columns
-
-    def test_missing_config_file_returns_none(self, tmp_path):
-        """No lhp.yaml means get_operational_metadata_config returns None."""
-        loader = ProjectConfigLoader(tmp_path)
-        result = loader.get_operational_metadata_config()
-        assert result is None

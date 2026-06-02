@@ -108,34 +108,6 @@ class TestYAMLParserErrorHandling:
         finally:
             yaml_file.unlink()
 
-    def test_parse_flowgroup_basic(self):
-        """Test basic FlowGroup parsing functionality."""
-        parser = YAMLParser()
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            yaml_content = """
-pipeline: test_pipeline
-flowgroup: test_flowgroup
-presets:
-  - bronze_layer
-actions:
-  - name: load_data
-    type: load
-    target: raw_data
-    description: Load raw data
-"""
-            f.write(yaml_content)
-            f.flush()
-
-            try:
-                flowgroup = parser.parse_flowgroup(Path(f.name))
-                assert flowgroup.pipeline == "test_pipeline"
-                assert flowgroup.presets == ["bronze_layer"]
-                assert len(flowgroup.actions) == 1
-                assert flowgroup.actions[0].name == "load_data"
-            finally:
-                Path(f.name).unlink()
-
     # Note: test_discover_flowgroups_basic removed - discover_flowgroups() method
     # has been removed from YAMLParser. Use FlowgroupDiscoveryService.discover_flowgroups() instead.
 
@@ -159,36 +131,6 @@ actions:
 
 class TestYAMLParserFlowgroupMethods:
     """Test flowgroup, template, and preset parsing methods."""
-
-    def test_parse_flowgroup_success(self):
-        """Test successful flowgroup parsing."""
-        parser = YAMLParser()
-
-        flowgroup_data = {
-            "pipeline": "test_pipeline",
-            "flowgroup": "test_flowgroup",
-            "actions": [
-                {
-                    "name": "load_data",
-                    "type": "load",
-                    "source": {"type": "sql", "sql": "SELECT * FROM table"},
-                    "target": "v_data",
-                }
-            ],
-        }
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            yaml.dump(flowgroup_data, f)
-            f.flush()
-            yaml_file = Path(f.name)
-
-        try:
-            result = parser.parse_flowgroup(yaml_file)
-            assert result.pipeline == "test_pipeline"
-            assert result.flowgroup == "test_flowgroup"
-            assert len(result.actions) == 1
-        finally:
-            yaml_file.unlink()
 
     def test_parse_template_success(self):
         """Test successful template parsing."""
@@ -608,79 +550,5 @@ actions:
                 "Invalid YAML" in str(exc_info.value)
                 or "yaml" in str(exc_info.value).lower()
             )
-        finally:
-            yaml_file.unlink()
-
-
-class TestParseFlowgroupErrorOnMultiple:
-    """Test that parse_flowgroup() raises error when file contains multiple flowgroups."""
-
-    def test_parse_flowgroup_errors_on_multi_document(self):
-        """Test parse_flowgroup() raises error with multi-document file."""
-        parser = YAMLParser()
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            f.write("""
-pipeline: test_pipeline
-flowgroup: flowgroup1
----
-pipeline: test_pipeline
-flowgroup: flowgroup2
-""")
-            f.flush()
-            yaml_file = Path(f.name)
-
-        try:
-            with pytest.raises(ValueError) as exc_info:
-                parser.parse_flowgroup(yaml_file)
-
-            assert "multiple flowgroups" in str(exc_info.value).lower()
-            assert "parse_flowgroups_from_file" in str(exc_info.value)
-        finally:
-            yaml_file.unlink()
-
-    def test_parse_flowgroup_errors_on_array_syntax(self):
-        """Test parse_flowgroup() raises error with array syntax."""
-        parser = YAMLParser()
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            f.write("""
-pipeline: test_pipeline
-flowgroups:
-  - flowgroup: flowgroup1
-  - flowgroup: flowgroup2
-""")
-            f.flush()
-            yaml_file = Path(f.name)
-
-        try:
-            with pytest.raises(ValueError) as exc_info:
-                parser.parse_flowgroup(yaml_file)
-
-            assert "multiple flowgroups" in str(exc_info.value).lower()
-            assert "parse_flowgroups_from_file" in str(exc_info.value)
-        finally:
-            yaml_file.unlink()
-
-    def test_parse_flowgroup_still_works_for_single(self):
-        """Test parse_flowgroup() still works for single flowgroup files."""
-        parser = YAMLParser()
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            f.write("""
-pipeline: test_pipeline
-flowgroup: single_flowgroup
-actions:
-  - name: action1
-    type: load
-    target: table1
-""")
-            f.flush()
-            yaml_file = Path(f.name)
-
-        try:
-            # Should work without error
-            flowgroup = parser.parse_flowgroup(yaml_file)
-            assert flowgroup.flowgroup == "single_flowgroup"
         finally:
             yaml_file.unlink()

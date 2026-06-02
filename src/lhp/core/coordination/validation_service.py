@@ -147,11 +147,8 @@ class ValidationService(BaseValidationService):
     def validate_duplicates(self, flowgroups: Sequence[FlowGroup]) -> None:
         """Raise :class:`LHPValidationError` if duplicate pipeline+flowgroup pairs exist.
 
-        Mirrors :meth:`ActionOrchestrator.validate_duplicate_pipeline_flowgroup_combinations`
-        verbatim — same error code, title, suggestions, and context — so the
-        orchestrator pass-through is a one-line delegation. The error itself is
-        BUILT by :meth:`build_duplicate_issue` (§9.24: single construction
-        site); this method only re-raises it.
+        The error itself is BUILT by :meth:`build_duplicate_issue` (§9.24:
+        single construction site); this method only re-raises it.
         """
         err = self.build_duplicate_issue(flowgroups)
         if err is not None:

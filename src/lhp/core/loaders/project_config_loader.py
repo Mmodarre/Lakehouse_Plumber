@@ -14,7 +14,6 @@ from lhp.models import (
     EventLogConfig,
     MonitoringConfig,
     ProjectConfig,
-    ProjectOperationalMetadataConfig,
     TestReportingConfig,
 )
 
@@ -172,12 +171,3 @@ class ProjectConfigLoader:
         event_log_config: Optional[EventLogConfig],
     ) -> None:
         _validate_monitoring_config_impl(config, event_log_config, self.project_root)
-
-    def get_operational_metadata_config(
-        self,
-    ) -> Optional[ProjectOperationalMetadataConfig]:
-        """Return the project's operational metadata config, or ``None`` if absent."""
-        project_config = self.load_project_config()
-        if project_config and project_config.operational_metadata:
-            return project_config.operational_metadata
-        return None

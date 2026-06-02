@@ -1,6 +1,5 @@
 """Tests for transform action validator — extended coverage."""
 
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -355,43 +354,6 @@ class TestValidateSchemaTransform:
         )
         errors = validator._validate_schema_transform(action, "test")
         assert any("not found" in e for e in errors)
-
-
-class TestValidateQuarantineExpectations:
-    """Tests for _validate_quarantine_expectations edge cases."""
-
-    def test_missing_expectations_file_returns_early(self):
-        """When expectations_file is None, no error is appended."""
-        validator = _make_validator(project_root=Path("/some/root"))
-        action = _make_action(
-            transform_type="data_quality",
-            expectations_file=None,
-        )
-        errors = []
-        validator._validate_quarantine_expectations(action, "test", errors)
-        assert errors == []
-
-    def test_missing_project_root_returns_early(self):
-        """When project_root is None, no error is appended."""
-        validator = _make_validator(project_root=None)
-        action = _make_action(
-            transform_type="data_quality",
-            expectations_file="expectations.yaml",
-        )
-        errors = []
-        validator._validate_quarantine_expectations(action, "test", errors)
-        assert errors == []
-
-    def test_both_missing_returns_early(self):
-        """When both expectations_file and project_root are None, no error."""
-        validator = _make_validator(project_root=None)
-        action = _make_action(
-            transform_type="data_quality",
-            expectations_file=None,
-        )
-        errors = []
-        validator._validate_quarantine_expectations(action, "test", errors)
-        assert errors == []
 
 
 class TestValidateTopLevel:

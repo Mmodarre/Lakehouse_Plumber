@@ -17,9 +17,8 @@ Key semantics:
     `variables: {raw_table: "raw_%{site_name}_orders"}`); without this, an
     instance accidentally setting `raw_table` would silently break the spec.
   - Uniqueness validation: emits a duplicate-tuple error citing both instance
-    file paths BEFORE returning. This cannot be deferred to
-    `validate_duplicate_pipeline_flowgroup_combinations` — that error has lost
-    provenance by then.
+    file paths BEFORE returning. This cannot be deferred to the downstream
+    duplicate-pipeline+flowgroup guard — that error has lost provenance by then.
 """
 
 import copy

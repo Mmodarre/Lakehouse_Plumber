@@ -276,51 +276,6 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
             return tuple(self._project_config.include)
         return ()
 
-    def get_pipeline_fields(self) -> set[str]:
-        """
-        Get all unique pipeline fields from discovered flowgroups.
-
-        Returns:
-            Set of unique pipeline field values
-        """
-        all_flowgroups = self.discover_all_flowgroups()
-        return {fg.pipeline for fg in all_flowgroups}
-
-    def validate_pipeline_exists(self, pipeline_field: str) -> bool:
-        """
-        Check if a pipeline field exists in any flowgroup.
-
-        Args:
-            pipeline_field: Pipeline field to check
-
-        Returns:
-            True if pipeline exists, False otherwise
-        """
-        pipeline_fields = self.get_pipeline_fields()
-        return pipeline_field in pipeline_fields
-
-    def get_flowgroups_summary(self) -> dict:
-        """
-        Get summary statistics about discovered flowgroups.
-
-        Returns:
-            Dictionary with discovery statistics
-        """
-        all_flowgroups = self.discover_all_flowgroups()
-        pipeline_fields = set()
-        flowgroup_names = set()
-
-        for fg in all_flowgroups:
-            pipeline_fields.add(fg.pipeline)
-            flowgroup_names.add(fg.flowgroup)
-
-        return {
-            "total_flowgroups": len(all_flowgroups),
-            "unique_pipelines": len(pipeline_fields),
-            "unique_flowgroup_names": len(flowgroup_names),
-            "pipeline_fields": sorted(pipeline_fields),
-        }
-
     def discover_all_flowgroups_with_paths(self) -> List[Tuple[FlowGroup, Path]]:
         """
         Discover all flowgroups across all directories with their source file paths.

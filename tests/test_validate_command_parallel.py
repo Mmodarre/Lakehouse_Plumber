@@ -431,11 +431,11 @@ def test_validate_catches_template_resolved_duplicate_table_invisible_in_raw():
             raw_cross = orchestrator.validation.validate_cross_flowgroup(
                 raw_flowgroups, pipeline_filter="dup_pipeline"
             )
-            assert raw_cross.has_errors is False, (
+            assert raw_cross.table_creation_errors == [], (
                 "the duplicate-table conflict must be INVISIBLE in the raw "
                 f"flowgroups (got {raw_cross.table_creation_errors})"
             )
-            assert raw_cross.table_creation_errors == []
+            assert raw_cross.cdc_fanin_errors == []
 
             # ---- RESOLVED-VISIBLE: lhp validate now catches it ----
             result = runner.invoke(cli, ["validate", "--env", "dev", "--show-all"])

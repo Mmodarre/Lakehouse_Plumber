@@ -253,7 +253,10 @@ actions:
 
             # Parse the YAML
             orchestrator = build_facade_orchestrator(project_root)
-            flowgroup = orchestrator.yaml_parser.parse_flowgroup(yaml_file)
+            flowgroups = orchestrator.yaml_parser.parse_flowgroups_from_file(
+                Path(yaml_file)
+            )
+            flowgroup = flowgroups[0]
 
             # Verify readMode was parsed correctly
             assert flowgroup.actions[0].readMode == "stream"

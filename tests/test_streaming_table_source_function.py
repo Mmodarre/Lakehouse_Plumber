@@ -1,8 +1,8 @@
 """Tests for the ``__future__`` hoisting chokepoint in code assembly.
 
-``CodeGenerationService._assemble_final_code`` is the chokepoint that hoists
-any ``from __future__`` line found mid-body in a rendered template to the top
-of the assembled module. PEP 236 requires future imports to precede all other
+``CodeAssembler.assemble`` is the chokepoint that hoists any ``from
+__future__`` line found mid-body in a rendered template to the top of the
+assembled module. PEP 236 requires future imports to precede all other
 statements, so without this hoist a ``from __future__`` line embedded inside a
 generated flowgroup body — beneath ``from pyspark import pipelines as dp`` —
 would trigger ``SyntaxError: from __future__ imports must occur at the
@@ -40,7 +40,7 @@ class TestAssemblyChokepointHoistsFutureFromCompleteCode:
         flowgroup = FlowGroup(pipeline="p_test", flowgroup="fg_test")
 
         cg = CodeGenerationService()
-        assembled = cg._assemble_final_code(flowgroup, all_imports, [], complete_code)
+        assembled = cg._assembler.assemble(flowgroup, all_imports, [], complete_code)
 
         # Hard contract: assembled module must parse cleanly.
         compile(assembled, "<string>", "exec")

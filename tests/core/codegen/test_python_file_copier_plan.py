@@ -10,7 +10,7 @@ guarantees:
      (code 019) — identical to the write path.
   2. Identical (source, dest) records are deduped to a single planned record.
   3. Planning touches the filesystem zero times and leaves the copier's
-     ``get_copied_files`` registry empty.
+     internal registry empty.
 """
 
 from pathlib import Path
@@ -139,7 +139,7 @@ class TestPlanNoSideEffects:
 
         # Planning uses a throwaway registry; the instance stays pristine so
         # the same copier can later be used for the real write pass.
-        assert copier.get_copied_files() == {}
+        assert copier._copied_files == {}
 
     def test_plan_is_deterministic(self, tmp_path):
         custom_dir = tmp_path / "custom_python_functions"
@@ -205,9 +205,9 @@ class TestPlanMultiRecordFromComputeCopyRecords:
         for record in records:
             apply_copier.apply_copy_record(record)
         written = {
-            Path(p)
-            for p in apply_copier.get_copied_files()
-            if not p.endswith("__init__.py") or "helpers" in p
+            p
+            for p in cfd.rglob("*.py")
+            if not p.name == "__init__.py" or "helpers" in str(p)
         }
 
         # Every planned module dest exists on disk; the planner did not invent

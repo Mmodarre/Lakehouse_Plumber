@@ -309,15 +309,6 @@ class ActionRegistry:
     type: load  # Valid types: load, transform, write, test""",
                 )
 
-    def list_generators(self) -> Dict[str, list]:
-        """List all available generators."""
-        return {
-            "load": [gen.value for gen in self._load_generators.keys()],
-            "transform": [gen.value for gen in self._transform_generators.keys()],
-            "write": [gen.value for gen in self._write_generators.keys()],
-            "test": [gen.value for gen in self._test_generators.keys()],
-        }
-
     def is_generator_available(self, action_type: ActionType, sub_type: str) -> bool:
         """Check if a generator is available for the given action and sub type."""
         try:

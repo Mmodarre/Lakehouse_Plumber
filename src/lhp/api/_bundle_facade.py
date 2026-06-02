@@ -168,8 +168,8 @@ def _wipe_resources_lhp(project_root: Path) -> int:
 def _missing_pipeline_config_error() -> Exception:
     """Build the structured ``LHP-CFG-023`` for missing pipeline_config.
 
-    Mirrors the CLI's
-    :func:`lhp.bundle.preflight.require_pipeline_config_flag` failure
+    Mirrors the CLI's ``--pipeline-config`` requirement (the same
+    ``LHP-CFG-023`` raised inline by the ``generate``/``validate`` commands)
     so :meth:`BundleFacade.validate_bundle_assets` can surface a stable
     error code when invoked without a configured ``pipeline_config_path``.
     """

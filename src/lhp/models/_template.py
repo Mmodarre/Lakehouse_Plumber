@@ -20,13 +20,6 @@ class Template(BaseModel):
         """Check if template contains raw action dictionaries (not validated Action objects)."""
         return self._raw_actions
 
-    def get_actions_as_dicts(self) -> List[Dict[str, Any]]:
-        """Get actions as dictionaries, converting from Action objects if needed."""
-        if self._raw_actions:
-            return self.actions
-        else:
-            return [action.model_dump(mode="json") for action in self.actions]
-
 
 class Preset(BaseModel):
     name: str

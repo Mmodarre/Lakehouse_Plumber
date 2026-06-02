@@ -352,12 +352,3 @@ def merge_perf(payload: Optional[dict]) -> None:
     """Merge a payload produced by ``export_perf_for_merge`` into the summary."""
     if payload:
         _summary.merge(payload)
-
-
-def get_perf_summary() -> dict:
-    """Return a snapshot of collected perf metrics.
-
-    See ``PerfSummary.snapshot`` for the dict shape. Always callable; returns
-    an empty-shape dict (with ``enabled=False``) when perf timing is disabled.
-    """
-    return _summary.snapshot()

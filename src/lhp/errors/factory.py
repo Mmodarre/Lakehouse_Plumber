@@ -333,33 +333,6 @@ actions:
         )
 
     @staticmethod
-    def dependency_cycle(cycle_components: List[str]) -> LHPError:
-        """Build a circular-dependency error. Returns code LHP-DEP-001."""
-        code = codes.DEP_001
-        cycle_visual = " → ".join(cycle_components + [cycle_components[0]])
-
-        return LHPError(
-            category=code.category,
-            code_number=code.number,
-            title="Circular dependency detected",
-            details=f"The following components form a dependency cycle:\n\n{cycle_visual}",
-            suggestions=[
-                "Review the dependency chain and remove one of the dependencies",
-                "Consider splitting complex transformations into separate stages",
-                "Use materialized views to break dependency cycles",
-            ],
-            example="""To break the cycle, you could:
-1. Remove direct dependency:
-   # Instead of: A → B → C → A
-   # Create:     A → B → C
-   #             D → A (separate flow)
-
-2. Use intermediate materialization:
-   # Create a materialized view at one point in the chain""",
-            context={"Cycle": cycle_visual, "Components": ", ".join(cycle_components)},
-        )
-
-    @staticmethod
     def invalid_read_mode(
         action_name: str,
         action_type: str,
@@ -673,28 +646,6 @@ actions:
         doc_link: Optional[str] = None,
     ) -> LHPError:
         """Build a generic GENERAL error from any GEN ErrorCode."""
-        return LHPError(
-            category=code.category,
-            code_number=code.number,
-            title=title,
-            details=details,
-            suggestions=suggestions,
-            example=example,
-            context=context,
-            doc_link=doc_link,
-        )
-
-    @staticmethod
-    def cloudfiles_error(
-        code: ErrorCode,
-        title: str,
-        details: str,
-        suggestions: Optional[List[str]] = None,
-        example: Optional[str] = None,
-        context: Optional[dict[str, Any]] = None,
-        doc_link: Optional[str] = None,
-    ) -> LHPError:
-        """Build a generic CLOUDFILES error from any CF ErrorCode."""
         return LHPError(
             category=code.category,
             code_number=code.number,

@@ -199,29 +199,11 @@ class TestApplyCopyRecord:
         assert (custom_dir / "__init__.py").exists()
         assert (custom_dir / "user_module.py").read_text() == "# header\nX = 1\n"
 
-    def test_apply_tracks_init_and_module(self, temp_dir, flowgroup):
-        """``apply_copy_record`` writes both the init package and the module."""
-        custom_dir = temp_dir / "custom_python_functions"
-        record = CopiedModuleRecord(
-            source_path="user_module.py",
-            dest_path=custom_dir / "user_module.py",
-            content="# header\nX = 1\n",
-            module_path="user_module.py",
-            custom_functions_dir=custom_dir,
-        )
-
-        copier = PythonFileCopier()
-        copier.apply_copy_record(record)
-
-        copied = copier.get_copied_files()
-        assert str(custom_dir / "__init__.py") in copied
-        assert str(custom_dir / "user_module.py") in copied
-
     def test_dedup_on_second_apply_is_no_op(self, temp_dir, flowgroup):
         """Same record applied twice: second call dedupes (no-op).
 
-        The second apply must not overwrite anything and the copier's
-        tracked-file registry size must not grow on the second call.
+        The second apply must not overwrite the on-disk module: its content
+        must be byte-identical to what the first apply wrote.
         """
         custom_dir = temp_dir / "custom_python_functions"
         record = CopiedModuleRecord(
@@ -234,12 +216,12 @@ class TestApplyCopyRecord:
 
         copier = PythonFileCopier()
         copier.apply_copy_record(record)
-        first_snapshot = copier.get_copied_files()
+        first_content = (custom_dir / "user_module.py").read_text()
 
         copier.apply_copy_record(record)
-        second_snapshot = copier.get_copied_files()
+        second_content = (custom_dir / "user_module.py").read_text()
 
-        assert first_snapshot == second_snapshot
+        assert first_content == second_content
         assert (custom_dir / "user_module.py").exists()
 
     def test_apply_writes_file(self, temp_dir, flowgroup):

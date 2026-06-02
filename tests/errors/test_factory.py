@@ -161,12 +161,6 @@ INTENT_CASES = [
         "LHP-VAL-006",
     ),
     (
-        "dependency_cycle",
-        dict(cycle_components=["A", "B", "C"]),
-        LHPError,
-        "LHP-DEP-001",
-    ),
-    (
         "invalid_read_mode",
         dict(
             action_name="my_action",
@@ -314,27 +308,6 @@ def test_generic_constructor_subclass_code_and_pickle(
     assert err.details == "Generic details"
     assert err.suggestions == ["Do the thing"]
     assert err.context == {"Key": "value"}
-    _assert_pickle_roundtrip(err)
-
-
-@pytest.mark.unit
-def test_cloudfiles_error_subclass_code_and_pickle():
-    """cloudfiles_error returns a plain LHPError carrying the passed code.
-
-    There is no CF ErrorCode in the registry yet, so this uses an ad-hoc
-    ErrorCode to verify the category wiring without depending on codes.py.
-    """
-    from lhp.errors.categories import ErrorCategory
-    from lhp.errors.codes import ErrorCode
-
-    cf_code = ErrorCode(ErrorCategory.CLOUDFILES, "001")
-    err = ErrorFactory.cloudfiles_error(
-        code=cf_code,
-        title="CF title",
-        details="CF details",
-    )
-    assert type(err) is LHPError
-    assert err.code == "LHP-CF-001"
     _assert_pickle_roundtrip(err)
 
 
@@ -557,24 +530,6 @@ class TestErrorFactoryValidationErrors:
         assert "target" in msg.lower()
         assert "Unknown issue" in msg
         assert error.context["Error Count"] == 3
-
-
-class TestErrorFactoryDependencyCycle:
-    """Tests for ErrorFactory.dependency_cycle."""
-
-    def test_dependency_cycle(self):
-        """Cycle visual shows A -> B -> C -> A format."""
-        error = ErrorFactory.dependency_cycle(["A", "B", "C"])
-        msg = str(error)
-        assert "A" in msg and "B" in msg and "C" in msg
-        assert "LHP-DEP-001" in error.code
-
-    def test_dependency_cycle_two_components(self):
-        """Two-component cycle is formatted correctly."""
-        error = ErrorFactory.dependency_cycle(["X", "Y"])
-        msg = str(error)
-        assert "X" in msg and "Y" in msg
-        assert "LHP-DEP-001" in error.code
 
 
 class TestErrorFactoryTemplateNotFound:

@@ -450,14 +450,15 @@ class TestNotebookRendering:
         """The rendered notebook must pre-create the target table before the
         executor pool starts — this guards against a parallel-CREATE race on
         the first run (TABLE_OR_VIEW_ALREADY_EXISTS)."""
+        from lhp.core.codegen.template_renderer import TemplateRenderer
+
         config = _make_project_config()
         loader = _make_pipeline_config_loader()
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
         result = builder.build(["bronze", "silver"])
 
-        rendered = builder._render_notebook(
-            sources=result.template_context["sources"],
-            target_fqn=result.template_context["target_fqn"],
+        rendered = TemplateRenderer.from_package().render_template(
+            "monitoring/union_event_logs.py.j2", result.template_context
         )
 
         assert "def _ensure_target_exists()" in rendered

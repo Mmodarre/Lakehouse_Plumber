@@ -159,19 +159,20 @@ def test_discover_instances_uses_cached_parser_single_load(tmp_path):
     blueprints = disco.discover_blueprints()
     disco.discover_instances(blueprints)
 
-    cold = cache.get_cache_stats()
+    cold_documents_cache_size = len(cache._documents_cache)
+    cold_hits = cache._hits
     # 3 unique files (1 blueprint + 2 instances) → cache has 3 entries,
     # each loaded from disk exactly once.
-    assert cold["documents_cache_size"] == 3
-    assert cold["misses"] == 3
+    assert cold_documents_cache_size == 3
     # parse_instance_file re-reads each of the 2 instances → 2 hits.
-    assert cold["hits"] >= 2
+    assert cold_hits >= 2
 
-    # Warm pass: no new physical reads, only hits.
+    # Warm pass: no new physical reads (no new cache entries), only hits.
     disco.discover_instances(blueprints)
-    warm = cache.get_cache_stats()
-    assert warm["misses"] == cold["misses"], "warm pass must not re-read disk"
-    assert warm["hits"] > cold["hits"], "warm pass must produce additional hits"
+    assert (
+        len(cache._documents_cache) == cold_documents_cache_size
+    ), "warm pass must not re-read disk"
+    assert cache._hits > cold_hits, "warm pass must produce additional hits"
 
 
 def test_blueprint_discoverer_emits_warning_on_load_errors(tmp_path, caplog):

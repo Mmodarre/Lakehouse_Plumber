@@ -62,11 +62,6 @@ class CrossFlowgroupCheckResult:
     table_creation_errors: List[str] = field(default_factory=list)
     cdc_fanin_errors: List[str] = field(default_factory=list)
 
-    @property
-    def has_errors(self) -> bool:
-        """True if any cross-flowgroup error was reported."""
-        return bool(self.table_creation_errors or self.cdc_fanin_errors)
-
 
 if TYPE_CHECKING:
     from lhp.models import ProjectConfig
@@ -336,10 +331,8 @@ class BaseDependencyAnalysisService(ABC):
 class BaseMonitoringFinalizerService(ABC):
     """Builds and finalizes monitoring artifacts.
 
-    Encapsulates the build/finalize/cleanup trio currently spread across
-    ``ActionOrchestrator._build_monitoring``,
-    ``ActionOrchestrator.finalize_monitoring_artifacts``, and
-    ``ActionOrchestrator._cleanup_monitoring_artifacts``.
+    Encapsulates the build/finalize/cleanup trio behind a single service;
+    callers reach it via ``ActionOrchestrator.finalize_monitoring_artifacts``.
 
     :stability: provisional
     """

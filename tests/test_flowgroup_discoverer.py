@@ -259,36 +259,6 @@ flowgroup: flowgroup3
     # (existing feature) not multi-flowgroup support specifically. Include pattern
     # filtering works with multi-flowgroup files automatically.
 
-    def testget_flowgroups_summary_with_multi_files(self):
-        """Test get_flowgroups_summary() counts correctly with multi-flowgroup files."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            project_root = Path(temp_dir)
-            pipelines_dir = project_root / "pipelines"
-            pipelines_dir.mkdir()
-
-            test_dir = pipelines_dir / "test"
-            test_dir.mkdir()
-
-            # One file with 3 flowgroups
-            (test_dir / "multi.yaml").write_text("""
-pipeline: test_pipeline
-flowgroup: flowgroup1
----
-pipeline: test_pipeline
-flowgroup: flowgroup2
----
-pipeline: test_pipeline
-flowgroup: flowgroup3
-""")
-
-            discoverer = FlowgroupDiscoveryService(project_root)
-            summary = discoverer.get_flowgroups_summary()
-
-            assert summary["total_flowgroups"] == 3
-            assert summary["unique_pipelines"] == 1
-            assert summary["unique_flowgroup_names"] == 3
-            assert "test_pipeline" in summary["pipeline_fields"]
-
 
 class TestFlowgroupDiscovererBackwardCompatibility:
     """Test that single-flowgroup files still work as before."""

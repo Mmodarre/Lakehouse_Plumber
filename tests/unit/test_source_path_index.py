@@ -273,7 +273,7 @@ class TestGetIncludePatternsNoReload:
 
 
 class TestDiscoverAndFilterPreDiscovered:
-    """Test that _discover_and_filter_flowgroups uses pre_discovered_flowgroups."""
+    """Test that discover_and_filter_for_pipeline uses pre_discovered_flowgroups."""
 
     def test_uses_pre_discovered_flowgroups(self):
         """discover_flowgroups_by_pipeline_field is NOT called when pre_discovered is provided."""
@@ -295,7 +295,7 @@ class TestDiscoverAndFilterPreDiscovered:
             with patch.object(
                 orch.discovery, "discover_flowgroups_by_pipeline_field"
             ) as mock_discover:
-                result = orch._discover_and_filter_flowgroups(
+                result = orch.discovery.discover_and_filter_for_pipeline(
                     env="dev",
                     pipeline_identifier="my_pipeline",
                     include_tests=False,
@@ -321,16 +321,15 @@ class TestDiscoverAndFilterPreDiscovered:
 
             mock_fgs = [_make_flowgroup("my_pipeline", "fg1")]
             # The fallback path lives in the discovery service:
-            # ActionOrchestrator._discover_and_filter_flowgroups delegates to
-            # FlowgroupDiscoveryService.discover_and_filter_for_pipeline, which
-            # (when pre_discovered is None) calls its own
+            # FlowgroupDiscoveryService.discover_and_filter_for_pipeline, when
+            # pre_discovered is None, calls its own
             # discover_flowgroups_by_pipeline_field. Patch the service method.
             with patch.object(
                 orch.discovery,
                 "discover_flowgroups_by_pipeline_field",
                 return_value=mock_fgs,
             ) as mock_discover:
-                result = orch._discover_and_filter_flowgroups(
+                result = orch.discovery.discover_and_filter_for_pipeline(
                     env="dev",
                     pipeline_identifier="my_pipeline",
                     include_tests=False,

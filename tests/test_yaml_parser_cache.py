@@ -41,24 +41,24 @@ class TestCachingYAMLParser:
         parser = CachingYAMLParser()
         assert parser._max_cache_size == 500
         assert parser._hits == 0
-        assert parser._misses == 0
         assert len(parser._cache) == 0
 
     def test_cache_hit_on_second_read(self, temp_yaml_file):
         """Test that second read of same file hits cache."""
         parser = CachingYAMLParser()
 
-        # First read - cold parse records two misses: one for the flowgroup
-        # sub-cache and one for the now-shared documents sub-cache.
+        # First read - cold parse populates the flowgroup sub-cache (1 entry)
+        # and the now-shared documents sub-cache; no hit yet.
         flowgroups1 = parser.parse_flowgroups_from_file(temp_yaml_file)
         assert len(flowgroups1) == 1
-        assert parser._misses == 2
+        assert len(parser._cache) == 1
         assert parser._hits == 0
 
-        # Second read - should be cache hit (no descent into documents cache)
+        # Second read - should be cache hit (no descent into documents cache,
+        # no new flowgroup-cache entry).
         flowgroups2 = parser.parse_flowgroups_from_file(temp_yaml_file)
         assert len(flowgroups2) == 1
-        assert parser._misses == 2
+        assert len(parser._cache) == 1
         assert parser._hits == 1
 
         # Verify same objects returned (from cache)
@@ -68,9 +68,9 @@ class TestCachingYAMLParser:
         """Test that cache is invalidated when file is modified."""
         parser = CachingYAMLParser()
 
-        # First read - cold parse records two misses (flowgroup + documents)
+        # First read - cold parse, one flowgroup-cache entry, no hit
         flowgroups1 = parser.parse_flowgroups_from_file(temp_yaml_file)
-        assert parser._misses == 2
+        assert len(parser._cache) == 1
         assert parser._hits == 0
 
         # Modify file (change mtime)
@@ -78,46 +78,11 @@ class TestCachingYAMLParser:
         with open(temp_yaml_file, "a") as f:
             f.write("\n# Modified\n")
 
-        # Second read after modification - another cold parse, two more misses
+        # Second read after modification - the new mtime key misses the cache
+        # and re-loads under a fresh key (no hit, a second resident entry).
         flowgroups2 = parser.parse_flowgroups_from_file(temp_yaml_file)
-        assert parser._misses == 4
+        assert len(parser._cache) == 2
         assert parser._hits == 0
-
-    def test_cache_stats(self, temp_yaml_file):
-        """Test cache statistics reporting."""
-        parser = CachingYAMLParser()
-
-        # Read once - cold parse records two misses (flowgroup + documents)
-        parser.parse_flowgroups_from_file(temp_yaml_file)
-        stats = parser.get_cache_stats()
-        assert stats["hits"] == 0
-        assert stats["misses"] == 2
-        assert stats["total"] == 2
-        assert stats["hit_rate_percent"] == 0.0
-        assert stats["cache_size"] == 1
-
-        # Read again (cache hit) - one hit on top of the two cold misses
-        parser.parse_flowgroups_from_file(temp_yaml_file)
-        stats = parser.get_cache_stats()
-        assert stats["hits"] == 1
-        assert stats["misses"] == 2
-        assert stats["total"] == 3
-        assert stats["hit_rate_percent"] == 33.3
-        assert stats["cache_size"] == 1
-
-    def test_cache_clear(self, temp_yaml_file):
-        """Test that cache can be cleared."""
-        parser = CachingYAMLParser()
-
-        # Read and cache
-        parser.parse_flowgroups_from_file(temp_yaml_file)
-        assert len(parser._cache) == 1
-
-        # Clear cache
-        parser.clear_cache()
-        assert len(parser._cache) == 0
-        assert parser._hits == 0
-        assert parser._misses == 0
 
     def test_cache_eviction_on_size_limit(self):
         """Test that cache evicts old entries when size limit is reached."""
@@ -228,8 +193,7 @@ actions:
                     parser.load_documents_all(temp_file)
 
             # No eviction: the documents sub-cache holds the full working set.
-            stats = parser.get_cache_stats()
-            assert stats["documents_cache_size"] == 15
+            assert len(parser._documents_cache) == 15
 
             # Each distinct file was physically read exactly once across both
             # passes (the cap-10 default would have evicted and re-read).
@@ -280,11 +244,10 @@ actions:
         assert len(results) == 10
 
         # Verify cache stats show hits (thread-safe operations).
-        # 10 threads over one file = 1 cold parse (2 misses: flowgroup +
-        # documents) + 9 flowgroup-cache hits = 11 counter events.
-        stats = parser.get_cache_stats()
-        assert stats["total"] == 11
-        assert stats["hits"] + stats["misses"] == 11
+        # 10 threads over one file = 1 cold parse (one flowgroup-cache entry)
+        # + 9 flowgroup-cache hits.
+        assert len(parser._cache) == 1
+        assert parser._hits == 9
 
     # ------------------------------------------------------------------
     # load_documents_all (raw-document sub-cache)
@@ -297,13 +260,12 @@ actions:
         documents1 = parser.load_documents_all(temp_yaml_file)
         assert len(documents1) == 1
         assert documents1[0]["flowgroup"] == "test_flowgroup"
-        assert parser._misses == 1
         assert parser._hits == 0
         assert len(parser._documents_cache) == 1
 
         documents2 = parser.load_documents_all(temp_yaml_file)
         assert documents2 is documents1  # same cached list object
-        assert parser._misses == 1
+        assert len(parser._documents_cache) == 1
         assert parser._hits == 1
 
     def test_load_documents_all_invalidates_on_mtime_change(self, temp_yaml_file):
@@ -311,14 +273,15 @@ actions:
         parser = CachingYAMLParser()
 
         parser.load_documents_all(temp_yaml_file)
-        assert parser._misses == 1
+        assert len(parser._documents_cache) == 1
 
         time.sleep(0.01)
         with open(temp_yaml_file, "a") as f:
             f.write("\n# Modified\n")
 
+        # New mtime key misses and re-loads under a fresh key (second entry).
         parser.load_documents_all(temp_yaml_file)
-        assert parser._misses == 2
+        assert len(parser._documents_cache) == 2
         assert parser._hits == 0
 
     def test_load_documents_all_eviction(self):
@@ -365,7 +328,6 @@ actions:
         # Nothing should have been cached (stat failed before we could key it).
         assert len(parser._documents_cache) == 0
         assert parser._hits == 0
-        assert parser._misses == 0
 
         # Restore for cleanup of the temp_yaml_file fixture
         monkeypatch.setattr(Path, "stat", real_stat)
@@ -394,8 +356,7 @@ actions:
         assert len(errors) == 0
         assert len(results) == 10
 
-        stats = parser.get_cache_stats()
         # All 10 calls hit the same key; cache must hold exactly one entry.
-        assert stats["documents_cache_size"] == 1
-        assert stats["total"] == 10
-        assert stats["hits"] + stats["misses"] == 10
+        # 1 cold load (the single entry) + 9 hits.
+        assert len(parser._documents_cache) == 1
+        assert parser._hits == 9

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import ast
 import logging
-from typing import Any, Dict, List, Set
+from typing import Dict, List, Set
 
 from lhp.core.codegen.imports.categorizer import (
     extract_module_name,
@@ -40,12 +40,12 @@ class ImportManager:
     def __init__(self) -> None:
         self.logger = logging.getLogger(__name__)
 
-        # Collection buckets — kept separate so debug_info / get_stats can
-        # report provenance.
+        # Collection buckets — kept separate so the consolidation debug log
+        # can report provenance.
         self._manual_imports: Set[str] = set()
         self._expression_imports: Set[str] = set()
-        # Retained for get_stats/debug_info output shape; no longer populated
-        # since file-level AST import hoisting (add_imports_from_file) was removed.
+        # No longer populated since file-level AST import hoisting
+        # (add_imports_from_file) was removed; retained for union/clear symmetry.
         self._file_imports: Set[str] = set()
 
         # Reuse the existing AST-based detector for PySpark expressions.
@@ -180,22 +180,3 @@ class ImportManager:
         self._manual_imports.clear()
         self._expression_imports.clear()
         self._file_imports.clear()
-
-    def get_stats(self) -> Dict[str, int]:
-        """Return counts per bucket plus the total unique after resolution."""
-        return {
-            "manual_imports": len(self._manual_imports),
-            "expression_imports": len(self._expression_imports),
-            "file_imports": len(self._file_imports),
-            "total_unique": len(self.get_consolidated_imports()),
-        }
-
-    def debug_info(self) -> Dict[str, Any]:
-        """Return a detailed snapshot for diagnostics (sorted per bucket)."""
-        return {
-            "manual_imports": sorted(self._manual_imports),
-            "expression_imports": sorted(self._expression_imports),
-            "file_imports": sorted(self._file_imports),
-            "consolidated": self.get_consolidated_imports(),
-            "stats": self.get_stats(),
-        }

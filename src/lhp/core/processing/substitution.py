@@ -26,17 +26,6 @@ class SecretReference:
             return self.scope == other.scope and self.key == other.key
         return False
 
-    def to_dbutils_call(self) -> str:
-        """Generate a dbutils.secrets.get() call as a Python expression.
-
-        Single-quoted scope/key arguments so the call is safe to embed
-        inside double-quoted string literals (e.g. inside JDBC URL
-        templates) without breaking the outer quote nesting. This
-        matches the format the legacy post-pass SecretCodeGenerator
-        emitted before inline emission replaced it.
-        """
-        return f"dbutils.secrets.get(scope='{self.scope}', key='{self.key}')"
-
 
 class EnhancedSubstitutionManager:
     """Enhanced substitution manager with YAML and secret support.

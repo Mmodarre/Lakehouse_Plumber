@@ -75,38 +75,6 @@ class _PreflightFailures:
         }
 
 
-def require_pipeline_config_flag(
-    *,
-    bundle_enabled: bool,
-    pipeline_config_path: str | None,
-) -> None:
-    """Enforce ``--pipeline-config`` when bundle support is enabled.
-
-    Raises ``LHPConfigError`` with code ``LHP-CFG-023`` when bundle support is
-    on (``databricks.yml`` present, ``--no-bundle`` not passed) but no
-    ``-pc``/``--pipeline-config`` flag was supplied. Without that flag,
-    ``PipelineConfigLoader`` loads empty defaults and every pipeline would
-    fail catalog/schema validation later — so we surface the actionable
-    error up-front, before any wipes occur.
-    """
-    if bundle_enabled and not pipeline_config_path:
-        raise ErrorFactory.config_error(
-            codes.CFG_023,
-            title="--pipeline-config is required when bundle support is enabled",
-            details=(
-                "databricks.yml is present (bundle support is enabled) but the "
-                "--pipeline-config / -pc flag was not supplied. Bundle resource "
-                "generation requires a pipeline_config.yaml that defines `catalog` "
-                "and `schema` either per-pipeline or under `project_defaults`."
-            ),
-            suggestions=[
-                "Pass --pipeline-config (or -pc) pointing at your pipeline_config.yaml",
-                "Or use --no-bundle to skip bundle resource generation",
-            ],
-            doc_link=_CATALOG_SCHEMA_DOC_LINK,
-        )
-
-
 def validate_catalog_schema(
     *,
     project_root: Path,

@@ -431,17 +431,3 @@ class TemplateEngine:
     def list_templates(self) -> List[str]:
         """List all available template names."""
         return list(self._available_templates)
-
-    def get_template_info(self, template_name: str) -> Dict[str, Any]:
-        """Get information about a template including parameters."""
-        template = self.get_template(template_name)
-        if not template:
-            return {}
-
-        return {
-            "name": template.name,
-            "version": template.version,
-            "description": template.description,
-            "parameters": template.parameters,
-            "action_count": len(template.actions),
-        }

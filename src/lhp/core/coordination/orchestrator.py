@@ -3,18 +3,17 @@
 :class:`ActionOrchestrator` is the composition root wiring eight
 ABC-typed collaborator services (discovery, flowgroup resolution,
 validation, code generation, dependency analysis, monitoring,
-execution, bootstrap) and exposing five public methods to callers
+execution, bootstrap) and exposing four public methods to callers
 (CLI commands and :class:`LakehousePlumberApplicationFacade`).
 
 Per Target Architecture §4 (thin coordination layer), callers use the
 public services directly (``.bootstrap``, ``.discovery``,
-``.processing``, ``.codegen``); the orchestrator exposes only five
+``.processing``, ``.codegen``); the orchestrator exposes only four
 methods, each the narrowest surface for its responsibility and none
 composing another:
 ``discover_flowgroups`` (single-pipeline directory read);
 ``finalize_monitoring_artifacts`` (end-of-run notebook/job write);
-``validate_duplicate_pipeline_flowgroup_combinations`` (duplicate-key
-guard); ``generate_pipelines`` (batch generate; hands to
+``generate_pipelines`` (batch generate; hands to
 :class:`PipelineExecutionService`); ``validate_pipelines`` (batch
 validate; hands to :class:`PipelineExecutionService`).
 """
@@ -27,7 +26,6 @@ validate; hands to :class:`PipelineExecutionService`).
 
 import logging
 import os
-from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Sequence
 
@@ -251,9 +249,6 @@ class ActionOrchestrator:
         self.processor = self.processing
         self.generator = self.codegen
 
-        self._pipeline_slice_cache: Dict[str, List[FlowGroup]] = {}
-        self._pipeline_slice_cache_id: Optional[int] = None
-
         if self.enforce_version:
             self._enforce_version_requirements()
 
@@ -297,50 +292,6 @@ class ActionOrchestrator:
         the add/remove/rename transitions.
         """
         self.monitoring.finalize_artifacts(env, output_dir)
-
-    def _cleanup_monitoring_artifacts(self, env: str, output_dir: Path) -> None:
-        self.monitoring.cleanup_artifacts(env, output_dir)
-
-    def validate_duplicate_pipeline_flowgroup_combinations(
-        self, flowgroups: List[FlowGroup]
-    ) -> None:
-        """Validate no duplicate pipeline+flowgroup combinations exist.
-
-        Pure pass-through to :meth:`ValidationService.validate_duplicates`,
-        which raises :class:`LHPValidationError` on duplicates with the same
-        error code, title, suggestions, and context as the legacy inline path.
-        """
-        self.validation.validate_duplicates(flowgroups)
-
-    def _lookup_pipeline_slice(
-        self,
-        all_flowgroups: List[FlowGroup],
-        pipeline_field: str,
-    ) -> List[FlowGroup]:
-        """Return the per-pipeline slice with a memoized by-pipeline grouping.
-
-        The by-pipeline dict is keyed by `id(all_flowgroups)`; on a fresh
-        `discover_all_flowgroups` result, the dict is rebuilt once and reused
-        for every subsequent pipeline call. At 32k-flowgroup scale this turns
-        80×32k iterations into one full scan amortized across all pipelines.
-        """
-        if self._pipeline_slice_cache_id != id(all_flowgroups):
-            grouping: Dict[str, List[FlowGroup]] = defaultdict(list)
-            for fg in all_flowgroups:
-                grouping[fg.pipeline].append(fg)
-            self._pipeline_slice_cache = dict(grouping)
-            self._pipeline_slice_cache_id = id(all_flowgroups)
-        return self._pipeline_slice_cache.get(pipeline_field, [])
-
-    def _invalidate_pipeline_slice_cache(self) -> None:
-        """Reset the by-pipeline grouping cache.
-
-        The cache keys on ``id(all_flowgroups)``; Python may reuse that id
-        after the list is GC'd, so the plural entry points clear the cache
-        on each invocation.
-        """
-        self._pipeline_slice_cache.clear()
-        self._pipeline_slice_cache_id = None
 
     def generate_pipelines(
         self,
@@ -403,7 +354,6 @@ class ActionOrchestrator:
         else:
             return {}
 
-        self._invalidate_pipeline_slice_cache()
         self.logger.info(
             f"Starting batch pipeline generation: {len(effective_fields)} pipeline(s) for env: {env}"
         )
@@ -487,31 +437,6 @@ class ActionOrchestrator:
             environment=env,
         )
 
-    def _discover_and_filter_flowgroups(
-        self,
-        env: str,
-        pipeline_identifier: str,
-        include_tests: bool,
-        specific_flowgroups: List[str] | None = None,
-        use_directory_discovery: bool = False,
-        pre_discovered_flowgroups: Optional[List[FlowGroup]] = None,
-    ) -> List[FlowGroup]:
-        """Delegator — see FlowgroupDiscoveryService.discover_and_filter_for_pipeline.
-
-        Preserved for test pin: ``tests/unit/test_source_path_index.py``
-        patches/calls this name. Production paths go through
-        :meth:`FlowgroupDiscoveryService.discover_and_filter_for_pipeline`
-        directly.
-        """
-        return self.discovery.discover_and_filter_for_pipeline(  # type: ignore[attr-defined]
-            env=env,
-            pipeline_identifier=pipeline_identifier,
-            include_tests=include_tests,
-            specific_flowgroups=specific_flowgroups,
-            use_directory_discovery=use_directory_discovery,
-            pre_discovered_flowgroups=pre_discovered_flowgroups,
-        )
-
     def validate_pipelines(
         self,
         *,
@@ -551,7 +476,6 @@ class ActionOrchestrator:
         else:
             return []
 
-        self._invalidate_pipeline_slice_cache()
         (
             flowgroups_by_pipeline,
             substitution_managers,

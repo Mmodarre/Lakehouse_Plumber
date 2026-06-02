@@ -29,7 +29,7 @@ defaults:
             mgr = PresetManager(presets_dir)
             assert "bronze" in mgr.presets
 
-            preset = mgr.get_preset("bronze")
+            preset = mgr.presets["bronze"]
             assert preset.name == "bronze"
             assert preset.defaults["quality"] == "bronze"
 

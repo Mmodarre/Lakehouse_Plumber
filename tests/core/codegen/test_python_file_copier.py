@@ -143,24 +143,6 @@ class TestPythonFileCopier:
         assert custom_dir.exists()
         assert (custom_dir / "__init__.py").exists()
 
-    def test_get_copied_files(self, copier, temp_dir):
-        """Test retrieving copied files registry."""
-        dest1 = temp_dir / "module1.py"
-        dest2 = temp_dir / "module2.py"
-        source1 = "py_functions/module1.py"
-        source2 = "py_functions/module2.py"
-
-        copier.copy_python_file(source1, dest1, "# Module 1")
-        copier.copy_python_file(source2, dest2, "# Module 2")
-
-        copied = copier.get_copied_files()
-
-        assert len(copied) == 2
-        assert str(dest1) in copied
-        assert str(dest2) in copied
-        assert copied[str(dest1)] == source1
-        assert copied[str(dest2)] == source2
-
     def test_error_attributes(self, copier, temp_dir):
         """Test PythonFunctionConflictError has correct attributes."""
         dest_path = temp_dir / "test_module.py"
@@ -209,11 +191,8 @@ class TestPythonFileCopier:
         # No errors should occur
         assert len(errors) == 0
 
-        # Each file should be copied exactly once
-        copied = copier.get_copied_files()
-        assert len(copied) == num_files
-
-        # Exactly one True per file (actual copy), rest False (skipped)
+        # Each file should be copied exactly once: exactly one True per file
+        # (actual copy), rest False (skipped).
         true_count = sum(results)
         assert true_count == num_files
 

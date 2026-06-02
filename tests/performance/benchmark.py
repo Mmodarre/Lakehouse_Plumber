@@ -354,7 +354,7 @@ def run_benchmark(fixture_path: Path, runs: int = 5) -> list[BenchmarkRun]:
 
     from lhp.cli.main import cli
     from lhp.utils.performance_timer import (
-        get_perf_summary,
+        _summary,
         reset_perf_summary,
     )
 
@@ -378,11 +378,11 @@ def run_benchmark(fixture_path: Path, runs: int = 5) -> list[BenchmarkRun]:
                 f"exit={result.exit_code}\n"
                 f"{result.output}\nException: {result.exception!r}"
             )
-        snap = get_perf_summary()
+        snap = _summary.snapshot()
         if not snap["phases"]:
             raise RuntimeError(
                 "--perf produced no phase data; harness wiring is broken "
-                "(get_perf_summary() returned empty phases)"
+                "(_summary.snapshot() returned empty phases)"
             )
         results.append(
             BenchmarkRun(
@@ -592,7 +592,7 @@ def capture_baseline(
 
     from lhp.cli.main import cli
     from lhp.utils.performance_timer import (
-        get_perf_summary,
+        _summary,
         reset_perf_summary,
     )
 
@@ -619,7 +619,7 @@ def capture_baseline(
                 f"{fixture_path.name}): exit={result.exit_code}\n"
                 f"{result.output}\nException: {result.exception!r}"
             )
-        snap = get_perf_summary()
+        snap = _summary.snapshot()
         if not snap["phases"]:
             raise RuntimeError(
                 "--perf produced no phase data; harness wiring is broken"

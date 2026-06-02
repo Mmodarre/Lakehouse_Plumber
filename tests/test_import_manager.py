@@ -38,12 +38,6 @@ class TestImportManagerBasics:
         assert self.manager is not None
         assert len(self.manager.get_consolidated_imports()) == 0
 
-        stats = self.manager.get_stats()
-        assert stats["manual_imports"] == 0
-        assert stats["expression_imports"] == 0
-        assert stats["file_imports"] == 0
-        assert stats["total_unique"] == 0
-
     def test_manual_import_addition(self):
         """Test adding manual import statements."""
         # Test basic import addition
@@ -54,10 +48,6 @@ class TestImportManagerBasics:
         assert "import os" in imports
         assert "from pathlib import Path" in imports
         assert len(imports) == 2
-
-        stats = self.manager.get_stats()
-        assert stats["manual_imports"] == 2
-        assert stats["total_unique"] == 2
 
     def test_manual_import_duplicates(self):
         """Test that duplicate manual imports are handled correctly."""
@@ -94,9 +84,6 @@ class TestImportManagerBasics:
         # Should detect F (functions) import from expressions
         assert any("functions" in imp for imp in imports)
 
-        stats = self.manager.get_stats()
-        assert stats["expression_imports"] > 0
-
     def test_expression_import_invalid_expressions(self):
         """Test handling of invalid expressions."""
         # These should not crash the system
@@ -116,12 +103,6 @@ class TestImportManagerBasics:
         self.manager.add_imports_from_expression("F.lit('test')")
 
         imports = self.manager.get_consolidated_imports()
-        stats = self.manager.get_stats()
-
-        # Should have imports from all sources
-        assert stats["manual_imports"] >= 2
-        assert stats["expression_imports"] >= 1
-        assert stats["total_unique"] == len(imports)
 
         # Check for specific imports from each source
         assert "import custom_module" in imports
@@ -141,12 +122,8 @@ class TestImportManagerBasics:
         # Clear and verify
         self.manager.clear()
         imports = self.manager.get_consolidated_imports()
-        stats = self.manager.get_stats()
 
         assert len(imports) == 0
-        assert stats["manual_imports"] == 0
-        assert stats["expression_imports"] == 0
-        assert stats["total_unique"] == 0
 
 
 class TestConflictResolution:
@@ -536,10 +513,10 @@ class TestImportSorting:
 class TestExtractFutureImports:
     """Tests for the AST-based ``extract_future_imports`` helper.
 
-    The helper underpins the PEP 236 chokepoint in
-    ``CodeGenerationService._assemble_final_code``: any source string passed through
-    assembly must surrender its ``from __future__`` lines so they can be
-    hoisted to the top of the assembled module.
+    The helper underpins the PEP 236 chokepoint in the code-assembly step
+    (``CodeAssembler.assemble``): any source string passed through assembly
+    must surrender its ``from __future__`` lines so they can be hoisted to the
+    top of the assembled module.
     """
 
     def test_single_future_import_extracted(self):
@@ -773,26 +750,6 @@ class TestUtilityMethods:
         for import_stmt, expected in categorization_cases:
             result = categorize_import(import_stmt)
             assert result == expected
-
-    def test_stats_and_debug_info(self):
-        """Test statistics and debug information methods."""
-        # Add various imports
-        self.manager.add_import("import os")
-        self.manager.add_import("from pathlib import Path")
-        self.manager.add_imports_from_expression("F.current_timestamp()")
-
-        # Test stats
-        stats = self.manager.get_stats()
-        assert stats["manual_imports"] >= 2
-        assert stats["expression_imports"] >= 1
-        assert stats["total_unique"] > 0
-
-        # Test debug info
-        debug_info = self.manager.debug_info()
-        assert "manual_imports" in debug_info
-        assert "expression_imports" in debug_info
-        assert "consolidated" in debug_info
-        assert "stats" in debug_info
 
 
 class TestRealWorldScenarios:

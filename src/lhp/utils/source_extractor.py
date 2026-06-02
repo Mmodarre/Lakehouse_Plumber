@@ -2,7 +2,7 @@
 
 This module is the single source of truth for extracting source references
 from actions. It is used by:
-- Code generators (extract_source_views_from_action, extract_single_source_view)
+- Code generators (extract_source_views_from_action)
 - DependencyResolver (extract_action_sources)
 - DependencyAnalysisService (extract_action_sources for explicit source fallback)
 """
@@ -11,45 +11,6 @@ import logging
 from typing import Any, Dict, List, Optional, Union
 
 logger = logging.getLogger(__name__)
-
-
-def extract_single_source_view(source: Union[str, List, Dict]) -> str:
-    """Extract a single source view from various source formats.
-
-    Args:
-        source: Source configuration (string, list, or dict)
-
-    Returns:
-        Source view name as string, or empty string if not found
-    """
-    if isinstance(source, str):
-        return source
-    elif isinstance(source, list) and source:
-        first_item = source[0]
-        if isinstance(first_item, str):
-            return first_item
-        elif isinstance(first_item, dict):
-            catalog = first_item.get("catalog")
-            schema = first_item.get("schema")
-            table = (
-                first_item.get("table")
-                or first_item.get("view")
-                or first_item.get("name", "")
-            )
-            if catalog and schema and table:
-                return f"{catalog}.{schema}.{table}"
-            return table
-        else:
-            return str(first_item)
-    elif isinstance(source, dict):
-        catalog = source.get("catalog")
-        schema = source.get("schema")
-        table = source.get("table") or source.get("view") or source.get("name", "")
-        if catalog and schema and table:
-            return f"{catalog}.{schema}.{table}"
-        return table
-    else:
-        return ""
 
 
 def extract_source_views_from_action(source: Union[str, List, Dict]) -> List[str]:

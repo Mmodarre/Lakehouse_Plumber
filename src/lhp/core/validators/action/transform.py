@@ -6,10 +6,7 @@ from typing import List
 from lhp.models import Action, ActionType, TransformType
 
 from .._base import BaseActionValidator
-from ._dq_transform import (
-    validate_data_quality_transform,
-    validate_quarantine_expectations,
-)
+from ._dq_transform import validate_data_quality_transform
 from ._schema_transform import validate_schema_transform
 
 logger = logging.getLogger(__name__)
@@ -82,11 +79,6 @@ class TransformActionValidator(BaseActionValidator):
         self, action: Action, prefix: str
     ) -> List[str]:
         return validate_data_quality_transform(action, prefix, self.project_root)
-
-    def _validate_quarantine_expectations(
-        self, action: Action, prefix: str, errors: List[str]
-    ) -> None:
-        validate_quarantine_expectations(action, prefix, errors, self.project_root)
 
     def _validate_schema_transform(self, action: Action, prefix: str) -> List[str]:
         return validate_schema_transform(

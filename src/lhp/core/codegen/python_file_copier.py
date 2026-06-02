@@ -166,16 +166,6 @@ class PythonFileCopier:
         init_file.write_text("# Generated package for custom Python functions\n")
         self._logger.debug(f"Created __init__.py in {custom_functions_dir}")
 
-    def get_copied_files(self) -> Dict[str, str]:
-        """
-        Get mapping of all copied files (for debugging/logging).
-
-        Returns:
-            Dictionary mapping destination paths to source paths
-        """
-        with self._lock:
-            return dict(self._copied_files)
-
     def apply_copy_record(
         self,
         record: "CopiedModuleRecord",
@@ -185,8 +175,8 @@ class PythonFileCopier:
         Calls :meth:`ensure_init_file`, then :meth:`copy_python_file` (both
         lock-protected for intra-pipeline dedup within this worker process).
         When dedup suppresses the write (same record re-applied), this is a
-        no-op. Observability of what was written is exposed via
-        :meth:`get_copied_files`.
+        no-op. The set of written destinations is tracked in the instance
+        registry (``self._copied_files``).
 
         Args:
             record: One record from :func:`compute_copy_records`.
@@ -203,8 +193,8 @@ class PythonFileCopier:
         (:meth:`apply_copy_record` -> :meth:`ensure_init_file` /
         :meth:`copy_python_file`) over ``records`` in order, against a private
         throwaway registry. No file I/O occurs, and ``self`` is not mutated:
-        this neither writes files nor touches the instance registry returned
-        by :meth:`get_copied_files`.
+        this neither writes files nor touches the instance registry
+        (``self._copied_files``).
 
         For each record, the init-file registration is applied first (mirroring
         :meth:`apply_copy_record`), then the module-copy decision. A record is

@@ -11,11 +11,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from lhp.bundle.preflight import (
-    require_pipeline_config_flag,
-    validate_catalog_schema,
-)
-from lhp.errors import ErrorCategory, LHPConfigError
+from lhp.bundle.preflight import validate_catalog_schema
+from lhp.errors import LHPConfigError
 
 # ---------------------------------------------------------------------------
 # Fixture helpers — same idiom as test_bundle_manager_simplified.py
@@ -49,34 +46,6 @@ def _write_substitutions(
     subs_dir.mkdir(parents=True, exist_ok=True)
     body: dict = {env: mappings or {"placeholder": "value"}}
     (subs_dir / f"{env}.yaml").write_text(yaml.safe_dump(body), encoding="utf-8")
-
-
-# ---------------------------------------------------------------------------
-# B gate: require_pipeline_config_flag
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.unit
-def test_require_pipeline_config_flag_raises_when_bundle_enabled_and_no_pc():
-    with pytest.raises(LHPConfigError) as exc_info:
-        require_pipeline_config_flag(bundle_enabled=True, pipeline_config_path=None)
-    assert exc_info.value.code == "LHP-CFG-023"
-    assert exc_info.value.code_number == "023"
-    assert exc_info.value.category == ErrorCategory.CONFIG
-
-
-@pytest.mark.unit
-def test_require_pipeline_config_flag_passes_when_bundle_disabled():
-    # No exception
-    require_pipeline_config_flag(bundle_enabled=False, pipeline_config_path=None)
-
-
-@pytest.mark.unit
-def test_require_pipeline_config_flag_passes_when_pc_provided():
-    # No exception
-    require_pipeline_config_flag(
-        bundle_enabled=True, pipeline_config_path="config/pipeline_config.yaml"
-    )
 
 
 # ---------------------------------------------------------------------------

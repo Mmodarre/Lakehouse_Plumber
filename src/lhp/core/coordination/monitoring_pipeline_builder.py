@@ -32,7 +32,6 @@ from lhp.models import (
 )
 
 from ...errors import ErrorFactory, codes
-from ..codegen.template_renderer import TemplateRenderer
 from ..loaders.external_file_loader import load_external_file_text
 
 logger = logging.getLogger(__name__)
@@ -196,9 +195,6 @@ class MonitoringPipelineBuilder:
         self.project_config = project_config
         self.pipeline_config_loader = pipeline_config_loader
         self.project_root = project_root
-
-        # Template renderer for the notebook template
-        self._renderer = TemplateRenderer.from_package()
 
     @property
     def monitoring_config(self) -> Optional[MonitoringConfig]:
@@ -395,32 +391,6 @@ class MonitoringPipelineBuilder:
     def _get_default_mv_sql(self, target_table_fqn: str) -> str:
         """Get default MV SQL with the Delta table name substituted."""
         return DEFAULT_MV_SQL.format(streaming_table=target_table_fqn)
-
-    def _render_notebook(
-        self,
-        sources: List[List[str]],
-        target_fqn: str,
-    ) -> str:
-        """Render the union event logs notebook from template.
-
-        Args:
-            sources: List of [pipeline_name, table_ref] pairs
-            target_fqn: Fully qualified name of the target Delta table
-
-        Returns:
-            Rendered notebook Python code
-        """
-        assert self.monitoring_config is not None
-
-        context = {
-            "sources": sources,
-            "target_fqn": target_fqn,
-            "checkpoint_path": self.monitoring_config.checkpoint_path,
-            "max_concurrent_streams": self.monitoring_config.max_concurrent_streams,
-        }
-        return self._renderer.render_template(
-            "monitoring/union_event_logs.py.j2", context
-        )
 
     def build(self, all_pipeline_names: List[str]) -> Optional[MonitoringBuildResult]:
         """Build complete monitoring artifacts. Returns None if not applicable.

@@ -211,26 +211,6 @@ actions:
             assert "bronze_ingestion" in templates
             assert "silver_transform" in templates
 
-    def test_get_template_info(self):
-        """Test getting template information."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            templates_dir = Path(tmpdir)
-            self.create_test_template(templates_dir)
-
-            engine = TemplateEngine(templates_dir)
-
-            # Get info for existing template
-            info = engine.get_template_info("bronze_ingestion")
-            assert info["name"] == "bronze_ingestion"
-            assert info["version"] == "1.0"
-            assert info["description"] == "Template for bronze layer data ingestion"
-            assert len(info["parameters"]) == 4
-            assert info["action_count"] == 2
-
-            # Get info for non-existent template
-            info = engine.get_template_info("non_existent")
-            assert info == {}
-
     def test_complex_template_rendering(self):
         """Test rendering template with complex parameter substitution."""
         with tempfile.TemporaryDirectory() as tmpdir:

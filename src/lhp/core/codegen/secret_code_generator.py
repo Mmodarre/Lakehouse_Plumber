@@ -277,22 +277,3 @@ class SecretCodeGenerator:
 
         # Return as f-string
         return f"f{quote_char}{result_content}{quote_char}"
-
-    def _validate_fstring_result(self, result: str) -> bool:
-        """Validate that the generated f-string has valid Python syntax.
-
-        This is a safety check to ensure we're generating valid code.
-
-        Args:
-            result: The generated f-string
-
-        Returns:
-            True if the syntax is valid, False otherwise
-        """
-        try:
-            # Try to compile the f-string as a Python expression
-            compile(result, "<string>", "eval")
-            return True
-        except SyntaxError as e:
-            logger.debug(f"Generated f-string has invalid syntax: {e}")
-            return False

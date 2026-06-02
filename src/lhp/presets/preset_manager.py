@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from lhp.models import Preset
 
@@ -128,61 +128,6 @@ class PresetManager:
                 result[key] = value
         return result
 
-    def get_preset(self, preset_name: str) -> Optional[Preset]:
-        """Get a preset by name."""
-        return self.presets.get(preset_name)
-
     def list_presets(self) -> List[str]:
         """List all available preset names."""
         return list(self.presets.keys())
-
-    def get_operational_metadata_selection(
-        self, preset_names: List[str]
-    ) -> Union[bool, List[str], None]:
-        """Get operational metadata selection from resolved preset chain.
-
-        Args:
-            preset_names: List of preset names to resolve
-
-        Returns:
-            Operational metadata selection (bool, list, or None)
-        """
-        resolved_config = self.resolve_preset_chain(preset_names)
-        return resolved_config.get("operational_metadata")
-
-    def validate_operational_metadata_references(
-        self, preset_names: List[str], available_columns: set
-    ) -> List[str]:
-        """Validate that operational metadata references in presets are valid.
-
-        Args:
-            preset_names: List of preset names to validate
-            available_columns: Set of available column names from project config
-
-        Returns:
-            List of validation errors (empty if valid)
-        """
-        logger.debug(
-            f"Validating operational metadata references for presets: {preset_names}"
-        )
-        errors = []
-
-        for preset_name in preset_names:
-            if preset_name not in self.presets:
-                logger.debug(
-                    f"Preset '{preset_name}' not found during metadata validation"
-                )
-                errors.append(f"Preset '{preset_name}' not found")
-                continue
-
-            preset_config = self._resolve_preset_inheritance(preset_name)
-            operational_metadata = preset_config.get("operational_metadata")
-
-            if isinstance(operational_metadata, list):
-                for column_name in operational_metadata:
-                    if column_name not in available_columns:
-                        errors.append(
-                            f"Preset '{preset_name}' references unknown column '{column_name}'"
-                        )
-
-        return errors

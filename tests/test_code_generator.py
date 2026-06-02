@@ -465,7 +465,7 @@ class TestCodeGeneratorExtractSourceViewsFromAction:
 
 
 class TestCodeGeneratorGenerateActionSections:
-    """Test _generate_action_sections method with test actions."""
+    """Test ActionDispatcher.generate_action_sections with test actions."""
 
     def test_generate_action_sections_with_tests_included(self, code_generator):
         """Test generating action sections with test actions when include_tests=True."""
@@ -487,15 +487,17 @@ class TestCodeGeneratorGenerateActionSections:
             flowgroup.actions
         )
 
-        sections, imports, pre_stmts = code_generator._generate_action_sections(
-            flowgroup,
-            flowgroup.actions,
-            Mock(),
-            {},
-            None,
-            None,
-            None,
-            include_tests=True,
+        sections, imports, pre_stmts = (
+            code_generator._dispatch.generate_action_sections(
+                flowgroup,
+                flowgroup.actions,
+                Mock(),
+                {},
+                None,
+                None,
+                None,
+                include_tests=True,
+            )
         )
 
         assert any("DATA QUALITY TESTS" in section for section in sections)
@@ -513,15 +515,17 @@ class TestCodeGeneratorGenerateActionSections:
             flowgroup.actions
         )
 
-        sections, imports, pre_stmts = code_generator._generate_action_sections(
-            flowgroup,
-            flowgroup.actions,
-            Mock(),
-            {},
-            None,
-            None,
-            None,
-            include_tests=False,
+        sections, imports, pre_stmts = (
+            code_generator._dispatch.generate_action_sections(
+                flowgroup,
+                flowgroup.actions,
+                Mock(),
+                {},
+                None,
+                None,
+                None,
+                include_tests=False,
+            )
         )
 
         assert not any("DATA QUALITY TESTS" in section for section in sections)
@@ -560,7 +564,7 @@ class TestCodeGeneratorDQSectionPartitioning:
         ]
         self._make_mock_generator(code_generator)
 
-        sections, _, _ = code_generator._generate_action_sections(
+        sections, _, _ = code_generator._dispatch.generate_action_sections(
             flowgroup,
             [dq_action],
             Mock(),
@@ -599,7 +603,7 @@ class TestCodeGeneratorDQSectionPartitioning:
         ]
         self._make_mock_generator(code_generator)
 
-        sections, _, _ = code_generator._generate_action_sections(
+        sections, _, _ = code_generator._dispatch.generate_action_sections(
             flowgroup,
             [sql_action, dq_action],
             Mock(),
@@ -630,7 +634,7 @@ class TestCodeGeneratorDQSectionPartitioning:
         ]
         self._make_mock_generator(code_generator)
 
-        sections, _, _ = code_generator._generate_action_sections(
+        sections, _, _ = code_generator._dispatch.generate_action_sections(
             flowgroup,
             [sql_action],
             Mock(),
@@ -663,7 +667,7 @@ class TestCodeGeneratorDQSectionPartitioning:
         ]
         self._make_mock_generator(code_generator)
 
-        sections, _, _ = code_generator._generate_action_sections(
+        sections, _, _ = code_generator._dispatch.generate_action_sections(
             flowgroup,
             [dq_action],
             Mock(),
@@ -696,7 +700,7 @@ class TestCodeGeneratorDQSectionPartitioning:
         ]
         self._make_mock_generator(code_generator)
 
-        sections, _, _ = code_generator._generate_action_sections(
+        sections, _, _ = code_generator._dispatch.generate_action_sections(
             flowgroup,
             [dq_action],
             Mock(),

@@ -1,8 +1,8 @@
 """Spec-driven unit tests for orchestrator integration (Phase 6, Phase 11).
 
 Covers ``discover_all_flowgroups`` returning blueprint-expanded + disk-sourced
-flowgroups, the no-op behavior when no blueprints are present, synthetic
-source-path index wiring, and ``_lookup_pipeline_slice`` cache behavior.
+flowgroups, the no-op behavior when no blueprints are present, and synthetic
+source-path index wiring.
 """
 
 from pathlib import Path
@@ -10,7 +10,6 @@ from pathlib import Path
 import pytest
 
 from lhp.core.coordination.layers import build_facade_orchestrator
-from lhp.models import FlowGroup
 
 pytestmark = pytest.mark.unit
 
@@ -120,44 +119,3 @@ flowgroups:
     assert len(contexts) == 1
     assert contexts[0].synthetic is True
     assert ("apac_sg_raw", "apac_sg_orders") in provenance
-
-
-def _fg(pipeline: str, name: str) -> FlowGroup:
-    return FlowGroup(pipeline=pipeline, flowgroup=name, actions=[])
-
-
-def test_lookup_pipeline_slice_returns_correct_subset(tmp_path):
-    _bootstrap_project(tmp_path)
-    orch = build_facade_orchestrator(tmp_path, enforce_version=False)
-    flowgroups = [
-        _fg("p1", "fg_a"),
-        _fg("p1", "fg_b"),
-        _fg("p2", "fg_c"),
-    ]
-    slice_p1 = orch._lookup_pipeline_slice(flowgroups, "p1")
-    slice_p2 = orch._lookup_pipeline_slice(flowgroups, "p2")
-    assert {fg.flowgroup for fg in slice_p1} == {"fg_a", "fg_b"}
-    assert {fg.flowgroup for fg in slice_p2} == {"fg_c"}
-
-
-def test_lookup_pipeline_slice_caches_by_id(tmp_path):
-    """Phase 11: same list passed twice → cache is reused. New list → cache
-    invalidates and rebuilds."""
-    _bootstrap_project(tmp_path)
-    orch = build_facade_orchestrator(tmp_path, enforce_version=False)
-    list_a = [_fg("p", "x"), _fg("p", "y"), _fg("q", "z")]
-    list_b = [_fg("p", "only_x")]
-
-    out_a1 = orch._lookup_pipeline_slice(list_a, "p")
-    cached_id_after_a = orch._pipeline_slice_cache_id
-    assert cached_id_after_a == id(list_a)
-
-    # Same list again — cache must be reused (id unchanged).
-    out_a2 = orch._lookup_pipeline_slice(list_a, "p")
-    assert orch._pipeline_slice_cache_id == cached_id_after_a
-    assert {fg.flowgroup for fg in out_a1} == {fg.flowgroup for fg in out_a2}
-
-    # Different list — cache must rebuild.
-    out_b = orch._lookup_pipeline_slice(list_b, "p")
-    assert orch._pipeline_slice_cache_id == id(list_b)
-    assert {fg.flowgroup for fg in out_b} == {"only_x"}

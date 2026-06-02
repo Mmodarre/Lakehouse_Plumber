@@ -1,10 +1,6 @@
 """Tests for data quality expectations (DQE) parser functionality of LakehousePlumber."""
 
-import tempfile
-from pathlib import Path
-
 import pytest
-import yaml
 
 from lhp.core.processing.dqe import DQEParser
 
@@ -41,29 +37,6 @@ class TestDQEParser:
 
         assert "Invalid age" in expect_drop
         assert "No data" in expect_fail
-
-    def test_load_expectations_from_file(self):
-        """Test loading expectations from YAML file."""
-        parser = DQEParser()
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            yaml.dump(
-                {
-                    "expectations": [
-                        {"constraint": "col1 IS NOT NULL", "type": "expect"},
-                        {"constraint": "col2 > 0", "type": "expect_or_drop"},
-                    ]
-                },
-                f,
-            )
-            f.flush()
-
-            try:
-                expectations = parser.load_expectations_from_file(Path(f.name))
-                assert len(expectations) == 2
-                assert expectations[0]["constraint"] == "col1 IS NOT NULL"
-            finally:
-                Path(f.name).unlink()
 
 
 if __name__ == "__main__":
