@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Blueprint instance-reference rejection, monitoring-cleanup marker hardening, and bundle read-only error invariant
+
+**Summary.** Closes two silent-failure defects and strengthens one fragile
+test. An invalid (non-string) `blueprint:` / `use_blueprint:` reference now
+fails with the documented `LHP-CFG-054` instead of leaking a raw `TypeError`;
+the disable-monitoring cleanup now matches its `FLOWGROUP_ID = "monitoring"`
+marker as a standalone line (closing `MONITORING-RMTREE-DEFER`), preventing the
+silent deletion of a user's own `monitoring.py` that merely mentions the marker
+text. Ten orphaned golden test fixtures with no readers are removed.
+
+**Fixed.**
+
+- **Invalid blueprint instance references now raise `LHP-CFG-054`.** A
+  list-valued or otherwise non-string `blueprint:` / `use_blueprint:` reference
+  previously leaked a raw `TypeError` from blueprint-instance parsing; it now
+  fails with the documented `LHP-CFG-054` ("Invalid instance definition")
+  error.
+- **Monitoring cleanup now matches the `FLOWGROUP_ID = "monitoring"` marker as a
+  standalone full line.** The disable-monitoring cleanup that removes generated
+  monitoring pipeline directories previously used a whole-file substring match
+  before a destructive `shutil.rmtree`, so a user's own `monitoring.py` that
+  merely mentioned the marker text in a comment or string literal could be
+  silently deleted (silent data loss). The match is now anchored to a standalone
+  full line.
+
+**Removed.**
+
+- **Deleted 10 orphaned golden test fixtures under `tests/api/golden/`** — they
+  had no readers.
+
+**Tests.**
+
+- **Strengthened the bundle-manager read-only-project-root test to assert the
+  structured-error invariant.** The test now asserts the structured invariant
+  (error code `LHP-CFG-020`, `original_error` is a `PermissionError`, and the
+  raw `details` contains "Permission denied") instead of a fragile substring
+  match against the `textwrap`-wrapped `str()` form.
+
+**Deferred (decided; tracked for follow-up).**
+
+- **`ERRORS-DETAILS-WRAP-DEFER`** — `LHPError._format_message`
+  (`errors/types.py`) wraps path-bearing `details` at a fixed
+  `textwrap.fill(width=70)`, which can split file paths or phrases across lines
+  in the plain-text `str()` output and logs. Deferred (not fixed here): this is
+  the legitimate plain-text `str()` / log form, **not** a §5 Rich/architecture
+  violation; the behavior is pre-existing, low UX impact, and has zero
+  golden/snapshot blast radius if later addressed.
+
 ### Cross-platform determinism — transitive Python-file copier emits byte-identical output on every OS
 
 **Summary.** Closes two cross-platform determinism defects in the transitive

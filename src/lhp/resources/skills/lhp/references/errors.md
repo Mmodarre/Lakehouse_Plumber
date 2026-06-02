@@ -42,6 +42,7 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | **CFG-032** | Test-reporting provider/config file not found (preflight) | Create the file at `test_reporting.module_path` (and `config_file` if set) in `lhp.yaml`, or fix the path. Runs on both `lhp validate` and `lhp generate`, independent of `--include-tests` |
 | **CFG-033** | `ruff format` terminal pass exited non-zero — generated code written but not formatted; error carries ruff's exit code + stderr/stdout | Inspect ruff's output for the offending file; confirm ruff is installed and the generated tree is valid Python; re-run with `--no-format` to skip formatting and inspect the raw code |
 | **CFG-034** | `ruff` executable not found for the generated-code formatting pass (not in the active env's scripts dir or on `PATH`) | ruff ships as an LHP runtime dependency — `pip install ruff`, or reinstall LHP (`pip install lakehouse-plumber`); in isolated/custom envs ensure ruff is on `PATH` |
+| **CFG-054** | Invalid/malformed blueprint instance definition — `use_blueprint:`/`blueprint:` reference is not a single non-empty string (list, mapping, empty, or null), or the instance doc otherwise fails to parse | Set `use_blueprint: <blueprint_name>` to one non-empty string naming an existing blueprint; do not use a list/mapping/empty value (one of the instance-shape errors `CFG-047`–`058`) |
 
 ## Validation Errors (LHP-VAL)
 

@@ -194,6 +194,24 @@ class BlueprintParser:
         self._validate_instance_syntax(path, doc)
 
         blueprint_name = doc.get("use_blueprint") or doc.get("blueprint")
+        if not isinstance(blueprint_name, str) or not blueprint_name:
+            raise ErrorFactory.config_error(
+                codes.CFG_054,
+                title="Invalid instance definition",
+                details=(
+                    f"Instance {path} has an invalid blueprint reference: "
+                    "'use_blueprint:' / 'blueprint:' must name the blueprint as a "
+                    f"non-empty string, got {type(blueprint_name).__name__} "
+                    f"({blueprint_name!r})."
+                ),
+                suggestions=[
+                    "Set 'use_blueprint: <blueprint_name>' to a single string "
+                    "naming an existing blueprint",
+                    "Do not use a list, mapping, or other value for the "
+                    "blueprint reference",
+                ],
+                context={"file": str(path)},
+            )
         if blueprint_name not in blueprints:
             available = ", ".join(sorted(blueprints.keys())) or "(none)"
             close = difflib.get_close_matches(

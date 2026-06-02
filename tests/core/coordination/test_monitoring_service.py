@@ -4,17 +4,17 @@ Targets the two arms that the monitoring e2e baselines never exercise:
 
 1. The destructive ``cleanup_artifacts`` branch that ``shutil.rmtree``s a
    generated pipeline directory when monitoring is disabled, gated on a
-   substring match against ``monitoring.py`` for the
+   standalone full-line match in ``monitoring.py`` for the
    ``FLOWGROUP_ID = "monitoring"`` marker (``monitoring_service.py`` L278-295).
 2. The four ``finalize_artifacts`` raise paths that validate the monitoring
    job config: ``LHP-CFG-008`` (missing ``job_config_path``), ``LHP-IO-001``
    (file absent), ``LHP-IO-002`` (YAML parse error), and ``LHP-CFG-008``
    (top-level non-mapping). (``monitoring_service.py`` L156-216.)
 
-The safety test encodes a known latent product bug (the substring match is
-naive and matches the marker even inside a comment/string literal) as a
-``strict`` xfail — see ``MONITORING-RMTREE-DEFER``. The product fix is
-deferred and owner-owned; this suite does NOT edit ``monitoring_service.py``.
+The safety test pins the invariant that cleanup matches the marker only as a
+standalone full line: a user pipeline whose ``monitoring.py`` merely mentions
+the marker text inside a comment or string literal is preserved, while a real
+generated monitoring pipeline (marker on its own top-level line) is removed.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ from lhp.core.registry.factories import OrchestrationDependencies
 from lhp.errors import LHPError
 from lhp.models import MonitoringConfig, ProjectConfig
 
-# The exact marker the production cleanup branch substring-matches against.
+# The exact marker the production cleanup branch matches as a standalone line.
 FLOWGROUP_MARKER = 'FLOWGROUP_ID = "monitoring"'
 
 # A real generated monitoring.py opens with this assignment as a top-level
@@ -200,7 +200,7 @@ def test_finalize_raises_cfg008_when_job_config_not_a_mapping(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# 3. Safety test — known latent bug, encoded as strict xfail (DO NOT fix code)
+# 3. Safety test — false-match dir is preserved (full-line marker match)
 # ---------------------------------------------------------------------------
 
 
@@ -209,10 +209,9 @@ def test_cleanup_does_not_delete_dir_with_marker_only_in_comment(tmp_path):
     """A user pipeline whose ``monitoring.py`` mentions the marker only inside
     a comment/string (a false match) must NOT be ``rmtree``d.
 
-    The production cleanup gate is a naive ``in`` substring test, so the
-    false-match dir is deleted and this assertion fails -> reported as xfail.
-    If the substring match is ever tightened (bug fixed), this XPASSes and
-    ``strict=True`` flips it to a failure, alerting the owner.
+    The production cleanup gate matches the marker only as a standalone full
+    line, so a file that merely references the marker text in a comment or
+    string literal is preserved.
     """
     project_root = tmp_path / "project"
     project_root.mkdir()
@@ -234,8 +233,8 @@ def test_cleanup_does_not_delete_dir_with_marker_only_in_comment(tmp_path):
 
     service.cleanup_artifacts(env="dev", output_dir=output_dir)
 
-    # Expected-correct behavior: the false-match dir survives. The buggy
-    # production substring match deletes it, so this assertion fails (xfail).
+    # Correct behavior: the false-match dir survives because the marker text
+    # never appears as a standalone full line, only inside a comment/string.
     assert false_match_dir.exists(), (
         "user pipeline dir whose monitoring.py only mentions the marker in a "
         "comment/string must NOT be deleted"

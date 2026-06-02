@@ -240,7 +240,9 @@ class TestBundleManagerFileOperations:
                     self.project_root / "nonexistent"
                 )
 
-            assert "Permission denied" in str(exc_info.value)
+            assert exc_info.value.code == "LHP-CFG-020"
+            assert isinstance(exc_info.value.original_error, PermissionError)
+            assert "Permission denied" in exc_info.value.details
 
         finally:
             # Restore permissions for cleanup

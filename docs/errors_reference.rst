@@ -623,6 +623,44 @@ but was not found in the active environment's scripts directory or on ``PATH``.
 - If you use an isolated or custom environment, ensure ruff is on ``PATH`` or
   installed alongside LHP.
 
+LHP-CFG-054: Invalid Instance Definition
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** A blueprint instance file has a malformed blueprint
+reference. The ``use_blueprint:`` (or legacy ``blueprint:``) value must name the
+blueprint as a single, non-empty string. A list, mapping, empty string, or
+missing/null value triggers this error. It also fires when the instance document
+otherwise fails to parse into a blueprint instance.
+
+**Common causes:**
+
+- ``use_blueprint:`` (or ``blueprint:``) given a list or mapping instead of a
+  single string.
+- The blueprint reference is an empty string or ``null``.
+- The instance file's shape cannot be parsed into a valid blueprint instance.
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-CFG-054)
+
+   # Instance file — blueprint reference is a list, not a string
+   use_blueprint:
+     - bronze_ingestion
+   parameters:
+     table_name: customers
+
+.. code-block:: yaml
+   :caption: After (fixed)
+
+   # Instance file — blueprint reference is a single non-empty string
+   use_blueprint: bronze_ingestion
+   parameters:
+     table_name: customers
+
+.. seealso::
+
+   :doc:`blueprints` for the full set of blueprint and instance file errors
+   (``LHP-CFG-047``–``058``, ``LHP-VAL-041``–``061``).
+
 Validation Errors (LHP-VAL)
 ----------------------------
 
