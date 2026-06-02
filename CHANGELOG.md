@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Cross-platform determinism — transitive Python-file copier emits byte-identical output on every OS
+
+**Summary.** Closes two cross-platform determinism defects in the transitive
+Python-file copier (`core/codegen/python_file_copier.py`). On Windows, copied
+helper-closure files diverged from their forward-slash baselines and the import
+rewriter could misalign byte offsets between its slice string and its UTF-8 AST
+parse. The copier now produces **byte-identical** output regardless of host OS,
+restoring CRLF symmetry on Windows like every other (already-green) committed
+writer. Scope is deliberately copier-only ("Path A"); the related normalization
+widening is deferred below.
+
+**Added.**
+
+- **`helper_header_path` helper (`utils/file_header.py`).** Builds the
+  project-root-relative `# LHP-SOURCE:` path for a closure helper and renders it
+  with forward slashes via `.as_posix()`, keeping the emitted header
+  deterministic across platforms (`str(Path)` would emit backslashes on
+  Windows).
+
+**Fixed.**
+
+- **`# LHP-SOURCE:` header paths are now POSIX (forward-slash) on every OS.**
+  Copied helper-closure files previously diverged from their forward-slash
+  baselines on Windows; the copier now routes the header path through the new
+  `helper_header_path` helper (`.as_posix()`), so headers are byte-identical
+  regardless of host OS.
+- **Source modules are now read with `encoding="utf-8"`.** The import rewriter
+  could misalign byte offsets on Windows because its slice string did not match
+  its UTF-8 AST parse; reading with an explicit `encoding="utf-8"` keeps the
+  slice and the parse aligned on every OS.
+- **Copier writes now route through the shared `write_normalized` writer.** Both
+  the copied modules and the synthesized package `__init__.py` go through
+  `write_normalized` (`utils/file_header.py`) rather than ad-hoc writes, giving
+  the copier the same normalized, UTF-8 output as every other committed-artifact
+  writer.
+
+**Deferred (decided; tracked for follow-up).**
+
+- **`COPIER-NORMALIZE-WIDEN-DEFER`** — Widening the `write_normalized`
+  *normalization* invariant (per-line rstrip / single trailing `\n`) to the other
+  committed-artifact writers — `bundle/manager.py:536`, `core/jobs/job_writer.py:25`,
+  `core/dependencies/output.py:650` and `:667`, and `api/_bundle_facade.py:228` —
+  is deferred. Those sites **already write UTF-8** (they pass
+  `encoding="utf-8"`); only the normalization invariant, **not** an encoding fix,
+  is outstanding there. Some of them write YAML, where `.py`-style normalization
+  semantics may not be desirable. This is the deliberate "Path A" scope decision
+  (copier-only).
+- **`COPIER-WINDOWS-CI-CONFIRM`** — Windows greenness for this fix is
+  correct-by-construction and cannot be exercised locally (macOS host); it is
+  confirmed by the `test-e2e-windows` CI job after commit.
+
 ### Deferred-defect fixes — malformed-secret rejection, referential-integrity column-count check, deterministic operational-metadata ordering
 
 **Summary.** Closes four deferred defects previously recorded as `known_bug`

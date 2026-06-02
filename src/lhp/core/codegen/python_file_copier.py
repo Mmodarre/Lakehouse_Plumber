@@ -7,6 +7,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from ...errors import ErrorFactory, PythonFunctionConflictError, codes
 from ...models.processing import CopiedModuleRecord
+from ...utils.file_header import write_normalized
 from ..loaders.external_file_loader import resolve_external_file_path
 from .imports import parse_user_module
 from .python_dependency_resolver import resolve_local_closure
@@ -143,7 +144,7 @@ class PythonFileCopier:
 
         # Write file outside the lock (safe - we own this destination now)
         dest_path.parent.mkdir(parents=True, exist_ok=True)
-        dest_path.write_text(content)
+        write_normalized(dest_path, content)
         return True
 
     def ensure_init_file(self, custom_functions_dir: Path) -> None:
@@ -163,7 +164,7 @@ class PythonFileCopier:
 
         custom_functions_dir.mkdir(parents=True, exist_ok=True)
         init_file = custom_functions_dir / "__init__.py"
-        init_file.write_text("# Generated package for custom Python functions\n")
+        write_normalized(init_file, "# Generated package for custom Python functions\n")
         self._logger.debug(f"Created __init__.py in {custom_functions_dir}")
 
     def apply_copy_record(
@@ -264,7 +265,7 @@ def _build_module_content(
     the cached offsets and corrupt the rewrite.
     """
     cache = context.get("source_parse_cache")
-    original = source_path.read_text()
+    original = source_path.read_text(encoding="utf-8")
     tree = parse_user_module(source_path, cache=cache)
     rewritten = rewrite_local_imports(original, tree, root)
     return build_header(header_path) + _apply_substitution(rewritten, context)
@@ -323,7 +324,7 @@ def compute_copy_records(
         The entry record followed by closure records (helpers + any synthesized
         namespace ``__init__.py``), in resolver order.
     """
-    from ...utils.file_header import build_lhp_source_header
+    from ...utils.file_header import build_lhp_source_header, helper_header_path
 
     dest_file = custom_functions_dir / f"{Path(module_path).stem}.py"
 
@@ -364,12 +365,11 @@ def compute_copy_records(
         )
     ]
 
-    helper_root = Path(module_path).parent
     closure = resolve_local_closure(
         source_file, root, cache=context.get("source_parse_cache")
     )
     for rm in closure:
-        header_path = str(helper_root / rm.rel_path)
+        header_path = helper_header_path(module_path, rm.rel_path)
         if rm.is_synthesized_init:
             content = build_lhp_source_header(header_path)
         else:

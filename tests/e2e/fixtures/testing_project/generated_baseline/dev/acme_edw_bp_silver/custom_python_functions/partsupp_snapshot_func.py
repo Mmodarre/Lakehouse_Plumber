@@ -11,7 +11,7 @@ def next_snapshot_and_version(
 ) -> Optional[Tuple[DataFrame, int]]:
     if latest_snapshot_version is None:
         df = spark.sql("""
-            SELECT * FROM acme_edw_dev.edw_bronze.partsupp 
+            SELECT * FROM acme_edw_dev.edw_bronze.partsupp
             WHERE snapshot_id = (SELECT min(snapshot_id) FROM acme_edw_dev.edw_bronze.partsupp)
         """)
 
@@ -27,8 +27,8 @@ def next_snapshot_and_version(
 
     else:
         next_snapshot_result = spark.sql(f"""
-            SELECT min(snapshot_id) as next_id 
-            FROM acme_edw_dev.edw_bronze.partsupp 
+            SELECT min(snapshot_id) as next_id
+            FROM acme_edw_dev.edw_bronze.partsupp
             WHERE snapshot_id > '{latest_snapshot_version}'
         """).collect()[0]
 
@@ -38,11 +38,11 @@ def next_snapshot_and_version(
         next_snapshot_id = next_snapshot_result.next_id
         df = spark.sql(f"""
             SELECT * except(rn) FROM (
-                SELECT *, 
+                SELECT *,
                 ROW_NUMBER() OVER (PARTITION BY part_id, supplier_id ORDER BY last_modified_dt DESC) as rn
                 FROM acme_edw_dev.edw_bronze.partsupp
                 WHERE snapshot_id = '{next_snapshot_id}'
-            ) 
+            )
             WHERE rn = 1
         """)
 

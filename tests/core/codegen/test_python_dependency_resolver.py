@@ -17,6 +17,7 @@ from lhp.core.codegen.python_dependency_resolver import (
     ResolvedModule,
     resolve_local_closure,
 )
+from lhp.core.codegen.python_file_copier import _build_module_content
 from lhp.core.codegen.python_import_rewriter import rewrite_local_imports
 from lhp.errors import LHPError
 
@@ -478,3 +479,135 @@ def test_rewrite_lazy_function_body_local_import_prefixed(tmp_path: Path) -> Non
     out = _rewrite(source, root)
 
     assert "    from custom_python_functions.helper import h  # lazy\n" in out
+
+
+# --- Codec-alignment invariant for the byte-offset import surgery -------------
+#
+# rewrite_local_imports slices the import span using the AST node's byte
+# offsets (lineno/col_offset/end_*), which CPython measures as UTF-8 *byte*
+# columns relative to the string the tree was parsed from. The function
+# re-encodes its ``source`` argument to UTF-8 internally
+# (``data = source.encode("utf-8")``) and recomputes line-start offsets from
+# those bytes. The invariant the copier must uphold is therefore:
+#
+#     the ``source`` string and the string the ``tree`` was parsed from must be
+#     the SAME decode (UTF-8) of the SAME bytes.
+#
+# Pre-fix, the copier read the body with ``read_text()`` (locale codec → cp1252
+# on Windows) while ``parse_user_module`` parsed the tree from a UTF-8 read.
+# A non-ASCII byte before the import on its line then made the two strings
+# disagree on byte length, shifting the slice and corrupting the rewrite.
+#
+# These two tests pin the contrast directly at the rewriter boundary. Building
+# both ``tree`` and ``source`` from the same UTF-8 string would be a tautology
+# (the already-fixed state) and is deliberately avoided: the mismatched case
+# below decodes the SAME bytes as latin-1 to simulate the pre-fix locale read.
+
+# A non-ASCII char (U+2014 EM DASH: 3 bytes in UTF-8, but 3 *separate* chars
+# when those bytes are decoded as latin-1, re-encoding to 4 UTF-8 bytes) placed
+# in a string literal BEFORE the local import on the SAME physical line, so it
+# falls inside the import node's col_offset prefix and skews the slice start.
+_DESYNC_MODULE_BYTES = 'x = "—"; from helper import thing\n'.encode("utf-8")
+_DESYNC_ROOT_HELPER = "helper.py"
+_DESYNC_EXPECTED_ALIGNED = (
+    'x = "—"; from custom_python_functions.helper import thing\n'
+)
+
+
+def test_rewrite_aligned_utf8_source_rewrites_correctly(tmp_path: Path) -> None:
+    """With ``source`` decoded the same way the tree was parsed (UTF-8), the
+    byte-offset slice lands exactly and the local import is prefixed cleanly,
+    the leading unicode string literal preserved verbatim."""
+    root = tmp_path / "py_functions"
+    _write(root / _DESYNC_ROOT_HELPER, "def thing():\n    return 1\n")
+
+    # Parse the tree from the UTF-8 decode, matching source_parser.py:75.
+    tree = ast.parse(_DESYNC_MODULE_BYTES.decode("utf-8"))
+    # Pass source as the SAME UTF-8 decode (simulates the fixed read).
+    out = rewrite_local_imports(_DESYNC_MODULE_BYTES.decode("utf-8"), tree, root)
+
+    assert out == _DESYNC_EXPECTED_ALIGNED
+
+
+def test_rewrite_mismatched_codec_source_corrupts_slice(tmp_path: Path) -> None:
+    """With ``source`` decoded under a DIFFERENT codec (latin-1) than the tree
+    was parsed (UTF-8), the byte-offset slice misaligns and the rewrite is
+    corrupted. This reproduces the pre-fix Windows desync: the AST offsets are
+    UTF-8 byte columns, but the latin-1 ``source`` re-encodes the leading
+    em-dash to a different byte length, shifting the import span."""
+    root = tmp_path / "py_functions"
+    _write(root / _DESYNC_ROOT_HELPER, "def thing():\n    return 1\n")
+
+    # Tree parsed from UTF-8 (as the real parser does)...
+    tree = ast.parse(_DESYNC_MODULE_BYTES.decode("utf-8"))
+    # ...but source decoded as latin-1 from the SAME bytes (pre-fix locale read).
+    out = rewrite_local_imports(_DESYNC_MODULE_BYTES.decode("latin-1"), tree, root)
+
+    # The rewrite is corrupted: it is neither the correct aligned output nor a
+    # clean prefixed import. The em-dash byte-length skew makes the slice start
+    # too early (eating the closing quote) and end too early (leaving a
+    # duplicated 'ing' tail), so the result is not even valid Python.
+    assert out != _DESYNC_EXPECTED_ALIGNED
+    with pytest.raises(SyntaxError):
+        ast.parse(out)
+
+
+def test_build_module_content_reads_source_as_utf8_to_match_parser(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The copier must read the body with the SAME codec the parser uses (UTF-8).
+
+    This is the cross-platform regression guard for the copier's
+    ``_build_module_content`` read. ``parse_user_module`` always reads the tree
+    with ``encoding="utf-8"`` (``source_parser.py:75``); the rewriter then slices
+    that source at the AST's UTF-8 byte offsets. If the copier reads the *body*
+    string with a different codec, the slice and the parse disagree on byte
+    lengths and the rewrite is corrupted.
+
+    On macOS this cannot be exercised by a plain on-disk read: the platform
+    default codec is already UTF-8, so the pre-fix ``read_text()`` (no
+    ``encoding``) and the fixed ``read_text(encoding="utf-8")`` decode the same
+    UTF-8 file identically -- a real-read test is a no-op locally. The Windows
+    bug is that ``read_text()`` with no ``encoding`` decodes the on-disk UTF-8
+    bytes under the locale codec (cp1252). This test rebinds ``Path.read_text``
+    so that an *unencoded* call returns the latin-1 decode (simulating that
+    Windows locale read) while an explicit ``encoding="utf-8"`` call decodes
+    correctly -- isolating the single thing the fix changed: passing
+    ``encoding="utf-8"`` at the ``_build_module_content`` read.
+
+    Against the fixed code (``read_text(encoding="utf-8")``) the patch returns
+    UTF-8, the slice aligns, and the output equals the aligned expectation
+    (green). Against the pre-fix code (``read_text()``) the patch returns
+    latin-1, the byte offsets skew, and the output is corrupted/unparseable
+    (red).
+    """
+    root = tmp_path / "py_functions"
+    _write(root / "helper.py", "def thing():\n    return 1\n")
+
+    # Entry module written to disk as real UTF-8 bytes, with a multibyte char
+    # (em-dash) inside a string literal BEFORE the local import on the SAME line.
+    entry = root / "entry.py"
+    entry.write_bytes(_DESYNC_MODULE_BYTES)
+
+    real_read_text = Path.read_text
+
+    def simulated_locale_read_text(self, *args, encoding=None, **kwargs):
+        # No explicit encoding (pre-fix path) -> simulate a cp1252-style locale
+        # decode via latin-1; explicit encoding (the fix + the parser) decodes
+        # faithfully. Either way the on-disk bytes are the single source of truth.
+        raw = self.read_bytes()
+        return raw.decode("latin-1") if encoding is None else raw.decode(encoding)
+
+    monkeypatch.setattr(Path, "read_text", simulated_locale_read_text)
+
+    out = _build_module_content(
+        entry,
+        header_path="entry.py",
+        root=root,
+        context={},
+        build_header=lambda _hp: "",
+    )
+
+    # Fixed read keeps body and tree on the same UTF-8 codec: aligned + valid.
+    assert out == _DESYNC_EXPECTED_ALIGNED
+    ast.parse(out)

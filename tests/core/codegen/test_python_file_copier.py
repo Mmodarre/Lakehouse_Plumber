@@ -39,7 +39,11 @@ class TestPythonFileCopier:
 
         assert result is True
         assert dest_path.exists()
-        assert dest_path.read_text() == content
+        # write_normalized() guarantees a single trailing newline and UTF-8
+        # encoding; the body lines are written verbatim otherwise.
+        written = dest_path.read_text(encoding="utf-8")
+        assert written.endswith("\n")
+        assert written.splitlines() == content.splitlines()
 
     def test_duplicate_same_source(self, copier, temp_dir):
         """Test that copying the same source twice skips the second copy."""
@@ -93,7 +97,11 @@ class TestPythonFileCopier:
         assert sum(results) == 1
         assert len(results) == 10
         assert dest_path.exists()
-        assert dest_path.read_text() == content
+        # write_normalized() guarantees a single trailing newline and UTF-8
+        # encoding; the body lines are written verbatim otherwise.
+        written = dest_path.read_text(encoding="utf-8")
+        assert written.endswith("\n")
+        assert written.splitlines() == content.splitlines()
 
     def test_concurrent_different_files(self, copier, temp_dir):
         """Test concurrent copying of different files."""
@@ -206,7 +214,11 @@ class TestPythonFileCopier:
 
         assert dest_path.exists()
         assert dest_path.parent.exists()
-        assert dest_path.read_text() == content
+        # write_normalized() guarantees a single trailing newline and UTF-8
+        # encoding; the body lines are written verbatim otherwise.
+        written = dest_path.read_text(encoding="utf-8")
+        assert written.endswith("\n")
+        assert written.splitlines() == content.splitlines()
 
     def test_path_separator_normalization_windows(self, copier, temp_dir):
         """Test that forward and backslash paths are treated as equal (cross-platform compatibility)."""
@@ -227,7 +239,11 @@ class TestPythonFileCopier:
 
         # Verify no error was raised (would have raised PythonFunctionConflictError before fix)
         assert dest_path.exists()
-        assert dest_path.read_text() == content
+        # write_normalized() guarantees a single trailing newline and UTF-8
+        # encoding; the body lines are written verbatim otherwise.
+        written = dest_path.read_text(encoding="utf-8")
+        assert written.endswith("\n")
+        assert written.splitlines() == content.splitlines()
 
 
 class TestCopyUserModuleBodySubstitution:
