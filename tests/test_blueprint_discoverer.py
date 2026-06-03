@@ -1,4 +1,4 @@
-"""Spec-driven unit tests for BlueprintDiscoverer (Phase 4).
+"""Unit tests for BlueprintDiscoverer.
 
 Covers default-pattern + custom-pattern discovery, the empty-project case,
 and code 046 for duplicate blueprint names.
@@ -90,8 +90,8 @@ def test_duplicate_blueprint_name_raises_046(tmp_path):
 
 
 def test_discover_instances_default_patterns(tmp_path):
-    # New default: instance_include = ['pipelines/**/*.yaml']. Instance files
-    # live alongside hand-written flowgroups under pipelines/<system>/<layer>/.
+    # instance_include = ['pipelines/**/*.yaml']; instance files live alongside
+    # hand-written flowgroups under pipelines/<system>/<layer>/.
     _write(tmp_path / "blueprints" / "erp.yaml", _bp_yaml("erp_ingestion"))
     _write(
         tmp_path / "pipelines" / "erp" / "bronze" / "sg.yaml",

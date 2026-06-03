@@ -1,4 +1,4 @@
-"""Tests for Dependency Resolver - Step 4.3.5."""
+"""Tests for DependencyResolver."""
 
 import pytest
 
@@ -9,8 +9,6 @@ from lhp.models import Action, ActionType, FlowGroup, TransformType
 
 
 class TestDependencyResolver:
-    """Test dependency resolver functionality."""
-
     def test_simple_dependency_chain(self):
         """Test resolving simple linear dependencies."""
         resolver = DependencyResolver()
@@ -43,7 +41,6 @@ class TestDependencyResolver:
 
         ordered = resolver.resolve_dependencies(actions)
 
-        # Verify order
         assert len(ordered) == 3
         assert ordered[0].name == "load_data"
         assert ordered[1].name == "clean_data"
@@ -87,7 +84,6 @@ class TestDependencyResolver:
 
         ordered = resolver.resolve_dependencies(actions)
 
-        # Verify that loads can be in any order but before join
         load_names = {ordered[0].name, ordered[1].name}
         assert load_names == {"load_customers", "load_orders"}
         assert ordered[2].name == "join_data"
@@ -131,7 +127,6 @@ class TestDependencyResolver:
         """Test relationship validation."""
         resolver = DependencyResolver()
 
-        # Valid flowgroup
         valid_actions = [
             Action(
                 name="load_data",
@@ -161,7 +156,6 @@ class TestDependencyResolver:
         errors = resolver.validate_relationships(valid_actions)
         assert len(errors) == 0
 
-        # Missing load action
         no_load_actions = [
             Action(
                 name="transform_data",
@@ -185,7 +179,6 @@ class TestDependencyResolver:
         errors = resolver.validate_relationships(no_load_actions)
         assert any("must have at least one Load action" in error for error in errors)
 
-        # Missing write action (without orphaned transforms)
         no_write_actions = [
             Action(
                 name="load_data",
@@ -199,13 +192,7 @@ class TestDependencyResolver:
         assert any("must have at least one Write action" in error for error in errors)
 
     def test_missing_dependency_detection(self):
-        """Test detection of missing dependencies.
-
-        NOTE: With registry-based detection, we can only detect missing internal
-        dependencies, not distinguish between external tables and typos. This test
-        now validates that a source referencing a non-existent internal view with
-        NO load action still raises an error about missing load action.
-        """
+        """Registry-based detection cannot distinguish external tables from typos — missing internal views are treated as external."""
         resolver = DependencyResolver()
 
         actions = [
@@ -231,8 +218,6 @@ class TestDependencyResolver:
         ]
 
         errors = resolver.validate_relationships(actions)
-        # Since there's no load action and v_missing_view is treated as external,
-        # we should get a "must have at least one Load action" error
         assert any("must have at least one Load action" in error for error in errors)
 
     def test_orphaned_action_detection(self):
@@ -278,7 +263,6 @@ class TestDependencyResolver:
         resolver = DependencyResolver()
 
         actions = [
-            # Load actions
             Action(
                 name="load_a",
                 type=ActionType.LOAD,
@@ -297,7 +281,6 @@ class TestDependencyResolver:
                 target="v_c",
                 source={"type": "delta", "table": "c"},
             ),
-            # Transform actions
             Action(
                 name="join_ab",
                 type=ActionType.TRANSFORM,
@@ -322,7 +305,6 @@ class TestDependencyResolver:
                 target="v_final",
                 sql="SELECT * FROM v_ab JOIN v_bc",
             ),
-            # Write action
             Action(
                 name="write_final",
                 type=ActionType.WRITE,
@@ -336,20 +318,16 @@ class TestDependencyResolver:
 
         ordered = resolver.resolve_dependencies(actions)
 
-        # Verify dependency order
         action_positions = {action.name: i for i, action in enumerate(ordered)}
 
-        # Loads should come first
         assert action_positions["load_a"] < action_positions["join_ab"]
         assert action_positions["load_b"] < action_positions["join_ab"]
         assert action_positions["load_b"] < action_positions["join_bc"]
         assert action_positions["load_c"] < action_positions["join_bc"]
 
-        # Joins should be ordered correctly
         assert action_positions["join_ab"] < action_positions["final_join"]
         assert action_positions["join_bc"] < action_positions["final_join"]
 
-        # Write should be last
         assert action_positions["final_join"] < action_positions["write_final"]
 
     def test_execution_stages(self):
@@ -408,24 +386,19 @@ class TestDependencyResolver:
 
         stages = resolver.get_execution_stages(actions)
 
-        # Should have 4 stages
         assert len(stages) == 4
 
-        # Stage 1: Both loads can run in parallel
         assert len(stages[0]) == 2
         stage0_names = {action.name for action in stages[0]}
         assert stage0_names == {"load_a", "load_b"}
 
-        # Stage 2: Both transforms can run in parallel
         assert len(stages[1]) == 2
         stage1_names = {action.name for action in stages[1]}
         assert stage1_names == {"transform_a", "transform_b"}
 
-        # Stage 3: Join
         assert len(stages[2]) == 1
         assert stages[2][0].name == "join_ab"
 
-        # Stage 4: Write
         assert len(stages[3]) == 1
         assert stages[3][0].name == "write_result"
 
@@ -455,28 +428,18 @@ class TestDependencyResolver:
             ),
         ]
 
-        # Should not error on external source
         errors = resolver.validate_relationships(actions)
         assert not any("bronze.customers" in error for error in errors)
-
-        # But should still validate other requirements
         assert any("must have at least one Load action" in error for error in errors)
 
     def test_snapshot_cdc_source_function_no_false_dependencies(self):
-        """Test that snapshot CDC with source_function should not create false dependencies.
-
-        This reproduces Error 1 from the ACMI project where a snapshot CDC action
-        with source_function has a redundant action.source field that creates a
-        false dependency error: "depends on 'v_part_bronze_snapshot' which is not produced by any action"
-        """
+        """snapshot CDC with source_function must not raise a false dependency on action.source."""
         validator = ConfigValidator()
 
-        # Create a snapshot CDC write action with source_function
-        # This mimics the part_silver_dim.yaml configuration
         snapshot_cdc_action = Action(
             name="write_part_silver_snapshot",
             type=ActionType.WRITE,
-            source="v_part_bronze_snapshot",  # This is redundant for snapshot CDC with source_function
+            source="v_part_bronze_snapshot",
             write_target={
                 "type": "streaming_table",
                 "catalog": "catalog",
@@ -498,17 +461,15 @@ class TestDependencyResolver:
             },
         )
 
-        # Create flowgroup to test complete validation flow
         flowgroup = FlowGroup(
             pipeline="test_pipeline",
             flowgroup="part_silver_dim",
             actions=[snapshot_cdc_action],
         )
 
-        # After fix: This should pass because source_function is self-contained
         errors = validator.validate_flowgroup(flowgroup)
 
-        # Should NOT have false dependency error for snapshot CDC with source_function
+        # snapshot CDC with source_function is self-contained — no false dependency on action.source
         dependency_errors = [
             e
             for e in errors
@@ -520,19 +481,10 @@ class TestDependencyResolver:
         )
 
     def test_snapshot_cdc_source_function_no_load_action_required(self):
-        """Test that flowgroup with only snapshot CDC + source_function should be valid.
-
-        This reproduces Error 2 from the ACMI project where a flowgroup containing
-        only a snapshot CDC action with source_function fails validation with:
-        "FlowGroup must have at least one Load action"
-
-        However, snapshot CDC with source_function is self-contained and should not
-        require a separate load action.
-        """
+        """snapshot CDC with source_function is self-contained and must not require a separate load action."""
         validator = ConfigValidator()
 
         # Create a flowgroup with only snapshot CDC + source_function
-        # This should be valid because the source_function provides the data
         snapshot_cdc_action = Action(
             name="write_part_silver_snapshot",
             type=ActionType.WRITE,
@@ -553,17 +505,15 @@ class TestDependencyResolver:
             },
         )
 
-        # Create flowgroup to test complete validation flow
         flowgroup = FlowGroup(
             pipeline="test_pipeline",
             flowgroup="part_silver_dim",
-            actions=[snapshot_cdc_action],  # Only one action, no LOAD actions
+            actions=[snapshot_cdc_action],
         )
 
-        # After fix: This should pass because snapshot CDC with source_function is self-contained
         errors = validator.validate_flowgroup(flowgroup)
 
-        # Should NOT have load action requirement error for self-contained snapshot CDC
+        # snapshot CDC with source_function is self-contained — no load action required
         load_action_errors = [
             e for e in errors if "FlowGroup must have at least one Load action" in e
         ]
@@ -575,7 +525,6 @@ class TestDependencyResolver:
         """Test that normal (non-CDC) write actions still work as before."""
         resolver = DependencyResolver()
 
-        # Create normal load and write actions (traditional pattern)
         load_action = Action(
             name="load_customer_data",
             type=ActionType.LOAD,
@@ -601,13 +550,11 @@ class TestDependencyResolver:
 
         actions = [load_action, write_action]
 
-        # Should pass validation - normal pattern unchanged
         errors = resolver.validate_relationships(actions)
         assert len(errors) == 0, (
             f"Normal write actions should still work. Got errors: {errors}"
         )
 
-        # Verify dependency detection works
         sources = resolver._get_action_sources(write_action)
         assert sources == ["v_customer_raw"], (
             f"Normal write action should extract source correctly. Got: {sources}"
@@ -617,7 +564,6 @@ class TestDependencyResolver:
         """Test that CDC mode (not snapshot_cdc) with explicit source still works."""
         resolver = DependencyResolver()
 
-        # Create CDC write action with explicit source in cdc_config
         cdc_action = Action(
             name="write_customer_cdc",
             type=ActionType.WRITE,
@@ -631,7 +577,6 @@ class TestDependencyResolver:
             },
         )
 
-        # Should extract source from cdc_config, not action.source
         sources = resolver._get_action_sources(cdc_action)
         assert sources == ["v_customer_changes"], (
             f"CDC action should extract source from cdc_config. Got: {sources}"
@@ -641,7 +586,6 @@ class TestDependencyResolver:
         """Test that snapshot_cdc with explicit source (not source_function) still works."""
         resolver = DependencyResolver()
 
-        # Create snapshot CDC with explicit source reference
         snapshot_action = Action(
             name="write_customer_snapshot",
             type=ActionType.WRITE,
@@ -658,7 +602,6 @@ class TestDependencyResolver:
             },
         )
 
-        # Should extract source from snapshot_cdc_config.source
         sources = resolver._get_action_sources(snapshot_action)
         assert sources == ["v_customer_snapshots"], (
             f"Snapshot CDC with explicit source should work. Got: {sources}"
@@ -668,7 +611,6 @@ class TestDependencyResolver:
         """Test that different action types (normal, CDC, snapshot CDC) can coexist."""
         validator = ConfigValidator()
 
-        # Mix of different action types
         load_action = Action(
             name="load_raw_data",
             type=ActionType.LOAD,
@@ -713,7 +655,6 @@ class TestDependencyResolver:
             actions=[load_action, normal_write, snapshot_cdc_self_contained],
         )
 
-        # Should validate successfully - mix of patterns should coexist
         errors = validator.validate_flowgroup(flowgroup)
         assert len(errors) == 0, (
             f"Mixed action types should coexist. Got errors: {errors}"
@@ -723,7 +664,6 @@ class TestDependencyResolver:
         """Test that malformed CDC configs fall back to action.source gracefully."""
         resolver = DependencyResolver()
 
-        # CDC action with malformed config - missing source in cdc_config
         malformed_cdc = Action(
             name="write_malformed_cdc",
             type=ActionType.WRITE,
@@ -738,7 +678,6 @@ class TestDependencyResolver:
             },
         )
 
-        # Should fallback to action.source
         sources = resolver._get_action_sources(malformed_cdc)
         assert sources == ["v_fallback_source"], (
             f"Malformed CDC should fallback to action.source. Got: {sources}"
@@ -752,15 +691,15 @@ class TestDependencyResolver:
             Action(
                 name="load_data",
                 type=ActionType.LOAD,
-                target="raw_customer_data",  # ← No v_ prefix
+                target="raw_customer_data",
                 source={"type": "cloudfiles", "path": "/data/customers"},
             ),
             Action(
                 name="transform_data",
                 type=ActionType.TRANSFORM,
                 transform_type=TransformType.SQL,
-                source="raw_customer_data",  # ← References non-v_ internal view
-                target="staging_customer",  # ← No v_ prefix
+                source="raw_customer_data",
+                target="staging_customer",
                 sql="SELECT * FROM raw_customer_data WHERE active = true",
             ),
             Action(
@@ -776,16 +715,13 @@ class TestDependencyResolver:
             ),
         ]
 
-        # Should pass validation - all dependencies exist
         errors = resolver.validate_relationships(actions)
 
-        # Should not have missing dependency errors
         missing_dep_errors = [e for e in errors if "not produced by any action" in e]
         assert len(missing_dep_errors) == 0, (
             f"Should not have missing dependency errors. Got: {missing_dep_errors}"
         )
 
-        # Verify dependency order is correct
         ordered = resolver.resolve_dependencies(actions)
         assert ordered[0].name == "load_data"
         assert ordered[1].name == "transform_data"
@@ -799,21 +735,21 @@ class TestDependencyResolver:
             Action(
                 name="load_a",
                 type=ActionType.LOAD,
-                target="v_data_a",  # ← Uses v_ prefix
+                target="v_data_a",
                 source={"type": "delta", "table": "source_a"},
             ),
             Action(
                 name="load_b",
                 type=ActionType.LOAD,
-                target="raw_data_b",  # ← No v_ prefix
+                target="raw_data_b",
                 source={"type": "delta", "table": "source_b"},
             ),
             Action(
                 name="transform_merged",
                 type=ActionType.TRANSFORM,
                 transform_type=TransformType.SQL,
-                source=["v_data_a", "raw_data_b"],  # ← Mixed references
-                target="staging_merged",  # ← No v_ prefix
+                source=["v_data_a", "raw_data_b"],
+                target="staging_merged",
                 sql="SELECT * FROM v_data_a JOIN raw_data_b",
             ),
             Action(
@@ -829,14 +765,12 @@ class TestDependencyResolver:
             ),
         ]
 
-        # Should pass validation - mixed naming is fine
         errors = resolver.validate_relationships(actions)
         missing_dep_errors = [e for e in errors if "not produced by any action" in e]
         assert len(missing_dep_errors) == 0, (
             f"Should handle mixed naming conventions. Got: {missing_dep_errors}"
         )
 
-        # Verify all dependencies are detected
         ordered = resolver.resolve_dependencies(actions)
         action_positions = {action.name: i for i, action in enumerate(ordered)}
 
@@ -845,13 +779,7 @@ class TestDependencyResolver:
         assert action_positions["transform_merged"] < action_positions["write_result"]
 
     def test_internal_dependency_typo_detection(self):
-        """Test that typos in internal view references are detected.
-
-        NOTE: Registry-based detection can only catch typos if we know the correct
-        target exists. If a source references a non-existent name, the system treats
-        it as external. To detect typos, the dependency chain must break in a
-        detectable way.
-        """
+        """Registry-based detection treats unknown sources as external; typos surface as orphaned actions instead."""
         resolver = DependencyResolver()
 
         actions = [
@@ -865,7 +793,7 @@ class TestDependencyResolver:
                 name="transform_correct",
                 type=ActionType.TRANSFORM,
                 transform_type=TransformType.SQL,
-                source="customer_data",  # ← Correct reference
+                source="customer_data",
                 target="enriched_data",
                 sql="SELECT * FROM customer_data",
             ),
@@ -873,7 +801,7 @@ class TestDependencyResolver:
                 name="transform_depends_on_typo",
                 type=ActionType.TRANSFORM,
                 transform_type=TransformType.SQL,
-                source="enriched_dta",  # ← Typo: 'enriched_dta' instead of 'enriched_data'
+                source="enriched_dta",  # typo: should be 'enriched_data'
                 target="final_data",
                 sql="SELECT * FROM enriched_dta",
             ),
@@ -890,9 +818,7 @@ class TestDependencyResolver:
             ),
         ]
 
-        # With the typo, enriched_dta is not in targets and not caught as error
-        # because it's treated as external. However, enriched_data becomes orphaned!
-        # The orphaned action detection will catch this.
+        # enriched_dta is treated as external (not caught directly); enriched_data becomes orphaned instead.
         errors = resolver.validate_relationships(actions)
 
         # Should detect orphaned transform (enriched_data is not used)
@@ -971,7 +897,6 @@ class TestDependencyResolver:
         ]
 
         errors = resolver.validate_relationships(actions)
-        # Both errors should be present
         assert any("must have at least one Load action" in e for e in errors)
         assert any("orphaned_transform" in e for e in errors)
 

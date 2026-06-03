@@ -71,20 +71,17 @@ class TestProcessFlowgroupCacheIsolation:
             )
 
             original_action_count = len(fg.actions)
-            original_actions_list = fg.actions  # capture reference identity
+            original_actions_list = fg.actions
 
             ctx = _ctx_of(fg)
             result_ctx = service.process_flowgroup(
                 ctx, self._substitution_mgr(), include_tests=True
             )
 
-            # The result must contain the merged actions (sanity — proves we
-            # actually exercised the template-expansion branch).
             result_action_names = {a.name for a in result_ctx.flowgroup.actions}
             assert "template_load" in result_action_names
             assert "inline_write" in result_action_names
 
-            # Discriminating assertions: the input flowgroup must be untouched.
             assert len(fg.actions) == original_action_count, (
                 "input flowgroup was mutated (actions list grew)"
             )
@@ -141,20 +138,17 @@ class TestProcessFlowgroupCacheIsolation:
             )
 
             original_action_count = len(fg.actions)
-            original_actions_list = fg.actions  # capture reference identity
+            original_actions_list = fg.actions
 
             ctx = _ctx_of(fg)
             result_ctx = service.process_flowgroup(
                 ctx, self._substitution_mgr(), include_tests=False
             )
 
-            # The result must have the TEST action dropped (sanity — proves we
-            # actually exercised the test-filter branch).
             result_types = [a.type for a in result_ctx.flowgroup.actions]
             assert ActionType.TEST not in result_types
             assert len(result_ctx.flowgroup.actions) == 2
 
-            # Discriminating assertions: the input flowgroup must be untouched.
             assert len(fg.actions) == original_action_count, (
                 "input flowgroup was mutated (actions list shrank)"
             )

@@ -1,14 +1,4 @@
-"""Module-level helpers for categorizing and sorting Python import statements.
-
-Pure functions used by :class:`lhp.core.codegen.imports.manager.ImportManager`
-to group imports by category (stdlib / third-party / pyspark / dlt / custom),
-detect wildcard form, extract base module names, and produce a stable
-PEP 8-ish sort order.
-
-Also exposes :func:`extract_future_imports`, the AST-based hoister used at the
-assembly chokepoint to lift ``from __future__ import …`` lines to the top of
-generated modules.
-"""
+"""Module-level helpers for categorizing and sorting Python import statements."""
 
 from __future__ import annotations
 
@@ -74,7 +64,6 @@ def extract_module_name(import_stmt: str) -> Optional[str]:
 
 
 def is_wildcard_import(import_stmt: str) -> bool:
-    """Return True if the statement is a ``from … import *`` form."""
     return "import *" in import_stmt
 
 
@@ -105,7 +94,6 @@ def categorize_import(import_stmt: str) -> str:
 
 
 def sort_imports(imports: Set[str]) -> List[str]:
-    """Sort imports by category then lexicographically within each category."""
     if not imports:
         return []
 
@@ -138,9 +126,6 @@ def extract_future_imports(source: str) -> Tuple[List[str], str]:
     Uses AST so that future-looking strings inside docstrings or comments
     (e.g. ``\"\"\"from __future__ ...\"\"\"`` in a triple-quoted block) are not
     mis-extracted.
-
-    Args:
-        source: Python source code (may be a full module or a fragment).
 
     Returns:
         Tuple of (future_lines, source_with_those_lines_blanked). The original

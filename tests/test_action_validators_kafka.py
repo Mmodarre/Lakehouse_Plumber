@@ -1,6 +1,4 @@
-"""
-Tests for Kafka-specific action validation in action_validators.py
-"""
+"""Tests for Kafka-specific action validation."""
 
 import pytest
 
@@ -74,7 +72,6 @@ class TestKafkaActionValidator:
             source={
                 "type": "kafka",
                 "subscribe": "test_topic",
-                # Missing bootstrap_servers
             },
             target="v_test",
             readMode="stream",
@@ -90,7 +87,6 @@ class TestKafkaActionValidator:
             source={
                 "type": "kafka",
                 "bootstrap_servers": "localhost:9092",
-                # Missing subscribe/subscribePattern/assign
             },
             target="v_test",
             readMode="stream",
@@ -110,13 +106,12 @@ class TestKafkaActionValidator:
                 "type": "kafka",
                 "bootstrap_servers": "localhost:9092",
                 "subscribe": "test_topic",
-                "subscribePattern": "test.*",  # Can't have both
+                "subscribePattern": "test.*",
             },
             target="v_test",
             readMode="stream",
         )
         errors = self.validator.validate(action, "test_action")
-        # Check if any error mentions having only one subscription method
         assert any("ONE" in error for error in errors) or any(
             "subscribePattern" in error for error in errors
         )
@@ -137,7 +132,6 @@ class TestKafkaActionValidator:
             readMode="stream",
         )
         errors = self.validator.validate(action, "test_action")
-        # Check if any error mentions having only one subscription method or complains about extra fields
         assert (
             any("ONE" in error for error in errors)
             or any("subscribePattern" in error for error in errors)

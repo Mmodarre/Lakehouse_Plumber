@@ -29,26 +29,8 @@ class SecretSubstitutor:
         generated_sections: List[str],
         substitution_mgr: EnhancedSubstitutionManager,
     ) -> str:
-        """Apply secret substitutions to generated code.
-
-        Secrets are emitted as ``__SECRET_scope_key__`` placeholders during
-        YAML substitution so that Jinja templates can wrap values in Python
-        string literals without disturbing the secret expression. This
-        post-pass walks the assembled code and rewrites placeholders:
-
-        - When a string literal's content is exactly one placeholder, it is
-          replaced with a bare ``dbutils.secrets.get(...)`` call so that
-          fields like ``.option("user", "${secret:db/user}")`` become
-          ``.option("user", dbutils.secrets.get(...))``.
-        - When a placeholder is embedded in a larger string literal, the
-          literal is rewritten as an f-string so the dbutils call evaluates
-          at runtime.
-        """
         complete_code = "\n\n".join(generated_sections)
 
-        # Use SecretCodeGenerator to convert secret placeholders to valid
-        # Python (bare calls or f-strings). Pull references from the
-        # substitution manager — it is the canonical source.
         try:
             from .secret_code_generator import SecretCodeGenerator
 

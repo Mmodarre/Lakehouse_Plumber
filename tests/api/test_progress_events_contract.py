@@ -121,8 +121,6 @@ class TestJSONRoundTripViaToDict:
 
 @pytest.mark.unit
 class TestEventHierarchy:
-    """Progress events are ``LHPEvent`` but NOT ``OperationCompleted``."""
-
     @pytest.mark.parametrize("instance", _INSTANCES)
     def test_is_lhpevent_not_terminal(self, instance: Any) -> None:
         assert isinstance(instance, LHPEvent)

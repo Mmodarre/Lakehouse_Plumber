@@ -1,16 +1,11 @@
 """Blueprint expansion service for LakehousePlumber.
 
-Expands a registry of `Blueprint`s and a list of `BlueprintInstance`s into
-synthetic `FlowGroup` objects that flow into the existing processing pipeline
-unchanged. Once expanded, synthetic flowgroups are indistinguishable from
-disk-sourced ones for downstream code paths (Step 0.5 -> Step 5).
-
 Key semantics:
   - Eager resolution scope: only `pipeline` and `flowgroup` fields are resolved
     eagerly via `%{var}`. All other `%{var}` patterns stay intact and are
-    resolved by Step 0.5 in `FlowgroupResolutionService`. `${env_token}` substrings
-    inside `pipeline`/`flowgroup` are rejected (they only resolve at Step 3,
-    by which point the source-path index is already built).
+    resolved later in `FlowgroupResolutionService`. `${env_token}` substrings
+    inside `pipeline`/`flowgroup` are rejected (they only resolve after
+    the source-path index is already built).
   - Variables-merge precedence: `merged = {**effective_params,
     **(spec.variables or {})}`. spec.variables wins on key conflict — protects
     blueprint-author-defined derived state (e.g. spec defines
@@ -69,14 +64,7 @@ class BlueprintExpander:
     """Cartesian-product expansion of blueprints x instances into FlowGroups.
 
     Inputs come pre-validated from `BlueprintParser` (parameter keys checked
-    against blueprint declarations, required parameters present). The expander
-    is responsible for the remaining cross-cutting concerns:
-      - effective parameter resolution (defaults + instance values)
-      - %{var} resolution in pipeline/flowgroup fields
-      - ${env_token} rejection in pipeline/flowgroup fields
-      - merged-variables construction with spec.variables precedence
-      - synthetic FlowGroup construction with _synthetic=True
-      - duplicate (pipeline, flowgroup) detection
+    against blueprint declarations, required parameters present).
     """
 
     def __init__(self) -> None:
@@ -87,17 +75,7 @@ class BlueprintExpander:
         blueprints: Dict[str, Tuple[Blueprint, Path]],
         instances: List[Tuple[BlueprintInstance, Path]],
     ) -> Tuple[List[FlowGroupContext], Dict[Tuple[str, str], BlueprintProvenance]]:
-        """Expand all instances against their referenced blueprints.
-
-        Args:
-            blueprints: Output of `BlueprintDiscoverer.discover_blueprints`.
-            instances: Output of `BlueprintDiscoverer.discover_instances`.
-
-        Returns:
-            (synthetic_contexts, provenance_map):
-              - List of FlowGroupContext envelopes with `synthetic = True`
-              - Map keyed by resolved `(pipeline, flowgroup)` tuple
-        """
+        """Expand all instances against their referenced blueprints."""
         with perf_timer("expand_blueprints", category="blueprint_expansion"):
             contexts: List[FlowGroupContext] = []
             provenance: Dict[Tuple[str, str], BlueprintProvenance] = {}
@@ -189,14 +167,13 @@ class BlueprintExpander:
         instance_path: Path,
         blueprints: Dict[str, Tuple[Blueprint, Path]],
     ) -> Tuple[List[FlowGroupContext], Dict[Tuple[str, str], BlueprintProvenance]]:
-        """Expand exactly one instance — used by `lhp show --instance` (M4 fix)."""
+        """Expand exactly one instance — used by `lhp show --instance`."""
         return self.expand(blueprints, [(instance, instance_path)])
 
     @staticmethod
     def _effective_params(
         blueprint: Blueprint, instance: BlueprintInstance
     ) -> Dict[str, Any]:
-        """Merge blueprint defaults with instance values (instance wins)."""
         params: Dict[str, Any] = {}
         for p in blueprint.parameters:
             if p.default is not None:
@@ -208,13 +185,7 @@ class BlueprintExpander:
     def _merge_variables(
         spec: BlueprintFlowgroupSpec, effective_params: Dict[str, Any]
     ) -> Dict[str, str]:
-        """Build per-spec merged variables.
-
-        Order matters: instance params first, THEN spec.variables overlaid.
-        spec.variables wins on key conflict so the blueprint author retains
-        control of derived state. Stringifies non-string values because
-        LocalVariableResolver.resolve treats values as strings.
-        """
+        """spec.variables overlaid last — blueprint author retains control of derived state."""
         merged: Dict[str, str] = {}
         for k, v in effective_params.items():
             merged[k] = v if isinstance(v, str) else str(v)
@@ -229,13 +200,12 @@ class BlueprintExpander:
         blueprint: Blueprint,
         instance_path: Path,
     ) -> None:
-        """Reject `${env_token}` anywhere in `pipeline`/`flowgroup`.
+        """Reject `${env_token}` in `pipeline`/`flowgroup`.
 
-        Rationale: the source-path index, state tracking, and `--pipeline` filter
-        all use the resolved tuple as a key, and they're all built immediately
-        after expansion. `${env_token}` is only resolved at Step 3 in the
-        per-flowgroup processing pipeline, so allowing it here would yield
-        unresolved tokens in the index.
+        The source-path index, state tracking, and `--pipeline` filter all use
+        the resolved tuple as a key immediately after expansion. `${env_token}`
+        resolves later in the per-flowgroup pipeline, so allowing it here would
+        yield unresolved tokens in the index.
         """
         for field, value in (
             ("pipeline", spec.pipeline),
@@ -277,9 +247,8 @@ class BlueprintExpander:
     ) -> str:
         """Eagerly resolve `%{var}` in a `pipeline` or `flowgroup` template.
 
-        Strict: any unresolved `%{var}` raises rather than silently passing
-        through. Reuses `LocalVariableResolver` for parity with the Step 0.5
-        runtime path.
+        Strict: any unresolved `%{var}` raises. Reuses `LocalVariableResolver`
+        for parity with the flowgroup-resolution runtime path.
         """
         resolver = LocalVariableResolver(merged_vars)
         try:
@@ -316,18 +285,7 @@ class BlueprintExpander:
         resolved_flowgroup: str,
         merged_vars: Dict[str, str],
     ) -> FlowGroup:
-        """Construct a synthetic `FlowGroup` from a spec + resolved identity.
-
-        - Pipeline/flowgroup are the eagerly-resolved values
-        - Variables on the FlowGroup are the merged dict (used by Step 0.5)
-        - Other spec fields are passed through; they may still contain `%{var}`
-          patterns to be resolved at Step 0.5 alongside other flowgroup-scoped
-          local variables
-        - Synthetic status is recorded on the enclosing FlowGroupContext
-          (used by source-path index, dependency tracker)
-        """
-        # Build a dict so we can use FlowGroup(**dict) — symmetric with the
-        # disk-sourced parser path. dict spread preserves Pydantic validation.
+        # Build a dict to mirror the disk-sourced parser path (preserves Pydantic validation).
         flowgroup_dict: Dict[str, Any] = {
             "pipeline": resolved_pipeline,
             "flowgroup": resolved_flowgroup,

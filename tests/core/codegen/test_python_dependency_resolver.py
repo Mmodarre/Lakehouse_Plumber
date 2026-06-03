@@ -187,7 +187,6 @@ def test_closure_external_imports_not_copied(tmp_path: Path) -> None:
 
     records = resolve_local_closure(entry, root, cache=None)
 
-    # Only the local helper; os / pyspark / json never appear.
     assert _rel_paths(records) == {"helper.py"}
 
 
@@ -298,7 +297,6 @@ def test_closure_uses_provided_cache(tmp_path: Path) -> None:
     cache: dict = {}
     resolve_local_closure(entry, root, cache=cache)
 
-    # Both files were parsed and their trees cached by resolved path.
     assert str(entry.resolve()) in cache
     assert str((root / "helper.py").resolve()) in cache
 

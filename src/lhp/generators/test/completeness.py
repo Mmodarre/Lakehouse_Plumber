@@ -1,5 +1,3 @@
-"""Completeness test action generator."""
-
 import logging
 from typing import Any, Dict, List
 
@@ -14,7 +12,6 @@ class CompletenessTestGenerator(BaseTestActionGenerator):
     """Generate a completeness test — required columns must be non-null."""
 
     def generate(self, action: Action, context: Dict[str, Any]) -> str:
-        """Generate completeness test code."""
         config = action.model_dump(mode="json", exclude_none=True)
         test_type = "completeness"
 

@@ -284,10 +284,7 @@ class ActionOrchestrator:
     def finalize_monitoring_artifacts(self, env: str, output_dir: Path) -> None:
         """Reconcile monitoring artifacts: clean stale, write current.
 
-        Pure pass-through to :meth:`MonitoringFinalizerService.finalize_artifacts`.
-        Called AFTER the pipeline generation loop; the service handles
-        notebook + job resource generation, cleanup of stale artifacts, and
-        the add/remove/rename transitions.
+        Called AFTER the pipeline generation loop.
         """
         self.monitoring.finalize_artifacts(env, output_dir)
 
@@ -415,19 +412,13 @@ class ActionOrchestrator:
     ) -> _FlowgroupWorkerState:
         """Build the unified worker state for the flat-engine generate path.
 
-        Generate uses the same :class:`_FlowgroupWorkerState` carrier as
-        validate — identical to
-        :meth:`_build_validate_worker_state` (the generate-only collaborators
-        ``code_generator`` / ``environment`` are genuinely
-        consumed here, unlike in validate mode). The per-pipeline
         ``substitution_managers`` / ``pipeline_output_dirs`` are placeholders;
-        :meth:`PipelineExecutionService.run_generate` replaces them per batch
-        from the worklist builder's maps. ``project_config`` / ``project_root``
-        are deliberately NOT on this carrier (they are commit-step inputs the
-        coordinator passes to ``run_generate`` separately, never crossing the
-        spawn boundary). No formatter rides along: the worker only
-        ``ast.parse``-validates generated code; the single terminal ruff pass
-        runs on the coordinator (:class:`PipelineExecutionService`).
+        ``run_generate`` replaces them per batch from the worklist builder's maps.
+        ``project_config`` / ``project_root`` are deliberately NOT on this carrier
+        (commit-step inputs passed to ``run_generate`` separately, never crossing
+        the spawn boundary). No formatter on the worker: the worker only
+        ``ast.parse``-validates; the single terminal ruff pass runs on the
+        coordinator (:class:`PipelineExecutionService`).
         """
         return _FlowgroupWorkerState(
             processor=self.processing,
@@ -525,17 +516,14 @@ class ActionOrchestrator:
     ) -> _FlowgroupWorkerState:
         """Build the unified worker state for the flat-engine validate path.
 
-        The consolidated engine takes one
-        :class:`_FlowgroupWorkerState` for both modes. In validate mode the
-        worker only reads ``processor`` / ``substitution_managers`` /
-        ``include_tests`` (it resolves + per-flowgroup-validates and stops);
-        the generate-only collaborators (``code_generator`` /
-        ``pipeline_output_dirs`` / ``environment``) are required by the
-        dataclass but unused on this path. They are populated with the real
-        collaborators anyway — harmless for validate, and the exact shape
-        generate reuses. The per-pipeline ``substitution_managers``
-        / ``pipeline_output_dirs`` are placeholders here; ``run_validate``
-        replaces them per batch from the worklist builder's maps.
+        In validate mode the worker only reads ``processor`` /
+        ``substitution_managers`` / ``include_tests``; the generate-only
+        collaborators (``code_generator`` / ``pipeline_output_dirs`` /
+        ``environment``) are required by the dataclass but unused on this path.
+        They are populated with real values anyway — harmless for validate, and
+        the exact shape generate reuses. ``substitution_managers`` /
+        ``pipeline_output_dirs`` are placeholders; ``run_validate`` replaces
+        them per batch from the worklist builder's maps.
         """
         return _FlowgroupWorkerState(
             processor=self.processing,

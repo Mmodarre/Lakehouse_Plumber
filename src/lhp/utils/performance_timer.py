@@ -101,7 +101,6 @@ class PerfSummary:
                 self._event_counts[name] = self._event_counts.get(name, 0) + value
 
     def reset(self) -> None:
-        """Clear all collected timings."""
         with self._lock:
             self._timings.clear()
             self._phase_timings.clear()
@@ -120,7 +119,6 @@ class PerfSummary:
             "[PERF]",
         ]
 
-        # Snapshot under lock
         with self._lock:
             phase_timings = dict(self._phase_timings)
             timings = {k: list(v) for k, v in self._timings.items()}
@@ -128,27 +126,23 @@ class PerfSummary:
             sub_phase_timings = {k: list(v) for k, v in self._sub_phase_timings.items()}
             event_counts = dict(self._event_counts)
 
-        # Project shape (counts)
         if counts:
             lines.append("[PERF] Project shape:")
             for name, value in sorted(counts.items()):
                 lines.append(f"[PERF]   {name:<35s} {value:>8d}")
             lines.append("[PERF]")
 
-        # Phase breakdown (sub-phases excluded from total math)
         if phase_timings:
             total_phase = sum(phase_timings.values())
             lines.append("[PERF] Phase breakdown:")
             for phase, elapsed in phase_timings.items():
                 pct = (elapsed / total_phase * 100) if total_phase > 0 else 0
                 lines.append(f"[PERF]   {phase:<35s} {elapsed:>8.3f}s  ({pct:>5.1f}%)")
-                # Render any sub-phases indented under this parent
                 for sub_name, sub_elapsed in sub_phase_timings.get(phase, []):
                     lines.append(f"[PERF]     ↳ {sub_name:<31s} {sub_elapsed:>8.3f}s")
             lines.append(f"[PERF]   {'Total':<35s} {total_phase:>8.3f}s")
             lines.append("[PERF]")
 
-        # Per-category aggregate stats
         if timings:
             lines.append("[PERF] Per-category aggregate stats:")
             for category, durations in sorted(timings.items()):
@@ -162,7 +156,6 @@ class PerfSummary:
                     f"avg={avg:.3f}s  min={mn:.3f}s  max={mx:.3f}s  total={total:>7.2f}s"
                 )
 
-        # Event counters (accumulating)
         if event_counts:
             lines.append("[PERF] Event counts:")
             for name in sorted(event_counts):
@@ -225,16 +218,13 @@ class PerfSummary:
         }
 
 
-# Module-level singleton
 _summary = PerfSummary()
 
 
 def enable_perf_timing(project_root: Optional[Path] = None) -> None:
     """Enable performance timing and configure perf.log output.
 
-    Args:
-        project_root: Project root for placing .lhp/logs/perf.log.
-            If None, timing is still enabled but no file handler is set up.
+    If ``project_root`` is None, timing is still enabled but no file handler is set up.
     """
     global _enabled, _start_wall_clock
 
@@ -242,7 +232,6 @@ def enable_perf_timing(project_root: Optional[Path] = None) -> None:
     _start_wall_clock = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     _summary.reset()
 
-    # Remove any stale handlers from previous runs
     for handler in _perf_logger.handlers[:]:
         handler.close()
         _perf_logger.removeHandler(handler)
@@ -265,13 +254,11 @@ def is_perf_enabled() -> bool:
 
 
 def log_perf_summary() -> None:
-    """Log the aggregated performance summary (INFO level to perf.log)."""
     if _enabled:
         _summary.log_summary()
 
 
 def reset_perf_summary() -> None:
-    """Clear all collected timings."""
     _summary.reset()
 
 

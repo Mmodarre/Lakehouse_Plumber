@@ -1,11 +1,7 @@
 """Snapshot test for ``lhp validate`` post-Live summary table rendering.
 
-Phase D moved per-pipeline rendering OUT of the Live frame: the inline
-``_display_pipeline_validation_results`` per-completion table is gone,
-replaced by a single ``print_validate_summary_table`` call after Live
-exits. This test pins the Pipeline / Errors / Warnings columns and the
-status-icon contract; per-failure rich Panels are covered separately
-by ``test_lhperror_rendering`` (the LHPError ``render_error_panel`` snapshot).
+Pins the Pipeline / Errors / Warnings columns and the status-icon contract;
+per-failure rich Panels are covered separately by ``test_lhperror_rendering``.
 """
 
 from io import StringIO
@@ -42,9 +38,6 @@ def test_validate_summary_all_pass_renders_green_check():
             name="bronze_pipeline", success=True, errors_count=0, warnings_count=0
         )
     }
-    # The default failures-only contract suppresses the per-pipeline
-    # table on a clean pass; this test verifies the per-row rendering
-    # itself, so opt into the full table via ``show_all=True``.
     out = _render_table(records, show_all=True)
     assert "✓" in out
     assert "bronze_pipeline" in out
@@ -68,8 +61,6 @@ def test_validate_summary_failure_renders_rich_table(snapshot):
             warnings_count=0,
         ),
     }
-    # The snapshot captures the unfiltered table (both passing and
-    # failing rows). The post-Phase-E default filters to failures only,
-    # so opt into the full table via ``show_all=True`` to preserve the
-    # original rendering contract this snapshot was written for.
+    # ``show_all=True`` preserves the original rendering contract (both
+    # passing and failing rows); the default filters to failures only.
     assert _render_table(records, failed=True, show_all=True) == snapshot

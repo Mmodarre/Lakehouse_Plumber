@@ -38,15 +38,6 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
         config_validator=None,
         secret_validator=None,
     ):
-        """
-        Initialize flowgroup processor.
-
-        Args:
-            template_engine: Template engine for template expansion
-            preset_manager: Preset manager for preset chain resolution
-            config_validator: Config validator for flowgroup validation
-            secret_validator: Secret validator for secret reference validation
-        """
         self.template_engine = template_engine
         self.preset_manager = preset_manager
         self.config_validator = config_validator
@@ -74,21 +65,10 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
         substitution_mgr: EnhancedSubstitutionManager,
         include_tests: bool = True,
     ) -> FlowGroupContext:
-        """
-        Process flowgroup: expand templates, apply presets, apply substitutions.
+        """Process flowgroup: expand templates, apply presets, apply substitutions.
 
-        Template presets are applied first, then flowgroup presets can override them.
-        This allows templates to define sensible defaults while flowgroups can
-        customize as needed.
-
-        Args:
-            ctx: FlowGroupContext envelope to process
-            substitution_mgr: Substitution manager for the environment
-            include_tests: If False, filter out test actions before processing.
-                Defaults to True for backward compatibility.
-
-        Returns:
-            New FlowGroupContext wrapping the processed FlowGroup.
+        Template presets are applied first so templates define sensible defaults
+        while flowgroup-level presets can override them.
         """
         flowgroup = ctx.flowgroup
         self.logger.debug(
@@ -97,7 +77,6 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
 
         fg = flowgroup.flowgroup
 
-        # Resolve local variables FIRST (before templates)
         if flowgroup.variables:
             with perf_timer(f"local_vars [{fg}]", category="local_vars"):
                 self.logger.debug(
@@ -123,13 +102,11 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
                 self.logger.debug(
                     f"Template '{flowgroup.use_template}' expanded into {len(template_actions)} action(s)"
                 )
-                # Add template actions to existing actions
                 flowgroup = flowgroup.model_copy(
                     update={"actions": [*flowgroup.actions, *template_actions]}
                 )
 
-        # Filter test actions when include_tests=False
-        # Placed after template expansion so template-generated test actions are also caught
+        # Placed after template expansion so template-generated test actions are also caught.
         tests_were_filtered = False
         if not include_tests:
             pre_filter_count = len(flowgroup.actions)
@@ -149,7 +126,6 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
                 )
 
         if flowgroup.use_template:
-            # Apply template-level presets to template-generated actions
             if template and template.presets:
                 with perf_timer(
                     f"template_presets [{fg}]", category="template_presets"
@@ -162,7 +138,6 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
                         flowgroup, template_preset_config
                     )
 
-        # Apply flowgroup-level presets (may override template presets)
         if flowgroup.presets:
             with perf_timer(f"fg_presets [{fg}]", category="fg_presets"):
                 self.logger.debug(
@@ -180,7 +155,6 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
             flowgroup_dict = flowgroup.model_dump()
             substituted_dict = substitution_mgr.substitute_yaml(flowgroup_dict)
 
-        # Validate no unresolved tokens (skip if validation disabled)
         with perf_timer(f"token_validation [{fg}]", category="token_validation"):
             if not substitution_mgr.skip_validation:
                 validation_errors = substitution_mgr.validate_no_unresolved_tokens(
@@ -274,28 +248,14 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
     def apply_preset_config(
         self, flowgroup: FlowGroup, preset_config: Dict[str, Any]
     ) -> FlowGroup:
-        """
-        Apply preset configuration to flowgroup.
-
-        Args:
-            flowgroup: FlowGroup to apply presets to
-            preset_config: Resolved preset configuration
-
-        Returns:
-            FlowGroup with preset defaults applied
-        """
         flowgroup_dict = flowgroup.model_dump()
 
-        # Apply preset defaults to actions
         for action in flowgroup_dict.get("actions", []):
             action_type = action.get("type")
 
-            # Apply type-specific defaults
             if action_type == "load" and "load_actions" in preset_config:
                 source_type = action.get("source", {}).get("type")
                 if source_type and source_type in preset_config["load_actions"]:
-                    # Merge preset defaults with action source
-                    # Preset overrides existing values (preset is applied on top)
                     preset_defaults = preset_config["load_actions"][source_type]
                     action["source"] = self.deep_merge(
                         action.get("source", {}), preset_defaults
@@ -307,7 +267,6 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
                     transform_type
                     and transform_type in preset_config["transform_actions"]
                 ):
-                    # Apply transform defaults
                     preset_defaults = preset_config["transform_actions"][transform_type]
                     for key, value in preset_defaults.items():
                         if key not in action:
@@ -320,31 +279,24 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
                 ):
                     target_type = action["write_target"].get("type")
                     if target_type and target_type in preset_config["write_actions"]:
-                        # Merge preset defaults with write_target configuration
-                        # Preset overrides existing values (preset is applied on top)
                         preset_defaults = preset_config["write_actions"][target_type]
                         action["write_target"] = self.deep_merge(
                             action.get("write_target", {}), preset_defaults
                         )
 
-                        # Handle special cases like database_suffix / schema_suffix
                         self._apply_suffix(action["write_target"], preset_defaults)
 
                 # Handle old structure for backward compatibility during migration
                 elif action.get("source") and isinstance(action["source"], dict):
                     target_type = action["source"].get("type")
                     if target_type and target_type in preset_config["write_actions"]:
-                        # Merge preset defaults with write configuration
-                        # Preset overrides existing values (preset is applied on top)
                         preset_defaults = preset_config["write_actions"][target_type]
                         action["source"] = self.deep_merge(
                             action.get("source", {}), preset_defaults
                         )
 
-                        # Handle special cases like database_suffix / schema_suffix
                         self._apply_suffix(action["source"], preset_defaults)
 
-        # Apply global preset settings
         if "defaults" in preset_config:
             for key, value in preset_config["defaults"].items():
                 if key not in flowgroup_dict:
@@ -394,16 +346,6 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
     def deep_merge(
         self, base: Dict[str, Any], override: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """
-        Deep merge two dictionaries.
-
-        Args:
-            base: Base dictionary
-            override: Dictionary to override with
-
-        Returns:
-            Merged dictionary
-        """
         result = base.copy()
         for key, value in override.items():
             if (

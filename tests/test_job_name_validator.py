@@ -94,13 +94,10 @@ class TestJobNameAllOrNothingValidation:
             validate_job_names(sample_flowgroups_mixed_job_name)
 
         error = exc_info.value
-        # Should show flowgroups WITH job_name
         assert "fg1" in error.details
         assert "fg2" in error.details
-        # Should show flowgroups WITHOUT job_name
         assert "fg3" in error.details
         assert "fg4" in error.details
-        # Should have suggestions
         assert len(error.suggestions) > 0
 
     def test_invalid_format_raises_LHPError_001_first(self, create_flowgroup):
@@ -114,7 +111,7 @@ class TestJobNameAllOrNothingValidation:
             validate_job_names(flowgroups)
 
         error = exc_info.value
-        assert error.code == "LHP-VAL-001"  # Format error comes first
+        assert error.code == "LHP-VAL-001"
         assert "Invalid job_name format" in error.title
         assert "bronze job" in error.details
 
@@ -140,7 +137,6 @@ class TestJobNameValidationEdgeCases:
             create_flowgroup("bronze_pipeline", "fg2", "bronze_job"),
             create_flowgroup("bronze_pipeline", "fg3", "bronze_job"),
         ]
-        # Should not raise - grouping is allowed
         validate_job_names(flowgroups)
 
     def test_multiple_invalid_formats_all_listed(self, create_flowgroup):
@@ -156,7 +152,6 @@ class TestJobNameValidationEdgeCases:
 
         error = exc_info.value
         assert error.code == "LHP-VAL-001"
-        # All three should be listed
         assert "fg1" in error.details
         assert "fg2" in error.details
         assert "fg3" in error.details
@@ -181,7 +176,6 @@ class TestJobNameValidationLogging:
 
         validate_job_names(flowgroups)
 
-        # Check for info log about job count
         assert "job_name validation passed" in caplog.text
         assert "5 flowgroups" in caplog.text
         assert "2 job(s)" in caplog.text
@@ -201,6 +195,5 @@ class TestJobNameValidationLogging:
 
         validate_job_names(flowgroups)
 
-        # Check for debug log about single-job mode
         assert "single-job mode" in caplog.text.lower()
         assert "2 flowgroups" in caplog.text

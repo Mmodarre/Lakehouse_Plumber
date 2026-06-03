@@ -114,10 +114,8 @@ def _stream_plan_generation(
     """
     yield OperationStarted(operation_name="plan_generation", env=env)
 
-    # Phase: discover. Same D1 seam as ``generate_pipelines`` — no facade-owned
-    # discovery work runs here today (the plan primitive's underlying drive
-    # lazily discovers); emitted as a paired Start/Complete so the §5.7
-    # phase-pairing invariant holds.
+    # Phase: discover. No facade-owned discovery here (the plan primitive lazily
+    # discovers); emitted as a paired Start/Complete to satisfy the §5.7 invariant.
     discover_start = time.perf_counter()
     yield PhaseStarted(phase="discover")
     yield PhaseCompleted(
@@ -126,13 +124,9 @@ def _stream_plan_generation(
         success=True,
     )
 
-    # Phase: preflight. §9.24 — single-sourced in ``_run_project_preflight``
-    # (shared with generate/validate). A plan reuses the SAME gate as a real
-    # generate, so preflight raises here too. ``bundle_enabled=False``: a plan
-    # never writes bundle resources, so the bundle catalog/schema check is not
-    # part of the plan contract. MUST sit in this OUTER generator (before the
-    # generate phase) so a preflight failure surfaces via the ErrorEmitted/raise
-    # rendezvous rather than being swallowed downstream.
+    # Phase: preflight. §9.24 — MUST sit in the outer generator (before generate)
+    # so failures surface via ErrorEmitted/raise rather than being swallowed.
+    # bundle_enabled=False: a plan never writes bundle resources.
     preflight_start = time.perf_counter()
     yield PhaseStarted(phase="preflight")
     preflight_issues = _run_project_preflight(
@@ -157,19 +151,11 @@ def _stream_plan_generation(
         success=True,
     )
 
-    # Phase: generate (plan-only). Drive the plan primitive, emit the paired
-    # per-pipeline events from the deltas it forwards, then the terminal
-    # ``GenerationPlanCompleted``.
-    #
-    # The plan primitive forwards each ``PipelineDelta`` (IN INPUT-PIPELINE
-    # ORDER) to its ``on_pipeline_complete`` sink as it drains. A callback
-    # cannot ``yield`` into this generator, and the formatted plan tree does not
-    # exist until the primitive has fully drained (the terminal ruff pass
-    # formats the whole temp tree in one shot). So the sink only COLLECTS the
-    # deltas; the paired ``PipelineStarted`` + terminal events are emitted from
-    # the collected list AFTER the primitive returns, in forwarded (== input /
-    # commit) order. This still upholds §5.7: every Started is immediately
-    # followed by its own terminal, and the terminal plan event is yielded last.
+    # Phase: generate (plan-only). The sink only COLLECTS deltas because a callback
+    # cannot ``yield`` into this generator and the formatted plan tree does not
+    # exist until the primitive fully drains (ruff formats the whole temp tree at
+    # the end). Paired events are emitted from the collected list after the
+    # primitive returns, preserving §5.7 ordering.
     generate_start = time.perf_counter()
     yield PhaseStarted(phase="generate")
     collected_deltas: List["PipelineDelta"] = []
@@ -199,10 +185,7 @@ def _stream_plan_generation(
         duration_s=time.perf_counter() - generate_start,
         success=True,
     )
-    # ``output_location`` is the REAL ``generated/<env>`` directory a normal
-    # generate WOULD write to — derived the same way the CLI does
-    # (``<project_root>/generated/<env>``) — even though the run wrote only a
-    # discarded temp tree.
+    # Report where files would land even though only a discarded temp tree was written.
     output_location = orchestrator.project_root / "generated" / env
     plan = _generation_result_to_plan(result, output_location=output_location)
     yield GenerationPlanCompleted(response=plan)

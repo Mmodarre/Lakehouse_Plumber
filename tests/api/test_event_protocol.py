@@ -18,7 +18,7 @@ Each entry point MUST:
 5. Emit zero :class:`ErrorEmitted` instances on the success path.
 
 Cross-cutting tests cover :func:`lhp.api.collect_response`, the
-:class:`OperationCompleted` intermediate-base contract (C7 Part A),
+:class:`OperationCompleted` intermediate-base contract,
 pickle round-trip for every event class, and the §9.21 carve-out that
 ``ErrorEmitted.lhp_error`` is the only DTO field permitted to carry a
 live exception type.
@@ -126,8 +126,6 @@ class TestValidatePipelinesProtocol:
         )
         assert isinstance(events[-1], ValidationCompleted)
         assert isinstance(events[-1].response, BatchValidationResponse)
-        # Part-A exercise: terminal events are reachable via the
-        # OperationCompleted base.
         assert isinstance(events[-1], OperationCompleted)
 
     def test_validate_pipelines_emits_error_then_raises_on_lhp_error(
@@ -206,13 +204,11 @@ class TestGeneratePipelinesProtocol:
         """An ``LHPError`` from the generate engine surfaces as ``ErrorEmitted``
         then a raise (the §1.4 rendezvous).
 
-        E3 moved the rendezvous inside ``_consume_generate_stream`` (the
+        The rendezvous lives inside ``_consume_generate_stream`` (the
         generate-phase body), which consumes the orchestrator's delta-generator
-        and, on an ``LHPError`` (most importantly the all-or-nothing gate
-        aggregate), emits exactly one ``ErrorEmitted`` then re-raises. So the
-        error is injected at the delta SOURCE — ``orchestrator.generate_pipelines``,
-        the generator the facade drains — rather than at the (removed)
-        blocking ``_do_generate_pipelines`` seam.
+        and, on an ``LHPError``, emits exactly one ``ErrorEmitted`` then
+        re-raises. The error is therefore injected at the delta SOURCE —
+        ``orchestrator.generate_pipelines``, the generator the facade drains.
         """
         facade, _ = project_facade
         injected = _injected_error()
@@ -249,13 +245,11 @@ class TestGeneratePipelinesProtocol:
         The failure is a genuine duplicate ``(pipeline, flowgroup)`` fed
         through ``pre_discovered_all_flowgroups`` so the REAL
         ``_run_project_preflight`` runs end-to-end (duplicate check ->
-        ``LHP-VAL-009``); no bundle is involved (the call site hardcodes
-        ``bundle_enabled=False``). This also pins the placement contract:
-        the preflight surfacing lives in the OUTER ``generate_pipelines``
-        generator, BEFORE the ``_consume_generate_stream`` generate-phase body
-        whose ``except Exception -> return failure`` arm would otherwise SWALLOW
-        the raise — if it were mis-placed there, no ``ErrorEmitted`` would
-        be observed here.
+        ``LHP-VAL-009``). This also pins the placement contract: the preflight
+        surfacing lives in the OUTER ``generate_pipelines`` generator, BEFORE
+        the ``_consume_generate_stream`` generate-phase body whose
+        ``except Exception -> return failure`` arm would otherwise SWALLOW the
+        raise — if mis-placed there, no ``ErrorEmitted`` would be observed.
         """
         facade, _ = project_facade
         duplicate_flowgroups = [
@@ -550,12 +544,10 @@ class TestEventHierarchy:
         assert isinstance(sync_event, OperationCompleted)
         assert isinstance(sync_event, LHPEvent)
 
-        # OperationStarted is LHPEvent but NOT OperationCompleted
         started = OperationStarted(operation_name="probe", env="dev")
         assert isinstance(started, LHPEvent)
         assert not isinstance(started, OperationCompleted)
 
-        # ErrorEmitted is LHPEvent but NOT OperationCompleted
         err = ErrorEmitted(lhp_error=_injected_error())
         assert isinstance(err, LHPEvent)
         assert not isinstance(err, OperationCompleted)
@@ -566,15 +558,12 @@ class TestEventPickleRoundTrip:
     """All event classes survive ``pickle`` round-trip with ``==``."""
 
     def test_event_pickle_round_trip(self):
-        # LHPEvent (marker, no fields)
         lhp_event = LHPEvent()
         assert pickle.loads(pickle.dumps(lhp_event)) == lhp_event
 
-        # OperationStarted
         started = OperationStarted(operation_name="validate_pipelines", env="dev")
         assert pickle.loads(pickle.dumps(started)) == started
 
-        # GenerationCompleted (with BatchGenerationResponse)
         gen_resp = BatchGenerationResponse(
             success=True,
             pipeline_responses={},
@@ -587,7 +576,6 @@ class TestEventPickleRoundTrip:
         assert restored_gen == gen_event
         assert restored_gen.response == gen_resp
 
-        # ValidationCompleted (with BatchValidationResponse)
         val_resp = BatchValidationResponse(
             success=True,
             pipeline_responses={},
@@ -600,7 +588,6 @@ class TestEventPickleRoundTrip:
         assert restored_val == val_event
         assert restored_val.response == val_resp
 
-        # BundleSyncCompleted (with BundleSyncResult)
         sync_resp = BundleSyncResult(
             success=True,
             synced_file_count=3,
@@ -612,7 +599,7 @@ class TestEventPickleRoundTrip:
         assert restored_sync == sync_event
         assert restored_sync.response == sync_resp
 
-        # ErrorEmitted (with LHPError — code/category/details survive)
+        # LHPError fields survive pickle (code/category/details)
         injected = LHPError(
             category=ErrorCategory.VALIDATION,
             code_number="042",
@@ -673,15 +660,12 @@ class TestEventFieldTypeDiscipline:
                 )
 
 
-# ---------------------------------------------------------------------------
-# E5 — all-or-nothing failure-path event semantics (no-dangling-Starts rule)
-# ---------------------------------------------------------------------------
+# All-or-nothing failure-path event semantics (no-dangling-Starts rule)
 #
 # These tests pin the RATIFIED no-dangling-Starts contract on the two
 # multi-pipeline facade entry points (generate / validate). They drive REAL
 # projects through the facade (no hand-built event lists, no mocks of the
-# emission path) so the suite actually exercises the §5.7 emission the way E3
-# (generate) and E4 (validate) wired it.
+# emission path) so the suite actually exercises the §5.7 emission contract.
 #
 # THE RULE (load-bearing, asserted on EVERY path below):
 #
@@ -714,8 +698,7 @@ def _e5_write_pipeline(
     When ``dup`` it declares two ``create_table`` writes to the SAME table — a
     genuine per-flowgroup ``LHP-CFG-004`` that the generate gate aggregates
     into an all-or-nothing abort and that validate REPORTS as a per-pipeline
-    finding. This mirrors the proven E3/E4 progress-stream fixture so the
-    failure is real (engine-produced), not injected.
+    finding. The failure is engine-produced, not injected.
     """
     pdir = project_root / "pipelines" / pipeline
     pdir.mkdir(parents=True, exist_ok=True)
@@ -790,10 +773,9 @@ def _e5_project(tmp_path: Path, pipelines: dict[str, bool]) -> Path:
 def e5_facade_in(tmp_path: Path):
     """Return a builder that writes a project and yields ``(facade, output_dir)``.
 
-    Mirrors the E3/E4 progress-stream fixture: a real project on disk, the CWD
-    swapped to its root (LHP resolves relative paths off ``Path.cwd()``), and a
-    real facade with version enforcement disabled (the minimal project has no
-    pinned LHP version).
+    A real project on disk, the CWD swapped to its root (LHP resolves relative
+    paths off ``Path.cwd()``), and a real facade with version enforcement
+    disabled (the minimal project has no pinned LHP version).
     """
     created: list[str] = []
 
@@ -1117,10 +1099,10 @@ class TestProgressStreamFraming:
         assert sum(1 for e in events if isinstance(e, OperationStarted)) == 1
 
         # Phases pair up: the PhaseStarted sequence equals the PhaseCompleted
-        # sequence. The full generate orchestration now consolidates discover →
-        # preflight → generate → monitoring into the one stream (D-generate); the
-        # monitoring phase always runs on a successful non-dry-run generate (the
-        # absorbed finalize is a no-op when monitoring is not configured, as here).
+        # sequence. The full generate orchestration consolidates discover →
+        # preflight → generate → monitoring into the one stream; the monitoring
+        # phase always runs on a successful non-dry-run generate (the absorbed
+        # finalize is a no-op when monitoring is not configured, as here).
         # ``bundle_sync`` is absent because this project is not bundle-enabled.
         started_phases = [e.phase for e in events if isinstance(e, PhaseStarted)]
         completed_phases = [e.phase for e in events if isinstance(e, PhaseCompleted)]

@@ -10,10 +10,7 @@ from lhp.cli.logging_config import cleanup_logging, configure_logging
 
 @pytest.mark.unit
 class TestConfigureLogging:
-    """Cover configure_logging branches including file handler setup."""
-
     def test_configure_logging_with_project_root(self, tmp_path):
-        """Creates a file handler when log_to_file is on and project_root is given."""
         log_file = configure_logging(
             verbose=False, project_root=tmp_path, log_to_file=True
         )
@@ -23,12 +20,7 @@ class TestConfigureLogging:
         cleanup_logging()
 
     def test_configure_logging_verbose_with_project_root(self, tmp_path):
-        """Verbose is decoupled from file logging: -v drives the root level only.
-
-        Even with a project_root present, ``verbose=True`` (and log_to_file
-        defaulting False) must NOT create a file handler or write a log file;
-        it only raises the root logger to DEBUG for console output.
-        """
+        """Verbose is decoupled from file logging: -v raises root to DEBUG but must NOT create a file handler."""
         log_file = configure_logging(verbose=True, project_root=tmp_path)
         assert log_file is None
 
@@ -42,19 +34,12 @@ class TestConfigureLogging:
         cleanup_logging()
 
     def test_configure_logging_no_project_root(self):
-        """Returns None when no project_root."""
         result = configure_logging(verbose=False, project_root=None)
         assert result is None
         cleanup_logging()
 
     def test_default_no_file_handler_and_no_logs_dir(self, tmp_path):
-        """Default (log_to_file off) writes no file and never creates the logs dir.
-
-        With ``log_to_file`` left at its default of False, a present
-        project_root must not be enough to opt into file logging: no path is
-        returned, no FileHandler is attached, and ``.lhp/logs`` is never
-        created on disk (the mkdir lives inside the file-logging branch).
-        """
+        """A present project_root must not be enough to opt into file logging — the mkdir lives inside the file-logging branch."""
         log_file = configure_logging(verbose=False, project_root=tmp_path)
         assert log_file is None
 
@@ -66,12 +51,7 @@ class TestConfigureLogging:
         cleanup_logging()
 
     def test_log_to_file_without_verbose_quiet_console_debug_file(self, tmp_path):
-        """Matrix row: log_to_file=True, verbose=False -> quiet console + DEBUG file.
-
-        File logging is decoupled from verbosity. Opting into the log file must
-        raise the file handler (and root) to DEBUG for full capture while
-        leaving the console handler at WARNING so terminal output stays quiet.
-        """
+        """File logging is decoupled from verbosity: log file gets DEBUG, console handler stays at WARNING."""
         configure_logging(verbose=False, project_root=tmp_path, log_to_file=True)
 
         handlers = logging.getLogger().handlers
@@ -93,13 +73,7 @@ class TestConfigureLogging:
         cleanup_logging()
 
     def test_log_to_file_appends_across_runs(self, tmp_path):
-        """The log file is opened in append mode, surviving a second run.
-
-        A second configure_logging() against the same project_root must NOT
-        truncate the file, so run one's record survives alongside run two's.
-        (Were the handler opened with mode="w", the second run would clobber
-        SENTINEL_RUN_ONE.)
-        """
+        """Log file opened in append mode — a second run must NOT truncate (were mode="w", SENTINEL_RUN_ONE would be clobbered)."""
         configure_logging(verbose=False, project_root=tmp_path, log_to_file=True)
         logging.getLogger().debug("SENTINEL_RUN_ONE")
         cleanup_logging()  # flushes + closes the file handler from run one
@@ -116,10 +90,7 @@ class TestConfigureLogging:
 
 @pytest.mark.unit
 class TestCleanupLogging:
-    """Cover cleanup_logging removing handlers."""
-
     def test_cleanup_removes_existing_handlers(self):
-        """Removes and closes all root logger handlers."""
         root = logging.getLogger()
         handler = logging.StreamHandler()
         root.addHandler(handler)

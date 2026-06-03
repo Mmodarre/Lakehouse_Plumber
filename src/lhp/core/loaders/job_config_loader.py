@@ -108,9 +108,7 @@ class JobConfigLoader:
             project_defaults: Dict[str, Any] = {}
             job_specific_configs: Dict[str, Dict[str, Any]] = {}
             seen_job_names: set = set()
-            first_seen: Dict[
-                str, int
-            ] = {}  # Track which document first defined each job_name
+            first_seen: Dict[str, int] = {}
 
             for idx, doc in enumerate(documents):
                 if "project_defaults" in doc:
@@ -120,7 +118,6 @@ class JobConfigLoader:
                 elif "job_name" in doc:
                     job_names_raw = doc["job_name"]
 
-                    # Normalize to list (support both string and list)
                     if isinstance(job_names_raw, str):
                         job_names = [job_names_raw]
                     elif isinstance(job_names_raw, list):

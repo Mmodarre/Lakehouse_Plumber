@@ -177,15 +177,15 @@ class TestTemplateSmartDetection:
 
             expected = {
                 "source": {
-                    "path": "{volume}/landing/*.csv",  # Template processed, substitution preserved
-                    "format": "csv",  # Static unchanged
-                    "database": "{catalog}.{schema}",  # Substitution preserved
+                    "path": "{volume}/landing/*.csv",
+                    "format": "csv",
+                    "database": "{catalog}.{schema}",
                 },
-                "target": "customer",  # Template processed
+                "target": "customer",
                 "metadata": [
-                    "processed_field",  # Template processed
-                    "{substitution_field}",  # Substitution preserved
-                    "static_field",  # Static unchanged
+                    "processed_field",
+                    "{substitution_field}",
+                    "static_field",
                 ],
             }
 

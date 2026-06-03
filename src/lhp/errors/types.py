@@ -66,11 +66,9 @@ class LHPError(Exception):
             or "https://lakehouse-plumber.readthedocs.io/en/latest/errors_reference.html"
         )
 
-        # Format the complete error message
         super().__init__(self._format_message())
 
     def _category_label(self) -> str:
-        """Return a human-readable label for the error category."""
         return {
             ErrorCategory.VALIDATION: "Validation Error",
             ErrorCategory.CONFIG: "Configuration Error",
@@ -286,15 +284,6 @@ class MultiDocumentError(LHPError):
         num_documents: int,
         error_context: Optional[str] = None,
     ):
-        """
-        Initialize MultiDocumentError.
-
-        Args:
-            file_path: Path to the YAML file
-            num_documents: Number of documents found (0 for empty, 2+ for multi-document)
-            error_context: Optional context for error message
-        """
-        # Normalize to Path for consistent handling
         file_path = Path(file_path)
         self.file_path = file_path
         self.num_documents = num_documents
@@ -337,14 +326,8 @@ class MultiDocumentError(LHPError):
 class BundleResourceError(LHPError):
     """LHPError subclass for bundle resource operation failures.
 
-    Carries the Databricks Asset Bundle resource error semantics:
-    YAML resource file generation, sync failures, directory access
-    issues. Renders as ``LHP-CFG-020`` via the standard Rich panel
-    pipeline.
-
-    The legacy ``Exception``-based class lived in
-    :mod:`lhp.bundle.exceptions`; it is now a re-export shim that
-    resolves here. See ``LOCAL/TARGET_ARCHITECTURE.md`` §6.
+    Covers YAML resource file generation, sync failures, and directory
+    access issues. Renders as ``LHP-CFG-020``.
     """
 
     _category = ErrorCategory.CONFIG
@@ -400,9 +383,6 @@ class TemplateError(LHPError):
 
     Covers GitHub template downloads, template rendering, and template
     application during bundle initialization. Renders as ``LHP-CFG-024``.
-
-    The legacy ``Exception``-based class lived in
-    :mod:`lhp.bundle.exceptions`; it is now a re-export shim.
     """
 
     _category = ErrorCategory.CONFIG
@@ -458,11 +438,9 @@ class YAMLProcessingError(LHPError):
     Used for errors in parsing, validating, or updating bundle resource
     YAML files. Renders as ``LHP-CFG-021``.
 
-    Unlike the legacy class, this no longer subclasses
-    :class:`BundleResourceError` — both are independent ``LHPError``
-    subclasses with distinct error codes. ``isinstance(e, BundleResourceError)``
-    checks that relied on the old chain must be updated; the CLI error
-    boundary already handles each type explicitly.
+    Not a subclass of :class:`BundleResourceError` — ``isinstance(e,
+    BundleResourceError)`` checks that relied on the old chain must be
+    updated; the CLI error boundary handles each type explicitly.
     """
 
     _category = ErrorCategory.CONFIG
@@ -495,9 +473,6 @@ class YAMLProcessingError(LHPError):
         The constructed ``details`` field mirrors the legacy formatter
         so existing log lines do not change byte-for-byte.
         """
-        # Build the details string to match the legacy concatenation
-        # exactly (matters for downstream string-matching tests and for
-        # the eventual D9 collapse of convert_bundle_error).
         if file_path:
             full_message = f"YAML processing error in {file_path}: {message}"
         else:
@@ -530,9 +505,7 @@ class YAMLProcessingError(LHPError):
         # ``__init__`` on unpickle would re-append Context / Original
         # error lines.
         self._raw_message = message
-        # Preserve legacy public attributes so existing ``getattr``
-        # paths in ``convert_bundle_error`` keep resolving until D9
-        # removes the factory.
+        # Legacy public attributes for ``convert_bundle_error`` getattr paths; remove with D9.
         self.file_path = file_path
         self.line_number = line_number
         # The legacy free-form context string lives on
@@ -564,11 +537,8 @@ class BundleConfigurationError(LHPError):
     Used for errors in bundle structure, missing configuration files,
     or invalid bundle settings. Renders as ``LHP-CFG-025``.
 
-    The legacy class subclassed :class:`BundleResourceError`; this
-    independent subclass keeps the legacy code number but no longer
-    sits below ``BundleResourceError`` in the type hierarchy. Callers
-    that need to catch either should use a tuple of types or catch
-    :class:`LHPError`.
+    Not a subclass of :class:`BundleResourceError`; catch either
+    explicitly or catch :class:`LHPError`.
     """
 
     _category = ErrorCategory.CONFIG

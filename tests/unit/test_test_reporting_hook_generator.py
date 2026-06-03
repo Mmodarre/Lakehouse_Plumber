@@ -1,5 +1,3 @@
-"""Unit tests for TestReportingHookGenerator."""
-
 import pytest
 
 from lhp.core.codegen.tst_reporting_hook_generator import (
@@ -42,8 +40,6 @@ def _make_test_action(name, test_id=None, target=None):
 
 @pytest.mark.unit
 class TestTestReportingHookGenerator:
-    """Tests for TestReportingHookGenerator."""
-
     __test__ = True
 
     def test_returns_none_without_config(self, tmp_path):
@@ -119,15 +115,11 @@ class TestTestReportingHookGenerator:
         )
 
         assert content is not None
-        # Check test_id map contains the opted-in actions
         assert "tst_pk_null" in content
         assert "SIT-G01" in content
         assert "SIT-G02" in content
-        # Default target: tmp_test_tst_completeness
         assert "tmp_test_tst_completeness" in content
-        # Excluded action not in map
         assert "tst_no_id" not in content
-        # Hook file written
         assert (output_dir / HOOK_FILENAME).exists()
 
     def test_test_id_map_uses_default_target(self, tmp_path):
@@ -212,7 +204,6 @@ class TestTestReportingHookGenerator:
         assert providers_dir.exists()
         assert (providers_dir / "ado_publisher.py").exists()
         assert (providers_dir / "__init__.py").exists()
-        # Check header
         copied_content = (providers_dir / "ado_publisher.py").read_text()
         assert "LHP-SOURCE" in copied_content
 
@@ -388,14 +379,11 @@ class TestTestReportingHookGenerator:
         )
 
         copied = (output_dir / "test_reporting_providers" / "pub.py").read_text()
-        # Token remains unresolved — no substitution manager
         assert "${catalog}" in copied
 
 
 @pytest.mark.unit
 class TestTestReportingValidation:
-    """Tests for TestReportingHookGenerator.validate()."""
-
     __test__ = True
 
     def test_validate_no_config(self, tmp_path):

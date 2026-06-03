@@ -292,7 +292,6 @@ class DependencyGraphBuilder:
         view_target_to_action: Dict[Tuple[str, str], List[str]] = defaultdict(list)
         table_target_to_action: Dict[str, List[str]] = defaultdict(list)
 
-        # First pass: collect all actions and their targets
         for flowgroup in flowgroups:
             for action in flowgroup.actions:
                 action_id = f"{flowgroup.flowgroup}.{action.name}"
@@ -312,7 +311,6 @@ class DependencyGraphBuilder:
                         action_id
                     )
 
-                # Track write action outputs (catalog.schema.table format)
                 if action.type == ActionType.WRITE and action.write_target:
                     if isinstance(action.write_target, dict):
                         catalog = action.write_target.get("catalog", "")
@@ -321,7 +319,6 @@ class DependencyGraphBuilder:
                         if catalog and schema and table:
                             produced_table = f"{catalog}.{schema}.{table}"
                             table_target_to_action[produced_table].append(action_id)
-                    # Handle WriteTarget object as well
                     elif hasattr(action.write_target, "catalog") and hasattr(
                         action.write_target, "table"
                     ):
@@ -332,7 +329,6 @@ class DependencyGraphBuilder:
                             produced_table = f"{catalog}.{schema}.{table}"
                             table_target_to_action[produced_table].append(action_id)
 
-        # Second pass: build dependencies based on source/target relationships
         for flowgroup in flowgroups:
             for action in flowgroup.actions:
                 action_id = f"{flowgroup.flowgroup}.{action.name}"
@@ -349,7 +345,6 @@ class DependencyGraphBuilder:
                                 source_action_id, action_id, dependency_type="internal"
                             )
                     else:
-                        # External dependency - add as node attribute
                         if "external_sources" not in graph.nodes[action_id]:
                             graph.nodes[action_id]["external_sources"] = []
                         graph.nodes[action_id]["external_sources"].append(source)
@@ -362,7 +357,6 @@ class DependencyGraphBuilder:
         """Build flowgroup-level dependency graph derived from action dependencies."""
         graph = nx.DiGraph()
 
-        # Add flowgroup nodes
         for flowgroup in flowgroups:
             action_count = len(flowgroup.actions)
             external_sources = set()
@@ -383,18 +377,15 @@ class DependencyGraphBuilder:
                 external_sources=list(external_sources),
             )
 
-        # Add dependencies between flowgroups based on action dependencies
         flowgroup_deps = set()
 
         for source_action, target_action in action_graph.edges():
             source_fg = action_graph.nodes[source_action]["flowgroup"]
             target_fg = action_graph.nodes[target_action]["flowgroup"]
 
-            # Only add dependency if flowgroups are different (avoid self-loops)
             if source_fg != target_fg:
                 flowgroup_deps.add((source_fg, target_fg))
 
-        # Add edges to graph
         for source_fg, target_fg in flowgroup_deps:
             graph.add_edge(source_fg, target_fg, dependency_type="flowgroup")
 
@@ -406,7 +397,6 @@ class DependencyGraphBuilder:
         """Build pipeline-level dependency graph derived from flowgroup dependencies."""
         graph = nx.DiGraph()
 
-        # Add pipeline nodes
         pipeline_info = defaultdict(
             lambda: {"flowgroups": 0, "actions": 0, "external_sources": set()}
         )
@@ -416,14 +406,12 @@ class DependencyGraphBuilder:
             pipeline_info[pipeline]["flowgroups"] += 1
             pipeline_info[pipeline]["actions"] += len(flowgroup.actions)
 
-            # Collect external sources from flowgroup
             if flowgroup.flowgroup in flowgroup_graph.nodes:
                 fg_external_sources = flowgroup_graph.nodes[flowgroup.flowgroup].get(
                     "external_sources", []
                 )
                 pipeline_info[pipeline]["external_sources"].update(fg_external_sources)
 
-        # Add pipeline nodes with metadata
         for pipeline, info in pipeline_info.items():
             graph.add_node(
                 pipeline,
@@ -432,18 +420,15 @@ class DependencyGraphBuilder:
                 external_sources=list(info["external_sources"]),
             )
 
-        # Add dependencies between pipelines based on flowgroup dependencies
         pipeline_deps = set()
 
         for source_fg, target_fg in flowgroup_graph.edges():
             source_pipeline = flowgroup_graph.nodes[source_fg]["pipeline"]
             target_pipeline = flowgroup_graph.nodes[target_fg]["pipeline"]
 
-            # Only add dependency if pipelines are different (avoid self-loops)
             if source_pipeline != target_pipeline:
                 pipeline_deps.add((source_pipeline, target_pipeline))
 
-        # Add edges to graph
         for source_pipeline, target_pipeline in pipeline_deps:
             graph.add_edge(source_pipeline, target_pipeline, dependency_type="pipeline")
 
@@ -461,7 +446,6 @@ class DependencyGraphBuilder:
             return None
         if isinstance(wt, dict):
             return wt
-        # Pydantic model — serialize to a plain dict for uniform key lookup.
         return wt.model_dump()
 
     def _iter_sql_bodies(
@@ -606,23 +590,8 @@ class DependencyGraphBuilder:
             return []
 
     def _extract_action_sources(self, action: Action, flowgroup_name: str) -> List[str]:
-        """
-        Extract source names from action.
-
-        Precedence:
-          1. SQL parsing — reliable; if it yields sources, return only those.
-          2. Python parsing — best-effort; union parser output with explicit
-             `source:` so users can patch unresolvable cases.
-          3. Explicit source declaration (fallback).
-
-        Args:
-            action: The action to analyze
-            flowgroup_name: Name of the flowgroup containing this action
-
-        Returns:
-            List of source table references
-        """
-        # Priority 1: SQL parsing is reliable — parser wins.
+        """Precedence: SQL parsing (reliable, wins alone) > Python parsing (union with
+        explicit source:) > explicit source declaration (fallback)."""
         sql_sources = self._extract_sql_sources(action, flowgroup_name)
         if sql_sources:
             self.logger.debug(
@@ -630,7 +599,6 @@ class DependencyGraphBuilder:
             )
             return sql_sources
 
-        # Priority 2: Python parsing is best-effort — union with explicit source.
         python_sources = self._extract_python_sources(action, flowgroup_name)
         if python_sources:
             explicit = extract_action_sources(action)
@@ -641,7 +609,6 @@ class DependencyGraphBuilder:
             )
             return merged
 
-        # Priority 3: Fall back to shared explicit source extraction
         sources = extract_action_sources(action)
 
         if sources:
@@ -654,19 +621,7 @@ class DependencyGraphBuilder:
         return sources
 
     def _extract_sql_sources(self, action: Action, flowgroup_name: str) -> List[str]:
-        """
-        Extract table references from SQL content in actions.
-
-        Iterates over every known SQL location (inline, sql_path, source dict,
-        and write_target) and collects table references from each.
-
-        Args:
-            action: The action to analyze
-            flowgroup_name: Name of the flowgroup containing this action
-
-        Returns:
-            List of table references found in SQL content
-        """
+        """Extract table references from every SQL location via ``_iter_sql_bodies``."""
         from ...utils.sql_parser import extract_tables_from_sql
 
         sources: List[str] = []
@@ -699,24 +654,7 @@ class DependencyGraphBuilder:
         return sources
 
     def _extract_python_sources(self, action: Action, flowgroup_name: str) -> List[str]:
-        """
-        Extract table references from Python code in actions.
-
-        Iterates over every known Python location and collects table references
-        from each:
-          - top-level ``action.module_path`` (Python transforms / custom sources)
-          - ``write_target.module_path`` (custom sinks)
-          - ``write_target.batch_handler`` (inline ForEachBatch Python)
-          - ``write_target.snapshot_cdc_config.source_function.file``
-            (CDC snapshot functions)
-
-        Args:
-            action: The action to analyze
-            flowgroup_name: Name of the flowgroup containing this action
-
-        Returns:
-            List of table references found in Python code
-        """
+        """Extract table references from every Python location via ``_iter_python_bodies``."""
         from ...utils.python_parser import extract_tables_from_python
 
         sources: List[str] = []

@@ -1,11 +1,3 @@
-"""
-Tests for orchestrator behavior in bundle-enabled projects.
-
-Tests that the orchestrator correctly handles bundle-related scenarios
-while ensuring bundle synchronization is handled at the CLI level only.
-Bundle sync is no longer called from within orchestrator methods.
-"""
-
 import shutil
 import tempfile
 from pathlib import Path
@@ -17,10 +9,7 @@ from lhp.api import LakehousePlumberApplicationFacade, collect_response
 
 
 class TestOrchestratorBundleBehavior:
-    """Test suite for orchestrator behavior in bundle-enabled projects."""
-
     def setup_method(self):
-        """Set up test environment for each test."""
         self.temp_dir = Path(tempfile.mkdtemp())
         self.project_root = self.temp_dir / "test_project"
         self.project_root.mkdir()
@@ -33,17 +22,13 @@ class TestOrchestratorBundleBehavior:
         )
 
     def teardown_method(self):
-        """Clean up test environment after each test."""
         shutil.rmtree(self.temp_dir)
 
     def _create_test_project(self):
-        """Create a test project with proper structure."""
-        # Create project config
         (self.project_root / "lhp.yaml").write_text("""name: test_project
 version: "1.0"
 """)
 
-        # Create substitutions
         sub_dir = self.project_root / "substitutions"
         sub_dir.mkdir()
         (sub_dir / "dev.yaml").write_text("""dev:
@@ -52,7 +37,6 @@ version: "1.0"
   bronze_schema: bronze
 """)
 
-        # Create pipelines directory with test flowgroup
         pipelines_dir = self.project_root / "pipelines" / "test_pipeline"
         pipelines_dir.mkdir(parents=True)
 
@@ -76,22 +60,18 @@ actions:
       table: "test_output"
 """)
 
-        # Create templates directory
         templates_dir = self.project_root / "templates"
         templates_dir.mkdir()
 
-        # Create presets directory
         presets_dir = self.project_root / "presets"
         presets_dir.mkdir()
 
     @patch("lhp.bundle.manager.BundleManager")
     def test_orchestrator_does_not_call_bundle_sync(self, mock_bundle_manager_class):
-        """Should NOT call bundle sync - this is now handled at CLI level only."""
-        # Mock bundle manager
+        """Bundle sync must not be called from orchestrator — CLI level only."""
         mock_bundle_manager = Mock()
         mock_bundle_manager_class.return_value = mock_bundle_manager
 
-        # Generate files
         output_dir = self.project_root / "generated"
         batch = collect_response(
             self.facade.generation.generate_pipelines(
@@ -102,23 +82,20 @@ actions:
         )
         generated_files = batch.pipeline_responses["test_pipeline"].generated_filenames
 
-        # Verify files were generated
         assert len(generated_files) == 1
         assert "test_flowgroup.py" in generated_files
 
-        # Verify bundle manager was NOT created or called from orchestrator
+        # NOT called from orchestrator — bundle sync belongs to CLI
         mock_bundle_manager_class.assert_not_called()
         mock_bundle_manager.sync_resources_with_generated_files.assert_not_called()
 
     def test_orchestrator_generates_files_successfully_in_bundle_project(self):
-        """Should generate files successfully without any bundle sync involvement."""
-        # Create databricks.yml to simulate bundle project
+        # Simulate a bundle project
         (self.project_root / "databricks.yml").write_text("""
 bundle:
   name: test_project
 """)
 
-        # Generate files
         output_dir = self.project_root / "generated"
         batch = collect_response(
             self.facade.generation.generate_pipelines(
@@ -129,22 +106,17 @@ bundle:
         )
         generated_files = batch.pipeline_responses["test_pipeline"].generated_filenames
 
-        # Verify files were generated correctly
         assert len(generated_files) == 1
         assert "test_flowgroup.py" in generated_files
 
-        # Verify output file exists
         output_file = output_dir / "test_pipeline" / "test_flowgroup.py"
         assert output_file.exists()
 
-        # Verify generated code content
         generated_code = output_file.read_text()
         assert "test_pipeline" in generated_code
         assert "test_flowgroup" in generated_code
 
     def test_orchestrator_preserves_generation_behavior(self):
-        """Should preserve normal generation behavior regardless of bundle setup."""
-        # Generate files
         output_dir = self.project_root / "generated"
         batch = collect_response(
             self.facade.generation.generate_pipelines(
@@ -155,7 +127,6 @@ bundle:
         )
         generated_files = batch.pipeline_responses["test_pipeline"].generated_filenames
 
-        # Verify normal generation behavior
         assert isinstance(generated_files, tuple)
         assert len(generated_files) == 1
 
@@ -165,7 +136,6 @@ bundle:
         assert isinstance(code, str)
         assert len(code) > 0
 
-        # Verify file structure
         assert "from pyspark import pipelines as dp" in code
         assert "test_pipeline" in code
         assert "test_flowgroup" in code

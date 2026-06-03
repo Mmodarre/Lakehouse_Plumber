@@ -13,8 +13,6 @@ from lhp.models.deprecations import collect_deprecations, drain_deprecations
 
 
 class TestNormalizeWriteTarget:
-    """Tests for write target normalization."""
-
     def test_database_split_into_catalog_schema(self):
         """database: 'cat.sch' → catalog: 'cat', schema: 'sch', no database."""
         fg = {
@@ -223,8 +221,6 @@ class TestNormalizeWriteTarget:
 
 
 class TestNormalizeDeltaSource:
-    """Tests for delta load source normalization."""
-
     def test_database_split_into_catalog_schema(self):
         """Delta source database: 'cat.sch' → catalog + schema."""
         fg = {
@@ -330,8 +326,6 @@ class TestNormalizeDeltaSource:
 
 
 class TestNonWriteNonLoadActions:
-    """Tests that non-write/non-delta-load actions are untouched."""
-
     def test_transform_action_untouched(self):
         """Transform actions pass through unchanged."""
         fg = {
@@ -452,8 +446,6 @@ class TestDeprecationWarning:
 
 
 class TestEdgeCases:
-    """Edge case tests."""
-
     def test_empty_actions_list(self):
         """Empty actions list → no error."""
         fg = {"actions": []}

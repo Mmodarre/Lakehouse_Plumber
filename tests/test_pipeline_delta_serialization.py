@@ -5,9 +5,6 @@ Workers return a :class:`PipelineDelta` across the ``spawn``-process boundary;
 loss for both the success and failure shapes, including the error-string fields
 in the failure shape (no exception objects survive pickling cleanly without
 hand-rolled support — the delta carries strings only).
-
-These tests resolve Plan 2's B1 verification: pickle round-trip on
-``PipelineDelta`` instances (both success and failure shapes).
 """
 
 from __future__ import annotations
@@ -71,7 +68,6 @@ class TestPipelineDeltaSerialization:
     def test_failure_delta_carries_picklable_strings_only(self, exc):
         """The exception type and traceback travel as strings — no live object."""
         delta = PipelineDelta.failure("p", exc)
-        # All error fields are strings (or None for success).
         for field in (delta.error_type, delta.error_message, delta.error_traceback):
             assert field is None or isinstance(field, str)
         # Pickle must succeed without exception-object pickling.

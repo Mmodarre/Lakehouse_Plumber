@@ -93,36 +93,14 @@ class _SyncExecutor:
 def test_assemble_folds_table_creation_errors_into_issue_records(monkeypatch):
     """Table-creation errors fold into ``issues`` as a structured ``LHP-VAL-009``.
 
-    Migrated from the deleted pipeline-batched validate-pool path. Drives the real
-    :meth:`PipelineExecutionService.run_validate` (typed kwargs signature)
-    through the consolidated engine, with two seams swapped to drop the
-    spawn boundary (the ``test_flowgroup_pool`` pattern):
-
-      * ``ProcessPoolExecutor`` -> a synchronous in-process executor;
-      * ``_process_one_flowgroup`` -> a fake validate-mode worker returning
-        an ``ok`` :class:`FlowgroupOutcome` carrying a resolved flowgroup.
-
-    Everything else is production code: the engine's per-pipeline bucketing,
-    the cross-flowgroup barrier on the RESOLVED set, and the
-    :func:`assemble_validate_outcomes` fold.
-
-    Arrange: ``ValidationService.validate_cross_flowgroup`` (the only external
-    boundary, per §8.8) returns a :class:`CrossFlowgroupCheckResult` with a
-    non-empty ``table_creation_errors`` list — the system under test is the
-    fold + barrier surfacing, not the subprocess pool mechanics (separately
-    covered by ``test_flowgroup_pool``).
-
-    Assert: the per-pipeline outcome is unsuccessful AND carries a structured
-    ``LHP-VAL-009`` on ``issues`` (a ValidationIssueRecord whose ``issue`` is
-    the live LHPError, not a string), with no owning-flowgroup attribution
-    (cross-fg), and the boundary was invoked once with the resolved flowgroups
-    + ``pipeline_filter``.
+    The system under test is the fold + barrier surfacing, not subprocess pool
+    mechanics (separately covered by ``test_flowgroup_pool``). The outcome must
+    carry a live LHPError on ``issues`` (not a stringified projection), with no
+    owning-flowgroup attribution (cross-fg).
     """
     pipeline_name = "bronze"
     resolved = _FakeFlowGroup(pipeline_name, "bronze_fg")
 
-    # The single external boundary we mock (§8.8): the real barrier consumes
-    # this result through ``build_cross_flowgroup_issues`` -> ``LHP-VAL-009``.
     cross_result = CrossFlowgroupCheckResult(
         table_creation_errors=[
             "Table 'cat.sch.tbl' has 2 actions with create_table: true",
@@ -133,8 +111,6 @@ def test_assemble_folds_table_creation_errors_into_issue_records(monkeypatch):
     validation_service.validate_cross_flowgroup = MagicMock(return_value=cross_result)
 
     def _fake_worker(fg_ctx: FlowGroupContext, *, mode: str) -> FlowgroupOutcome:
-        # Mirror the real validate-mode worker: ok outcome carrying the
-        # RESOLVED flowgroup (the barrier runs on it), no formatted code.
         assert mode == "validate"
         return FlowgroupOutcome.ok(
             fg_ctx.flowgroup.pipeline,
@@ -142,13 +118,9 @@ def test_assemble_folds_table_creation_errors_into_issue_records(monkeypatch):
             resolved_flowgroup=resolved,
         )
 
-    # Swap the two engine seams: spawn pool -> synchronous executor, worker
-    # entry -> the in-process fake above (both referenced by module-level name).
     monkeypatch.setattr(fe, "ProcessPoolExecutor", _SyncExecutor)
     monkeypatch.setattr(fe, "_process_one_flowgroup", _fake_worker)
 
-    # Worker-pool collaborators are never exercised (the fake worker reads no
-    # state); a minimal real state keeps the dataclass type honest.
     worker_state = _FlowgroupWorkerState(
         processor=MagicMock(),
         substitution_managers={},
@@ -163,8 +135,6 @@ def test_assemble_folds_table_creation_errors_into_issue_records(monkeypatch):
         validation_service=validation_service,
     )
 
-    # ``run_validate`` is itself the outcome generator (E4 removed the
-    # callback-firing drain adapter); drain it to a list.
     outcomes = list(
         service.run_validate(
             flowgroups_by_pipeline={pipeline_name: [_ctx(pipeline_name, "bronze_fg")]},
@@ -174,13 +144,9 @@ def test_assemble_folds_table_creation_errors_into_issue_records(monkeypatch):
         )
     )
 
-    # Exactly one outcome yielded for the single pipeline.
     assert len(outcomes) == 1
     outcome = outcomes[0]
 
-    # The outcome fails and the structured VAL-009 lands on ``issues`` as a
-    # ValidationIssueRecord carrying the LIVE LHPError (not a stringified
-    # projection) at error severity.
     assert outcome.pipeline == pipeline_name
     assert outcome.success is False
     val_009 = [
@@ -190,15 +156,10 @@ def test_assemble_folds_table_creation_errors_into_issue_records(monkeypatch):
     ]
     assert len(val_009) == 1, outcome.issues
     assert val_009[0].severity == "error"
-    # No finding degraded to a plain string — the cross-fg issue is structured.
     assert not [r for r in outcome.issues if isinstance(r.issue, str)]
-    # A cross-flowgroup fan-in finding has no single owning flowgroup, so it
-    # carries no flowgroup attribution / source file.
     assert val_009[0].flowgroup_name is None
     assert val_009[0].source_file is None
 
-    # The boundary was actually invoked with the RESOLVED flowgroups,
-    # pipeline-filtered (the §9.24 closure runs on the resolved set).
     validation_service.validate_cross_flowgroup.assert_called_once()
     call = validation_service.validate_cross_flowgroup.call_args
     assert call.kwargs.get("pipeline_filter") == pipeline_name

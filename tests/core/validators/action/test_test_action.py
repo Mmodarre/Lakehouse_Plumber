@@ -1,16 +1,4 @@
-"""Authoritative negative + positive suite for ``TestActionValidator``.
-
-Covers every required-field presence rule and every 3-part-name rule that the
-validator enforces, plus the false-confidence-closing positive tests that prove
-bare in-pipeline relation names are accepted as ``source`` for the test types
-where ``source`` is NOT required to be a 3-part name.
-
-Calling convention mirrors ``tests/test_action_validators_kafka.py`` and the
-sibling ``test_load.py``: construct the validator from ``ActionRegistry`` +
-``ConfigFieldValidator``, build a ``models.Action``, and invoke
-``validator.validate(action, prefix)``. The validator returns plain error
-strings (NOT raised exceptions), so assertions match on error-message
-substrings within the returned list.
+"""Negative + positive suite for ``TestActionValidator``.
 
 Error strings asserted here are copied verbatim from the validator body
 (``src/lhp/core/validators/action/test.py``) — they are load-bearing and must
@@ -43,21 +31,9 @@ def _assert_has(errors: list, substring: str) -> None:
     )
 
 
-# ===========================================================================
-# Invalid / unknown test_type
-# ===========================================================================
-
-
 def test_invalid_test_type_rejected():
     errors = _errors_for(test_type="not_a_real_type", source="x")
     _assert_has(errors, "Invalid test_type 'not_a_real_type'. Valid values are:")
-
-
-# ===========================================================================
-# Part 1 — required-field PRESENCE rules (one test per rule)
-# ===========================================================================
-
-# --- row_count -------------------------------------------------------------
 
 
 def test_row_count_source_missing():
@@ -75,9 +51,6 @@ def test_row_count_source_not_exactly_two():
     _assert_has(errors, "Row count test requires exactly 2 sources to compare, got 3")
 
 
-# --- uniqueness ------------------------------------------------------------
-
-
 def test_uniqueness_source_missing():
     errors = _errors_for(test_type="uniqueness", columns=["id"])
     _assert_has(errors, "Uniqueness test requires 'source' field")
@@ -89,9 +62,6 @@ def test_uniqueness_columns_missing():
         errors,
         "Uniqueness test requires 'columns' field specifying which columns to check",
     )
-
-
-# --- referential_integrity -------------------------------------------------
 
 
 def test_referential_integrity_source_missing():
@@ -134,9 +104,6 @@ def test_referential_integrity_reference_columns_missing():
     _assert_has(errors, "Referential integrity test requires 'reference_columns' field")
 
 
-# --- completeness ----------------------------------------------------------
-
-
 def test_completeness_source_missing():
     errors = _errors_for(test_type="completeness", required_columns=["id"])
     _assert_has(errors, "Completeness test requires 'source' field")
@@ -145,9 +112,6 @@ def test_completeness_source_missing():
 def test_completeness_required_columns_missing():
     errors = _errors_for(test_type="completeness", source="v_table")
     _assert_has(errors, "Completeness test requires 'required_columns' field")
-
-
-# --- range -----------------------------------------------------------------
 
 
 def test_range_source_missing():
@@ -167,9 +131,6 @@ def test_range_no_bounds():
     )
 
 
-# --- schema_match ----------------------------------------------------------
-
-
 def test_schema_match_source_missing():
     errors = _errors_for(test_type="schema_match", reference="cat.sch.table2")
     _assert_has(errors, "Schema match test requires 'source' field")
@@ -180,9 +141,6 @@ def test_schema_match_reference_missing():
     _assert_has(
         errors, "Schema match test requires 'reference' field to compare schemas"
     )
-
-
-# --- all_lookups_found -----------------------------------------------------
 
 
 def test_all_lookups_found_source_missing():
@@ -225,9 +183,6 @@ def test_all_lookups_found_lookup_result_columns_missing():
     _assert_has(errors, "All lookups found test requires 'lookup_result_columns' field")
 
 
-# --- custom_sql ------------------------------------------------------------
-
-
 def test_custom_sql_neither_source_nor_sql():
     # With neither source nor sql, BOTH the "either source or sql" guard and
     # the unconditional "requires 'sql'" check fire.
@@ -236,16 +191,12 @@ def test_custom_sql_neither_source_nor_sql():
 
 
 def test_custom_sql_sql_missing():
-    # Source supplied but sql omitted: only the unconditional sql check fires.
     errors = _errors_for(test_type="custom_sql", source="v_table")
     _assert_has(errors, "Custom SQL test requires 'sql' field with the query")
     # The "either source or sql" guard must NOT fire when source is present.
     assert not any(
         "Custom SQL test requires either 'source' or 'sql' field" in e for e in errors
     ), f"'either source or sql' should not fire when source is present; got: {errors}"
-
-
-# --- custom_expectations ---------------------------------------------------
 
 
 def test_custom_expectations_source_missing():
@@ -259,11 +210,6 @@ def test_custom_expectations_source_missing():
 def test_custom_expectations_expectations_missing():
     errors = _errors_for(test_type="custom_expectations", source="v_table")
     _assert_has(errors, "Custom expectations test requires 'expectations' field")
-
-
-# ===========================================================================
-# Part 2 — 3-part-name rules that EXIST
-# ===========================================================================
 
 
 def test_referential_integrity_reference_not_3part_rejected():
@@ -298,7 +244,6 @@ def test_schema_match_reference_not_3part_rejected():
 
 
 def test_schema_match_source_not_3part_rejected():
-    # The rule B7b just added: schema_match requires a 3-part SOURCE.
     errors = _errors_for(
         test_type="schema_match",
         source="table1",  # not 3-part
@@ -307,14 +252,11 @@ def test_schema_match_source_not_3part_rejected():
     _assert_has(errors, "'source' must be a 3-part name")
 
 
-# ===========================================================================
-# Part 3 — POSITIVE tests: bare-name source accepted (false-confidence closure)
-#
+# POSITIVE tests: bare-name source accepted (false-confidence closure).
 # These prove the validator ACCEPTS bare 1-part in-pipeline relation names as
 # ``source`` for every type where ``source`` is NOT required to be 3-part.
 # They would FAIL if a blanket ``source`` 3-part rule were ever added —
 # locking in the owner's decision.
-# ===========================================================================
 
 
 def test_positive_row_count_bare_sources():

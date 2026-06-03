@@ -65,9 +65,6 @@ class TestDepsExtraction:
         assert dot_path.exists(), f"Expected DOT output at {dot_path}"
         return dot_path.read_text(encoding="utf-8")
 
-    # ------------------------------------------------------------------
-    # Test 1: write_target.sql_path SQL is parsed, external sources found
-    # ------------------------------------------------------------------
     def test_deps_extracts_write_target_sql_path_upstream(self):
         """Materialized-view SQL in write_target.sql_path must contribute to
         external_sources in pipeline_dependencies.json.
@@ -92,9 +89,6 @@ class TestDepsExtraction:
             f"Actual external_sources: {external_sources}"
         )
 
-    # ------------------------------------------------------------------
-    # Test 2: write_target.module_path Python is parsed
-    # ------------------------------------------------------------------
     def test_deps_extracts_write_target_python_upstream(self):
         """Custom-sink Python in write_target.module_path must be parsed for
         table references."""
@@ -155,9 +149,6 @@ class TestDepsExtraction:
             f"Actual: {external_sources}"
         )
 
-    # ------------------------------------------------------------------
-    # Test 3: Regression sentinel — MV flowgroup must have incoming edges
-    # ------------------------------------------------------------------
     def test_deps_flowgroup_graph_has_incoming_edges_on_mv_flowgroup(self):
         """The exact invariant the BWH bug violated: a flowgroup whose sole
         body is externalized via ``write_target.sql_path`` should have ≥1
@@ -174,7 +165,6 @@ class TestDepsExtraction:
         dependency analyzer doesn't apply runtime substitution, so tokens
         on both sides let the edge land.
         """
-        # 1. Add a silver flowgroup that produces a known token-qualified table.
         silver_dir = self.project_root / "pipelines" / "03_silver" / "dim"
         silver_yaml = silver_dir / "e2e_orders_silver.yaml"
         silver_yaml.write_text(
@@ -203,8 +193,6 @@ class TestDepsExtraction:
             encoding="utf-8",
         )
 
-        # 2. Add a gold MV flowgroup whose SQL file reads the token-qualified
-        #    silver table via write_target.sql_path.
         gold_dir = self.project_root / "pipelines" / "04_gold"
         sql_dir = self.project_root / "sql" / "gold"
         sql_dir.mkdir(parents=True, exist_ok=True)
@@ -251,9 +239,6 @@ class TestDepsExtraction:
             f"Observed edges into this flowgroup: {incoming_to_mv}"
         )
 
-    # ------------------------------------------------------------------
-    # Test 4: Python parser output is unioned with explicit source
-    # ------------------------------------------------------------------
     def test_deps_union_of_python_parse_and_explicit_source(self):
         """Python actions: parser output is UNIONED with explicit source:,
         not replaced. This is the Python-specific escape hatch the V0.8.6

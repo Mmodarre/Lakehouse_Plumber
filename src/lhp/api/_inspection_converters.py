@@ -58,7 +58,6 @@ if TYPE_CHECKING:
 
 
 def _action_to_view(action: "Action") -> ActionView:
-    """Project an internal :class:`Action` Pydantic model onto a view."""
     return ActionView(
         name=action.name,
         action_type=action.type.value,
@@ -72,12 +71,6 @@ def _action_to_view(action: "Action") -> ActionView:
 def _flowgroup_to_view(
     flowgroup: "FlowGroup", *, file_path: Optional[Path] = None
 ) -> FlowgroupView:
-    """Project an internal :class:`FlowGroup` onto a public view.
-
-    Action counts are computed from ``flowgroup.actions``; type-keys
-    use the lowercased :class:`ActionType` enum value to match the
-    documented YAML surface.
-    """
     load_count = 0
     transform_count = 0
     write_count = 0
@@ -109,12 +102,6 @@ def _flowgroup_to_view(
 def _flowgroup_to_processed_view(
     flowgroup: "FlowGroup", *, file_path: Optional[Path] = None
 ) -> ProcessedFlowgroupView:
-    """Project a fully-resolved :class:`FlowGroup` onto a processed view.
-
-    The flowgroup must already be post-process (template expanded,
-    presets merged, substitutions resolved). The conversion enumerates
-    every action and copies the surface-relevant fields.
-    """
     variables = dict(flowgroup.variables) if flowgroup.variables else {}
     return ProcessedFlowgroupView(
         flowgroup=_flowgroup_to_view(flowgroup, file_path=file_path),
@@ -160,7 +147,6 @@ def _blueprint_to_view(
     instance_count: int = 0,
     instances: Sequence["BlueprintInstanceView"] = (),
 ) -> BlueprintView:
-    """Project an internal :class:`Blueprint` onto a public view."""
     return BlueprintView(
         name=name,
         file_path=file_path,
@@ -174,7 +160,6 @@ def _blueprint_to_view(
 
 
 def _preset_to_view(preset: "Preset", file_path: Path) -> PresetView:
-    """Project an internal :class:`Preset` onto a public view."""
     return PresetView(
         name=preset.name,
         file_path=file_path,
@@ -185,14 +170,7 @@ def _preset_to_view(preset: "Preset", file_path: Path) -> PresetView:
 
 
 def _template_to_view(template: "Template", file_path: Path) -> TemplateView:
-    """Project an internal :class:`Template` onto a public view.
-
-    Required-parameter count is derived from each parameter mapping's
-    ``required`` key (defaulting to ``False`` when absent), mirroring
-    the legacy CLI parsing in :meth:`ListCommand._parse_template_information`.
-    ``parameters`` carries the per-parameter view list — the CLI
-    presenter renders this when displaying template details.
-    """
+    """Required-parameter count uses ``required`` key defaulting to ``False`` when absent."""
     parameters = template.parameters or []
     required_count = sum(
         1 for param in parameters if bool(param.get("required", False))
@@ -278,12 +256,8 @@ def _build_stats_result(flowgroups: Sequence["FlowGroup"]) -> StatsResult:
 def _dependency_result_to_view(
     internal: "_InternalDepResult",
 ) -> DependencyAnalysisResult:
-    """Project the internal :class:`DependencyAnalysisResult` onto the public view.
+    # Drops the live DiGraph objects from internal.graphs — not JSON-serialisable.
 
-    Drops the live :class:`networkx.DiGraph` objects (carried in
-    ``internal.graphs``) and flattens
-    :class:`PipelineDependency` rows into a name-to-tuple mapping.
-    """
     pipeline_deps: Dict[str, tuple[str, ...]] = {
         name: tuple(dep.depends_on)
         for name, dep in internal.pipeline_dependencies.items()
@@ -305,12 +279,6 @@ def _flowgroups_to_views(
     *,
     file_paths: Optional[Dict[tuple[str, str], Path]] = None,
 ) -> tuple[FlowgroupView, ...]:
-    """Convert an iterable of flowgroups to a tuple of views.
-
-    ``file_paths`` maps ``(pipeline, flowgroup)`` to the source file
-    path; when supplied, each view's ``file_path`` is populated from
-    this map.
-    """
     views: List[FlowgroupView] = []
     for fg in flowgroups:
         path: Optional[Path] = None
@@ -376,13 +344,7 @@ def _build_substitution_manager_for_env(
     project_root: Path,
     env: str,
 ) -> "EnhancedSubstitutionManager":
-    """Build a substitution manager for the named env, falling back when missing.
-
-    Mirrors :meth:`ShowCommand._load_substitution_manager`: when the
-    ``substitutions/<env>.yaml`` file does not exist, an empty
-    manager is returned so callers can still process flowgroups that
-    do not reference env tokens.
-    """
+    # Falls back to an empty manager when ``substitutions/<env>.yaml`` is absent.
     from lhp.core.processing.substitution import EnhancedSubstitutionManager
 
     substitution_file = project_root / "substitutions" / f"{env}.yaml"
@@ -394,13 +356,7 @@ def _build_substitution_manager_for_env(
 def _locate_flowgroup_by_name(
     orchestrator: "_Orchestrator", flowgroup_name: str
 ) -> "FlowGroup":
-    """Locate the first flowgroup by name across the project, or raise.
-
-    Discovery is unfiltered (walks every pipeline directory). Raises
-    :class:`LookupError` when no flowgroup matches; callers translate
-    this into the appropriate public outcome (``None`` for
-    :meth:`InspectionFacade.find_source_yaml_for_flowgroup`).
-    """
+    # Raises LookupError when not found; callers translate to None or their public outcome.
     flowgroups: Sequence["FlowGroup"] = orchestrator.bootstrap.discover_all_flowgroups()
     for fg in flowgroups:
         if fg.flowgroup == flowgroup_name:
@@ -412,11 +368,6 @@ def _flowgroup_file_paths(
     orchestrator: "_Orchestrator",
     flowgroups: Sequence["FlowGroup"],
 ) -> Dict[tuple[str, str], Path]:
-    """Build a ``(pipeline, flowgroup) -> path`` map for a sequence of flowgroups.
-
-    Delegates to the orchestrator's source-path lookup; flowgroups with
-    no resolvable source path are simply absent from the resulting map.
-    """
     paths: Dict[tuple[str, str], Path] = {}
     for fg in flowgroups:
         path = orchestrator.discovery.find_source_yaml_for_flowgroup(fg)

@@ -20,10 +20,6 @@ from lhp.utils.performance_timer import (
     reset_perf_summary,
 )
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 @pytest.fixture(autouse=True)
 def _reset_perf_state():
@@ -33,7 +29,6 @@ def _reset_perf_state():
     pt._enabled = False
     pt._start_wall_clock = None
     pt._summary.reset()
-    # Remove any file handlers added during tests
     for handler in _perf_logger.handlers[:]:
         handler.close()
         _perf_logger.removeHandler(handler)
@@ -46,11 +41,6 @@ def _reset_perf_state():
         _perf_logger.removeHandler(handler)
 
 
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
-
-
 class TestPerfTimerDisabled:
     """Tests for when perf timing is disabled (the default)."""
 
@@ -59,7 +49,6 @@ class TestPerfTimerDisabled:
         assert not is_perf_enabled()
         with perf_timer("should_not_log"):
             pass
-        # No perf log records at all
         assert "[PERF]" not in caplog.text
 
     def test_perf_timer_disabled_still_executes_body(self):
@@ -247,7 +236,6 @@ class TestMergeAndEvents:
         a = PerfSummary()
         b = PerfSummary()
 
-        # Overlapping category "shared", plus category unique to each.
         a.record("shared", 0.1)
         a.record("shared", 0.2)
         a.record("only_a", 0.5)
@@ -255,12 +243,10 @@ class TestMergeAndEvents:
         b.record("only_b", 0.7)
         b.record("only_b", 0.9)
 
-        # Merge both exports into a fresh summary.
         merged = PerfSummary()
         merged.merge(a.export_for_merge())
         merged.merge(b.export_for_merge())
 
-        # Expected per-category durations from concatenating the raw lists.
         expected = {
             "shared": [0.1, 0.2, 0.3],
             "only_a": [0.5],
@@ -308,14 +294,12 @@ class TestMergeAndEvents:
         fresh.merge(payload)
 
         assert fresh.export_for_merge() == src.export_for_merge()
-        # Concrete checks on the reproduced state.
         assert fresh._timings == {"cat1": [0.11, 0.22], "cat2": [0.33]}
         assert fresh._event_counts == {"ev_a": 2, "ev_b": 1}
 
     def test_module_wrappers_disabled_export_empty(self):
         """When disabled, module-level export returns empty collections."""
         assert not is_perf_enabled()
-        # incr_event is a no-op when disabled.
         incr_event("nope", 5)
         assert export_perf_for_merge() == {"timings": {}, "events": {}}
 
@@ -350,7 +334,6 @@ class TestMergeAndEvents:
         content = perf_log.read_text()
         assert "Event counts:" in content
         assert "cache_hits" in content
-        # Event-counts block sits between per-category stats and the footer.
         cat_idx = content.index("Per-category aggregate stats:")
         ev_idx = content.index("Event counts:")
         footer_idx = content.index("=============================================")

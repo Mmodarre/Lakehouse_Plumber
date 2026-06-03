@@ -20,8 +20,6 @@ from lhp.models.processing import DeprecationWarningRecord
 
 
 class _FakeDiscovery(BaseFlowgroupDiscoveryService):
-    """Test fake; tracks calls + returns fixed result."""
-
     def __init__(self, flowgroups: Tuple[FlowGroup, ...] = ()) -> None:
         self._flowgroups = flowgroups
         self.discover_calls: List[Optional[str]] = []
@@ -56,8 +54,6 @@ class _FakeDiscovery(BaseFlowgroupDiscoveryService):
 
 
 class _FakeMonitoring(BaseMonitoringFinalizerService):
-    """Test fake."""
-
     def __init__(self, build_result: Optional[MonitoringBuildResult] = None) -> None:
         self._build_result = build_result
         self.build_calls: List[Tuple[FlowGroup, ...]] = []
@@ -369,7 +365,6 @@ def test_discover_all_flowgroups_caches_result_and_preserves_side_effects_on_hit
 
     first = service.discover_all_flowgroups()
 
-    # Snapshot the side-effect fields produced on the first (miss) call.
     expected_synthetic_contexts = {
         (synthetic_fg.pipeline, synthetic_fg.flowgroup): synthetic_ctx,
         (monitoring_fg.pipeline, monitoring_fg.flowgroup): monitoring_ctx,
@@ -381,13 +376,9 @@ def test_discover_all_flowgroups_caches_result_and_preserves_side_effects_on_hit
 
     second = service.discover_all_flowgroups()
 
-    # The inner disk discovery ran exactly once across the two boundary calls:
-    # the 2nd call early-returns and never reaches discover_flowgroups.
     assert discovery.discover_calls == [None]
     assert second == first
 
-    # Side effects produced on the first call persist on ``self`` after the
-    # cache-hit call (the D2 guarantee) and are unchanged.
     assert service._synthetic_contexts == expected_synthetic_contexts
     assert service._monitoring_result is monitoring_result
 

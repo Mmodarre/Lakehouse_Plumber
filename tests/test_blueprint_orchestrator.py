@@ -1,4 +1,4 @@
-"""Spec-driven unit tests for orchestrator integration (Phase 6, Phase 11).
+"""Unit tests for orchestrator blueprint integration.
 
 Covers ``discover_all_flowgroups`` returning blueprint-expanded + disk-sourced
 flowgroups, the no-op behavior when no blueprints are present, and synthetic

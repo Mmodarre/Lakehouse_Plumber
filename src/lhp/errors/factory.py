@@ -36,8 +36,6 @@ from .types import LHPConfigError, LHPError, LHPFileError, LHPValidationError
 class ErrorFactory:
     """Build well-formed ``LHPError`` subclasses from the code registry."""
 
-    # Intent-named constructors.
-
     @staticmethod
     def configuration_conflict(
         action_name: str,
@@ -523,8 +521,6 @@ actions:
   - {available_presets[0] if available_presets else "my_preset"}""",
         )
 
-    # Generic per-category constructors (overloaded codes).
-
     @staticmethod
     def validation_error(
         code: ErrorCode,
@@ -535,7 +531,6 @@ actions:
         context: Optional[dict[str, Any]] = None,
         doc_link: Optional[str] = None,
     ) -> LHPValidationError:
-        """Build a generic VALIDATION error from any VAL ErrorCode."""
         return LHPValidationError(
             category=code.category,
             code_number=code.number,
@@ -557,7 +552,6 @@ actions:
         context: Optional[dict[str, Any]] = None,
         doc_link: Optional[str] = None,
     ) -> LHPConfigError:
-        """Build a generic CONFIG error from any CFG ErrorCode."""
         return LHPConfigError(
             category=code.category,
             code_number=code.number,
@@ -579,7 +573,6 @@ actions:
         context: Optional[dict[str, Any]] = None,
         doc_link: Optional[str] = None,
     ) -> LHPFileError:
-        """Build a generic IO error from any IO ErrorCode."""
         return LHPFileError(
             category=code.category,
             code_number=code.number,
@@ -601,7 +594,6 @@ actions:
         context: Optional[dict[str, Any]] = None,
         doc_link: Optional[str] = None,
     ) -> LHPConfigError:
-        """Build a generic ACTION error from any ACT ErrorCode."""
         return LHPConfigError(
             category=code.category,
             code_number=code.number,
@@ -623,7 +615,6 @@ actions:
         context: Optional[dict[str, Any]] = None,
         doc_link: Optional[str] = None,
     ) -> LHPError:
-        """Build a generic DEPENDENCY error from any DEP ErrorCode."""
         return LHPError(
             category=code.category,
             code_number=code.number,
@@ -645,7 +636,6 @@ actions:
         context: Optional[dict[str, Any]] = None,
         doc_link: Optional[str] = None,
     ) -> LHPError:
-        """Build a generic GENERAL error from any GEN ErrorCode."""
         return LHPError(
             category=code.category,
             code_number=code.number,
@@ -667,7 +657,6 @@ actions:
         context: Optional[dict[str, Any]] = None,
         doc_link: Optional[str] = None,
     ) -> LHPError:
-        """Build a generic DEPRECATION error from any DEPR ErrorCode."""
         return LHPError(
             category=code.category,
             code_number=code.number,

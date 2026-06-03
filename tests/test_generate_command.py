@@ -19,11 +19,7 @@ from lhp.cli.commands.generate_command import GenerateCommand
 
 
 def _flowgroup_view(pipeline: str = "test_pipeline", file_path=None) -> FlowgroupView:
-    """Build a minimal :class:`FlowgroupView` for discovery mocks.
-
-    ``execute()`` reads ``fg.pipeline`` (in ``_get_pipeline_names``) and
-    ``fg.file_path`` (in the deprecation scan), so both fields are set.
-    """
+    """Both ``pipeline`` and ``file_path`` must be set: ``execute()`` reads both fields."""
     return FlowgroupView(
         name="fg1",
         pipeline=pipeline,
@@ -32,7 +28,6 @@ def _flowgroup_view(pipeline: str = "test_pipeline", file_path=None) -> Flowgrou
 
 
 def _ok_validation_response() -> ValidationResponse:
-    """A passing duplicate-flowgroup check (`success=True`, no issues)."""
     return ValidationResponse(
         success=True,
         issues=(),
@@ -41,12 +36,7 @@ def _ok_validation_response() -> ValidationResponse:
 
 
 def _generation_stream(batch_response: BatchGenerationResponse):
-    """Yield the facade event stream the CLI consumes.
-
-    ``GenerationFacade.generate_pipelines`` is a generator: it yields an
-    ``OperationStarted`` first, then a terminal ``GenerationCompleted``
-    whose ``response`` is the aggregate ``BatchGenerationResponse``.
-    """
+    """Yield OperationStarted then GenerationCompleted — the two-event contract the CLI consumes."""
 
     def _stream(*args, **kwargs):
         yield OperationStarted(operation_name="generate", env=kwargs.get("env"))
@@ -57,7 +47,6 @@ def _generation_stream(batch_response: BatchGenerationResponse):
 
 @pytest.fixture
 def temp_project():
-    """Create a temporary project structure."""
     temp_dir = Path(tempfile.mkdtemp())
     project_root = temp_dir / "test_project"
     project_root.mkdir()
@@ -86,7 +75,6 @@ dev:
 
 @pytest.fixture
 def generate_command():
-    """Create GenerateCommand instance."""
     return GenerateCommand()
 
 
@@ -94,12 +82,7 @@ class TestGenerateCommandExecute:
     """Test execute method of GenerateCommand."""
 
     def test_execute_no_pipelines_found(self, generate_command, temp_project):
-        """Test execute when no pipelines are found.
-
-        Discovery now flows through ``facade.inspection.list_flowgroups()``
-        (generate_command.py:218); an empty result drives ``_get_pipeline_names``
-        (generate_command.py:497) to ``[]``, raising LHP-CFG-014.
-        """
+        """Empty ``list_flowgroups()`` result raises LHP-CFG-014 before any generation."""
         from lhp.errors import LHPConfigError
 
         mock_facade_instance = Mock()
@@ -130,13 +113,6 @@ class TestGenerateCommandExecute:
                 generate_command.execute("dev")
 
     def test_execute_basic_flow(self, generate_command, temp_project):
-        """Test basic execute flow.
-
-        ``execute()`` discovers via ``inspection.list_flowgroups()`` then drives
-        ``generation.generate_pipelines(...)`` (generate_command.py:336), whose
-        terminal ``GenerationCompleted`` event carries the aggregate
-        ``BatchGenerationResponse``.
-        """
         from lhp.models import FlowGroup
 
         output_dir = temp_project / "generated" / "dev"
@@ -167,7 +143,6 @@ class TestGenerateCommandExecute:
             _ok_validation_response()
         )
         mock_facade_instance.state_manager = Mock()
-        # The new flow consumes the event stream from the generation facade.
         mock_facade_instance.generation.generate_pipelines.side_effect = (
             _generation_stream(batch_response)
         )
@@ -192,16 +167,11 @@ class TestGenerateCommandExecute:
         ):
             generate_command.execute("dev")
 
-            # Verify key methods were called on the current facade surface.
             mock_facade_instance.inspection.list_flowgroups.assert_called_once()
             mock_facade_instance.generation.generate_pipelines.assert_called_once()
 
     def test_execute_with_dry_run(self, generate_command, temp_project):
-        """Test execute with dry-run flag.
-
-        In dry-run, ``execute()`` passes ``output_dir=None`` to
-        ``generation.generate_pipelines`` (generate_command.py:339).
-        """
+        """Dry-run passes ``output_dir=None`` to ``generate_pipelines``."""
         mock_response = GenerationResponse(
             success=True,
             generated_filenames=("test.py",),
@@ -251,20 +221,13 @@ class TestGenerateCommandExecute:
         ):
             generate_command.execute("dev", dry_run=True)
 
-            # Verify dry_run results in output_dir=None passed to the
-            # generation facade (the new single entry point).
             call_kwargs = (
                 mock_facade_instance.generation.generate_pipelines.call_args.kwargs
             )
             assert call_kwargs["output_dir"] is None
 
     def test_execute_with_no_bundle(self, generate_command, temp_project):
-        """Test execute with no_bundle flag.
-
-        With ``no_bundle=True``, ``should_enable_bundle_support`` returns
-        False so the bundle phase is skipped and ``_handle_bundle_operations``
-        (generate_command.py:411) is never invoked.
-        """
+        """``no_bundle=True`` skips bundle operations entirely."""
         batch_response = BatchGenerationResponse(
             success=True,
             pipeline_responses={},
@@ -305,18 +268,11 @@ class TestGenerateCommandExecute:
         ):
             generate_command.execute("dev", no_bundle=True)
 
-            # Verify bundle operations were not called
             mock_bundle.assert_not_called()
 
     def test_force_flag_emits_deprecation_warning(self, generate_command, temp_project):
-        """``--force`` is a deprecated no-op; ensure the user-facing
-        warning is recorded on the per-run ``WarningCollector``.
-
-        The deprecation branch runs near the top of ``execute()`` before
-        any pipeline work, so the cheapest behavioral test is to drive
-        ``execute`` with ``force=True`` against an empty project (which
-        will subsequently raise ``LHPConfigError`` for "no flowgroups")
-        and inspect the collector that was constructed during the call.
+        """``--force`` is a no-op; the deprecation branch fires before any pipeline work, so driving
+        ``execute`` with an empty project (which raises LHPConfigError) is enough to inspect the collector.
         """
         from lhp.errors import LHPConfigError
 
@@ -372,8 +328,7 @@ class TestGenerateCommandExecute:
     def test_no_state_flag_emits_deprecation_warning(
         self, generate_command, temp_project
     ):
-        """``--no-state`` is a deprecated no-op; mirror of the
-        ``--force`` test to cover both legacy flags."""
+        """``--no-state`` is a deprecated no-op."""
         from lhp.errors import LHPConfigError
 
         mock_facade_instance = Mock()
@@ -423,12 +378,7 @@ class TestGenerateCommandExecute:
         assert deprecation_entries, "Expected a deprecation warning to be recorded"
 
     def test_execute_with_custom_output(self, generate_command, temp_project):
-        """Test execute with custom output directory.
-
-        ``output`` resolves to ``project_root / output`` (generate_command.py:112)
-        and, when not dry-run, reaches ``generation.generate_pipelines`` as the
-        ``output_dir`` kwarg (generate_command.py:339).
-        """
+        """Custom ``output`` is forwarded as ``output_dir`` to ``generate_pipelines``."""
         custom_output = temp_project / "custom_output"
 
         batch_response = BatchGenerationResponse(
@@ -471,7 +421,6 @@ class TestGenerateCommandExecute:
         ):
             generate_command.execute("dev", output=str(custom_output))
 
-            # Verify custom output_dir reached the generation facade method
             call_kwargs = (
                 mock_facade_instance.generation.generate_pipelines.call_args.kwargs
             )

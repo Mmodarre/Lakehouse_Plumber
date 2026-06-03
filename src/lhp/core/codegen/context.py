@@ -68,7 +68,6 @@ class GenerationContextBuilder:
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
         auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> Dict[str, Any]:
-        """Build context dictionary for generator execution."""
         project_root = self.project_root or Path.cwd()
         return {
             "flowgroup": flowgroup,
@@ -111,7 +110,6 @@ class GenerationContextBuilder:
         }
 
     def collect_outputs(self, generator) -> Tuple[Set[str], Set[str]]:
-        """Collect imports and pre-pipeline statements from a generator."""
         imports: Set[str] = set()
         pre_pipeline_statements: Set[str] = set()
 

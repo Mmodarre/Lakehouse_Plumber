@@ -45,7 +45,6 @@ from lhp.models import FlowGroupContext
 from lhp.models.processing import FlowgroupOutcome
 
 
-# Fakes
 class _FakeFlowGroup:
     """Minimal FlowGroup stand-in (the worker/barrier read only these two)."""
 
@@ -192,11 +191,8 @@ def test_iter_validate_outcomes_in_input_pipeline_order(monkeypatch):
         )
     )
 
-    # Outcomes crystallize in INPUT pipeline order (NOT alphabetical/sorted).
     assert [o.pipeline for o in outcomes] == ["gamma", "alpha", "beta"]
-    # The empty barrier + clean worker outcomes ⇒ every pipeline succeeds.
     assert all(o.success for o in outcomes)
-    # A clean outcome carries no findings.
     assert all(o.issues == () for o in outcomes)
 
 
@@ -229,8 +225,6 @@ def test_run_validate_is_the_outcome_generator_in_input_order(monkeypatch):
         outcomes_by_key=outcomes_by_key,
     )
 
-    # ``run_validate`` is a generator (lazy) — draining it yields outcomes in
-    # INPUT pipeline order, the prior contract the facade consumes.
     outcomes_iter = service.run_validate(
         flowgroups_by_pipeline=flowgroups_by_pipeline,
         substitution_managers=dict.fromkeys(flowgroups_by_pipeline, object()),
@@ -277,11 +271,8 @@ def test_iter_validate_outcomes_reports_discovery_errors_in_order(monkeypatch):
         )
     )
 
-    # Both pipelines reported, in INPUT order — no raise short-circuits this.
     assert [o.pipeline for o in outcomes] == ["pipe_ok", "pipe_missing"]
     assert outcomes[0].success is True
-    # The discovery failure folds to a single-issue, unsuccessful outcome — a
-    # string finding with no owning flowgroup (discovery has no flowgroup).
     assert outcomes[1].success is False
     assert len(outcomes[1].issues) == 1
     record = outcomes[1].issues[0]

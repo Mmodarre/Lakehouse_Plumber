@@ -15,10 +15,7 @@ from lhp.models.dependencies import (
 
 
 class TestDependencyGraphs:
-    """Test DependencyGraphs model."""
-
     def setup_method(self):
-        """Set up test fixtures."""
         self.action_graph = nx.DiGraph()
         self.flowgroup_graph = nx.DiGraph()
         self.pipeline_graph = nx.DiGraph()
@@ -32,29 +29,24 @@ class TestDependencyGraphs:
         )
 
     def test_initialization(self):
-        """Test DependencyGraphs initialization."""
         assert self.graphs.action_graph is self.action_graph
         assert self.graphs.flowgroup_graph is self.flowgroup_graph
         assert self.graphs.pipeline_graph is self.pipeline_graph
         assert self.graphs.metadata is self.metadata
 
     def test_get_graph_by_level_action(self):
-        """Test getting action graph by level."""
         result = self.graphs.get_graph_by_level("action")
         assert result is self.action_graph
 
     def test_get_graph_by_level_flowgroup(self):
-        """Test getting flowgroup graph by level."""
         result = self.graphs.get_graph_by_level("flowgroup")
         assert result is self.flowgroup_graph
 
     def test_get_graph_by_level_pipeline(self):
-        """Test getting pipeline graph by level."""
         result = self.graphs.get_graph_by_level("pipeline")
         assert result is self.pipeline_graph
 
     def test_get_graph_by_level_invalid(self):
-        """Test error handling for invalid level."""
         with pytest.raises(ValueError) as exc_info:
             self.graphs.get_graph_by_level("invalid_level")
 
@@ -63,7 +55,6 @@ class TestDependencyGraphs:
         assert "Unknown dependency graph level" in error_msg
 
     def test_get_graph_by_level_case_sensitive(self):
-        """Test that level names are case sensitive."""
         with pytest.raises(ValueError):
             self.graphs.get_graph_by_level("ACTION")
 
@@ -71,13 +62,11 @@ class TestDependencyGraphs:
             self.graphs.get_graph_by_level("Pipeline")
 
     def test_graphs_are_networkx_digraphs(self):
-        """Test that graphs are proper NetworkX DiGraphs."""
         assert isinstance(self.graphs.action_graph, nx.DiGraph)
         assert isinstance(self.graphs.flowgroup_graph, nx.DiGraph)
         assert isinstance(self.graphs.pipeline_graph, nx.DiGraph)
 
     def test_metadata_access(self):
-        """Test metadata dictionary access."""
         assert self.graphs.metadata["test"] == "data"
 
         # Test metadata modification
@@ -86,10 +75,7 @@ class TestDependencyGraphs:
 
 
 class TestPipelineDependency:
-    """Test PipelineDependency model."""
-
     def test_initialization_minimal(self):
-        """Test minimal PipelineDependency initialization."""
         dep = PipelineDependency(
             pipeline="test_pipeline",
             depends_on=["dep1", "dep2"],
@@ -107,7 +93,6 @@ class TestPipelineDependency:
         assert dep.stage is None  # Default value
 
     def test_initialization_complete(self):
-        """Test complete PipelineDependency initialization."""
         dep = PipelineDependency(
             pipeline="test_pipeline",
             depends_on=["dep1"],
@@ -127,7 +112,6 @@ class TestPipelineDependency:
         assert dep.stage == 2
 
     def test_empty_dependencies(self):
-        """Test PipelineDependency with no dependencies."""
         dep = PipelineDependency(
             pipeline="root_pipeline",
             depends_on=[],
@@ -140,7 +124,6 @@ class TestPipelineDependency:
         assert dep.external_sources == []
 
     def test_multiple_dependencies(self):
-        """Test PipelineDependency with multiple dependencies."""
         dependencies = ["pipeline1", "pipeline2", "pipeline3"]
         external_sources = ["ext1.table", "ext2.table", "ext3.table"]
 
@@ -156,7 +139,6 @@ class TestPipelineDependency:
         assert dep.external_sources == external_sources
 
     def test_stage_assignment(self):
-        """Test stage assignment functionality."""
         dep = PipelineDependency(
             pipeline="test_pipeline",
             depends_on=[],
@@ -173,7 +155,6 @@ class TestPipelineDependency:
         assert dep.stage == 3
 
     def test_parallel_execution_flag(self):
-        """Test can_run_parallel flag."""
         dep = PipelineDependency(
             pipeline="test_pipeline",
             depends_on=[],
@@ -191,10 +172,7 @@ class TestPipelineDependency:
 
 
 class TestDependencyAnalysisResult:
-    """Test DependencyAnalysisResult model."""
-
     def setup_method(self):
-        """Set up test fixtures."""
         self.graphs = DependencyGraphs(
             action_graph=nx.DiGraph(),
             flowgroup_graph=nx.DiGraph(),
@@ -239,7 +217,6 @@ class TestDependencyAnalysisResult:
         )
 
     def test_initialization(self):
-        """Test DependencyAnalysisResult initialization."""
         assert self.result.graphs is self.graphs
         assert self.result.pipeline_dependencies is self.pipeline_dependencies
         assert self.result.execution_stages is self.execution_stages
@@ -247,21 +224,17 @@ class TestDependencyAnalysisResult:
         assert self.result.external_sources is self.external_sources
 
     def test_total_pipelines_property(self):
-        """Test total_pipelines property."""
         assert self.result.total_pipelines == 3
 
     def test_total_external_sources_property(self):
-        """Test total_external_sources property."""
         assert self.result.total_external_sources == 2
 
     def test_get_pipeline_execution_order(self):
-        """Test get_pipeline_execution_order method."""
         execution_order = self.result.get_pipeline_execution_order()
         expected_order = ["pipeline1", "pipeline2", "pipeline3"]
         assert execution_order == expected_order
 
     def test_empty_execution_stages(self):
-        """Test behavior with empty execution stages."""
         empty_result = DependencyAnalysisResult(
             graphs=self.graphs,
             pipeline_dependencies=self.pipeline_dependencies,
@@ -273,7 +246,6 @@ class TestDependencyAnalysisResult:
         assert empty_result.get_pipeline_execution_order() == []
 
     def test_single_stage_execution(self):
-        """Test single stage execution order."""
         single_stage_result = DependencyAnalysisResult(
             graphs=self.graphs,
             pipeline_dependencies={
@@ -289,7 +261,6 @@ class TestDependencyAnalysisResult:
         assert single_stage_result.total_pipelines == 1
 
     def test_with_circular_dependencies(self):
-        """Test result with circular dependencies."""
         circular_result = DependencyAnalysisResult(
             graphs=self.graphs,
             pipeline_dependencies=self.pipeline_dependencies,
@@ -302,7 +273,6 @@ class TestDependencyAnalysisResult:
         assert circular_result.get_pipeline_execution_order() == []
 
     def test_no_external_sources(self):
-        """Test result with no external sources."""
         no_external_result = DependencyAnalysisResult(
             graphs=self.graphs,
             pipeline_dependencies=self.pipeline_dependencies,
@@ -315,10 +285,7 @@ class TestDependencyAnalysisResult:
 
 
 class TestActionDependencyInfo:
-    """Test ActionDependencyInfo model."""
-
     def test_initialization(self):
-        """Test ActionDependencyInfo initialization."""
         action_info = ActionDependencyInfo(
             name="test_action",
             type="transform",
@@ -340,7 +307,6 @@ class TestActionDependencyInfo:
         assert action_info.internal_sources == ["internal.table"]
 
     def test_has_external_dependencies_true(self):
-        """Test has_external_dependencies with external sources."""
         action_info = ActionDependencyInfo(
             name="test_action",
             type="load",
@@ -355,7 +321,6 @@ class TestActionDependencyInfo:
         assert action_info.has_external_dependencies() is True
 
     def test_has_external_dependencies_false(self):
-        """Test has_external_dependencies with no external sources."""
         action_info = ActionDependencyInfo(
             name="test_action",
             type="load",
@@ -370,7 +335,6 @@ class TestActionDependencyInfo:
         assert action_info.has_external_dependencies() is False
 
     def test_has_internal_dependencies_true(self):
-        """Test has_internal_dependencies with internal sources."""
         action_info = ActionDependencyInfo(
             name="test_action",
             type="transform",
@@ -385,7 +349,6 @@ class TestActionDependencyInfo:
         assert action_info.has_internal_dependencies() is True
 
     def test_has_internal_dependencies_false(self):
-        """Test has_internal_dependencies with no internal sources."""
         action_info = ActionDependencyInfo(
             name="test_action",
             type="load",
@@ -400,7 +363,6 @@ class TestActionDependencyInfo:
         assert action_info.has_internal_dependencies() is False
 
     def test_no_dependencies(self):
-        """Test action with no dependencies."""
         action_info = ActionDependencyInfo(
             name="standalone_action",
             type="load",
@@ -416,7 +378,6 @@ class TestActionDependencyInfo:
         assert action_info.has_internal_dependencies() is False
 
     def test_both_dependency_types(self):
-        """Test action with both external and internal dependencies."""
         action_info = ActionDependencyInfo(
             name="complex_action",
             type="transform",
@@ -433,10 +394,7 @@ class TestActionDependencyInfo:
 
 
 class TestFlowgroupDependencyInfo:
-    """Test FlowgroupDependencyInfo model."""
-
     def setup_method(self):
-        """Set up test fixtures."""
         self.actions = [
             ActionDependencyInfo(
                 name="load_action",
@@ -479,7 +437,6 @@ class TestFlowgroupDependencyInfo:
         )
 
     def test_initialization(self):
-        """Test FlowgroupDependencyInfo initialization."""
         assert self.flowgroup_info.name == "test_flowgroup"
         assert self.flowgroup_info.pipeline == "test_pipeline"
         assert self.flowgroup_info.actions == self.actions
@@ -487,32 +444,27 @@ class TestFlowgroupDependencyInfo:
         assert self.flowgroup_info.external_sources == ["external.raw"]
 
     def test_action_count_property(self):
-        """Test action_count property."""
         assert self.flowgroup_info.action_count == 3
 
     def test_get_load_actions(self):
-        """Test get_load_actions method."""
         load_actions = self.flowgroup_info.get_load_actions()
         assert len(load_actions) == 1
         assert load_actions[0].name == "load_action"
         assert load_actions[0].type == "load"
 
     def test_get_write_actions(self):
-        """Test get_write_actions method."""
         write_actions = self.flowgroup_info.get_write_actions()
         assert len(write_actions) == 1
         assert write_actions[0].name == "write_action"
         assert write_actions[0].type == "write"
 
     def test_get_transform_actions(self):
-        """Test get_transform_actions method."""
         transform_actions = self.flowgroup_info.get_transform_actions()
         assert len(transform_actions) == 1
         assert transform_actions[0].name == "transform_action"
         assert transform_actions[0].type == "transform"
 
     def test_empty_flowgroup(self):
-        """Test flowgroup with no actions."""
         empty_flowgroup = FlowgroupDependencyInfo(
             name="empty_fg",
             pipeline="test_pipeline",
@@ -527,7 +479,6 @@ class TestFlowgroupDependencyInfo:
         assert empty_flowgroup.get_transform_actions() == []
 
     def test_single_action_type_flowgroup(self):
-        """Test flowgroup with only one type of action."""
         load_only_actions = [
             ActionDependencyInfo(
                 name="load1",
@@ -565,7 +516,6 @@ class TestFlowgroupDependencyInfo:
         assert len(load_only_flowgroup.get_transform_actions()) == 0
 
     def test_no_dependencies(self):
-        """Test flowgroup with no dependencies."""
         no_deps_flowgroup = FlowgroupDependencyInfo(
             name="independent_fg",
             pipeline="test_pipeline",
@@ -578,7 +528,6 @@ class TestFlowgroupDependencyInfo:
         assert no_deps_flowgroup.external_sources == []
 
     def test_multiple_dependencies(self):
-        """Test flowgroup with multiple dependencies."""
         multi_deps_flowgroup = FlowgroupDependencyInfo(
             name="dependent_fg",
             pipeline="test_pipeline",
@@ -595,7 +544,6 @@ class TestFlowgroupDependencyInfo:
     "pipeline_count,expected", [(0, 0), (1, 1), (5, 5), (100, 100)]
 )
 def test_dependency_analysis_result_total_pipelines(pipeline_count, expected):
-    """Parametrized test for total_pipelines property."""
     pipeline_deps = {
         f"pipeline_{i}": PipelineDependency(
             pipeline=f"pipeline_{i}",
@@ -622,7 +570,6 @@ def test_dependency_analysis_result_total_pipelines(pipeline_count, expected):
     "external_count,expected", [(0, 0), (1, 1), (10, 10), (50, 50)]
 )
 def test_dependency_analysis_result_total_external_sources(external_count, expected):
-    """Parametrized test for total_external_sources property."""
     external_sources = [f"external.table_{i}" for i in range(external_count)]
 
     result = DependencyAnalysisResult(

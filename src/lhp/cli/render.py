@@ -1,9 +1,8 @@
 """Shared static-command rendering helpers for the LHP CLI.
 
 Helpers branch internally on ``sink.is_terminal``; callers never check TTY
-state or terminal width. Terminal-mode styling follows STYLE.md section 6
-(``border_style="dim"``, ``header_style="bold dim"``). Non-TTY rendering is
-plain text — tab-separated rows, no ANSI, no box-drawing.
+state or terminal width. Non-TTY rendering is plain text — tab-separated rows,
+no ANSI, no box-drawing.
 
 The ``sink`` default is resolved lazily at call time so test monkey-patching
 of ``lhp.cli.console.console`` is honored.
@@ -36,8 +35,8 @@ class ColumnSpec:
     """Declarative column metadata for :func:`render_listing_table`.
 
     Fields map 1:1 to ``rich.table.Table.add_column`` kwargs. ``style``
-    applies to the column body only; header style is fixed by STYLE.md
-    on the ``Table`` itself.
+    applies to the column body only; header style is fixed on the ``Table``
+    itself.
     """
 
     header: str
@@ -124,7 +123,7 @@ def render_command_header(
     """Render the top-of-command banner (command name + LHP wordmark).
 
     Silent no-op on non-TTY sinks or terminals narrower than
-    ``_WORDMARK_MIN_PANEL_WIDTH`` (per STYLE.md section 7).
+    ``_WORDMARK_MIN_PANEL_WIDTH``.
     """
     sink = sink or _default_console
 

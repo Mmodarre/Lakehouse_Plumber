@@ -17,11 +17,9 @@ class TestCloudFilesOptions:
     """Test CloudFiles options functionality."""
 
     def setup_method(self):
-        """Set up test fixtures."""
         self.generator = CloudFilesLoadGenerator()
         self.schema_parser = SchemaParser()
 
-        # Create temporary schema file
         self.temp_dir = tempfile.mkdtemp()
         self.schema_file = Path(self.temp_dir) / "test_schema.yaml"
 
@@ -82,7 +80,6 @@ class TestCloudFilesOptions:
 
         result = self.generator.generate(action, {})
 
-        # Check that options are properly included
         assert '.option("cloudFiles.header", True)' in result
         assert '.option("cloudFiles.delimiter", ",")' in result
         assert '.option("cloudFiles.maxFilesPerTrigger", 10)' in result
@@ -108,7 +105,6 @@ class TestCloudFilesOptions:
 
         result = self.generator.generate(action, {"spec_dir": Path(self.temp_dir)})
 
-        # Check that schema hints are properly generated
         assert "id BIGINT" in result
         assert "name STRING" in result
         assert "amount DECIMAL(18,2)" in result
@@ -133,7 +129,6 @@ class TestCloudFilesOptions:
 
         result = self.generator.generate(action, {"spec_dir": Path(self.temp_dir)})
 
-        # Check that explicit schema is properly generated
         assert "test_schema = StructType([" in result
         assert 'StructField("id", LongType(), False' in result
         assert 'StructField("name", StringType(), False' in result
@@ -168,7 +163,6 @@ class TestCloudFilesOptions:
 
     def test_conflict_detection(self):
         """Test conflict detection between old and new approaches."""
-        # Test conflict between legacy and new options
         action = Action(
             name="test_action",
             type="load",
@@ -235,14 +229,9 @@ class TestCloudFilesOptions:
 
         result = self.generator.generate(action, {})
 
-        # Check boolean values are not quoted and use proper Python syntax
         assert '.option("cloudFiles.header", True)' in result
         assert '.option("cloudFiles.inferColumnTypes", False)' in result
-
-        # Check numbers are not quoted
         assert '.option("cloudFiles.maxFilesPerTrigger", 10)' in result
-
-        # Check strings are quoted
         assert '.option("cloudFiles.delimiter", ",")' in result
 
     def test_backward_compatibility(self):
@@ -265,7 +254,6 @@ class TestCloudFilesOptions:
 
         result = self.generator.generate(action, {})
 
-        # Check that legacy options are converted to new format
         assert '.option("cloudFiles.schemaLocation", "/legacy/schema")' in result
         assert '.option("cloudFiles.maxFilesPerTrigger", 5)' in result
         assert '.option("cloudFiles.schemaEvolutionMode", "addNewColumns")' in result
@@ -288,7 +276,6 @@ class TestCloudFilesOptions:
 
         result = self.generator.generate(action, {})
 
-        # Check that format option is automatically added
         assert '.option("cloudFiles.format", "json")' in result
 
     def test_schema_hints_formatting(self):
@@ -312,7 +299,6 @@ class TestCloudFilesOptions:
 
         result_short = self.generator.generate(action_short, {})
 
-        # Check that schema hints are generated as a variable
         assert 'short_table_schema_hints = """' in result_short
         assert "id INT" in result_short
         assert "name STRING" in result_short
@@ -347,7 +333,6 @@ class TestCloudFilesOptions:
 
         result = self.generator.generate(action, {"spec_dir": Path(self.temp_dir)})
 
-        # Check schema enforcement
         assert "test_schema = StructType([" in result
         assert ".schema(test_schema)" in result
         assert "df = df.schema(" not in result
@@ -355,7 +340,6 @@ class TestCloudFilesOptions:
         load_pos = result.index(".load(")
         assert schema_pos < load_pos
 
-        # Check all options are included with proper Python syntax
         assert '.option("cloudFiles.format", "csv")' in result
         assert '.option("cloudFiles.header", True)' in result
         assert '.option("cloudFiles.delimiter", ",")' in result
@@ -364,7 +348,6 @@ class TestCloudFilesOptions:
         assert '.option("cloudFiles.inferColumnTypes", False)' in result
         assert '.option("cloudFiles.rescueDataColumn", "_rescued_data")' in result
 
-        # Check the function structure
         assert "@dp.temporary_view()" in result
         assert "def customers_bronze():" in result
         assert "spark.readStream" in result
@@ -392,10 +375,7 @@ class TestCloudFilesOptions:
 
         result = self.generator.generate(action, {})
 
-        # Check that quotes are escaped with backslashes
         assert '\\"value\\"' in result or 'field=\\"value\\"' in result
-
-        # Verify it's valid Python by compiling
         compile(result, "<string>", "exec")
 
     def test_values_with_backslashes_escaped(self):
@@ -419,7 +399,6 @@ class TestCloudFilesOptions:
 
         result = self.generator.generate(action, {})
 
-        # Check that backslashes are escaped
         assert "\\\\path\\\\to\\\\file" in result or r"C:\\path\\to\\file" in result
 
         # Verify no SyntaxWarning by compiling with warnings as errors
@@ -482,7 +461,6 @@ class TestCloudFilesOptions:
 
         result = self.generator.generate(action, {"spec_dir": Path(self.temp_dir)})
 
-        # Check that DDL content is properly loaded and used
         assert "customer_id BIGINT NOT NULL" in result
         assert "name STRING" in result
         assert "email STRING" in result
@@ -514,7 +492,6 @@ class TestCloudFilesOptions:
 
         result = self.generator.generate(action, {"spec_dir": Path(self.temp_dir)})
 
-        # Check that SQL DDL content is properly loaded and used
         assert "product_id BIGINT" in result
         assert "product_name STRING" in result
         assert "price DECIMAL(10,2)" in result
@@ -523,7 +500,6 @@ class TestCloudFilesOptions:
 
     def test_schema_hints_inline_ddl_vs_file_detection(self):
         """Test that inline DDL is correctly distinguished from file paths."""
-        # Test 1: Inline DDL (no file extensions or path separators)
         action_inline = Action(
             name="test_inline",
             type="load",
@@ -544,12 +520,10 @@ class TestCloudFilesOptions:
             action_inline, {"spec_dir": Path(self.temp_dir)}
         )
 
-        # Should use inline DDL directly (formatted with newlines in variable)
         assert "id BIGINT" in result_inline
         assert "name STRING" in result_inline
         assert "amount DECIMAL(18,2)" in result_inline
 
-        # Test 2: File path with .ddl extension (should be detected as file)
         ddl_file = Path(self.temp_dir) / "schemas" / "product.ddl"
         ddl_file.parent.mkdir(exist_ok=True)
         ddl_file.write_text("product_id BIGINT, product_name STRING")
@@ -574,7 +548,6 @@ class TestCloudFilesOptions:
             action_file, {"spec_dir": Path(self.temp_dir)}
         )
 
-        # Should load from file
         assert "product_id BIGINT" in result_file
         assert "product_name STRING" in result_file
 
@@ -606,20 +579,15 @@ class TestCloudFilesOptions:
 
         result = self.generator.generate(action, {"spec_dir": Path(self.temp_dir)})
 
-        # Check that schema from subdirectory is properly loaded
         assert "customer_id BIGINT NOT NULL" in result
         assert "customer_name STRING" in result
         assert "region STRING" in result
 
 
 class TestSchemaParser:
-    """Test SchemaParser functionality."""
-
     def setup_method(self):
-        """Set up test fixtures."""
         self.parser = SchemaParser()
 
-        # Create test schema data
         self.schema_data = {
             "name": "test_schema",
             "version": "1.0",
@@ -652,21 +620,17 @@ class TestSchemaParser:
 
     def test_schema_validation(self):
         """Test schema validation."""
-        # Valid schema
         errors = self.parser.validate_schema(self.schema_data)
         assert errors == []
 
-        # Missing name
         invalid_schema = {"columns": [{"name": "id", "type": "BIGINT"}]}
         errors = self.parser.validate_schema(invalid_schema)
         assert any("must have 'name' field" in error for error in errors)
 
-        # Missing columns
         invalid_schema = {"name": "test"}
         errors = self.parser.validate_schema(invalid_schema)
         assert any("must have 'columns' field" in error for error in errors)
 
-        # Column missing required fields
-        invalid_schema = {"name": "test", "columns": [{"name": "id"}]}  # Missing type
+        invalid_schema = {"name": "test", "columns": [{"name": "id"}]}
         errors = self.parser.validate_schema(invalid_schema)
         assert any("must have 'type' field" in error for error in errors)

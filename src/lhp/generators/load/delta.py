@@ -19,13 +19,11 @@ class DeltaLoadGenerator(BaseActionGenerator):
         self.add_import("from pyspark import pipelines as dp")
 
     def generate(self, action: Action, context: Dict[str, Any]) -> str:
-        """Generate Delta load code."""
         source_config = action.source if isinstance(action.source, dict) else {}
         logger.debug(
             f"Generating Delta load for target '{action.target}' with source config keys: {list(source_config.keys())}"
         )
 
-        # Check for removed fields and raise errors
         removed_fields = {
             "cdf_enabled": "Use 'options: {readChangeFeed: \"true\"}' instead",
             "read_change_feed": "Use 'options: {readChangeFeed: \"true\"}' instead",
@@ -47,7 +45,6 @@ class DeltaLoadGenerator(BaseActionGenerator):
     startingVersion: "5" """,
                 )
 
-        # Extract configuration
         table = source_config.get("table")
         catalog = source_config.get("catalog")
         schema = source_config.get("schema")
@@ -62,7 +59,6 @@ class DeltaLoadGenerator(BaseActionGenerator):
         reader_options = {}
         if source_config.get("options"):
             options = source_config["options"]
-            # Validate options is a dictionary
             if not isinstance(options, dict):
                 raise ErrorFactory.invalid_field_type(
                     action_name=action.name,
@@ -74,7 +70,6 @@ class DeltaLoadGenerator(BaseActionGenerator):
   startingVersion: "5" """,
                 )
             for key, value in options.items():
-                # Validate option values
                 if value is None or value == "":
                     raise ErrorFactory.validation_error(
                         codes.VAL_010,
@@ -96,13 +91,11 @@ class DeltaLoadGenerator(BaseActionGenerator):
                     )
                 reader_options[key] = value
 
-        # Determine readMode
         readMode = action.readMode or source_config.get("readMode", "batch")
         logger.debug(
             f"Delta load '{action.target}': table_ref='{table_ref}', readMode='{readMode}', options_count={len(reader_options)}"
         )
 
-        # Validate Delta option combinations
         has_cdf = reader_options.get("readChangeFeed") in ("true", "True", True)
         has_skip = reader_options.get("skipChangeCommits") in ("true", "True", True)
         has_starting_version = "startingVersion" in reader_options
@@ -113,7 +106,6 @@ class DeltaLoadGenerator(BaseActionGenerator):
         has_timestamp_as_of = "timestampAsOf" in reader_options
         is_stream = readMode == "stream"
 
-        # readChangeFeed + skipChangeCommits: contradictory
         if has_cdf and has_skip:
             raise ErrorFactory.incompatible_options(
                 action_name=action.name,
@@ -123,7 +115,6 @@ class DeltaLoadGenerator(BaseActionGenerator):
                 suggestion="Use readChangeFeed to consume changes, or skipChangeCommits to ignore them, but not both",
             )
 
-        # readChangeFeed + versionAsOf: CDF vs time travel
         if has_cdf and has_version_as_of:
             raise ErrorFactory.incompatible_options(
                 action_name=action.name,
@@ -133,7 +124,6 @@ class DeltaLoadGenerator(BaseActionGenerator):
                 suggestion="Use readChangeFeed for change tracking or versionAsOf for snapshots, not both",
             )
 
-        # readChangeFeed + timestampAsOf: CDF vs time travel
         if has_cdf and has_timestamp_as_of:
             raise ErrorFactory.incompatible_options(
                 action_name=action.name,
@@ -143,7 +133,6 @@ class DeltaLoadGenerator(BaseActionGenerator):
                 suggestion="Use readChangeFeed for change tracking or timestampAsOf for snapshots, not both",
             )
 
-        # startingVersion + startingTimestamp: ambiguous start
         if has_starting_version and has_starting_timestamp:
             raise ErrorFactory.incompatible_options(
                 action_name=action.name,
@@ -153,7 +142,6 @@ class DeltaLoadGenerator(BaseActionGenerator):
                 suggestion="Use either startingVersion or startingTimestamp, not both",
             )
 
-        # versionAsOf + timestampAsOf: ambiguous snapshot
         if has_version_as_of and has_timestamp_as_of:
             raise ErrorFactory.incompatible_options(
                 action_name=action.name,
@@ -163,7 +151,6 @@ class DeltaLoadGenerator(BaseActionGenerator):
                 suggestion="Use either versionAsOf or timestampAsOf, not both",
             )
 
-        # endingVersion/endingTimestamp + stream: ending bounds are batch-only
         if is_stream and has_ending_version:
             raise ErrorFactory.incompatible_options(
                 action_name=action.name,
@@ -182,7 +169,6 @@ class DeltaLoadGenerator(BaseActionGenerator):
                 suggestion="Use readMode: batch with endingTimestamp, or remove endingTimestamp for streaming",
             )
 
-        # Batch CDF requires a starting bound
         if has_cdf and not is_stream:
             if not has_starting_version and not has_starting_timestamp:
                 raise ErrorFactory.validation_error(
@@ -208,13 +194,10 @@ class DeltaLoadGenerator(BaseActionGenerator):
   # or: startingTimestamp: "2024-01-01" """,
                 )
 
-        # Handle operational metadata
         add_operational_metadata, metadata_columns = self._get_operational_metadata(
             action, context
         )
 
-        # Apply additional context substitutions for Delta source
-        # Replace ${source_table} placeholder with actual table reference
         for col_name, expression in metadata_columns.items():
             metadata_columns[col_name] = expression.replace(
                 "${source_table}", table_ref

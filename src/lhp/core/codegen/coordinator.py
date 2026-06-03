@@ -50,16 +50,6 @@ class CodeGenerationService(BaseCodeGenerationService):
         project_config=None,
         project_root=None,
     ):
-        """
-        Initialize code generator.
-
-        Args:
-            action_registry: Action registry for getting generators
-            dependency_resolver: Dependency resolver for action ordering
-            preset_manager: Preset manager for preset configurations
-            project_config: Project configuration for context
-            project_root: Project root directory for spec_dir context
-        """
         self.action_registry = action_registry
         self.dependency_resolver = dependency_resolver
         self.preset_manager = preset_manager
@@ -118,27 +108,15 @@ class CodeGenerationService(BaseCodeGenerationService):
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
         auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> str:
-        """
-        Generate complete Python code for a flowgroup.
+        """Generate complete Python code for a flowgroup.
 
         Args:
-            flowgroup: FlowGroup to generate code for
-            substitution_mgr: Substitution manager for the environment
-            output_dir: Output directory for generated files
-            source_yaml: Source YAML path for file tracking
-            env: Environment name for file tracking
-            include_tests: Whether to include test actions
-            phase_a_records: Optional list passed by Phase A workers to
-                receive ``CopiedModuleRecord`` entries instead of writing
-                user Python modules to disk. ``None`` (the default) means
-                disk writes happen inline — the legacy single-threaded path.
-            auxiliary_files: Optional ``{module_path: source_str}`` mapping
-                of inline Python modules (carried on
-                :class:`FlowGroupContext`). Used by ``custom_python_functions``
-                generators in lieu of an on-disk file.
-
-        Returns:
-            Complete Python code for the flowgroup
+            phase_a_records: When supplied, ``CopiedModuleRecord`` entries are
+                appended here instead of writing to disk (parallel worker path).
+                ``None`` means disk writes happen inline (legacy single-threaded path).
+            auxiliary_files: ``{module_path: source_str}`` inline Python modules
+                carried on :class:`FlowGroupContext`; used by
+                ``custom_python_functions`` generators in lieu of an on-disk file.
         """
         fg = flowgroup.flowgroup
         self.logger.debug(

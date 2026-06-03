@@ -1,5 +1,3 @@
-"""Schema-match test action generator."""
-
 import logging
 from typing import Any, Dict, List
 
@@ -15,7 +13,6 @@ class SchemaMatchTestGenerator(BaseTestActionGenerator):
     """Generate a schema_match test — diffs two tables' information_schema."""
 
     def generate(self, action: Action, context: Dict[str, Any]) -> str:
-        """Generate schema_match test code."""
         config = action.model_dump(mode="json", exclude_none=True)
         test_type = "schema_match"
 
@@ -63,14 +60,6 @@ class SchemaMatchTestGenerator(BaseTestActionGenerator):
         all three parts in the WHERE clause — and also catalog-qualify
         ``information_schema.columns`` so the query targets the right
         ``information_schema`` (each UC catalog has its own).
-
-        Args:
-            value: The FQN string from action config (already substituted).
-            field: Action field name (``source`` or ``reference``), surfaced
-                in the error context.
-
-        Returns:
-            Tuple of (catalog, schema, table) — all non-empty strings.
 
         Raises:
             LHPValidationError: When the input is not exactly three

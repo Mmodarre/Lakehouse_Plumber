@@ -16,8 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 class SchemaTransformGenerator(BaseActionGenerator):
-    """Generate schema application transformations."""
-
     def __init__(self):
         super().__init__()
         self.add_import("from pyspark import pipelines as dp")
@@ -26,13 +24,10 @@ class SchemaTransformGenerator(BaseActionGenerator):
         self.schema_parser = SchemaTransformParser()
 
     def generate(self, action: Action, context: dict) -> str:
-        """Generate schema transform code."""
         logger.debug(
             f"Generating schema transform for target '{action.target}', action '{action.name}'"
         )
-        # Validate source format - must be a string (view name only)
         if isinstance(action.source, dict):
-            # Old format detected - raise clear error
             raise ErrorFactory.deprecated_field(
                 action_name=action.name,
                 field_name="source (nested dict format)",
@@ -57,7 +52,6 @@ New format:
                 example="""source: v_raw_data  # Simple view name string""",
             )
 
-        # Validate exactly one of schema_inline or schema_file is specified
         has_schema_inline = action.schema_inline is not None
         has_schema_file = action.schema_file is not None
 
@@ -98,16 +92,13 @@ New format:
     enforcement: strict""",
             )
 
-        # Load schema configuration
         if has_schema_file:
-            # Load from external file
             project_root = context.get("spec_dir", Path.cwd())
             if not isinstance(project_root, Path):
                 project_root = Path(project_root)
 
             parsed_schema = self._load_schema_file(action.schema_file, project_root)
         else:
-            # Parse inline schema
             parsed_schema = self.schema_parser.parse_inline_schema(action.schema_inline)
 
         # Extract schema config (enforcement is no longer in schema files/inline)
@@ -117,14 +108,12 @@ New format:
             "pass_through_columns": parsed_schema.get("pass_through_columns", []),
         }
 
-        # Get enforcement from action level (default: permissive)
         enforcement = action.enforcement or "permissive"
         schema_source = "schema_file" if has_schema_file else "schema_inline"
         logger.debug(
             f"Schema transform '{action.name}': enforcement='{enforcement}', schema_source='{schema_source}', source_view='{action.source}'"
         )
 
-        # Validate enforcement value
         if enforcement not in ["strict", "permissive"]:
             raise ErrorFactory.invalid_field_value(
                 action_name=action.name,
@@ -135,10 +124,8 @@ New format:
 enforcement: permissive  # Keep all columns, apply transforms""",
             )
 
-        # Get readMode from action or default to stream
         readMode = action.readMode or "stream"
 
-        # Get metadata columns to preserve from project config
         project_config = context.get("project_config")
         metadata_columns = []  # Ordered list for template (preserves definition order)
         metadata_columns_set = set()  # Set for fast membership checks
@@ -147,16 +134,13 @@ enforcement: permissive  # Keep all columns, apply transforms""",
             metadata_columns = list(project_config.operational_metadata.columns.keys())
             metadata_columns_set = set(metadata_columns)
 
-        # Filter out metadata columns from schema operations
         filtered_column_mapping = {}
         filtered_type_casting = {}
 
-        # Only apply column mapping to non-metadata columns
         for old_col, new_col in schema_config.get("column_mapping", {}).items():
             if old_col not in metadata_columns_set:
                 filtered_column_mapping[old_col] = new_col
 
-        # Only apply type casting to non-metadata columns
         for col, new_type in schema_config.get("type_casting", {}).items():
             if col not in metadata_columns_set:
                 filtered_type_casting[col] = new_type
@@ -164,51 +148,43 @@ enforcement: permissive  # Keep all columns, apply transforms""",
         # Get pass-through columns (only supported in strict mode with arrow format)
         pass_through_columns = schema_config.get("pass_through_columns", [])
 
-        # Build final column list for strict mode (in order)
         final_columns = []
 
         if enforcement == "strict":
-            # Track which columns to include
             columns_to_include = set()
 
-            # Add renamed columns (use target names)
             for _source_col, target_col in filtered_column_mapping.items():
                 columns_to_include.add(target_col)
 
-            # Add cast-only columns (not renamed)
             for col in filtered_type_casting.keys():
                 if col not in filtered_column_mapping.values():
                     # This is a cast-only column, not a renamed column
                     columns_to_include.add(col)
 
-            # Build list of schema-defined columns (these MUST exist)
+            # Schema-defined columns MUST exist
             schema_columns = []
 
-            # First add columns from column_mapping (in their definition order)
             for target_col in filtered_column_mapping.values():
                 if target_col not in schema_columns:
                     schema_columns.append(target_col)
 
-            # Then add cast-only columns (in their definition order)
             for col in filtered_type_casting.keys():
                 if col not in schema_columns:
                     schema_columns.append(col)
 
-            # Finally add pass-through columns (no rename, no cast - just keep them)
             for col in pass_through_columns:
                 if col not in schema_columns:
                     schema_columns.append(col)
 
-            # Store both schema columns and metadata columns separately
             final_columns = (
                 schema_columns  # Schema columns go first (will fail if missing)
             )
-            # Metadata columns will be added conditionally in the template
+            # Metadata columns are added conditionally in the template
 
         template_context = {
             "action_name": action.name,
             "target_view": action.target,
-            "source_view": action.source,  # Now always a simple string
+            "source_view": action.source,
             "readMode": readMode,
             "schema_enforcement": enforcement,
             "type_casting": filtered_type_casting,
@@ -223,24 +199,10 @@ enforcement: permissive  # Keep all columns, apply transforms""",
     def _load_schema_file(
         self, schema_file_path: str, project_root: Path
     ) -> Dict[str, Any]:
-        """Load and parse schema transform file from disk.
-
-        Args:
-            schema_file_path: Path to schema file (relative or absolute).
-            project_root: Project root directory (from context['spec_dir']).
-
-        Returns:
-            Parsed schema configuration dict with column_mapping, type_casting, etc.
-
-        Raises:
-            FileNotFoundError: If schema file doesn't exist.
-            ValueError: If schema format is invalid.
-        """
-        # Use common utility for path resolution
+        """Raises FileNotFoundError if schema file doesn't exist; ValueError if format is invalid."""
         resolved_path = resolve_external_file_path(
             schema_file_path, project_root, file_type="schema file"
         )
 
-        # Parse the schema file
         with perf_timer(f"schema_parse [{schema_file_path}]", category="schema_parse"):
             return self.schema_parser.parse_file(resolved_path)

@@ -378,7 +378,6 @@ _INSTANCES = [
         ),
         id="SubstitutionView",
     ),
-    # --- FREEZE-1 additions -------------------------------------------------
     pytest.param(PhaseStarted(phase="discovery"), id="PhaseStarted"),
     pytest.param(
         PhaseCompleted(phase="generation", duration_s=1.5, success=True),

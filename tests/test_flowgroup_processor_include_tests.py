@@ -25,10 +25,6 @@ from tests.fakes import (
 from tests.helpers import process_unwrap as _process
 from tests.helpers import wrap_in_ctx as _ctx_of
 
-# ============================================================================
-# Fixtures
-# ============================================================================
-
 
 @pytest.fixture
 def processor():
@@ -108,11 +104,6 @@ def test_only_flowgroup():
             ),
         ],
     )
-
-
-# ============================================================================
-# Unit Tests — FlowgroupResolutionService.process_flowgroup
-# ============================================================================
 
 
 @pytest.mark.unit
@@ -241,19 +232,12 @@ class TestProcessFlowgroupIncludeTests:
                 processor, flowgroup, substitution_mgr, include_tests=False
             )
 
-            # Template-generated test action should be filtered out
             action_types = [a.type for a in result.actions]
             assert ActionType.TEST not in action_types
-            # The inline write and template load should remain
             assert len(result.actions) == 2
             action_names = {a.name for a in result.actions}
             assert "template_load" in action_names
             assert "inline_write" in action_names
-
-
-# ============================================================================
-# Integration Tests — Parameter threading through orchestrator
-# ============================================================================
 
 
 @pytest.mark.integration
@@ -294,23 +278,13 @@ actions:
 """)
 
     def test_validate_skips_test_actions_when_false(self, tmp_path):
-        """validate_pipelines(include_tests=False) skips test action errors.
-
-        The per-field ``validate_pipeline_by_field`` shim (which returned a
-        single flat ``(errors, warnings)`` tuple) was consolidated into the
-        plural ``ActionOrchestrator.validate_pipelines`` (keyword-scoped via
-        ``pipeline_filter``), which returns one ``PipelineValidationOutcome``
-        per pipeline. That DTO carries a single ``issues`` tuple of
-        ``ValidationIssueRecord``s (each holding either a live ``LHPError`` —
-        e.g. a config/action ``LHP-VAL-007`` — or a plain string), so the
-        legacy two-channel assertion collapses to one over ``issues``.
-        """
+        """validate_pipelines(include_tests=False) skips test action errors."""
         from lhp.core.coordination.layers import build_facade_orchestrator
 
         self._create_project_with_invalid_test(tmp_path)
         orchestrator = build_facade_orchestrator(tmp_path)
 
-        # ``validate_pipelines`` is now an outcome GENERATOR (E4); drain it.
+        # ``validate_pipelines`` is a generator; drain it.
         outcomes = list(
             orchestrator.validate_pipelines(
                 pipeline_filter="test_pipeline", env="dev", include_tests=False
@@ -322,17 +296,13 @@ actions:
         )
 
     def test_validate_catches_test_actions_when_true(self, tmp_path):
-        """validate_pipelines(include_tests=True) catches test action errors.
-
-        Uses a separate orchestrator to avoid shared-state issues with
-        discover_all_flowgroups caching.
-        """
+        """Separate orchestrator instance — avoids shared-state from discover_all_flowgroups caching."""
         from lhp.core.coordination.layers import build_facade_orchestrator
 
         self._create_project_with_invalid_test(tmp_path)
         orchestrator = build_facade_orchestrator(tmp_path)
 
-        # ``validate_pipelines`` is now an outcome GENERATOR (E4); drain it.
+        # ``validate_pipelines`` is a generator; drain it.
         outcomes = list(
             orchestrator.validate_pipelines(
                 pipeline_filter="test_pipeline", env="dev", include_tests=True
@@ -348,14 +318,8 @@ actions:
     def test_validate_passes_include_tests_through_chain(self, monkeypatch):
         """Worker forwards include_tests to processor.process_flowgroup.
 
-        The system under test is the consolidated single-wave worker
-        (:func:`._flowgroup_pool._process_one_flowgroup`). The worker reads its
-        collaborators from the module-global ``_flowgroup_state`` (populated by
-        ``_init_flowgroup_worker`` in a spawned worker); here we set that global
-        directly to a :class:`_FlowgroupWorkerState` wrapping picklable fakes,
-        run the worker in-process in ``validate`` mode, and assert it threaded
-        ``include_tests`` (carried on the state) onto
-        ``processor.process_flowgroup``.
+        ``_flowgroup_state`` is a module-global populated by ``_init_flowgroup_worker``
+        in spawned workers; monkeypatching it lets us run the worker in-process.
         """
         from lhp.core.coordination import _flowgroup_pool as fp
         from lhp.core.coordination._flowgroup_pool import (
@@ -388,10 +352,8 @@ actions:
 
         outcome = _process_one_flowgroup(_ctx_of(fg), mode="validate")
 
-        # Worker did not raise and ran the resolver exactly once.
         assert outcome.success is True
         assert len(fake_processor.calls) == 1
-        # include_tests (from the worker state) threaded onto the resolver call.
         assert fake_processor.calls[0].kwargs.get("include_tests") is False
 
 

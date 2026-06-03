@@ -24,10 +24,7 @@ def _make_flowgroup_view(
     pipeline: str = "pipeline1",
     job_name=None,
 ) -> FlowgroupView:
-    """Build a minimal :class:`FlowgroupView` for tests.
-
-    Mirrors the public DTO shape declared in ``lhp.api.views``.
-    """
+    """Mirrors the public DTO shape declared in ``lhp.api.views``."""
 
     return FlowgroupView(
         name=name,
@@ -54,10 +51,7 @@ class TestDependenciesCommand:
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def create_mock_analysis_result(self) -> DependencyAnalysisResult:
-        """Build a frozen :class:`DependencyAnalysisResult` test fixture.
-
-        Mirrors the public-API DTO shape (tuple-based, no graph object).
-        """
+        """Public-API DTO shape (tuple-based, no graph object)."""
         return DependencyAnalysisResult(
             pipeline_dependencies={
                 "pipeline1": (),

@@ -1,11 +1,7 @@
 """§5.7 progress-stream invariants for ``ValidationFacade.validate_pipelines``.
 
-E4 made the validate facade emit the full §5.7 event stream end-to-end,
-consuming the outcome-generator threaded facade ← orchestrator ← executor
-(mirroring the generate side from E3). This module pins the ordering / pairing
-invariants of that stream on a REAL multi-pipeline project (no mocks — the
-engine and the report-only fold are the production drivers; only the spawn pool
-is the real ``ProcessPoolExecutor``):
+Pins the ordering / pairing invariants on a REAL multi-pipeline project (no
+mocks — the engine and the report-only fold are the production drivers):
 
 1. :class:`OperationStarted` is the FIRST event (§5.7).
 2. Every :class:`PhaseStarted` is paired with a :class:`PhaseCompleted` of the
@@ -22,10 +18,6 @@ is the real ``ProcessPoolExecutor``):
 5. The terminal :class:`ValidationCompleted` is LAST and carries a
    :class:`BatchValidationResponse` (success ``False`` when any pipeline had
    findings — REPORTED, not raised).
-
-Rigorous cross-checks (the exhaustive abort-path parity with generate) are task
-E5; this module covers the behavior E4 implements (full pairing on a mixed
-clean/failing batch + the report-only no-raise terminal).
 
 Tests import strictly from :mod:`lhp.api` — no internal modules.
 """
@@ -106,7 +98,6 @@ def _write_pipeline(
 
 
 def _project(tmp_path: Path, pipelines: dict[str, bool]) -> Path:
-    """Write a minimal project. ``pipelines`` maps pipeline name → ``dup`` flag."""
     project_root = tmp_path / "proj"
     for sub in ("presets", "templates", "substitutions"):
         (project_root / sub).mkdir(parents=True, exist_ok=True)
@@ -129,7 +120,6 @@ def _project(tmp_path: Path, pipelines: dict[str, bool]) -> Path:
 
 @pytest.fixture
 def facade_in(tmp_path: Path):
-    """Return a builder that writes a project and yields the facade."""
     created: list[str] = []
 
     def _build(pipelines: dict[str, bool]):
@@ -162,9 +152,7 @@ def _assert_no_dangling_pipeline_starts(events: list) -> None:
     starts = [e for e in events if isinstance(e, PipelineStarted)]
     completed = [e for e in events if isinstance(e, PipelineCompleted)]
     failed = [e for e in events if isinstance(e, PipelineFailed)]
-    # Load-bearing invariant.
     assert len(starts) == len(completed) + len(failed)
-    # Walk: every Start is immediately paired with a terminal for that pipeline.
     i = 0
     while i < len(events):
         ev = events[i]
@@ -277,10 +265,9 @@ class TestValidateProgressStream:
         assert response.success is False
 
     def test_discover_phase_performs_discovery_in_facade(self, facade_in):
-        """D3: with NO pre-discovered set, the discover phase performs
-        project-wide discovery ITSELF via the orchestrator's existing
-        ``bootstrap.discover_all_flowgroups`` surface (the GAP E4 left). The
-        discover phase pair is emitted and discovery is actually invoked."""
+        """With NO pre-discovered set, the discover phase performs project-wide
+        discovery via ``bootstrap.discover_all_flowgroups``. The discover phase
+        pair is emitted and discovery is actually invoked."""
         facade = facade_in({"p_one": False, "p_two": False})
 
         # Spy on the existing project-wide discovery surface the facade now
@@ -320,10 +307,10 @@ class TestValidateProgressStream:
         assert events[-1].response.success is True
 
     def test_pre_discovered_set_adopted_verbatim_no_double_discovery(self, facade_in):
-        """D3 reconciliation: a caller-supplied ``pre_discovered_all_flowgroups``
-        is adopted VERBATIM — the facade does NOT re-discover (no double scan) —
-        and the stream is identical (discover/preflight/validate phases, paired
-        per-pipeline terminals, terminal ``ValidationCompleted``)."""
+        """A caller-supplied ``pre_discovered_all_flowgroups`` is adopted VERBATIM
+        — the facade does NOT re-discover (no double scan) — and the stream is
+        identical (discover/preflight/validate phases, paired per-pipeline
+        terminals, terminal ``ValidationCompleted``)."""
         facade = facade_in({"p_one": False, "p_two": False})
 
         # Resolve the set once up front, then hand it back in as the
@@ -356,7 +343,6 @@ class TestValidateProgressStream:
         # discovery surface again (memoization aside, the pre-discovered branch
         # must not even reach it).
         assert calls == [], "facade re-discovered despite a supplied pre_discovered set"
-        # Stream shape is unchanged: phases paired + in order, terminal present.
         _assert_phase_pairs(events)
         assert [e.phase for e in events if isinstance(e, PhaseStarted)] == [
             "discover",

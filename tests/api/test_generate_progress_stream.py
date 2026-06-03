@@ -1,17 +1,13 @@
 """§5.7 progress-stream invariants for ``GenerationFacade.generate_pipelines``.
 
-E3 made the generate facade emit the full §5.7 event stream end-to-end,
-consuming the delta-generator threaded facade ← orchestrator ← executor. This
-module pins the ordering / pairing invariants of that stream on a REAL
+Pins the ordering / pairing invariants of the §5.7 event stream on a REAL
 multi-pipeline project (no mocks — the engine, gate and commit are the
-production drivers; only the spawn pool is the real ``ProcessPoolExecutor``):
+production drivers; the spawn pool is the real ``ProcessPoolExecutor``):
 
 1. :class:`OperationStarted` is the FIRST event (§5.7).
 2. Every :class:`PhaseStarted` is paired with a :class:`PhaseCompleted` of the
    same ``phase`` (``discover`` / ``preflight`` / ``generate`` / ``monitoring``,
-   plus ``bundle_sync`` when bundle is enabled), in that order. D-generate
-   consolidated discover, monitoring-finalize and bundle-sync into this one
-   stream as in-stream phases.
+   plus ``bundle_sync`` when bundle is enabled), in that order.
 3. Each pipeline emits a :class:`PipelineStarted` IMMEDIATELY followed by
    exactly ONE terminal — :class:`PipelineCompleted` (success) or
    :class:`PipelineFailed` (failure). No dangling Starts.
@@ -20,10 +16,6 @@ production drivers; only the spawn pool is the real ``ProcessPoolExecutor``):
    holds on BOTH the success path and the gate-abort path.
 5. On success the terminal :class:`GenerationCompleted` is LAST and the files
    are actually written to disk.
-
-The exhaustive abort-path no-dangling-Starts test is task E5; this module
-covers the behavior E3 implements (success pairing + a smoke check that the
-abort path emits paired Started/Failed with no dangling Starts).
 
 Tests import strictly from :mod:`lhp.api` and :mod:`lhp.errors` — no internal
 modules.
@@ -196,17 +188,15 @@ class TestGenerateProgressStreamSuccess:
             )
         )
 
-        # 1. OperationStarted is first.
         assert isinstance(events[0], OperationStarted)
         assert events[0].operation_name == "generate_pipelines"
         assert events[0].env == "dev"
 
-        # 2. Paired phases. The full generate orchestration consolidates
-        # discover → preflight → generate → monitoring into the one stream
-        # (D-generate). The monitoring phase always runs on a successful
-        # non-dry-run generate (the absorbed finalize is a no-op when monitoring
-        # is not configured, as here); ``bundle_sync`` is absent because this
-        # project is not bundle-enabled.
+        # Paired phases. The full generate orchestration consolidates
+        # discover → preflight → generate → monitoring into the one stream.
+        # The monitoring phase always runs on a successful non-dry-run generate
+        # (no-op when monitoring is not configured, as here); ``bundle_sync``
+        # is absent because this project is not bundle-enabled.
         _assert_phase_pairs(events)
         assert [e.phase for e in events if isinstance(e, PhaseStarted)] == [
             "discover",
@@ -215,14 +205,12 @@ class TestGenerateProgressStreamSuccess:
             "monitoring",
         ]
 
-        # 3 + 4. Per-pipeline pairing + count invariant, one Completed each.
         _assert_no_dangling_pipeline_starts(events)
         completed = [e for e in events if isinstance(e, PipelineCompleted)]
         assert sorted(e.pipeline for e in completed) == ["p_one", "p_two"]
         assert all(isinstance(e.files_written, int) for e in completed)
         assert not any(isinstance(e, PipelineFailed) for e in events)
 
-        # 5. Terminal GenerationCompleted is LAST and carries a success batch.
         assert isinstance(events[-1], GenerationCompleted)
         assert isinstance(events[-1].response, BatchGenerationResponse)
         assert events[-1].response.success is True
@@ -242,7 +230,6 @@ class TestGenerateProgressStreamSuccess:
                 pipeline_fields=["a_p", "b_p"], env="dev", output_dir=output_dir
             )
         )
-        # Reduce to the per-pipeline subsequence and check strict Start→terminal.
         per_pipeline = [
             e
             for e in events

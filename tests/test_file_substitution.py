@@ -46,13 +46,6 @@ class TestSnapshotCDCFunctionSubstitution:
         }
 
     def test_snapshot_cdc_function_copy_and_import_contract(self):
-        """A function file is imported (not inlined) under a _snap_ alias.
-
-        Previously this test asserted that ``{catalog}``/``{bronze_schema}``
-        tokens were substituted into the inlined function body. Body inlining
-        is gone; the contract now is: the module is imported under
-        ``_snap_<stem>`` and ``source=`` references that alias.
-        """
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write("""from typing import Optional, Tuple
 from pyspark.sql import DataFrame
@@ -122,15 +115,6 @@ def next_snapshot_and_version(latest_snapshot_version: Optional[int]) -> Optiona
             Path(function_file).unlink()
 
     def test_snapshot_cdc_function_secret_body_not_inlined(self):
-        """A function body containing ${secret:...} is imported, not inlined.
-
-        Previously this test asserted ``__SECRET_..._`` placeholders appeared
-        in the generated code (proving body substitution). On the dry-run
-        copy path the body is not processed, so no body-derived placeholders
-        or secret tracking occur here; that coverage now lives in the
-        copier-level tests. This test verifies only that the body is imported,
-        not inlined or substituted.
-        """
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write("""from typing import Optional, Tuple
 from pyspark.sql import DataFrame
@@ -200,12 +184,6 @@ def next_snapshot_with_secrets(latest_version: Optional[int]) -> Optional[Tuple[
             Path(function_file).unlink()
 
     def test_snapshot_cdc_function_mixed_body_not_inlined(self):
-        """A body mixing tokens and secrets is imported, not inlined.
-
-        Previously asserted both token substitution and ``__SECRET_..._``
-        placeholders in the body. Body processing no longer happens on this
-        path; this test verifies the import/alias/no-inline contract.
-        """
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write("""from typing import Optional, Tuple
 from pyspark.sql import DataFrame
@@ -280,12 +258,6 @@ def next_snapshot_mixed(latest_version: Optional[int]) -> Optional[Tuple[DataFra
             Path(function_file).unlink()
 
     def test_snapshot_cdc_function_no_substitution_backward_compatibility(self):
-        """A function with no substitution variables is imported, not inlined.
-
-        Previously asserted the original body text survived inline. The body
-        is no longer inlined; the contract is import-under-alias plus the
-        snapshot flow call.
-        """
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write("""from typing import Optional, Tuple
 from pyspark.sql import DataFrame
@@ -355,7 +327,6 @@ class TestSQLFileSubstitution:
 
     def test_sql_load_generator_token_substitution(self):
         """Test {token} substitution in SQL load files."""
-        # Create a temporary SQL file with substitution variables
         with tempfile.NamedTemporaryFile(mode="w", suffix=".sql", delete=False) as f:
             f.write("""
             SELECT
@@ -370,7 +341,6 @@ class TestSQLFileSubstitution:
             """)
             sql_file = f.name
 
-        # Create substitution manager with test values
         substitution_mgr = EnhancedSubstitutionManager()
         substitution_mgr.mappings.update(
             {
@@ -381,7 +351,6 @@ class TestSQLFileSubstitution:
             }
         )
 
-        # Create SQL load action
         action = Action(
             name="load_customers_sql",
             type=ActionType.LOAD,
@@ -389,7 +358,6 @@ class TestSQLFileSubstitution:
             target="v_customers_filtered",
         )
 
-        # Create context with substitution manager
         context = {
             "substitution_manager": substitution_mgr,
             "spec_dir": Path(sql_file).parent,
@@ -399,10 +367,8 @@ class TestSQLFileSubstitution:
         generator = SQLLoadGenerator()
 
         try:
-            # Generate code - this should apply substitutions
             code = generator.generate(action, context)
 
-            # Verify substitutions were applied
             assert "test_catalog.test_bronze.customers" in code, (
                 f"Expected substituted schema in: {code}"
             )
@@ -411,7 +377,6 @@ class TestSQLFileSubstitution:
             )
             assert ">= '2024-01-01'" in code, f"Expected substituted date in: {code}"
 
-            # Verify no unsubstituted tokens remain
             assert "{catalog}" not in code, (
                 f"Unsubstituted {{catalog}} found in: {code}"
             )
@@ -425,18 +390,15 @@ class TestSQLFileSubstitution:
                 f"Unsubstituted {{start_date}} found in: {code}"
             )
 
-            # Verify structure is preserved
             assert "@dp.temporary_view()" in code
             assert "def v_customers_filtered():" in code
             assert "spark.sql" in code
 
         finally:
-            # Clean up temp file
             Path(sql_file).unlink()
 
     def test_sql_transform_generator_token_substitution(self):
         """Test {token} substitution in SQL transform files."""
-        # Create a temporary SQL file with substitution variables
         with tempfile.NamedTemporaryFile(mode="w", suffix=".sql", delete=False) as f:
             f.write("""
             SELECT
@@ -452,7 +414,6 @@ class TestSQLFileSubstitution:
             """)
             sql_file = f.name
 
-        # Create substitution manager with test values
         substitution_mgr = EnhancedSubstitutionManager()
         substitution_mgr.mappings.update(
             {
@@ -462,7 +423,6 @@ class TestSQLFileSubstitution:
             }
         )
 
-        # Create SQL transform action
         action = Action(
             name="transform_customers_clean",
             type=ActionType.TRANSFORM,
@@ -471,7 +431,6 @@ class TestSQLFileSubstitution:
             sql_path=sql_file,
         )
 
-        # Create context with substitution manager
         context = {
             "substitution_manager": substitution_mgr,
             "spec_dir": Path(sql_file).parent,
@@ -481,10 +440,8 @@ class TestSQLFileSubstitution:
         generator = SQLTransformGenerator()
 
         try:
-            # Generate code - this should apply substitutions
             code = generator.generate(action, context)
 
-            # Verify substitutions were applied
             assert "FROM v_customers_staging c" in code, (
                 f"Expected substituted staging view in: {code}"
             )
@@ -495,7 +452,6 @@ class TestSQLFileSubstitution:
                 f"Expected substituted cutoff date in: {code}"
             )
 
-            # Verify no unsubstituted tokens remain
             assert "{staging_view}" not in code, (
                 f"Unsubstituted {{staging_view}} found in: {code}"
             )
@@ -506,13 +462,11 @@ class TestSQLFileSubstitution:
                 f"Unsubstituted {{cutoff_date}} found in: {code}"
             )
 
-            # Verify structure is preserved
             assert "@dp.temporary_view(" in code  # Allow for comment parameter
             assert "def v_customers_clean():" in code
             assert "spark.sql" in code
 
         finally:
-            # Clean up temp file
             Path(sql_file).unlink()
 
     def test_sql_file_secret_substitution(self):
@@ -523,7 +477,6 @@ class TestSQLFileSubstitution:
         bare-call vs. f-string emission once the full flowgroup code is
         assembled.
         """
-        # Create a temporary SQL file with secret references
         with tempfile.NamedTemporaryFile(mode="w", suffix=".sql", delete=False) as f:
             f.write("""
             SELECT
@@ -536,12 +489,10 @@ class TestSQLFileSubstitution:
             """)
             sql_file = f.name
 
-        # Create substitution manager with secret configuration
         substitution_mgr = EnhancedSubstitutionManager()
         substitution_mgr.mappings.update({"catalog": "prod_catalog"})
         substitution_mgr.default_secret_scope = "env_config"
 
-        # Create SQL load action
         action = Action(
             name="load_customers_with_secrets",
             type=ActionType.LOAD,
@@ -549,7 +500,6 @@ class TestSQLFileSubstitution:
             target="v_customers_with_secrets",
         )
 
-        # Create context with substitution manager
         context = {
             "substitution_manager": substitution_mgr,
             "spec_dir": Path(sql_file).parent,
@@ -559,10 +509,8 @@ class TestSQLFileSubstitution:
         generator = SQLLoadGenerator()
 
         try:
-            # Generate code - this applies substitution but not the post-pass
             code = generator.generate(action, context)
 
-            # Verify token substitutions
             assert "prod_catalog.bronze.customers" in code, (
                 f"Expected token substitution in: {code}"
             )
@@ -593,18 +541,15 @@ class TestSQLFileSubstitution:
             # Bare dbutils calls only after the post-pass.
             assert "dbutils.secrets.get" not in code
 
-            # Verify secret references were tracked
             assert len(substitution_mgr.secret_references) > 0, (
                 "Expected secret references to be tracked"
             )
 
         finally:
-            # Clean up temp file
             Path(sql_file).unlink()
 
     def test_sql_file_no_substitution_backward_compatibility(self):
         """Test that SQL files without substitution variables work unchanged."""
-        # Create a SQL file without any substitution variables
         with tempfile.NamedTemporaryFile(mode="w", suffix=".sql", delete=False) as f:
             f.write("""
             SELECT
@@ -619,13 +564,11 @@ class TestSQLFileSubstitution:
             """)
             sql_file = f.name
 
-        # Create substitution manager (but SQL doesn't use it)
         substitution_mgr = EnhancedSubstitutionManager()
         substitution_mgr.mappings.update(
             {"catalog": "test_catalog", "schema": "test_schema"}
         )
 
-        # Create SQL load action
         action = Action(
             name="load_customers_plain",
             type=ActionType.LOAD,
@@ -633,7 +576,6 @@ class TestSQLFileSubstitution:
             target="v_customers_plain",
         )
 
-        # Create context with substitution manager
         context = {
             "substitution_manager": substitution_mgr,
             "spec_dir": Path(sql_file).parent,
@@ -643,23 +585,19 @@ class TestSQLFileSubstitution:
         generator = SQLLoadGenerator()
 
         try:
-            # Generate code
             code = generator.generate(action, context)
 
-            # Verify original content is preserved exactly
             assert "raw.customers" in code, f"Expected original table name in: {code}"
             assert "'production' as environment" in code, (
                 f"Expected original environment in: {code}"
             )
             assert ">= '2024-01-01'" in code, f"Expected original date in: {code}"
 
-            # Verify structure is preserved
             assert "@dp.temporary_view()" in code
             assert "def v_customers_plain():" in code
             assert "spark.sql" in code
 
         finally:
-            # Clean up temp file
             Path(sql_file).unlink()
 
 
@@ -668,7 +606,6 @@ class TestPythonFileSubstitution:
 
     def test_python_transform_file_token_substitution(self):
         """Test {token} substitution in Python transform files."""
-        # Create a temporary Python file with substitution variables
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write("""
 from pyspark.sql import DataFrame
@@ -692,7 +629,6 @@ def enrich_customers(df: DataFrame, spark, parameters) -> DataFrame:
 """)
             python_file = f.name
 
-        # Create substitution manager with test values
         substitution_mgr = EnhancedSubstitutionManager()
         substitution_mgr.mappings.update(
             {
@@ -702,7 +638,6 @@ def enrich_customers(df: DataFrame, spark, parameters) -> DataFrame:
             }
         )
 
-        # Create Python transform action
         action = Action(
             name="transform_enrich_customers",
             type=ActionType.TRANSFORM,
@@ -713,7 +648,6 @@ def enrich_customers(df: DataFrame, spark, parameters) -> DataFrame:
             parameters={"param1": "value1"},
         )
 
-        # Create context with substitution manager
         context = {
             "substitution_manager": substitution_mgr,
             "spec_dir": Path(python_file).parent,
@@ -729,10 +663,8 @@ def enrich_customers(df: DataFrame, spark, parameters) -> DataFrame:
         generator = PythonTransformGenerator()
 
         try:
-            # Generate code - this should apply substitutions to the copied file
             code = generator.generate(action, context)
 
-            # The generated code should have the view function
             assert "def v_customers_enriched():" in code, (
                 f"Expected view function in: {code}"
             )
@@ -740,20 +672,17 @@ def enrich_customers(df: DataFrame, spark, parameters) -> DataFrame:
                 f"Expected function call in: {code}"
             )
 
-            # Check that the copied file has substitutions applied
             copied_file = (
                 context["output_dir"]
                 / "custom_python_functions"
                 / f"{Path(python_file).stem}.py"
             )
 
-            # Verify the file was copied and substitutions applied
             assert copied_file.exists(), (
                 f"Expected copied file to exist at: {copied_file}"
             )
             copied_content = copied_file.read_text()
 
-            # Verify substitutions were applied in the copied file
             assert 'lit("dev")' in copied_content, (
                 f"Expected substituted environment in copied file: {copied_content}"
             )
@@ -767,7 +696,6 @@ def enrich_customers(df: DataFrame, spark, parameters) -> DataFrame:
                 f"Expected substituted condition in copied file: {copied_content}"
             )
 
-            # Verify no unsubstituted tokens remain
             assert '"{environment}"' not in copied_content, (
                 "Unsubstituted {environment} found in copied file"
             )
@@ -779,9 +707,7 @@ def enrich_customers(df: DataFrame, spark, parameters) -> DataFrame:
             )
 
         finally:
-            # Clean up temp files
             Path(python_file).unlink()
-            # Clean up output directory if it exists
             if context["output_dir"].exists():
                 import shutil
 
@@ -797,7 +723,6 @@ def enrich_customers(df: DataFrame, spark, parameters) -> DataFrame:
         """
         from lhp.models import FlowGroup
 
-        # Create a custom datasource source file with substitution tokens.
         source_file = tmp_path / "api_source.py"
         source_file.write_text("""
 from pyspark.sql import DataFrame
@@ -828,7 +753,6 @@ class APIDataSource:
         return df
 """)
 
-        # Create substitution manager with test values
         substitution_mgr = EnhancedSubstitutionManager()
         substitution_mgr.mappings.update(
             {

@@ -34,22 +34,7 @@ from lhp.utils.file_header import helper_header_path, write_normalized
 def test_helper_header_path_renders_posix_separators_on_windows_host(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The header path is forward-slash even when the host ``Path`` is Windows.
-
-    The helper composes ``Path(module_path).parent / rel_path``. On a Windows
-    host ``Path`` is ``WindowsPath`` and ``str(...)`` of that composition yields
-    backslash separators; the fix routes the result through ``.as_posix()`` so
-    the emitted ``# LHP-SOURCE:`` header is byte-identical across platforms.
-
-    macOS cannot instantiate a ``WindowsPath``, and a ``PosixPath`` join
-    re-homes a ``PureWindowsPath`` tail into POSIX form -- so calling the helper
-    directly on macOS renders forward slashes under *both* the fixed
-    ``.as_posix()`` and the pre-fix ``str()``, making a direct call a tautology
-    that proves nothing. Rebinding the module's ``Path`` to ``PureWindowsPath``
-    simulates the Windows host: under the pre-fix ``str()`` body the result
-    would contain backslashes (this assertion would go red); the fixed
-    ``.as_posix()`` body keeps it forward-slash (green).
-    """
+    """Rebinding Path to PureWindowsPath simulates a Windows host without re-running on Windows."""
     monkeypatch.setattr(file_header, "Path", PureWindowsPath)
 
     result = helper_header_path(
@@ -71,7 +56,6 @@ def test_helper_header_path_renders_posix_separators_on_windows_host(
 
 @pytest.mark.unit
 def test_helper_header_path_posix_rel_path_unchanged() -> None:
-    """A plain POSIX ``rel_path`` joins under the entry's directory verbatim."""
     result = helper_header_path("py_functions/entry.py", Path("a/b/c.py"))
 
     assert result == "py_functions/a/b/c.py"
@@ -80,12 +64,10 @@ def test_helper_header_path_posix_rel_path_unchanged() -> None:
 
 @pytest.mark.unit
 def test_write_normalized_converts_crlf_and_strips_trailing_ws(tmp_path: Path) -> None:
-    """CRLF / CR line endings collapse to ``\\n`` and trailing whitespace drops."""
     target = tmp_path / "out.py"
 
     write_normalized(target, "a = 1   \r\nb = 2\t\rc = 3")
 
-    # Read raw bytes so the on-disk line endings are asserted exactly.
     raw = target.read_bytes()
     assert b"\r" not in raw
     assert raw == b"a = 1\nb = 2\nc = 3\n"

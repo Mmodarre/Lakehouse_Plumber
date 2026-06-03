@@ -1,9 +1,4 @@
-"""
-Tests for bundle detection logic.
-
-Tests the core logic that determines when bundle support should be enabled
-based on project structure and CLI flags.
-"""
+"""Tests for bundle detection logic."""
 
 import shutil
 import tempfile
@@ -16,21 +11,16 @@ from lhp.bundle.detection import is_databricks_yml_present, should_enable_bundle
 
 
 class TestBundleDetection:
-    """Test suite for bundle detection functionality."""
-
     def setup_method(self):
-        """Set up test environment for each test."""
         self.temp_dir = Path(tempfile.mkdtemp())
         self.project_root = self.temp_dir / "test_project"
         self.project_root.mkdir()
 
     def teardown_method(self):
-        """Clean up test environment after each test."""
         shutil.rmtree(self.temp_dir)
 
     def test_bundle_detection_with_databricks_yml_exists(self):
         """Should return True when databricks.yml exists and no CLI override."""
-        # Create databricks.yml file
         (self.project_root / "databricks.yml").write_text("bundle:\n  name: test")
 
         result = should_enable_bundle_support(self.project_root, cli_no_bundle=False)
@@ -38,7 +28,6 @@ class TestBundleDetection:
 
     def test_bundle_detection_without_databricks_yml(self):
         """Should return False when databricks.yml doesn't exist."""
-        # Ensure no databricks.yml exists
         assert not (self.project_root / "databricks.yml").exists()
 
         result = should_enable_bundle_support(self.project_root, cli_no_bundle=False)
@@ -46,7 +35,6 @@ class TestBundleDetection:
 
     def test_bundle_detection_cli_no_bundle_override_true(self):
         """Should return False when --no-bundle flag is set, even if databricks.yml exists."""
-        # Create databricks.yml file
         (self.project_root / "databricks.yml").write_text("bundle:\n  name: test")
 
         result = should_enable_bundle_support(self.project_root, cli_no_bundle=True)
@@ -54,7 +42,6 @@ class TestBundleDetection:
 
     def test_bundle_detection_cli_no_bundle_false_with_databricks_yml(self):
         """Should use databricks.yml detection when --no-bundle is False."""
-        # Create databricks.yml file
         (self.project_root / "databricks.yml").write_text("bundle:\n  name: test")
 
         result = should_enable_bundle_support(self.project_root, cli_no_bundle=False)
@@ -62,7 +49,6 @@ class TestBundleDetection:
 
     def test_bundle_detection_cli_no_bundle_false_without_databricks_yml(self):
         """Should return False when --no-bundle is False but no databricks.yml exists."""
-        # Ensure no databricks.yml exists
         assert not (self.project_root / "databricks.yml").exists()
 
         result = should_enable_bundle_support(self.project_root, cli_no_bundle=False)
@@ -70,7 +56,6 @@ class TestBundleDetection:
 
     def test_bundle_detection_with_empty_databricks_yml(self):
         """Should return True even if databricks.yml exists but is empty (existence check only)."""
-        # Create empty databricks.yml file
         (self.project_root / "databricks.yml").write_text("")
 
         result = should_enable_bundle_support(self.project_root, cli_no_bundle=False)
@@ -78,7 +63,6 @@ class TestBundleDetection:
 
     def test_bundle_detection_with_malformed_databricks_yml(self):
         """Should return True even if databricks.yml exists but has invalid YAML."""
-        # Create malformed databricks.yml file
         (self.project_root / "databricks.yml").write_text(
             "invalid: yaml: content:\n  - malformed"
         )
@@ -88,10 +72,8 @@ class TestBundleDetection:
 
     def test_bundle_detection_default_cli_no_bundle_parameter(self):
         """Should use default False for cli_no_bundle parameter."""
-        # Create databricks.yml file
         (self.project_root / "databricks.yml").write_text("bundle:\n  name: test")
 
-        # Call without cli_no_bundle parameter (should default to False)
         result = should_enable_bundle_support(self.project_root)
         assert result is True
 
@@ -104,11 +86,9 @@ class TestBundleDetection:
 
     def test_bundle_detection_with_permission_denied(self):
         """Should handle permission denied errors gracefully."""
-        # Create databricks.yml file
         databricks_file = self.project_root / "databricks.yml"
         databricks_file.write_text("bundle:\n  name: test")
 
-        # Mock file access to raise PermissionError
         with patch(
             "pathlib.Path.exists", side_effect=PermissionError("Permission denied")
         ):
@@ -119,7 +99,6 @@ class TestBundleDetection:
 
     def test_is_databricks_yml_present_when_exists(self):
         """Should return True when databricks.yml exists."""
-        # Create databricks.yml file
         (self.project_root / "databricks.yml").write_text("bundle:\n  name: test")
 
         result = is_databricks_yml_present(self.project_root)
@@ -127,7 +106,6 @@ class TestBundleDetection:
 
     def test_is_databricks_yml_present_when_not_exists(self):
         """Should return False when databricks.yml doesn't exist."""
-        # Ensure no databricks.yml exists
         assert not (self.project_root / "databricks.yml").exists()
 
         result = is_databricks_yml_present(self.project_root)
@@ -135,7 +113,6 @@ class TestBundleDetection:
 
     def test_is_databricks_yml_present_with_directory_as_databricks_yml(self):
         """Should return False when databricks.yml is a directory instead of file."""
-        # Create databricks.yml as directory
         (self.project_root / "databricks.yml").mkdir()
 
         result = is_databricks_yml_present(self.project_root)
@@ -165,7 +142,6 @@ class TestBundleDetection:
 
     def test_bundle_detection_with_yaml_extension(self):
         """Should not detect databricks.yaml (only .yml extension)."""
-        # Create databricks.yaml (different extension)
         (self.project_root / "databricks.yaml").write_text("bundle:\n  name: test")
 
         result = should_enable_bundle_support(self.project_root, cli_no_bundle=False)
@@ -173,10 +149,8 @@ class TestBundleDetection:
 
     def test_bundle_detection_priority_order(self):
         """Should test the priority order: CLI override > databricks.yml existence."""
-        # Create databricks.yml file
         (self.project_root / "databricks.yml").write_text("bundle:\n  name: test")
 
-        # Test CLI override takes precedence
         assert (
             should_enable_bundle_support(self.project_root, cli_no_bundle=True) is False
         )
@@ -186,11 +160,9 @@ class TestBundleDetection:
 
     def test_bundle_detection_with_symbolic_link(self):
         """Should handle symbolic links to databricks.yml correctly."""
-        # Create actual databricks.yml file
         actual_file = self.temp_dir / "actual_databricks.yml"
         actual_file.write_text("bundle:\n  name: test")
 
-        # Create symbolic link
         link_file = self.project_root / "databricks.yml"
         try:
             link_file.symlink_to(actual_file)
@@ -208,13 +180,11 @@ class TestBundleDetectionEdgeCases:
     """Test edge cases and error conditions for bundle detection."""
 
     def setup_method(self):
-        """Set up test environment for each test."""
         self.temp_dir = Path(tempfile.mkdtemp())
         self.project_root = self.temp_dir / "test_project"
         self.project_root.mkdir()
 
     def teardown_method(self):
-        """Clean up test environment after each test."""
         shutil.rmtree(self.temp_dir)
 
     def test_bundle_detection_with_none_project_root(self):
@@ -226,10 +196,8 @@ class TestBundleDetectionEdgeCases:
 
     def test_bundle_detection_with_string_project_root(self):
         """Should handle string project root by converting to Path."""
-        # Create databricks.yml file
         (self.project_root / "databricks.yml").write_text("bundle:\n  name: test")
 
-        # Pass string instead of Path object
         result = should_enable_bundle_support(
             str(self.project_root), cli_no_bundle=False
         )
@@ -237,10 +205,8 @@ class TestBundleDetectionEdgeCases:
 
     def test_bundle_detection_with_relative_path(self):
         """Should handle relative paths correctly."""
-        # Create databricks.yml file
         (self.project_root / "databricks.yml").write_text("bundle:\n  name: test")
 
-        # Change to parent directory and use relative path
         import os
 
         original_cwd = os.getcwd()
@@ -261,7 +227,6 @@ class TestBundleDetectionEdgeCases:
         results = []
 
         def check_bundle_detection():
-            # Create databricks.yml file
             (self.project_root / "databricks.yml").write_text("bundle:\n  name: test")
             time.sleep(0.01)  # Small delay to simulate concurrent access
             result = should_enable_bundle_support(
@@ -269,17 +234,14 @@ class TestBundleDetectionEdgeCases:
             )
             results.append(result)
 
-        # Run multiple threads
         threads = []
         for _ in range(5):
             thread = threading.Thread(target=check_bundle_detection)
             threads.append(thread)
             thread.start()
 
-        # Wait for all threads to complete
         for thread in threads:
             thread.join()
 
-        # All results should be True
         assert all(results)
         assert len(results) == 5

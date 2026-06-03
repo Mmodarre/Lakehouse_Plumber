@@ -19,12 +19,6 @@ class SubstitutionFactory(ABC):
 
     @abstractmethod
     def create(self, substitution_file: Path, env: str) -> EnhancedSubstitutionManager:
-        """Create a substitution manager for the given environment.
-
-        :param substitution_file: Path to substitution YAML file
-        :param env: Environment name
-        :returns: EnhancedSubstitutionManager instance
-        """
         raise NotImplementedError
 
 
@@ -32,7 +26,6 @@ class DefaultSubstitutionFactory(SubstitutionFactory):
     """Default implementation of :class:`SubstitutionFactory`."""
 
     def create(self, substitution_file: Path, env: str) -> EnhancedSubstitutionManager:
-        """Create default substitution manager."""
         return EnhancedSubstitutionManager(substitution_file, env)
 
 
@@ -47,5 +40,4 @@ class OrchestrationDependencies:
     def create_substitution_manager(
         self, substitution_file: Path, env: str
     ) -> EnhancedSubstitutionManager:
-        """Create substitution manager using factory."""
         return self.substitution_factory.create(substitution_file, env)

@@ -68,14 +68,7 @@ class _UnformattedCodeGenerator:
 
 
 def _patch_worker_state_with_unformatted_codegen(monkeypatch) -> None:
-    """Make the generate worker emit valid-but-unformatted Python for ONE fg.
-
-    Wraps the real ``code_generator`` on the (frozen) ``_FlowgroupWorkerState``
-    in :class:`_UnformattedCodeGenerator`, exactly as
-    :func:`_patch_worker_state_with_cfg031_codegen` does for the invalid-source
-    case. The state — wrapped generator included — is what the engine pickles to
-    each spawned worker.
-    """
+    """Wraps the worker's code_generator in _UnformattedCodeGenerator; the wrapped state is pickled to each spawned worker."""
     from lhp.core.coordination.orchestrator import ActionOrchestrator
 
     original = ActionOrchestrator._build_generate_worker_state
@@ -90,13 +83,7 @@ def _patch_worker_state_with_unformatted_codegen(monkeypatch) -> None:
 
 
 def _build_marked_unformatted_project(project_root: Path) -> None:
-    """One pipeline whose generated source is corrupted into unformatted Python.
-
-    Reuses :func:`_build_multipipeline_project` for the project scaffold, then
-    adds a flowgroup whose write-target table name carries
-    :data:`_CFG031_MARKER`, so :class:`_UnformattedCodeGenerator` singles it out
-    and replaces its generated source with :data:`_UNFORMATTED_SOURCE`.
-    """
+    """Flowgroup whose write-target table name carries _CFG031_MARKER so _UnformattedCodeGenerator replaces its source with _UNFORMATTED_SOURCE."""
     _build_multipipeline_project(project_root, [])
     fg_dir = project_root / "pipelines" / "p_unfmt"
     fg_dir.mkdir(parents=True)
@@ -133,7 +120,6 @@ def _build_marked_unformatted_project(project_root: Path) -> None:
 
 
 def _set_apply_formatting_key(project_root: Path, value: bool) -> None:
-    """Rewrite ``lhp.yaml`` to carry an explicit ``apply_formatting`` key."""
     (project_root / "lhp.yaml").write_text(
         f"name: test_no_format_project\nversion: '1.0'\napply_formatting: {str(value).lower()}\n"
     )

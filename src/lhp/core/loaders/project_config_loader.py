@@ -29,8 +29,6 @@ from ._test_reporting_config_parser import parse_test_reporting_config
 
 
 class ProjectConfigLoader:
-    """Loads project configuration from lhp.yaml."""
-
     def __init__(self, project_root: Path):
         self.project_root = project_root
         self.logger = logging.getLogger(__name__)
@@ -102,7 +100,6 @@ class ProjectConfigLoader:
             ) from e
 
     def _parse_project_config(self, config_data: Dict[str, Any]) -> ProjectConfig:
-        """Parse raw configuration data into ProjectConfig model."""
         operational_metadata_config = None
         if "operational_metadata" in config_data:
             operational_metadata_config = parse_operational_metadata_config(

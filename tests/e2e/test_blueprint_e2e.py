@@ -87,10 +87,6 @@ class TestBlueprintE2E:
         self.generated_dir.mkdir(parents=True, exist_ok=True)
         self.resources_dir.mkdir(parents=True, exist_ok=True)
 
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
     def run_bundle_sync(self) -> tuple:
         """Run lhp generate --env dev --pipeline-config ... --force."""
         runner = CliRunner()
@@ -202,10 +198,6 @@ class TestBlueprintE2E:
             or any(f"generated/dev/{p}/" in path for p in self.BP_PIPELINES)
         }
 
-    # ------------------------------------------------------------------
-    # BP-1: Golden path baseline match (subsumes the original BP-2 + BP-5)
-    # ------------------------------------------------------------------
-
     def test_BP1_blueprint_expansion_matches_baseline(self):
         """Blueprint with 2 instances expands to 6 synthetic flowgroups whose
         generated .py and .pipeline.yml output matches baselines byte-for-byte;
@@ -238,10 +230,6 @@ class TestBlueprintE2E:
                     f"{[ln for ln in content.splitlines() if '%{' in ln]}"
                 )
 
-    # ------------------------------------------------------------------
-    # BP-3: Duplicate (pipeline, flowgroup) after expansion
-    # ------------------------------------------------------------------
-
     def test_BP3_duplicate_identity_after_expansion_raises(self):
         """Two instances binding the same site_name produce identical
         synthetic (pipeline, flowgroup) tuples; expander must raise
@@ -263,10 +251,6 @@ class TestBlueprintE2E:
             "Both conflicting instance paths should be reported"
         )
 
-    # ------------------------------------------------------------------
-    # BP-4: Missing required parameter
-    # ------------------------------------------------------------------
-
     def test_BP4_missing_required_parameter_raises(self):
         """Removing the required `domain_id` from an instance must surface
         a parse-time error that names the missing parameter."""
@@ -279,10 +263,6 @@ class TestBlueprintE2E:
         assert "domain_id" in output, (
             f"Error must mention missing parameter 'domain_id'. Got:\n{output[-2000:]}"
         )
-
-    # ------------------------------------------------------------------
-    # BP-6: Editing the blueprint regenerates only synthetic flowgroups
-    # ------------------------------------------------------------------
 
     def test_BP8_env_token_in_identity_rejected(self):
         """`${catalog}` in a blueprint pipeline: field must be rejected by
@@ -305,10 +285,6 @@ class TestBlueprintE2E:
             "Error must reference the env token / identity field. "
             f"Got:\n{output[-2000:]}"
         )
-
-    # ------------------------------------------------------------------
-    # BP-9: lhp deps includes synthetic flowgroups
-    # ------------------------------------------------------------------
 
     def test_BP9_lhp_deps_includes_synthetic_flowgroups(self):
         """`lhp deps` must surface the 3 acme_edw_bp_* pipelines and all 6
@@ -336,10 +312,6 @@ class TestBlueprintE2E:
             assert f"{p}_pipeline" in job_text, (
                 f"Pipeline {p} missing from orchestration job YAML"
             )
-
-    # ------------------------------------------------------------------
-    # BP-10: Explicit-vs-synthetic flowgroup collision
-    # ------------------------------------------------------------------
 
     def test_BP10_explicit_vs_synthetic_collision_raises(self):
         """A hand-written flowgroup with the same (pipeline, flowgroup) as an

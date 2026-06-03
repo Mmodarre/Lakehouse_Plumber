@@ -33,19 +33,7 @@ JOBS_STATS_SCHEMA = StructType(
 
 
 def get_jobs_stats(spark, parameters) -> DataFrame:
-    """Correlate pipeline runs with triggering jobs via Databricks SDK.
-
-    Scans recent job runs for pipeline_task entries, matches each
-    (pipeline_id, update_id) to its triggering job, and enriches
-    with pipeline tags (from spec.tags) and job tags (from settings.tags).
-
-    Args:
-        spark: SparkSession instance
-        parameters: Pipeline parameters dict (supports lookback_hours)
-
-    Returns:
-        DataFrame with job-pipeline correlation and tags
-    """
+    """Scans recent job runs for pipeline_task entries, matches each (pipeline_id, update_id) to its triggering job, and enriches with pipeline tags (from spec.tags) and job tags (from settings.tags)."""
     from datetime import datetime, timedelta, timezone
 
     from databricks.sdk import WorkspaceClient
@@ -56,9 +44,8 @@ def get_jobs_stats(spark, parameters) -> DataFrame:
     cutoff_dt = datetime.now(tz=timezone.utc) - timedelta(hours=lookback_hours)
     cutoff_ms = int(cutoff_dt.timestamp() * 1000)
 
-    # --- Phase 1: Scan job runs to find pipeline tasks ---
     pipeline_to_jobs = defaultdict(list)
-    job_ids_with_pipelines = set()  # only jobs that have pipeline tasks
+    job_ids_with_pipelines = set()
     job_run_count = 0
 
     try:
@@ -96,7 +83,6 @@ def get_jobs_stats(spark, parameters) -> DataFrame:
         f"{len(job_ids_with_pipelines)} jobs"
     )
 
-    # --- Phase 2: Fetch job tags (only for jobs with pipeline tasks) ---
     job_tags_cache = {}
     for job_id in job_ids_with_pipelines:
         try:
@@ -111,7 +97,6 @@ def get_jobs_stats(spark, parameters) -> DataFrame:
 
     print(f"[jobs_stats] Fetched tags for {len(job_tags_cache)} jobs")
 
-    # --- Phase 3: Get pipeline info + tags, correlate updates to jobs ---
     correlation_rows = []
 
     for pid, jobs in pipeline_to_jobs.items():
@@ -124,7 +109,6 @@ def get_jobs_stats(spark, parameters) -> DataFrame:
 
             pipeline_tags_json = json.dumps(pipeline_tags) if pipeline_tags else "{}"
 
-            # Get recent updates
             updates = []
             if pipeline_info.latest_updates:
                 for u in pipeline_info.latest_updates:
@@ -135,7 +119,6 @@ def get_jobs_stats(spark, parameters) -> DataFrame:
                         }
                     )
 
-            # Match each update to closest job run by start_time
             for upd in updates:
                 upd_ts = upd["creation_time_ms"]
                 best_match = None

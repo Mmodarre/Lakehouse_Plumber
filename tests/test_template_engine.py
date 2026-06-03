@@ -1,4 +1,4 @@
-"""Tests for Template Engine - Step 4.2.3."""
+"""Tests for Template Engine."""
 
 import tempfile
 from pathlib import Path
@@ -58,7 +58,6 @@ actions:
         return tmpdir
 
     def test_template_engine_initialization(self):
-        """Test template engine initialization."""
         with tempfile.TemporaryDirectory() as tmpdir:
             templates_dir = Path(tmpdir)
             engine = TemplateEngine(templates_dir)
@@ -67,7 +66,6 @@ actions:
             assert engine._template_cache == {}
 
     def test_load_templates(self):
-        """Test loading templates from directory."""
         with tempfile.TemporaryDirectory() as tmpdir:
             templates_dir = Path(tmpdir)
             self.create_test_template(templates_dir)
@@ -83,7 +81,6 @@ actions:
             assert len(template.actions) == 2
 
     def test_get_template(self):
-        """Test getting template by name."""
         with tempfile.TemporaryDirectory() as tmpdir:
             templates_dir = Path(tmpdir)
             self.create_test_template(templates_dir)
@@ -100,7 +97,6 @@ actions:
             assert template is None
 
     def test_render_template(self):
-        """Test rendering template with parameters."""
         with tempfile.TemporaryDirectory() as tmpdir:
             templates_dir = Path(tmpdir)
             self.create_test_template(templates_dir)
@@ -138,7 +134,6 @@ actions:
             assert write_action.source["view"] == "v_customers_raw"
 
     def test_render_template_with_defaults(self):
-        """Test rendering template using default parameters."""
         with tempfile.TemporaryDirectory() as tmpdir:
             templates_dir = Path(tmpdir)
             self.create_test_template(templates_dir)
@@ -159,7 +154,6 @@ actions:
             assert load_action.source["readMode"] == "stream"  # default
 
     def test_render_template_missing_required(self):
-        """Test rendering template with missing required parameters."""
         with tempfile.TemporaryDirectory() as tmpdir:
             templates_dir = Path(tmpdir)
             self.create_test_template(templates_dir)
@@ -173,14 +167,12 @@ actions:
                 engine.render_template("bronze_ingestion", parameters)
 
     def test_render_template_not_found(self):
-        """Test rendering non-existent template."""
         engine = TemplateEngine()
 
         with pytest.raises(ValueError, match=r"(?i)template.*not found"):
             engine.render_template("non_existent", {})
 
     def test_list_templates(self):
-        """Test listing available templates."""
         with tempfile.TemporaryDirectory() as tmpdir:
             templates_dir = Path(tmpdir)
             self.create_test_template(templates_dir)
@@ -212,7 +204,6 @@ actions:
             assert "silver_transform" in templates
 
     def test_complex_template_rendering(self):
-        """Test rendering template with complex parameter substitution."""
         with tempfile.TemporaryDirectory() as tmpdir:
             templates_dir = Path(tmpdir)
 
@@ -540,11 +531,6 @@ actions:
 
             engine = TemplateEngine(templates_dir)
 
-            # With smart template detection, invalid object strings are now treated as literal strings
-            # This is the expected behavior since template parameters should be properly typed
-            # Real error cases would be things like template syntax errors or missing parameters
-
-            # Test case: string parameter gets rendered as string (no conversion attempted)
             parameters = {
                 "table_name": "test_table",
                 "spark_conf": "{invalid syntax here}",  # This stays as a string
@@ -802,7 +788,6 @@ class TestTemplateEngineCompileCache:
 
         assert first == "orders_raw"
         assert second == "orders_raw"
-        # Compiled once, reused on the second render.
         assert spy.call_count == 1
 
     def test_compile_caches_template_not_rendered_result(self):

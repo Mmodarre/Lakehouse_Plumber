@@ -1,10 +1,7 @@
-"""Bootstrap service: 8th typed coordination service.
+"""Bootstrap service: discovery → blueprint expansion → monitoring chain.
 
-Owns the discovery → blueprint expansion → monitoring chain and the
-synthetic-context provenance table consulted when wrapping a discovered
-:class:`FlowGroup` in its :class:`FlowGroupContext` envelope. Consults
-:class:`FlowgroupDiscoveryService`, :class:`BlueprintDiscoverer`,
-:class:`BlueprintExpander`, and :class:`MonitoringFinalizerService`.
+Owns the synthetic-context provenance table consulted when wrapping a
+discovered :class:`FlowGroup` in its :class:`FlowGroupContext` envelope.
 
 :stability: provisional
 """
@@ -27,8 +24,6 @@ from .monitoring_pipeline_builder import MonitoringBuildResult
 
 
 class FlowgroupBootstrapService(BaseFlowgroupBootstrapService):
-    """Concrete :class:`BaseFlowgroupBootstrapService`."""
-
     def __init__(
         self,
         *,
@@ -136,13 +131,7 @@ class FlowgroupBootstrapService(BaseFlowgroupBootstrapService):
     def _build_monitoring(
         self, discovered_flowgroups: List[FlowGroup]
     ) -> Optional[MonitoringBuildResult]:
-        """Build monitoring artifacts via the monitoring service.
-
-        Delegates to ``self._monitoring.build_flowgroup``; the service stashes
-        the full :class:`MonitoringBuildResult` on its own ``last_build_result``
-        property, which this service mirrors onto ``self._monitoring_result``
-        for callers that read it directly.
-        """
+        """Mirrors the monitoring service's ``last_build_result`` onto ``self._monitoring_result`` for callers that read it directly."""
         self._monitoring.build_flowgroup(discovered_flowgroups)
         self._monitoring_result = self._monitoring.last_build_result  # type: ignore[attr-defined]  # concrete-only property; ABC narrows surface to build_flowgroup
         return self._monitoring_result

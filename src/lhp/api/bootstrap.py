@@ -29,7 +29,6 @@ class LakehousePlumberBootstrap:
     """
 
     def __init__(self) -> None:
-        """No-op constructor; the bootstrap holds no state."""
         return
 
     def init_project(
@@ -97,7 +96,6 @@ class LakehousePlumberBootstrap:
             if created_target_dir:
                 new_dirs.append(target_dir)
 
-            # Pre-state for diffing after the loader runs.
             pre_paths = _walk_paths(target_dir)
 
             new_dirs.extend(_create_directory_tree(target_dir, bundle=bundle))
@@ -155,19 +153,13 @@ class LakehousePlumberBootstrap:
 
 
 def _walk_paths(root: Path) -> "set[Path]":
-    """Return the absolute paths of every entry under ``root`` (recursive)."""
     if not root.exists():
         return set()
     return {p.resolve() for p in root.rglob("*")}
 
 
 def _create_directory_tree(project_path: Path, *, bundle: bool) -> list[Path]:
-    """Create the standard LHP project directory layout.
-
-    Mirrors :meth:`InitCommand._create_project_structure` but does not
-    print anything. Returns only directories that this call created
-    (idempotent — existing dirs are not listed).
-    """
+    """Returns only directories created by this call; existing dirs are not listed."""
     created: list[Path] = []
 
     directories: Tuple[str, ...] = (

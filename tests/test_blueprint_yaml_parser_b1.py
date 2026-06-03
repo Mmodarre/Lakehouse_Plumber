@@ -1,7 +1,7 @@
-"""Spec-driven unit tests for the B1 fix in YAMLParser.parse_flowgroups_from_file.
+"""Unit tests for YAMLParser.parse_flowgroups_from_file blueprint discrimination.
 
 A blueprint accidentally placed under pipelines/ must raise code 040 (CONFIG
-category) rather than crashing on missing `actions:` (Phase 3, B1).
+category) rather than crashing on missing `actions:`.
 """
 
 from pathlib import Path
@@ -66,7 +66,7 @@ actions:
 
 
 def test_looks_like_blueprint_is_public_static(tmp_path):
-    """The B1 discriminator helper is callable as a static method."""
+    """The discriminator helper is callable as a static method."""
     blueprint_doc = {"parameters": [], "flowgroups": []}
     assert BlueprintParser.looks_like_blueprint(blueprint_doc) is True
     flowgroup_doc = {"pipeline": "p", "flowgroup": "fg", "actions": []}

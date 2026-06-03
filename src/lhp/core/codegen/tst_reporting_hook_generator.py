@@ -24,12 +24,11 @@ HOOK_FILENAME = "_test_reporting_hook.py"
 
 
 class TestReportingHookGenerator:
-    """Generates test reporting event hook files for pipelines.
+    """Generates ``_test_reporting_hook.py`` per pipeline.
 
-    The hook file:
-    1. Imports a user-supplied provider function
-    2. Accumulates DQ expectation results from flow_progress events
-    3. Publishes them at pipeline terminal state via the provider
+    The hook imports a user-supplied provider function, accumulates DQ
+    expectation results from flow_progress events, and publishes them at
+    pipeline terminal state via the provider.
     """
 
     __test__ = False  # Tell pytest this is not a test class
@@ -53,17 +52,7 @@ class TestReportingHookGenerator:
         output_dir: Path,
         substitution_mgr: Optional[EnhancedSubstitutionManager] = None,
     ) -> Optional[str]:
-        """Generate the test reporting hook file for a pipeline.
-
-        Args:
-            processed_flowgroups: Flowgroups already processed for this pipeline
-            pipeline_name: Pipeline name (used in hook header and context)
-            output_dir: Pipeline output directory
-            substitution_mgr: Optional substitution manager for token resolution
-
-        Returns:
-            Rendered hook content, or None if hook should not be generated
-        """
+        """Return rendered hook content, or None if no test_id was found."""
         if self.test_reporting_config is None:
             return None
 
@@ -105,15 +94,6 @@ class TestReportingHookGenerator:
         processed_flowgroups: Optional[List[FlowGroup]] = None,
         include_tests: bool = False,
     ) -> List[str]:
-        """Validate test reporting configuration.
-
-        Args:
-            processed_flowgroups: Optional flowgroups (for --include-tests validation)
-            include_tests: Whether to perform extended test-level validation
-
-        Returns:
-            List of validation error messages (empty = valid)
-        """
         errors: List[str] = []
 
         if self.test_reporting_config is None:
@@ -148,11 +128,10 @@ class TestReportingHookGenerator:
     ) -> Dict[str, str]:
         """Build mapping from unqualified table name to external test_id.
 
-        Only includes test actions that have test_id set.
-        Uses Action.resolved_test_target for the canonical default target name.
+        Uses ``Action.resolved_test_target`` for the canonical default target name.
 
         Raises:
-            LHPError: If two test actions with test_id map to the same table name
+            LHPError: If two test actions with test_id map to the same table name.
         """
         test_id_map: Dict[str, str] = {}
 
@@ -179,7 +158,6 @@ class TestReportingHookGenerator:
         return test_id_map
 
     def _load_provider_config(self) -> Dict[str, Any]:
-        """Load provider config from YAML file if specified."""
         config = self.test_reporting_config
         if not config or not config.config_file:
             return {}
@@ -210,7 +188,6 @@ class TestReportingHookGenerator:
         output_dir: Path,
         substitution_mgr: Optional[EnhancedSubstitutionManager] = None,
     ) -> None:
-        """Copy provider Python module to test_reporting_providers/ directory."""
         config = self.test_reporting_config
         source_file = self.project_root / config.module_path
 
@@ -234,7 +211,6 @@ class TestReportingHookGenerator:
 
         original_content = source_file.read_text()
 
-        # Apply substitutions if available
         if substitution_mgr:
             original_content = substitution_mgr._process_string(original_content)
 

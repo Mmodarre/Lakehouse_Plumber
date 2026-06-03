@@ -16,9 +16,7 @@ JOB_CFG_REL = "config/monitoring_job_config.yaml"
 
 @pytest.fixture
 def loader(tmp_path):
-    """Create a ProjectConfigLoader with a minimal lhp.yaml and a valid
-    monitoring job config file on disk so the required-file validation passes.
-    """
+    """Monitoring job config file on disk so the required-file validation passes."""
     lhp_yaml = tmp_path / "lhp.yaml"
     lhp_yaml.write_text("name: test_project\n")
     job_cfg_file = tmp_path / JOB_CFG_REL
@@ -348,8 +346,6 @@ class TestParseProjectConfigWithMonitoring:
             )
 
     def test_monitoring_enabled_without_job_config_path_raises(self, loader):
-        """Parsing a full project config with monitoring enabled but no
-        job_config_path should surface the new validation error."""
         with pytest.raises(LHPError, match="job_config_path is required"):
             loader._parse_project_config(
                 {

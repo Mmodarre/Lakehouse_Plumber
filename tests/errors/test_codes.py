@@ -96,7 +96,6 @@ from lhp.errors.codes import (
 from lhp.errors.factory import ErrorFactory
 from lhp.errors.types import LHPError
 
-# Repo root resolved from this file: <repo_root>/tests/errors/test_codes.py
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SRC_LHP = REPO_ROOT / "src" / "lhp"
 

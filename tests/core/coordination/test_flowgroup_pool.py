@@ -56,7 +56,6 @@ PIPELINE = "pipe_a"
 FLOWGROUP = "fg_one"
 
 
-# Fakes
 class _FakeFlowGroup:
     """Minimal FlowGroup stand-in.
 
@@ -77,7 +76,6 @@ def _ctx(
     source_yaml: Optional[Path] = None,
     auxiliary_files: Optional[Mapping[str, str]] = None,
 ) -> FlowGroupContext:
-    """Build a real FlowGroupContext envelope wrapping a fake flowgroup."""
     return FlowGroupContext(
         flowgroup=_FakeFlowGroup(pipeline, flowgroup),
         source_yaml=source_yaml,
@@ -214,7 +212,6 @@ def _parse_031_error() -> LHPConfigError:
     )
 
 
-# Happy-path outcomes
 @pytest.mark.unit
 def test_generate_mode_ok_outcome(monkeypatch):
     """Generate mode returns an ok outcome with code, records, aux files."""
@@ -245,7 +242,6 @@ def test_generate_mode_ok_outcome(monkeypatch):
     # the committed tree). ``y = 2\n`` is valid Python, so the syntax guard passes.
     assert outcome.formatted_code == "y = 2\n"
     assert outcome.copy_records == (record,)
-    # Monitoring aux files routed through as a tuple of (path, content).
     assert outcome.auxiliary_files == (("monitor/extra.py", "print('x')\n"),)
     assert outcome.lhp_error is None
     assert outcome.errors == ()
@@ -270,12 +266,10 @@ def test_validate_mode_ok_outcome_carries_resolved_no_code(monkeypatch):
     outcome = _process_one_flowgroup(_ctx(), mode="validate")
 
     assert outcome.success is True
-    # Cross-flowgroup barrier needs the RESOLVED flowgroup even in validate.
     assert outcome.resolved_flowgroup is resolved
     assert outcome.formatted_code is None
     assert outcome.copy_records == ()
     assert outcome.lhp_error is None
-    # Codegen is never touched in validate mode.
     assert code_gen.calls == []
 
 
@@ -372,7 +366,6 @@ def test_resolution_deprecation_rides_onto_failure_outcome(monkeypatch):
     assert [w.code for w in outcome.warnings] == [codes.DEPR_002.code]
 
 
-# Failure conversion (worker must NOT raise)
 @pytest.mark.unit
 @pytest.mark.parametrize("mode", ["validate", "generate"])
 def test_per_flowgroup_validation_failure_returns_failure_dto(monkeypatch, mode):
@@ -402,7 +395,6 @@ def test_per_flowgroup_validation_failure_returns_failure_dto(monkeypatch, mode)
     assert outcome.errors == ()
     assert outcome.resolved_flowgroup is None
     assert outcome.formatted_code is None
-    # Codegen never runs once resolve/validate failed.
     assert code_gen.calls == []
 
 
@@ -421,7 +413,6 @@ def test_codegen_failure_returns_failure_dto(monkeypatch):
     outcome = _process_one_flowgroup(_ctx(), mode="generate")
 
     assert outcome.success is False
-    # Non-LHP exceptions degrade to the stringified channel; no live LHPError.
     assert outcome.lhp_error is None
     assert len(outcome.errors) == 1
     assert "RuntimeError" in outcome.errors[0]
@@ -454,12 +445,10 @@ def test_syntax_guard_031_failure_returns_failure_dto(monkeypatch):
     assert outcome.success is False
     assert isinstance(outcome.lhp_error, LHPConfigError)
     assert outcome.lhp_error.code == "LHP-CFG-031"
-    # The flowgroup name rides in the error context (per-flowgroup attribution).
     assert outcome.lhp_error.context.get("Flowgroup") == FLOWGROUP
     assert outcome.errors == ()
 
 
-# Explicit never-propagate guarantee (§5.6)
 @pytest.mark.unit
 @pytest.mark.parametrize(
     "stage, mode",
@@ -488,7 +477,6 @@ def test_worker_never_propagates_exception(monkeypatch, stage, mode):
         code_generator=code_gen,
     )
 
-    # The assertion is simply that this does not raise.
     outcome = _process_one_flowgroup(_ctx(), mode=mode)
 
     assert isinstance(outcome, FlowgroupOutcome)
@@ -526,24 +514,11 @@ def test_worker_never_propagates_even_when_substitution_lookup_fails(monkeypatch
 
 # Flat fan-out engine: _run_flowgroup_pool_core (validate mode)
 #
-# Why NOT a real spawn pool here: the engine submits to a
-# ``ProcessPoolExecutor(mp_context="spawn")``, which would require the worker
-# entry AND every captured collaborator to pickle by-name across the process
-# boundary. The duck-typed fakes this module already uses (``_FakeFlowGroup``
-# et al.) are locally-defined and deliberately NOT picklable (see the module
-# docstring), and a real worker would drag in the whole resolution graph. So
-# we drive the engine's REAL coordinator logic — flatten → submit →
-# ``as_completed`` bucket → per-pipeline sort → cross-fg barrier on the
-# RESOLVED set → input-order assembly — with two seams swapped on the
-# ``_pool`` module:
-#   * ``ProcessPoolExecutor`` → a synchronous in-process executor whose
-#     ``submit`` runs the fn immediately and returns an already-resolved
-#     ``Future`` (``as_completed`` yields completed futures straight away);
-#   * ``_process_one_flowgroup`` → a fake worker fn returning a validate-mode
-#     ``ok`` outcome that carries a DISTINCT resolved flowgroup per input ctx,
-#     so the barrier spy can assert it received the RESOLVED objects.
-# Everything between submit and the returned ``_PipelinePoolResult`` list is
-# the production engine code, unmodified.
+# Locally-defined fakes are not picklable across a spawn boundary, so the
+# ProcessPoolExecutor is swapped for a synchronous in-process executor and the
+# worker entry for an in-process fake. The engine's real coordinator logic —
+# flatten, submit, as_completed bucket, per-pipeline sort, cross-fg barrier,
+# input-order assembly — is unmodified.
 
 
 class _SyncExecutor:
@@ -621,8 +596,6 @@ def test_flowgroup_pool_validate_barrier_on_resolved_and_pipeline_order(monkeypa
     * fire that barrier even for the SINGLE-flowgroup pipeline (the §9.24
       closure — the trivial case is NOT skipped).
     """
-    # Two pipelines; "pipe_multi" is first in input order and has 2 flowgroups
-    # supplied OUT of name order (b before a) to prove the per-pipeline sort.
     multi = "pipe_multi"
     single = "pipe_single"
     raw_ctxs = [
@@ -635,8 +608,6 @@ def test_flowgroup_pool_validate_barrier_on_resolved_and_pipeline_order(monkeypa
         single: [raw_ctxs[2]],
     }
 
-    # Distinct resolved flowgroup per (pipeline, fg_name); the barrier spy
-    # asserts identity, so these MUST differ from the raw input flowgroups.
     resolved_by_name: Dict[tuple, _FakeFlowGroup] = {
         (multi, "fg_b"): _FakeFlowGroup(multi, "fg_b"),
         (multi, "fg_a"): _FakeFlowGroup(multi, "fg_a"),
@@ -644,24 +615,16 @@ def test_flowgroup_pool_validate_barrier_on_resolved_and_pipeline_order(monkeypa
     }
 
     def _fake_worker(fg_ctx: FlowGroupContext, *, mode: str) -> FlowgroupOutcome:
-        # Mirror the real validate-mode worker: ok outcome carrying the
-        # RESOLVED flowgroup, formatted_code=None. mode is forwarded by the
-        # engine and must be "validate" on this path.
         assert mode == "validate"
         pipeline = fg_ctx.flowgroup.pipeline
         fg_name = fg_ctx.flowgroup.flowgroup
         resolved = resolved_by_name[(pipeline, fg_name)]
         return FlowgroupOutcome.ok(pipeline, fg_name, resolved_flowgroup=resolved)
 
-    # Swap the two seams on the ENGINE module (the engine references both by
-    # module-level name): the spawn pool → synchronous executor, and the
-    # worker entry → the in-process fake above.
     monkeypatch.setattr(fe, "ProcessPoolExecutor", _SyncExecutor)
     monkeypatch.setattr(fe, "_process_one_flowgroup", _fake_worker)
 
     barrier = _BarrierSpy()
-    # worker_state is shipped to the (now no-op) initializer only; the faked
-    # worker fn ignores it. A minimal real state keeps the type honest.
     worker_state = _FlowgroupWorkerState(
         processor=_FakeResolver(),
         substitution_managers={multi: object(), single: object()},
@@ -679,7 +642,6 @@ def test_flowgroup_pool_validate_barrier_on_resolved_and_pipeline_order(monkeypa
         mode="validate",
     )
 
-    # One result per pipeline, in INPUT pipeline order.
     assert [r.pipeline for r in results] == [multi, single]
     assert all(isinstance(r, _PipelinePoolResult) for r in results)
 
@@ -698,51 +660,24 @@ def test_flowgroup_pool_validate_barrier_on_resolved_and_pipeline_order(monkeypa
     # ---- single-fg pipeline still produces a result ----
     assert [o.flowgroup_name for o in single_result.outcomes_in_order] == ["fg_solo"]
 
-    # ---- barrier fired ONCE PER PIPELINE, including the 1-fg pipeline ----
-    # (§9.24 closure: the trivial single-flowgroup case is NOT skipped.)
     called_pipelines = [pf for (pf, _fgs) in barrier.calls]
     assert sorted(called_pipelines) == [multi, single]
     assert single in called_pipelines, "1-flowgroup pipeline must trigger the barrier"
 
     # ---- barrier received the RESOLVED flowgroups, NOT the raw inputs ----
     by_pipeline = dict(barrier.calls)
-    # Multi pipeline: both resolved FGs, by identity (any order — the engine
-    # passes the per-pipeline sorted outcomes' resolved set).
     assert set(map(id, by_pipeline[multi])) == {
         id(resolved_by_name[(multi, "fg_a")]),
         id(resolved_by_name[(multi, "fg_b")]),
     }
-    # And explicitly NOT the raw input flowgroups.
     raw_multi_ids = {id(raw_ctxs[0].flowgroup), id(raw_ctxs[1].flowgroup)}
     assert raw_multi_ids.isdisjoint(set(map(id, by_pipeline[multi])))
-    # Single pipeline: the one resolved solo FG, by identity.
     assert [id(fg) for fg in by_pipeline[single]] == [
         id(resolved_by_name[(single, "fg_solo")])
     ]
 
 
-# Generate gate: PipelineExecutionService._iter_generate_deltas
-#
-# These prove the all-or-nothing GATE: the gate drives the flat
-# engine in generate mode, runs the copy-conflict dry pass, and on ANY failure
-# RAISES the aggregate (single → that error's code; multiple → LHP-VAL-902)
-# while writing NO files. Same seam-swap as the validate engine test above:
-# ``ProcessPoolExecutor`` → ``_SyncExecutor`` and the worker entry → an
-# in-process fake returning generate-mode outcomes (failure or ok-with-code).
-# The gate code between the engine and the raise is the production driver,
-# unmodified. Output is pointed at a tmp dir so "no writes" is asserted
-# directly (the gate itself never writes — commit is a separate step — so the
-# dir MUST stay empty regardless of the failure shape).
-
-
 def _gate_worker_factory(outcomes_by_key):
-    """Build a fake generate-mode worker returning a pre-canned outcome per fg.
-
-    ``outcomes_by_key`` maps ``(pipeline, flowgroup_name)`` to the
-    :class:`FlowgroupOutcome` the worker should return. Mirrors the real
-    generate-mode worker's signature (``mode`` forwarded by the engine).
-    """
-
     def _fake_worker(fg_ctx: FlowGroupContext, *, mode: str) -> FlowgroupOutcome:
         assert mode == "generate"
         key = (fg_ctx.flowgroup.pipeline, fg_ctx.flowgroup.flowgroup)
@@ -752,14 +687,7 @@ def _gate_worker_factory(outcomes_by_key):
 
 
 def _drive_gate(monkeypatch, tmp_path, *, flowgroups_by_pipeline, outcomes_by_key):
-    """Drive the generate gate via ``_iter_generate_deltas`` (sync-executor seam).
-
-    E3 removed the callback-firing drain adapter; the gate now lives inside the
-    source-of-truth generator :meth:`_iter_generate_deltas`. Draining it raises
-    the gate aggregate (the only thing these callers assert — they all wrap this
-    in ``pytest.raises``). Output dirs point at ``tmp_path`` per pipeline so
-    callers can assert the tree stays empty after a gate raise.
-    """
+    """Output dirs point at ``tmp_path`` so callers can assert the tree stays empty after a gate raise."""
     monkeypatch.setattr(fe, "ProcessPoolExecutor", _SyncExecutor)
     monkeypatch.setattr(
         fe, "_process_one_flowgroup", _gate_worker_factory(outcomes_by_key)
@@ -775,7 +703,6 @@ def _drive_gate(monkeypatch, tmp_path, *, flowgroups_by_pipeline, outcomes_by_ke
         environment="dev",
     )
     service = PipelineExecutionService(max_workers=4)
-    # Fully drain: the gate raises mid-stream (after any failure deltas).
     return list(
         service._iter_generate_deltas(
             flowgroups_by_pipeline=flowgroups_by_pipeline,
@@ -787,27 +714,7 @@ def _drive_gate(monkeypatch, tmp_path, *, flowgroups_by_pipeline, outcomes_by_ke
 
 
 def _drive_commit(monkeypatch, tmp_path, *, flowgroups_by_pipeline, outcomes_by_key):
-    """Drive ``_iter_generate_deltas`` through the COMMIT step.
-
-    Like :func:`_drive_gate` but exercises the gate-PASSED commit path: each
-    pipeline gets a DISTINCT output subdir ``<tmp_path>/generated/<pipeline>``
-    (matching ``build_generate_work_units``' ``output_dir / pipeline``), and the
-    env-level dir ``<tmp_path>/generated`` is threaded as the single whole-env
-    wipe target.
-
-    E3 removed the per-pipeline completion callback; the yielded deltas ARE the
-    per-pipeline stream the facade now consumes. On a clean run
-    ``_iter_generate_deltas`` yields exactly the success deltas in input order,
-    so both returned lists are that drained stream.
-
-    Returns ``(deltas, completed, env_dir, pipeline_dirs)`` where ``deltas`` and
-    ``completed`` are the drained success-delta list (kept as two names so the
-    existing assertions — one on the returned deltas, one on the per-pipeline
-    stream — read unchanged), ``env_dir`` is the wiped env dir, and
-    ``pipeline_dirs`` maps pipeline → its output subdir. The output dirs are NOT
-    pre-created here — the commit step's own ``mkdir`` must create them (proving
-    it does).
-    """
+    """Output dirs are NOT pre-created — the commit step's own ``mkdir`` must create them."""
     monkeypatch.setattr(fe, "ProcessPoolExecutor", _SyncExecutor)
     monkeypatch.setattr(
         fe, "_process_one_flowgroup", _gate_worker_factory(outcomes_by_key)
@@ -907,7 +814,6 @@ def test_flowgroup_pool_generate_gate_multi_failure_902_no_writes(
             outcomes_by_key=outcomes_by_key,
         )
 
-    # More than one failing pipeline → synthesized 902 listing both.
     assert excinfo.value.code == "LHP-VAL-902"
     assert excinfo.value.context["failure_count"] == 2
     assert "pipe_a" in excinfo.value.context
@@ -972,9 +878,7 @@ def test_flowgroup_pool_generate_gate_copy_conflict_019_no_writes(
             outcomes_by_key=outcomes_by_key,
         )
 
-    # Single failing unit (the cross-source conflict) → 019 re-raised verbatim.
     assert excinfo.value.code == "LHP-VAL-019"
-    # No .py copy was written by the dry pass.
     assert not dest.exists()
 
 
@@ -1017,18 +921,15 @@ def test_flowgroup_pool_generate_commit_writes_files_and_fires_deltas(
         outcomes_by_key=outcomes_by_key,
     )
 
-    # One success delta per pipeline, in input order.
     assert [d.pipeline_name for d in deltas] == ["pipe_a", "pipe_b"]
     assert all(d.success for d in deltas)
     assert [d.files_written for d in deltas] == [1, 1]
     assert deltas[0].generated_filenames == ("fg_a.py",)
     assert deltas[1].generated_filenames == ("fg_b.py",)
 
-    # The callback fired once per committed pipeline with the same deltas.
     assert [d.pipeline_name for d in completed] == ["pipe_a", "pipe_b"]
     assert all(d.success for d in completed)
 
-    # Each pipeline's file set is exactly {flowgroup}.py, content == formatted_code.
     assert sorted(p.name for p in pipeline_dirs["pipe_a"].iterdir()) == ["fg_a.py"]
     assert sorted(p.name for p in pipeline_dirs["pipe_b"].iterdir()) == ["fg_b.py"]
     assert (pipeline_dirs["pipe_a"] / "fg_a.py").read_text(
@@ -1084,25 +985,12 @@ def test_flowgroup_pool_generate_commit_skipped_and_no_wipe_on_gate_failure(
             outcomes_by_key=outcomes_by_key,
         )
 
-    # Single failure → that error re-raised verbatim (not 902).
     assert excinfo.value is err
-    # The wipe NEVER ran: the stale file is still on disk.
     assert stale.exists()
     assert stale.read_text(encoding="utf-8") == "stale = True\n"
-    # And no pipeline output dir was created / written for the valid pipeline.
     assert not (env_dir / "pipe_ok").exists()
 
 
-# Worker → main warning plumbing (C2)
-#
-# Workers run under a NullHandler so their logger.warning calls are swallowed;
-# deprecation warnings ride back as structured FlowgroupOutcome.warnings instead.
-# These tests prove the engine (1) carries those worker-attached warnings up onto
-# the per-pipeline _PipelinePoolResult, and (2) MERGES them across a pipeline's
-# flowgroup outcomes, DEDUPED by (code, file) in deterministic first-seen order.
-# Same seam-swap as the validate engine test above: ProcessPoolExecutor →
-# _SyncExecutor and the worker entry → an in-process fake returning ok outcomes
-# that carry warnings.
 @pytest.mark.unit
 def test_flowgroup_pool_worker_warning_rides_back_into_pipeline_result(monkeypatch):
     """A worker-attached DeprecationWarningRecord rides back to the result.
@@ -1153,8 +1041,6 @@ def test_flowgroup_pool_worker_warning_rides_back_into_pipeline_result(monkeypat
 
     assert len(results) == 1
     (result,) = results
-    # The worker's warning survived the (faked) worker→main hop and was
-    # collected onto the per-pipeline result, identity-preserved.
     assert result.warnings == (warning,)
     assert result.warnings[0] is warning
 
@@ -1250,11 +1136,7 @@ def test_flowgroup_pool_merges_and_dedups_warnings_by_code_file(monkeypatch):
     assert len(results) == 1
     (result,) = results
 
-    # Dedup collapsed (DEPR-001, a.yaml) to ONE; the two distinct-key records
-    # both survived → exactly three records.
     assert result.warnings == (w1, w2, w3)
-    # First-seen wins: the kept (DEPR-001, a.yaml) record is fg_a's W1 (its
-    # message), NOT fg_b's W1_dup.
     assert result.warnings[0] is w1
     assert result.warnings[0].message == "first-seen"
     # The dedup is keyed on (code, file) ONLY — proven by W2 (same file, other

@@ -28,14 +28,7 @@ def helper_header_path(module_path: str, rel_path: Path) -> str:
 
 
 def normalize_content(content: str) -> str:
-    """Normalize file content for comparison.
-
-    Args:
-        content: Raw content string
-
-    Returns:
-        Normalized content string
-    """
+    """Normalize file content for comparison."""
     lines = content.splitlines()
     normalized_lines = [line.rstrip() for line in lines]
 

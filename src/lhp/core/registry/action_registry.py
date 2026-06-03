@@ -1,4 +1,4 @@
-"""Action generator registry for LakehousePlumber."""
+"""Action generator registry."""
 
 import logging
 from typing import Dict, Type
@@ -48,17 +48,14 @@ class ActionRegistry:
     """Registry for action generators."""
 
     def __init__(self):
-        # Create the registry structure
         self._load_generators: Dict[str, Type[BaseActionGenerator]] = {}
         self._transform_generators: Dict[str, Type[BaseActionGenerator]] = {}
         self._write_generators: Dict[str, Type[BaseActionGenerator]] = {}
         self._test_generators: Dict[str, Type[BaseActionGenerator]] = {}
 
-        # Map action types to generators
         self._initialize_generators()
 
     def _initialize_generators(self):
-        """Initialize generator mappings from the module-level registry."""
         logger.debug("Initializing action generator registry")
         self._load_generators = dict(_REGISTERED_GENERATORS["load"])
         self._transform_generators = dict(_REGISTERED_GENERATORS["transform"])
@@ -75,14 +72,12 @@ class ActionRegistry:
     def get_generator(
         self, action_type: ActionType, sub_type: str | None = None
     ) -> BaseActionGenerator:
-        """Implement generator factory method."""
         with perf_timer(
             f"get_generator [{action_type}/{sub_type}]", category="get_generator"
         ):
             logger.debug(
                 f"Looking up generator for action_type={action_type}, sub_type={sub_type}"
             )
-            # Add error handling and validation
             if not isinstance(action_type, ActionType):
                 raise ErrorFactory.validation_error(
                     codes.VAL_009,
@@ -112,7 +107,6 @@ class ActionRegistry:
       path: /path/to/files""",
                     )
 
-                # Convert string to enum if needed
                 if isinstance(sub_type, str):
                     try:
                         sub_type = LoadSourceType(sub_type)
@@ -166,7 +160,6 @@ class ActionRegistry:
       SELECT * FROM $source""",
                     )
 
-                # Convert string to enum if needed
                 if isinstance(sub_type, str):
                     try:
                         sub_type = TransformType(sub_type)
@@ -221,7 +214,6 @@ class ActionRegistry:
       table: my_table""",
                     )
 
-                # Convert string to enum if needed
                 if isinstance(sub_type, str):
                     try:
                         sub_type = WriteTargetType(sub_type)
@@ -260,12 +252,9 @@ class ActionRegistry:
                 return self._write_generators[sub_type]()
 
             if action_type == ActionType.TEST:
-                # For test actions, sub_type is the test_type
                 if not sub_type:
-                    # Default to a basic test type if not specified
                     sub_type = "row_count"
 
-                # Convert string to enum if needed
                 if isinstance(sub_type, str):
                     try:
                         sub_type = TestActionType(sub_type)
@@ -309,7 +298,6 @@ class ActionRegistry:
             )
 
     def is_generator_available(self, action_type: ActionType, sub_type: str) -> bool:
-        """Check if a generator is available for the given action and sub type."""
         try:
             if action_type == ActionType.LOAD:
                 sub_type_enum = LoadSourceType(sub_type)

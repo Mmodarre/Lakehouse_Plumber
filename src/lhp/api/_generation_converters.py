@@ -87,7 +87,6 @@ def _build_generation_batch_success(
     *,
     output_dir: Optional[Path],
 ) -> BatchGenerationResponse:
-    """Aggregate per-pipeline responses into a successful batch response."""
     aggregate: tuple[str, ...] = ()
     total_written = 0
     for r in pipeline_responses.values():
@@ -134,15 +133,9 @@ def _generation_result_to_plan(
 ) -> GenerationPlan:
     """Map the core :class:`GenerationPlanResult` onto the public DTO.
 
-    Direction is api→core (this converter lives in ``lhp.api`` and reads the
-    core dataclass), so the §5.x layering boundary is respected — ``core``
-    never imports ``lhp.api``. Each :class:`~lhp.core.codegen.PlannedArtifact`
-    is converted 1:1 to a :class:`PlannedFileView` (``path``/``content``/
-    ``pipeline``/``kind`` carried verbatim; ``kind`` is the same five-value
-    ``Literal``). ``file_count`` is the artifact count; ``pipeline_count`` is
-    the result's; ``output_location`` is supplied by the caller — the REAL
-    ``generated/<env>`` directory a normal generate WOULD write to (the plan
-    reports where the files would land even though it wrote only a temp tree).
+    ``output_location`` is the REAL ``generated/<env>`` directory a normal
+    generate WOULD write to — the plan reports where the files would land
+    even though it wrote only a temp tree.
     """
     files = tuple(
         PlannedFileView(

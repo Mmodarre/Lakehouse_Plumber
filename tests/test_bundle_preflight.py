@@ -14,10 +14,6 @@ import yaml
 from lhp.bundle.preflight import validate_catalog_schema
 from lhp.errors import LHPConfigError
 
-# ---------------------------------------------------------------------------
-# Fixture helpers — same idiom as test_bundle_manager_simplified.py
-# ---------------------------------------------------------------------------
-
 
 def _write_pipeline_config(
     project_root: Path,
@@ -46,11 +42,6 @@ def _write_substitutions(
     subs_dir.mkdir(parents=True, exist_ok=True)
     body: dict = {env: mappings or {"placeholder": "value"}}
     (subs_dir / f"{env}.yaml").write_text(yaml.safe_dump(body), encoding="utf-8")
-
-
-# ---------------------------------------------------------------------------
-# A+ validator: happy paths
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
@@ -111,18 +102,16 @@ def test_validate_pipeline_overrides_project_defaults(tmp_path: Path):
     )
 
 
-# ---------------------------------------------------------------------------
-# A+ validator: aggregation
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.unit
 def test_validate_aggregates_both_missing(tmp_path: Path):
     """All three pipelines miss both catalog and schema."""
     config = _write_pipeline_config(
         tmp_path,
-        # No project_defaults → DEFAULT_PIPELINE_CONFIG has no catalog/schema.
-        pipelines={"p1": {}, "p2": {}, "p3": {}},
+        pipelines={
+            "p1": {},
+            "p2": {},
+            "p3": {},
+        },  # no project_defaults → no catalog/schema
     )
     _write_substitutions(tmp_path, "dev")
 
@@ -234,19 +223,16 @@ def test_validate_groups_all_three_categories(tmp_path: Path):
     assert exc_info.value.context["total_failures"] == 3
 
 
-# ---------------------------------------------------------------------------
-# A+ validator: monitoring inclusion
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.unit
 def test_validate_includes_monitoring_pipeline_when_enabled(tmp_path: Path):
     """Misconfigured monitoring pipeline appears in failures."""
     config = _write_pipeline_config(
         tmp_path,
         project_defaults={"catalog": "cat", "schema": "sch"},
-        # Override the monitoring pipeline to be missing catalog/schema.
-        pipelines={"m1": {"catalog": None, "schema": None}, "p1": {}},
+        pipelines={
+            "m1": {"catalog": None, "schema": None},
+            "p1": {},
+        },  # m1 intentionally misconfigured
     )
     _write_substitutions(tmp_path, "dev")
 

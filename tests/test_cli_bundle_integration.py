@@ -1,9 +1,4 @@
-"""
-Tests for CLI bundle integration functionality.
-
-Tests the CLI changes needed for Databricks Asset Bundle support,
-including command-line flags, init command extensions, and generate command integration.
-"""
+"""Tests for CLI bundle integration functionality."""
 
 import os
 from pathlib import Path
@@ -21,7 +16,6 @@ class TestCLIBundleFlags:
 
     @pytest.fixture(autouse=True)
     def setup_test_env(self, windows_safe_tempdir):
-        """Set up test environment for each test using Windows-safe temporary directory."""
         self.temp_dir = windows_safe_tempdir
         self.project_root = self.temp_dir / "test_project"
         self.project_root.mkdir()
@@ -29,19 +23,16 @@ class TestCLIBundleFlags:
 
     def _create_basic_project(self, with_bundle=False):
         """Create a basic LHP project structure."""
-        # Create basic project files
         (self.project_root / "lhp.yaml").write_text("""name: test_project
 version: "1.0"
 """)
 
-        # Create substitutions
         sub_dir = self.project_root / "substitutions"
         sub_dir.mkdir()
         (sub_dir / "dev.yaml").write_text(
             "dev:\n  catalog: dev_catalog\n  raw_schema: raw\n  bronze_schema: bronze\n"
         )
 
-        # Create pipelines directory with a simple pipeline
         pipe_dir = self.project_root / "pipelines"
         pipe_dir.mkdir()
         (pipe_dir / "test_pipeline.yaml").write_text("""pipeline: test
@@ -63,7 +54,6 @@ actions:
       table: test_table
 """)
 
-        # Optionally create bundle files
         if with_bundle:
             (self.project_root / "databricks.yml").write_text("""
 bundle:
@@ -95,7 +85,6 @@ bundle:
                 ["--verbose", "generate", "--env", "dev", "--no-bundle", "--dry-run"],
             )
 
-            # Should succeed; bundle banner no longer exists post-Phase-4.
             assert result.exit_code == 0
         finally:
             os.chdir(original_cwd)
@@ -121,7 +110,6 @@ bundle:
                 ],
             )
 
-            # exit_code is the load-bearing behavior signal here.
             assert result.exit_code == 0
         finally:
             os.chdir(original_cwd)
@@ -136,7 +124,6 @@ bundle:
 
             result = self.runner.invoke(cli, ["generate", "--env", "dev", "--dry-run"])
 
-            # Should complete without errors (no bundle files exist)
             assert result.exit_code == 0
         finally:
             os.chdir(original_cwd)
@@ -154,7 +141,6 @@ class TestCLIInitBundleCommand:
 
     @pytest.fixture(autouse=True)
     def setup_test_env(self, windows_safe_tempdir):
-        """Set up test environment for each test using Windows-safe temporary directory."""
         self.temp_dir = windows_safe_tempdir
         self.runner = CliRunner()
 
@@ -165,16 +151,12 @@ class TestCLIInitBundleCommand:
 
             assert result.exit_code == 0
 
-            # Verify standard LHP files exist in CWD
             assert Path("lhp.yaml").exists()
             assert Path("substitutions").exists()
             assert Path("pipelines").exists()
-
-            # Verify bundle-specific files exist in CWD
             assert Path("databricks.yml").exists()
             assert Path("resources").exists()
 
-            # Verify databricks.yml content
             bundle_content = yaml.safe_load(Path("databricks.yml").read_text())
             assert "bundle" in bundle_content
             assert bundle_content["bundle"]["name"] == "test_bundle_project"
@@ -189,11 +171,8 @@ class TestCLIInitBundleCommand:
 
             assert result.exit_code == 0
 
-            # Verify standard LHP files exist in CWD
             assert Path("lhp.yaml").exists()
             assert Path("substitutions").exists()
-
-            # Verify bundle files do NOT exist
             assert not Path("databricks.yml").exists()
             assert not Path("resources").exists()
 
@@ -211,11 +190,9 @@ class TestCLIInitBundleCommand:
 
             assert result.exit_code == 0
 
-            # Verify bundle files were created using local template processing
             assert Path("databricks.yml").exists()
             assert Path("resources").exists()
 
-            # Verify template processing worked (project name substitution)
             content = Path("databricks.yml").read_text()
             assert "name: test_template_project" in content
 
@@ -246,19 +223,15 @@ class TestCLIInitBundleCommand:
     def test_init_bundle_uses_local_template_no_network(self):
         """Should create bundle files using local template without network calls."""
         with self.runner.isolated_filesystem(temp_dir=self.temp_dir):
-            # Mock network to ensure no network calls are made
             with patch("requests.get") as mock_get:
                 result = self.runner.invoke(cli, ["init", "local_template_project"])
 
-                # Should succeed without any network calls
                 assert result.exit_code == 0
                 mock_get.assert_not_called()
 
-                # Verify bundle files created locally in CWD
                 assert Path("databricks.yml").exists()
                 assert Path("resources").exists()
 
-                # Verify databricks.yml contains correct project name
                 content = Path("databricks.yml").read_text()
                 assert "name: local_template_project" in content
 
@@ -271,25 +244,23 @@ class TestCLIInitBundleCommand:
 
             content = Path("databricks.yml").read_text()
 
-            # Check essential template elements
             assert "bundle:" in content
             assert "name: template_accuracy_test" in content
             assert "uuid:" in content
             assert "include:" in content
-            assert "resources/*.yml" in content  # User-managed resources
-            assert "resources/lhp/*.yml" in content  # Root-level LHP resources
+            assert "resources/*.yml" in content
+            assert "resources/lhp/*.yml" in content
             assert "targets:" in content
             assert "dev:" in content
             assert "prod:" in content
             assert "mode: development" in content
             assert "mode: production" in content
 
-            # Verify UUID format
             import re
 
             uuid_match = re.search(r"uuid:\s+([0-9a-f-]+)", content)
             assert uuid_match, "UUID not found in databricks.yml"
-            assert len(uuid_match.group(1)) == 36  # Standard UUID length
+            assert len(uuid_match.group(1)) == 36
 
     def test_init_bundle_with_special_project_names(self):
         """Should handle special characters in project names correctly."""
@@ -315,22 +286,20 @@ class TestCLIInitBundleCommand:
 
             assert result.exit_code == 0
 
-            # Verify complete directory structure in CWD
             expected_structure = [
-                "lhp.yaml",  # LHP project config
-                "databricks.yml",  # Bundle config
-                "substitutions",  # LHP substitutions
-                "substitutions/dev.yaml.tmpl",  # Template file is created by default
-                "pipelines",  # LHP pipelines directory
-                "resources",  # Bundle resources directory
-                "presets",  # LHP presets directory
-                "templates",  # LHP templates directory
+                "lhp.yaml",
+                "databricks.yml",
+                "substitutions",
+                "substitutions/dev.yaml.tmpl",
+                "pipelines",
+                "resources",
+                "presets",
+                "templates",
             ]
 
             for path in expected_structure:
                 assert Path(path).exists(), f"Missing: {path}"
 
-            # Verify directories are actually directories
             directory_paths = [
                 "substitutions",
                 "pipelines",
@@ -348,22 +317,17 @@ class TestCLIInitBundleCommand:
 
             assert result.exit_code == 0
 
-            # Verify LHP config content
             lhp_config = yaml.safe_load(Path("lhp.yaml").read_text())
             assert lhp_config["name"] == "lhp_content_test"
             assert "version" in lhp_config
 
-            # Create dev.yaml for testing by copying the template
             import shutil
 
             shutil.copy("substitutions/dev.yaml.tmpl", "substitutions/dev.yaml")
 
-            # Verify substitution file content
             dev_subs = yaml.safe_load(Path("substitutions/dev.yaml").read_text())
-            assert "dev" in dev_subs  # Should have dev environment section
-            assert (
-                "catalog" in dev_subs["dev"]
-            )  # Should have standard substitution variables
+            assert "dev" in dev_subs
+            assert "catalog" in dev_subs["dev"]
 
     def test_init_bundle_resources_directory_empty(self):
         """Should create empty resources/lhp directory for bundle resource files."""
@@ -379,7 +343,6 @@ class TestCLIInitBundleCommand:
             assert resources_lhp_dir.exists()
             assert resources_lhp_dir.is_dir()
 
-            # LHP subdirectory should be empty initially
             lhp_contents = list(resources_lhp_dir.iterdir())
             assert len(lhp_contents) == 0, (
                 f"LHP resources directory should be empty, found: {lhp_contents}"
@@ -391,23 +354,19 @@ class TestCLIGenerateBundleIntegration:
 
     @pytest.fixture(autouse=True)
     def setup_test_env(self, windows_safe_tempdir):
-        """Set up test environment for each test using Windows-safe temporary directory."""
         self.temp_dir = windows_safe_tempdir
         self.project_root = self.temp_dir / "test_project"
         self.project_root.mkdir()
         self.runner = CliRunner()
 
-        # Create project structure
         self._create_project_with_bundle()
 
     def _create_project_with_bundle(self):
         """Create a complete project with bundle support."""
-        # Create LHP config
         (self.project_root / "lhp.yaml").write_text("""name: test_project
 version: "1.0"
 """)
 
-        # Create bundle config
         (self.project_root / "databricks.yml").write_text("""
 bundle:
   name: test_project
@@ -417,14 +376,12 @@ target:
     mode: development
 """)
 
-        # Create substitutions
         sub_dir = self.project_root / "substitutions"
         sub_dir.mkdir()
         (sub_dir / "dev.yaml").write_text(
             "dev:\n  catalog: dev_catalog\n  raw_schema: raw\n  bronze_schema: bronze\n"
         )
 
-        # Create pipelines
         pipe_dir = self.project_root / "pipelines"
         pipe_dir.mkdir()
         (pipe_dir / "raw_ingestion.yaml").write_text("""pipeline: raw_ingestion
@@ -446,7 +403,6 @@ actions:
       table: customer
 """)
 
-        # Create resources/lhp directory
         resources_lhp_dir = self.project_root / "resources" / "lhp"
         resources_lhp_dir.mkdir(parents=True)
 
@@ -467,10 +423,7 @@ actions:
         self, mock_bundle_detection, mock_bundle_manager_class
     ):
         """Should call bundle sync when bundle support is enabled."""
-        # Mock bundle detection to return True
         mock_bundle_detection.return_value = True
-
-        # Mock bundle manager
         mock_bundle_manager = Mock()
         mock_bundle_manager_class.return_value = mock_bundle_manager
 
@@ -584,7 +537,6 @@ class TestCLIBundleErrorHandling:
 
     @pytest.fixture(autouse=True)
     def setup_test_env(self, windows_safe_tempdir):
-        """Set up test environment for each test using Windows-safe temporary directory."""
         self.temp_dir = windows_safe_tempdir
         self.project_root = self.temp_dir / "test_project"
         self.project_root.mkdir()
@@ -601,8 +553,7 @@ class TestCLIBundleErrorHandling:
 
             result = self.runner.invoke(cli, ["generate", "--env", "dev", "--dry-run"])
 
-            # Should handle missing substitution file gracefully
-            assert result.exit_code != 0  # Expected to fail due to missing substitution
+            assert result.exit_code != 0
         finally:
             os.chdir(original_cwd)
 
@@ -612,20 +563,16 @@ class TestCLIBundleIntegrationEndToEnd:
 
     @pytest.fixture(autouse=True)
     def setup_test_env(self, windows_safe_tempdir):
-        """Set up test environment for each test using Windows-safe temporary directory."""
         self.temp_dir = windows_safe_tempdir
         self.runner = CliRunner()
 
     def test_complete_bundle_workflow(self):
         """Test complete workflow: init bundle project, add pipeline, generate with bundle sync."""
         with self.runner.isolated_filesystem(temp_dir=self.temp_dir):
-            # Step 1: Initialize bundle project (default)
             result = self.runner.invoke(cli, ["init", "test_workflow"])
             assert result.exit_code == 0
             assert Path("databricks.yml").exists()
 
-            # Step 2: Add a pipeline configuration
-            # Create dev.yaml for testing by copying the template
             import shutil
 
             shutil.copy("substitutions/dev.yaml.tmpl", "substitutions/dev.yaml")
@@ -659,7 +606,6 @@ actions:
                 "  serverless: true\n"
             )
 
-            # Step 3: Generate with bundle sync (dry run)
             result = self.runner.invoke(
                 cli,
                 [
@@ -672,21 +618,17 @@ actions:
                 ],
             )
 
-            # Should complete successfully
             assert result.exit_code == 0
 
     def test_bundle_sync_integration_with_multiple_pipelines(self):
         """Test bundle sync with multiple pipelines."""
         with self.runner.isolated_filesystem(temp_dir=self.temp_dir):
-            # Initialize project
             result = self.runner.invoke(cli, ["init", "multi_pipeline_project"])
 
-            # Create dev.yaml for testing by copying the template
             import shutil
 
             shutil.copy("substitutions/dev.yaml.tmpl", "substitutions/dev.yaml")
 
-            # Add multiple pipelines
             Path("pipelines/raw.yaml").write_text("""pipeline: raw
 flowgroup: raw
 actions:
@@ -733,7 +675,6 @@ actions:
                 "  serverless: true\n"
             )
 
-            # Generate with bundle sync
             result = self.runner.invoke(
                 cli,
                 [
@@ -752,15 +693,12 @@ actions:
     def test_no_bundle_flag_overrides_bundle_project(self):
         """Test that --no-bundle flag works even in bundle projects."""
         with self.runner.isolated_filesystem(temp_dir=self.temp_dir):
-            # Initialize bundle project (default)
             result = self.runner.invoke(cli, ["init", "bundle_override_test"])
 
-            # Create dev.yaml for testing by copying the template
             import shutil
 
             shutil.copy("substitutions/dev.yaml.tmpl", "substitutions/dev.yaml")
 
-            # Add pipeline
             Path("pipelines/test.yaml").write_text("""pipeline: test
 flowgroup: test
 actions:
@@ -780,7 +718,6 @@ actions:
       table: test_table
 """)
 
-            # Generate with --no-bundle should work
             result = self.runner.invoke(
                 cli, ["generate", "--env", "dev", "--no-bundle", "--dry-run"]
             )

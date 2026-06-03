@@ -1,11 +1,9 @@
 """Unit tests for the per-instance deprecation flag on the substitution manager.
 
-The legacy module-level ``_DEPRECATED_BARE_TOKEN_WARNED`` flag (and the
-``logger.warning`` call that flipped it) was removed in Phase C of the
-LHP CLI UX Hardening Phase 2 plan. Per-instance ``has_deprecated_bare_tokens``
-is the replacement; the main-thread bare-token deprecation is now detected
-once by ``FlowgroupDiscoveryService.scan_deprecation_warnings`` and surfaced by
-the facade as a ``WarningEmitted`` event.
+Per-instance ``has_deprecated_bare_tokens`` replaces the legacy module-level
+flag; bare-token deprecation is detected once by
+``FlowgroupDiscoveryService.scan_deprecation_warnings`` and surfaced by the
+facade as a ``WarningEmitted`` event.
 """
 
 import logging
@@ -61,15 +59,11 @@ def test_substitution_manager_flag_starts_false_with_no_file(tmp_path) -> None:
 
 
 def test_no_logger_warning_emitted_from_substitution(tmp_path, caplog) -> None:
-    """``substitution.py`` no longer emits ``logger.warning`` for bare tokens.
+    """``substitution.py`` must not emit ``logger.warning`` for bare-token deprecation.
 
-    The runtime ``logger.warning(...)`` was silenced inside worker
-    processes (NullHandler-only); the main-thread bare-token deprecation is
-    now surfaced once by
+    The main-thread deprecation is surfaced once by
     ``FlowgroupDiscoveryService.scan_deprecation_warnings`` (re-emitted by the
-    facade as a ``WarningEmitted`` event). There must be no remaining
-    ``logger.warning`` emission from ``lhp.core.processing.substitution`` for
-    deprecation.
+    facade as a ``WarningEmitted`` event).
     """
     sub_file = _write_substitution_file(
         tmp_path / "dev.yaml",

@@ -1,11 +1,10 @@
 """§5.7 stream + plan-isolation invariants for ``GenerationFacade.plan_generation``.
 
-A2 added ``plan_generation`` — a streaming facade method that mirrors
+``plan_generation`` is a streaming facade method that mirrors
 ``generate_pipelines`` event-for-event but produces a ``GenerationPlan``
-(generate-to-temp, write nothing real) by reusing A1's
-``build_generation_plan`` primitive. This module pins the behaviour A2 owns,
-on a REAL multi-pipeline project (no mocks — the engine, gate and commit are
-the production drivers driven against a throwaway temp dir):
+(generate-to-temp, write nothing real). This module pins the behaviour on a
+REAL multi-pipeline project (no mocks — the engine, gate and commit are the
+production drivers driven against a throwaway temp dir):
 
 1. ``OperationStarted`` is first; every ``PhaseStarted`` is paired with a
    ``PhaseCompleted`` of the same phase, in discover → preflight → generate
@@ -16,7 +15,7 @@ the production drivers driven against a throwaway temp dir):
    ``output_location`` equal to the REAL ``generated/<env>`` dir a normal
    generate would write to.
 3. The real ``generated/<env>`` tree is UNTOUCHED — ``plan_generation`` writes
-   nothing to disk (D10: it does NOT commit).
+   nothing to disk (it does NOT commit).
 4. ``pipeline_filter`` narrows the plan to one pipeline; ``include_tests=True``
    adds the per-pipeline test-reporting hook (a ``test_hook`` file).
 
@@ -98,7 +97,7 @@ def _project(tmp_path: Path) -> Path:
     A ``test_reporting`` block + publisher module are present so that
     ``include_tests=True`` genuinely produces the per-pipeline test-reporting
     hook (hook generation requires BOTH ``include_tests`` and a configured
-    ``test_reporting`` — see ``core.codegen.test_reporting``)."""
+    ``test_reporting``)."""
     project_root = tmp_path / "proj"
     for sub in ("presets", "templates", "substitutions", "py_functions"):
         (project_root / sub).mkdir(parents=True, exist_ok=True)
@@ -204,26 +203,21 @@ class TestPlanGenerationStream:
         facade, project_root = facade_in
         events = list(facade.generation.plan_generation("dev", pipeline_filter="p_one"))
 
-        # 1. OperationStarted is first, named for the plan operation.
         assert isinstance(events[0], OperationStarted)
         assert events[0].operation_name == "plan_generation"
         assert events[0].env == "dev"
 
-        # 2. Paired phases discover → preflight → generate.
         _assert_phase_pairs(events)
 
-        # 3. Per-pipeline pairing: exactly one Started + Completed for p_one.
         _assert_no_dangling_pipeline_starts(events)
         completed = [e for e in events if isinstance(e, PipelineCompleted)]
         assert [e.pipeline for e in completed] == ["p_one"]
         assert not any(isinstance(e, PipelineFailed) for e in events)
 
-        # 4. Terminal GenerationPlanCompleted is LAST and carries the plan.
         assert isinstance(events[-1], GenerationPlanCompleted)
         plan = events[-1].response
         assert isinstance(plan, GenerationPlan)
 
-        # 5. Complete plan: non-empty files, counts, real output_location.
         assert len(plan.files) >= 1
         assert plan.file_count == len(plan.files)
         assert plan.pipeline_count == 1
@@ -235,7 +229,7 @@ class TestPlanGenerationStream:
         assert all(isinstance(f.content, str) and f.content for f in plan.files)
 
     def test_real_output_dir_untouched(self, facade_in):
-        """D10/acceptance: plan_generation writes NOTHING to generated/<env>."""
+        """``plan_generation`` writes NOTHING to generated/<env>."""
         facade, project_root = facade_in
         generated = project_root / "generated" / "dev"
 

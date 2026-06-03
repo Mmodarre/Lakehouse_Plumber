@@ -133,10 +133,6 @@ class TestDeltaCDCReaderE2E:
             f"Resource baseline mismatch for 17_delta_cdc.pipeline.yml: {resource_diff}"
         )
 
-    # ------------------------------------------------------------------
-    # 4 CDC / time-travel variants — one method per option combination.
-    # ------------------------------------------------------------------
-
     def test_delta_read_change_feed_matches_baseline(self):
         """readChangeFeed + startingVersion=0 (stream): full CDF from beginning."""
         self._assert_baseline_match("cdc_read_change_feed.py")

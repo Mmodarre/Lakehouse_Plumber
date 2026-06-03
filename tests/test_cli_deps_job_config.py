@@ -13,13 +13,10 @@ def test_deps_command_with_default_config(tmp_path):
     runner = CliRunner()
 
     with runner.isolated_filesystem(temp_dir=tmp_path):
-        # Create minimal project structure
         project_root = Path.cwd()
 
-        # Create lhp.yaml
         (project_root / "lhp.yaml").write_text("name: test_project\nversion: '1.0'\n")
 
-        # Create a simple pipeline YAML
         pipelines_dir = project_root / "pipelines"
         pipelines_dir.mkdir()
         pipeline_yaml = pipelines_dir / "test.yaml"
@@ -38,19 +35,15 @@ actions:
       target: output_table
 """)
 
-        # Run deps command
         result = runner.invoke(
             cli, ["deps", "--format", "job", "--job-name", "test_job"]
         )
 
-        # Check command succeeded
         assert result.exit_code == 0, f"Command failed: {result.output}"
 
-        # Check job file was created in default location
         job_file = project_root / ".lhp" / "dependencies" / "test_job.job.yml"
         assert job_file.exists(), f"Job file not found at {job_file}"
 
-        # Verify default config values are in the job
         with open(job_file) as f:
             job_data = yaml.safe_load(f)
 
@@ -68,10 +61,8 @@ def test_deps_command_with_custom_config_file(tmp_path):
     with runner.isolated_filesystem(temp_dir=tmp_path):
         project_root = Path.cwd()
 
-        # Create lhp.yaml
         (project_root / "lhp.yaml").write_text("name: test_project\nversion: '1.0'\n")
 
-        # Create custom job config
         custom_config = project_root / "custom_job_config.yaml"
         custom_config.write_text("""
 max_concurrent_runs: 5
@@ -79,7 +70,6 @@ performance_target: PERFORMANCE_OPTIMIZED
 timeout_seconds: 7200
 """)
 
-        # Create a simple pipeline YAML
         pipelines_dir = project_root / "pipelines"
         pipelines_dir.mkdir()
         pipeline_yaml = pipelines_dir / "test.yaml"
@@ -98,7 +88,6 @@ actions:
       target: output_table
 """)
 
-        # Run deps command with custom config
         result = runner.invoke(
             cli,
             [
@@ -112,14 +101,11 @@ actions:
             ],
         )
 
-        # Check command succeeded
         assert result.exit_code == 0, f"Command failed: {result.output}"
 
-        # Check job file was created
         job_file = project_root / ".lhp" / "dependencies" / "test_job.job.yml"
         assert job_file.exists()
 
-        # Verify custom config values are in the job
         with open(job_file) as f:
             job_data = yaml.safe_load(f)
 
@@ -138,10 +124,8 @@ def test_deps_command_with_bundle_output(tmp_path):
     with runner.isolated_filesystem(temp_dir=tmp_path):
         project_root = Path.cwd()
 
-        # Create lhp.yaml
         (project_root / "lhp.yaml").write_text("name: test_project\nversion: '1.0'\n")
 
-        # Create a simple pipeline YAML
         pipelines_dir = project_root / "pipelines"
         pipelines_dir.mkdir()
         pipeline_yaml = pipelines_dir / "test.yaml"
@@ -160,20 +144,16 @@ actions:
       target: output_table
 """)
 
-        # Run deps command with bundle output
         result = runner.invoke(
             cli,
             ["deps", "--format", "job", "--job-name", "test_job", "--bundle-output"],
         )
 
-        # Check command succeeded
         assert result.exit_code == 0, f"Command failed: {result.output}"
 
-        # Check job file was created in resources/ directory
         job_file = project_root / "resources" / "test_job.job.yml"
         assert job_file.exists(), f"Job file not found at {job_file}"
 
-        # Verify it's a valid job YAML
         with open(job_file) as f:
             job_data = yaml.safe_load(f)
 
@@ -188,10 +168,8 @@ def test_deps_command_with_both_options(tmp_path):
     with runner.isolated_filesystem(temp_dir=tmp_path):
         project_root = Path.cwd()
 
-        # Create lhp.yaml
         (project_root / "lhp.yaml").write_text("name: test_project\nversion: '1.0'\n")
 
-        # Create custom job config
         custom_config = project_root / "my_config.yaml"
         custom_config.write_text("""
 max_concurrent_runs: 10
@@ -200,7 +178,6 @@ tags:
   environment: production
 """)
 
-        # Create a simple pipeline YAML
         pipelines_dir = project_root / "pipelines"
         pipelines_dir.mkdir()
         pipeline_yaml = pipelines_dir / "test.yaml"
@@ -219,7 +196,6 @@ actions:
       target: output_table
 """)
 
-        # Run deps command with both options
         result = runner.invoke(
             cli,
             [
@@ -234,14 +210,11 @@ actions:
             ],
         )
 
-        # Check command succeeded
         assert result.exit_code == 0, f"Command failed: {result.output}"
 
-        # Check job file was created in resources/
         job_file = project_root / "resources" / "prod_job.job.yml"
         assert job_file.exists()
 
-        # Verify custom config was applied
         with open(job_file) as f:
             job_data = yaml.safe_load(f)
 
@@ -259,10 +232,8 @@ def test_deps_command_fails_with_missing_config_file(tmp_path):
     with runner.isolated_filesystem(temp_dir=tmp_path):
         project_root = Path.cwd()
 
-        # Create lhp.yaml
         (project_root / "lhp.yaml").write_text("name: test_project\nversion: '1.0'\n")
 
-        # Create a simple pipeline YAML
         pipelines_dir = project_root / "pipelines"
         pipelines_dir.mkdir()
         pipeline_yaml = pipelines_dir / "test.yaml"
@@ -281,7 +252,6 @@ actions:
       target: output_table
 """)
 
-        # Run deps command with non-existent config file
         result = runner.invoke(
             cli, ["deps", "--format", "job", "--job-config", "nonexistent.yaml"]
         )

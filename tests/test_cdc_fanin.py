@@ -8,7 +8,7 @@ Covers:
   ``apply_as_truncates``, ``column_list``, ``except_column_list``).
 - Compatibility validator (shared-field mismatches and mode-mixing).
 - Write validator rejection of list-source + CDC mode.
-- Snapshot CDC regression (per-plan: output must be unchanged).
+- Snapshot CDC regression (output must be unchanged).
 """
 
 from pathlib import Path
@@ -24,10 +24,6 @@ from lhp.core.validators import (
 from lhp.errors import LHPConfigError
 from lhp.generators.write.streaming_table import StreamingTableWriteGenerator
 from lhp.models import Action, ActionType, FlowGroup
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 
 def _cdc_action(
@@ -71,11 +67,6 @@ def _cdc_action(
     )
 
 
-# ---------------------------------------------------------------------------
-# Happy path
-# ---------------------------------------------------------------------------
-
-
 def test_single_cdc_action_still_renders_table_and_flow():
     """Regression: single CDC action emits table + one auto_cdc_flow with name=."""
     action = _cdc_action(
@@ -89,7 +80,6 @@ def test_single_cdc_action_still_renders_table_and_flow():
 
     assert "dp.create_streaming_table(" in code
     assert 'name="cat.sch.dim_customer"' in code
-    # Per-flow name= is now rendered for all CDC flows, including single-action.
     assert "dp.create_auto_cdc_flow(" in code
     assert 'source="v_customer_changes"' in code
     assert 'name="f_customer_dim"' in code
@@ -125,7 +115,6 @@ def test_two_cdc_actions_one_flowgroup_combine_into_one_file():
     generator = StreamingTableWriteGenerator()
     code = generator.generate(combined, {"expectations": []})
 
-    # Exactly one create_streaming_table + two create_auto_cdc_flow calls.
     assert code.count("dp.create_streaming_table(") == 1
     assert code.count("dp.create_auto_cdc_flow(") == 2
     assert 'name="f_cdc_primary"' in code
@@ -171,7 +160,6 @@ def test_cdc_fanin_with_once_backfill():
     )
     code = StreamingTableWriteGenerator().generate(combined, {"expectations": []})
 
-    # once=True must appear in backfill flow's block, but not in streaming flow's.
     stream_section = code.split('name="f_cdc_stream"')[1].split(")")[0]
     backfill_section = code.split('name="f_cdc_backfill"')[1].split(")")[0]
     assert "once=True" not in stream_section
@@ -239,11 +227,6 @@ def test_cdc_except_column_list_per_flow():
     assert "except_column_list" not in x_section
 
 
-# ---------------------------------------------------------------------------
-# Cross-flowgroup fan-in
-# ---------------------------------------------------------------------------
-
-
 def test_cross_flowgroup_cdc_fanin_table_creator_validation():
     """Two CDC actions across two flowgroups: one creator wins, other must be user."""
     fg_creator = FlowGroup(
@@ -269,18 +252,11 @@ def test_cross_flowgroup_cdc_fanin_table_creator_validation():
         ],
     )
 
-    # Passes with one creator + one contributor.
     errors = TableCreationValidator().validate([fg_creator, fg_contrib])
     assert errors == []
 
-    # Cross-flowgroup fan-in compatibility validator agrees.
     fanin_errors = CdcFanInCompatibilityValidator().validate([fg_creator, fg_contrib])
     assert fanin_errors == []
-
-
-# ---------------------------------------------------------------------------
-# Compatibility-validator: mismatches
-# ---------------------------------------------------------------------------
 
 
 def test_cdc_fanin_mismatch_keys_raises():
@@ -447,11 +423,6 @@ def test_cdc_fanin_multiple_creators_reuses_existing_check():
     assert "Multiple table creators" in str(exc.value)
 
 
-# ---------------------------------------------------------------------------
-# Write validator: reject list-source + cdc
-# ---------------------------------------------------------------------------
-
-
 def test_list_source_with_cdc_rejected():
     """`source: [v1, v2]` + `mode: cdc` emits a clear error (Shape A guidance)."""
     validator = ConfigValidator()
@@ -512,11 +483,6 @@ def test_single_element_list_source_with_cdc_allowed():
     )
     errors = validator.validate_action(action, 0)
     assert errors == []
-
-
-# ---------------------------------------------------------------------------
-# Snapshot CDC regression (should be unchanged)
-# ---------------------------------------------------------------------------
 
 
 def test_snapshot_cdc_single_action_unchanged():

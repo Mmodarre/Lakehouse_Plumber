@@ -1,5 +1,3 @@
-"""Tests for dependency output manager service."""
-
 import json
 import tempfile
 from pathlib import Path
@@ -17,21 +15,16 @@ from lhp.models.dependencies import (
 
 
 class TestDependencyOutputManager:
-    """Test DependencyOutputManager functionality."""
-
     def setup_method(self):
-        """Set up test fixtures."""
         self.temp_dir = Path(tempfile.mkdtemp())
         self.output_manager = DependencyOutputManager()
 
     def teardown_method(self):
-        """Clean up test fixtures."""
         import shutil
 
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def create_mock_graphs(self):
-        """Create mock dependency graphs for testing."""
         action_graph = nx.DiGraph()
         action_graph.add_node(
             "fg1.action1", type="load", flowgroup="fg1", pipeline="pipeline1"
@@ -59,7 +52,6 @@ class TestDependencyOutputManager:
         )
 
     def create_mock_analysis_result(self, graphs=None):
-        """Create mock dependency analysis result for testing."""
         if graphs is None:
             graphs = self.create_mock_graphs()
 
@@ -93,11 +85,10 @@ class TestDependencyOutputManager:
         )
 
     def test_save_outputs_all_formats(self):
-        """Test saving outputs in all formats."""
         mock_analyzer = Mock()
         mock_analyzer.export_to_dot.return_value = "digraph test { a -> b; }"
         mock_analyzer.export_to_json.return_value = {"test": "data"}
-        mock_analyzer.project_root = self.temp_dir  # Add project_root for JobGenerator
+        mock_analyzer.project_root = self.temp_dir
 
         result = self.create_mock_analysis_result()
         output_formats = ["all"]
@@ -106,18 +97,15 @@ class TestDependencyOutputManager:
             mock_analyzer, result, output_formats, self.temp_dir
         )
 
-        # Should generate dot, json, text, and job files (HTML format was removed)
         assert "dot" in generated_files
         assert "json" in generated_files
         assert "text" in generated_files
         assert "job" in generated_files
 
-        # Verify files were created
         for file_path in generated_files.values():
             assert file_path.exists()
 
     def test_save_outputs_specific_formats(self):
-        """Test saving outputs with specific formats."""
         mock_analyzer = Mock()
         mock_analyzer.export_to_dot.return_value = "digraph test { a -> b; }"
         mock_analyzer.export_to_json.return_value = {"test": "data"}
@@ -129,18 +117,14 @@ class TestDependencyOutputManager:
             mock_analyzer, result, output_formats, self.temp_dir
         )
 
-        # Should only generate dot and json files
         assert "dot" in generated_files
         assert "json" in generated_files
         assert "text" not in generated_files
         assert "job" not in generated_files
-
-        # Verify files were created
         assert generated_files["dot"].exists()
         assert generated_files["json"].exists()
 
     def test_save_outputs_invalid_format(self):
-        """Test error handling for invalid output formats."""
         mock_analyzer = Mock()
         result = self.create_mock_analysis_result()
         output_formats = ["invalid_format"]
@@ -153,16 +137,12 @@ class TestDependencyOutputManager:
         assert "Invalid output formats: {'invalid_format'}" in str(exc_info.value)
 
     def test_save_dot_format_renders_real_dot_content(self):
-        """DOT save writes the REAL ``export_to_dot`` rendering, not a mock.
+        """DOT save writes the module-level ``export_to_dot`` output, not the analyzer mock.
 
-        ``save_dot_format`` does ``del analyzer`` and calls the module-level
-        ``export_to_dot`` on the real graphs (the old ``analyzer.export_to_dot``
-        seam was removed). This test mocks the file-I/O seam (``builtins.open``)
-        to capture what is actually written, then asserts the real renderer's
-        structure: a ``digraph`` header, node identifiers wrapped in double
-        quotes, an escaped ``\\n`` inside the pipeline-level label, and a quoted
-        edge line. It would FAIL if the serializer dropped quoting or stopped
-        escaping newlines.
+        Mocks the file-I/O seam to capture written bytes and asserts real renderer
+        structure: ``digraph`` header, double-quoted node identifiers, escaped ``\\n``
+        in pipeline labels, quoted edge lines. Fails if the serializer drops quoting
+        or stops escaping newlines.
         """
         # A bare Mock with a dead ``export_to_dot`` attribute — the real code
         # must NOT touch it (it does ``del analyzer`` then calls the pure
@@ -181,17 +161,13 @@ class TestDependencyOutputManager:
             )
 
         assert result_path == output_path
-        # File-I/O seam opened for writing with utf-8.
         m.assert_called_once_with(output_path, "w", encoding="utf-8")
 
-        # Reconstruct the exact bytes handed to the file handle.
         written = "".join(call.args[0] for call in m.return_value.write.call_args_list)
 
-        # The dead analyzer seam was never used.
         poisoned_analyzer.export_to_dot.assert_not_called()
         assert "POISONED-SHOULD-NOT-APPEAR" not in written
 
-        # Real renderer structure: header + quoted nodes + escaped newline label.
         assert written.startswith("digraph pipeline_dependencies {")
         assert "rankdir=LR;" in written
         # Node identifiers are double-quoted (regression guard on quoting).
@@ -200,28 +176,20 @@ class TestDependencyOutputManager:
         # Pipeline-level labels embed an ESCAPED newline (literal backslash-n),
         # never a raw newline that would break the DOT line.
         assert '"pipeline1\\n(1 flowgroups)"' in written
-        assert "pipeline1\n(1 flowgroups)" not in written  # not a raw newline
-        # Edge line: both endpoints quoted.
+        assert "pipeline1\n(1 flowgroups)" not in written
         assert '"pipeline1" -> "pipeline2";' in written
 
-        # Cross-check: identical to the pure serializer output.
         from lhp.core.dependencies.output import export_to_dot
 
         assert written == export_to_dot(graphs, "pipeline")
 
     def test_save_json_format_renders_real_json_with_generation_info(self):
-        """JSON save writes the REAL ``export_to_json`` output plus ``generation_info``.
+        """JSON save writes the module-level ``export_to_json`` output plus a ``generation_info`` block.
 
-        ``save_json_format`` does ``del analyzer`` and calls the module-level
-        ``export_to_json`` on the real result (the old ``analyzer.export_to_json``
-        seam was removed), then injects a ``generation_info`` block before
-        ``json.dump``. This test mocks the file-I/O seam (``builtins.open``) to
-        capture the serialized bytes and asserts the real structure: the
-        ``generation_info`` block is present and well-formed, and the pipeline
-        graph content (metadata / per-pipeline ``depends_on`` / execution
-        stages / external sources) reflects the REAL analysis result. It would
-        FAIL if the serializer dropped a section or the manager stopped adding
-        ``generation_info``.
+        Mocks the file-I/O seam to capture serialized bytes and asserts that
+        ``generation_info`` is present and well-formed, and that pipeline metadata /
+        ``depends_on`` / execution stages / external sources reflect the real result.
+        Fails if the serializer drops a section or the manager stops adding ``generation_info``.
         """
         poisoned_analyzer = Mock()
         poisoned_analyzer.export_to_json.return_value = {"POISONED": True}
@@ -242,18 +210,15 @@ class TestDependencyOutputManager:
         written = "".join(call.args[0] for call in m.return_value.write.call_args_list)
         saved = json.loads(written)
 
-        # The dead analyzer seam was never used.
         poisoned_analyzer.export_to_json.assert_not_called()
         assert "POISONED" not in saved
 
-        # generation_info block (added by the manager) — present and well-formed.
         assert "generation_info" in saved
         gen_info = saved["generation_info"]
         assert gen_info["generator"] == "LakehousePlumber DependencyAnalysisService"
         assert gen_info["version"] == "1.0"
         assert "generated_at" in gen_info  # ISO timestamp from datetime.isoformat()
 
-        # Real serializer structure reflecting the actual result.
         assert saved["metadata"]["total_pipelines"] == 2
         assert saved["metadata"]["total_stages"] == 2
         assert saved["metadata"]["has_circular_dependencies"] is False
@@ -266,7 +231,6 @@ class TestDependencyOutputManager:
         assert saved["circular_dependencies"] == []
 
     def test_save_text_format(self):
-        """Test text format saving."""
         result = self.create_mock_analysis_result()
         output_path = self.temp_dir / "dependencies.txt"
 
@@ -283,7 +247,6 @@ class TestDependencyOutputManager:
         assert "EXTERNAL SOURCES" in content
 
     def test_save_text_format_with_circular_dependencies(self):
-        """Test text format with circular dependencies."""
         result = self.create_mock_analysis_result()
         result.circular_dependencies = [
             ["pipeline cycle: pipeline1 -> pipeline2 -> pipeline1"]
@@ -297,7 +260,6 @@ class TestDependencyOutputManager:
         assert "pipeline cycle: pipeline1 -> pipeline2 -> pipeline1" in content
 
     def test_save_job_format_default_name(self):
-        """Test job format saving with default name."""
         mock_analyzer = Mock()
         mock_job_generator = Mock()
         mock_job_generator.save_job_to_file.return_value = (
@@ -312,11 +274,9 @@ class TestDependencyOutputManager:
         ):
             self.output_manager._save_job_format(mock_analyzer, result, self.temp_dir)
 
-        # Verify job generator was called
         mock_job_generator.save_job_to_file.assert_called_once()
 
     def test_save_job_format_custom_name(self):
-        """Test job format saving with custom job name."""
         mock_analyzer = Mock()
         mock_job_generator = Mock()
         mock_job_generator.save_job_to_file.return_value = (
@@ -334,26 +294,22 @@ class TestDependencyOutputManager:
                 mock_analyzer, result, self.temp_dir, custom_name
             )
 
-        # Verify job generator was called with custom name
         args = mock_job_generator.save_job_to_file.call_args[0]
         assert args[2] == custom_name  # job_name parameter
 
     def test_resolve_output_directory_default(self):
-        """Test output directory resolution with default path."""
         expected_path = Path.cwd() / ".lhp" / "dependencies"
 
         result_path = self.output_manager._resolve_output_directory(None)
         assert result_path == expected_path
 
     def test_resolve_output_directory_custom(self):
-        """Test output directory resolution with custom path."""
         custom_path = Path("/custom/output/dir")
 
         result_path = self.output_manager._resolve_output_directory(custom_path)
         assert result_path == custom_path
 
     def test_ensure_directory_exists_new(self):
-        """Test directory creation when it doesn't exist."""
         new_dir = self.temp_dir / "new_directory"
         assert not new_dir.exists()
 
@@ -362,28 +318,22 @@ class TestDependencyOutputManager:
         assert new_dir.is_dir()
 
     def test_ensure_directory_exists_existing(self):
-        """Test directory handling when it already exists."""
         existing_dir = self.temp_dir / "existing"
         existing_dir.mkdir()
         assert existing_dir.exists()
 
-        # Should not raise an error
         self.output_manager._ensure_directory_exists(existing_dir)
         assert existing_dir.exists()
 
     def test_text_format_integration(self):
-        """Test that text format includes expected execution stage and pipeline information."""
         result = self.create_mock_analysis_result()
         output_path = self.temp_dir / "integration_test.txt"
 
         result_path = self.output_manager.save_text_format(result, output_path)
         content = result_path.read_text()
 
-        # Test that execution stages are formatted correctly in the text
         assert "Stage 1: pipeline1" in content
         assert "Stage 2: pipeline2" in content
-
-        # Test that pipeline details are formatted correctly
         assert "Pipeline: pipeline1" in content
         assert "Pipeline: pipeline2" in content
         assert "Flowgroups: 1" in content
@@ -414,7 +364,6 @@ class TestDependencyOutputManager:
             with pytest.raises(IOError) as exc_info:
                 self.output_manager.save_dot_format(analyzer, graphs, output_path)
 
-        # Wrapped message mentions the target path and the original error.
         assert "Failed to save DOT file" in str(exc_info.value)
         assert str(output_path) in str(exc_info.value)
         assert "Disk full" in str(exc_info.value)
@@ -422,7 +371,6 @@ class TestDependencyOutputManager:
         assert exc_info.value.__cause__ is original
 
     def test_file_generation_summary(self):
-        """Test file generation summary in save_outputs."""
         mock_analyzer = Mock()
         mock_analyzer.export_to_dot.return_value = "digraph { }"
         mock_analyzer.export_to_json.return_value = {"test": "data"}
@@ -434,13 +382,11 @@ class TestDependencyOutputManager:
             mock_analyzer, result, output_formats, self.temp_dir
         )
 
-        # Check that file sizes are reported correctly
         for file_path in generated_files.values():
             assert file_path.exists()
             assert file_path.stat().st_size > 0
 
     def test_empty_execution_stages_handling(self):
-        """Test handling of empty execution stages in text format."""
         result = self.create_mock_analysis_result()
         result.execution_stages = []
 
@@ -454,42 +400,34 @@ class TestDependencyOutputManager:
         )
 
     def test_large_external_sources_handling(self):
-        """Test handling of large external source lists in text format."""
         result = self.create_mock_analysis_result()
-        # Add many external sources
         many_sources = [f"external.table_{i}" for i in range(20)]
         result.external_sources = many_sources
-        # Also update the pipeline dependency to include some of these external sources
         result.pipeline_dependencies["pipeline1"].external_sources = many_sources[:7]
 
         output_path = self.temp_dir / "dependencies.txt"
         result_path = self.output_manager.save_text_format(result, output_path)
 
         content = result_path.read_text()
-        # Should show external sources in both pipeline details and external sources section
         assert "external.table_0" in content
         # For pipeline details, should truncate after 5 and show "... and X more"
         assert "... and" in content
 
     def test_base_output_dir_initialization(self):
-        """Test base output directory initialization."""
         custom_base_dir = Path("/custom/base")
         manager = DependencyOutputManager(custom_base_dir)
         assert manager.base_output_dir == custom_base_dir
 
-        # Test with None (default)
         default_manager = DependencyOutputManager()
         assert default_manager.base_output_dir is None
 
     def test_concurrent_file_operations(self):
-        """Test that file operations are atomic and don't interfere."""
         mock_analyzer = Mock()
         mock_analyzer.export_to_dot.return_value = "digraph test { }"
         mock_analyzer.export_to_json.return_value = {"test": "concurrent"}
 
         result = self.create_mock_analysis_result()
 
-        # Simulate concurrent saves (though this test is still sequential)
         files1 = self.output_manager.save_outputs(
             mock_analyzer, result, ["dot"], self.temp_dir / "output1"
         )
@@ -497,16 +435,13 @@ class TestDependencyOutputManager:
             mock_analyzer, result, ["json"], self.temp_dir / "output2"
         )
 
-        # Both should succeed independently
         assert files1["dot"].exists()
         assert files2["json"].exists()
 
     @patch("builtins.open", mock_open())
     def test_unicode_handling_in_text_output(self):
-        """Test Unicode character handling in text output."""
         result = self.create_mock_analysis_result()
 
-        # Add Unicode characters to pipeline names (simulate international usage)
         result.pipeline_dependencies["pipeline_测试"] = PipelineDependency(
             pipeline="pipeline_测试",
             depends_on=[],
@@ -519,21 +454,14 @@ class TestDependencyOutputManager:
 
         output_path = self.temp_dir / "unicode_test.txt"
 
-        # Should not raise UnicodeEncodeError
         result_path = self.output_manager.save_text_format(result, output_path)
         assert result_path == output_path
-
-
-# ============================================================================
-# Tests for Custom Job Config and Bundle Output
-# ============================================================================
 
 
 def test_save_job_to_default_location(tmp_path):
     """Job saves to .lhp/dependencies/ by default."""
     output_manager = DependencyOutputManager()
 
-    # Create mock analyzer and result
     analyzer = Mock()
     analyzer.project_root = tmp_path / "project"
     analyzer.export_to_dot = Mock(return_value="digraph {}")
@@ -541,11 +469,9 @@ def test_save_job_to_default_location(tmp_path):
 
     result = create_test_dependency_result()
 
-    # Save with default location
     output_dir = tmp_path / ".lhp" / "dependencies"
     generated_files = output_manager.save_outputs(analyzer, result, ["job"], output_dir)
 
-    # Check that job file was created in default location
     assert "job" in generated_files
     assert str(generated_files["job"]).endswith(".job.yml")
     assert generated_files["job"].parent == output_dir
@@ -555,7 +481,6 @@ def test_save_job_to_resources_with_bundle_flag(tmp_path):
     """Job saves to resources/ when bundle_output=True."""
     output_manager = DependencyOutputManager()
 
-    # Create mock analyzer and result
     analyzer = Mock()
     analyzer.project_root = tmp_path / "project"
     analyzer.project_root.mkdir(parents=True)
@@ -564,13 +489,11 @@ def test_save_job_to_resources_with_bundle_flag(tmp_path):
 
     result = create_test_dependency_result()
 
-    # Save with bundle_output flag
     output_dir = tmp_path / ".lhp" / "dependencies"
     generated_files = output_manager.save_outputs(
         analyzer, result, ["job"], output_dir, bundle_output=True, job_name="test_job"
     )
 
-    # Check that job file was created in resources/ directory
     assert "job" in generated_files
     expected_path = analyzer.project_root / "resources" / "test_job.job.yml"
     assert generated_files["job"] == expected_path
@@ -580,13 +503,11 @@ def test_save_job_passes_config_path_to_generator(tmp_path):
     """Config file path is passed to JobGenerator."""
     output_manager = DependencyOutputManager()
 
-    # Create project with custom config
     project_root = tmp_path / "project"
     project_root.mkdir()
     custom_config = project_root / "custom_config.yaml"
     custom_config.write_text("max_concurrent_runs: 10\n")
 
-    # Create mock analyzer
     analyzer = Mock()
     analyzer.project_root = project_root
     analyzer.export_to_dot = Mock(return_value="digraph {}")
@@ -594,17 +515,14 @@ def test_save_job_passes_config_path_to_generator(tmp_path):
 
     result = create_test_dependency_result()
 
-    # Save with custom config path
     output_dir = tmp_path / ".lhp" / "dependencies"
     output_manager.save_outputs(
         analyzer, result, ["job"], output_dir, job_config_path="custom_config.yaml"
     )
 
-    # Verify the job file was created
     job_files = list(output_dir.glob("*.job.yml"))
     assert len(job_files) == 1
 
-    # Verify custom config was used (check for max_concurrent_runs: 10)
     with open(job_files[0]) as f:
         content = f.read()
         assert "max_concurrent_runs: 10" in content
@@ -614,11 +532,9 @@ def test_save_job_creates_resources_directory_if_not_exists(tmp_path):
     """Resources directory is created if it doesn't exist."""
     output_manager = DependencyOutputManager()
 
-    # Create project without resources directory
     project_root = tmp_path / "project"
     project_root.mkdir()
 
-    # Create mock analyzer
     analyzer = Mock()
     analyzer.project_root = project_root
     analyzer.export_to_dot = Mock(return_value="digraph {}")
@@ -626,24 +542,20 @@ def test_save_job_creates_resources_directory_if_not_exists(tmp_path):
 
     result = create_test_dependency_result()
 
-    # Resources directory shouldn't exist yet
     resources_dir = project_root / "resources"
     assert not resources_dir.exists()
 
-    # Save with bundle_output flag
     output_dir = tmp_path / ".lhp" / "dependencies"
     generated_files = output_manager.save_outputs(
         analyzer, result, ["job"], output_dir, bundle_output=True, job_name="test_job"
     )
 
-    # Resources directory should now exist
     assert resources_dir.exists()
     assert generated_files["job"].exists()
 
 
 def create_test_dependency_result():
-    """Helper to create a minimal DependencyAnalysisResult for testing."""
-    # Create minimal graphs
+    """Minimal DependencyAnalysisResult for testing."""
     action_graph = nx.DiGraph()
     flowgroup_graph = nx.DiGraph()
     pipeline_graph = nx.DiGraph()
@@ -656,7 +568,6 @@ def create_test_dependency_result():
         metadata={},
     )
 
-    # Create pipeline dependency
     pipeline_dep = PipelineDependency(
         pipeline="test_pipeline",
         depends_on=[],
@@ -675,27 +586,17 @@ def create_test_dependency_result():
     )
 
 
-# ============================================================================
-# Tests for Circular Dependency Guard and "all" Format Expansion
-# ============================================================================
-
-
 class TestCircularDependencyGuard:
-    """Tests for circular dependency guard on job format generation."""
-
     def setup_method(self):
-        """Set up test fixtures."""
         self.temp_dir = Path(tempfile.mkdtemp())
         self.output_manager = DependencyOutputManager()
 
     def teardown_method(self):
-        """Clean up test fixtures."""
         import shutil
 
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def create_mock_analysis_result(self):
-        """Create mock dependency analysis result for testing."""
         action_graph = nx.DiGraph()
         flowgroup_graph = nx.DiGraph()
         pipeline_graph = nx.DiGraph()
@@ -742,7 +643,6 @@ class TestCircularDependencyGuard:
         assert "job" not in generated_files
 
     def test_job_format_generated_when_no_circular_dependencies(self):
-        """Job format is generated normally when no circular dependencies."""
         mock_analyzer = Mock()
         mock_analyzer.export_to_dot.return_value = "digraph {}"
         mock_analyzer.export_to_json.return_value = {}
@@ -776,22 +676,17 @@ class TestCircularDependencyGuard:
         assert "text" in generated_files
         assert "job" not in generated_files
 
-        # Verify the non-job files were actually created on disk
         assert generated_files["dot"].exists()
         assert generated_files["json"].exists()
         assert generated_files["text"].exists()
 
 
 class TestAllFormatExpansion:
-    """Tests for 'all' format expansion to individual formats."""
-
     def setup_method(self):
-        """Set up test fixtures."""
         self.temp_dir = Path(tempfile.mkdtemp())
         self.output_manager = DependencyOutputManager()
 
     def teardown_method(self):
-        """Clean up test fixtures."""
         import shutil
 
         shutil.rmtree(self.temp_dir, ignore_errors=True)
@@ -803,7 +698,6 @@ class TestAllFormatExpansion:
         mock_analyzer.export_to_json.return_value = {}
         mock_analyzer.project_root = self.temp_dir
 
-        # Patch save_outputs to capture the expanded formats list
         original_save_outputs = DependencyOutputManager.save_outputs
 
         captured_formats = {}
@@ -811,7 +705,6 @@ class TestAllFormatExpansion:
         def patched_save_outputs(
             self_inner, analyzer, result, output_formats, *args, **kwargs
         ):
-            # Expand "all" just like the real code does
             if "all" in output_formats:
                 output_formats = ["dot", "json", "text", "job"]
             captured_formats["expanded"] = list(output_formats)

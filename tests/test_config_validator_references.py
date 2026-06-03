@@ -1,6 +1,4 @@
-"""
-Reference and rule validation tests for ConfigValidator.
-"""
+"""Reference and rule validation tests for ConfigValidator."""
 
 from unittest.mock import patch
 
@@ -14,12 +12,6 @@ class TestConfigValidatorReferences:
     """Reference and rule validation tests for ConfigValidator."""
 
     def test_table_creation_rules_validation(self):
-        """Test table creation rules validation.
-
-        Target lines: 672, 759-760, 763, 770, 785-792
-        Tests multiple creators, table name extraction, and action creates table logic.
-        """
-        # Test 1: Multiple table creators (should raise LHPError)
         flowgroups = [
             FlowGroup(
                 pipeline="test_pipeline",
@@ -53,13 +45,11 @@ class TestConfigValidatorReferences:
             )
         ]
 
-        # Should raise LHPError for multiple creators
         with pytest.raises(Exception) as exc_info:
             TableCreationValidator().validate(flowgroups)
 
         assert "Multiple table creators detected" in str(exc_info.value)
 
-        # Test 2: Table with no creators (should error)
         flowgroups = [
             FlowGroup(
                 pipeline="test_pipeline",
@@ -84,7 +74,6 @@ class TestConfigValidatorReferences:
         errors = TableCreationValidator().validate(flowgroups)
         assert any("has no creator" in error for error in errors)
 
-        # Test 3: Valid table creation (should NOT error)
         flowgroups = [
             FlowGroup(
                 pipeline="test_pipeline",
@@ -122,14 +111,8 @@ class TestConfigValidatorReferences:
         assert len(errors) == 0
 
     def test_template_usage_warning(self):
-        """Test template usage warning.
-
-        Target line: 14
-        Tests FlowGroup with use_template but no template_parameters.
-        """
         validator = ConfigValidator()
 
-        # Test 1: FlowGroup with use_template but no template_parameters (should warn)
         with patch.object(validator.logger, "warning") as mock_warning:
             flowgroup = FlowGroup(
                 pipeline="test_pipeline",
@@ -148,7 +131,6 @@ class TestConfigValidatorReferences:
 
             errors = validator.validate_flowgroup(flowgroup)
 
-            # Should log warning (line 14)
             mock_warning.assert_called_once()
             warning_call = mock_warning.call_args[0][0]
             assert (

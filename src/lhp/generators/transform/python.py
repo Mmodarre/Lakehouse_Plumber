@@ -12,23 +12,18 @@ logger = logging.getLogger(__name__)
 
 
 class PythonTransformGenerator(BaseActionGenerator):
-    """Generate Python transformation actions."""
-
     def __init__(self):
         super().__init__(use_import_manager=True)
         self.add_import("from pyspark import pipelines as dp")
 
     def generate(self, action: Action, context: dict) -> str:
-        """Generate Python transform code."""
         logger.debug(
             f"Generating Python transform for target '{action.target}', action '{action.name}'"
         )
-        # Extract module configuration from action level
         module_path = getattr(action, "module_path", None)
         function_name = getattr(action, "function_name", None)
         parameters = getattr(action, "parameters", {})
 
-        # Apply substitution to module_path, function_name, and parameters if available
         if "substitution_manager" in context:
             substitution_mgr = context["substitution_manager"]
             if module_path:
@@ -73,18 +68,14 @@ class PythonTransformGenerator(BaseActionGenerator):
             f"Python transform '{action.name}': module_path='{module_path}', function='{function_name}', readMode='{action.readMode or 'batch'}'"
         )
 
-        # Resolve and copy Python file via the shared helper.
         copied_module_name = copy_user_module_for_pipeline(
             module_path, context, component_label="Python transform action"
         )
 
-        # Determine source view(s) from action.source directly
         source_views = self._extract_source_views_from_action_source(action.source)
 
-        # Get readMode from action or default to batch
         readMode = action.readMode or "batch"
 
-        # Handle operational metadata
         add_operational_metadata, metadata_columns = self._get_operational_metadata(
             action, context
         )
@@ -105,7 +96,6 @@ class PythonTransformGenerator(BaseActionGenerator):
             "flowgroup": context.get("flowgroup"),
         }
 
-        # Add import for the copied module
         self.add_import(
             f"from custom_python_functions.{copied_module_name} import {function_name}"
         )
@@ -113,7 +103,6 @@ class PythonTransformGenerator(BaseActionGenerator):
         return self.render_template("transform/python.py.j2", template_context)
 
     def _extract_source_views_from_action_source(self, source) -> list:
-        """Extract source view names from action.source field."""
         if source is None:
             raise ErrorFactory.validation_error(
                 codes.VAL_014,
@@ -126,9 +115,9 @@ class PythonTransformGenerator(BaseActionGenerator):
                 context={"Source": "None"},
             )
         if isinstance(source, str):
-            return [source]  # Single source view
+            return [source]
         if isinstance(source, list):
-            return source  # Multiple source views
+            return source
         raise ErrorFactory.validation_error(
             codes.VAL_014,
             title="Invalid source type for Python transform",

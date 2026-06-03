@@ -13,30 +13,24 @@ logger = logging.getLogger(__name__)
 
 
 class SQLTransformGenerator(BaseActionGenerator):
-    """Generate SQL transformation actions."""
-
     def __init__(self):
         super().__init__()
         self.add_import("from pyspark import pipelines as dp")
 
     def generate(self, action: Action, context: dict) -> str:
-        """Generate SQL transform code."""
         sql_type = "sql_path" if action.sql_path else "inline sql"
         logger.debug(
             f"Generating SQL transform for target '{action.target}', action '{action.name}', sql_type='{sql_type}'"
         )
 
-        # Get SQL query from action
         sql_query = self._get_sql_query(action, context.get("spec_dir"), context)
 
-        # Determine if this creates a view or table
         is_final_target = context.get("is_final_target", False)
         target_table = context.get("target_table")
         logger.debug(
             f"SQL transform '{action.name}': is_final_target={is_final_target}, source_refs={self._extract_source_refs(action.source)}"
         )
 
-        # Handle operational metadata
         add_operational_metadata, metadata_columns = self._get_operational_metadata(
             action, context
         )
@@ -58,13 +52,11 @@ class SQLTransformGenerator(BaseActionGenerator):
     def _get_sql_query(
         self, action: Action, spec_dir: Path | None = None, context: dict | None = None
     ) -> str:
-        """Get SQL query from action configuration."""
         sql_content = None
 
         if action.sql:
             sql_content = action.sql.strip()
         elif action.sql_path:
-            # Use common utility for file loading
             project_root = (
                 context.get("project_root", Path.cwd())
                 if context
@@ -90,12 +82,10 @@ class SQLTransformGenerator(BaseActionGenerator):
     # sql_path: "queries/transform.sql" """,
             )
 
-        # Apply substitutions to the SQL content if substitution_manager is available
         if context and "substitution_manager" in context:
             substitution_mgr = context["substitution_manager"]
             sql_content = substitution_mgr._process_string(sql_content)
 
-            # Track secret references if they exist
             secret_refs = substitution_mgr.secret_references
             if (
                 "secret_references" in context

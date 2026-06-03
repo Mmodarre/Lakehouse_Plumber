@@ -1,5 +1,3 @@
-"""Uniqueness test action generator."""
-
 import logging
 from typing import Any, Dict, List
 
@@ -14,7 +12,6 @@ class UniquenessTestGenerator(BaseTestActionGenerator):
     """Generate a uniqueness test — asserts no duplicate rows for columns."""
 
     def generate(self, action: Action, context: Dict[str, Any]) -> str:
-        """Generate uniqueness test code."""
         config = action.model_dump(mode="json", exclude_none=True)
         test_type = "uniqueness"
 

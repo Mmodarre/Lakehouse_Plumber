@@ -1,20 +1,5 @@
 """Dependency analysis composition root.
 
-Implements :class:`BaseDependencyAnalysisService` (the canonical ABC under
-``core/_interfaces.py``) by composing two internal collaborators:
-
-- :class:`DependencyGraphBuilder` — discovery, source extraction, graph construction.
-- :class:`DependencyAnalyzer` — pure topological / cycle / external-source analysis.
-
-The constructor takes an already-loaded :class:`ProjectConfig` and a
-:class:`ValidationService` (replacing the legacy 2-arg form that took a
-``ProjectConfigLoader``). This matches the pattern established at
-``orchestrator.py:170-175`` where the orchestrator already loads the config
-and constructs the validation service before any downstream consumer.
-
-This module is the new public re-export target. ``dependencies/__init__.py``
-points :class:`DependencyAnalysisService` at this class.
-
 :stability: provisional
 """
 
@@ -49,15 +34,6 @@ from .builder import DependencyGraphBuilder
 class DependencyAnalysisService(BaseDependencyAnalysisService):
     """Composition root for dependency analysis.
 
-    Inherits the :class:`BaseDependencyAnalysisService` ABC. Composes a
-    builder (graph + discovery + source extraction), an analyzer
-    (topological / cycle analysis), a metrics service (placeholders), and
-    uses ``output.export_to_*`` for serialization.
-
-    The constructor takes ``(project_root, project_config,
-    validation_service)``. External callers (orchestrator, CLI) construct
-    the validation service first and pass it in.
-
     :stability: provisional
     """
 
@@ -69,26 +45,6 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         *,
         config_validator: Optional[ConfigValidator] = None,
     ) -> None:
-        """Wire the composition root.
-
-        Args:
-            project_root: Root directory of the LakehousePlumber project.
-            project_config: Already-loaded :class:`ProjectConfig` (the
-                orchestrator/CLI loads this before constructing the
-                service; loader-vs-config translation is confined to a
-                single ``ProjectConfigLoader`` built here for the
-                discovery service only).
-            validation_service: Live :class:`ValidationService`. Kept
-                as a typed collaborator for callers that still pass it
-                positionally; ``config_validator`` is the preferred
-                injection point.
-            config_validator: Pre-built :class:`ConfigValidator`
-                injected by
-                :func:`lhp.core.coordination.layers.build_facade_orchestrator`.
-                When ``None``, a fresh ``ConfigValidator`` is
-                constructed here (legacy fallback for callers not yet
-                migrated through the application facade).
-        """
         # Public attribute — output.py:587 / 616 / 636 reads it directly.
         self.project_root = project_root
         self.project_config = project_config
@@ -103,7 +59,6 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         self.yaml_parser = YAMLParser()
         self._cached_yaml_parser = CachingYAMLParser(self.yaml_parser)
 
-        # Discovery / expansion collaborators.
         flowgroup_discoverer = FlowgroupDiscoveryService(
             project_root,
             self._project_config_loader,
@@ -118,7 +73,6 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         )
         blueprint_expander = BlueprintExpander()
 
-        # Template + preset engines.
         template_engine = TemplateEngine(project_root / "templates")
         preset_manager = PresetManager(project_root / "presets")
         secret_validator = SecretValidator()
@@ -138,7 +92,6 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
             secret_validator,
         )
 
-        # Compose the three internal services.
         self._builder = DependencyGraphBuilder(
             project_root=project_root,
             flowgroup_discoverer=flowgroup_discoverer,
@@ -149,16 +102,10 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         self._analyzer = DependencyAnalyzer()
 
     def build_graphs(self, flowgroups: Sequence[FlowGroup]) -> DependencyGraphs:
-        """Build action/flowgroup/pipeline dependency graphs from a flowgroup set.
-
-        The ABC takes the flowgroup sequence directly; the builder's
-        ``build_from_flowgroups`` skips discovery and proceeds straight to
-        graph construction.
-        """
+        """The builder's ``build_from_flowgroups`` skips discovery and proceeds straight to graph construction."""
         return self._builder.build_from_flowgroups(list(flowgroups))
 
     def analyze(self, graphs: DependencyGraphs) -> DependencyAnalysisResult:
-        """Run topological / cycle / external-source analysis on the given graphs."""
         return self._analyzer.analyze(graphs)
 
     def export(
@@ -166,7 +113,6 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         result: DependencyAnalysisResult,
         format: Literal["dot", "json", "text"],
     ) -> str:
-        """Serialize the analysis result in the requested format."""
         if format == "dot":
             return output.export_to_dot(result.graphs, level="pipeline")
         if format == "json":
@@ -178,12 +124,6 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         raise ValueError(f"Unknown format: {format!r}")
 
     def get_project_name(self) -> str:
-        """Get the project name from lhp.yaml configuration.
-
-        Returns:
-            Project name from ``project_config.name``, or falls back to the
-            project root directory name if the config has no name field.
-        """
         if self.project_config and self.project_config.name:
             return self.project_config.name
         return self.project_root.name if self.project_root else "lhp_project"
@@ -196,15 +136,11 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         First analyzes all flowgroups together (global view), then
         partitions the global result by ``job_name``. Returns the tuple
         ``(job_results, global_result)``.
-
-        Raises:
-            LHPError: If ``job_name`` validation fails.
         """
         from ..validators import validate_job_names
 
         self.logger.info("Starting multi-job dependency analysis...")
 
-        # Get all flowgroups
         flowgroups = self._builder.get_flowgroups()
 
         if not flowgroups:
@@ -222,11 +158,9 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         # Validate job_name usage (all-or-nothing rule)
         validate_job_names(flowgroups)
 
-        # Check if any flowgroup has job_name
         has_job_name = any(fg.job_name for fg in flowgroups)
 
         if not has_job_name:
-            # No job_name defined - single-job analysis path.
             self.logger.info("No job_name defined - performing single-job analysis")
             graphs = self._builder.build_from_flowgroups(flowgroups)
             result = self._analyzer.analyze(graphs)
@@ -246,12 +180,10 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
             f"{', '.join(sorted(job_groups.keys()))}"
         )
 
-        # First: analyze all flowgroups together for global view.
         self.logger.info("Step 1: Analyzing all flowgroups together (global view)")
         global_graphs = self._builder.build_from_flowgroups(flowgroups)
         global_result = self._analyzer.analyze(global_graphs)
 
-        # Second: partition the global result by job_name.
         self.logger.info(
             f"Step 2: Partitioning global result by {len(job_groups)} job group(s)"
         )
@@ -269,11 +201,9 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         global_result: DependencyAnalysisResult,
         flowgroups: List[FlowGroup],
     ) -> Dict[str, DependencyAnalysisResult]:
-        """Partition a global dependency analysis result by ``job_name``."""
         return self._analyzer.partition_result_by_job(global_result, flowgroups)
 
     def get_flowgroups(self, pipeline_filter: Optional[str] = None) -> List[FlowGroup]:
-        """Get flowgroups, optionally filtered by pipeline."""
         return self._builder.get_flowgroups(pipeline_filter)
 
     def set_blueprint_view_mode(
@@ -285,9 +215,7 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         self._builder.set_blueprint_view_mode(expand_blueprints, blueprint)
 
     def get_execution_order(self, graphs: DependencyGraphs) -> List[List[str]]:
-        """Get pipeline execution order using topological sorting."""
         return self._analyzer.get_execution_order(graphs)
 
     def detect_circular_dependencies(self, graphs: DependencyGraphs) -> List[List[str]]:
-        """Detect circular dependencies at all graph levels."""
         return self._analyzer.detect_circular_dependencies(graphs)

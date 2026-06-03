@@ -31,14 +31,7 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
         config_loader=None,
         yaml_parser: Optional[YAMLParser] = None,
     ):
-        """
-        Initialize flowgroup discoverer.
-
-        Args:
-            project_root: Root directory of the LakehousePlumber project
-            config_loader: Optional config loader for include patterns (injected to avoid circular deps)
-            yaml_parser: Optional YAML parser (uses default if None)
-        """
+        """Initialize flowgroup discoverer."""
         self.project_root = project_root
         self.config_loader = config_loader
         self.yaml_parser = yaml_parser or YAMLParser()
@@ -50,7 +43,6 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
         self._source_path_index: Optional[Dict[Tuple[str, str], Path]] = None
         self._index_lock = threading.Lock()
 
-        # Load project configuration if config loader provided
         if self.config_loader:
             self._project_config = self.config_loader.load_project_config()
 
@@ -69,44 +61,29 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
         return tuple(self.discover_flowgroups_by_pipeline_field(pipeline_filter))
 
     def _legacy_discover_flowgroups_by_dir(self, pipeline_dir: Path) -> List[FlowGroup]:
-        """
-        Discover all flowgroups in a specific pipeline directory.
+        """Discover all flowgroups in a specific pipeline directory.
 
-        Parse failures are fatal as of v0.8.7: bad YAML, unknown action types,
-        and other structural errors surface as LHPErrors. The previous broad
-        ``except Exception`` that downgraded parse failures to a WARNING and
-        silently dropped the offending file has been removed — those files
-        should never have been routed here in the first place (instance and
-        blueprint files are filtered earlier), so any failure indicates a real
-        configuration bug the user needs to see.
-
-        Args:
-            pipeline_dir: Directory containing flowgroup YAML files
-
-        Returns:
-            List of discovered flowgroups
+        Parse failures are fatal — instance and blueprint files are filtered
+        earlier, so any failure indicates a real configuration bug.
 
         Raises:
             LHPError: When any YAML file under ``pipeline_dir`` fails to parse.
         """
         flowgroups = []
 
-        # Get include patterns from project configuration
         include_patterns = self.get_include_patterns()
 
         if include_patterns:
-            # Use include filtering
             from ...utils.file_pattern_matcher import discover_files_with_patterns
 
             yaml_files = discover_files_with_patterns(pipeline_dir, include_patterns)
         else:
-            # No include patterns, discover all YAML files (backwards compatibility)
+            # No include patterns — backwards compatibility fallback
             yaml_files = []
             yaml_files.extend(pipeline_dir.rglob("*.yaml"))
             yaml_files.extend(pipeline_dir.rglob("*.yml"))
 
         for yaml_file in yaml_files:
-            # Use parse_flowgroups_from_file() to support multi-flowgroup files
             file_flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
             flowgroups.extend(file_flowgroups)
             self.logger.debug(
@@ -116,15 +93,7 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
         return flowgroups
 
     def discover_all_flowgroups(self) -> List[FlowGroup]:
-        """
-        Discover all flowgroups across all directories in the project.
-
-        Delegates to discover_all_flowgroups_with_paths() so a single
-        filesystem scan serves both discovery and source-path indexing.
-
-        Returns:
-            List of all discovered flowgroups
-        """
+        """Discover all flowgroups across all directories in the project."""
         with perf_timer("discover_all_flowgroups [discoverer]"):
             pairs = self.discover_all_flowgroups_with_paths()
 
@@ -146,15 +115,7 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
     def discover_flowgroups_by_pipeline_field(
         self, pipeline_field: str
     ) -> List[FlowGroup]:
-        """
-        Discover all flowgroups with a specific pipeline field.
-
-        Args:
-            pipeline_field: The pipeline field value to search for
-
-        Returns:
-            List of flowgroups with the specified pipeline field
-        """
+        """Discover all flowgroups with a specific pipeline field."""
         all_flowgroups = self.discover_all_flowgroups()
         matching_flowgroups = []
 
@@ -270,25 +231,17 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
         code modifies lhp.yaml during a single generate run. E2E tests that
         change include patterns do so between runs, creating a fresh
         discoverer each time.
-
-        Returns:
-            Tuple of include patterns, or empty tuple if none specified.
         """
         if self._project_config and self._project_config.include:
             return tuple(self._project_config.include)
         return ()
 
     def discover_all_flowgroups_with_paths(self) -> List[Tuple[FlowGroup, Path]]:
-        """
-        Discover all flowgroups across all directories with their source file paths.
+        """Discover all flowgroups across all directories with their source file paths.
 
-        Parse failures are fatal as of v0.8.7 — see ``_legacy_discover_flowgroups_by_dir``
-        for the rationale. Instance and blueprint files are filtered earlier in
-        ``parse_flowgroups_from_file``; anything else that fails to parse is a
+        Parse failures are fatal — instance and blueprint files are filtered earlier
+        in ``parse_flowgroups_from_file``; anything else that fails to parse is a
         real bug the user needs to see, not a file we should silently skip.
-
-        Returns:
-            List of tuples containing (flowgroup, yaml_file_path)
 
         Raises:
             LHPError: When any YAML file under ``pipelines/`` fails to parse.
@@ -299,30 +252,25 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
         if not pipelines_dir.exists():
             return flowgroups_with_paths
 
-        # Get include patterns from project configuration
         include_patterns = self.get_include_patterns()
 
         if include_patterns:
-            # Use include filtering
             from ...utils.file_pattern_matcher import discover_files_with_patterns
 
             yaml_files = discover_files_with_patterns(pipelines_dir, include_patterns)
         else:
-            # No include patterns, discover all YAML files (backwards compatibility)
+            # No include patterns — backwards compatibility fallback
             yaml_files = []
             yaml_files.extend(pipelines_dir.rglob("*.yaml"))
             yaml_files.extend(pipelines_dir.rglob("*.yml"))
 
-        # Cache-warming hint: this pass and the instance pass both load every
-        # discovered file, so reserve the full working set up front to keep the
-        # shared CachingYAMLParser from evicting its own warmed entries before
-        # the second pass reads them. Safe on any parser: the non-caching base
-        # YAMLParser implements reserve_capacity as a no-op (no ceiling to
-        # manage), so no capability check is needed.
+        # Cache-warming hint: reserve the full working set so the shared
+        # CachingYAMLParser does not evict warmed entries before the instance
+        # pass reads them. YAMLParser.reserve_capacity is a no-op on the
+        # non-caching base, so no capability check is needed.
         self.yaml_parser.reserve_capacity(len(yaml_files))
 
         for yaml_file in yaml_files:
-            # Use parse_flowgroups_from_file() to support multi-flowgroup files
             file_flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
             for flowgroup in file_flowgroups:
                 flowgroups_with_paths.append((flowgroup, yaml_file))
@@ -335,34 +283,18 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
     def scan_deprecation_warnings(self) -> Tuple[DeprecationWarningRecord, ...]:
         """Scan every pipeline YAML for the bare-``{token}`` deprecation.
 
-        Thin wrapper: collects the project's discovered YAML files (via
-        :meth:`_iter_pipeline_yaml_files`) and delegates detection to
-        :func:`deprecation_scanner.scan_bare_token_deprecations`, which is
-        the single source of truth for the bare-``{token}`` regex, the
-        ``LHP-DEPR-001`` message, and the per-file dedup.
-
-        This is the consolidated MAIN-THREAD detection point for the
-        deprecated bare-``{token}`` substitution syntax (use ``${token}``;
-        ``%{local_var}`` stays valid). It runs on the main thread because the
-        read path runs before any worker pool is spawned (workers attach a
-        ``NullHandler`` only, so their ``logger.warning`` calls never reach
-        the user). It scans EVERY file and emits EXACTLY ONE
-        :class:`DeprecationWarningRecord` per offending file.
-
-        Returns:
-            One :class:`DeprecationWarningRecord` per offending file in
-            first-seen order (empty if none).
+        Delegates to :func:`deprecation_scanner.scan_bare_token_deprecations`,
+        which is the single source of truth for the regex, the ``LHP-DEPR-001``
+        message, and the per-file dedup.
         """
         return scan_bare_token_deprecations(self._iter_pipeline_yaml_files())
 
     def _iter_pipeline_yaml_files(self) -> List[Path]:
         """List every ``pipelines/**/*.yaml`` file the project discovers.
 
-        Backs :meth:`scan_deprecation_warnings`; mirrors the glob in
-        :meth:`discover_all_flowgroups_with_paths` (honors the project's
+        Mirrors the glob in :meth:`discover_all_flowgroups_with_paths` (honors
         include patterns when present, else the backwards-compatible
-        ``*.yaml`` / ``*.yml`` rglob). Returns an empty list when there is no
-        ``pipelines/`` directory.
+        ``*.yaml`` / ``*.yml`` rglob).
         """
         pipelines_dir = self.project_root / "pipelines"
         if not pipelines_dir.exists():
@@ -386,10 +318,7 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
     ) -> Dict[Tuple[str, str], Path]:
         """Build a mapping from (pipeline, flowgroup_name) to source YAML path.
 
-        First-found entry wins, consistent with the original linear-scan behavior.
-
-        Args:
-            pairs: List of (flowgroup, yaml_file_path) tuples
+        First-found entry wins (consistent with linear-scan behaviour).
         """
         index: Dict[Tuple[str, str], Path] = {}
         for fg, yaml_path in pairs:
@@ -413,17 +342,8 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
     def find_source_yaml_for_flowgroup(self, flowgroup: FlowGroup) -> Optional[Path]:
         """Find the source YAML file for a given flowgroup.
 
-        Uses a lazily-built index for O(1) lookups. The index is constructed
-        on first call via discover_all_flowgroups_with_paths(). Thread-safe
-        via double-checked locking.
-
-        Supports multi-document (---) and flowgroups array syntax.
-
-        Args:
-            flowgroup: The flowgroup to find the source YAML for
-
-        Returns:
-            Path to the source YAML file, or None if not found
+        Uses a lazily-built index for O(1) lookups; thread-safe via
+        double-checked locking.
         """
         if self._source_path_index is None:
             with self._index_lock:
@@ -437,21 +357,15 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
     ) -> None:
         """Add synthetic-flowgroup -> blueprint-path entries to the source index.
 
-        Called by the orchestrator after blueprint expansion. The index is built
-        lazily on first use, so this method initializes it if necessary, then
-        merges in the synthetic entries. The (pipeline, flowgroup) keys are
-        guaranteed unique post-expansion (the expander raises on duplicates).
-
-        Args:
-            synthetic_sources: Map of resolved (pipeline, flowgroup) tuple to
-                the path of the originating blueprint file.
+        Called by the orchestrator after blueprint expansion. Initializes the
+        index if necessary, then merges in the synthetic entries. The
+        (pipeline, flowgroup) keys are guaranteed unique post-expansion (the
+        expander raises on duplicates).
         """
         if not synthetic_sources:
             return
         with self._index_lock:
             if self._source_path_index is None:
-                # Trigger eager build via the standard discovery path so the
-                # index reflects on-disk flowgroups too.
                 pairs = self.discover_all_flowgroups_with_paths()
                 self._source_path_index = self._build_source_path_index_from_pairs(
                     pairs

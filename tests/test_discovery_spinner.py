@@ -1,19 +1,13 @@
 """Tests for the discovery spinner emitted by ``render_live_frame``.
 
-Phase B of the CLI UX hardening replaces the previously empty first
-Live frame (a ~5s silent terminal on the 100-pipeline fixture project)
-with a ``Discovering`` spinner via the ``PhaseTracker`` active-phase
-slot. These tests pin the contract:
+Contract:
 
-* When ``Discovering`` is the active phase, the rendered panel body
-  contains a Rich ``Spinner`` so the user sees motion within the first
-  frame.
-* Once ``Discovering`` completes, no Spinner remains in the body (the
-  ``OverallProgress`` instance is still present, but it is a
-  ``rich.progress.Progress``, not a bare Spinner).
-* Per-pipeline progress is now driven by an ``OverallProgress``
-  (``rich.progress.Progress``) instance and the panel title carries the
-  total pipeline count, rather than a counter spinner inside the body.
+* When ``Discovering`` is the active phase, the panel body contains a Rich
+  ``Spinner`` so the user sees motion within the first frame.
+* Once ``Discovering`` completes, no Spinner remains in the body.
+* Per-pipeline progress is driven by an ``OverallProgress``
+  (``rich.progress.Progress``) instance; the panel title carries the total
+  pipeline count rather than a counter spinner inside the body.
 """
 
 from rich.console import Group

@@ -57,7 +57,6 @@ class ActionDispatcher:
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
         auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> Tuple[List[str], Set[str], Set[str]]:
-        """Generate code sections for all actions."""
         action_groups = defaultdict(list)
         for action in ordered_actions:
             action_groups[action.type].append(action)
@@ -173,7 +172,6 @@ class ActionDispatcher:
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
         auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> Tuple[List[str], Set[str], Set[str]]:
-        """Generate code for write actions with target grouping."""
         sections = []
         imports: Set[str] = set()
         pre_pipeline_statements: Set[str] = set()
@@ -247,7 +245,6 @@ class ActionDispatcher:
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
         auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> Tuple[List[str], Set[str], Set[str]]:
-        """Generate code for regular (non-write) actions."""
         sections = []
         imports: Set[str] = set()
         pre_pipeline_statements: Set[str] = set()
@@ -282,7 +279,6 @@ class ActionDispatcher:
         phase_a_records: Optional[List["CopiedModuleRecord"]] = None,
         auxiliary_files: Optional[Mapping[str, str]] = None,
     ) -> Tuple[List[str], Set[str], Set[str]]:
-        """Generate code for data quality actions with sub-headers."""
         sections = []
         imports: Set[str] = set()
         pre_pipeline_statements: Set[str] = set()
@@ -366,15 +362,6 @@ class ActionDispatcher:
             ) from e
 
     def determine_action_subtype(self, action: Action) -> str:
-        """
-        Determine the sub-type of an action for generator selection.
-
-        Args:
-            action: Action to determine sub-type for
-
-        Returns:
-            Sub-type string for generator selection
-        """
         if action.type == ActionType.LOAD:
             if isinstance(action.source, dict):
                 return action.source.get("type", "sql")

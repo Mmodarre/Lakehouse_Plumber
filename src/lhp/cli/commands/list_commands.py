@@ -1,11 +1,6 @@
 """List commands implementation for LakehousePlumber CLI.
 
-Renders ``lhp list-presets``, ``lhp list-templates`` and
-``lhp list-blueprints``. Everything domain-shaped is sourced through
-:class:`lhp.api.LakehousePlumberApplicationFacade` —
-``inspection.list_presets()`` / ``list_templates()`` /
-``list_blueprints(include_instances=...)``. No internal-module imports
-live here per constitution §2 + §9.13.
+No internal-module imports live here per constitution §2 + §9.13.
 """
 
 import logging
@@ -36,7 +31,6 @@ class ListCommand(BaseCommand):
     """List presets, templates, and blueprints."""
 
     def list_presets(self) -> None:
-        """List all available presets with detailed information."""
         render_command_header("lhp list-presets")
         self.setup_from_context()
         project_root = self.ensure_project_root()
@@ -88,7 +82,6 @@ class ListCommand(BaseCommand):
         self._display_preset_descriptions(presets)
 
     def list_templates(self) -> None:
-        """List all available templates with detailed parameter information."""
         render_command_header("lhp list-templates")
         self.setup_from_context()
         project_root = self.ensure_project_root()

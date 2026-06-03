@@ -1,5 +1,3 @@
-"""All-lookups-found test action generator."""
-
 import logging
 from typing import Any, Dict, List
 
@@ -14,7 +12,6 @@ class AllLookupsFoundTestGenerator(BaseTestActionGenerator):
     """Generate an all_lookups_found test — every source row must resolve."""
 
     def generate(self, action: Action, context: Dict[str, Any]) -> str:
-        """Generate all_lookups_found test code."""
         config = action.model_dump(mode="json", exclude_none=True)
         test_type = "all_lookups_found"
 

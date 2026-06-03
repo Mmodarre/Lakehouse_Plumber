@@ -1,10 +1,3 @@
-"""
-Bundle manager for LHP Databricks Asset Bundle integration.
-
-This module provides the main BundleManager class that coordinates bundle
-resource operations including resource file synchronization and management.
-"""
-
 # JUSTIFIED: bundle-manager state-machine + resource-file sync +
 # Databricks-CLI delegation form one cohesive runtime; splitting
 # requires a typed event bus to maintain manager-state invariants.
@@ -69,17 +62,6 @@ class BundleManager:
         pipeline_config_path: Optional[str] = None,
         project_config: Optional[Any] = None,
     ):
-        """
-        Initialize the bundle manager.
-
-        Args:
-            project_root: Path to the project root directory
-            pipeline_config_path: Optional path to custom pipeline config file (relative to project_root)
-            project_config: Optional ProjectConfig with project-level settings (e.g., event_log)
-
-        Raises:
-            TypeError: If project_root is None
-        """
         if project_root is None:
             raise ErrorFactory.config_error(
                 codes.CFG_028,
@@ -91,7 +73,6 @@ class BundleManager:
                 ],
             )
 
-        # Convert string to Path if necessary
         if isinstance(project_root, str):
             project_root = Path(project_root)
 
@@ -138,23 +119,10 @@ class BundleManager:
         output_dir: Path,
         env: str,
     ) -> int:
-        """
-        Write one bundle resource file per current pipeline directory.
-
-        Wipe-and-regenerate contract: callers must clear ``resources/lhp/``
-        before invoking this method. BundleManager only writes the resource
-        files for the pipelines that exist under ``output_dir`` — it does not
-        preserve, back up, or delete any pre-existing files.
-
-        Args:
-            output_dir: Directory containing generated Python files
-            env: Environment name for template processing
-
-        Returns:
-            Number of resource files written
-
-        Raises:
-            BundleResourceError: If synchronization fails
+        """Wipe-and-regenerate contract: callers must clear ``resources/lhp/`` before
+        invoking this method. BundleManager only writes files for pipelines that
+        exist under ``output_dir`` — it does not preserve, back up, or delete
+        any pre-existing files.
         """
         self.logger.info("Syncing bundle resources for environment: %s", env)
 
@@ -173,42 +141,16 @@ class BundleManager:
         pipeline_dir: Path,
         env: str,
     ) -> bool:
-        """
-        Write a single pipeline's resource file unconditionally.
-
-        Callers are expected to have wiped ``resources/lhp/`` before invoking
-        sync, so this method always (re)creates the resource file for the
-        pipeline.
-
-        Args:
-            pipeline_name: Name of the pipeline
-            pipeline_dir: Directory containing pipeline Python files
-            env: Environment name
-
-        Returns:
-            True (a file was written)
+        """Callers are expected to have wiped ``resources/lhp/`` before invoking
+        sync, so this method always (re)creates the resource file for the pipeline.
         """
         self._create_new_resource_file(pipeline_name, pipeline_dir.parent, env)
         return True
 
     def ensure_resources_directory(self):
-        """Create resources/lhp directory if it doesn't exist."""
         self._safe_directory_create(self.resources_dir, "LHP resources directory")
 
     def get_pipeline_directories(self, output_dir: Path) -> List[Path]:
-        """
-        Get list of pipeline directories in the output directory.
-
-        Args:
-            output_dir: Directory to scan for pipeline directories
-
-        Returns:
-            List of pipeline directory paths in sorted order
-
-        Raises:
-            BundleResourceError: If directory access fails
-        """
-        # Validate directory access using utility
         self._safe_directory_access(output_dir, "output directory")
 
         try:
@@ -246,15 +188,7 @@ class BundleManager:
         - pipeline_config has event_log: false → delete key, return (opt-out)
         - pipeline_config has event_log dict → return unchanged (full replace)
         - Otherwise → inject event_log block from project config
-
-        Args:
-            pipeline_config: Raw pipeline config dict (pre-substitution)
-            pipeline_name: Name of the pipeline (used for event_log name generation)
-
-        Returns:
-            Pipeline config dict, potentially with event_log injected
         """
-        # No project config or no event_log configured
         if not self.project_config or not getattr(
             self.project_config, "event_log", None
         ):
@@ -262,11 +196,9 @@ class BundleManager:
 
         event_log_cfg = self.project_config.event_log
 
-        # Project-level event_log is disabled
         if not event_log_cfg.enabled:
             return pipeline_config
 
-        # Check pipeline-level override
         if "event_log" in pipeline_config:
             pipeline_event_log = pipeline_config["event_log"]
 
@@ -286,7 +218,6 @@ class BundleManager:
                 )
                 return pipeline_config
 
-        # Inject project-level event_log
         event_log_name = (
             f"{event_log_cfg.name_prefix}{pipeline_name}{event_log_cfg.name_suffix}"
         )
@@ -395,16 +326,6 @@ class BundleManager:
     def _safe_directory_create(
         self, directory: Path, error_context: str = "directory"
     ) -> None:
-        """
-        Safely create directory with consistent error handling.
-
-        Args:
-            directory: Path to directory to create
-            error_context: Context for error messages
-
-        Raises:
-            BundleResourceError: If directory creation fails
-        """
         try:
             directory.mkdir(parents=True, exist_ok=True)
             self.logger.debug("Ensured %s exists: %s", error_context, directory)
@@ -416,16 +337,6 @@ class BundleManager:
     def _safe_directory_access(
         self, directory: Path, error_context: str = "directory"
     ) -> None:
-        """
-        Safely validate directory access with consistent error handling.
-
-        Args:
-            directory: Path to directory to validate
-            error_context: Context for error messages
-
-        Raises:
-            BundleResourceError: If directory access fails
-        """
         try:
             if not directory.exists():
                 raise BundleResourceError(
@@ -462,19 +373,6 @@ class BundleManager:
         current_pipeline_dirs: List[Path],
         env: str,
     ) -> int:
-        """
-        Write a resource file for each current pipeline directory.
-
-        Args:
-            current_pipeline_dirs: List of pipeline directories to process
-            env: Environment name for template processing
-
-        Returns:
-            Number of resource files written
-
-        Raises:
-            BundleResourceError: If pipeline processing fails
-        """
         written_count = 0
 
         for pipeline_dir in current_pipeline_dirs:
@@ -498,12 +396,6 @@ class BundleManager:
         return written_count
 
     def _log_sync_summary(self, written_count: int) -> None:
-        """
-        Log wipe-and-regenerate sync results summary.
-
-        Args:
-            written_count: Number of resource files written
-        """
         if written_count > 0:
             self.logger.info(
                 f"Wrote {written_count} bundle resource file(s) under resources/lhp/"
@@ -514,20 +406,11 @@ class BundleManager:
             )
 
     def _create_new_resource_file(self, pipeline_name: str, output_dir: Path, env: str):
-        """
-        Create new resource file for a pipeline.
-
-        Args:
-            pipeline_name: Name of the pipeline
-            output_dir: Output directory containing generated Python files
-            env: Environment name for template context
-        """
         with perf_timer("_create_new_resource_file", category="bundle_create_resource"):
             # resources/lhp/ is already created by _setup_sync_environment for
             # the sync flow; safe to assume it exists here.
             resource_file = self.get_resource_file_path(pipeline_name)
 
-            # Generate resource file content from Python files
             content = self.generate_resource_file_content(
                 pipeline_name, output_dir, env
             )

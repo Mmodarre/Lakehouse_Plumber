@@ -70,36 +70,9 @@ def _run_project_preflight(
     that itself raises — is converted to an issue in the returned tuple.
     Validate and generate differ only in how they SURFACE these issues
     (§9.24).
-
-    Args:
-        orchestrator: The composition-root orchestrator both facades hold
-            as ``self._orchestrator``. Exposes ``bootstrap.discover_all_flowgroups``,
-            ``validation.build_duplicate_issue``, ``project_config`` and
-            ``project_root``; also used to construct the bundle facade.
-        env: Active environment name (drives substitution in the bundle
-            catalog/schema check).
-        bundle_enabled: When ``True``, run the bundle catalog/schema
-            preflight; when ``False``, skip it entirely.
-        include_tests: Forwarded to the test-reporting check. The
-            file-existence portion runs regardless; this only gates the
-            extended ``test_id`` check.
-        pre_discovered_all_flowgroups: Caller-supplied flowgroup set to
-            run the duplicate and test-reporting checks against. When
-            ``None`` (the default), the flowgroups are self-discovered via
-            ``orchestrator.bootstrap.discover_all_flowgroups()`` so behavior is
-            identical to the no-argument path. When provided, this set is
-            used verbatim (the validate path forwards its own
-            ``pre_discovered_all_flowgroups`` here so injected duplicates
-            not yet on disk are still detected).
-
-    Returns:
-        A tuple of :class:`ValidationIssueView` (empty when every check
-        passes).
     """
     issues: List[ValidationIssueView] = []
 
-    # §9.24: resolve the flowgroup set ONCE and thread it into both the
-    # duplicate and test-reporting checks, so neither re-discovers.
     all_flowgroups: List["FlowGroup"] = (
         list(pre_discovered_all_flowgroups)
         if pre_discovered_all_flowgroups is not None
@@ -120,16 +93,8 @@ def _check_duplicate_flowgroups(
     orchestrator: Any,
     all_flowgroups: List["FlowGroup"],
 ) -> List[ValidationIssueView]:
-    """Duplicate (pipeline, flowgroup) detection — yields an LHP-VAL-009 issue.
-
-    §9.24: routes through the PUBLIC
-    :meth:`ValidationService.build_duplicate_issue` surface — the single
-    source of the ``LHP-VAL-009`` construction — rather than re-building the
-    error here or reaching the private ``ConfigValidator``. The builder runs
-    detection against the ``all_flowgroups`` resolved ONCE by the caller (so
-    injected duplicates not yet on disk are still detected) and returns the
-    error to SURFACE as an issue rather than raise.
-    """
+    # §9.24: routes through ValidationService.build_duplicate_issue — single
+    # source of LHP-VAL-009 — rather than re-building the error here.
     try:
         err = orchestrator.validation.build_duplicate_issue(all_flowgroups)
     except Exception:
@@ -148,14 +113,8 @@ def _check_test_reporting(
     *,
     include_tests: bool,
 ) -> List[ValidationIssueView]:
-    """Test-reporting preflight — yields one LHP-CFG-032 issue per message.
-
-    The file-existence checks (missing provider module / config file) run
-    regardless of ``include_tests`` inside
-    :meth:`TestReportingHookGenerator.validate`; ``include_tests`` only
-    adds the "no ``test_id``" check. The ``all_flowgroups`` resolved ONCE
-    by the caller (:func:`_run_project_preflight`) feed the extended check.
-    """
+    # File-existence checks run regardless of ``include_tests``; ``include_tests``
+    # only gates the "no ``test_id``" check inside TestReportingHookGenerator.validate.
     from lhp.core.codegen import TestReportingHookGenerator
 
     try:
@@ -197,23 +156,9 @@ def _check_bundle_assets(
     *,
     env: str,
 ) -> List[ValidationIssueView]:
-    """Bundle catalog/schema preflight — yields LHP-CFG-026 issues.
-
-    Reaches the bundle facade by constructing :class:`BundleFacade` over
-    the same orchestrator (its sole constructor argument), then maps the
-    returned :class:`BundleValidationResult` onto issues. The bundle
-    facade is itself non-raising (§4.8): it returns ``success`` plus an
-    ``issues`` tuple and an ``error_code`` (``LHP-CFG-026`` for
-    catalog/schema failures).
-
-    ``BundleValidationResult`` carries no ``doc_link`` field (§4.8 — no
-    live ``LHPError`` is retained), so the catalog/schema doc-link slug
-    that the bundle layer attaches to its own aggregated error is
-    re-attached here for the ``LHP-CFG-026`` case. The canonical constant
-    is sourced from :mod:`lhp.bundle.preflight` (the ``api → bundle``
-    import edge is permitted by the layered contract), keeping the slug
-    single-sourced with ``_build_aggregated_error``.
-    """
+    # ``BundleValidationResult`` carries no ``doc_link`` (§4.8 — no live LHPError
+    # retained), so the catalog/schema slug is re-attached here for LHP-CFG-026,
+    # single-sourced from lhp.bundle.preflight._CATALOG_SCHEMA_DOC_LINK.
     from lhp.api._bundle_facade import BundleFacade
     from lhp.bundle.preflight import _CATALOG_SCHEMA_DOC_LINK
 
@@ -259,12 +204,8 @@ def _check_bundle_assets(
 
 
 def _code_number_from_full_code(full_code: str | None) -> str:
-    """Strip the ``LHP-<CATEGORY>-`` prefix off a full code, leaving the number.
-
-    ``"LHP-CFG-026"`` -> ``"026"``. Falls back to ``"026"`` when the code is
-    absent or unparsable, since the bundle catalog/schema check is the only
-    failure mode that reaches here.
-    """
+    # ``"LHP-CFG-026"`` → ``"026"``. Falls back to ``"026"`` — bundle catalog/schema
+    # is the only failure mode that reaches here.
     if not full_code:
         return "026"
     parts = full_code.split("-")

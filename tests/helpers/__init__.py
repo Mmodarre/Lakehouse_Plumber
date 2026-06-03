@@ -1,8 +1,4 @@
-"""Test helpers shared across LHP test modules.
-
-Add cross-cutting test utilities here so individual test files don't grow
-ad-hoc inline helpers that drift apart.
-"""
+"""Cross-cutting test utilities — keep helpers here so individual test files don't grow ad-hoc helpers that drift apart."""
 
 from .contexts import process_unwrap, wrap_in_ctx
 from .generation import read_generated_pipeline

@@ -1,4 +1,4 @@
-"""Tests for Configuration Validator - Step 4.4.3."""
+"""Tests for ConfigValidator."""
 
 import pytest
 
@@ -7,10 +7,7 @@ from lhp.models import Action, ActionType, FlowGroup, TransformType
 
 
 class TestConfigValidator:
-    """Test configuration validator functionality."""
-
     def test_valid_flowgroup(self):
-        """Test validation of a valid flowgroup."""
         validator = ConfigValidator()
 
         flowgroup = FlowGroup(
@@ -53,7 +50,6 @@ class TestConfigValidator:
         assert len(errors) == 0
 
     def test_missing_required_fields(self):
-        """Test validation catches missing required fields."""
         validator = ConfigValidator()
 
         # Missing pipeline name
@@ -96,7 +92,6 @@ class TestConfigValidator:
         assert any("at least one action" in error for error in errors)
 
     def test_duplicate_names(self):
-        """Test detection of duplicate action and target names."""
         validator = ConfigValidator()
 
         # Duplicate action names
@@ -171,7 +166,6 @@ class TestConfigValidator:
         )
 
     def test_load_action_validation(self):
-        """Test validation of load actions."""
         validator = ConfigValidator()
 
         # Valid CloudFiles load
@@ -233,7 +227,6 @@ class TestConfigValidator:
         assert any("query" in error and "table" in error for error in errors)
 
     def test_transform_action_validation(self):
-        """Test validation of transform actions."""
         validator = ConfigValidator()
 
         # Valid SQL transform
@@ -286,7 +279,6 @@ class TestConfigValidator:
         assert len(errors) == 0
 
     def test_python_transform_missing_file_validation(self):
-        """Test validation error when Python module file doesn't exist."""
         import tempfile
         from pathlib import Path
 
@@ -329,7 +321,6 @@ class TestConfigValidator:
             assert len(errors) == 0
 
     def test_python_transform_permission_issues(self):
-        """Test Python transform when source file has permission issues."""
         import os
         import stat
         import tempfile
@@ -383,7 +374,6 @@ class TestConfigValidator:
                     ),
                 }
 
-                # Should raise PermissionError during file copying
                 try:
                     generator.generate(action, context)
                     raise AssertionError("Expected PermissionError during file copying")
@@ -407,7 +397,6 @@ class TestConfigValidator:
                     pass  # Ignore cleanup errors
 
     def test_write_action_validation(self):
-        """Test validation of write actions."""
         validator = ConfigValidator()
 
         # Valid streaming table write
@@ -456,7 +445,6 @@ class TestConfigValidator:
         assert len(errors) == 0
 
     def test_action_type_validation(self):
-        """Test validation of action types."""
         validator = ConfigValidator()
 
         # Missing action name
@@ -487,12 +475,7 @@ class TestConfigValidator:
         # The validator still checks if the transform type is supported by the registry.
 
     def test_dependency_validation(self):
-        """Test that dependency validation is included.
-
-        NOTE: With registry-based detection, sources not in the targets registry
-        are treated as external. This test validates that flowgroups without
-        load actions still raise the appropriate error.
-        """
+        """Registry-based detection treats sources not in targets registry as external; flowgroups without load actions still raise the error."""
         validator = ConfigValidator()
 
         # FlowGroup with missing dependencies
@@ -523,11 +506,9 @@ class TestConfigValidator:
         )
 
         errors = validator.validate_flowgroup(flowgroup)
-        # Should have error about missing load action (v_missing is treated as external)
         assert any("Load action" in error for error in errors)
 
     def test_edge_cases(self):
-        """Test edge cases in validation."""
         validator = ConfigValidator()
 
         # Action with non-dict source for load (should fail)
@@ -554,10 +535,9 @@ class TestConfigValidator:
             },
         )
         errors = validator.validate_action(action, 0)
-        assert len(errors) == 0  # Should only log warning, not error
+        assert len(errors) == 0  # warning only, not an error
 
     def test_dlt_table_options_validation(self):
-        """Test validation of DLT table options."""
         validator = ConfigValidator()
 
         # Valid options
@@ -703,7 +683,6 @@ class TestConfigValidator:
         assert any("cluster_columns" in error and "list" in error for error in errors)
 
     def test_snapshot_cdc_validation(self):
-        """Test validation of snapshot CDC configuration."""
         validator = ConfigValidator()
 
         # Valid snapshot CDC with simple source
@@ -903,7 +882,6 @@ class TestConfigValidator:
         assert any("source_function must have 'function'" in error for error in errors)
 
     def test_duplicate_pipeline_flowgroup_validation(self):
-        """Test validation fails when two flowgroups have the same pipeline+flowgroup combination."""
         validator = ConfigValidator()
 
         # Create two flowgroups with the same pipeline+flowgroup combination
@@ -965,18 +943,15 @@ class TestConfigValidator:
             ],
         )
 
-        # Validate duplicate pipeline+flowgroup combination
         errors = validator.validate_duplicate_pipeline_flowgroup(
             [flowgroup1, flowgroup2]
         )
 
-        # Should have one error about duplicate combination
         assert len(errors) == 1
         assert "raw_ingestions.customer_ingestion" in errors[0]
         assert "duplicate" in errors[0].lower()
 
     def test_unique_pipeline_flowgroup_validation_passes(self):
-        """Test validation passes when all pipeline+flowgroup combinations are unique."""
         validator = ConfigValidator()
 
         # Create flowgroups with unique pipeline+flowgroup combinations
@@ -1065,16 +1040,13 @@ class TestConfigValidator:
             ],
         )
 
-        # Validate unique pipeline+flowgroup combinations
         errors = validator.validate_duplicate_pipeline_flowgroup(
             [flowgroup1, flowgroup2, flowgroup3]
         )
 
-        # Should have no errors
         assert len(errors) == 0
 
     def test_multiple_flowgroups_same_pipeline_output_directory(self):
-        """Test that multiple flowgroups with the same pipeline field generate to the same output directory."""
         import tempfile
         from pathlib import Path
 
@@ -1152,7 +1124,6 @@ class TestConfigValidator:
                 ],
             }
 
-            # Save flowgroups to different directories
             flowgroup1_file = (
                 project_root / "pipelines" / "dir1" / "customer_ingestion.yaml"
             )
@@ -1171,32 +1142,9 @@ class TestConfigValidator:
             with open(sub_file, "w") as f:
                 yaml.dump({"environment": {"dev": {}}}, f)
 
-            # This test expects the fixed behavior where pipeline field determines output directory
-            # Currently it will fail because the system uses directory names instead of pipeline field
-
-            # TODO: When implementation is fixed, this should work:
-            # orchestrator = ActionOrchestrator(project_root)
-            # output_dir = project_root / "generated"
-            #
-            # # Generate files using pipeline field (should find both flowgroups)
-            # generated_files = orchestrator.generate_pipeline_by_field("raw_ingestions", "dev", output_dir)
-            #
-            # # Both flowgroups should be in the same output directory
-            # assert len(generated_files) == 2
-            # assert "customer_ingestion.py" in generated_files
-            # assert "orders_ingestion.py" in generated_files
-            #
-            # # Verify files are in the same directory based on pipeline field
-            # expected_dir = output_dir / "raw_ingestions"
-            # assert (expected_dir / "customer_ingestion.py").exists()
-            # assert (expected_dir / "orders_ingestion.py").exists()
-
-            # For now, just verify the flowgroups are created correctly
-            # This test will be completed when the implementation is fixed
             assert flowgroup1_file.exists()
             assert flowgroup2_file.exists()
 
-            # Verify the YAML files have the correct pipeline field
             with open(flowgroup1_file, "r") as f:
                 data1 = yaml.safe_load(f)
                 assert data1["pipeline"] == "raw_ingestions"
@@ -1208,7 +1156,6 @@ class TestConfigValidator:
                 assert data2["flowgroup"] == "orders_ingestion"
 
     def test_python_transform_missing_required_fields(self):
-        """Test validation errors when module_path or function_name missing."""
         import tempfile
         from pathlib import Path
 
@@ -1332,7 +1279,6 @@ class TestConfigValidator:
             assert len(errors) == 0, f"Valid action should not have errors: {errors}"
 
     def test_python_transform_parameters_validation(self):
-        """Test validation of parameters field for Python transforms."""
         import tempfile
         from pathlib import Path
 
@@ -1415,7 +1361,6 @@ class TestConfigValidator:
             # This is the correct behavior - Pydantic ensures parameters is dict or None
 
     def test_python_transform_invalid_source_types(self):
-        """Test validation when source is int, object, or other invalid types."""
         import tempfile
         from pathlib import Path
 
@@ -1482,8 +1427,6 @@ class TestConfigValidator:
                 function_name="transform_data",
             )
             errors = validator.validate_action(action_empty_list, 0)
-            # Note: Empty list might be valid if we support data generators
-            # Let's see what the validator does
 
             # Test valid single string source (should pass)
             action_string_source = Action(

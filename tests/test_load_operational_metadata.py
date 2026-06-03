@@ -32,8 +32,6 @@ class TestLoadOperationalMetadata:
     """Test operational metadata support in load actions."""
 
     def setup_method(self):
-        """Set up test fixtures."""
-        # Create test project config with operational metadata
         self.project_config = ProjectConfig(
             name="test_project",
             version="1.0",
@@ -69,12 +67,10 @@ class TestLoadOperationalMetadata:
             ),
         )
 
-        # Create test flowgroup
         self.flowgroup = FlowGroup(
             pipeline="test_pipeline", flowgroup="test_flowgroup", actions=[]
         )
 
-        # Create test context
         self.context = {
             "flowgroup": self.flowgroup,
             "project_config": self.project_config,
@@ -87,10 +83,7 @@ class TestLoadOperationalMetadata:
             project_config=self.project_config.operational_metadata
         )
 
-        # Should not raise error for 'view' target type
         operational_metadata._validate_target_type("view")
-
-        # Should still work for existing types
         operational_metadata._validate_target_type("streaming_table")
         operational_metadata._validate_target_type("materialized_view")
 
@@ -122,15 +115,13 @@ class TestLoadOperationalMetadata:
 
         code = generator.generate(action, self.context)
 
-        # Check that metadata columns are added
         assert "df.withColumn('_ingestion_timestamp', F.current_timestamp())" in code
         assert "df.withColumn('_source_file', F.input_file_name())" in code
         assert "df.withColumn('_pipeline_name', F.lit('test_pipeline'))" in code
 
-        # Check that function imports are detected (in generator.imports, not in code)
+        # Imports land on generator.imports, not in the generated code block.
         assert "from pyspark.sql import functions as F" in generator.imports
 
-        # Check that view decorator is used
         assert "@dp.temporary_view()" in code
 
     def test_delta_load_with_operational_metadata(self):
@@ -147,11 +138,8 @@ class TestLoadOperationalMetadata:
 
         code = generator.generate(action, self.context)
 
-        # Check that metadata columns are added
         assert "df.withColumn('_ingestion_timestamp', F.current_timestamp())" in code
         assert "df.withColumn('_source_table', F.lit('source.customers'))" in code
-
-        # Check that view decorator is used
         assert "@dp.temporary_view()" in code
 
     def test_sql_load_with_operational_metadata(self):
@@ -168,11 +156,8 @@ class TestLoadOperationalMetadata:
 
         code = generator.generate(action, self.context)
 
-        # Check that metadata columns are added
         assert "df.withColumn('_ingestion_timestamp', F.current_timestamp())" in code
         assert "df.withColumn('_pipeline_name', F.lit('test_pipeline'))" in code
-
-        # Check that view decorator is used
         assert "@dp.temporary_view()" in code
 
     def test_jdbc_load_with_operational_metadata(self):
@@ -189,16 +174,13 @@ class TestLoadOperationalMetadata:
 
         code = generator.generate(action, self.context)
 
-        # Check that metadata columns are added
         assert "df.withColumn('_ingestion_timestamp', F.current_timestamp())" in code
         assert "df.withColumn('_source_table', F.lit('customers'))" in code
-
-        # Check that view decorator is used
         assert "@dp.temporary_view()" in code
 
     def test_python_load_with_operational_metadata(self, tmp_path):
         """Test Python load generator with operational metadata."""
-        # Helper now requires the source .py file to exist.
+        # Generator hard-requires the source .py file to exist.
         (tmp_path / "my_module.py").write_text(
             "def my_load_function(spark, parameters):\n    return None\n"
         )
@@ -220,7 +202,6 @@ class TestLoadOperationalMetadata:
 
         code = generator.generate(action, context)
 
-        # Check that metadata columns are added
         assert "df.withColumn('_ingestion_timestamp', F.current_timestamp())" in code
         assert "df.withColumn('_pipeline_name', F.lit('test_pipeline'))" in code
 
@@ -241,7 +222,6 @@ class TestLoadOperationalMetadata:
 
         code = generator.generate(action, self.context)
 
-        # Check that no metadata columns are added
         assert "withColumn('_ingestion_timestamp'" not in code
         assert "withColumn('_source_file'" not in code
         assert "withColumn('_pipeline_name'" not in code
@@ -250,7 +230,6 @@ class TestLoadOperationalMetadata:
         """Test load action with all enabled columns specified."""
         generator = CloudFilesLoadGenerator()
 
-        # List all enabled columns explicitly (replacing boolean True)
         all_enabled_columns = [
             "_ingestion_timestamp",
             "_source_file",
@@ -268,13 +247,11 @@ class TestLoadOperationalMetadata:
 
         code = generator.generate(action, self.context)
 
-        # Check that all enabled columns are added
         assert "withColumn('_ingestion_timestamp'" in code
         assert "withColumn('_source_file'" in code
         assert "withColumn('_pipeline_name'" in code
         assert "withColumn('_source_table'" in code
-        # _kafka_partition should be skipped (enabled=False)
-        assert "withColumn('_kafka_partition'" not in code
+        assert "withColumn('_kafka_partition'" not in code  # enabled=False
 
     def test_context_substitution_in_metadata(self):
         """Test that context substitution works in metadata expressions."""
@@ -290,7 +267,6 @@ class TestLoadOperationalMetadata:
 
         code = generator.generate(action, self.context)
 
-        # Check that context substitution worked
         assert "F.lit('test_pipeline')" in code
 
     def test_import_detection_for_metadata(self):
@@ -307,12 +283,11 @@ class TestLoadOperationalMetadata:
 
         code = generator.generate(action, self.context)
 
-        # Check that required imports are detected (in generator.imports, not in code)
+        # Imports land on generator.imports, not in the generated code block.
         assert "from pyspark.sql import functions as F" in generator.imports
 
     def test_additive_metadata_selection(self):
         """Test that metadata selection is additive across preset/flowgroup/action."""
-        # Set up flowgroup with operational metadata
         flowgroup = FlowGroup(
             pipeline="test_pipeline",
             flowgroup="test_flowgroup",
@@ -320,7 +295,6 @@ class TestLoadOperationalMetadata:
             actions=[],
         )
 
-        # Set up preset config with operational metadata
         preset_config = {"operational_metadata": ["_pipeline_name"]}
 
         context = {
@@ -375,7 +349,6 @@ class TestLoadOperationalMetadata:
 
         code = generator.generate(action, context)
 
-        # Check that no metadata columns are added despite preset/flowgroup config
         assert "withColumn('_ingestion_timestamp'" not in code
         assert "withColumn('_pipeline_name'" not in code
         assert "withColumn('_source_file'" not in code
@@ -392,22 +365,18 @@ class TestLoadOperationalMetadata:
             operational_metadata=["_ingestion_timestamp", "_unknown_column"],
         )
 
-        # Should not raise error, should generate warning
         with patch(
             "lhp.core.codegen.operational_metadata.metadata.logger"
         ) as mock_logger:
             code = generator.generate(action, self.context)
 
-            # Check that warning was logged
             mock_logger.warning.assert_called()
             warning_calls = mock_logger.warning.call_args_list
             assert any(
                 "unknown metadata columns" in str(call) for call in warning_calls
             )
 
-        # Check that valid column is still added
         assert "withColumn('_ingestion_timestamp'" in code
-        # Check that unknown column is not added
         assert "withColumn('_unknown_column'" not in code
 
     def test_schema_transform_preserves_metadata(self):
@@ -429,12 +398,11 @@ age: int
 
         code = generator.generate(action, self.context)
 
-        # Check that schema operations are applied
         assert 'withColumnRenamed("customer_id", "id")' in code
         assert 'withColumnRenamed("customer_name", "name")' in code
         assert 'withColumn("age", F.col("age").cast("int"))' in code
 
-        # Check that metadata columns are preserved (not renamed or cast)
+        # Metadata columns must not be renamed or cast by schema transforms.
         assert 'withColumnRenamed("_ingestion_timestamp"' not in code
         assert 'withColumnRenamed("_source_file"' not in code
         assert (
@@ -444,7 +412,6 @@ age: int
 
     def test_end_to_end_metadata_flow(self):
         """Test complete flow: load -> transform -> write with metadata preservation."""
-        # 1. Load with metadata
         load_generator = CloudFilesLoadGenerator()
         load_action = Action(
             name="load_files",
@@ -456,12 +423,10 @@ age: int
 
         load_code = load_generator.generate(load_action, self.context)
 
-        # Check load adds metadata
         assert "withColumn('_ingestion_timestamp'" in load_code
         assert "withColumn('_source_file'" in load_code
 
-        # 2. Transform should preserve metadata (user responsibility for SQL)
-        # This is what user would write in SQL transform
+        # SQL transforms preserve metadata only if the user includes it explicitly.
         transform_sql = """
         SELECT
             customer_id,
@@ -474,10 +439,6 @@ age: int
         WHERE email IS NOT NULL
         """
 
-        # 3. Write should NOT have operational metadata (breaking change)
-        # This will be tested in separate test for write generators
-
-        # The key is that metadata flows through naturally if user includes it
         assert "_ingestion_timestamp" in transform_sql
         assert "_source_file" in transform_sql
 
@@ -485,7 +446,6 @@ age: int
         """Test that columns with enabled=false are not included."""
         generator = CloudFilesLoadGenerator()
 
-        # List all enabled columns explicitly (excluding disabled ones)
         enabled_columns = [
             "_ingestion_timestamp",
             "_source_file",
@@ -503,12 +463,9 @@ age: int
 
         code = generator.generate(action, self.context)
 
-        # Check that enabled columns are included
         assert "withColumn('_ingestion_timestamp'" in code
         assert "withColumn('_source_file'" in code
-
-        # Check that disabled column is not included
-        assert "withColumn('_kafka_partition'" not in code
+        assert "withColumn('_kafka_partition'" not in code  # enabled=False
 
     def test_no_project_config_uses_defaults(self):
         """Test that system works without project config (uses defaults)."""
@@ -530,7 +487,6 @@ age: int
 
         code = generator.generate(action, context_no_project)
 
-        # Should work with default columns
         assert "withColumn('_ingestion_timestamp'" in code
         assert "withColumn('_source_file'" in code
 
@@ -538,7 +494,6 @@ age: int
         """Test that readMode affects the context for metadata expressions."""
         generator = DeltaLoadGenerator()
 
-        # Test streaming mode
         action_stream = Action(
             name="load_delta_stream",
             type=ActionType.LOAD,
@@ -550,7 +505,6 @@ age: int
 
         code_stream = generator.generate(action_stream, self.context)
 
-        # Test batch mode
         action_batch = Action(
             name="load_delta_batch",
             type=ActionType.LOAD,
@@ -562,11 +516,8 @@ age: int
 
         code_batch = generator.generate(action_batch, self.context)
 
-        # Both should have metadata (readMode doesn't affect metadata)
         assert "withColumn('_ingestion_timestamp'" in code_stream
         assert "withColumn('_ingestion_timestamp'" in code_batch
-
-        # But readMode should affect the main data reading
         assert "spark.readStream" in code_stream
         assert "spark.read" in code_batch
 
@@ -575,10 +526,9 @@ class TestMetadataExpressionValidation:
     """Test validation of metadata expressions for different contexts."""
 
     def test_file_expression_only_for_file_sources(self):
-        """Test that F.input_file_name() should only be used with file sources."""
-        # This is more of a documentation/user guidance test
-        # The system allows it but user should know it will fail at runtime
-
+        """F.input_file_name() is accepted on any source type but will fail at runtime
+        for non-file sources (e.g. JDBC) — the system does not prevent it.
+        """
         project_config = ProjectConfig(
             name="test_project",
             operational_metadata=ProjectOperationalMetadataConfig(
@@ -599,7 +549,6 @@ class TestMetadataExpressionValidation:
             "preset_config": {},
         }
 
-        # CloudFiles should work fine
         cloudfiles_generator = CloudFilesLoadGenerator()
         cloudfiles_action = Action(
             name="load_files",
@@ -612,8 +561,6 @@ class TestMetadataExpressionValidation:
         code = cloudfiles_generator.generate(cloudfiles_action, context)
         assert "F.input_file_name()" in code
 
-        # JDBC with file expression - system allows but will fail at runtime
-        # User should know not to use file expressions with JDBC
         jdbc_generator = JDBCLoadGenerator()
         jdbc_action = Action(
             name="load_jdbc",
@@ -623,6 +570,5 @@ class TestMetadataExpressionValidation:
             operational_metadata=["_source_file"],
         )
 
-        # Should generate code (system doesn't prevent it)
         code = jdbc_generator.generate(jdbc_action, context)
-        assert "F.input_file_name()" in code  # But this will fail at runtime
+        assert "F.input_file_name()" in code  # will fail at runtime on non-file sources

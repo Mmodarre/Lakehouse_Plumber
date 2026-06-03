@@ -15,9 +15,6 @@ the lock-bearing, main-thread-only state manager or PythonFileCopier:
     (lock-protected via existing PythonFileCopier semantics for the
     case where Phase B itself ever becomes multi-threaded) and tracks
     the resulting files with the state manager.
-
-The legacy ``copy_user_module`` shim was removed; the only production path
-is ``compute_copy_records`` + ``apply_copy_record``.
 """
 
 import shutil
@@ -169,17 +166,14 @@ class TestComputeCopyRecords:
             list(pool.map(worker, range(50)))
 
         assert len(records) == 50
-        # destinations distinct
         dests = {r.dest_path for r in records}
         assert len(dests) == 50
-        # NO disk write happened
         assert not custom_dir.exists()
 
 
 @pytest.mark.unit
 class TestApplyCopyRecord:
-    """Phase B replay — uses existing lock-protected primitives plus tracks
-    state. Equivalent disk + state outcome as the legacy single-call path."""
+    """Phase B replay — uses existing lock-protected primitives plus tracks state."""
 
     def test_writes_module_and_init_file(self, temp_dir, flowgroup):
         custom_dir = temp_dir / "custom_python_functions"
@@ -194,7 +188,6 @@ class TestApplyCopyRecord:
         copier = PythonFileCopier()
         copier.apply_copy_record(record)
 
-        # Both the package __init__ and the module file should be on disk.
         assert (custom_dir / "user_module.py").exists()
         assert (custom_dir / "__init__.py").exists()
         assert (custom_dir / "user_module.py").read_text() == "# header\nX = 1\n"
@@ -225,7 +218,6 @@ class TestApplyCopyRecord:
         assert (custom_dir / "user_module.py").exists()
 
     def test_apply_writes_file(self, temp_dir, flowgroup):
-        """File is copied to disk and both entries are tracked."""
         custom_dir = temp_dir / "custom_python_functions"
         record = CopiedModuleRecord(
             source_path="user_module.py",
@@ -309,7 +301,6 @@ class TestComputeCopyRecordsClosure:
         )
         entry_rec = next(r for r in records if r.dest_path == cfd / "entry.py")
 
-        # Absolute-local import prefixed; stdlib + third-party untouched.
         assert (
             "from custom_python_functions.shared.util import compute"
             in entry_rec.content
@@ -331,7 +322,6 @@ class TestComputeCopyRecordsClosure:
         )
         util_rec = next(r for r in records if r.dest_path == cfd / "shared" / "util.py")
 
-        # Intra-package relative import is first-class: preserved verbatim.
         assert "from .math_helper import double" in util_rec.content
         assert "custom_python_functions" not in util_rec.content.replace(
             "# LHP-SOURCE", ""
@@ -387,7 +377,7 @@ class TestComputeCopyRecordsClosure:
         compute_copy_records(
             entry, "py_functions/entry.py", cfd, {"source_parse_cache": {}}
         )
-        assert not cfd.exists()  # pure compute: nothing written
+        assert not cfd.exists()
 
     def test_shared_helper_across_two_entries_dedups_to_one_write(self, tmp_path):
         """A helper imported by TWO entries dedups to a single planned write
@@ -416,8 +406,7 @@ class TestComputeCopyRecordsClosure:
 
         planned = PythonFileCopier().plan(recs_a + recs_b)
         util_writes = [r for r in planned if r.dest_path == cfd / "shared" / "util.py"]
-        assert len(util_writes) == 1  # shared helper written exactly once
-        # Both entries are distinct dests, both planned.
+        assert len(util_writes) == 1
         assert cfd / "entry_a.py" in {r.dest_path for r in planned}
         assert cfd / "entry_b.py" in {r.dest_path for r in planned}
 

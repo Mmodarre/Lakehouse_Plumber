@@ -118,12 +118,6 @@ def populated_view() -> ValidationIssueView:
 
 @pytest.fixture
 def picklable_view() -> ValidationIssueView:
-    """A populated view with a plain dict context.
-
-    Identical in shape to ``populated_view`` — the production default
-    factory for ``context`` is ``dict`` (picklable), and the field
-    annotation ``Mapping[str, JSONValue]`` accepts any Mapping.
-    """
     return ValidationIssueView(
         code="LHP-VAL-021",
         category="VAL",
@@ -140,7 +134,6 @@ def picklable_view() -> ValidationIssueView:
 
 @pytest.fixture
 def warning_view() -> ValidationIssueView:
-    """An unstructured warning — sparse fields, defaults preserved."""
     return ValidationIssueView(
         code="",
         category="VAL",
@@ -205,7 +198,6 @@ class TestJSONRoundTripViaFields:
     def test_populated_view_context_round_trips_via_json(
         self, populated_view: ValidationIssueView
     ) -> None:
-        """Mapping[str, JSONValue] survives dict() → json.dumps → json.loads."""
         ctx = dict(populated_view.context)
         round_tripped = json.loads(json.dumps(ctx))
         assert round_tripped == {"a": 1, "b": "two"}
@@ -213,14 +205,12 @@ class TestJSONRoundTripViaFields:
     def test_populated_view_suggestions_round_trip_via_json(
         self, populated_view: ValidationIssueView
     ) -> None:
-        """Tuple[str, ...] survives list() → json.dumps → json.loads."""
         round_tripped = json.loads(json.dumps(list(populated_view.suggestions)))
         assert round_tripped == ["fix x", "fix y"]
 
     def test_warning_view_defaults_are_json_safe(
         self, warning_view: ValidationIssueView
     ) -> None:
-        """Default suggestions=() and context={} serialise cleanly."""
         assert json.loads(json.dumps(list(warning_view.suggestions))) == []
         assert json.loads(json.dumps(dict(warning_view.context))) == {}
 
@@ -295,19 +285,10 @@ class TestFlatFieldRoundTrip:
     def test_full_flat_field_round_trip(
         self, populated_view: ValidationIssueView
     ) -> None:
-        # 1. Project to JSON-safe dict via the helper above.
         projection = _to_json_safe_dict(populated_view)
-
-        # 2. Round-trip through JSON to verify shape compatibility.
         wire = json.loads(json.dumps(projection))
-
-        # 3. Reconstruct.
         restored = _from_json_safe_dict(wire)
-
-        # 4. Equality holds — both instances compare on flat fields.
         assert restored == populated_view
-
-        # 5. And field-by-field for clear failure messages on drift.
         assert restored.code == populated_view.code
         assert restored.category == populated_view.category
         assert restored.severity == populated_view.severity
@@ -335,7 +316,6 @@ class TestFlatFieldRoundTrip:
         assert d["code"] == "LHP-VAL-021"
         assert d["suggestions"] == ("fix x", "fix y")
         assert d["context"] == {"a": 1, "b": "two"}
-        # And the asdict output is JSON-safe (tuple → list at this step).
         round_tripped = json.loads(json.dumps(d))
         assert round_tripped["suggestions"] == ["fix x", "fix y"]
 
@@ -344,8 +324,7 @@ class TestFlatFieldRoundTrip:
 class TestLocationFields:
     """``file_path`` and ``flowgroup_name`` exist, default to ``None``, and
     round-trip — frozen by FREEZE-1 (``file_path`` is added here;
-    ``flowgroup_name`` already existed). Population is Slice B's job; this
-    only guarantees the surface.
+    ``flowgroup_name`` already existed). This only guarantees the surface.
     """
 
     def test_file_path_field_exists_and_defaults_none(self) -> None:
@@ -382,7 +361,6 @@ class TestLocationFields:
         )
 
     def test_non_none_file_path_round_trips_via_to_dict(self) -> None:
-        """A populated ``file_path`` serialises to ``str`` and reconstructs to ``Path``."""
         from lhp.api import to_dict
 
         view = ValidationIssueView(
@@ -415,7 +393,6 @@ class TestLocationFields:
         assert isinstance(restored.file_path, Path)
 
     def test_full_flat_field_round_trip_includes_file_path(self) -> None:
-        """The shared projection helpers carry ``file_path`` through JSON."""
         view = ValidationIssueView(
             code="LHP-VAL-021",
             category="VAL",
@@ -429,17 +406,6 @@ class TestLocationFields:
         assert restored == view
         assert restored.file_path == Path("pipelines/bronze/customer.yaml")
         assert isinstance(restored.file_path, Path)
-
-
-# ---------------------------------------------------------------------------
-# Slice B (B2): per-issue attribution populated end-to-end through the public
-# validate facade. Where TestLocationFields above pins the FREEZE-1 *surface*
-# (the fields exist + round-trip), the integration test below pins the
-# *population*: a real project with KNOWN validation errors in KNOWN flowgroups
-# yields ValidationIssueViews carrying the matching flowgroup_name + file_path,
-# while a cross-flowgroup finding (no single owning flowgroup) carries None for
-# both. Imports stay strictly within lhp.api — no internal modules.
-# ---------------------------------------------------------------------------
 
 
 def _write_flowgroup_yaml(
@@ -551,8 +517,6 @@ def attribution_project(tmp_path: Path):
 
 @pytest.mark.integration
 class TestPerIssueAttributionPopulated:
-    """B2: ValidationIssueViews carry the correct flowgroup_name + file_path."""
-
     @staticmethod
     def _validate(facade) -> BatchValidationResponse:
         return collect_response(
@@ -619,5 +583,4 @@ class TestPerIssueAttributionPopulated:
         # The attributed VAL-007 and the cross-fg CFG-004 both still surface.
         assert ("LHP-VAL-007", "error", True) in legacy_view
         assert ("LHP-CFG-004", "error", True) in legacy_view
-        # And the run still reports overall failure (validate REPORTS).
         assert response.success is False

@@ -27,24 +27,13 @@ class WriteActionGrouper:
     def group_write_actions_by_target(
         self, write_actions: List[Action]
     ) -> Dict[str, List[Action]]:
-        """
-        Group write actions by their target table.
-
-        Args:
-            write_actions: List of write actions
-
-        Returns:
-            Dictionary mapping target table names to lists of actions
-        """
         grouped = defaultdict(list)
 
         for action in write_actions:
             target_config = action.write_target
             if not target_config:
-                # Handle legacy structure
                 target_config = action.source if isinstance(action.source, dict) else {}
 
-            # Build full table name
             catalog = target_config.get("catalog", "")
             schema = target_config.get("schema", "")
             table = target_config.get("table") or target_config.get("name", "")
@@ -54,7 +43,6 @@ class WriteActionGrouper:
             elif table:
                 full_table_name = table
             else:
-                # Use action name as fallback
                 full_table_name = action.name
 
             grouped[full_table_name].append(action)
@@ -64,17 +52,6 @@ class WriteActionGrouper:
     def create_combined_write_action(
         self, actions: List[Action], target_table: str
     ) -> Action:
-        """
-        Create a combined write action with individual action metadata preserved.
-
-        Args:
-            actions: List of write actions targeting the same table
-            target_table: Full target table name
-
-        Returns:
-            Combined action with individual action metadata
-        """
-        # Determine which action should create the table.
         # Uses the public free function (D3a Option A — promoted out of the
         # validator's private surface so codegen no longer reaches into it).
         from ..validators import action_creates_table  # lazy import, method scope
@@ -86,15 +63,12 @@ class WriteActionGrouper:
         if table_creator is None:
             table_creator = actions[0]
 
-        # Build individual action metadata for each append flow
         action_metadata = []
         for action in actions:
-            # Extract source views (can be multiple per action)
             source_views_for_action = self._extract_source_views_from_action(
                 action.source
             )
 
-            # Generate base flow name from action name
             base_flow_name = action.name.replace("-", "_").replace(" ", "_")
             if base_flow_name.startswith("write_"):
                 base_flow_name = base_flow_name[6:]  # Remove "write_" prefix
@@ -108,7 +82,6 @@ class WriteActionGrouper:
             flow_cdc_config = self._build_flow_cdc_config(action)
 
             if len(source_views_for_action) > 1:
-                # Multiple sources in this action: create separate append flow for each
                 for i, source_view in enumerate(source_views_for_action):
                     flow_name = f"{base_flow_name}_{i + 1}"
                     action_metadata.append(
@@ -124,7 +97,6 @@ class WriteActionGrouper:
                         }
                     )
             else:
-                # Single source in this action: create one append flow
                 source_view = (
                     source_views_for_action[0] if source_views_for_action else ""
                 )
@@ -141,27 +113,14 @@ class WriteActionGrouper:
                     }
                 )
 
-        # Create combined action using the table creator as the base
         combined_action = table_creator.model_copy(deep=True)
 
-        # Store metadata as private attribute (Pydantic compatible)
         object.__setattr__(combined_action, "_action_metadata", action_metadata)
         object.__setattr__(combined_action, "_table_creator", table_creator)
 
         return combined_action
 
     def _extract_source_views_from_action(self, source) -> List[str]:
-        """
-        Extract all source views from an action source configuration.
-
-        Delegates to utility function for consistency across codebase.
-
-        Args:
-            source: Source configuration (string, list, or dict)
-
-        Returns:
-            List of source view names
-        """
         return extract_source_views_from_action(source)
 
     def _build_flow_cdc_config(self, action: Action) -> Dict[str, Any]:

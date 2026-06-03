@@ -1,5 +1,3 @@
-"""Tests for the row_count leaf test generator and shared base contract."""
-
 from unittest.mock import Mock, patch
 
 import pytest
@@ -10,22 +8,15 @@ from lhp.models import Action, ActionType, TestActionType
 
 
 class TestTestActionGenerator:
-    """Test the row_count leaf generator (representative leaf)."""
-
     def test_test_generator_inherits_base_generator(self):
-        """Test that the leaf generator inherits from BaseActionGenerator."""
-        # Test inheritance
         assert issubclass(RowCountTestGenerator, BaseActionGenerator)
 
-        # Create instance and verify it's also a BaseActionGenerator instance
         generator = RowCountTestGenerator()
         assert isinstance(generator, BaseActionGenerator)
 
     def test_generate_method_exists(self):
-        """Test that generate() method exists and returns a string."""
         generator = RowCountTestGenerator()
 
-        # Create a test action
         action = Action(
             name="test_row_count",
             type=ActionType.TEST,
@@ -33,10 +24,8 @@ class TestTestActionGenerator:
             source=["v_source", "v_target"],
         )
 
-        # Call generate method
         result = generator.generate(action=action, context={})
 
-        # Should return a string
         assert isinstance(result, str)
         assert len(result) > 0
 
@@ -64,8 +53,6 @@ class TestTestActionGenerator:
 
 @pytest.mark.unit
 class TestTestActionGoldenOutput:
-    """Golden output test for test action generator."""
-
     __test__ = True  # This IS a test class (override the name-based heuristic)
 
     def test_basic_test_action_golden(self, golden):

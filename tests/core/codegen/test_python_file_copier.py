@@ -15,22 +15,17 @@ from lhp.models import FlowGroup
 
 
 class TestPythonFileCopier:
-    """Test suite for PythonFileCopier class."""
-
     @pytest.fixture
     def temp_dir(self):
-        """Create a temporary directory for tests."""
         temp = tempfile.mkdtemp()
         yield Path(temp)
         shutil.rmtree(temp, ignore_errors=True)
 
     @pytest.fixture
     def copier(self):
-        """Create a PythonFileCopier instance."""
         return PythonFileCopier()
 
     def test_single_file_copy(self, copier, temp_dir):
-        """Test copying a single file."""
         dest_path = temp_dir / "test_module.py"
         source_path = "py_functions/test_module.py"
         content = "# Test content\ndef test_func():\n    pass"
@@ -46,30 +41,24 @@ class TestPythonFileCopier:
         assert written.splitlines() == content.splitlines()
 
     def test_duplicate_same_source(self, copier, temp_dir):
-        """Test that copying the same source twice skips the second copy."""
         dest_path = temp_dir / "test_module.py"
         source_path = "py_functions/test_module.py"
         content = "# Test content\ndef test_func():\n    pass"
 
-        # First copy
         result1 = copier.copy_python_file(source_path, dest_path, content)
         assert result1 is True
 
-        # Second copy (should skip)
         result2 = copier.copy_python_file(source_path, dest_path, content)
         assert result2 is False
 
     def test_conflict_different_sources(self, copier, temp_dir):
-        """Test that different sources targeting same destination raises error."""
         dest_path = temp_dir / "test_module.py"
         source_path1 = "py_functions/test_module.py"
         source_path2 = "other_functions/test_module.py"
         content = "# Test content"
 
-        # First copy
         copier.copy_python_file(source_path1, dest_path, content)
 
-        # Second copy from different source should raise error
         with pytest.raises(PythonFunctionConflictError) as exc_info:
             copier.copy_python_file(source_path2, dest_path, content)
 
@@ -77,7 +66,6 @@ class TestPythonFileCopier:
         assert source_path2 in str(exc_info.value)
 
     def test_concurrent_same_source(self, copier, temp_dir):
-        """Test concurrent access from multiple threads with same source."""
         dest_path = temp_dir / "test_module.py"
         source_path = "py_functions/test_module.py"
         content = "# Test content\ndef test_func():\n    pass"
@@ -87,13 +75,11 @@ class TestPythonFileCopier:
         def copy_file():
             return copier.copy_python_file(source_path, dest_path, content)
 
-        # Run 10 concurrent copies
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = [executor.submit(copy_file) for _ in range(10)]
             for future in as_completed(futures):
                 results.append(future.result())
 
-        # Exactly one should return True (actual copy), rest should return False (skipped)
         assert sum(results) == 1
         assert len(results) == 10
         assert dest_path.exists()
@@ -104,7 +90,6 @@ class TestPythonFileCopier:
         assert written.splitlines() == content.splitlines()
 
     def test_concurrent_different_files(self, copier, temp_dir):
-        """Test concurrent copying of different files."""
         files = [
             ("py_functions/module1.py", temp_dir / "module1.py", "# Module 1"),
             ("py_functions/module2.py", temp_dir / "module2.py", "# Module 2"),
@@ -126,7 +111,6 @@ class TestPythonFileCopier:
         assert all(dest.exists() for _, dest, _ in files)
 
     def test_ensure_init_file(self, copier, temp_dir):
-        """Test creating __init__.py file."""
         custom_dir = temp_dir / "custom_python_functions"
 
         copier.ensure_init_file(custom_dir)
@@ -136,7 +120,6 @@ class TestPythonFileCopier:
         assert "Generated package" in (custom_dir / "__init__.py").read_text()
 
     def test_ensure_init_file_concurrent(self, copier, temp_dir):
-        """Test concurrent __init__.py creation."""
         custom_dir = temp_dir / "custom_python_functions"
 
         def create_init():
@@ -145,14 +128,12 @@ class TestPythonFileCopier:
         with ThreadPoolExecutor(max_workers=5) as executor:
             futures = [executor.submit(create_init) for _ in range(5)]
             for future in as_completed(futures):
-                future.result()  # Wait for completion
+                future.result()
 
-        # Should only create once
         assert custom_dir.exists()
         assert (custom_dir / "__init__.py").exists()
 
     def test_error_attributes(self, copier, temp_dir):
-        """Test PythonFunctionConflictError has correct attributes."""
         dest_path = temp_dir / "test_module.py"
         source1 = "py_functions/test_module.py"
         source2 = "other_functions/test_module.py"
@@ -170,7 +151,6 @@ class TestPythonFileCopier:
 
     def test_thread_safety_stress(self, copier, temp_dir):
         """Stress test with many concurrent operations."""
-        # Create 20 files, each copied by 5 threads
         num_files = 20
         copies_per_file = 5
 
@@ -196,16 +176,12 @@ class TestPythonFileCopier:
             for future in as_completed(futures):
                 results.append(future.result())
 
-        # No errors should occur
         assert len(errors) == 0
 
-        # Each file should be copied exactly once: exactly one True per file
-        # (actual copy), rest False (skipped).
         true_count = sum(results)
         assert true_count == num_files
 
     def test_parent_directory_creation(self, copier, temp_dir):
-        """Test that parent directories are created if needed."""
         dest_path = temp_dir / "nested" / "deep" / "test_module.py"
         source_path = "py_functions/test_module.py"
         content = "# Test content"
@@ -225,19 +201,16 @@ class TestPythonFileCopier:
         dest_path = temp_dir / "test_module.py"
         content = "# Test content"
 
-        # First copy with forward slashes (Unix-style)
         result1 = copier.copy_python_file(
             "py_functions/test_module.py", dest_path, content
         )
         assert result1 is True
 
-        # Second copy with backslashes (Windows-style) - should skip, not raise error
         result2 = copier.copy_python_file(
             "py_functions\\test_module.py", dest_path, content
         )
-        assert result2 is False  # Should skip as duplicate
+        assert result2 is False
 
-        # Verify no error was raised (would have raised PythonFunctionConflictError before fix)
         assert dest_path.exists()
         # write_normalized() guarantees a single trailing newline and UTF-8
         # encoding; the body lines are written verbatim otherwise.
@@ -247,17 +220,7 @@ class TestPythonFileCopier:
 
 
 class TestCopyUserModuleBodySubstitution:
-    """Body-level token/secret substitution during copy.
-
-    This re-homes the coverage previously asserted at the generator layer
-    (``tests/test_file_substitution.py::TestSnapshotCDCFunctionSubstitution``).
-    Token/secret substitution of a user module's *body* is the copier's
-    responsibility and only runs when ``output_dir`` is a real path. Here we
-    drive the real public entry point ``copy_user_module_for_pipeline`` with a
-    tmp_path ``output_dir`` so ``compute_copy_records`` actually calls
-    ``substitution_manager._process_string`` and writes the substituted file
-    into ``custom_python_functions/<stem>.py``.
-    """
+    """Token/secret substitution of a user module's body is the copier's responsibility and only runs when ``output_dir`` is a real path."""
 
     def test_token_and_secret_substituted_in_copied_body(self, tmp_path):
         """Tokens are replaced inline; secrets render to ``__SECRET_scope_key__``
@@ -302,22 +265,18 @@ def next_snapshot(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, in
         assert copied.exists(), f"Expected copied module at {copied}"
         content = copied.read_text()
 
-        # Tokens substituted inline in the copied body.
         assert "prod_catalog.prod_bronze.tbl" in content
         assert "{catalog}" not in content
         assert "{bronze_schema}" not in content
 
-        # Secret rendered to the placeholder form (the copier's convention).
         assert "__SECRET_db_config_api_key__" in content
         assert "${secret:db_config/api_key}" not in content
 
-        # Secret reference tracked on both the manager and the context mirror.
         assert len(substitution_mgr.secret_references) > 0
         scopes_keys = {(r.scope, r.key) for r in substitution_mgr.secret_references}
         assert ("db_config", "api_key") in scopes_keys
         assert len(secret_references) > 0
 
-        # LHP-SOURCE header points back at the original module path.
         assert "# LHP-SOURCE: snapshot_func.py" in content
 
     def test_dry_run_skips_write_but_returns_leaf(self, tmp_path):
@@ -346,7 +305,5 @@ def next_snapshot(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, in
         )
 
         assert leaf == "snapshot_func"
-        # Dry-run does not write the copied module.
         assert not (tmp_path / "generated").exists()
-        # Body not processed: no secret tracking on the dry-run path.
         assert len(substitution_mgr.secret_references) == 0

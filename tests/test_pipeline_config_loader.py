@@ -19,7 +19,6 @@ class TestConfigLoading:
 
         config = loader.get_pipeline_config("any_pipeline")
 
-        # Should get default config
         assert config["serverless"] is True
         assert config["edition"] == "ADVANCED"
         assert config["channel"] == "CURRENT"
@@ -33,11 +32,9 @@ class TestConfigLoading:
 
         loader = PipelineConfigLoader(tmp_path, config_file_path=str(fixture_path))
 
-        # Check project defaults loaded
         assert loader.project_defaults["serverless"] is True
         assert loader.project_defaults["edition"] == "ADVANCED"
 
-        # Check pipeline-specific configs loaded
         assert "test_pipeline_1" in loader.pipeline_configs
         assert "test_pipeline_2" in loader.pipeline_configs
 
@@ -53,12 +50,10 @@ class TestConfigLoading:
 
         loader = PipelineConfigLoader(tmp_path, config_file_path=str(fixture_path))
 
-        # Project defaults should be loaded
         assert loader.project_defaults["serverless"] is True
         assert loader.project_defaults["edition"] == "PRO"
         assert loader.project_defaults["photon"] is False
 
-        # No pipeline-specific configs
         assert len(loader.pipeline_configs) == 0
 
     def test_load_no_project_defaults(self, tmp_path):
@@ -69,10 +64,8 @@ class TestConfigLoading:
 
         loader = PipelineConfigLoader(tmp_path, config_file_path=str(fixture_path))
 
-        # No project defaults
         assert loader.project_defaults == {}
 
-        # Pipeline-specific config should be loaded
         assert "solo_pipeline" in loader.pipeline_configs
         assert loader.pipeline_configs["solo_pipeline"]["serverless"] is False
         assert loader.pipeline_configs["solo_pipeline"]["edition"] == "CORE"
@@ -106,11 +99,9 @@ class TestConfigLoading:
 
         loader = PipelineConfigLoader(tmp_path, config_file_path=str(fixture_path))
 
-        # Should have empty project defaults and no pipelines
         assert loader.project_defaults == {}
         assert loader.pipeline_configs == {}
 
-        # But get_pipeline_config should still return defaults
         config = loader.get_pipeline_config("any_pipeline")
         assert config["serverless"] is True
         assert config["edition"] == "ADVANCED"
@@ -127,13 +118,11 @@ class TestConfigMerging:
 
         loader = PipelineConfigLoader(tmp_path, config_file_path=str(fixture_path))
 
-        # Request a pipeline not explicitly in the config
         config = loader.get_pipeline_config("unlisted_pipeline")
 
-        # Should inherit from project_defaults
-        assert config["serverless"] is True  # from project_defaults
-        assert config["edition"] == "ADVANCED"  # from project_defaults
-        assert config["continuous"] is False  # from project_defaults
+        assert config["serverless"] is True
+        assert config["edition"] == "ADVANCED"
+        assert config["continuous"] is False
 
     def test_pipeline_overrides_project_defaults(self, tmp_path):
         """Pipeline-specific values override project defaults."""
@@ -145,14 +134,10 @@ class TestConfigMerging:
 
         config = loader.get_pipeline_config("test_pipeline_1")
 
-        # Overridden value
-        assert config["serverless"] is False  # overridden
+        assert config["serverless"] is False
+        assert config["edition"] == "ADVANCED"
+        assert config["continuous"] is False
 
-        # Inherited values
-        assert config["edition"] == "ADVANCED"  # inherited from project_defaults
-        assert config["continuous"] is False  # inherited from project_defaults
-
-        # Pipeline-specific new key
         assert "clusters" in config
         assert config["clusters"][0]["label"] == "default"
 
@@ -166,7 +151,6 @@ class TestConfigMerging:
 
         config = loader.get_pipeline_config("cluster_pipeline")
 
-        # Check deep merge worked
         assert config["serverless"] is False
         assert "clusters" in config
         cluster = config["clusters"][0]
@@ -184,7 +168,6 @@ class TestConfigMerging:
 
         loader = PipelineConfigLoader(tmp_path, config_file_path=str(fixture_path))
 
-        # Project defaults have one notification
         project_config = loader.get_pipeline_config("unlisted_pipeline")
         assert len(project_config["notifications"]) == 1
         assert (
@@ -192,7 +175,6 @@ class TestConfigMerging:
             == "admin@company.com"
         )
 
-        # Pipeline override replaces completely (doesn't append)
         override_config = loader.get_pipeline_config("override_pipeline")
         assert len(override_config["notifications"]) == 1
         assert (
@@ -209,10 +191,8 @@ class TestConfigMerging:
 
         loader = PipelineConfigLoader(tmp_path, config_file_path=str(fixture_path))
 
-        # Request a pipeline that's not in the config file
         config = loader.get_pipeline_config("other_pipeline")
 
-        # Should get pure defaults (no project_defaults exist)
         assert config["serverless"] is True
         assert config["edition"] == "ADVANCED"
         assert config["channel"] == "CURRENT"
@@ -224,7 +204,6 @@ class TestConfigValidation:
 
     def test_validate_edition_allowed_values(self, tmp_path):
         """Edition must be CORE, PRO, or ADVANCED."""
-        # Create a config with valid edition
         config_content = """
 project_defaults:
   edition: CORE
@@ -232,14 +211,12 @@ project_defaults:
         config_file = tmp_path / "config.yaml"
         config_file.write_text(config_content)
 
-        # Should not raise
         loader = PipelineConfigLoader(tmp_path, config_file_path=str(config_file))
         config = loader.get_pipeline_config("test")
         assert config["edition"] == "CORE"
 
     def test_validate_channel_allowed_values(self, tmp_path):
         """Channel must be CURRENT or PREVIEW."""
-        # Create a config with valid channel
         config_content = """
 project_defaults:
   channel: PREVIEW
@@ -247,7 +224,6 @@ project_defaults:
         config_file = tmp_path / "config.yaml"
         config_file.write_text(config_content)
 
-        # Should not raise
         loader = PipelineConfigLoader(tmp_path, config_file_path=str(config_file))
         config = loader.get_pipeline_config("test")
         assert config["channel"] == "PREVIEW"
@@ -292,14 +268,10 @@ project_defaults:
         config_file = tmp_path / "config.yaml"
         config_file.write_text(config_content)
 
-        # Should not raise - unknown keys just passed through
         loader = PipelineConfigLoader(tmp_path, config_file_path=str(config_file))
         config = loader.get_pipeline_config("test")
 
-        # Known keys work
         assert config["serverless"] is True
-
-        # Unknown keys are included (pass-through)
         assert config["future_feature"] == "enabled"
         assert config["unknown_setting"] == 123
 
@@ -309,11 +281,9 @@ project_defaults:
             Path(__file__).parent / "fixtures/pipeline_configs/clusters_config.yaml"
         )
 
-        # Should not raise even though we don't validate cluster structure
         loader = PipelineConfigLoader(tmp_path, config_file_path=str(fixture_path))
         config = loader.get_pipeline_config("cluster_pipeline")
 
-        # Cluster config is present and passed through
         assert "clusters" in config
         assert isinstance(config["clusters"], list)
         assert len(config["clusters"]) == 1
@@ -471,11 +441,9 @@ clusters:
 
         loader = PipelineConfigLoader(tmp_path, config_file_path=str(config_file))
 
-        # Both pipelines should exist
         assert "pipeline_1" in loader.pipeline_configs
         assert "pipeline_2" in loader.pipeline_configs
 
-        # Both should have the same config values
         assert loader.pipeline_configs["pipeline_1"]["serverless"] is False
         assert loader.pipeline_configs["pipeline_2"]["serverless"] is False
         assert loader.pipeline_configs["pipeline_1"]["edition"] == "PRO"
@@ -651,11 +619,9 @@ edition: PRO
 
         loader = PipelineConfigLoader(tmp_path, config_file_path=str(config_file))
 
-        # Invalid type should be skipped, but valid_pipeline should be loaded
         assert "valid_pipeline" in loader.pipeline_configs
         assert loader.pipeline_configs["valid_pipeline"]["edition"] == "PRO"
 
-        # Should have warning in log
         assert (
             "invalid pipeline type" in caplog.text.lower()
             or "invalid" in caplog.text.lower()
@@ -683,12 +649,10 @@ tags:
 
         loader = PipelineConfigLoader(tmp_path, config_file_path=str(config_file))
 
-        # All three pipelines should exist
         assert "string_pipeline" in loader.pipeline_configs
         assert "list_pipeline_1" in loader.pipeline_configs
         assert "list_pipeline_2" in loader.pipeline_configs
 
-        # Verify configs
         assert loader.pipeline_configs["string_pipeline"]["serverless"] is False
         assert loader.pipeline_configs["string_pipeline"]["tags"]["type"] == "string"
         assert loader.pipeline_configs["list_pipeline_1"]["edition"] == "PRO"
@@ -768,7 +732,6 @@ tags:
 
         config = loader.get_pipeline_config("acme_monitor")
 
-        # Inherited from project_defaults
         assert config["serverless"] is True
         assert config["edition"] == "ADVANCED"
         # Dicts are deep-merged: project_defaults tags + pipeline-specific tags
@@ -793,11 +756,9 @@ tags:
                 monitoring_pipeline_name=None,
             )
 
-        # Alias entry should be removed
         assert "__eventlog_monitoring" not in loader.pipeline_configs
         assert len(loader.pipeline_configs) == 0
 
-        # Warning should have been logged
         assert "__eventlog_monitoring" in caplog.text
         assert "not configured or enabled" in caplog.text
 
@@ -879,6 +840,5 @@ serverless: false
 
         assert loader.pipeline_configs == {}
         assert loader.project_defaults == {}
-        # get_pipeline_config still returns defaults
         config = loader.get_pipeline_config("acme_monitor")
         assert config["serverless"] is True

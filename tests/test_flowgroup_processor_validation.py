@@ -17,7 +17,6 @@ from tests.helpers import wrap_in_ctx as _ctx_of
 
 def test_flowgroup_processor_fails_on_unresolved_tokens():
     """FlowgroupResolutionService should raise LHPError for unresolved tokens."""
-    # Create flowgroup with unresolved token
     flowgroup = FlowGroup(
         pipeline="test_pipeline",
         flowgroup="test_flowgroup",
@@ -31,11 +30,8 @@ def test_flowgroup_processor_fails_on_unresolved_tokens():
         ],
     )
 
-    # Substitution manager with no mappings
     substitution_mgr = EnhancedSubstitutionManager()
 
-    # Create processor with required dependencies
-    # Use a temporary empty directory for presets
     with tempfile.TemporaryDirectory() as tmpdir:
         template_engine = TemplateEngine()
         preset_manager = PresetManager(presets_dir=Path(tmpdir))
@@ -49,7 +45,6 @@ def test_flowgroup_processor_fails_on_unresolved_tokens():
             secret_validator=secret_validator,
         )
 
-        # Should raise LHPError with CONFIG category and code 010
         with pytest.raises(LHPError) as exc_info:
             processor.process_flowgroup(_ctx_of(flowgroup), substitution_mgr)
 
@@ -61,7 +56,6 @@ def test_flowgroup_processor_fails_on_unresolved_tokens():
 
 def test_flowgroup_processor_passes_with_resolved_tokens():
     """FlowgroupResolutionService should not raise unresolved token error when all tokens are resolved."""
-    # Create flowgroup with token
     flowgroup = FlowGroup(
         pipeline="test_pipeline",
         flowgroup="test_flowgroup",
@@ -79,12 +73,9 @@ def test_flowgroup_processor_passes_with_resolved_tokens():
         ],
     )
 
-    # Substitution manager with mapping
     substitution_mgr = EnhancedSubstitutionManager()
     substitution_mgr.mappings = {"bucket": "my-bucket"}
 
-    # Create processor with required dependencies
-    # Use a temporary empty directory for presets
     with tempfile.TemporaryDirectory() as tmpdir:
         template_engine = TemplateEngine()
         preset_manager = PresetManager(presets_dir=Path(tmpdir))
@@ -98,26 +89,21 @@ def test_flowgroup_processor_passes_with_resolved_tokens():
             secret_validator=secret_validator,
         )
 
-        # Should raise a validation/config error, but NOT LHPError for unresolved tokens
         try:
             processed = processor.process_flowgroup(
                 _ctx_of(flowgroup), substitution_mgr
             ).flowgroup
         except LHPError as e:
-            # If LHPError is raised, it should NOT be about unresolved tokens
+            # Must not be an unresolved-token error — tokens are resolved here.
             assert e.code != "LHP-CFG-010", (
                 "Should not raise unresolved token error when tokens are resolved"
             )
-            # Config validation error is expected since we don't have a complete flowgroup
         except ValueError:
-            # Config validation error is expected since we don't have a complete flowgroup
-            # The important thing is we didn't get LHP-CFG-010
             pass
 
 
 def test_flowgroup_processor_detects_multiple_unresolved_tokens():
     """FlowgroupResolutionService should detect multiple unresolved tokens."""
-    # Create flowgroup with multiple unresolved tokens
     flowgroup = FlowGroup(
         pipeline="test_pipeline",
         flowgroup="test_flowgroup",
@@ -137,11 +123,8 @@ def test_flowgroup_processor_detects_multiple_unresolved_tokens():
         ],
     )
 
-    # Substitution manager with no mappings
     substitution_mgr = EnhancedSubstitutionManager()
 
-    # Create processor with required dependencies
-    # Use a temporary empty directory for presets
     with tempfile.TemporaryDirectory() as tmpdir:
         template_engine = TemplateEngine()
         preset_manager = PresetManager(presets_dir=Path(tmpdir))
@@ -155,7 +138,6 @@ def test_flowgroup_processor_detects_multiple_unresolved_tokens():
             secret_validator=secret_validator,
         )
 
-        # Should raise LHPError mentioning both tokens
         with pytest.raises(LHPError) as exc_info:
             processor.process_flowgroup(_ctx_of(flowgroup), substitution_mgr)
 
@@ -166,7 +148,6 @@ def test_flowgroup_processor_detects_multiple_unresolved_tokens():
 
 def test_flowgroup_processor_resolves_local_variables():
     """FlowgroupResolutionService should resolve local variables before other processing."""
-    # Create flowgroup with local variables
     flowgroup = FlowGroup(
         pipeline="test_pipeline",
         flowgroup="test_flowgroup",
@@ -185,10 +166,8 @@ def test_flowgroup_processor_resolves_local_variables():
         ],
     )
 
-    # Substitution manager (not needed for local vars)
     substitution_mgr = EnhancedSubstitutionManager()
 
-    # Create processor with required dependencies
     with tempfile.TemporaryDirectory() as tmpdir:
         template_engine = TemplateEngine()
         preset_manager = PresetManager(presets_dir=Path(tmpdir))
@@ -202,24 +181,19 @@ def test_flowgroup_processor_resolves_local_variables():
             secret_validator=secret_validator,
         )
 
-        # Process flowgroup
         try:
             processed = processor.process_flowgroup(
                 _ctx_of(flowgroup), substitution_mgr
             ).flowgroup
 
-            # Verify local variables were resolved
             assert processed.actions[0].name == "load_customers"
             assert processed.actions[0].target == "v_customers_bronze"
         except ValueError:
-            # Config validation error is expected, but local vars should be resolved
-            # Re-run to check the resolution happened
             pass
 
 
 def test_flowgroup_processor_fails_on_undefined_local_variable():
     """FlowgroupResolutionService should raise LHPError for undefined local variables."""
-    # Create flowgroup with undefined local variable
     flowgroup = FlowGroup(
         pipeline="test_pipeline",
         flowgroup="test_flowgroup",
@@ -238,10 +212,8 @@ def test_flowgroup_processor_fails_on_undefined_local_variable():
         ],
     )
 
-    # Substitution manager
     substitution_mgr = EnhancedSubstitutionManager()
 
-    # Create processor with required dependencies
     with tempfile.TemporaryDirectory() as tmpdir:
         template_engine = TemplateEngine()
         preset_manager = PresetManager(presets_dir=Path(tmpdir))
@@ -255,7 +227,6 @@ def test_flowgroup_processor_fails_on_undefined_local_variable():
             secret_validator=secret_validator,
         )
 
-        # Should raise LHPError with CFG-011
         with pytest.raises(LHPError) as exc_info:
             processor.process_flowgroup(_ctx_of(flowgroup), substitution_mgr)
 
@@ -267,7 +238,6 @@ def test_flowgroup_processor_fails_on_undefined_local_variable():
 
 def test_flowgroup_processor_local_vars_before_env_substitution():
     """Local variables should be resolved before environment substitution."""
-    # Create flowgroup with both local vars and env tokens
     flowgroup = FlowGroup(
         pipeline="test_pipeline",
         flowgroup="test_flowgroup",
@@ -286,11 +256,9 @@ def test_flowgroup_processor_local_vars_before_env_substitution():
         ],
     )
 
-    # Substitution manager with env tokens
     substitution_mgr = EnhancedSubstitutionManager()
     substitution_mgr.mappings = {"catalog": "main", "schema": "bronze"}
 
-    # Create processor with required dependencies
     with tempfile.TemporaryDirectory() as tmpdir:
         template_engine = TemplateEngine()
         preset_manager = PresetManager(presets_dir=Path(tmpdir))
@@ -304,19 +272,16 @@ def test_flowgroup_processor_local_vars_before_env_substitution():
             secret_validator=secret_validator,
         )
 
-        # Process flowgroup
         try:
             processed = processor.process_flowgroup(
                 _ctx_of(flowgroup), substitution_mgr
             ).flowgroup
 
-            # Verify local vars resolved and env tokens resolved
             assert processed.actions[0].name == "load_customer"
             assert processed.actions[0].target == "v_customer"
             assert processed.actions[0].source["database"] == "main.bronze"
             assert processed.actions[0].source["table"] == "customer"
         except ValueError:
-            # Config validation error is expected
             pass
 
 

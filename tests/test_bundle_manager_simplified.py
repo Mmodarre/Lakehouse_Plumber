@@ -1,16 +1,10 @@
-"""Tests articulating the post-refactor (simplified) BundleManager behavior.
+"""Post-refactor BundleManager contract tests (some fail against current code).
 
-These tests describe the DESIRED end-state of the Wave 2 refactor. They are
-expected to FAIL when run against current code, and to PASS once the refactor
-lands. They should remain importable / collectable regardless.
-
-Refactor summary the tests encode:
-
+Behavioral invariants under test:
 * ``resources/lhp/`` is wiped and re-rendered on every ``lhp generate``.
-* Catalog/schema MUST come from ``pipeline_config.yaml`` -- either per pipeline
-  or via a top-level ``project_defaults`` block. User-facing validation is in
-  ``bundle.preflight.validate_catalog_schema`` (raises ``LHP-CFG-026``). The
-  bundle-write phase keeps an internal-error guard that raises ``LHP-GEN-001``
+* Catalog/schema MUST come from ``pipeline_config.yaml``. User-facing validation
+  is in ``bundle.preflight.validate_catalog_schema`` (raises ``LHP-CFG-026``);
+  the bundle-write phase keeps an internal guard that raises ``LHP-GEN-001``
   if preflight was bypassed.
 * ``DatabricksYAMLManager`` is deleted; ``databricks.yml`` is never mutated.
 * ``sync_resources_with_generated_files`` no longer accepts ``force`` or
@@ -28,8 +22,7 @@ from lhp.bundle.manager import BundleManager
 from lhp.errors import LHPError
 
 # ---------------------------------------------------------------------------
-# Test helpers (real config files, not mocks; PipelineConfigLoader fakes are
-# available as a fallback if a future test needs to bypass YAML loading).
+# Test helpers
 # ---------------------------------------------------------------------------
 
 
@@ -39,7 +32,6 @@ def _write_pipeline_config_file(
     project_defaults: dict | None = None,
     pipelines: dict[str, dict] | None = None,
 ) -> Path:
-    """Write a multi-doc pipeline_config.yaml and return its path."""
     docs: list[str] = []
     if project_defaults is not None:
         docs.append(_dict_to_doc({"project_defaults": project_defaults}))
@@ -61,7 +53,7 @@ def _dict_to_doc(d: dict) -> str:
 
 
 def _write_substitution_file(project_root: Path, env: str) -> Path:
-    """Write a minimal substitution file so substitution loader doesn't trip."""
+    """Write a minimal substitution file so the substitution loader doesn't fail."""
     subs_dir = project_root / "substitutions"
     subs_dir.mkdir(parents=True, exist_ok=True)
     sub_file = subs_dir / f"{env}.yaml"
@@ -70,7 +62,6 @@ def _write_substitution_file(project_root: Path, env: str) -> Path:
 
 
 def _make_pipeline_dirs(generated_dir: Path, names: list[str]) -> list[Path]:
-    """Create empty pipeline directories under ``generated/<env>/``."""
     out = []
     for name in names:
         pdir = generated_dir / name
@@ -80,19 +71,9 @@ def _make_pipeline_dirs(generated_dir: Path, names: list[str]) -> list[Path]:
     return out
 
 
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.unit
 def test_sync_writes_resource_file_for_every_current_pipeline(tmp_path):
-    """Sync renders one resource YAML per pipeline directory in generated/<env>/.
-
-    Also captures the wipe+regenerate contract: a pre-existing LHP-stamped file
-    with stale content MUST be overwritten. Current code's Conservative Approach
-    preserves existing LHP files, so this test fails today.
-    """
+    """Sync renders one resource YAML per pipeline directory; stale LHP files must be overwritten."""
     project_root = tmp_path
     generated_root = project_root / "generated" / "dev"
     _make_pipeline_dirs(generated_root, ["pipeline_a", "pipeline_b"])
@@ -102,7 +83,6 @@ def test_sync_writes_resource_file_for_every_current_pipeline(tmp_path):
         project_defaults={"catalog": "fresh_catalog", "schema": "fresh_schema"},
     )
 
-    # Pre-create a stale LHP-stamped resource file. Wipe+regenerate must clobber it.
     resources_dir = project_root / "resources" / "lhp"
     resources_dir.mkdir(parents=True, exist_ok=True)
     (resources_dir / "pipeline_a.pipeline.yml").write_text(
@@ -122,7 +102,6 @@ def test_sync_writes_resource_file_for_every_current_pipeline(tmp_path):
     rendered = sorted(p.name for p in resources_dir.glob("*.pipeline.yml"))
     assert rendered == ["pipeline_a.pipeline.yml", "pipeline_b.pipeline.yml"]
 
-    # The stale file must be regenerated, not preserved.
     pipeline_a_content = (resources_dir / "pipeline_a.pipeline.yml").read_text()
     assert "STALE_CATALOG" not in pipeline_a_content
     assert "fresh_catalog" in pipeline_a_content
@@ -140,12 +119,10 @@ def test_sync_signature_drops_force_and_has_pipeline_config():
 
 @pytest.mark.unit
 def test_missing_catalog_and_schema_raises_config_error(tmp_path):
-    """Direct call bypasses preflight → internal-error guard fires (``LHP-GEN-001``).
+    """Direct call bypasses preflight → internal guard fires (``LHP-GEN-001``).
 
-    User-facing catalog/schema validation now lives in
-    ``bundle.preflight.validate_catalog_schema`` and surfaces as
-    ``LHP-CFG-026``. ``BundleManager.generate_resource_file_content`` keeps
-    a single guard for non-CLI callers that skip preflight.
+    User-facing validation is ``LHP-CFG-026`` via ``bundle.preflight.validate_catalog_schema``.
+    ``LHP-GEN-001`` is the guard for non-CLI callers that skip preflight.
     """
     project_root = tmp_path
     generated_root = project_root / "generated" / "dev"
@@ -153,8 +130,7 @@ def test_missing_catalog_and_schema_raises_config_error(tmp_path):
     _write_substitution_file(project_root, "dev")
     config_path = _write_pipeline_config_file(
         project_root,
-        # Project defaults present but WITHOUT catalog/schema.
-        project_defaults={"serverless": True},
+        project_defaults={"serverless": True},  # intentionally missing catalog/schema
         pipelines={"pipeline_a": {"serverless": True}},
     )
 
@@ -169,11 +145,7 @@ def test_missing_catalog_and_schema_raises_config_error(tmp_path):
 
 @pytest.mark.unit
 def test_per_pipeline_catalog_schema_resolves(tmp_path):
-    """Per-pipeline catalog/schema render literally in the regenerated YAML.
-
-    Pre-stages a stale LHP file to exercise the wipe+regenerate contract.
-    Current Conservative Approach preserves the stale file -> test fails today.
-    """
+    """Per-pipeline catalog/schema render literally in the regenerated YAML."""
     project_root = tmp_path
     generated_root = project_root / "generated" / "dev"
     _make_pipeline_dirs(generated_root, ["pipeline_a"])
@@ -212,11 +184,7 @@ def test_per_pipeline_catalog_schema_resolves(tmp_path):
 
 @pytest.mark.unit
 def test_project_defaults_catalog_schema_resolves(tmp_path):
-    """project_defaults catalog/schema flows through when no per-pipeline override.
-
-    Pre-stages a stale LHP file to exercise the wipe+regenerate contract.
-    Current Conservative Approach preserves the stale file -> test fails today.
-    """
+    """project_defaults catalog/schema flows through when no per-pipeline override."""
     project_root = tmp_path
     generated_root = project_root / "generated" / "dev"
     _make_pipeline_dirs(generated_root, ["pipeline_a"])
@@ -253,11 +221,7 @@ def test_project_defaults_catalog_schema_resolves(tmp_path):
 
 @pytest.mark.unit
 def test_per_pipeline_overrides_project_defaults(tmp_path):
-    """Both blocks present -> per-pipeline values win over project_defaults.
-
-    Pre-stages a stale LHP file to exercise the wipe+regenerate contract.
-    Current Conservative Approach preserves the stale file -> test fails today.
-    """
+    """Both blocks present -> per-pipeline values win over project_defaults."""
     project_root = tmp_path
     generated_root = project_root / "generated" / "dev"
     _make_pipeline_dirs(generated_root, ["pipeline_a"])
@@ -302,10 +266,7 @@ def test_per_pipeline_overrides_project_defaults(tmp_path):
 
 @pytest.mark.unit
 def test_incomplete_catalog_pairing_raises_config_error(tmp_path):
-    """catalog without schema → internal-error guard ``LHP-GEN-001``.
-
-    See note on ``test_missing_catalog_and_schema_raises_config_error``.
-    """
+    """catalog without schema → internal-error guard ``LHP-GEN-001``."""
     project_root = tmp_path
     generated_root = project_root / "generated" / "dev"
     _make_pipeline_dirs(generated_root, ["pipeline_a"])
@@ -326,19 +287,12 @@ def test_incomplete_catalog_pairing_raises_config_error(tmp_path):
 
 @pytest.mark.unit
 def test_bundle_manager_does_not_mutate_databricks_yml(tmp_path):
-    """databricks.yml must be byte-identical before and after a sync.
-
-    Post-refactor contract: ``databricks.yml`` is never touched by sync. The
-    pre-existing file contains an arbitrary user-authored ``targets.<env>.variables``
-    block (historically the most provocative thing the deleted
-    ``DatabricksYAMLManager`` would have rewritten); sync must leave the bytes alone.
-    """
+    """databricks.yml must be byte-identical before and after a sync."""
     project_root = tmp_path
     generated_root = project_root / "generated" / "dev"
     _make_pipeline_dirs(generated_root, ["pipeline_a"])
     _write_substitution_file(project_root, "dev")
 
-    # Valid project_defaults catalog/schema so sync proceeds successfully.
     config_path = _write_pipeline_config_file(
         project_root,
         project_defaults={

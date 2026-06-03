@@ -1,8 +1,5 @@
 """Monitoring finalizer service.
 
-Extracted from :class:`ActionOrchestrator` to satisfy
-:class:`BaseMonitoringFinalizerService`.
-
 :stability: provisional
 """
 
@@ -60,9 +57,7 @@ class MonitoringFinalizerService(BaseMonitoringFinalizerService):
     ) -> Optional[FlowGroup]:
         """Build the synthetic monitoring flowgroup, or ``None``.
 
-        Lifted from ``ActionOrchestrator._build_monitoring``. ABC narrows
-        the return to ``Optional[FlowGroup]``; remaining
-        :class:`MonitoringBuildResult` fields stay on
+        Remaining :class:`MonitoringBuildResult` fields stay on
         ``self._last_build_result``.
         """
         if not self.project_config or not self.project_config.monitoring:
@@ -71,7 +66,6 @@ class MonitoringFinalizerService(BaseMonitoringFinalizerService):
 
         from lhp.core.loaders.pipeline_config_loader import PipelineConfigLoader
 
-        # Resolve monitoring pipeline name for alias support in pipeline config
         monitoring_pipeline_name = None
         if self.project_config and self.project_config.monitoring:
             m = self.project_config.monitoring
@@ -93,7 +87,6 @@ class MonitoringFinalizerService(BaseMonitoringFinalizerService):
             project_root=self.project_root,
         )
 
-        # Extract unique pipeline names from discovered flowgroups
         pipeline_names = list(
             dict.fromkeys(fg.pipeline for fg in discovered_flowgroups)
         )
@@ -105,9 +98,7 @@ class MonitoringFinalizerService(BaseMonitoringFinalizerService):
     def finalize_artifacts(self, env: str, output_dir: Path) -> None:
         """Reconcile monitoring artifacts: clean stale, write current.
 
-        Lifted verbatim from
-        ``ActionOrchestrator.finalize_monitoring_artifacts``. Called AFTER
-        the pipeline generation loop. Handles add/remove/rename
+        Called AFTER the pipeline generation loop. Handles add/remove/rename
         transitions and notebook-only vs full job updates.
         """
         self.cleanup_artifacts(env, output_dir)
@@ -237,11 +228,7 @@ class MonitoringFinalizerService(BaseMonitoringFinalizerService):
         self.logger.info(f"Generated monitoring job resource: {job_resource_path}")
 
     def cleanup_artifacts(self, env: str, output_dir: Path) -> None:
-        """Remove existing monitoring artifacts before writing new ones.
-
-        Invoked from :meth:`finalize_artifacts` as the first step of the
-        reconcile pass.
-        """
+        """Remove existing monitoring artifacts before writing new ones."""
         monitoring_dir = self.project_root / "monitoring" / env
         if monitoring_dir.exists():
             for f in monitoring_dir.iterdir():

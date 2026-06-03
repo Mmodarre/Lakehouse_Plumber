@@ -1,5 +1,3 @@
-"""Transform action validator."""
-
 import logging
 from typing import List
 

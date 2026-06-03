@@ -1,26 +1,9 @@
 """Bare-``{token}`` deprecation scan on the core flowgroup-read path (C4).
 
-Detection of the deprecated bare-``{token}`` substitution syntax
-(``LHP-DEPR-001``; use ``${token}`` — ``%{local_var}`` stays valid) was
-relocated from the two old main-thread points
-(``lhp.cli.yaml_scanner.emit_deprecation_warning_if_needed``, which stopped
-at the FIRST offending file, and the per-pipeline
-``has_deprecated_bare_tokens`` fan-out in ``flowgroup_worklist_builder``) to
-the core read path:
-
-  * :func:`lhp.core.discovery.deprecation_scanner.scan_bare_token_deprecations`
-    — the pure detector (regex + per-file dedup + one rendered
-    ``LHP-DEPR-001`` message); and
-  * :meth:`lhp.core.discovery.flowgroup_discoverer.FlowgroupDiscoveryService.scan_deprecation_warnings`
-    — the discovery-service entry that globs every ``pipelines/**/*.yaml``
-    and delegates to the detector.
-
-These tests pin the C4 contract: scan EVERY file (no first-match early
-return), emit EXACTLY ONE :class:`DeprecationWarningRecord` (code
-``LHP-DEPR-001``, correct ``file``) per offending file, and reject every
-non-bare syntax (``${...}`` / ``%{...}`` / ``{{...}}``). Fixture idiom
-mirrors ``tests/test_flowgroup_discoverer.py``
-(``FlowgroupDiscoveryService(project_root)``, default ``pipelines/**`` glob).
+Pins the C4 contract: scan EVERY file (no first-match early return), emit
+EXACTLY ONE :class:`DeprecationWarningRecord` (code ``LHP-DEPR-001``, correct
+``file``) per offending file, and reject every non-bare syntax
+(``${...}`` / ``%{...}`` / ``{{...}}``).
 """
 
 from pathlib import Path
@@ -32,11 +15,6 @@ from lhp.core.discovery.flowgroup_discoverer import FlowgroupDiscoveryService
 from lhp.errors import codes
 
 _DEPR_001 = "LHP-DEPR-001"
-
-
-# ---------------------------------------------------------------------------
-# Pure detector: scan_bare_token_deprecations(paths)
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
@@ -54,8 +32,6 @@ def test_one_record_per_offending_file_across_many_files(tmp_path: Path) -> None
     assert {r.file for r in records} == set(files)
     assert all(r.code == _DEPR_001 for r in records)
     assert all(r.code == codes.DEPR_001.code for r in records)
-    # Whole-file warning: no flowgroup attribution, and the rendered message
-    # carries the canonical deprecation text.
     assert all(r.flowgroup is None for r in records)
     assert all(
         "bare {token} substitution syntax is deprecated" in r.message for r in records
@@ -145,11 +121,6 @@ def test_empty_input_yields_empty_tuple() -> None:
     assert scan_bare_token_deprecations([]) == ()
 
 
-# ---------------------------------------------------------------------------
-# Service entry: FlowgroupDiscoveryService.scan_deprecation_warnings()
-# ---------------------------------------------------------------------------
-
-
 def _write_fg(path: Path, body: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(body, encoding="utf-8")
@@ -159,13 +130,7 @@ def _write_fg(path: Path, body: str) -> None:
 def test_service_scans_all_pipeline_files_one_record_per_offender(
     tmp_path: Path,
 ) -> None:
-    """The service globs ``pipelines/**`` and reports one record per offender.
-
-    Three offending files (one with multiple bare tokens) spread across two
-    pipeline subdirs, plus one clean file, must yield exactly THREE records —
-    one per offending file — proving the early-return of the old
-    ``cli.yaml_scanner`` path is gone.
-    """
+    """The service globs ``pipelines/**`` and reports exactly one record per offending file."""
     pipelines = tmp_path / "pipelines"
     _write_fg(pipelines / "ingest" / "a.yaml", "source: {bare_a}\n")
     _write_fg(

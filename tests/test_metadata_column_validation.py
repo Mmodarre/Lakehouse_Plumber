@@ -20,11 +20,9 @@ class TestMetadataColumnValidation:
     """Test validation of operational metadata columns in schema transforms."""
 
     def setup_method(self):
-        """Set up test fixtures."""
         self.action_registry = ActionRegistry()
         self.field_validator = ConfigFieldValidator()
 
-        # Create project config with operational metadata
         self.project_config = ProjectConfig(
             name="test_project",
             operational_metadata=ProjectOperationalMetadataConfig(
@@ -49,7 +47,6 @@ class TestMetadataColumnValidation:
         )
 
     def test_rename_metadata_column_raises_error(self):
-        """Test that renaming a metadata column raises validation error."""
         action = Action(
             name="test_transform",
             type=ActionType.TRANSFORM,
@@ -69,7 +66,6 @@ order_id: BIGINT
         assert any("Cannot rename" in error for error in errors)
 
     def test_cast_metadata_column_raises_error(self):
-        """Test that casting a metadata column directly raises validation error."""
         action = Action(
             name="test_transform",
             type=ActionType.TRANSFORM,
@@ -89,7 +85,6 @@ order_id: BIGINT
         assert any("Cannot type-cast" in error for error in errors)
 
     def test_rename_and_cast_metadata_column_raises_multiple_errors(self):
-        """Test that rename + cast of metadata column raises both errors."""
         action = Action(
             name="test_transform",
             type=ActionType.TRANSFORM,
@@ -112,7 +107,6 @@ order_id: BIGINT
         assert len(metadata_errors) >= 2
 
     def test_valid_schema_transform_without_metadata_passes(self):
-        """Test that schema transforms without metadata columns pass validation."""
         action = Action(
             name="test_transform",
             type=ActionType.TRANSFORM,
@@ -128,17 +122,15 @@ amount: DECIMAL(18,2)
 
         errors = self.validator.validate(action, "test")
 
-        # Should not have any metadata-related errors
         metadata_errors = [e for e in errors if "metadata" in e.lower()]
         assert len(metadata_errors) == 0
 
     def test_no_project_config_skips_validation(self):
-        """Test that validation is skipped when no project config is provided."""
         validator_no_config = TransformActionValidator(
             self.action_registry,
             self.field_validator,
             project_root=Path.cwd(),
-            project_config=None,  # No project config
+            project_config=None,
         )
 
         action = Action(
@@ -154,12 +146,10 @@ _processing_timestamp -> proc_time: TIMESTAMP
 
         errors = validator_no_config.validate(action, "test")
 
-        # Should not raise metadata errors without project config
         metadata_errors = [e for e in errors if "metadata" in e.lower()]
         assert len(metadata_errors) == 0
 
     def test_legacy_format_with_metadata_column_raises_error(self):
-        """Test that legacy format also validates metadata columns."""
         action = Action(
             name="test_transform",
             type=ActionType.TRANSFORM,

@@ -1,10 +1,4 @@
-"""Consolidated tests for template parameter type conversion in Template Engine.
-
-Tests that _render_value correctly handles all Python types (string, boolean,
-integer, array, object) when resolving {{ template_param }} expressions.
-
-Consolidated from five per-type files into one parametrized suite.
-"""
+"""Consolidated from five per-type files into one parametrized suite."""
 
 import tempfile
 from pathlib import Path
@@ -19,11 +13,6 @@ def engine():
     """Create a TemplateEngine with a temporary templates directory."""
     with tempfile.TemporaryDirectory() as tmpdir:
         yield TemplateEngine(Path(tmpdir))
-
-
-# ---------------------------------------------------------------------------
-# Cross-type parametrized tests
-# ---------------------------------------------------------------------------
 
 
 class TestSimpleConversion:
@@ -64,10 +53,7 @@ class TestSimpleConversion:
 
 
 class TestMixedContent:
-    """Test template parameters of different types coexisting in one structure.
-
-    Previously duplicated identically across string, boolean, and integer files.
-    """
+    """Test template parameters of different types coexisting in one structure."""
 
     def test_mixed_type_structure(self, engine):
         """All five types in a single nested dict resolve correctly."""
@@ -112,8 +98,6 @@ class TestMixedContent:
 class TestSubstitutionTokenPreservation:
     """Substitution tokens ({env_token}) must pass through _render_value untouched
     while {{ template_param }} expressions are resolved.
-
-    Previously duplicated across all five type files with minor variations.
     """
 
     def test_substitution_tokens_preserved_alongside_all_types(self, engine):
@@ -153,19 +137,12 @@ class TestSubstitutionTokenPreservation:
         }
 
         assert result == expected
-        # Substitution tokens preserved as strings
         assert isinstance(result["source"]["path"], str)
         assert isinstance(result["source"]["database"], str)
-        # Template params resolved to native types
         assert isinstance(result["source"]["header"], bool)
         assert isinstance(result["source"]["batch_size"], int)
         assert isinstance(result["source"]["columns"], list)
         assert isinstance(result["source"]["options"], dict)
-
-
-# ---------------------------------------------------------------------------
-# String-specific tests
-# ---------------------------------------------------------------------------
 
 
 class TestStringConversion:
@@ -270,11 +247,6 @@ class TestStringConversion:
         assert len(result) == 10000
 
 
-# ---------------------------------------------------------------------------
-# Boolean-specific tests
-# ---------------------------------------------------------------------------
-
-
 class TestBooleanConversion:
     """Boolean-specific template parameter conversion."""
 
@@ -359,11 +331,6 @@ class TestBooleanConversion:
         assert result["bool_false"] is False
         assert result["string_true"] is True
         assert result["string_false"] is False
-
-
-# ---------------------------------------------------------------------------
-# Integer-specific tests
-# ---------------------------------------------------------------------------
 
 
 class TestIntegerConversion:
@@ -478,11 +445,6 @@ class TestIntegerConversion:
         assert result["large_negative"] == -2147483648
 
 
-# ---------------------------------------------------------------------------
-# Array-specific tests
-# ---------------------------------------------------------------------------
-
-
 class TestArrayConversion:
     """Array-specific template parameter conversion."""
 
@@ -571,11 +533,6 @@ class TestArrayConversion:
 
         assert result["source_tables"] == ["customers", "orders", "products"]
         assert result["target_columns"] == ["id", "name", "total"]
-
-
-# ---------------------------------------------------------------------------
-# Object-specific tests
-# ---------------------------------------------------------------------------
 
 
 class TestObjectConversion:

@@ -1,5 +1,3 @@
-"""Schema transform parser for arrow format and legacy format."""
-
 import logging
 import re
 from pathlib import Path
@@ -32,7 +30,6 @@ class SchemaTransformParser:
     """
 
     def __init__(self):
-        """Initialize the schema transform parser."""
         self.yaml_parser = YAMLParser()
         # Regex pattern for arrow syntax: "old -> new: TYPE" or variations
         self.arrow_pattern = re.compile(
@@ -44,18 +41,6 @@ class SchemaTransformParser:
         self.passthrough_pattern = re.compile(r"^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*$")
 
     def parse_file(self, file_path: Path) -> Dict[str, Any]:
-        """Parse a schema transform file from disk.
-
-        Args:
-            file_path: Path to the schema transform YAML file.
-
-        Returns:
-            Parsed schema configuration dict with column_mapping, type_casting, etc.
-
-        Raises:
-            FileNotFoundError: If file doesn't exist.
-            ValueError: If file format is invalid.
-        """
         if not file_path.exists():
             raise ErrorFactory.file_not_found(
                 file_path=str(file_path),
@@ -68,7 +53,7 @@ class SchemaTransformParser:
         return self.parse_file_data(data)
 
     def parse_inline_schema(self, schema_str: str) -> Dict[str, Any]:
-        """Parse inline schema from action.schema_inline field.
+        """Parse inline schema from ``action.schema_inline``.
 
         Supports two formats:
         1. Plain arrow format (lines of arrow syntax):
@@ -78,15 +63,6 @@ class SchemaTransformParser:
         2. Full YAML format:
            columns:
              - "old_col -> new_col: TYPE"
-
-        Args:
-            schema_str: Inline schema string from action.schema_inline field.
-
-        Returns:
-            Parsed schema configuration dict.
-
-        Raises:
-            ValueError: If format is invalid.
         """
         if not schema_str or not schema_str.strip():
             raise ErrorFactory.schema_syntax_error(
@@ -96,27 +72,20 @@ class SchemaTransformParser:
                 example="schema_inline: |\n  old_col -> new_col: TYPE\n  col: TYPE",
             )
 
-        # Try to parse as YAML
         try:
             parsed = yaml.safe_load(schema_str)
         except yaml.YAMLError as e:
-            # YAML parsing failed - likely plain arrow format with inconsistent colons
-            # Treat as plain arrow lines
+            # Likely plain arrow format with inconsistent colons — fall back
             logger.debug(
                 f"YAML parsing failed for inline schema, falling back to arrow format: {e}"
             )
             return self._parse_arrow_lines(schema_str)
 
-        # Check if it's a dict (full YAML format) or plain text (arrow lines)
         if isinstance(parsed, dict):
-            # Check if this is a valid schema format dict or just YAML misinterpreting arrow lines
-            # If dict keys contain '->' or look like column definitions, treat as plain arrow lines
             has_columns_key = "columns" in parsed
             has_legacy_keys = "column_mapping" in parsed or "type_casting" in parsed
 
             if has_columns_key or has_legacy_keys:
-                # Valid full YAML format - use existing parser
-                # Check if enforcement is present (should be action-level only)
                 if "enforcement" in parsed:
                     record_deprecation(
                         codes.DEPR_003,
@@ -127,21 +96,10 @@ class SchemaTransformParser:
                         ),
                     )
                 return self.parse_file_data(parsed)
-            # Dict keys don't match expected format - YAML misinterpreted arrow lines
-            # Treat as plain arrow format
             return self._parse_arrow_lines(schema_str)
-        # Plain arrow format - parse as lines
         return self._parse_arrow_lines(schema_str)
 
     def _parse_arrow_lines(self, text: str) -> Dict[str, Any]:
-        """Parse plain arrow format lines (no YAML structure).
-
-        Args:
-            text: Plain text with arrow syntax lines.
-
-        Returns:
-            Parsed schema configuration dict.
-        """
         lines = [line.strip() for line in text.strip().split("\n") if line.strip()]
 
         if not lines:
@@ -152,30 +110,16 @@ class SchemaTransformParser:
                 example="old_col -> new_col: TYPE\ncol: TYPE",
             )
 
-        # Create a pseudo-dict for parse_arrow_format
-        # Note: enforcement is not part of inline arrow format
         data = {"columns": lines}
 
         result = self.parse_arrow_format(data)
 
-        # Remove enforcement from result (will be set at action level)
         result.pop("enforcement", None)
 
         return result
 
     def parse_file_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Parse schema transform data from a dict (already loaded YAML).
-
-        Args:
-            data: Dictionary containing schema transform configuration.
-
-        Returns:
-            Normalized schema configuration dict (without enforcement).
-
-        Raises:
-            ValueError: If format is invalid or mixed.
-        """
-        # Warn if enforcement is in external file (should be action-level)
+        """Parse schema transform from a dict (already loaded YAML)."""
         if "enforcement" in data:
             record_deprecation(
                 codes.DEPR_003,
@@ -187,7 +131,6 @@ class SchemaTransformParser:
                 ),
             )
 
-        # Detect format
         has_columns = "columns" in data
         has_legacy = "column_mapping" in data or "type_casting" in data
 
@@ -221,20 +164,9 @@ class SchemaTransformParser:
             - "c_name -> customer_name"            # Rename only
             - "account_balance: DECIMAL(18,2)"     # Cast only
             - "address"                            # Pass-through (strict only)
-
-        Args:
-            data: Dictionary with 'columns' list.
-
-        Returns:
-            Normalized dict with column_mapping, type_casting, pass_through_columns.
-            Note: enforcement is NOT returned (handled at action level).
-
-        Raises:
-            ValueError: If format is invalid, has duplicates, or violates rules.
         """
         columns = data.get("columns", [])
 
-        # Validate columns exist
         if not columns:
             raise ErrorFactory.schema_syntax_error(
                 file_path="<schema>",
@@ -247,7 +179,6 @@ class SchemaTransformParser:
         type_casting: Dict[str, str] = {}
         pass_through_columns: List[str] = []
 
-        # Track all column names to detect duplicates
         source_columns_seen: set[str] = set()
         target_columns_seen: set[str] = set()
 
@@ -260,14 +191,12 @@ class SchemaTransformParser:
                     example='columns:\n  - "old_col -> new_col: TYPE"\n  - "col: TYPE"',
                 )
 
-            # Try to match arrow syntax (rename + optional cast)
             arrow_match = self.arrow_pattern.match(col_def)
             if arrow_match:
                 source_col = arrow_match.group(1)
                 target_col = arrow_match.group(2)
                 col_type = arrow_match.group(3)  # May be None
 
-                # Check for duplicate source column
                 if source_col in source_columns_seen:
                     raise ErrorFactory.schema_syntax_error(
                         file_path="<schema>",
@@ -277,7 +206,6 @@ class SchemaTransformParser:
                     )
                 source_columns_seen.add(source_col)
 
-                # Check for duplicate target column
                 if target_col in target_columns_seen:
                     raise ErrorFactory.schema_syntax_error(
                         file_path="<schema>",
@@ -287,22 +215,18 @@ class SchemaTransformParser:
                     )
                 target_columns_seen.add(target_col)
 
-                # Add to column mapping
                 column_mapping[source_col] = target_col
 
-                # Add type casting if specified
                 if col_type:
                     type_casting[target_col] = col_type
 
                 continue
 
-            # Try to match cast-only syntax
             cast_match = self.cast_pattern.match(col_def)
             if cast_match:
                 col_name = cast_match.group(1)
                 col_type = cast_match.group(2)
 
-                # Check if this column already has a type cast defined
                 if col_name in type_casting:
                     raise ErrorFactory.schema_syntax_error(
                         file_path="<schema>",
@@ -311,7 +235,6 @@ class SchemaTransformParser:
                         example=f"# Remove duplicate type cast for '{col_name}'",
                     )
 
-                # Check if this column was used as source in rename operation
                 if col_name in source_columns_seen:
                     raise ErrorFactory.schema_syntax_error(
                         file_path="<schema>",
@@ -320,21 +243,16 @@ class SchemaTransformParser:
                         example=f"# '{col_name}' was already renamed above; cast the target column instead",
                     )
 
-                # Add to target_columns_seen if not already there (from rename)
-                # This allows casting a previously renamed column
+                # Allows casting a previously renamed column
                 target_columns_seen.add(col_name)
 
-                # Add type casting
                 type_casting[col_name] = col_type
                 continue
 
-            # Try to match pass-through syntax
             passthrough_match = self.passthrough_pattern.match(col_def)
             if passthrough_match:
                 col_name = passthrough_match.group(1)
 
-                # Pass-through columns are allowed (enforcement will be validated at action level)
-                # Check for duplicate
                 if col_name in target_columns_seen:
                     raise ErrorFactory.schema_syntax_error(
                         file_path="<schema>",
@@ -347,7 +265,6 @@ class SchemaTransformParser:
                 pass_through_columns.append(col_name)
                 continue
 
-            # If no pattern matched, it's invalid syntax
             raise ErrorFactory.schema_syntax_error(
                 file_path="<schema>",
                 line_content=col_def,
@@ -362,21 +279,6 @@ class SchemaTransformParser:
         }
 
     def parse_legacy_format(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Parse legacy format schema transform.
-
-        Legacy format:
-            column_mapping:
-              old_col: new_col
-            type_casting:
-              col: TYPE
-
-        Args:
-            data: Dictionary with column_mapping and/or type_casting.
-
-        Returns:
-            Normalized dict with column_mapping, type_casting.
-            Note: enforcement is NOT returned (handled at action level).
-        """
         column_mapping = data.get("column_mapping", {})
         type_casting = data.get("type_casting", {})
 

@@ -16,33 +16,23 @@ from lhp.models.dependencies import DependencyAnalysisResult, DependencyGraphs
 
 
 def _make_service(project_root):
-    """Construct a DependencyAnalysisService with a real ValidationService.
-
-    Replaces the legacy 2-arg ``(project_root, config_loader)`` form that
-    pre-dated the v0.0.9 refactor; the service now takes an already-loaded
-    ``ProjectConfig`` and a ``ValidationService``.
-    """
+    """Construct DependencyAnalysisService; takes an already-loaded ProjectConfig and a ValidationService."""
     project_config = ProjectConfig(name="test", version="1.0")
     validation_service = ValidationService(project_root, project_config)
     return DependencyAnalysisService(project_root, project_config, validation_service)
 
 
 class TestDependencyAnalysisService:
-    """Test DependencyAnalysisService functionality."""
-
     def setup_method(self):
-        """Set up test fixtures."""
         self.temp_dir = Path(tempfile.mkdtemp())
         self.analyzer = _make_service(self.temp_dir)
 
     def teardown_method(self):
-        """Clean up test fixtures."""
         import shutil
 
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def create_mock_flowgroup(self, flowgroup_name: str, pipeline: str, actions: list):
-        """Create a mock FlowGroup for testing."""
         mock_actions = []
         for action_data in actions:
             action = Mock(spec=Action)
@@ -64,7 +54,6 @@ class TestDependencyAnalysisService:
 
     @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     def test_build_dependency_graphs_empty(self, mockget_flowgroups):
-        """Test building dependency graphs with no flowgroups."""
         mockget_flowgroups.return_value = []
 
         result = self.analyzer._builder.build()
@@ -76,7 +65,6 @@ class TestDependencyAnalysisService:
 
     @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     def test_build_action_graph_basic(self, mockget_flowgroups):
-        """Test basic action graph building."""
         # Create test flowgroups
         actions1 = [
             {
@@ -448,7 +436,6 @@ class TestDependencyAnalysisService:
     @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     @patch("lhp.utils.sql_parser.extract_tables_from_sql")
     def test_sql_source_extraction(self, mock_extract_sql, mockget_flowgroups):
-        """Test SQL source extraction from actions."""
         mock_extract_sql.return_value = ["bronze.customers", "bronze.orders"]
 
         # Action with inline SQL
@@ -479,7 +466,6 @@ class TestDependencyAnalysisService:
     @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     @patch("lhp.utils.python_parser.extract_tables_from_python")
     def test_python_source_extraction(self, mock_extract_python, mockget_flowgroups):
-        """Test Python source extraction from actions."""
         mock_extract_python.return_value = ["silver.processed_data"]
 
         # Action with Python module
@@ -516,7 +502,6 @@ class TestDependencyAnalysisService:
 
     @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     def test_sql_file_path_resolution(self, mockget_flowgroups):
-        """Test SQL file path resolution with flowgroup file paths."""
         actions = [
             {
                 "name": "sql_file_action",
@@ -553,7 +538,6 @@ class TestDependencyAnalysisService:
 
     @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     def test_sql_file_not_found_error(self, mockget_flowgroups):
-        """Test error handling when SQL file is not found."""
         actions = [
             {
                 "name": "sql_file_action",
@@ -577,7 +561,6 @@ class TestDependencyAnalysisService:
 
     @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     def test_python_file_not_found_error(self, mockget_flowgroups):
-        """Test error handling when Python file is not found."""
         actions = [
             {
                 "name": "python_action",
@@ -596,7 +579,6 @@ class TestDependencyAnalysisService:
         assert "Python file not found" in exc_info.value.title
 
     def test_export_to_dot_format(self):
-        """Test DOT format export."""
         # Create a simple graph
         graphs = DependencyGraphs(
             action_graph=nx.DiGraph(),
@@ -619,7 +601,6 @@ class TestDependencyAnalysisService:
 
     @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     def test_export_to_json_format(self, mockget_flowgroups):
-        """Test JSON format export."""
         # Create simple test data
         actions = [
             {"name": "test_action", "type": ActionType.LOAD, "target": "test.table"}
@@ -639,7 +620,6 @@ class TestDependencyAnalysisService:
 
     @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     def test_pipeline_filtering(self, mockget_flowgroups):
-        """Test pipeline filtering functionality."""
         # Create flowgroups in different pipelines
         actions1 = [{"name": "action1", "type": ActionType.LOAD, "target": "table1"}]
 
@@ -663,7 +643,6 @@ class TestDependencyAnalysisService:
         assert "pipeline_a" in result.pipeline_dependencies
 
     def test_external_source_collection(self):
-        """Test external source collection across all graphs."""
         graphs = DependencyGraphs(
             action_graph=nx.DiGraph(),
             flowgroup_graph=nx.DiGraph(),
@@ -686,7 +665,6 @@ class TestDependencyAnalysisService:
         ]
 
     def test_write_target_handling(self):
-        """Test write target handling for dependency tracking."""
         # Mock a write action with write_target
         write_action = Mock(spec=Action)
         write_action.name = "write_action"
@@ -731,7 +709,6 @@ class TestDependencyAnalysisService:
 
     @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     def test_empty_graphs_metadata(self, mockget_flowgroups):
-        """Test metadata generation for empty graphs."""
         mockget_flowgroups.return_value = []
 
         graphs = self.analyzer._builder.build()
@@ -743,7 +720,6 @@ class TestDependencyAnalysisService:
         assert len(graphs.pipeline_graph.nodes) == 0
 
     def test_invalid_graph_level_error(self):
-        """Test error handling for invalid graph level in DOT export."""
         graphs = DependencyGraphs(
             action_graph=nx.DiGraph(),
             flowgroup_graph=nx.DiGraph(),
@@ -818,12 +794,10 @@ class TestCycleDetection:
     """Tests for the _detect_circular_dependencies method."""
 
     def setup_method(self):
-        """Set up test fixtures."""
         self.temp_dir = Path(tempfile.mkdtemp())
         self.analyzer = _make_service(self.temp_dir)
 
     def teardown_method(self):
-        """Clean up test fixtures."""
         import shutil
 
         shutil.rmtree(self.temp_dir, ignore_errors=True)
@@ -834,7 +808,6 @@ class TestCycleDetection:
         flowgroup_edges=None,
         pipeline_edges=None,
     ):
-        """Helper to build DependencyGraphs from edge lists."""
         action_graph = nx.DiGraph()
         flowgroup_graph = nx.DiGraph()
         pipeline_graph = nx.DiGraph()
@@ -853,9 +826,6 @@ class TestCycleDetection:
             metadata={},
         )
 
-    # ------------------------------------------------------------------ #
-    # 1. Multiple independent cycles -> all reported
-    # ------------------------------------------------------------------ #
     def test_multiple_independent_cycles_all_reported(self):
         """Two separate cycles (A->B->A and C->D->C) should both be detected."""
         graphs = self._make_graphs(
@@ -896,9 +866,6 @@ class TestCycleDetection:
         assert "action" in levels_found, "Expected an action-level cycle"
         assert "pipeline" in levels_found, "Expected a pipeline-level cycle"
 
-    # ------------------------------------------------------------------ #
-    # 2. Cycles at each individual level
-    # ------------------------------------------------------------------ #
     def test_action_level_cycle_only(self):
         """A cycle only in the action graph should be detected at action level."""
         graphs = self._make_graphs(
@@ -968,9 +935,6 @@ class TestCycleDetection:
             "pipeline",
         }, f"Expected all three levels, got: {levels_found}"
 
-    # ------------------------------------------------------------------ #
-    # 3. Cycle cap at 20
-    # ------------------------------------------------------------------ #
     def test_cycle_cap_at_twenty(self):
         """When more than 20 cycles exist, only 20 should be reported."""
         # Create 25 independent 2-node cycles in the action graph.
@@ -1017,9 +981,6 @@ class TestCycleDetection:
             f"Expected exactly 20 cycles (global cap), got {len(result)}"
         )
 
-    # ------------------------------------------------------------------ #
-    # 4. No cycles -> empty list
-    # ------------------------------------------------------------------ #
     def test_no_cycles_dag(self):
         """A DAG with no cycles should return an empty list."""
         graphs = self._make_graphs(
@@ -1057,9 +1018,6 @@ class TestCycleDetection:
 
         assert result == []
 
-    # ------------------------------------------------------------------ #
-    # Additional edge-case: cycle description format
-    # ------------------------------------------------------------------ #
     def test_cycle_description_format(self):
         """Verify the cycle description format includes level and arrow notation."""
         graphs = self._make_graphs(
@@ -1103,8 +1061,6 @@ class TestWriteTargetExtraction:
         action.module_path = overrides.get("module_path", None)
         action.write_target = overrides.get("write_target", None)
         return action
-
-    # ---- _iter_sql_bodies ----
 
     def test_iter_sql_bodies_yields_write_target_sql_path(self):
         action = self._make_action(
@@ -1155,8 +1111,6 @@ class TestWriteTargetExtraction:
         assert ("SELECT 2", "b.sql") in results
         assert ("SELECT 3", "c.sql") in results
 
-    # ---- _iter_python_bodies ----
-
     def test_iter_python_bodies_yields_custom_sink_module_path(self):
         action = self._make_action(
             write_target={"type": "custom", "module_path": "sinks/custom.py"}
@@ -1190,8 +1144,6 @@ class TestWriteTargetExtraction:
         )
         results = list(self.analyzer._builder._iter_python_bodies(action))
         assert (None, "transforms/t.py") in results
-
-    # ---- E2E: write_target reads via _extract_*_sources ----
 
     @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     def test_extract_sql_sources_reads_write_target_sql_path_e2e(
@@ -1309,8 +1261,6 @@ class TestWriteTargetExtraction:
         assert "Python file not found" in exc_info.value.title
         assert exc_info.value.context["Module Path"] == "nonexistent.py"
 
-    # ---- _resolve_and_parse_file path resolution ----
-
     def test_resolve_and_parse_file_yaml_relative_wins_over_project_root(self):
         """When a file exists in both yaml-relative and project-root, yaml wins."""
         yaml_path = self.temp_dir / "pipelines" / "x.yaml"
@@ -1390,8 +1340,6 @@ class TestWriteTargetExtraction:
                 path_context_key="Module Path",
             )
         assert "Python file not found" in py_err.value.title
-
-    # ---- Union vs parser-wins semantics ----
 
     @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
     def test_extract_action_sources_python_unions_parser_and_explicit(

@@ -1,5 +1,3 @@
-"""Validator for snapshot CDC configuration."""
-
 import logging
 from typing import Any, Dict, List
 
@@ -80,7 +78,7 @@ class SnapshotCdcConfigValidator:
             errors.append(f"{prefix}: snapshot_cdc_config must have 'keys'")
         elif not isinstance(keys, list):
             errors.append(f"{prefix}: 'keys' must be a list")
-        elif not keys:  # Empty list
+        elif not keys:
             errors.append(f"{prefix}: 'keys' cannot be empty")
         else:
             for i, key in enumerate(keys):

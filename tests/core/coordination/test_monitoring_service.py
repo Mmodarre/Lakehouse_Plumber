@@ -87,11 +87,6 @@ def _build_result(
     )
 
 
-# ---------------------------------------------------------------------------
-# 1. cleanup-on-disable happy path
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.unit
 def test_cleanup_on_disable_removes_marked_pipeline_dir(tmp_path):
     """When monitoring is disabled, the generated monitoring pipeline dir
@@ -103,12 +98,10 @@ def test_cleanup_on_disable_removes_marked_pipeline_dir(tmp_path):
     marked_dir = _make_pipeline_dir(
         output_dir, "monitoring_pipeline", REAL_MONITORING_PY
     )
-    # An unrelated pipeline dir with no marker must survive.
     unrelated_dir = _make_pipeline_dir(
         output_dir, "ingest_pipeline", 'FLOWGROUP_ID = "ingest"\n'
     )
 
-    # Monitoring disabled -> service.last_build_result stays None -> rmtree arm.
     service = _make_service(project_root, monitoring=None)
     assert service.last_build_result is None
 
@@ -116,11 +109,6 @@ def test_cleanup_on_disable_removes_marked_pipeline_dir(tmp_path):
 
     assert not marked_dir.exists(), "marked monitoring pipeline dir should be removed"
     assert unrelated_dir.exists(), "unrelated pipeline dir must be preserved"
-
-
-# ---------------------------------------------------------------------------
-# 2. finalize_artifacts — the four raise paths
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
@@ -203,11 +191,6 @@ def test_finalize_raises_cfg008_when_job_config_not_a_mapping(tmp_path):
         service.finalize_artifacts(env="dev", output_dir=output_dir)
 
 
-# ---------------------------------------------------------------------------
-# 3. Safety test — false-match dir is preserved (full-line marker match)
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.unit
 def test_cleanup_does_not_delete_dir_with_marker_only_in_comment(tmp_path):
     """A user pipeline whose ``monitoring.py`` mentions the marker only inside
@@ -237,8 +220,6 @@ def test_cleanup_does_not_delete_dir_with_marker_only_in_comment(tmp_path):
 
     service.cleanup_artifacts(env="dev", output_dir=output_dir)
 
-    # Correct behavior: the false-match dir survives because the marker text
-    # never appears as a standalone full line, only inside a comment/string.
     assert false_match_dir.exists(), (
         "user pipeline dir whose monitoring.py only mentions the marker in a "
         "comment/string must NOT be deleted"

@@ -1,4 +1,4 @@
-"""Tests for secret validation functionality of LakehousePlumber."""
+"""Tests for secret validation functionality."""
 
 import pytest
 
@@ -7,8 +7,6 @@ from lhp.core.validators import SecretValidator
 
 
 class TestSecretValidator:
-    """Test secret validation."""
-
     def test_validate_secret_references(self):
         """Test validating secret references — syntax-only by design."""
         validator = SecretValidator()
@@ -29,12 +27,10 @@ class TestSecretValidator:
         """Test secret key format validation."""
         validator = SecretValidator()
 
-        # Valid formats
         assert validator._is_valid_key_format("db_password")
         assert validator._is_valid_key_format("api-key-123")
         assert validator._is_valid_key_format("TOKEN123")
 
-        # Invalid formats
         assert not validator._is_valid_key_format("db password")
         assert not validator._is_valid_key_format("key@123")
         assert not validator._is_valid_key_format("key!value")

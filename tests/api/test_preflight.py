@@ -57,7 +57,6 @@ def project_root(tmp_path: Path) -> Iterator[Path]:
 
 
 def _build_orchestrator(project_root: Path) -> object:
-    """Construct the fully-wired orchestrator both facades hold."""
     facade = LakehousePlumberApplicationFacade.for_project(
         project_root,
         pipeline_config_path=_PIPELINE_CONFIG_REL,

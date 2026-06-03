@@ -1,12 +1,4 @@
-"""Unit tests for the simplified JobGenerator monitoring-job API.
-
-Covers:
-  * ``JobGenerator.resolve_monitoring_job_config`` — deep-merges raw dict over
-    ``DEFAULT_JOB_CONFIG`` without touching callers.
-  * ``JobGenerator.generate_monitoring_job`` — renders the monitoring-job Jinja
-    template against the caller-supplied ``job_config`` dict (no alias lookup,
-    no monitoring_job_name member state).
-"""
+"""Unit tests for the simplified JobGenerator monitoring-job API."""
 
 import pytest
 import yaml
@@ -56,7 +48,6 @@ class TestResolveMonitoringJobConfig:
 
     def test_does_not_mutate_default(self):
         JobGenerator.resolve_monitoring_job_config({"max_concurrent_runs": 9})
-        # DEFAULT_JOB_CONFIG must still be pristine
         assert JobGenerator.DEFAULT_JOB_CONFIG["max_concurrent_runs"] == 1
 
 

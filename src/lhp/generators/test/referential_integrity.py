@@ -1,5 +1,3 @@
-"""Referential-integrity test action generator."""
-
 import logging
 from typing import Any, Dict, List
 
@@ -14,7 +12,6 @@ class ReferentialIntegrityTestGenerator(BaseTestActionGenerator):
     """Generate a referential_integrity test — source rows must match reference."""
 
     def generate(self, action: Action, context: Dict[str, Any]) -> str:
-        """Generate referential_integrity test code."""
         config = action.model_dump(mode="json", exclude_none=True)
         test_type = "referential_integrity"
 

@@ -80,13 +80,12 @@ def _normalize_write_target(wt: Dict[str, Any], action_name: str) -> None:
        c. No dot → error with migration instructions.
     """
     if wt.get("catalog") and wt.get("schema"):
-        # New format — but check if 'schema' looks like DDL (common migration mistake)
         _check_schema_not_ddl(wt, action_name)
-        return  # Already in new format
+        return
 
     database = wt.get("database")
     if not database:
-        return  # No database field, nothing to normalize
+        return
 
     # Handle DDL collision: if 'schema' is present alongside 'database',
     # it's the DDL table schema (old alias for table_schema), not the namespace.
@@ -97,7 +96,6 @@ def _normalize_write_target(wt: Dict[str, Any], action_name: str) -> None:
         )
         wt["table_schema"] = wt.pop("schema")
 
-    # Split database on first dot
     if "." in str(database):
         catalog, schema = str(database).split(".", 1)
         wt["catalog"] = catalog
@@ -142,13 +140,13 @@ def _normalize_delta_source(source: Dict[str, Any], action_name: str) -> None:
     4. database has no dot and no catalog → error.
     """
     if source.get("catalog") and source.get("schema"):
-        return  # Already in new format
+        return
 
     catalog = source.get("catalog")
     database = source.get("database")
 
     if not database:
-        return  # No database field, nothing to normalize
+        return
 
     # Format A: catalog is explicit, database is actually the schema name
     if catalog and "." not in str(database):
@@ -164,7 +162,6 @@ def _normalize_delta_source(source: Dict[str, Any], action_name: str) -> None:
         )
         return
 
-    # Standard format: database contains "catalog.schema"
     if "." in str(database):
         cat, schema = str(database).split(".", 1)
         source["catalog"] = cat

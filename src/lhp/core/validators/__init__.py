@@ -27,7 +27,6 @@ from .compatibility import (
 from .pipeline.job_name import validate_job_names, validate_job_name_format
 from .field.kafka_options import KafkaOptionsValidator
 
-# Project-wide aggregator (composes the action/structural validators above).
 from .config_validator import ConfigValidator
 
 __all__ = [

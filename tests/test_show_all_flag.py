@@ -1,11 +1,9 @@
 """Tests for the ``--show-all`` flag and failures-only summary default.
 
-Phase E of the CLI UX hardening plan moves the post-run summary table
-from "always print every pipeline" to "print failed pipelines only,
-plus a single-line footer". The full-table behavior is opted into by
-``--show-all`` / ``-a``.
+Default behavior: print failed pipelines only plus a single-line footer.
+Full-table opted into by ``--show-all`` / ``-a``.
 
-These tests exercise the table functions directly with constructed
+Tests exercise the table functions directly with constructed
 ``PipelineRecord`` dicts; no full CLI integration is needed because the
 filtering and footer-only paths live in ``generate_summary.py`` and
 ``validate_summary.py``.
@@ -29,7 +27,6 @@ def _capture_generate(
     warning_count: int = 0,
     elapsed_s: float = 1.5,
 ) -> str:
-    """Render the generate summary table to an in-memory console at fixed width without ANSI."""
     with capture_lhp_console(200) as buf:
         print_summary_table(
             records,

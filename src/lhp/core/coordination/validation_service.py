@@ -164,11 +164,9 @@ class ValidationService(BaseValidationService):
 
         Runs the :class:`TableCreationValidator` and
         :class:`CdcFanInCompatibilityValidator` only. The per-flowgroup
-        :class:`ConfigValidator` pass is intentionally omitted so the
-        per-pipeline generation worker (:class:`PipelineProcessor`) sees
-        the same validation footprint it had before §9.24 routing —
+        :class:`ConfigValidator` pass is intentionally omitted —
         per-flowgroup validation is already handled by
-        :class:`FlowgroupResolutionService` during Phase A.
+        :class:`FlowgroupResolutionService`.
 
         LHPError raised by the underlying validators is NOT caught here;
         it propagates so the worker's catch-and-convert boundary can

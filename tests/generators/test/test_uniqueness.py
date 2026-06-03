@@ -1,5 +1,3 @@
-"""Tests for uniqueness test with filter support."""
-
 import pytest
 
 from lhp.generators.test import UniquenessTestGenerator
@@ -7,11 +5,7 @@ from lhp.models import Action, ActionType
 
 
 class TestUniquenessFilter:
-    """Test filter support for uniqueness tests."""
-
     def test_action_model_accepts_filter(self):
-        """Test that Action model accepts optional filter field."""
-        # Test with filter
         action = Action(
             name="test_active_unique",
             type=ActionType.TEST,
@@ -26,8 +20,7 @@ class TestUniquenessFilter:
         assert action.columns == ["customer_id"]
 
     def test_action_model_filter_is_optional(self):
-        """Test that filter field is optional and defaults to None."""
-        # Test without filter - should work (backward compatibility)
+        # backward compatibility: filter defaults to None
         action = Action(
             name="test_unique",
             type=ActionType.TEST,
@@ -36,12 +29,11 @@ class TestUniquenessFilter:
             columns=["id"],
         )
 
-        assert action.filter is None  # Should default to None
+        assert action.filter is None
         assert action.name == "test_unique"
         assert action.columns == ["id"]
 
     def test_filter_with_complex_conditions(self):
-        """Test that filter can handle complex SQL conditions."""
         action = Action(
             name="test_complex_filter",
             type=ActionType.TEST,
@@ -57,7 +49,6 @@ class TestUniquenessFilter:
         )
 
     def test_end_to_end_with_filter(self):
-        """Test end-to-end code generation with filter."""
         action = Action(
             name="test_customer_active",
             type=ActionType.TEST,
@@ -71,7 +62,6 @@ class TestUniquenessFilter:
         generator = UniquenessTestGenerator()
         code = generator.generate(action=action, context={})
 
-        # Verify generated code
         assert "from pyspark import pipelines as dp" in code
         assert "@dp.expect_all_or_fail" in code
         assert "WHERE is_current = true" in code

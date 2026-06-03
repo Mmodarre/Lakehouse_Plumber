@@ -1,5 +1,3 @@
-"""Write action validator."""
-
 import logging
 from typing import List
 
@@ -72,7 +70,6 @@ class WriteActionValidator(BaseActionValidator):
 
         errors.extend(self._validate_write_target_type(action, prefix, target_type))
 
-        # DLT table options apply to all write target types.
         errors.extend(self.dlt_validator.validate(action, prefix))
 
         if target_type == "streaming_table":

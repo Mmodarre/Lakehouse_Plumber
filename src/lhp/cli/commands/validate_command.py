@@ -5,7 +5,6 @@
 # panel and warning collector. Splitting along concerns risks duplicated
 # Live frames.
 # TODO(Phase 9.2): extract per-flowgroup display block and Live-frame setup into cli/presenters/validate_panel.py per LOCAL/REMAINING_WORK.md §9.2.
-"""Validate command implementation for LakehousePlumber CLI."""
 
 import logging
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
@@ -111,8 +110,6 @@ def _issue_view_to_lhp_error(issue: "object") -> Optional[LHPError]:
 
 
 class ValidateCommand(BaseCommand):
-    """Pipeline configuration validation."""
-
     def execute(
         self,
         env: str = "dev",
@@ -126,14 +123,6 @@ class ValidateCommand(BaseCommand):
         show_all: bool = False,
     ) -> None:
         """Run the validate command.
-
-        Mirrors the generate command's Live-panel orchestration: outer
-        ``rich_handler_attached`` scope → inner ``Live`` frame →
-        completion callback mutates ``records`` (no inline ``print``) →
-        post-Live summary table + per-failure ``LHPError`` panels →
-        end-of-run warning panel. The symmetric teardown ensures any
-        final ``SystemExit`` propagates through clean stderr with no
-        Rich machinery attached.
 
         ``max_workers=None`` defers to the facade's resolution order
         (``LHP_MAX_WORKERS`` env var → :func:`_auto_max_workers`).
@@ -161,8 +150,7 @@ class ValidateCommand(BaseCommand):
         project_root = self.ensure_project_root()
 
         # Per-run accumulator for non-fatal warnings (e.g. deprecated
-        # bare ``{token}`` substitution syntax). Rendered as a single
-        # yellow-bordered Rich Panel after the Live frame exits.
+        # bare ``{token}`` substitution syntax).
         warning_collector = WarningCollector()
 
         if verbose:
@@ -177,22 +165,16 @@ class ValidateCommand(BaseCommand):
 
         self.check_substitution_file(env)
 
-        # Bundle enablement mirrors generate: ``should_enable_bundle_support``
-        # auto-detects databricks.yml and honors ``--no-bundle``. When bundle
-        # support is on, ``--pipeline-config`` is required so the orchestrator
-        # carries a ``pipeline_config_path`` and the shared preflight's bundle
-        # catalog/schema check (→ LHP-CFG-026) can resolve (§9.24). Surfaced
-        # before any facade work so a bad invocation fails fast.
+        # ``--pipeline-config`` is required when bundle support is on so the
+        # shared preflight's catalog/schema check (→ LHP-CFG-026) can resolve
+        # (§9.24). Surfaced before any facade work so a bad invocation fails fast.
         bundle_enabled = should_enable_bundle_support(project_root, no_bundle)
         _require_pipeline_config_flag(
             bundle_enabled=bundle_enabled,
             pipeline_config_path=pipeline_config,
         )
 
-        # Route through the §9.24-clean facade bootstrap so every domain
-        # call goes via a sub-facade (no orchestrator reach-through). The
-        # ``pipeline_config_path`` is threaded so the bundle catalog/schema
-        # preflight can run symmetrically with generate.
+        # §9.24: every domain call via sub-facade (no orchestrator reach-through).
         application_facade = LakehousePlumberApplicationFacade.for_project(
             project_root,
             pipeline_config_path=pipeline_config,
@@ -287,25 +269,13 @@ class ValidateCommand(BaseCommand):
                         )
                         live.update(_render())
 
-                    # NOTE (C4): the pre-pool bare-``{token}`` deprecation scan
-                    # was removed here. Detection moved to the core read path
-                    # (``FlowgroupDiscoveryService.scan_deprecation_warnings``),
-                    # which scans every file and emits one structured
-                    # ``DeprecationWarningRecord`` per offending file. C5 wires
-                    # that through the facade as ``WarningEmitted`` events and
-                    # retires this ``warning_collector`` side channel; until
-                    # then the bare-token warning is not surfaced by the CLI.
-
                     if not empty_no_op:
                         # Seed records up front so the spinner shows
                         # ``0 of N pipelines done`` immediately.
                         for pipeline_name in pipelines_to_validate:
                             records[pipeline_name] = PipelineRecord(pipeline_name)
 
-                        # Now that the real pipeline count is known, bind the
-                        # ``OverallProgress`` total and rebuild the (frozen)
-                        # ``HeaderContext`` with the real total. Start the
-                        # Progress object so it begins ticking elapsed time.
+                        # ``HeaderContext`` is frozen; rebuild with real total once known.
                         overall_progress.set_total(len(pipelines_to_validate))
                         overall_progress.start()
                         header_ctx = HeaderContext(
@@ -315,10 +285,8 @@ class ValidateCommand(BaseCommand):
                         )
                         live.update(_render())
 
-                        # Main-thread per-pipeline callback fired by the
-                        # facade in completion order. Mutates record state
-                        # ONLY (no direct output); failure rendering is
-                        # deferred to the post-Live phase.
+                        # Mutates record state ONLY (no direct output);
+                        # failure rendering is deferred to the post-Live phase.
                         def _on_complete(
                             pipeline_name: str, response: ValidationResponse
                         ) -> None:
@@ -380,18 +348,9 @@ class ValidateCommand(BaseCommand):
             finally:
                 overall_progress.stop()
 
-            # Live frame has closed. We are still inside the
-            # ``rich_handler_attached`` context so any logger.warning
-            # emitted by post-Live code still routes through Rich,
-            # but the parent console is no longer in Live-redirect mode.
-
             if empty_no_op:
-                # Render the per-run warning panel (yellow border) for the
-                # no-op notice, then skip the summary table, per-failure
-                # panels and SystemExit. Validate returns cleanly with
-                # exit code 0 — generate raises ``LHPConfigError-014`` in
-                # the analogous situation, so this is intentionally
-                # asymmetric.
+                # Validate warns and exits 0 on empty pipelines; generate raises
+                # ``LHPConfigError-014`` in the analogous situation (intentionally asymmetric).
                 _panel = render_warning_panel(warning_collector)
                 if _panel is not None:
                     _console_module.err_console.print(_panel)
@@ -413,12 +372,8 @@ class ValidateCommand(BaseCommand):
                 warning_count=warning_collector.count,
             )
 
-            # Plain-string failures already appeared as the inline failure
-            # line inside Live; the panels here surface the structured
-            # ``LHP-XXX-NNN`` errors via ``render_error_panel``. The view
-            # carries flat fields (``code``, ``category``, ``suggestions``,
-            # ``context``, ``doc_link``) — wrap them in a transient
-            # ``LHPError`` for the renderer.
+            # Plain-string failures appear inline in the Live frame; panels here
+            # surface only structured ``LHP-XXX-NNN`` errors.
             if batch_response is not None:
                 for response in batch_response.pipeline_responses.values():
                     for issue in response.issues:
@@ -428,8 +383,6 @@ class ValidateCommand(BaseCommand):
                                 render_error_panel(lhp_error)
                             )
 
-            # Render the per-run warning panel (yellow border) after
-            # the summary table and per-pipeline panels.
             _panel = render_warning_panel(warning_collector)
             if _panel is not None:
                 _console_module.err_console.print(_panel)
@@ -444,9 +397,6 @@ class ValidateCommand(BaseCommand):
                 if self.log_file:
                     logger.debug(f"Check detailed logs: {self.log_file}")
 
-        # Both context managers have exited: stderr stream handlers
-        # restored, no Rich Live frame attached. ANY raise from here on
-        # propagates through clean stderr.
         if batch_response is None:
             raise RuntimeError("validate batch did not complete")
 
@@ -474,11 +424,9 @@ class ValidateCommand(BaseCommand):
         pipeline: Optional[str],
         application_facade: LakehousePlumberApplicationFacade,
     ) -> Tuple[List[str], Tuple["FlowgroupView", ...]]:
-        """Returns ``(pipeline names to validate, all discovered flowgroups)``.
+        """Routes flowgroup discovery through the inspection sub-facade (§9.23).
 
-        Routes flowgroup discovery through the inspection sub-facade so
-        no orchestrator reach-through is needed (§9.23). Discovery
-        errors (e.g. blueprint expansion failures, codes 040–055)
+        Discovery errors (e.g. blueprint expansion failures, codes 040–055)
         surface as :class:`LHPError` raised by ``list_flowgroups``;
         callers catch via the CLI error boundary.
         """

@@ -12,7 +12,6 @@ from lhp.parsers.yaml_parser import CachingYAMLParser, YAMLParser
 
 @pytest.fixture
 def temp_yaml_file():
-    """Create a temporary YAML file for testing."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
         f.write("""
 flowgroup: test_flowgroup
@@ -28,7 +27,6 @@ actions:
 
     yield temp_path
 
-    # Cleanup
     if temp_path.exists():
         temp_path.unlink()
 
@@ -37,7 +35,6 @@ class TestCachingYAMLParser:
     """Tests for CachingYAMLParser class."""
 
     def test_cache_initialization(self):
-        """Test that CachingYAMLParser initializes correctly."""
         parser = CachingYAMLParser()
         assert parser._max_cache_size == 500
         assert parser._hits == 0
@@ -239,19 +236,12 @@ actions:
         for thread in threads:
             thread.join()
 
-        # Verify no errors and all reads succeeded
         assert len(errors) == 0
         assert len(results) == 10
 
-        # Verify cache stats show hits (thread-safe operations).
-        # 10 threads over one file = 1 cold parse (one flowgroup-cache entry)
-        # + 9 flowgroup-cache hits.
+        # 10 threads over one file = 1 cold parse + 9 flowgroup-cache hits.
         assert len(parser._cache) == 1
         assert parser._hits == 9
-
-    # ------------------------------------------------------------------
-    # load_documents_all (raw-document sub-cache)
-    # ------------------------------------------------------------------
 
     def test_load_documents_all_caches_by_mtime(self, temp_yaml_file):
         """Two calls on an unchanged file: first miss, second hit."""

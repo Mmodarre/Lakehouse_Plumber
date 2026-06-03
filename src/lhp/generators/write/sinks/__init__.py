@@ -1,5 +1,3 @@
-"""Sink write generators."""
-
 from .base_sink import BaseSinkWriteGenerator
 from .custom_sink import CustomSinkWriteGenerator
 from .delta_sink import DeltaSinkWriteGenerator

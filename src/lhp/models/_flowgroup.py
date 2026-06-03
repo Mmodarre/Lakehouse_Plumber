@@ -13,14 +13,12 @@ class FlowGroup(BaseModel):
     pipeline: str
     flowgroup: str
     job_name: Optional[str] = None
-    variables: Optional[Dict[str, str]] = None  # Local variable definitions
+    variables: Optional[Dict[str, str]] = None
     presets: List[str] = []
     use_template: Optional[str] = None
     template_parameters: Optional[Dict[str, Any]] = None
     actions: List[Action] = []
-    operational_metadata: Optional[Union[bool, List[str]]] = (
-        None  # Simplified: bool or list of column names
-    )
+    operational_metadata: Optional[Union[bool, List[str]]] = None
 
 
 @dataclass(frozen=True, slots=True)

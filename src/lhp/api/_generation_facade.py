@@ -232,9 +232,3 @@ class GenerationFacade:
                 include_tests=include_tests,
             )
         )
-
-    # NOTE (D4): the former ``finalize_monitoring_artifacts`` facade method was
-    # removed. Monitoring finalization is now an in-stream ``monitoring`` phase
-    # of :meth:`generate_pipelines` (the stream calls
-    # ``orchestrator.finalize_monitoring_artifacts`` directly); there is no
-    # standalone public entry point and no ``FinalizeMonitoringResult`` DTO.

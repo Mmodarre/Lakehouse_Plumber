@@ -23,7 +23,6 @@ class SecretValidator:
     def validate_secret_references(
         self, secret_refs: Set[SecretReference]
     ) -> List[str]:
-        """Validate secret references syntactically."""
         errors = []
         seen_refs = set()
 
@@ -50,7 +49,6 @@ class SecretValidator:
         if not key:
             return False
 
-        # Allow alphanumeric, underscore, and hyphen
         allowed_chars = set(
             "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"
         )
@@ -68,7 +66,6 @@ class SecretValidator:
         if len(scope) > 128:
             return f"Scope name too long: {len(scope)} characters (max 128)"
 
-        # Check for valid characters (similar to Databricks scope naming)
         if not all(c.isalnum() or c in "_-" for c in scope):
             return "Scope name can only contain alphanumeric characters, underscores, and hyphens"
 

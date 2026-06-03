@@ -30,10 +30,6 @@ from tests.performance.benchmark import (
     summarize,
 )
 
-# ---------------------------------------------------------------------------
-# _semver_key
-# ---------------------------------------------------------------------------
-
 
 class TestSemverKey:
     def test_basic_parse(self):
@@ -69,11 +65,6 @@ class TestSemverKey:
             _semver_key(bad)
 
 
-# ---------------------------------------------------------------------------
-# _percentiles
-# ---------------------------------------------------------------------------
-
-
 class TestPercentiles:
     def test_empty(self):
         assert _percentiles([]) == (0.0, 0.0, 0.0)
@@ -89,11 +80,6 @@ class TestPercentiles:
     def test_monotonic(self):
         p25, median, p75 = _percentiles([10.0, 11.0, 12.0, 13.0, 14.0])
         assert p25 <= median <= p75
-
-
-# ---------------------------------------------------------------------------
-# _classify decision table
-# ---------------------------------------------------------------------------
 
 
 class TestClassify:
@@ -159,11 +145,6 @@ class TestClassify:
         assert _classify(b, c) == "stable"
 
 
-# ---------------------------------------------------------------------------
-# _flatten_run + summarize
-# ---------------------------------------------------------------------------
-
-
 def _make_run(**overrides) -> BenchmarkRun:
     defaults = {
         "phases": {"Pipeline discovery": 1.5, "Bundle sync": 0.25},
@@ -217,11 +198,6 @@ class TestSummarize:
         assert bundle.median == pytest.approx(0.30)
         assert bundle.p25 < bundle.median < bundle.p75
         assert bundle.unit == "seconds"
-
-
-# ---------------------------------------------------------------------------
-# compare()
-# ---------------------------------------------------------------------------
 
 
 def _baseline_doc(
@@ -387,11 +363,6 @@ class TestCompare:
         assert result.fingerprint_mismatch is True
 
 
-# ---------------------------------------------------------------------------
-# JSON round-trip + load_latest_baseline
-# ---------------------------------------------------------------------------
-
-
 class TestJsonRoundTrip:
     def test_round_trip_via_build_and_parse(self, tmp_path: Path):
         runs = [
@@ -438,11 +409,6 @@ class TestJsonRoundTrip:
     def test_load_latest_raises_when_empty(self, tmp_path: Path):
         with pytest.raises(FileNotFoundError):
             load_latest_baseline(tmp_path)
-
-
-# ---------------------------------------------------------------------------
-# _parse_perf_log_text (seed parser)
-# ---------------------------------------------------------------------------
 
 
 PERF_LOG_FIXTURE = """\

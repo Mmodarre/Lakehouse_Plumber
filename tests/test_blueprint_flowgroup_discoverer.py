@@ -1,4 +1,4 @@
-"""Spec-driven unit tests for FlowgroupDiscoveryService.register_synthetic_sources (Phase 7).
+"""Unit tests for FlowgroupDiscoveryService.register_synthetic_sources.
 
 Synthetic flowgroups must resolve to their blueprint path, and synthetic entries
 must override conflicting on-disk entries when the same (pipeline, flowgroup)

@@ -23,9 +23,8 @@ if TYPE_CHECKING:
 class CopiedModuleRecord:
     """Pure-compute description of a user Python module copy.
 
-    Produced in Phase A by :func:`compute_copy_records` with no side
-    effects — no filesystem writes, no state mutation. Replayed in
-    Phase B by :meth:`PythonFileCopier.apply_copy_record`.
+    No side effects — no filesystem writes, no state mutation.
+    Replayed by :meth:`PythonFileCopier.apply_copy_record`.
     """
 
     source_path: str
@@ -288,10 +287,8 @@ class FlowgroupOutcome:
     ) -> "FlowgroupOutcome":
         """Build a success outcome.
 
-        A success outcome carries neither ``lhp_error`` nor ``errors``.
-        ``formatted_code`` is ``None`` for validate-mode runs (no code is
-        generated). ``warnings`` defaults to ``()`` so existing callers are
-        unaffected; when given it carries the worker's deprecation warnings
+        ``formatted_code`` is ``None`` for validate-mode runs (no code generated).
+        ``warnings`` defaults to ``()``; when given it carries deprecation warnings
         for re-emission on the main thread.
         """
         return cls(

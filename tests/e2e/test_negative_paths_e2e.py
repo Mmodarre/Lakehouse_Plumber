@@ -12,15 +12,8 @@ error messages for common failure modes:
 - Duplicate (pipeline, flowgroup) tuple across files (LHP-VAL-009)
 - Python module-name collision across flowgroups (LHP-VAL-019)
 
-Phase 2 invariant: all mutations target the deep-copied tmp project
-(``self.project_root``); no permanent fixtures are added under
-``tests/e2e/fixtures/testing_project/``.
-
-As of v0.8.7, all negative-path tests are regular (non-xfail) asserts:
-LHP surfaces structured ``LHP-<CATEGORY>-<CODE>`` errors with did-you-mean
-suggestions for unknown action types, and ``generate`` fails fast on any
-per-pipeline failure (returning a POSIX exit code mapped from the LHP
-error category by ``cli_error_boundary``).
+All mutations target the deep-copied tmp project (``self.project_root``); no
+permanent fixtures are added under ``tests/e2e/fixtures/testing_project/``.
 """
 
 import os
@@ -41,7 +34,6 @@ class TestNegativePathsE2E:
 
     @pytest.fixture(autouse=True)
     def setup_test_project(self, isolated_project):
-        """Create isolated copy of fixture project for each test."""
         fixture_path = Path(__file__).parent / "fixtures" / "testing_project"
         self.project_root = isolated_project / "test_project"
         shutil.copytree(fixture_path, self.project_root)
@@ -67,20 +59,15 @@ class TestNegativePathsE2E:
             shutil.rmtree(self.resources_dir)
         self.resources_dir.mkdir(parents=True, exist_ok=True)
 
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
     def run_validate(self, *args) -> tuple:
         """Run 'lhp validate' with the given args. Returns (exit_code, output).
 
-        v0.8.7: bundle-enabled projects (databricks.yml present) require
+        Bundle-enabled projects (databricks.yml present) require
         ``--pipeline-config`` or preflight blocks with ``LHP-CFG-023``. If
         the caller did not supply ``--pipeline-config`` / ``-pc`` /
         ``--no-bundle`` and the fixture has a default
         ``config/pipeline_config.yaml``, inject ``-pc`` automatically so
-        the negative-path assertions are not shadowed by the B-gate
-        (mirrors ``run_generate``).
+        the negative-path assertions are not shadowed by the B-gate.
         """
         runner = CliRunner()
         argv = list(args)
@@ -98,7 +85,7 @@ class TestNegativePathsE2E:
     def run_generate(self, *args) -> tuple:
         """Run 'lhp generate' with the given args. Returns (exit_code, output).
 
-        v0.8.7: bundle-enabled projects (databricks.yml present) require
+        Bundle-enabled projects (databricks.yml present) require
         ``--pipeline-config`` or preflight blocks with ``LHP-CFG-023``. If
         the caller did not supply ``--pipeline-config`` / ``-pc`` /
         ``--no-bundle`` and the fixture has a default
@@ -117,10 +104,6 @@ class TestNegativePathsE2E:
             argv.extend(["--pipeline-config", "config/pipeline_config.yaml"])
         result = runner.invoke(cli, ["generate", *argv])
         return result.exit_code, result.output
-
-    # ------------------------------------------------------------------
-    # Tests
-    # ------------------------------------------------------------------
 
     def test_invalid_yaml_in_flowgroup_fails(self):
         """Malformed YAML in a flowgroup must surface a parse-time error
@@ -280,16 +263,12 @@ class TestNegativePathsE2E:
 
     def test_duplicate_flowgroup_id_fails(self):
         """Two flowgroup files with same (pipeline, flowgroup) tuple must
-        surface LHP-VAL-009 (duplicate pipeline+flowgroup combination) on
-        the GENERATE path.
+        surface LHP-VAL-009 on the GENERATE path.
 
-        Retained as a regression guard for the generate side of the shared
-        cross-file duplicate check. Per CODING_CONSTITUTION §9.24 the same
-        detection logic must not be duplicated across paths: as of Phase 3
-        ``lhp validate`` runs the identical check and also surfaces
-        LHP-VAL-009 (see the sibling
-        ``test_duplicate_flowgroup_id_fails_via_validate``). This test keeps
-        the generate path covered so both error-surfacing paths stay green.
+        Per CODING_CONSTITUTION §9.24 the same detection logic must not be
+        duplicated across paths: ``lhp validate`` runs the identical check
+        (see ``test_duplicate_flowgroup_id_fails_via_validate``). This test
+        keeps the generate path covered so both error-surfacing paths stay green.
         """
         original = (
             self.project_root
@@ -329,18 +308,13 @@ class TestNegativePathsE2E:
 
     def test_duplicate_flowgroup_id_fails_via_validate(self) -> None:
         """Two flowgroup files with the same (pipeline, flowgroup) tuple must
-        also surface LHP-VAL-009 on the VALIDATE path (N3).
+        also surface LHP-VAL-009 on the VALIDATE path.
 
-        Per CODING_CONSTITUTION §9.24 the cross-file duplicate-(pipeline,
-        flowgroup) check must not be duplicated across the generate and
-        validate paths. As of Phase 3 ``lhp validate`` runs the same check
-        ``lhp generate`` runs; the duplicate batch carries
+        Per CODING_CONSTITUTION §9.24 the cross-file duplicate check must not
+        be duplicated across paths: ``lhp validate`` runs the same check as
+        ``lhp generate``; the duplicate batch carries
         ``error_code="LHP-VAL-009"``, which validate counts as an error and
-        maps to a non-zero exit (ExitCode.DATA_ERROR). This is the validate
-        sibling of ``test_duplicate_flowgroup_id_fails`` (generate path).
-
-        Negative test: it expects FAILURE, so it neither generates nor diffs
-        any baseline.
+        maps to a non-zero exit (ExitCode.DATA_ERROR).
         """
         original = (
             self.project_root
@@ -380,27 +354,17 @@ class TestNegativePathsE2E:
 
     def test_validate_no_table_creator_fails(self) -> None:
         """A target table written to only by actions with ``create_table:
-        false`` (i.e. NO creating action anywhere in the pipeline) must
-        surface LHP-VAL-009 on the VALIDATE path (N1).
+        false`` must surface LHP-VAL-009 on the VALIDATE path.
 
         Per CODING_CONSTITUTION §9.24 the cross-flowgroup table-creation
-        check is single-sourced in ``TableCreationValidator``. As of the
-        sibling §9.24 routing change, ``lhp validate`` runs that check via
-        ``validate_cross_flowgroup`` and FOLDS the resulting
-        ``table_creation_errors`` into a structured LHP-VAL-009 error
-        (previously these were discarded on the validate path). The folded
-        error makes validate report ``success=False`` and exit non-zero.
+        check is single-sourced in ``TableCreationValidator``. ``lhp validate``
+        runs that check via ``validate_cross_flowgroup`` and folds the resulting
+        ``table_creation_errors`` into a structured LHP-VAL-009 error, making
+        validate report ``success=False`` and exit non-zero.
 
-        Mechanism: ``TableCreationValidator`` groups every write action by
-        its fully-qualified ``catalog.schema.table``. A table whose write
-        actions all have ``create_table: false`` ends up with zero creators,
-        which yields the "Table '...' has no creator" message. We introduce
-        a brand-new flowgroup whose single write action targets a UNIQUE
-        table (``no_creator_raw``) with ``create_table: false``, so no other
-        fixture flowgroup creates it — guaranteeing the zero-creator branch.
-
-        Negative test: it expects FAILURE, so it neither generates nor diffs
-        any baseline.
+        The fixture uses a unique table (``no_creator_raw``) with
+        ``create_table: false`` so no other fixture flowgroup creates it,
+        guaranteeing the zero-creator branch.
         """
         bad_file = (
             self.project_root
@@ -444,25 +408,15 @@ class TestNegativePathsE2E:
 
     def test_validate_multiple_table_creators_fails(self) -> None:
         """A table created by MULTIPLE actions (each ``create_table: true``)
-        must surface LHP-CFG-004 on the VALIDATE path (N2).
+        must surface LHP-CFG-004 on the VALIDATE path.
 
-        Symmetry guard for N1: LHP-CFG-004 is already RAISED by
-        ``TableCreationValidator`` when ``len(creators) > 1``. This test
-        proves ``lhp validate`` catches that raise too — the §9.24 routing
-        lets the ``LHPConfigError`` propagate out of
-        ``validate_cross_flowgroup`` and the executor folds it into the
-        structured ``lhp_errors`` (validate then exits non-zero), rather than
-        only the generate path catching it.
+        LHP-CFG-004 is raised by ``TableCreationValidator`` when
+        ``len(creators) > 1``. The §9.24 routing lets the ``LHPConfigError``
+        propagate out of ``validate_cross_flowgroup`` and the executor folds it
+        into the structured ``lhp_errors`` (validate exits non-zero).
 
-        Mechanism: two write actions in a single new flowgroup target the
-        SAME unique table (``multi_creator_raw``) with the default
-        ``create_table: true``. ``TableCreationValidator`` records two
-        creators for that table and raises LHP-CFG-004 ("Multiple table
-        creators detected"). The unique table name keeps the defect isolated
-        from existing fixtures.
-
-        Negative test: it expects FAILURE, so it neither generates nor diffs
-        any baseline.
+        The fixture uses a unique table (``multi_creator_raw``) so the defect
+        is isolated from existing fixtures.
         """
         bad_file = (
             self.project_root

@@ -1,30 +1,9 @@
-"""Commit one pipeline's generate outputs to disk (Phase-B write step).
+"""Post-gate write step: flush worker-produced artifacts to disk.
 
-Single responsibility: **write one pipeline's committed outputs to disk**.
-
-This module is the post-gate write half of the consolidated generate path.
-The all-or-nothing
-gate (:func:`._generate_gate.gate_or_raise`) has already proven that EVERY
-pipeline's flowgroups resolved, codegen'd, and formatted cleanly and that no
-cross-source copy collides; only then does the driver in
-:class:`~lhp.core.coordination.executor.PipelineExecutionService` call
-:func:`commit_pipeline` once per pipeline to flush the already-computed
-artifacts.
-
-The write ORDER, filename scheme (``{flowgroup_name}.py``), encoding (UTF-8
-via :func:`~lhp.utils.file_header.write_normalized`), empty-flowgroup unlink
-rule, auxiliary-file handling, one-:class:`PythonFileCopier`-per-pipeline
-dedup, and the synthesized :class:`~lhp.models.processing.PipelineDelta` field
-values must be byte-for-byte identical to the legacy
-:class:`~lhp.core.coordination.processor.PipelineProcessor` path — the E2E
-baselines must not move.
-
-It is deliberately NOT a second processor: there is NO
-resolve / codegen / validate / cross-flowgroup logic in here. It only WRITES
-what the worker pool already produced. The output-tree WIPE is the DRIVER's
-job (a single whole-env wipe before the per-pipeline loop), not this
-function's — and runs AFTER the gate passes, so a failed run leaves prior
-output untouched.
+No resolve / codegen / validate / cross-flowgroup logic lives here — only
+WRITES. The output-tree WIPE is the DRIVER's job (a single whole-env wipe
+before the per-pipeline loop), running AFTER the gate passes so a failed
+run leaves prior output untouched.
 """
 
 from __future__ import annotations
@@ -193,40 +172,10 @@ def commit_pipeline(
 ) -> PipelineDelta:
     """Write ONE pipeline's gate-approved outputs to disk; synthesize a delta.
 
-    Called once per pipeline by the generate write-step driver
-    (:func:`commit_generate_results`) ONLY on
-    the clean (gate-passed) path. The whole-env output wipe is the driver's
-    responsibility and has already run once before this loop; this function
-    re-creates the per-pipeline directory (``mkdir(parents=True,
-    exist_ok=True)``) and then writes:
-
-    1. Apply each successful outcome's copy records through ONE
-       :class:`PythonFileCopier` (intra-pipeline dedup).
-    2. Write ``{flowgroup_name}.py`` from ``formatted_code`` (empty → unlink),
-       then any auxiliary files.
-    3. Emit the test-reporting hook (when ``include_tests`` and
-       ``project_config.test_reporting`` are set).
-    4. Return a :class:`PipelineDelta.success_` whose ``files_written`` /
-       ``artifacts_count`` / ``generated_filenames`` must match the legacy
-       path byte-for-byte. ``duration_s`` stays ``0.0``.
-
-    Args:
-        pipeline: Pipeline name being committed.
-        outcomes: This pipeline's ``outcomes_in_order`` (sorted by flowgroup
-            name). ALL are successful on the gate-passed path; the
-            success guard is defensive only.
-        output_dir: Per-pipeline output directory (``generated/<env>/<pipeline>``)
-            or ``None`` for dry-run (no writes, no hook).
-        project_config: Project config; ``project_config.test_reporting``
-            decides whether the hook is emitted.
-        project_root: Project root (forwarded to the hook generator).
-        include_tests: Whether test actions were emitted; gates the hook.
-        substitution_mgr: Per-pipeline substitution manager (hook provider copy).
-        copier_factory: Builds the per-pipeline :class:`PythonFileCopier`.
-            Injectable for tests; defaults to the real class.
-
-    Returns:
-        A success :class:`PipelineDelta` for this pipeline.
+    Called once per pipeline on the clean (gate-passed) path only. The
+    whole-env output wipe is the driver's responsibility and has already run
+    once before this loop; this function re-creates the per-pipeline directory.
+    ``copier_factory`` is injectable for tests; defaults to the real class.
     """
     with perf_timer(f"commit_pipeline [{pipeline}]"):
         if output_dir is not None:
@@ -291,39 +240,12 @@ def commit_generate_results(
 ) -> Iterator[PipelineDelta]:
     """Commit every gate-approved pipeline to disk, YIELDING deltas in order.
 
-    The per-pipeline commit ORCHESTRATION half of the generate write step
-    (the single-pipeline mechanics are :func:`commit_pipeline`). Lives here,
-    not on the executor, so the driver
-    (:meth:`PipelineExecutionService._iter_generate_deltas`) stays thin and
-    the commit mechanics are single-sourced in this module (constitution
-    §3.3 size).
-
-    This is the success-delta source of the generate delta-stream: a
-    GENERATOR that wipes the whole env output tree ONCE up front
-    (:func:`_wipe_env_output_dir` — writes happen only on the gate-passed
-    path; the wipe runs lazily, when the first delta is pulled), then
-    delegates each pipeline to :func:`commit_pipeline` in INPUT pipeline
-    order, ``yield``-ing each synthesized success delta. The terminal
-    ``ruff`` pass is the driver's responsibility and runs after this
-    generator is exhausted, so it MUST be fully drained.
-
-    Runs ONLY after :func:`._generate_gate.gate_or_raise` confirmed every
-    pipeline is clean.
-
-    Args:
-        pool_results: The clean per-pipeline results, in input pipeline order.
-        pipeline_output_dirs: Per-pipeline output dir map (``generated/<env>/
-            <pipeline>``), keyed by pipeline name. Missing / ``None`` → dry-run
-            for that pipeline.
-        substitution_managers: Per-pipeline substitution manager map.
-        include_tests: Whether test actions were emitted (gates the hook).
-        output_dir: Env-level output dir (``generated/<env>``) for the single
-            whole-env wipe. ``None`` for dry-run (no wipe).
-        project_config: Project config; ``test_reporting`` gates the hook.
-        project_root: Project root (forwarded to the hook generator).
-
-    Yields:
-        One success :class:`PipelineDelta` per pipeline, in input order.
+    Lives here so the driver stays thin (constitution §3.3). Wipes the whole
+    env output tree ONCE up front (lazily, when the first delta is pulled),
+    then delegates each pipeline to :func:`commit_pipeline` in INPUT pipeline
+    order. MUST be fully drained — the terminal ``ruff`` pass is the driver's
+    responsibility and runs after this generator is exhausted. Runs ONLY after
+    :func:`._generate_gate.gate_or_raise` confirmed every pipeline is clean.
     """
     _wipe_env_output_dir(output_dir)
     for result in pool_results:

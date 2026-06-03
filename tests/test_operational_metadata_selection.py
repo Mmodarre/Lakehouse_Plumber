@@ -20,11 +20,8 @@ from lhp.models import (
 
 
 class TestOperationalMetadataSelection:
-    """Test operational metadata selection logic."""
-
     @pytest.fixture
     def sample_project_config(self):
-        """Sample project-level metadata configuration."""
         return ProjectOperationalMetadataConfig(
             columns={
                 "_ingestion_timestamp": MetadataColumnConfig(
@@ -83,12 +80,10 @@ class TestOperationalMetadataSelection:
 
     @pytest.fixture
     def metadata_handler(self, sample_project_config):
-        """Operational metadata handler with sample config."""
         return OperationalMetadataCatalog(project_config=sample_project_config)
 
     @pytest.fixture
     def sample_flowgroup(self):
-        """Sample flowgroup for testing."""
         return FlowGroup(
             pipeline="test_pipeline",
             flowgroup="test_flowgroup",
@@ -98,7 +93,6 @@ class TestOperationalMetadataSelection:
 
     @pytest.fixture
     def sample_write_action(self):
-        """Sample write action for testing."""
         return Action(
             name="write_test_table",
             type=ActionType.WRITE,
@@ -112,26 +106,18 @@ class TestOperationalMetadataSelection:
 
     @pytest.fixture
     def preset_config_standard(self):
-        """Sample preset configuration with standard metadata."""
         return {"operational_metadata": ["_ingestion_timestamp", "_source_file"]}
 
     @pytest.fixture
     def preset_config_empty(self):
-        """Sample preset configuration with no metadata."""
         return {}
-
-    # ========================================================================
-    # Basic Additive Logic Tests
-    # ========================================================================
 
     def test_preset_only_selection(self, metadata_handler):
         """Test that preset-only selection works correctly."""
-        # Simulate preset selecting some columns
         preset_config = {
             "operational_metadata": ["_ingestion_timestamp", "_source_file"]
         }
 
-        # FlowGroup and Action don't add anything
         flowgroup = FlowGroup(
             pipeline="test_pipeline",
             flowgroup="test_flowgroup",
@@ -150,10 +136,8 @@ class TestOperationalMetadataSelection:
             },
         )
 
-        # Update context for substitutions
         metadata_handler.update_context("test_pipeline", "test_flowgroup")
 
-        # Resolve selection - should only have preset columns
         selection = metadata_handler.resolve_metadata_selection(
             flowgroup, action, preset_config
         )
@@ -172,12 +156,10 @@ class TestOperationalMetadataSelection:
 
     def test_flowgroup_adds_to_preset(self, metadata_handler):
         """Test that flowgroup adds columns to preset selection."""
-        # Preset selects base columns
         preset_config = {
             "operational_metadata": ["_ingestion_timestamp", "_source_file"]
         }
 
-        # FlowGroup adds more columns
         flowgroup = FlowGroup(
             pipeline="test_pipeline",
             flowgroup="test_flowgroup",
@@ -199,7 +181,6 @@ class TestOperationalMetadataSelection:
 
         metadata_handler.update_context("test_pipeline", "test_flowgroup")
 
-        # Should combine preset + flowgroup columns
         selection = metadata_handler.resolve_metadata_selection(
             flowgroup, action, preset_config
         )
@@ -220,10 +201,8 @@ class TestOperationalMetadataSelection:
 
     def test_action_adds_to_flowgroup_and_preset(self, metadata_handler):
         """Test that action adds columns to both flowgroup and preset selections."""
-        # Preset selects base columns
         preset_config = {"operational_metadata": ["_ingestion_timestamp"]}
 
-        # FlowGroup adds some columns
         flowgroup = FlowGroup(
             pipeline="test_pipeline",
             flowgroup="test_flowgroup",
@@ -232,7 +211,6 @@ class TestOperationalMetadataSelection:
             actions=[],
         )
 
-        # Action adds even more columns
         action = Action(
             name="write_test",
             type=ActionType.WRITE,
@@ -247,7 +225,6 @@ class TestOperationalMetadataSelection:
 
         metadata_handler.update_context("test_pipeline", "test_flowgroup")
 
-        # Should combine all: preset + flowgroup + action columns
         selection = metadata_handler.resolve_metadata_selection(
             flowgroup, action, preset_config
         )
@@ -268,12 +245,10 @@ class TestOperationalMetadataSelection:
 
     def test_no_duplicates_in_additive_selection(self, metadata_handler):
         """Test that duplicate column selections don't create duplicates."""
-        # Preset selects base columns
         preset_config = {
             "operational_metadata": ["_ingestion_timestamp", "_source_file"]
         }
 
-        # FlowGroup adds same columns (should not duplicate)
         flowgroup = FlowGroup(
             pipeline="test_pipeline",
             flowgroup="test_flowgroup",
@@ -285,7 +260,6 @@ class TestOperationalMetadataSelection:
             actions=[],
         )
 
-        # Action also adds same column
         action = Action(
             name="write_test",
             type=ActionType.WRITE,
@@ -310,7 +284,6 @@ class TestOperationalMetadataSelection:
             selection or {}, "streaming_table"
         )
 
-        # Should have each column only once
         expected_columns = {
             "_ingestion_timestamp": "F.current_timestamp()",
             "_source_file": "F.input_file_name()",
@@ -325,18 +298,12 @@ class TestOperationalMetadataSelection:
         # Check that each column appears exactly once
         assert len(columns) == 4, f"Expected 4 unique columns, got {len(columns)}"
 
-    # ========================================================================
-    # Action Disable Logic Tests
-    # ========================================================================
-
     def test_action_disables_all_metadata(self, metadata_handler):
         """Test that action-level disable (false) overrides all metadata selections."""
-        # Preset selects columns
         preset_config = {
             "operational_metadata": ["_ingestion_timestamp", "_source_file"]
         }
 
-        # FlowGroup adds more columns
         flowgroup = FlowGroup(
             pipeline="test_pipeline",
             flowgroup="test_flowgroup",
@@ -345,7 +312,6 @@ class TestOperationalMetadataSelection:
             actions=[],
         )
 
-        # Action DISABLES all metadata
         action = Action(
             name="write_test",
             type=ActionType.WRITE,
@@ -360,7 +326,6 @@ class TestOperationalMetadataSelection:
 
         metadata_handler.update_context("test_pipeline", "test_flowgroup")
 
-        # Should have NO columns despite preset and flowgroup selections
         selection = metadata_handler.resolve_metadata_selection(
             flowgroup, action, preset_config
         )
@@ -372,7 +337,6 @@ class TestOperationalMetadataSelection:
 
     def test_action_disable_overrides_large_selection(self, metadata_handler):
         """Test that action disable works even with large preset/flowgroup selections."""
-        # Large preset selection
         preset_config = {
             "operational_metadata": [
                 "_ingestion_timestamp",
@@ -383,7 +347,6 @@ class TestOperationalMetadataSelection:
             ]
         }
 
-        # FlowGroup adds more
         flowgroup = FlowGroup(
             pipeline="test_pipeline",
             flowgroup="test_flowgroup",
@@ -392,7 +355,6 @@ class TestOperationalMetadataSelection:
             actions=[],
         )
 
-        # Action disables everything
         action = Action(
             name="write_temp_table",
             type=ActionType.WRITE,
@@ -418,10 +380,8 @@ class TestOperationalMetadataSelection:
 
     def test_action_inherit_when_not_specified(self, metadata_handler):
         """Test that action inherits flowgroup/preset selection when not specified."""
-        # Preset selects columns
         preset_config = {"operational_metadata": ["_ingestion_timestamp"]}
 
-        # FlowGroup adds more columns
         flowgroup = FlowGroup(
             pipeline="test_pipeline",
             flowgroup="test_flowgroup",
@@ -430,7 +390,6 @@ class TestOperationalMetadataSelection:
             actions=[],
         )
 
-        # Action doesn't specify operational_metadata (should inherit)
         action = Action(
             name="write_test",
             type=ActionType.WRITE,
@@ -445,7 +404,6 @@ class TestOperationalMetadataSelection:
 
         metadata_handler.update_context("test_pipeline", "test_flowgroup")
 
-        # Should inherit preset + flowgroup columns
         selection = metadata_handler.resolve_metadata_selection(
             flowgroup, action, preset_config
         )
@@ -477,7 +435,6 @@ class TestOperationalMetadataSelection:
 
         metadata_handler.update_context("test_pipeline", "test_flowgroup")
 
-        # Test 1: False = disable all
         action_false = Action(
             name="write_test_false",
             type=ActionType.WRITE,
@@ -498,7 +455,6 @@ class TestOperationalMetadataSelection:
         )
         assert columns_false == {}, "False should disable all metadata"
 
-        # Test 2: None = inherit
         action_none = Action(
             name="write_test_none",
             type=ActionType.WRITE,
@@ -524,7 +480,6 @@ class TestOperationalMetadataSelection:
         }
         assert columns_none == expected_inherit, "None should inherit flowgroup+preset"
 
-        # Test 3: List = add to inheritance
         action_list = Action(
             name="write_test_list",
             type=ActionType.WRITE,
@@ -551,16 +506,10 @@ class TestOperationalMetadataSelection:
         }
         assert columns_list == expected_additive, "List should add to inheritance"
 
-    # ========================================================================
-    # Edge Cases Tests
-    # ========================================================================
-
     def test_no_preset_specified(self, metadata_handler):
         """Test behavior when no preset is specified."""
-        # No preset configuration
         preset_config = {}
 
-        # FlowGroup specifies columns directly
         flowgroup = FlowGroup(
             pipeline="test_pipeline",
             flowgroup="test_flowgroup",
@@ -582,7 +531,6 @@ class TestOperationalMetadataSelection:
 
         metadata_handler.update_context("test_pipeline", "test_flowgroup")
 
-        # Should work with just flowgroup columns
         selection = metadata_handler.resolve_metadata_selection(
             flowgroup, action, preset_config
         )
@@ -601,13 +549,11 @@ class TestOperationalMetadataSelection:
 
     def test_empty_preset_configuration(self, metadata_handler):
         """Test behavior when preset exists but has no operational_metadata."""
-        # Preset with no operational metadata
         preset_config = {
             "load_actions": {"cloudfiles": {"format": "json"}},
             # No 'operational_metadata' key
         }
 
-        # FlowGroup adds columns
         flowgroup = FlowGroup(
             pipeline="test_pipeline",
             flowgroup="test_flowgroup",
@@ -629,7 +575,6 @@ class TestOperationalMetadataSelection:
 
         metadata_handler.update_context("test_pipeline", "test_flowgroup")
 
-        # Should work with just flowgroup columns (preset contributes nothing)
         selection = metadata_handler.resolve_metadata_selection(
             flowgroup, action, preset_config
         )
@@ -647,7 +592,6 @@ class TestOperationalMetadataSelection:
         """Test behavior when referencing columns not defined in project config."""
         preset_config = {"operational_metadata": ["_ingestion_timestamp"]}
 
-        # FlowGroup tries to add unknown column
         flowgroup = FlowGroup(
             pipeline="test_pipeline",
             flowgroup="test_flowgroup",
@@ -673,7 +617,6 @@ class TestOperationalMetadataSelection:
 
         metadata_handler.update_context("test_pipeline", "test_flowgroup")
 
-        # Should only include known columns, ignore unknown ones
         selection = metadata_handler.resolve_metadata_selection(
             flowgroup, action, preset_config
         )
@@ -681,7 +624,6 @@ class TestOperationalMetadataSelection:
             selection or {}, "streaming_table"
         )
 
-        # Only known columns should be included
         expected_columns = {
             "_ingestion_timestamp": "F.current_timestamp()",
             "_pipeline_name": 'F.lit("test_pipeline")',
@@ -693,10 +635,8 @@ class TestOperationalMetadataSelection:
 
     def test_all_empty_selections(self, metadata_handler):
         """Test behavior when all levels have empty/no selections."""
-        # Empty preset
         preset_config = {}
 
-        # FlowGroup with no operational metadata
         flowgroup = FlowGroup(
             pipeline="test_pipeline",
             flowgroup="test_flowgroup",
@@ -705,7 +645,6 @@ class TestOperationalMetadataSelection:
             actions=[],
         )
 
-        # Action with no operational metadata
         action = Action(
             name="write_test",
             type=ActionType.WRITE,
@@ -720,7 +659,6 @@ class TestOperationalMetadataSelection:
 
         metadata_handler.update_context("test_pipeline", "test_flowgroup")
 
-        # Should result in no columns
         selection = metadata_handler.resolve_metadata_selection(
             flowgroup, action, preset_config
         )
@@ -732,7 +670,6 @@ class TestOperationalMetadataSelection:
 
     def test_malformed_operational_metadata_config(self, metadata_handler):
         """Test behavior with malformed operational metadata configurations."""
-        # Malformed preset config
         preset_config = {"operational_metadata": "not_a_list"}  # Should be a list
 
         flowgroup = FlowGroup(
@@ -756,7 +693,6 @@ class TestOperationalMetadataSelection:
 
         metadata_handler.update_context("test_pipeline", "test_flowgroup")
 
-        # Should gracefully handle malformed config and use flowgroup
         selection = metadata_handler.resolve_metadata_selection(
             flowgroup, action, preset_config
         )
@@ -764,7 +700,6 @@ class TestOperationalMetadataSelection:
             selection or {}, "streaming_table"
         )
 
-        # Should fall back to flowgroup selection
         expected_columns = {"_ingestion_timestamp": "F.current_timestamp()"}
 
         assert columns == expected_columns, (
@@ -773,10 +708,8 @@ class TestOperationalMetadataSelection:
 
     def test_empty_column_list_selections(self, metadata_handler):
         """Test behavior with explicitly empty column lists."""
-        # Preset with empty list
         preset_config = {"operational_metadata": []}  # Explicitly empty
 
-        # FlowGroup with empty list
         flowgroup = FlowGroup(
             pipeline="test_pipeline",
             flowgroup="test_flowgroup",
@@ -785,7 +718,6 @@ class TestOperationalMetadataSelection:
             actions=[],
         )
 
-        # Action with empty list
         action = Action(
             name="write_test",
             type=ActionType.WRITE,
@@ -800,7 +732,6 @@ class TestOperationalMetadataSelection:
 
         metadata_handler.update_context("test_pipeline", "test_flowgroup")
 
-        # Should result in no columns (empty + empty + empty = empty)
         selection = metadata_handler.resolve_metadata_selection(
             flowgroup, action, preset_config
         )
@@ -809,10 +740,6 @@ class TestOperationalMetadataSelection:
         )
 
         assert columns == {}, f"Expected no columns for empty lists, got {columns}"
-
-    # ========================================================================
-    # Target Type Filtering Tests
-    # ========================================================================
 
     def test_source_file_only_for_streaming_tables(self, metadata_handler):
         """Test that _source_file column only applies to streaming tables."""
@@ -833,7 +760,6 @@ class TestOperationalMetadataSelection:
 
         metadata_handler.update_context("test_pipeline", "test_flowgroup")
 
-        # Test 1: Streaming table should get all columns including _source_file
         action_streaming = Action(
             name="write_streaming_table",
             type=ActionType.WRITE,
@@ -862,7 +788,6 @@ class TestOperationalMetadataSelection:
             f"Streaming table should include _source_file, got {columns_streaming}"
         )
 
-        # Test 2: Materialized view should exclude _source_file
         action_materialized = Action(
             name="write_materialized_view",
             type=ActionType.WRITE,
@@ -910,9 +835,6 @@ class TestOperationalMetadataSelection:
 
         metadata_handler.update_context("test_pipeline", "test_flowgroup")
 
-        # _custom_function only applies to streaming_table (per config)
-
-        # Test 1: Streaming table should get custom function
         action_streaming = Action(
             name="write_streaming_table",
             type=ActionType.WRITE,
@@ -941,7 +863,6 @@ class TestOperationalMetadataSelection:
             f"Streaming table should include custom function, got {columns_streaming}"
         )
 
-        # Test 2: Materialized view should exclude custom function
         action_materialized = Action(
             name="write_materialized_view",
             type=ActionType.WRITE,
@@ -992,7 +913,6 @@ class TestOperationalMetadataSelection:
 
         metadata_handler.update_context("test_pipeline", "test_flowgroup")
 
-        # Test streaming table gets all applicable columns
         action_streaming = Action(
             name="write_streaming_table",
             type=ActionType.WRITE,
@@ -1023,7 +943,6 @@ class TestOperationalMetadataSelection:
             f"Streaming table should get all applicable columns, got {columns_streaming}"
         )
 
-        # Test materialized view gets only applicable columns
         action_materialized = Action(
             name="write_materialized_view",
             type=ActionType.WRITE,
@@ -1071,7 +990,6 @@ class TestOperationalMetadataSelection:
 
         metadata_handler.update_context("test_pipeline", "test_flowgroup")
 
-        # Action tries to add streaming-only columns
         action_streaming = Action(
             name="write_streaming_table",
             type=ActionType.WRITE,
@@ -1094,7 +1012,6 @@ class TestOperationalMetadataSelection:
             selection_streaming or {}, "streaming_table"
         )
 
-        # Streaming table should get all columns (preset + flowgroup + action)
         expected_streaming = {
             "_ingestion_timestamp": "F.current_timestamp()",
             "_pipeline_name": 'F.lit("test_pipeline")',
@@ -1107,7 +1024,6 @@ class TestOperationalMetadataSelection:
             f"Streaming table should get all columns, got {columns_streaming}"
         )
 
-        # Same action config but materialized view target
         action_materialized = Action(
             name="write_materialized_view",
             type=ActionType.WRITE,
@@ -1130,7 +1046,6 @@ class TestOperationalMetadataSelection:
             selection_materialized or {}, "materialized_view"
         )
 
-        # Materialized view should exclude streaming-only columns
         expected_materialized = {
             "_ingestion_timestamp": "F.current_timestamp()",
             "_pipeline_name": 'F.lit("test_pipeline")',
@@ -1142,17 +1057,12 @@ class TestOperationalMetadataSelection:
             f"Materialized view should exclude streaming-only columns, got {columns_materialized}"
         )
 
-    # ========================================================================
-    # AST Import Detection Tests
-    # ========================================================================
-
     def test_simple_function_import_detection(self, metadata_handler):
         """Test AST import detection for simple PySpark functions."""
         from lhp.core.codegen.imports import ImportDetector
 
         detector = ImportDetector(strategy="ast")
 
-        # Test individual functions
         test_cases = [
             ("F.current_timestamp()", {"from pyspark.sql import functions as F"}),
             ("F.input_file_name()", {"from pyspark.sql import functions as F"}),
@@ -1173,7 +1083,6 @@ class TestOperationalMetadataSelection:
 
         detector = ImportDetector(strategy="ast")
 
-        # Complex expressions that use multiple functions
         test_cases = [
             # when/otherwise expression
             (
@@ -1209,7 +1118,6 @@ class TestOperationalMetadataSelection:
 
         detector = ImportDetector(strategy="ast")
 
-        # Custom function calls should not generate automatic imports
         test_cases = [
             (
                 'custom_business_logic(F.col("revenue"))',
@@ -1258,15 +1166,12 @@ class TestOperationalMetadataSelection:
 
         metadata_handler.update_context("test_pipeline", "test_flowgroup")
 
-        # Get selected columns
         selection = metadata_handler.resolve_metadata_selection(
             flowgroup, action, preset_config
         )
         columns = metadata_handler.get_selected_columns(
             selection or {}, "streaming_table"
         )
-
-        # Get required imports
         imports = metadata_handler.get_required_imports(columns)
 
         expected_imports = {
@@ -1300,15 +1205,12 @@ class TestOperationalMetadataSelection:
 
         metadata_handler.update_context("test_pipeline", "test_flowgroup")
 
-        # No columns selected
         selection = metadata_handler.resolve_metadata_selection(
             flowgroup, action, preset_config
         )
         columns = metadata_handler.get_selected_columns(
             selection or {}, "streaming_table"
         )
-
-        # No imports needed
         imports = metadata_handler.get_required_imports(columns)
 
         assert imports == set(), (
@@ -1357,7 +1259,6 @@ class TestOperationalMetadataSelection:
 
         detector = ImportDetector(strategy="ast")
 
-        # Malformed Python expressions that can't be parsed by AST
         test_cases = [
             (
                 "F.current_timestamp() +",
@@ -1372,7 +1273,6 @@ class TestOperationalMetadataSelection:
 
         for expression, expected_imports in test_cases:
             detected = detector.detect_imports(expression)
-            # Should use fallback regex detection
             assert (
                 "from pyspark.sql import functions as F" in detected
                 or len(expected_imports) == 0
@@ -1417,7 +1317,6 @@ class TestOperationalMetadataSelection:
         )
         imports = metadata_handler.get_required_imports(columns)
 
-        # Should only have one instance of the F import despite multiple F. functions
         expected_imports = {"from pyspark.sql import functions as F"}
 
         assert imports == expected_imports, f"Should deduplicate imports, got {imports}"
@@ -1427,10 +1326,6 @@ class TestOperationalMetadataSelection:
         assert len(import_list) == len(set(import_list)), (
             "Should not have duplicate imports"
         )
-
-    # ========================================================================
-    # Backward Compatibility Tests
-    # ========================================================================
 
     def test_all_columns_selection_compatibility(self, metadata_handler):
         """Test that selecting all available columns works (replaces boolean true behavior)."""
@@ -1468,7 +1363,6 @@ class TestOperationalMetadataSelection:
 
         metadata_handler.update_context("test_pipeline", "test_flowgroup")
 
-        # Should use default columns from project config
         selection = metadata_handler.resolve_metadata_selection(
             flowgroup, action, preset_config
         )
@@ -1476,7 +1370,6 @@ class TestOperationalMetadataSelection:
             selection or {}, "streaming_table"
         )
 
-        # Should get all applicable project columns for streaming table
         expected_columns = {
             "_ingestion_timestamp": "F.current_timestamp()",
             "_source_file": "F.input_file_name()",
@@ -1492,12 +1385,10 @@ class TestOperationalMetadataSelection:
 
     def test_boolean_false_backward_compatibility(self, metadata_handler):
         """Test that operational_metadata: false still works (disables metadata)."""
-        # Preset tries to enable metadata
         preset_config = {
             "operational_metadata": ["_ingestion_timestamp", "_source_file"]
         }
 
-        # FlowGroup tries to add more
         flowgroup = FlowGroup(
             pipeline="test_pipeline",
             flowgroup="test_flowgroup",
@@ -1506,7 +1397,6 @@ class TestOperationalMetadataSelection:
             actions=[],
         )
 
-        # Action disables with boolean false
         action = Action(
             name="write_test",
             type=ActionType.WRITE,
@@ -1521,7 +1411,6 @@ class TestOperationalMetadataSelection:
 
         metadata_handler.update_context("test_pipeline", "test_flowgroup")
 
-        # Should disable all metadata despite preset and flowgroup
         selection = metadata_handler.resolve_metadata_selection(
             flowgroup, action, preset_config
         )
@@ -1535,12 +1424,10 @@ class TestOperationalMetadataSelection:
 
     def test_additive_list_configurations(self, metadata_handler):
         """Test additive behavior with list configurations across all levels."""
-        # Preset uses list style
         preset_config = {
             "operational_metadata": ["_ingestion_timestamp", "_source_file"]
         }
 
-        # FlowGroup adds more columns
         flowgroup = FlowGroup(
             pipeline="test_pipeline",
             flowgroup="test_flowgroup",
@@ -1549,7 +1436,6 @@ class TestOperationalMetadataSelection:
             actions=[],
         )
 
-        # Action adds even more columns
         action = Action(
             name="write_test",
             type=ActionType.WRITE,
@@ -1564,7 +1450,6 @@ class TestOperationalMetadataSelection:
 
         metadata_handler.update_context("test_pipeline", "test_flowgroup")
 
-        # Should combine all lists additively (preset + flowgroup + action)
         selection = metadata_handler.resolve_metadata_selection(
             flowgroup, action, preset_config
         )
@@ -1572,7 +1457,6 @@ class TestOperationalMetadataSelection:
             selection or {}, "streaming_table"
         )
 
-        # Should get all columns from all levels combined
         expected_columns = {
             "_ingestion_timestamp": "F.current_timestamp()",
             "_source_file": "F.input_file_name()",
@@ -1588,7 +1472,6 @@ class TestOperationalMetadataSelection:
 
     def test_no_project_config_backward_compatibility(self, metadata_handler):
         """Test behavior when no project config exists (fallback to hardcoded defaults)."""
-        # Create metadata handler without project config
         metadata_handler_no_config = OperationalMetadataCatalog(project_config=None)
 
         preset_config = {
@@ -1620,7 +1503,6 @@ class TestOperationalMetadataSelection:
 
         metadata_handler_no_config.update_context("test_pipeline", "test_flowgroup")
 
-        # Should fall back to hardcoded default columns
         selection = metadata_handler_no_config.resolve_metadata_selection(
             flowgroup, action, preset_config
         )
@@ -1628,8 +1510,7 @@ class TestOperationalMetadataSelection:
             selection or {}, "streaming_table"
         )
 
-        # Should get hardcoded defaults (fallback when no project config)
-        # Note: _source_file now only applies to 'view' target type, not 'streaming_table'
+        # Note: _source_file only applies to 'view' target type, not 'streaming_table'
         expected_columns = {
             "_ingestion_timestamp": "F.current_timestamp()",
             "_pipeline_run_id": 'F.lit(spark.conf.get("pipelines.id", "unknown"))',
@@ -1645,7 +1526,6 @@ class TestOperationalMetadataSelection:
         """Test various list-based operational metadata configurations."""
         metadata_handler.update_context("test_pipeline", "test_flowgroup")
 
-        # Test 1: Simple preset-only configuration
         preset_config_simple = {
             "operational_metadata": ["_ingestion_timestamp", "_pipeline_name"]
         }
@@ -1675,7 +1555,6 @@ class TestOperationalMetadataSelection:
             selection_simple or {}, "streaming_table"
         )
 
-        # Test 2: Full additive configuration (preset + flowgroup + action)
         preset_config_full = {
             "operational_metadata": [
                 "_ingestion_timestamp",
@@ -1711,11 +1590,9 @@ class TestOperationalMetadataSelection:
             selection_full or {}, "streaming_table"
         )
 
-        # All configurations should work without errors
         assert len(columns_simple) > 0, "Simple preset configuration should work"
         assert len(columns_full) > 0, "Full additive configuration should work"
 
-        # Simple should have only preset columns
         expected_simple = {
             "_ingestion_timestamp": "F.current_timestamp()",
             "_pipeline_name": 'F.lit("test_pipeline")',
@@ -1724,7 +1601,6 @@ class TestOperationalMetadataSelection:
             f"Simple config should match expected, got {columns_simple}"
         )
 
-        # Full should have all columns additively combined
         expected_full = {
             "_ingestion_timestamp": "F.current_timestamp()",
             "_source_file": "F.input_file_name()",

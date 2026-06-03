@@ -40,7 +40,6 @@ from lhp.models import FlowGroupContext
 from lhp.models.processing import FlowgroupOutcome, PipelineDelta
 
 
-# Fakes
 class _FakeFlowGroup:
     """Minimal FlowGroup stand-in (the worker/barrier read only these two)."""
 
@@ -199,16 +198,13 @@ def test_iter_generate_deltas_success_in_input_pipeline_order(monkeypatch, tmp_p
         )
     )
 
-    # Deltas crystallize in INPUT pipeline order (NOT alphabetical/sorted).
     assert [d.pipeline_name for d in deltas] == ["gamma", "alpha", "beta"]
     assert all(d.success for d in deltas)
-    # Success deltas carry the committed file projection.
     assert [d.generated_filenames for d in deltas] == [
         ("fg_g.py",),
         ("fg_a.py",),
         ("fg_b.py",),
     ]
-    # And the files were actually written (gate-passed commit path).
     assert (pipeline_dirs["gamma"] / "fg_g.py").read_text(encoding="utf-8") == "g = 1\n"
     assert (pipeline_dirs["alpha"] / "fg_a.py").read_text(encoding="utf-8") == "a = 1\n"
     assert (pipeline_dirs["beta"] / "fg_b.py").read_text(encoding="utf-8") == "b = 1\n"
@@ -262,12 +258,9 @@ def test_iter_generate_deltas_all_failures_yielded_before_raise(monkeypatch, tmp
         for delta in stream:
             seen.append(delta)
 
-    # BOTH failure deltas were yielded BEFORE the raise, in input order.
     assert [d.pipeline_name for d in seen] == ["pipe_bad1", "pipe_bad2"]
     assert all(not d.success for d in seen)
-    # The raise that closed the stream is the multi-failure aggregate.
     assert excinfo.value.code == "LHP-VAL-902"
-    # All-or-nothing: nothing was written (the gate precedes commit/wipe).
     assert not env_dir.exists()
 
 
@@ -319,12 +312,9 @@ def test_iter_generate_deltas_failures_precede_gate_then_no_success(
         for delta in stream:
             seen.append(delta)
 
-    # Only the failing pipeline's delta was yielded; the clean pipeline's
-    # success delta never came (commit is gated out by the raise).
     assert [d.pipeline_name for d in seen] == ["pipe_bad"]
     assert excinfo.value is err
     assert excinfo.value.code == "LHP-VAL-007"
-    # No commit, no wipe, no write.
     assert not env_dir.exists()
 
 
@@ -382,6 +372,5 @@ def test_run_generate_yields_success_deltas_in_input_order(monkeypatch, tmp_path
         )
     )
 
-    # The generator yields one success delta per pipeline, in INPUT order.
     assert [d.pipeline_name for d in deltas] == ["gamma", "alpha"]
     assert all(d.success for d in deltas)

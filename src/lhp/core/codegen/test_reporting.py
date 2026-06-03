@@ -42,21 +42,6 @@ def generate_test_reporting_hook(
       - ``<output_dir>/test_reporting_providers/<provider_stem>.py``
       - ``<output_dir>/test_reporting_providers/__init__.py``
 
-    Args:
-        pipeline_name: Pipeline this hook is for. Embedded in the hook
-            header and used as the artifact's pipeline scope.
-        flowgroups: Already-processed flowgroups for the pipeline; the
-            generator walks them to build the ``test_id`` map.
-        output_dir: Pipeline output directory. Hook + providers land here.
-        project_config: Project config; ``project_config.test_reporting``
-            decides whether anything is emitted at all.
-        project_root: Project root (forwarded to the generator for
-            template/provider resolution).
-        include_tests: Caller's ``include_tests`` flag. Hook generation
-            is skipped entirely when False.
-        substitution_mgr: Optional substitution manager for the provider
-            module copy step.
-
     Returns:
         Number of pipeline artifacts written (0 when no hook was generated).
         The per-pipeline commit step (:mod:`~lhp.core.coordination._commit`)

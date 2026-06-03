@@ -14,8 +14,6 @@ _legacy_logger = logging.getLogger("lhp.models.config")
 
 
 class BlueprintParameter(BaseModel):
-    """A declared parameter on a blueprint, with optional default and required flag."""
-
     name: str
     required: bool = False
     default: Optional[Any] = None
@@ -173,5 +171,4 @@ class BlueprintInstance(BaseModel):
         return self.use_blueprint or self.blueprint or ""
 
     def parameter_values(self) -> Dict[str, Any]:
-        """Return the parameter values supplied in this instance file."""
         return dict(self.parameters or {})

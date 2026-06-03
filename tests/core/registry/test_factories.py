@@ -2,11 +2,8 @@
 
 Covers the ABC contract of :class:`SubstitutionFactory`, the concrete
 :class:`DefaultSubstitutionFactory`, and the
-:class:`OrchestrationDependencies` injection seam. These replace the old
-``test_dependency_factories_work`` green-lie smoke test (which only
-asserted ``is not None``) with assertions that pin down the real
-contract per constitution §13.8 (ABC wiring failures surface as
-``TypeError`` at construction).
+:class:`OrchestrationDependencies` injection seam per constitution §13.8
+(ABC wiring failures surface as ``TypeError`` at construction).
 """
 
 from pathlib import Path
@@ -23,7 +20,6 @@ from lhp.core.registry import (
 
 @pytest.fixture
 def substitution_file(tmp_path):
-    """A minimal substitution YAML file on disk for factory ``create``."""
     path = tmp_path / "test.yaml"
     path.write_text("dev:\n  catalog: test_catalog\n")
     return path
@@ -31,23 +27,14 @@ def substitution_file(tmp_path):
 
 @pytest.mark.unit
 class TestSubstitutionFactoryContract:
-    """Contract tests for the substitution factory ABC and default impl."""
-
     def test_abstract_factory_cannot_be_instantiated(self):
-        """``SubstitutionFactory`` is an ABC and refuses direct construction.
-
-        Per constitution §13.8 the factory seam is an ``abc.ABC`` (not a
-        ``typing.Protocol``) so that wiring failures surface as
-        ``TypeError`` at construction rather than ``AttributeError`` on
-        first call.
-        """
+        # §13.8: ABC not Protocol so wiring failures surface as TypeError at construction, not AttributeError on first call.
         with pytest.raises(TypeError):
             SubstitutionFactory()  # type: ignore[abstract]
 
     def test_default_factory_create_returns_substitution_manager(
         self, substitution_file
     ):
-        """``DefaultSubstitutionFactory.create`` yields a real manager."""
         factory = DefaultSubstitutionFactory()
 
         manager = factory.create(substitution_file, "dev")
@@ -58,16 +45,7 @@ class TestSubstitutionFactoryContract:
 
 @pytest.mark.unit
 class TestOrchestrationDependenciesInjection:
-    """Tests for the ``OrchestrationDependencies`` injection seam."""
-
     def test_custom_subclass_factory_is_accepted(self):
-        """A custom ``SubstitutionFactory`` subclass is injectable.
-
-        Implementing the abstract ``create`` method makes the subclass
-        concrete, so passing an instance to the constructor must succeed
-        and the instance must be retained on ``substitution_factory``.
-        """
-
         class _CustomFactory(SubstitutionFactory):
             def create(
                 self, substitution_file: Path, env: str
@@ -81,12 +59,7 @@ class TestOrchestrationDependenciesInjection:
         assert deps.substitution_factory is custom
 
     def test_create_delegates_to_injected_factory(self, substitution_file):
-        """``create_substitution_manager`` delegates to the injected factory.
-
-        Injects a spy subclass whose ``create`` records its arguments and
-        returns a sentinel; the container must hand that sentinel straight
-        back and forward the exact ``(file, env)`` arguments.
-        """
+        # Spy subclass records its arguments and returns a sentinel; the container must forward the exact (file, env) arguments.
         sentinel = object()
 
         class _SpyFactory(SubstitutionFactory):

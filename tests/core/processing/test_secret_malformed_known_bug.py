@@ -31,7 +31,7 @@ from lhp.errors import LHPError
 
 
 def _make_manager_with_default_scope() -> EnhancedSubstitutionManager:
-    """Build a REAL manager that has a default secret scope configured.
+    """Manager with a default secret scope configured.
 
     With ``secrets.default_scope`` set, the existing no-scope guard
     (LHP-CFG-008 at substitution.py:235) does NOT fire for default-scope
@@ -60,10 +60,6 @@ secrets:
 def test_malformed_secret_empty_scope_or_key_raises_known_bug(malformed_ref):
     """KNOWN-FAILING: empty-scope / empty-key secret refs must fail-fast.
 
-    Drives the REAL EnhancedSubstitutionManager with a default scope
-    configured and feeds a malformed ``${secret:scope/}`` (empty key) or
-    ``${secret:/key}`` (empty scope) reference.
-
     CORRECT behavior asserted here: a clear LHPError is raised.
     ACTUAL (buggy) behavior: no error — a degenerate ``__SECRET_*__``
     placeholder with an empty scope or key is produced and reaches codegen,
@@ -80,10 +76,7 @@ def test_malformed_secret_empty_scope_or_key_raises_known_bug(malformed_ref):
 
 
 def test_wellformed_secret_still_resolves_regression():
-    """PASSING anchor: a well-formed ${secret:scope/key} must still work.
-
-    Ensures the fix for the malformed cases does not break valid references.
-    """
+    """PASSING anchor: a well-formed ${secret:scope/key} must still work."""
     mgr = _make_manager_with_default_scope()
 
     result = mgr._process_string("password=${secret:storage/key}")

@@ -29,7 +29,7 @@ class TestBaseGenerator:
         assert generator.imports == [
             "from pyspark import pipelines as dp",
             "import pyspark",
-        ]  # Should be sorted
+        ]
 
 
 if __name__ == "__main__":

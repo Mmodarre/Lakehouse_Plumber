@@ -34,13 +34,8 @@ def _clean_env(monkeypatch):
 
 
 class TestOrchestratorMaxWorkers:
-    """build_facade_orchestrator must honour max_workers passed in.
-
-    The resolution that previously lived in
-    ``ParallelFlowgroupProcessor.__init__`` was hoisted into
-    ``ActionOrchestrator.__init__``, so the resolved value is now
-    accessible directly via ``orch.max_workers`` (the orchestrator
-    returned by ``build_facade_orchestrator``).
+    """build_facade_orchestrator must honour max_workers; resolved value is
+    accessible via ``orch.max_workers`` on the returned orchestrator.
     """
 
     def test_explicit_max_workers_propagates_to_orchestrator(self, _bare_project):
@@ -138,8 +133,6 @@ class TestAutoMaxWorkers:
 
 @pytest.mark.unit
 class TestCLIFlagPassthrough:
-    """Click integration: --max-workers parses, propagates to commands."""
-
     def test_generate_command_accepts_max_workers_kw(self):
         """GenerateCommand.execute accepts max_workers as a keyword argument."""
         import inspect

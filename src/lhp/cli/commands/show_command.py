@@ -498,7 +498,6 @@ class ShowCommand(BaseCommand):
         }
 
     def _display_resource_summary(self, summary: dict) -> None:
-        """Same two-column grid pattern as ``_display_project_basic_info``."""
         rows = [
             ("Pipelines:", str(summary["pipeline_count"])),
             ("FlowGroups:", str(summary["flowgroup_count"])),

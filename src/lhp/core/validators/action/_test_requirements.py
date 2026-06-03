@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 def validate_test_type_requirements(
     action: Action, prefix: str, test_type: str
 ) -> List[str]:
-    """Validate requirements specific to each test type."""
     logger.debug(
         f"Validating test type '{test_type}' requirements for action '{action.name}'"
     )

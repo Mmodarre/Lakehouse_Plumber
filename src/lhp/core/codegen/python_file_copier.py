@@ -114,26 +114,11 @@ class PythonFileCopier:
     """
 
     def __init__(self) -> None:
-        """Initialize the copier with empty registry and lock."""
         self._copied_files: Dict[str, str] = {}  # dest_path -> source_path
         self._lock = threading.Lock()
         self._logger = logging.getLogger(__name__)
 
     def copy_python_file(self, source_path: str, dest_path: Path, content: str) -> bool:
-        """
-        Copy Python file in a thread-safe manner.
-
-        Args:
-            source_path: Original source path (e.g., "py_functions/timestamp_converter.py")
-            dest_path: Destination path for the copied file
-            content: Full content to write (including header)
-
-        Returns:
-            True if file was copied, False if already copied by another thread
-
-        Raises:
-            PythonFunctionConflictError: If different source tries to write same destination
-        """
         with self._lock:
             should_write = _register_copy(
                 self._copied_files, str(dest_path), source_path, self._logger
@@ -142,25 +127,16 @@ class PythonFileCopier:
         if not should_write:
             return False
 
-        # Write file outside the lock (safe - we own this destination now)
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         write_normalized(dest_path, content)
         return True
 
     def ensure_init_file(self, custom_functions_dir: Path) -> None:
-        """
-        Ensure __init__.py exists in custom_python_functions directory.
-
-        Thread-safe - only creates once even if called from multiple threads.
-
-        Args:
-            custom_functions_dir: Directory where custom Python functions are stored
-        """
         with self._lock:
             should_write = _register_init(self._copied_files, custom_functions_dir)
 
         if not should_write:
-            return  # Already created
+            return
 
         custom_functions_dir.mkdir(parents=True, exist_ok=True)
         init_file = custom_functions_dir / "__init__.py"

@@ -1,5 +1,3 @@
-"""Table creation validation for write actions."""
-
 import logging
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Union
@@ -55,8 +53,8 @@ class TableCreationValidator:
         )
         errors = []
 
-        table_creators = defaultdict(list)  # table_name -> List[creator_action_info]
-        table_users = defaultdict(list)  # table_name -> List[user_action_info]
+        table_creators = defaultdict(list)
+        table_users = defaultdict(list)
 
         for flowgroup in flowgroups:
             for action in flowgroup.actions:
@@ -85,7 +83,6 @@ class TableCreationValidator:
             creators = table_creators.get(table_name, [])
             users = table_users.get(table_name, [])
 
-            # Rule 1: Each table must have exactly one creator
             if len(creators) == 0:
                 user_list = [f"{u['flowgroup']}.{u['action']}" for u in users]
                 errors.append(
@@ -146,7 +143,6 @@ class TableCreationValidator:
                     },
                 )
 
-            # Rule 2: All other actions must be users (create_table: false)
             # This is implicitly validated by the separation above
 
         return errors

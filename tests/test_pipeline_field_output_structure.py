@@ -1,13 +1,3 @@
-"""Test cases for pipeline field determining output directory structure.
-
-These tests verify that:
-1. Output directories are named after the pipeline field (not directory name)
-2. Multiple flowgroups with same pipeline field generate to the same output directory
-3. CLI --pipeline flag finds flowgroups by pipeline field across directories
-4. State manager tracks files by pipeline field
-5. Orchestrator discovers flowgroups by pipeline field
-"""
-
 import tempfile
 from pathlib import Path
 
@@ -22,11 +12,8 @@ from lhp.core.coordination.layers import build_facade_orchestrator
 
 
 class TestPipelineFieldOutputStructure:
-    """Test pipeline field determines output directory structure."""
-
     @pytest.fixture
     def runner(self):
-        """Create CLI runner."""
         return CliRunner()
 
     @pytest.fixture
@@ -49,14 +36,12 @@ class TestPipelineFieldOutputStructure:
             for dir_name in directories:
                 (project_root / dir_name).mkdir(parents=True)
 
-            # Create project config
             (project_root / "lhp.yaml").write_text("""
 name: test_pipeline_field_project
 version: "1.0"
 description: "Test project for pipeline field output structure"
 """)
 
-            # Create substitution files
             (project_root / "substitutions" / "dev.yaml").write_text("""
 dev:
   catalog: dev_catalog
@@ -64,7 +49,6 @@ dev:
   silver_schema: silver
 """)
 
-            # Create pipeline directories with different names
             (project_root / "pipelines" / "01_raw_ingestion" / "csv_files").mkdir(
                 parents=True
             )
@@ -74,7 +58,6 @@ dev:
             (project_root / "pipelines" / "different_folder_name").mkdir(parents=True)
             (project_root / "pipelines" / "02_silver_layer").mkdir(parents=True)
 
-            # Create flowgroups with same pipeline field in different directories
             # Both of these should generate to generated/raw_ingestions/ (not 01_raw_ingestion/)
             customer_ingestion = {
                 "pipeline": "raw_ingestions",  # This should determine output directory
@@ -203,7 +186,6 @@ dev:
                 ],
             }
 
-            # Save flowgroups to different directories
             customer_file = (
                 project_root
                 / "pipelines"
@@ -251,7 +233,6 @@ dev:
         """Test that output directories are named after pipeline field, not directory name."""
         project_root = project_with_pipeline_field_structure
 
-        # Generate all pipelines
         facade = LakehousePlumberApplicationFacade.for_project(
             project_root, enforce_version=False
         )
@@ -279,17 +260,14 @@ dev:
             "silver_transforms"
         ].generated_filenames
 
-        # Should have 3 files for raw_ingestions pipeline (customer, orders, lineitem)
         assert len(generated_files_raw) == 3
         assert "customer_ingestion.py" in generated_files_raw
         assert "orders_ingestion.py" in generated_files_raw
         assert "lineitem_ingestion.py" in generated_files_raw
 
-        # Should have 1 file for silver_transforms pipeline
         assert len(generated_files_silver) == 1
         assert "customer_transforms.py" in generated_files_silver
 
-        # Verify files are in directories named after pipeline field, not directory name
         raw_ingestions_dir = project_root / "generated" / "dev" / "raw_ingestions"
         silver_transforms_dir = project_root / "generated" / "dev" / "silver_transforms"
 
@@ -298,7 +276,6 @@ dev:
         assert (raw_ingestions_dir / "lineitem_ingestion.py").exists()
         assert (silver_transforms_dir / "customer_transforms.py").exists()
 
-        # Should NOT create directories named after folder names
         assert not (project_root / "generated" / "dev" / "01_raw_ingestion").exists()
         assert not (
             project_root / "generated" / "dev" / "different_folder_name"
@@ -314,30 +291,24 @@ dev:
 
             os.chdir(str(project_with_pipeline_field_structure))
 
-            # Generate all pipelines
             result = runner.invoke(cli, ["generate", "--env", "dev"])
 
             assert result.exit_code == 0
 
-            # Should organize by pipeline field, not directory name
             generated_dir = project_with_pipeline_field_structure / "generated" / "dev"
 
-            # Should have directories named after pipeline fields
             raw_ingestions_dir = generated_dir / "raw_ingestions"
             silver_transforms_dir = generated_dir / "silver_transforms"
 
             assert raw_ingestions_dir.exists()
             assert silver_transforms_dir.exists()
 
-            # raw_ingestions should have 3 files from different source directories
             assert (raw_ingestions_dir / "customer_ingestion.py").exists()
             assert (raw_ingestions_dir / "orders_ingestion.py").exists()
             assert (raw_ingestions_dir / "lineitem_ingestion.py").exists()
 
-            # silver_transforms should have 1 file
             assert (silver_transforms_dir / "customer_transforms.py").exists()
 
-            # Should NOT have directories named after source folder names
             assert not (generated_dir / "01_raw_ingestion").exists()
             assert not (generated_dir / "different_folder_name").exists()
             assert not (generated_dir / "02_silver_layer").exists()
@@ -371,8 +342,6 @@ dev:
             assert result.exit_code == 0
             assert "raw_ingestions" in result.output
 
-            # Should find all 3 flowgroups with pipeline: raw_ingestions
-            # even though they're in different directories
             generated_dir = (
                 project_with_pipeline_field_structure
                 / "generated"
@@ -384,7 +353,6 @@ dev:
             assert (generated_dir / "orders_ingestion.py").exists()
             assert (generated_dir / "lineitem_ingestion.py").exists()
 
-            # Should NOT generate silver_transforms
             silver_dir = (
                 project_with_pipeline_field_structure
                 / "generated"
@@ -424,7 +392,6 @@ dev:
             assert result.exit_code == 0
             assert "silver_transforms" in result.output
 
-            # Should only find the flowgroup with pipeline: silver_transforms
             generated_dir = (
                 project_with_pipeline_field_structure
                 / "generated"
@@ -434,7 +401,6 @@ dev:
 
             assert (generated_dir / "customer_transforms.py").exists()
 
-            # Should NOT generate raw_ingestions files
             raw_dir = (
                 project_with_pipeline_field_structure
                 / "generated"
@@ -483,7 +449,6 @@ dev:
 
         orchestrator = build_facade_orchestrator(project_root, enforce_version=False)
 
-        # This method should discover all flowgroups with the given pipeline field
         raw_flowgroups = orchestrator.discovery.discover_flowgroups(
             pipeline_filter="raw_ingestions"
         )
@@ -491,18 +456,15 @@ dev:
             pipeline_filter="silver_transforms"
         )
 
-        # Should find 3 flowgroups for raw_ingestions
         assert len(raw_flowgroups) == 3
         flowgroup_names = {fg.flowgroup for fg in raw_flowgroups}
         assert "customer_ingestion" in flowgroup_names
         assert "orders_ingestion" in flowgroup_names
         assert "lineitem_ingestion" in flowgroup_names
 
-        # All should have the same pipeline field
         for fg in raw_flowgroups:
             assert fg.pipeline == "raw_ingestions"
 
-        # Should find 1 flowgroup for silver_transforms
         assert len(silver_flowgroups) == 1
         assert silver_flowgroups[0].flowgroup == "customer_transforms"
         assert silver_flowgroups[0].pipeline == "silver_transforms"

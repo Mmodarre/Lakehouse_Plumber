@@ -1,9 +1,6 @@
-"""Wires per-action generator classes into the core ActionRegistry.
+"""``generators -> core.registry`` is a legal downward edge; ``core`` never imports ``generators``.
 
-Importing this module registers every generator family. It lives in the
-``generators`` layer (ABOVE ``core``), so ``generators -> core.registry`` is a
-legal downward edge and ``core`` never imports ``generators``. The composition
-root (``lhp/__init__.py``) imports this module so registration runs before any
+The composition root (``lhp/__init__.py``) imports this module so registration runs before any
 ``ActionRegistry`` is constructed.
 """
 
@@ -44,7 +41,6 @@ from lhp.models import LoadSourceType, TestActionType, TransformType, WriteTarge
 
 
 def register_all() -> None:
-    """Register every per-action generator family into the core registry."""
     register_generators(
         "load",
         {

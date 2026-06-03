@@ -1,5 +1,3 @@
-"""Custom Python sink generator."""
-
 import logging
 import re
 from pathlib import Path
@@ -23,26 +21,21 @@ class CustomSinkWriteGenerator(BaseSinkWriteGenerator):
     """
 
     def __init__(self):
-        # Enable ImportManager for advanced import handling
         super().__init__()
         self.logger = logging.getLogger(__name__)
 
     def _extract_datasink_format_name(self, source_code: str, class_name: str) -> str:
-        """Extract the format name from the DataSink class name() method."""
         try:
-            # Look for the class definition and its name() method
             # Make parentheses optional to handle classes with and without inheritance
             class_pattern = rf"class\s+{re.escape(class_name)}\s*(?:\([^)]*\))?:"
             class_match = re.search(class_pattern, source_code, re.MULTILINE)
 
             if not class_match:
                 self.logger.warning(f"Could not find class {class_name} in sink code")
-                return class_name  # Fallback to class name
+                return class_name
 
-            # Find the name() method within the class
             class_start = class_match.end()
 
-            # Look for the name() method after the class definition
             # Pattern allows for docstrings and whitespace between method definition and return
             name_method_pattern = (
                 r'@classmethod\s+def\s+name\s*\([^)]*\):.*?return\s+["\']([^"\']+)["\']'
@@ -60,19 +53,18 @@ class CustomSinkWriteGenerator(BaseSinkWriteGenerator):
             self.logger.warning(
                 f"Could not find name() method in {class_name}, using class name as fallback"
             )
-            return class_name  # Fallback to class name
+            return class_name
 
         except (re.error, AttributeError, IndexError) as e:
             self.logger.warning(
                 f"Error extracting format name from {class_name}: {e}, using class name as fallback"
             )
-            return class_name  # Fallback to class name
+            return class_name
 
     def generate(self, action: Action, context: Dict[str, Any]) -> str:
         """Generate custom sink code via copy-and-import."""
         sink_config = action.write_target
 
-        # Extract configuration
         module_path = sink_config.get("module_path")
         custom_sink_class = sink_config.get("custom_sink_class")
         sink_name = sink_config.get("sink_name")
@@ -81,7 +73,6 @@ class CustomSinkWriteGenerator(BaseSinkWriteGenerator):
             f"Generating custom sink for action '{action.name}': class='{custom_sink_class}', sink_name='{sink_name}'"
         )
 
-        # Validate required fields
         if not module_path:
             raise ErrorFactory.missing_required_field(
                 field_name="module_path",
@@ -155,7 +146,6 @@ class CustomSinkWriteGenerator(BaseSinkWriteGenerator):
             module_path, context, component_label="Custom sink"
         )
 
-        # Plumb the three imports + the cloudpickle registration statement.
         self.add_import("import custom_python_functions")
         self.add_import("from pyspark import cloudpickle as _lhp_cloudpickle")
         self.add_import(
@@ -165,20 +155,16 @@ class CustomSinkWriteGenerator(BaseSinkWriteGenerator):
             "_lhp_cloudpickle.register_pickle_by_value(custom_python_functions)"
         )
 
-        # Extract source views
         source_views = self._extract_source_views(action.source)
 
-        # Get operational metadata configuration
         add_metadata, metadata_columns = self._get_operational_metadata(action, context)
 
-        # Build comment
         comment = (
             sink_config.get("comment")
             or action.description
             or f"Custom sink: {custom_sink_class}"
         )
 
-        # Build template context
         template_context = {
             "action_name": action.name,
             "sink_name": sink_name,

@@ -12,13 +12,10 @@ if TYPE_CHECKING:
 
 
 class BaseActionGenerator(ABC):
-    """Base class for all action generators."""
-
     def __init__(self, use_import_manager: bool = False):
         # Legacy import collection (backward compatible)
         self._imports: Set[str] = set()
 
-        # Optional ImportManager integration (new functionality)
         self._use_import_manager = use_import_manager
         self._import_manager: Optional["ImportManager"] = None
 
@@ -44,14 +41,10 @@ class BaseActionGenerator(ABC):
 
     @abstractmethod
     def generate(self, action: Action, context: Dict[str, Any]) -> str:
-        """Generate code for the action."""
+        pass
 
     def add_import(self, import_stmt: str):
-        """
-        Add import statement (backward compatible).
-
-        Routes to ImportManager if enabled, otherwise uses legacy collection.
-        """
+        """Routes to ImportManager if enabled, otherwise uses legacy collection."""
         if self._use_import_manager and self._import_manager:
             self._import_manager.add_import(import_stmt)
         else:
@@ -59,26 +52,16 @@ class BaseActionGenerator(ABC):
 
     @property
     def imports(self) -> List[str]:
-        """
-        Get sorted imports (backward compatible).
-
-        Returns ImportManager consolidated imports if enabled,
-        otherwise returns legacy sorted imports.
-        """
+        """Returns ImportManager consolidated imports if enabled, otherwise legacy sorted imports."""
         if self._use_import_manager and self._import_manager:
             return self._import_manager.get_consolidated_imports()
         return sorted(self._imports)
 
     def add_imports_from_expression(self, expression: str):
-        """
-        Add imports from PySpark expressions (new functionality).
-
-        Only available when ImportManager is enabled.
-        """
+        """Only available when ImportManager is enabled."""
         if self._use_import_manager and self._import_manager:
             self._import_manager.add_imports_from_expression(expression)
         else:
-            # Graceful fallback - ignore if not using ImportManager
             pass
 
     def add_pre_pipeline_statement(self, stmt: str) -> None:
@@ -94,19 +77,13 @@ class BaseActionGenerator(ABC):
             self._pre_pipeline_statements.append(stmt.strip())
 
     def get_pre_pipeline_statements(self) -> List[str]:
-        """Get the pre-pipeline statements collected by this generator."""
         return list(self._pre_pipeline_statements)
 
     def get_import_manager(self) -> Optional["ImportManager"]:
-        """
-        Get the ImportManager instance (if enabled).
-
-        Returns None if ImportManager not enabled.
-        """
+        """Returns None if ImportManager is not enabled."""
         return self._import_manager if self._use_import_manager else None
 
     def render_template(self, template_name: str, context: Dict[str, Any]) -> str:
-        """Render Jinja2 template."""
         with perf_timer(f"jinja_render [{template_name}]", category="jinja_render"):
             template = self.env.get_template(template_name)
             return template.render(**context)
@@ -114,26 +91,13 @@ class BaseActionGenerator(ABC):
     def _get_operational_metadata(
         self, action: Action, context: Dict[str, Any], target_type: str = "view"
     ) -> tuple:
-        """Get operational metadata configuration.
-
-        Centralized method for handling operational metadata across all generators.
-        Uses the OperationalMetadataService for consistent behavior.
-
-        Args:
-            action: Action configuration
-            context: Context dictionary with flowgroup and project info
-            target_type: Type of target (view, streaming_table, materialized_view)
-
-        Returns:
-            Tuple of (add_metadata: bool, metadata_columns: dict)
-        """
+        """Centralized operational metadata lookup via OperationalMetadataService."""
         from ..codegen.operational_metadata import OperationalMetadataService
 
         flowgroup = context.get("flowgroup")
         preset_config = context.get("preset_config", {})
         project_config = context.get("project_config")
 
-        # Use the unified service method (single call, single instance)
         service = OperationalMetadataService()
         add_metadata, metadata_columns, metadata_imports = (
             service.get_metadata_and_imports(
@@ -146,7 +110,6 @@ class BaseActionGenerator(ABC):
             )
         )
 
-        # Add required imports
         for import_stmt in metadata_imports:
             self.add_import(import_stmt)
 

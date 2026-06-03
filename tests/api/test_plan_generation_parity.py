@@ -1,41 +1,31 @@
 """Facade-level byte-for-byte parity proof for ``GenerationFacade.plan_generation``.
 
-``plan_generation`` (A2) is the *plan-only* analogue of ``generate_pipelines``:
-it drives the UNMODIFIED real generate flow against a throwaway temp dir (via the
-parity-guaranteed ``build_generation_plan`` primitive), reads the formatted tree
-back into a :class:`~lhp.api.GenerationPlan`, and writes NOTHING to the real
-``generated/<env>``. This module pins the load-bearing invariant at the public
-surface: **what ``plan_generation`` REPORTS it would write equals what a real
-``generate_pipelines`` ACTUALLY writes to disk, byte for byte, across every
-artifact kind.** The core-level analogue lives in
-``tests/core/codegen/test_plan_builder_parity.py`` (A1); this is the
-``lhp.api``-only mirror through the streaming facade.
+``plan_generation`` drives the UNMODIFIED real generate flow against a throwaway
+temp dir, reads the formatted tree back into a :class:`~lhp.api.GenerationPlan`,
+and writes NOTHING to the real ``generated/<env>``. This module pins the
+load-bearing invariant: **what ``plan_generation`` REPORTS it would write equals
+what a real ``generate_pipelines`` ACTUALLY writes to disk, byte for byte,
+across every artifact kind.**
 
 ``plan_generation``'s only narrowing knob is ``pipeline_filter`` (a single
-pipeline field); with ``pipeline_filter=None`` it plans NOTHING (see A2's
-``test_unfiltered_call_yields_empty_plan_with_full_frame``). So the faithful
+pipeline field); with ``pipeline_filter=None`` it plans NOTHING. So the
 multi-pipeline parity strategy is: run ONE batch ``generate_pipelines`` over all
-discovered pipeline fields (the real, on-disk, post-format output), then run
+discovered pipeline fields (real, on-disk, post-format output), then run
 ``plan_generation`` once PER pipeline field and UNION the resulting
-``PlannedFileView``s. Each pipeline's output tree is independent (the worklist
-builds a per-pipeline output sub-dir), so the per-pipeline plan union must equal
-the batch generate's disk read-back exactly.
+``PlannedFileView``s. Each pipeline's output tree is independent, so the
+per-pipeline plan union must equal the batch generate's disk read-back exactly.
 
-The fixture exercises every ``PlannedFileView`` kind (mirroring A1's parity
-fixture):
+The fixture exercises every ``PlannedFileView`` kind:
 
-* ``flowgroup`` — ordinary load+write flowgroups (``p_a/fg1``, ``p_a/fg2``,
-  ``p_b/fg3``).
-* ``test_hook`` — a ``test_reporting`` config + a flowgroup carrying a ``test``
-  action with a ``test_id`` (with ``include_tests=True``) → the per-pipeline
-  ``_test_reporting_hook.py`` + copied ``test_reporting_providers/`` modules.
-* ``monitoring`` — a ``monitoring`` config → the synthetic
+* ``flowgroup`` — ordinary load+write flowgroups.
+* ``test_hook`` — ``test_reporting`` config + a flowgroup with a ``test_id``
+  (``include_tests=True``) → ``_test_reporting_hook.py`` + provider copies.
+* ``monitoring`` — ``monitoring`` config → the synthetic
   ``<monitoring_pipeline>/monitoring.py`` flowgroup file.
 * ``helper`` — ``enable_job_monitoring: true`` makes the monitoring flowgroup
   import a local helper, copied under ``custom_python_functions/``.
-* ``aux`` — the same monitoring path emits the inline ``jobs_stats_loader.py``
-  auxiliary module at the pipeline-dir top level (plus the ``__init__.py``
-  auxiliaries the copies bring along).
+* ``aux`` — the same monitoring path emits ``jobs_stats_loader.py`` at the
+  pipeline-dir top level (plus ``__init__.py`` auxiliaries from copies).
 
 The synthetic monitoring pipeline drives the real ``ProcessPoolExecutor``, so
 this is an integration test. Tests import strictly from :mod:`lhp.api` — no
@@ -60,10 +50,9 @@ from lhp.api import (
 def _write_all_kinds_project(project_root: Path) -> None:
     """Write a project that generates every artifact kind on ``env=dev``.
 
-    Mirrors the A1 parity fixture (``tests/core/codegen/test_plan_builder_parity
-    .py``): ``event_log`` + ``monitoring`` (with ``enable_job_monitoring`` →
-    helper + aux) + ``test_reporting`` (→ test_hook), three ordinary flowgroups,
-    and one flowgroup carrying a ``test`` action.
+    ``event_log`` + ``monitoring`` (with ``enable_job_monitoring`` → helper +
+    aux) + ``test_reporting`` (→ test_hook), three ordinary flowgroups, and one
+    flowgroup carrying a ``test`` action.
     """
     for sub in ("presets", "templates", "substitutions", "config", "py_functions"):
         (project_root / sub).mkdir(parents=True, exist_ok=True)
@@ -215,7 +204,6 @@ def all_kinds_project(tmp_path: Path):
 
 
 def _disk_tree(output_dir: Path) -> dict[str, str]:
-    """Read a generated tree into ``{relative_path: utf-8 content}``."""
     return {
         str(p.relative_to(output_dir)): p.read_text(encoding="utf-8")
         for p in sorted(output_dir.rglob("*"))
@@ -224,9 +212,7 @@ def _disk_tree(output_dir: Path) -> dict[str, str]:
 
 
 def _plan_union(facade, env: str, pipeline_fields, *, include_tests: bool):
-    """Union the per-pipeline ``plan_generation`` outputs into ``{path: content}``.
-
-    ``plan_generation`` plans ONE pipeline at a time (its only knob is
+    """``plan_generation`` plans ONE pipeline at a time (its only knob is
     ``pipeline_filter``); the union over every discovered field is the
     plan-side analogue of a single batch ``generate_pipelines``. Returns the
     ``{relative_path: content}`` map and the set of every ``kind`` seen.

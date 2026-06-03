@@ -12,7 +12,6 @@ from lhp.models import FlowGroup
 
 
 def _make_flowgroup(pipeline: str, name: str) -> FlowGroup:
-    """Helper to create a minimal FlowGroup for testing."""
     return FlowGroup(pipeline=pipeline, flowgroup=name)
 
 
@@ -138,7 +137,6 @@ class TestFindSourceYamlIndex:
                     _make_flowgroup("p1", "unknown")
                 )
 
-                # discover_all_flowgroups_with_paths called exactly once
                 mock_discover.assert_called_once()
 
     def test_index_thread_safety(self):
@@ -188,8 +186,6 @@ class TestFindSourceYamlIndex:
 
 
 class TestEagerIndexPopulation:
-    """Tests that discover_all_flowgroups eagerly populates the source path index."""
-
     def test_discover_all_flowgroups_populates_index(self):
         """discover_all_flowgroups populates index; subsequent find_source_yaml is O(1)."""
         with tempfile.TemporaryDirectory() as tmp:
@@ -202,16 +198,13 @@ class TestEagerIndexPopulation:
 
             discoverer = FlowgroupDiscoveryService(root)
 
-            # Index should not exist yet
             assert discoverer._source_path_index is None
 
-            # discover_all_flowgroups should populate the index as a side-effect
             flowgroups = discoverer.discover_all_flowgroups()
             assert len(flowgroups) == 2
             assert discoverer._source_path_index is not None
             assert len(discoverer._source_path_index) == 2
 
-            # Verify find_source_yaml does NOT trigger another scan
             with patch.object(
                 discoverer, "discover_all_flowgroups_with_paths"
             ) as mock_discover:
@@ -234,7 +227,6 @@ class TestEagerIndexPopulation:
             discoverer.discover_all_flowgroups()
             first_index = discoverer._source_path_index
 
-            # Call again — should keep the same index object
             discoverer.discover_all_flowgroups()
             assert discoverer._source_path_index is first_index
 
@@ -252,15 +244,12 @@ class TestGetIncludePatternsNoReload:
 
         with tempfile.TemporaryDirectory() as tmp:
             discoverer = FlowgroupDiscoveryService(Path(tmp), config_loader=mock_loader)
-            # __init__ calls load_project_config once
             assert mock_loader.load_project_config.call_count == 1
 
-            # Calling get_include_patterns should NOT reload
             patterns = discoverer.get_include_patterns()
             assert patterns == ("pipelines/**/*.yaml",)
             assert mock_loader.load_project_config.call_count == 1
 
-            # Call again
             patterns2 = discoverer.get_include_patterns()
             assert patterns2 == ("pipelines/**/*.yaml",)
             assert mock_loader.load_project_config.call_count == 1
@@ -273,8 +262,6 @@ class TestGetIncludePatternsNoReload:
 
 
 class TestDiscoverAndFilterPreDiscovered:
-    """Test that discover_and_filter_for_pipeline uses pre_discovered_flowgroups."""
-
     def test_uses_pre_discovered_flowgroups(self):
         """discover_flowgroups_by_pipeline_field is NOT called when pre_discovered is provided."""
         with tempfile.TemporaryDirectory() as tmp:
@@ -302,10 +289,8 @@ class TestDiscoverAndFilterPreDiscovered:
                     pre_discovered_flowgroups=pre_discovered,
                 )
 
-                # Should NOT call discover_flowgroups_by_pipeline_field
                 mock_discover.assert_not_called()
 
-                # Should filter correctly
                 assert len(result) == 2
                 assert all(fg.pipeline == "my_pipeline" for fg in result)
 
@@ -320,10 +305,6 @@ class TestDiscoverAndFilterPreDiscovered:
             orch = build_facade_orchestrator(root, enforce_version=False)
 
             mock_fgs = [_make_flowgroup("my_pipeline", "fg1")]
-            # The fallback path lives in the discovery service:
-            # FlowgroupDiscoveryService.discover_and_filter_for_pipeline, when
-            # pre_discovered is None, calls its own
-            # discover_flowgroups_by_pipeline_field. Patch the service method.
             with patch.object(
                 orch.discovery,
                 "discover_flowgroups_by_pipeline_field",

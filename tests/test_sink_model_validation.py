@@ -128,7 +128,6 @@ class TestSinkModelValidation:
             topic="test_topic",
         )
 
-        # Should not raise - database and table are optional for sinks
         assert write_target.database is None
         assert write_target.table is None
 
@@ -164,7 +163,6 @@ class TestSinkModelValidation:
             table="test_table",
         )
 
-        # Sink fields should be None for non-sink write targets
         assert write_target.sink_type is None
         assert write_target.sink_name is None
         assert write_target.bootstrap_servers is None
@@ -195,7 +193,6 @@ class TestSinkModelValidation:
             options={"kafka.security.protocol": "PLAINTEXT"},
         )
 
-        # Convert to dict (Pydantic model_dump)
         write_target_dict = write_target.model_dump()
 
         assert write_target_dict["type"] == "sink"

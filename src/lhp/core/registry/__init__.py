@@ -6,8 +6,6 @@ Public re-exports:
 - OrchestrationDependencies — DI container for orchestrator services
 - SubstitutionFactory   — protocol for substitution factories
 - DefaultSubstitutionFactory — default impl
-
-Internal helpers stay in their respective modules.
 """
 
 # Eager re-exports. ActionRegistry no longer imports the per-action generator

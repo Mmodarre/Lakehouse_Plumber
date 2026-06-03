@@ -31,7 +31,6 @@ class TestBaseSinkWriteGenerator:
     def setup_method(self):
         """Set up test fixtures."""
 
-        # Create a concrete implementation for testing abstract base class
         class ConcreteSinkGenerator(BaseSinkWriteGenerator):
             def generate(self, action, context):
                 return "generated_code"
@@ -634,7 +633,6 @@ class MyCustomDataSink:
         assert "MyCustomDataSink" in code
         assert "spark.dataSource.register" in code
 
-        # New copy-and-import shape: imports + pre-pipeline statement
         imports = self.generator.imports
         assert "import custom_python_functions" in imports
         assert "from pyspark import cloudpickle as _lhp_cloudpickle" in imports
@@ -965,8 +963,6 @@ class FutureSink:
         # The class itself is not inlined.
         assert "class FutureSink" not in generated
 
-        # New shape: imports drive the dispatcher's ImportManager and the
-        # cloudpickle registration goes into pre-pipeline statements.
         imports = self.generator.imports
         assert "import custom_python_functions" in imports
         assert "from pyspark import cloudpickle as _lhp_cloudpickle" in imports
@@ -1059,8 +1055,6 @@ class MyCustomDataSink:
             assert "dp.create_sink" in code
             assert "MyCustomDataSink" in code
 
-            # Dispatcher forwards pre-pipeline statements from the inner
-            # generator so the assembler sees them.
             assert self.generator.get_pre_pipeline_statements() == [
                 "_lhp_cloudpickle.register_pickle_by_value(custom_python_functions)"
             ]
@@ -1146,7 +1140,6 @@ class MyCustomDataSink:
 
             self.generator.generate(action, context)
 
-            # Imports from the inner generator are merged into the dispatcher.
             dispatcher_imports = self.generator.imports
             assert "import custom_python_functions" in dispatcher_imports
             assert (
@@ -1154,18 +1147,12 @@ class MyCustomDataSink:
                 in dispatcher_imports
             )
 
-            # Pre-pipeline statements (cloudpickle registration) are forwarded.
             assert self.generator.get_pre_pipeline_statements() == [
                 "_lhp_cloudpickle.register_pickle_by_value(custom_python_functions)"
             ]
 
         finally:
             shutil.rmtree(temp_dir)
-
-
-# ============================================================================
-# Golden Output Tests
-# ============================================================================
 
 
 @pytest.mark.unit

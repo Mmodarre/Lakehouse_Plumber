@@ -35,7 +35,6 @@ from lhp.api import WarningEmitted, to_dict
 
 
 def _coerce(value: Any, hint: Any) -> Any:
-    """Coerce a JSON-loaded value back to its declared type (structural)."""
     if value is None:
         return None
     origin = get_origin(hint)
@@ -57,13 +56,11 @@ def _reconstruct(cls: type, payload: dict[str, Any]) -> Any:
 
 @pytest.fixture
 def minimal_warning() -> WarningEmitted:
-    """Only the positional ``message`` set — defaults preserved."""
     return WarningEmitted("event buffer near limit")
 
 
 @pytest.fixture
 def full_warning() -> WarningEmitted:
-    """Every field set, including a non-None ``file`` Path."""
     return WarningEmitted(
         message="deprecated field used",
         code="LHP-DEP-001",
@@ -115,7 +112,6 @@ class TestLockedFieldOrder:
         assert warning.flowgroup is None
 
     def test_message_is_first_positional_field(self) -> None:
-        """Field declaration order pins ``message`` first (locked)."""
         field_names = [f.name for f in dataclasses.fields(WarningEmitted)]
         assert field_names[0] == "message", (
             f"WarningEmitted field order is locked (§13 item 4): 'message' "
@@ -123,7 +119,6 @@ class TestLockedFieldOrder:
         )
 
     def test_message_only_construction(self, minimal_warning: WarningEmitted) -> None:
-        """A single positional arg is a legal construction (defaults fill rest)."""
         assert minimal_warning.message == "event buffer near limit"
         assert minimal_warning.code == ""
         assert minimal_warning.category == ""
@@ -164,7 +159,6 @@ class TestJSONRoundTripViaToDict:
         assert rehydrated == payload
         reconstructed = _reconstruct(WarningEmitted, rehydrated)
         assert reconstructed == full_warning
-        # And the reconstructed Path is a Path again, not a str.
         assert isinstance(reconstructed.file, Path)
 
 

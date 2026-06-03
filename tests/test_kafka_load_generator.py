@@ -29,7 +29,6 @@ class TestKafkaLoadGenerator:
 
         result = self.generator.generate(action, {})
 
-        # Check basic structure
         assert "@dp.temporary_view()" in result
         assert "def v_kafka_data():" in result
         assert "spark.readStream" in result
@@ -93,7 +92,6 @@ class TestKafkaLoadGenerator:
 
         result = self.generator.generate(action, {})
 
-        # The JSON string has escaped quotes in the generated code
         assert '.option("assign", "{\\"topic1\\":[0,1],\\"topic2\\":[2,4]}")' in result
 
     def test_multiple_subscription_methods_error(self):
@@ -233,19 +231,13 @@ class TestKafkaLoadGenerator:
 
         result = self.generator.generate(action, {})
 
-        # Check boolean values are not quoted
         assert '.option("failOnDataLoss", False)' in result
         assert '.option("kafka.auto.commit.enable", True)' in result
-
-        # Check numbers are not quoted
         assert '.option("minPartitions", 10)' in result
-
-        # Check strings are quoted
         assert '.option("startingOffsets", "earliest")' in result
 
     def test_operational_metadata_integration(self):
         """Test operational metadata integration with proper project config."""
-        # Create a project config with operational metadata definitions
         from lhp.models import (
             FlowGroup,
             MetadataColumnConfig,
@@ -280,7 +272,6 @@ class TestKafkaLoadGenerator:
             operational_metadata=["_processing_timestamp"],
         )
 
-        # Create a mock flowgroup context
         flowgroup = FlowGroup(
             pipeline="test_pipeline", flowgroup="test_flowgroup", actions=[]
         )
@@ -289,13 +280,11 @@ class TestKafkaLoadGenerator:
             action, {"flowgroup": flowgroup, "project_config": project_config}
         )
 
-        # Check that operational metadata column is added
         assert "# Add operational metadata columns" in result
         assert "df.withColumn('_processing_timestamp', current_timestamp())" in result
 
     def test_starting_offsets_options(self):
         """Test startingOffsets configuration."""
-        # Test with earliest
         action_earliest = Action(
             name="test_earliest",
             type="load",
@@ -312,7 +301,6 @@ class TestKafkaLoadGenerator:
         result = self.generator.generate(action_earliest, {})
         assert '.option("startingOffsets", "earliest")' in result
 
-        # Test with latest
         action_latest = Action(
             name="test_latest",
             type="load",
@@ -376,14 +364,12 @@ class TestKafkaLoadGenerator:
 
         result = self.generator.generate(action, {})
 
-        # Check basic structure
         assert "@dp.temporary_view()" in result
         assert "def v_kafka_comprehensive():" in result
         assert "Comprehensive Kafka load with SSL and custom options" in result
         assert "spark.readStream" in result
         assert '.format("kafka")' in result
 
-        # Check all options are included
         assert (
             '.option("kafka.bootstrap.servers", "kafka1.example.com:9092,kafka2.example.com:9092")'
             in result
@@ -402,7 +388,6 @@ class TestKafkaLoadGenerator:
             in result
         )
 
-        # Check structure
         assert ".load()" in result
         assert "return df" in result
 
@@ -439,7 +424,6 @@ class TestKafkaLoadGenerator:
 
         self.generator.generate(action, {})
 
-        # Check that pipeline as dp import was added
         assert "from pyspark import pipelines as dp" in self.generator.imports
 
     def test_quoted_values_escaped(self):
@@ -462,12 +446,9 @@ class TestKafkaLoadGenerator:
 
         result = self.generator.generate(action, {})
 
-        # Check that the quotes are escaped in the generated code
-        # The value should contain \" for escaped quotes
         assert '\\"user\\"' in result or 'username=\\"user\\"' in result
         assert '\\"pass\\"' in result or 'password=\\"pass\\"' in result
 
-        # Verify it's valid Python by attempting to compile
         compile(result, "<string>", "exec")
 
     def test_backslash_escaping_in_patterns(self):
@@ -487,11 +468,8 @@ class TestKafkaLoadGenerator:
 
         result = self.generator.generate(action, {})
 
-        # Check that backslashes are escaped in the generated code
-        # Should have \\ for proper Python string literal
         assert "\\\\.orders\\\\.avro" in result or r".*\.orders\.avro" in result
 
-        # Verify no SyntaxWarning by compiling with warnings as errors
         import warnings
 
         warnings.simplefilter("error", SyntaxWarning)
@@ -655,11 +633,6 @@ class TestKafkaLoadGenerator:
         )
         with pytest.raises(ValueError, match="bootstrap_servers"):
             self.generator.generate(action, {})
-
-
-# ============================================================================
-# Golden Output Tests
-# ============================================================================
 
 
 @pytest.mark.unit

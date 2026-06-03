@@ -145,7 +145,6 @@ def test_validate_walks_disk_once(tmp_path):
             )
         )
 
-    # Real wiring ran end-to-end: every pipeline validated cleanly.
     assert response.success, response
     assert disk_walk.call_count == 1, (
         "Disk file-walk must run exactly once across a full validate "
@@ -178,7 +177,6 @@ def test_generate_walks_disk_once(tmp_path):
             )
         )
 
-    # Real wiring ran end-to-end: every pipeline generated a file.
     assert response.success, response
     for name in ("g_alpha", "g_beta", "g_gamma"):
         pr = response.pipeline_responses.get(name)
@@ -227,7 +225,6 @@ def test_boundary_returns_stable_identity_guards_slice_cache(tmp_path):
         "tuple each call would cold-miss ActionOrchestrator._pipeline_slice_cache "
         "(keyed on id(all_flowgroups))."
     )
-    # And the identity stability comes for free from the same single disk walk.
     assert disk_walk.call_count == 1, (
         f"Two boundary calls triggered {disk_walk.call_count} disk walks; "
         "memo not shared across calls on the same instance."

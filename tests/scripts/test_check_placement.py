@@ -1,18 +1,9 @@
-"""Unit tests for the LHP-9.23 facade-internal reach-through gate.
+"""Unit tests for the check_placement gate.
 
-Covers the additions to ``scripts/check_placement.py``:
-
-  * ``_facade_internal_reach_findings`` — the pure, IO-free line matcher.
-  * ``check_facade_internal_reach_through`` — the public check, which
-    gates on ``is_under(path, LHP_API_DIR)`` and applies per-line
-    ``# noqa: LHP-9.23`` suppression.
-
-Import is white-box (Decision A): ``scripts/`` is intentionally a
-NON-package (no ``__init__.py``) per the constitution, so the gate
-modules are imported by bare name (``import check_placement``) rather
-than as ``scripts.check_placement``.  This test file puts the repo
-``scripts/`` dir on ``sys.path`` (below, before the import) so that the
-bare-name import resolves the non-package module directly.
+``scripts/`` is intentionally a NON-package (no ``__init__.py``) per the
+constitution, so modules are imported by bare name (``import check_placement``).
+This file pre-seeds ``sys.path`` with the repo ``scripts/`` dir so the
+bare-name import resolves correctly.
 """
 
 import sys
@@ -20,17 +11,14 @@ from pathlib import Path
 
 import pytest
 
-# Ensure the repo ``scripts/`` dir is importable before importing the gate
-# module by bare name.  Layout: <repo_root>/tests/scripts/<this file>, so
-# parents[2] == <repo_root>.
+# Pre-seed sys.path before the bare-name import; parents[2] == <repo_root>.
 _SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
 import check_placement  # noqa: E402  (must follow the sys.path insertion above)
 
-# Repo root, resolved robustly relative to this test file rather than the
-# process CWD: <repo_root>/tests/scripts/test_check_placement.py
+# Resolved relative to this file (not process CWD) for worktree safety.
 REPO_ROOT = Path(__file__).resolve().parents[2]
 API_DIR = REPO_ROOT / "src" / "lhp" / "api"
 DOCS_DIR = REPO_ROOT / "docs"
@@ -39,7 +27,6 @@ VALIDATORS_DIR = REPO_ROOT / "src" / "lhp" / "core" / "validators"
 
 @pytest.mark.unit
 def test_pure_matcher_flags_private_reach_through():
-    """A private-orchestrator reach-through line yields exactly one match."""
     matches = check_placement._facade_internal_reach_findings(
         "self._orchestrator._foo()"
     )
@@ -53,11 +40,9 @@ def test_pure_matcher_flags_private_reach_through():
 def test_noqa_suppresses_finding_in_public_check(tmp_path, monkeypatch):
     """`# noqa: LHP-9.23` on a reach-through line suppresses the finding.
 
-    The public check gates on ``is_under(path, LHP_API_DIR)`` and formats
-    findings via ``rel(path)`` (relative to ``REPO_ROOT``).  Point both
-    module globals at ``tmp_path`` so a temp file (a) is treated as living
-    under lhp/api/ and (b) can be rendered relative to the root without a
-    ``ValueError`` on the control case that does produce a finding.
+    Both ``LHP_API_DIR`` and ``REPO_ROOT`` are patched to ``tmp_path`` so the
+    temp file is treated as inside lhp/api/ and renders without a ``ValueError``
+    on the control case.
     """
     monkeypatch.setattr(check_placement, "LHP_API_DIR", tmp_path)
     monkeypatch.setattr(check_placement, "REPO_ROOT", tmp_path)
@@ -97,7 +82,6 @@ def test_pure_matcher_ignores_public_service_access():
 
 @pytest.mark.unit
 def test_real_api_tree_has_no_reach_through():
-    """The gate must report zero findings over the real src/lhp/api/ tree."""
     py_files = sorted(p for p in API_DIR.rglob("*.py") if "__pycache__" not in p.parts)
     assert py_files, f"expected Python files under {API_DIR}"
 
@@ -107,18 +91,9 @@ def test_real_api_tree_has_no_reach_through():
     assert offenders == [], "unexpected LHP-9.23 findings:\n" + "\n".join(offenders)
 
 
-# ---------------------------------------------------------------------------
-# LHP-9.13-docs — docs orchestrator-name / dead-path leak gate
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.unit
 def test_real_docs_tree_has_no_orchestrator_leak():
-    """The real docs/**/*.rst tree is clean post-P5.1 — zero findings.
-
-    Negative case: scans every published ``.rst`` exactly as the --all
-    traversal does and asserts the §9.13 docs gate reports nothing.
-    """
+    """Scans every ``.rst`` exactly as the --all traversal does — §9.13 gate must report nothing."""
     rst_files = sorted(
         p for p in DOCS_DIR.rglob("*.rst") if "__pycache__" not in p.parts
     )
@@ -136,9 +111,8 @@ def test_real_docs_tree_has_no_orchestrator_leak():
 def test_docs_leak_fires_on_seeded_rst(tmp_path, monkeypatch):
     """A seeded `.rst` naming ActionOrchestrator / the dead path FIRES.
 
-    Positive case.  Point ``DOCS_ROOT`` and ``REPO_ROOT`` at ``tmp_path``
-    so the temp file is treated as living under ``docs/`` (``is_under``
-    gate) and renders relative to the root without a ``ValueError``.
+    ``DOCS_ROOT`` and ``REPO_ROOT`` are patched to ``tmp_path`` so the temp
+    file is treated as inside ``docs/`` and renders without a ``ValueError``.
     """
     monkeypatch.setattr(check_placement, "DOCS_ROOT", tmp_path)
     monkeypatch.setattr(check_placement, "REPO_ROOT", tmp_path)
@@ -164,12 +138,7 @@ def test_docs_leak_fires_on_seeded_rst(tmp_path, monkeypatch):
 
 @pytest.mark.unit
 def test_docs_leak_ignores_non_rst_and_non_docs(tmp_path, monkeypatch):
-    """Non-`.rst` files and `.rst` files outside docs/ are no-ops.
-
-    Guards the docs-scope gating: the same gate handed a src ``.py`` (or
-    an ``.rst`` outside ``docs/``) must not fire, so it can be invoked
-    safely on arbitrary path arguments.
-    """
+    """Non-`.rst` and `.rst` files outside docs/ are not flagged — gate is safe on arbitrary paths."""
     monkeypatch.setattr(check_placement, "DOCS_ROOT", tmp_path / "docs")
     monkeypatch.setattr(check_placement, "REPO_ROOT", tmp_path)
 
@@ -187,7 +156,6 @@ def test_docs_leak_ignores_non_rst_and_non_docs(tmp_path, monkeypatch):
 
 @pytest.mark.unit
 def test_docs_leak_noqa_suppresses(tmp_path, monkeypatch):
-    """`# noqa: LHP-9.13-docs` on a docs line suppresses the finding."""
     monkeypatch.setattr(check_placement, "DOCS_ROOT", tmp_path)
     monkeypatch.setattr(check_placement, "REPO_ROOT", tmp_path)
 
@@ -208,12 +176,7 @@ def test_docs_leak_noqa_suppresses(tmp_path, monkeypatch):
 
 @pytest.mark.unit
 def test_main_all_scans_docs_and_reports_leak(tmp_path, monkeypatch, capsys):
-    """End-to-end: `main(["--all"])` picks up a docs leak via iter_all_docs.
-
-    Proves the SEPARATE top-level traversal is wired into main() and that
-    a docs leak drives the exit code to 2 (not just that the function in
-    isolation fires).  Empty src tree isolates the docs path.
-    """
+    """Proves the separate docs traversal is wired into main() and drives exit code 2."""
     docs_root = tmp_path / "docs"
     docs_root.mkdir()
     (docs_root / "api.rst").write_text(
@@ -233,22 +196,9 @@ def test_main_all_scans_docs_and_reports_leak(tmp_path, monkeypatch, capsys):
     assert "LHP-9.13-docs" in out
 
 
-# ---------------------------------------------------------------------------
-# LHP-2.1 — loose validator file at the core/validators/ top level
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.unit
 def test_real_validators_tree_has_no_loose_top_level_files():
-    """The real core/validators/ tree is clean post-taxonomy-move.
-
-    Negative case: every `.py` file directly under core/validators/ (and
-    every file in its subdirs) is run through the gate.  Post-move the
-    depth-0 level holds only __init__.py / _base.py / config_validator.py,
-    so the gate must report zero LHP-2.1 findings.  Subdir files
-    (action/ | pipeline/ | field/ | compatibility/), including the
-    suffix-less `compatibility/dlt_cdc.py`, must NOT be flagged.
-    """
+    """Depth-0 files (``__init__.py``, ``_base.py``, ``config_validator.py``) and subdir files must all pass — zero LHP-2.1 findings."""
     py_files = sorted(
         p for p in VALIDATORS_DIR.rglob("*.py") if "__pycache__" not in p.parts
     )
@@ -264,11 +214,9 @@ def test_real_validators_tree_has_no_loose_top_level_files():
 def test_loose_top_level_validator_fires(tmp_path, monkeypatch):
     """A loose `.py` directly under core/validators/ FIRES with LHP-2.1.
 
-    Positive case.  Point ``VALIDATORS_PKG_DIR`` and ``REPO_ROOT`` at
-    ``tmp_path`` so the seeded file's parent IS the validators package dir
-    (the gate's depth-0 key) and findings render relative to the root.
-    Proves non-vacuity: the seeded `foo_validator.py` IS in the findings,
-    so a no-op check would fail the assertion below.
+    ``VALIDATORS_PKG_DIR`` and ``REPO_ROOT`` are patched to ``tmp_path`` so
+    findings render relative to the root.  Non-vacuity: ``foo_validator.py``
+    must appear in findings so a no-op check would fail the assertion below.
     """
     monkeypatch.setattr(check_placement, "VALIDATORS_PKG_DIR", tmp_path)
     monkeypatch.setattr(check_placement, "REPO_ROOT", tmp_path)
@@ -295,7 +243,6 @@ def test_loose_top_level_validator_fires(tmp_path, monkeypatch):
 
 @pytest.mark.unit
 def test_loose_top_level_validator_noqa_suppresses(tmp_path, monkeypatch):
-    """`# noqa: LHP-2.1` on line 1 of a loose validator suppresses the finding."""
     monkeypatch.setattr(check_placement, "VALIDATORS_PKG_DIR", tmp_path)
     monkeypatch.setattr(check_placement, "REPO_ROOT", tmp_path)
 

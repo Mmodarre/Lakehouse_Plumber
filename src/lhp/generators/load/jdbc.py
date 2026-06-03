@@ -18,7 +18,6 @@ class JDBCLoadGenerator(BaseActionGenerator):
         self.add_import("from pyspark import pipelines as dp")
 
     def generate(self, action: Action, context: dict) -> str:
-        """Generate JDBC load code with secret substitution."""
         source_config = action.source
         if isinstance(source_config, str):
             raise ErrorFactory.invalid_source_format(
@@ -33,18 +32,15 @@ class JDBCLoadGenerator(BaseActionGenerator):
             f"Generating JDBC load for target '{action.target}', action '{action.name}'"
         )
 
-        # Process source config through substitution manager first if available
         if "substitution_manager" in context:
             source_config = context["substitution_manager"].substitute_yaml(
                 source_config
             )
 
-        # Handle operational metadata
         add_operational_metadata, metadata_columns = self._get_operational_metadata(
             action, context
         )
 
-        # Apply additional context substitutions for JDBC source
         table_name = source_config.get("table", "unknown_table")
         for col_name, expression in metadata_columns.items():
             metadata_columns[col_name] = expression.replace(

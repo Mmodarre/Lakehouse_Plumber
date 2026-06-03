@@ -89,24 +89,22 @@ def test_build_substitution_view_flattens_tokens_and_preserves_raw_mappings(
 
     assert isinstance(view, SubstitutionView)
 
-    # --- env -----------------------------------------------------------------
     assert view.env == ENV
 
-    # --- nested-map token: flat string in tokens, real dict in raw_mappings --
+    # nested-map token: flat string in tokens, real dict in raw_mappings
     assert isinstance(view.tokens[NESTED_KEY], str)
     assert view.tokens[NESTED_KEY] == str(NESTED_VALUE)
 
     assert isinstance(view.raw_mappings[NESTED_KEY], dict)
     assert view.raw_mappings[NESTED_KEY] == NESTED_VALUE
 
-    # --- scalar tokens: present as strings ------------------------------------
+    # scalar tokens: present as strings
     assert view.tokens[SCALAR_STR_KEY] == SCALAR_STR_VALUE
     assert isinstance(view.tokens[SCALAR_STR_KEY], str)
     # Int scalar is coerced to its str repr for the flat field.
     assert view.tokens[SCALAR_INT_KEY] == str(SCALAR_INT_VALUE)
     assert isinstance(view.tokens[SCALAR_INT_KEY], str)
 
-    # --- reserved tokens: auto-injected by the manager as the env name --------
     # The manager seeds ``workspace_env`` / ``logical_env`` into ``mappings``
     # (as plain strings), so they land in BOTH the flat ``tokens`` projection
     # and the structure-preserving ``raw_mappings``.

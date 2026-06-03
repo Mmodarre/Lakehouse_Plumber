@@ -13,7 +13,6 @@ class TestSchemaTransformFileLoading:
 
     def test_load_file_from_root_level(self, tmp_path):
         """Test loading schema file from root level."""
-        # Create schema file in root (enforcement removed - action-level only)
         schema_file = tmp_path / "customer_transform.yaml"
         schema_file.write_text("""
 name: customer_transform
@@ -25,7 +24,6 @@ columns:
         parser = SchemaTransformParser()
         result = parser.parse_file(schema_file)
 
-        # Enforcement is not returned by parser (action-level only)
         assert "enforcement" not in result
         assert result["column_mapping"] == {
             "c_custkey": "customer_id",
@@ -69,7 +67,6 @@ columns:
         parser = SchemaTransformParser()
         result = parser.parse_file(schema_file)
 
-        # Enforcement is not returned by parser (action-level only)
         assert "enforcement" not in result
         assert result["column_mapping"] == {"c_custkey": "customer_id"}
         assert result["type_casting"] == {"customer_id": "BIGINT"}
@@ -108,7 +105,6 @@ columns:
 """)
 
         parser = SchemaTransformParser()
-        # Use absolute path
         result = parser.parse_file(schema_file.absolute())
 
         assert result["type_casting"] == {"customer_id": "BIGINT"}
@@ -129,7 +125,6 @@ columns:
         with pytest.raises(FileNotFoundError) as exc_info:
             parser.parse_file(non_existent)
 
-        # Check that the error message contains the path
         assert str(non_existent) in str(exc_info.value)
 
     def test_load_legacy_format_from_file(self, tmp_path):
@@ -146,7 +141,6 @@ type_casting:
         parser = SchemaTransformParser()
         result = parser.parse_file(schema_file)
 
-        # Enforcement is not returned by parser (action-level only)
         assert "enforcement" not in result
         assert result["column_mapping"] == {
             "c_custkey": "customer_id",
@@ -168,7 +162,6 @@ columns:
         parser = SchemaTransformParser()
         result = parser.parse_file(schema_file)
 
-        # Enforcement is not returned by parser (action-level only)
         assert "enforcement" not in result
         assert result["column_mapping"] == {
             "c_custkey": "customer_id",

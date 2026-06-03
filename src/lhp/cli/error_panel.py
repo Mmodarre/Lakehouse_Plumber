@@ -20,7 +20,6 @@ from ..errors import ErrorCategory, LHPError
 
 
 def _template_data(error: LHPError) -> Dict[str, Any]:
-    """Build the structured dict consumed by render_error_panel."""
     return {
         "code": error.code,
         "category_label": error._category_label(),
@@ -34,7 +33,6 @@ def _template_data(error: LHPError) -> Dict[str, Any]:
 
 
 def _border_style(category: ErrorCategory) -> str:
-    """Return the Rich border style for the given error category."""
     return {
         ErrorCategory.VALIDATION: "yellow",
         ErrorCategory.CONFIG: "red",
@@ -49,14 +47,7 @@ def _border_style(category: ErrorCategory) -> str:
 def render_error_panel(error: LHPError) -> Panel:
     """Render an LHPError as a Rich Panel for stderr console output.
 
-    Replaces the former ``LHPError.__rich__`` autodetect path. Callers
-    must invoke this function explicitly:
-
-        from lhp.cli.error_panel import render_error_panel
-        console.print(render_error_panel(error))
-
-    Panel structure is byte-identical to the prior ``__rich__`` output;
-    the snapshot test in ``tests/test_lhperror_rendering.py`` pins this.
+    Panel structure is pinned by the snapshot test in ``tests/test_lhperror_rendering.py``.
     """
     d = _template_data(error)
     body = Text()

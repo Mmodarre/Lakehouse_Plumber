@@ -1,28 +1,10 @@
 """IPC round-trip tests for LHPError instances on the validate path.
 
-The consolidated flat engine carries the live worker exception across the
-``spawn`` boundary on :class:`~lhp.models.processing.FlowgroupOutcome`'s
-structured ``lhp_error`` field. The worker pickles the outcome via the pool's
-result channel (which uses ``pickle``); the live :class:`~lhp.errors.LHPError`
-inside it travels through :meth:`LHPError.__reduce__`, so the main thread
-unpickles it without losing subclass identity, ``code``, ``context``, or
-``suggestions``. The validate consumer
-(:func:`._pool.assemble_validate_outcomes`) then folds that ``lhp_error`` into
-a :class:`~lhp.models.processing.ValidationIssueRecord` on
-:attr:`PipelineValidationOutcome.issues`.
-
-These tests cover:
-
-- Plain :class:`LHPValidationError` round-trip on :class:`FlowgroupOutcome`.
-- Subclasses with custom ``__init__`` (:class:`PythonFunctionConflictError`,
-  :class:`MultiDocumentError`) — they REQUIRE a working ``__reduce__``
-  override.
-- Non-LHP exceptions fall back to the string projection (``errors``
-  populated, ``lhp_error`` None).
-- End-to-end: an LHPError on a worker's ``FlowgroupOutcome`` survives the
-  pickle and surfaces as a structured ``ValidationIssueRecord`` on
-  :attr:`PipelineValidationOutcome.issues` (carrying the live error, not a
-  string) through the real assemble fold.
+LHPError subclasses with custom ``__init__`` REQUIRE a working ``__reduce__``
+override; without it the spawn channel cannot reconstruct them on the main
+thread. Subclasses covered: :class:`PythonFunctionConflictError`,
+:class:`MultiDocumentError`.  Non-LHP exceptions fall back to the string
+projection (``errors`` populated, ``lhp_error`` None).
 """
 
 from __future__ import annotations
@@ -163,11 +145,8 @@ def test_worker_lhp_error_surfaces_in_pipeline_outcome_issues():
     )
     worker_outcome = FlowgroupOutcome.failure("bronze", "fg1", lhp_error=err)
 
-    # The worker->main spawn hop: pickle the outcome and rebuild it.
     restored_outcome = pickle.loads(pickle.dumps(worker_outcome))
 
-    # The engine buckets per-pipeline results into _PipelinePoolResult; the
-    # cross-fg barrier produced no issues here (clean resolved set).
     pool_results = [
         _PipelinePoolResult(
             pipeline="bronze",

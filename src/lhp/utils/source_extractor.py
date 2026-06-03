@@ -16,15 +16,8 @@ logger = logging.getLogger(__name__)
 def extract_source_views_from_action(source: Union[str, List, Dict]) -> List[str]:
     """Extract all source views from an action source configuration.
 
-    This function handles various source formats and always returns a list.
     For sources without explicit table names (e.g., Kafka topics), returns
-    a generic "source" placeholder to maintain consistency in code generation.
-
-    Args:
-        source: Source configuration (string, list, or dict)
-
-    Returns:
-        List of source view names, or ["source"] as fallback for non-table sources
+    ``["source"]`` as a placeholder to maintain consistency in code generation.
     """
     if isinstance(source, str):
         return [source]
@@ -59,14 +52,7 @@ def extract_source_views_from_action(source: Union[str, List, Dict]) -> List[str
 
 
 def is_cdc_write_action(action: Any) -> bool:
-    """Check if action is a CDC write action (cdc or snapshot_cdc mode).
-
-    Args:
-        action: An Action model instance
-
-    Returns:
-        True if the action is a write action with CDC or snapshot_cdc mode
-    """
+    """Check if action is a CDC write action (cdc or snapshot_cdc mode)."""
     if not hasattr(action, "type") or not hasattr(action, "write_target"):
         return False
     # ActionType is a str enum — compare with == "write" (works via str.__eq__)
@@ -82,17 +68,9 @@ def is_cdc_write_action(action: Any) -> bool:
 def extract_cdc_sources(action: Any) -> Optional[List[str]]:
     """Extract sources from CDC write actions.
 
-    For CDC modes, the precedence order is:
-    1. source_function (snapshot_cdc only) -> no external dependencies (returns [])
-    2. cdc_config.source / snapshot_cdc_config.source -> explicit CDC source
-    3. Returns None to signal fallback to action.source
-
-    Args:
-        action: An Action model instance with CDC write_target
-
-    Returns:
-        List of source names, empty list for self-contained actions,
-        or None to signal fallback to action.source
+    Precedence: source_function (snapshot_cdc only) → [] (no external deps);
+    cdc_config.source / snapshot_cdc_config.source → explicit CDC source;
+    returns None to signal fallback to action.source.
     """
     if not action.write_target or not isinstance(action.write_target, dict):
         return None
@@ -122,28 +100,16 @@ def extract_cdc_sources(action: Any) -> Optional[List[str]]:
 def extract_action_sources(action: Any) -> List[str]:
     """Extract source names from an action for dependency analysis.
 
-    This is the shared extraction function used by both DependencyResolver
-    and DependencyAnalysisService (as explicit source fallback). It handles:
-    - CDC write actions (cdc_config, snapshot_cdc_config)
-    - String, list, and dict source formats
-    - view/source/sources dict keys
-    - database.table format from load actions
-
-    Args:
-        action: An Action model instance
-
-    Returns:
-        List of source dependency names
+    Shared by DependencyResolver and DependencyAnalysisService (explicit source fallback).
+    Handles CDC write actions, string/list/dict source formats, and view/source/sources/table dict keys.
     """
     sources: List[str] = []
 
-    # Special handling for CDC write actions
     if is_cdc_write_action(action):
         cdc_sources = extract_cdc_sources(action)
         if cdc_sources is not None:  # None means fallback to action.source
             return cdc_sources
 
-    # Standard source extraction
     if not hasattr(action, "source") or not action.source:
         return sources
 
@@ -156,7 +122,6 @@ def extract_action_sources(action: Any) -> List[str]:
             if isinstance(item, str):
                 sources.append(item)
     elif isinstance(source, dict):
-        # Priority order for dict sources
         if "view" in source:
             sources.append(source["view"])
         elif "source" in source:

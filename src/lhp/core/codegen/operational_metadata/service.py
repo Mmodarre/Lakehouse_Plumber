@@ -12,11 +12,7 @@ if TYPE_CHECKING:
 
 
 class OperationalMetadataService:
-    """Centralized service for operational metadata handling.
-
-    This service eliminates code duplication across generators by providing
-    a single point of configuration for operational metadata columns.
-    """
+    """Eliminates code duplication across generators — single point of configuration for metadata columns."""
 
     def get_metadata_and_imports(
         self,
@@ -27,18 +23,8 @@ class OperationalMetadataService:
         target_type: str = "view",
         import_manager=None,
     ):
-        """Get operational metadata configuration AND required imports in one call.
-
-        Uses a single OperationalMetadataCatalog instance to ensure consistent
+        """Uses a single OperationalMetadataCatalog instance to ensure consistent
         expression adaptation and import detection.
-
-        Args:
-            action: Action configuration
-            flowgroup: FlowGroup containing the action
-            preset_config: Preset configuration dictionary
-            project_config: Project-level configuration
-            target_type: Type of target (view, streaming_table, materialized_view)
-            import_manager: Optional ImportManager for advanced import handling
 
         Returns:
             Tuple of (add_metadata: bool, metadata_columns: dict, required_imports: list)
@@ -48,22 +34,18 @@ class OperationalMetadataService:
             f"Resolving operational metadata for action '{action_name}', target_type='{target_type}'"
         )
 
-        # Initialize operational metadata handler (single instance)
         operational_metadata = OperationalMetadataCatalog(
             project_config=(
                 project_config.operational_metadata if project_config else None
             )
         )
 
-        # Update context for substitutions
         if flowgroup:
             operational_metadata.update_context(flowgroup.pipeline, flowgroup.flowgroup)
 
-        # Adapt expressions if import manager is available
         if import_manager:
             operational_metadata.adapt_expressions_for_imports(import_manager)
 
-        # Resolve metadata selection
         selection = operational_metadata.resolve_metadata_selection(
             flowgroup, action, preset_config
         )
@@ -88,10 +70,6 @@ class OperationalMetadataService:
         return bool(metadata_columns), metadata_columns, list(required_imports)
 
     def get_all_metadata_column_names(self, project_config) -> set:
-        """Return the full set of metadata column names for defensive exclusion.
-
-        Combines built-in defaults with any project-defined columns.
-        """
         operational_metadata = OperationalMetadataCatalog(
             project_config=(
                 project_config.operational_metadata if project_config else None

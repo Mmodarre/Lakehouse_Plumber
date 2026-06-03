@@ -1,5 +1,3 @@
-"""Test generators for Lakehouse Plumber."""
-
 from ._base import BaseTestActionGenerator
 from .all_lookups_found import AllLookupsFoundTestGenerator
 from .completeness import CompletenessTestGenerator

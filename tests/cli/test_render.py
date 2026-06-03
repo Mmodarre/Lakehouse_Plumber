@@ -21,10 +21,6 @@ from lhp.cli.render import (
     render_listing_table,
 )
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 
 def _tty(width: int = 120) -> Console:
     return Console(
@@ -40,11 +36,6 @@ def _plain() -> tuple[Console, io.StringIO]:
     # real in-memory buffer that the test reads via ``getvalue()``.
     buffer = io.StringIO()
     return Console(file=buffer, force_terminal=False, width=120), buffer
-
-
-# ---------------------------------------------------------------------------
-# render_listing_table -- terminal mode
-# ---------------------------------------------------------------------------
 
 
 class TestRenderListingTableTerminal:
@@ -142,11 +133,6 @@ class TestRenderListingTableTerminal:
         assert "42" in out
 
 
-# ---------------------------------------------------------------------------
-# render_listing_table -- non-TTY mode
-# ---------------------------------------------------------------------------
-
-
 class TestRenderListingTablePlain:
     def test_empty_rows_no_box_drawing(self):
         sink, buf = _plain()
@@ -230,11 +216,6 @@ class TestRenderListingTablePlain:
         assert "Total " not in out
 
 
-# ---------------------------------------------------------------------------
-# render_empty_state
-# ---------------------------------------------------------------------------
-
-
 class TestRenderEmptyState:
     def test_terminal_renders_panel_with_both_lines(self):
         sink = _tty()
@@ -283,11 +264,6 @@ class TestRenderEmptyState:
         out = sink.export_text()
         assert "Empty" in out
         assert "Add data." in out
-
-
-# ---------------------------------------------------------------------------
-# render_command_header
-# ---------------------------------------------------------------------------
 
 
 _WORDMARK_FRAGMENT = "██████╗"
@@ -341,11 +317,6 @@ class TestRenderCommandHeader:
         assert unique_row in out
 
 
-# ---------------------------------------------------------------------------
-# Lazy-resolution of the default sink
-# ---------------------------------------------------------------------------
-
-
 class TestDefaultSinkResolution:
     """Default ``sink=None`` must resolve at call time, not at definition —
     ``tests/conftest.py`` swaps the module-level console per test, which only
@@ -358,8 +329,6 @@ class TestDefaultSinkResolution:
 
         replacement, buf = _plain()
         monkeypatch.setattr(console_module, "console", replacement)
-        # The render module imports the singleton by name; patch both
-        # locations to mirror what conftest does for other helpers.
         monkeypatch.setattr(render_module, "_default_console", replacement)
 
         render_listing_table(

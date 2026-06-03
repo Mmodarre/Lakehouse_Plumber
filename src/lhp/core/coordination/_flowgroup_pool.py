@@ -69,19 +69,12 @@ logger = logging.getLogger(__name__)
 
 
 def _init_worker_logger(level: int) -> None:
-    """Per-worker logging init.
+    """Silence worker stdlib loggers entirely.
 
-    Silences worker stdlib loggers entirely. Workers MUST NOT write to
-    OS stderr — the parent's ``Live(... redirect_stderr=True)`` only
-    intercepts the parent's own ``sys.stderr``, not the worker's. All
-    worker diagnostics travel back via the returned
-    :class:`~lhp.models.processing.FlowgroupOutcome` (which carries the
-    live LHPError on ``lhp_error`` plus pre-formatted traceback strings).
-
-    Shared by the engine's pool initializer
-    (:func:`_init_flowgroup_worker`); lives here, on the worker seam, so
-    the engine in :mod:`._pool` imports it from this module (one
-    direction) and this module imports nothing back from :mod:`._pool`.
+    Workers MUST NOT write to OS stderr — the parent's
+    ``Live(redirect_stderr=True)`` only intercepts the parent's own
+    ``sys.stderr``, not the worker's. All worker diagnostics travel back
+    via the returned :class:`~lhp.models.processing.FlowgroupOutcome`.
     """
     root = logging.getLogger()
     for handler in list(root.handlers):
@@ -94,14 +87,8 @@ def _init_worker_logger(level: int) -> None:
 class _PipelineProgress:
     """Mutable per-pipeline completion tracker used by the fan-out engine.
 
-    The engine (:func:`._pool._run_flowgroup_pool_core`) buckets
-    per-flowgroup :class:`~lhp.models.processing.FlowgroupOutcome`s into one
-    of these per pipeline and fires the cross-flowgroup barrier once a
-    bucket is complete. ``results`` is intentionally permissively typed —
-    it accumulates outcomes off the ``as_completed`` loop. Lives on the
-    worker seam (with :func:`_init_worker_logger`) so the engine imports it
-    one-directionally and this module stays free of any :mod:`._pool`
-    dependency.
+    ``results`` is intentionally permissively typed — it accumulates
+    outcomes off the ``as_completed`` loop.
     """
 
     pipeline: str
@@ -121,33 +108,23 @@ WorkerMode = Literal["validate", "generate"]
 class _FlowgroupWorkerState:
     """Captured collaborators for the single-wave flowgroup worker.
 
-    One state serves both modes because the single-wave worker handles
-    both. Pickled once and shipped to each worker via the pool's
-    ``initializer=`` seam; workers read it through :data:`_flowgroup_state`
-    (populated by :func:`_init_flowgroup_worker`) instead of re-pickling
-    collaborators on every submitted task.
+    Pickled once and shipped to each worker via the pool's ``initializer=``
+    seam, so collaborators are not re-pickled on every submitted task.
 
     Field roles:
 
-    - ``processor`` / ``substitution_managers`` — both modes (resolve +
-      per-flowgroup-validate; the sub manager is looked up by pipeline name).
+    - ``processor`` / ``substitution_managers`` — both modes.
     - ``code_generator`` / ``pipeline_output_dirs`` / ``environment`` —
       generate-only (unused in validate mode). The formatter is deliberately
-      absent: the worker no longer formats (it only ``ast.parse``-validates
-      via :func:`assert_generated_python_valid`); the single terminal ruff
-      pass runs on the coordinator over the committed tree.
-    - ``include_tests`` — consumed by ``process_flowgroup`` in BOTH modes
-      (it filters test actions before validation), so it is genuinely shared.
+      absent: the worker only ``ast.parse``-validates; the single terminal
+      ruff pass runs on the coordinator over the committed tree.
+    - ``include_tests`` — consumed in BOTH modes (filters test actions before
+      validation).
 
-    ``project_config`` and ``project_root`` are deliberately absent: the
-    per-flowgroup codegen seam
-    (:meth:`CodeGenerationService.generate_flowgroup_code`) does not consume
-    them — they are inputs to the per-pipeline commit / test-reporting step,
-    which is the coordinator's job, not the worker's. Carrying them
-    here would be dead weight across the spawn boundary.
-
-    ``frozen=True, slots=True`` for immutability across the spawn boundary
-    and a smaller per-instance footprint.
+    ``project_config`` and ``project_root`` are deliberately absent — inputs
+    to the per-pipeline commit/test-reporting step (coordinator's job, not
+    the worker's); carrying them here would be dead weight across the spawn
+    boundary.
     """
 
     processor: BaseFlowgroupResolutionService
@@ -170,19 +147,12 @@ def _init_flowgroup_worker(
 ) -> None:
     """Pool initializer: configure logger and stash flowgroup worker state.
 
-    Called once per spawned worker by :class:`ProcessPoolExecutor` via
-    ``initializer=`` / ``initargs=(level, state, perf_on)``. The captured state
-    pickles once at pool startup instead of once per submitted task.
-    Calls the shared :func:`_init_worker_logger` (defined in this module)
-    that silences worker stdlib loggers (workers must not write to OS
-    stderr; all diagnostics travel back on the returned DTO).
-
     When ``perf_on`` is set, re-enables perf timing in this spawned worker
     (spawn re-imports the module with ``_enabled = False``). The
-    ``project_root=None`` form records ONLY into the in-memory singleton and
-    attaches NO :class:`FileHandler` (so workers emit no per-line perf log);
-    the parent collects the aggregate via :func:`_process_one_flowgroup`'s
-    perf envelope.
+    ``project_root=None`` form records ONLY into the in-memory singleton
+    (no :class:`FileHandler`) so workers emit no per-line perf log; the
+    parent collects the aggregate via the perf envelope in
+    :func:`_process_one_flowgroup`.
     """
     _init_worker_logger(level)
     global _flowgroup_state
@@ -198,31 +168,15 @@ def _process_one_flowgroup(
 ) -> FlowgroupOutcome:
     """Single-wave worker entry: perf + deprecation envelope around the impl.
 
-    Preserves the exact public name :func:`_process_one_flowgroup` (it is
-    in :mod:`.executor`'s ``__all__`` and is monkeypatched by engine tests
-    — constitution §5.6 bars renaming it). Localizes ALL perf concern AND
-    the worker→main deprecation-warning collection in this one wrapper so
-    the DTO constructors and the impl stay free of both:
+    Name is stable — in :mod:`.executor`'s ``__all__`` and monkeypatched
+    by engine tests; constitution §5.6 bars renaming it.
 
-    - A :func:`~lhp.models.deprecations.collect_deprecations` scope wraps the
-      WHOLE impl (resolve + per-flowgroup validation + codegen), stamped with
-      this flowgroup's ``source_yaml`` / name. Soft-deprecation sites nested
-      anywhere under it (the ``database`` / ``database_suffix`` normalization,
-      the schema-transform ``enforcement`` key) call
-      :func:`~lhp.models.deprecations.record_deprecation`; the worker runs
-      under a ``NullHandler`` so those would otherwise be lost. The drained,
-      deduped records ride back on :attr:`FlowgroupOutcome.warnings` for the
-      coordinator to merge and re-emit as ``WarningEmitted`` events.
-    - When perf is enabled in this worker, :func:`reset_perf_summary`
-      scopes the in-memory singleton to THIS flowgroup (one task per
-      ProcessPoolExecutor worker at a time → race-free), the impl runs (its
-      ``perf_timer`` calls fire into the singleton), and the aggregate is
-      attached to the returned outcome via :func:`dataclasses.replace`.
-    - When perf is off, ``perf`` stays ``None``, preserving the
-      zero-overhead contract.
-
-    NEVER raises (the impl is total); the scope context manager and
-    ``dataclasses.replace`` on a frozen outcome cannot raise here.
+    Wraps the impl in a :func:`~lhp.models.deprecations.collect_deprecations`
+    scope so deprecation records (otherwise lost under the worker's
+    ``NullHandler``) ride back on :attr:`FlowgroupOutcome.warnings`.
+    When perf is enabled, :func:`reset_perf_summary` scopes the singleton to
+    this flowgroup (one task per worker → race-free) and attaches the
+    aggregate to the outcome. NEVER raises.
     """
     perf_on = is_perf_enabled()
     if perf_on:
@@ -249,62 +203,15 @@ def _process_one_flowgroup_impl(
 ) -> FlowgroupOutcome:
     """Single-wave worker: resolve + validate (+ generate) one flowgroup.
 
-    The unit of parallelism for the consolidated engine. Picklable,
-    top-level callable suitable for submission to a
-    :class:`ProcessPoolExecutor`. Reads its collaborators from the
-    module-global :data:`_flowgroup_state` populated by
-    :func:`_init_flowgroup_worker`.
+    Validate mode returns an ``ok`` outcome carrying the resolved flowgroup
+    so the coordinator's cross-flowgroup barrier runs on the RESOLVED set.
+    Generate mode also runs codegen (NO disk writes) and the cheap
+    ``ast.parse`` guard; formatting is NOT done here — it is the
+    coordinator's single terminal ``ruff format`` pass.
 
-    Flow:
-
-    1. Resolve + per-flowgroup-validate via
-       :meth:`FlowgroupResolutionService.process_flowgroup`. That single
-       call expands templates / presets / substitutions AND runs
-       per-flowgroup validation (schema, references, action-specific,
-       secret refs), RAISING an :class:`~lhp.errors.LHPError` subclass
-       (e.g. :class:`LHPValidationError`) when the resolved flowgroup is
-       invalid. It returns a NEW :class:`FlowGroupContext` whose
-       ``.flowgroup`` is the resolved :class:`FlowGroup`.
-    2. ``validate`` mode stops here and returns an ``ok`` outcome that
-       carries the resolved flowgroup (``formatted_code=None``). The
-       resolved flowgroup MUST be carried so the coordinator's
-       per-pipeline cross-flowgroup barrier runs on the RESOLVED set.
-    3. ``generate`` mode then runs codegen
-       (:meth:`CodeGenerationService.generate_flowgroup_code` with a
-       ``phase_a_records`` list it mutates in place to receive
-       :class:`CopiedModuleRecord`s — NO disk writes) and the cheap
-       parse guard (:func:`..codegen.formatter.assert_generated_python_valid`,
-       which raises :class:`LHPConfigError` ``LHP-CFG-031`` on unparseable
-       generated source). Formatting is NOT done here — it is relocated to
-       the coordinator's single terminal ``ruff format`` pass. The worker
-       returns an ``ok`` outcome carrying the UNFORMATTED ``formatted_code``,
-       the captured ``copy_records``, the resolved flowgroup, and the
-       monitoring-path ``auxiliary_files``.
-
-    A worker that fails resolve/validate never reaches codegen (the early
-    failure return short-circuits it) — the local "skip codegen on
-    validation failure" optimization falls out naturally; correctness is
-    unaffected because the coordinator's gate fails the run regardless.
-
-    NEVER raises (constitution §5.6). Both ``except`` arms
-    funnel through the TOTAL
-    :meth:`~lhp.models.processing.FlowgroupOutcome.failure` constructor:
-
-    - :class:`~lhp.errors.LHPError` → carried live on ``lhp_error`` (its
-      ``__reduce__`` preserves subclass identity / ``code`` / ``context``
-      / ``suggestions`` across the spawn boundary for verbatim re-raise).
-    - any other :class:`Exception` → degraded string projection on
-      ``errors``.
-
-    Args:
-        ctx: The per-flowgroup envelope (the raw :class:`FlowGroup` plus
-            ``source_yaml``, ``synthetic`` flag, and ``auxiliary_files``).
-        mode: ``"validate"`` (resolve + validate only) or ``"generate"``
-            (also codegen + format). Keyword-only.
-
-    Returns:
-        A :class:`FlowgroupOutcome` — ``ok`` on success, ``failure`` on
-        any error. Never propagates an exception.
+    NEVER raises (constitution §5.6): :class:`~lhp.errors.LHPError` is
+    carried live on ``lhp_error`` (subclass identity preserved across the
+    spawn boundary); any other exception degrades to the ``errors`` channel.
     """
     from lhp.errors import LHPError
 
@@ -315,7 +222,6 @@ def _process_one_flowgroup_impl(
     pipeline = fg.pipeline
     flowgroup_name = fg.flowgroup
 
-    # Resolve + per-flowgroup validation (both modes).
     try:
         substitution_mgr = state.substitution_managers[pipeline]
         ctx_out = state.processor.process_flowgroup(
@@ -338,7 +244,6 @@ def _process_one_flowgroup_impl(
         )
 
     # Generate mode: codegen + syntax guard (no formatting, no disk writes).
-    # Formatting is relocated to the coordinator's terminal ruff pass.
     try:
         # ``records`` is mutated in place by generate_flowgroup_code:
         # user-module copies are appended as CopiedModuleRecords instead
@@ -359,11 +264,8 @@ def _process_one_flowgroup_impl(
         # raises LHP-CFG-031 — caught below and routed onto the failure DTO.
         assert_generated_python_valid(code, flowgroup_name)
     except Exception as exc:
-        # Codegen errors and the syntax-guard LHP-CFG-031 both land here. Per
-        # §5.6 the worker still does not raise; the resolved flowgroup is
-        # not re-attached on the failure DTO (failure() is total and
-        # carries only the error channels — the coordinator gate needs
-        # only the error, not the resolved FG, on a generate failure).
+        # Codegen errors and LHP-CFG-031 both land here. Per §5.6 the worker
+        # still does not raise; the resolved flowgroup is not re-attached.
         return _to_failure(pipeline, flowgroup_name, exc, lhp_error_cls=LHPError)
 
     # Route the monitoring flowgroup's extra inline modules through

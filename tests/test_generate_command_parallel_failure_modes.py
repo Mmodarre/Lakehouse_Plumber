@@ -131,11 +131,9 @@ class TestParallelGenerateFailureModes:
         from lhp.cli.main import cli
 
         runner = CliRunner()
-        # Click invoke; CWD must be inside the project so the CLI's
-        # _find_project_root locates lhp.yaml. We save & restore the
-        # outer CWD around the invocation rather than using
-        # isolated_filesystem, since we want to operate ON the project
-        # we built under tmp_path, not on a fresh isolated dir.
+        # CWD must be inside the project so ``_find_project_root`` locates lhp.yaml.
+        # Save/restore instead of ``isolated_filesystem`` to keep operating on the project
+        # built under tmp_path.
         import os
 
         prev_cwd = Path.cwd()
@@ -149,21 +147,10 @@ class TestParallelGenerateFailureModes:
     def test_per_pipeline_completion_marker_emits_once_per_pipeline(
         self, tmp_path: Path
     ) -> None:
-        """Each pipeline appears exactly once in the run summary table.
+        """Each pipeline appears at least once in the run summary table.
 
-        Post-Phase-4, the per-pipeline completion signal lives in the
-        Rich summary table that follows the Live status panel. The
-        behavioral contract being verified — every pipeline submitted to
-        the batch generator surfaces in the user-visible output exactly
-        once — is unchanged; only the rendered form moved from a
-        streaming ``✅ {pipeline_id}: ...`` line per pipeline to one row
-        in the summary table. Counting the pipeline name preserves the
-        original guard for missed/duplicated completion records.
-
-        ``--show-all`` opts into the full per-pipeline summary table;
-        the post-Phase-E failures-only default would suppress the table
-        on this all-success fixture, but this test asserts on
-        per-pipeline row visibility.
+        ``--show-all`` is required: the failures-only default suppresses the table on an
+        all-success run, so the per-pipeline row visibility assertion would vacuously pass.
         """
         project_root = tmp_path / "lhp_proj_per_pipeline_marker"
         _build_lhp_project(project_root)
@@ -182,12 +169,7 @@ class TestParallelGenerateFailureModes:
             "pipeline_beta",
             "pipeline_gamma",
         ):
-            # Looser check than the original ``output.count(name) == 1`` —
-            # the count form was brittle, because any unrelated mention
-            # (e.g. inside a Rich panel border, breadcrumb, or banner)
-            # would flip the assertion. The behavioral contract is
-            # "appears at least once in user-visible output", which is
-            # what ``>= 1`` enforces.
+            # ``== 1`` is brittle: any unrelated mention (panel border, banner) would flip it.
             count = output.count(pipeline_name)
             assert count >= 1, (
                 f"Expected pipeline {pipeline_name} to surface in CLI "
@@ -197,15 +179,8 @@ class TestParallelGenerateFailureModes:
     def test_any_failure_writes_no_files_all_or_nothing(self, tmp_path: Path) -> None:
         """One broken flowgroup aborts the WHOLE batch — no pipeline writes.
 
-        Generate is all-or-nothing: the gate raises on ANY
-        per-flowgroup failure BEFORE any file is written, so when one
-        flowgroup in ``pipeline_beta`` is broken the run exits non-zero and
-        NO pipeline — not even the all-valid siblings — emits ``.py`` files.
-
-        The flat engine + generate gate refuse to write a partial tree. The
-        no-write / prior-output-untouched guarantee is unit-covered by
-        ``test_flowgroup_pool``'s gate-failure tests; this is its
-        end-to-end CLI counterpart.
+        Generate is all-or-nothing: the gate raises on ANY per-flowgroup failure BEFORE
+        any file is written, so even all-valid siblings emit zero ``.py`` files.
         """
         project_root = tmp_path / "lhp_proj_all_or_nothing"
         _build_lhp_project(project_root)
@@ -217,7 +192,6 @@ class TestParallelGenerateFailureModes:
 
         result = self._invoke_cli(project_root, "--show-all")
 
-        # Overall failure: the broken flowgroup aborts the batch.
         assert result.exit_code != 0, (
             f"Expected non-zero exit when a flowgroup is broken; got "
             f"exit_code={result.exit_code}\nOutput:\n{result.output}"
@@ -225,8 +199,6 @@ class TestParallelGenerateFailureModes:
 
         generated_dev = project_root / "generated" / "dev"
 
-        # All-or-nothing: NO pipeline emitted .py files — including the
-        # all-valid siblings (the gate raised before any write).
         for pipeline_name in (
             "pipeline_alpha",
             "pipeline_beta",

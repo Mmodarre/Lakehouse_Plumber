@@ -14,16 +14,13 @@ class TestCLIIncludeTestsFlag:
 
     @pytest.fixture
     def runner(self):
-        """Create CLI runner."""
         return CliRunner()
 
     @pytest.fixture
     def temp_project(self):
-        """Create a temporary project directory with full structure."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
 
-            # Create full project structure matching working tests
             directories = [
                 "presets",
                 "templates",
@@ -37,14 +34,12 @@ class TestCLIIncludeTestsFlag:
             for dir_name in directories:
                 (project_root / dir_name).mkdir(parents=True)
 
-            # Create project config (flat structure like working tests)
             (project_root / "lhp.yaml").write_text("""
 name: test_cli_project
 version: "1.0"
 description: "Test project for CLI include-tests flag"
 """)
 
-            # Create substitutions matching working pattern
             (project_root / "substitutions" / "test.yaml").write_text("""
 test:
   env: test
@@ -56,11 +51,10 @@ secrets:
   default_scope: test_secrets
 """)
 
-            # Create pipeline directory structure
             pipeline_dir = project_root / "pipelines" / "test_pipeline"
             pipeline_dir.mkdir(parents=True)
 
-            # Create mixed flowgroup (has both test and non-test actions)
+            # mixed flowgroup: has both test and non-test actions
             (pipeline_dir / "mixed_flowgroup.yaml").write_text("""
 pipeline: test_pipeline
 flowgroup: mixed_flowgroup
@@ -91,7 +85,6 @@ actions:
     description: "Test data quality"
 """)
 
-            # Create test-only pipeline
             test_pipeline_dir = project_root / "pipelines" / "test_only_pipeline"
             test_pipeline_dir.mkdir(parents=True)
 

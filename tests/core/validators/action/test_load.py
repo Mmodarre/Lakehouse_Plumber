@@ -1,15 +1,7 @@
 """Negative tests for LoadActionValidator missing-field validation.
 
-Covers the type-specific required-field checks for Delta and JDBC load
-sources. Each test omits exactly one required field (while supplying all
-other required fields) so that the validator surfaces a single, specific
-error attributable to that field.
-
-Calling convention mirrors ``tests/test_action_validators_kafka.py``:
-construct the validator from ``ActionRegistry`` + ``ConfigFieldValidator``,
-build a ``models.Action`` with a dict ``source``, and invoke
-``validator.validate(action, prefix)``. The Delta/JDBC type-specific checks
-return plain error strings, so assertions match on the error message text.
+Each test omits exactly one required field so the validator surfaces a single,
+specific error attributable to that field.
 """
 
 import pytest
@@ -34,16 +26,8 @@ def _errors_for(source: dict) -> list:
     return validator.validate(action, "test_action")
 
 
-# ---------------------------------------------------------------------------
-# Delta source: required fields catalog / schema / table
-# ---------------------------------------------------------------------------
-
-
 class TestDeltaSourceMissingFields:
-    """Each Delta required field, omitted in isolation, raises its own error."""
-
     def test_missing_catalog(self):
-        # Omit only 'catalog'; supply 'schema' + 'table'.
         errors = _errors_for(
             {
                 "type": "delta",
@@ -57,7 +41,6 @@ class TestDeltaSourceMissingFields:
         assert "test_action: Delta source must have 'table'" not in errors
 
     def test_missing_schema(self):
-        # Omit only 'schema'; supply 'catalog' + 'table'.
         errors = _errors_for(
             {
                 "type": "delta",
@@ -70,7 +53,6 @@ class TestDeltaSourceMissingFields:
         assert "test_action: Delta source must have 'table'" not in errors
 
     def test_missing_table(self):
-        # Omit only 'table'; supply 'catalog' + 'schema'.
         errors = _errors_for(
             {
                 "type": "delta",
@@ -83,14 +65,7 @@ class TestDeltaSourceMissingFields:
         assert "test_action: Delta source must have 'schema'" not in errors
 
 
-# ---------------------------------------------------------------------------
-# JDBC source: required fields url / user / password / driver
-# ---------------------------------------------------------------------------
-
-
 class TestJdbcSourceMissingFields:
-    """Each JDBC required field, omitted in isolation, raises its own error."""
-
     # 'table' is supplied in every case so the separate "must have either
     # 'query' or 'table'" error never fires, isolating the credential checks.
     _BASE = {

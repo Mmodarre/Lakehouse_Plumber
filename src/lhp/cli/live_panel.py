@@ -295,9 +295,8 @@ def render_live_frame(
 ) -> Panel:
     """Compose the persistent Live frame Panel.
 
-    Pure function — no mutation, no I/O. The title is a ``rich.text.Text``
-    instance, so callers asserting on title content must use
-    ``panel.title.plain``.
+    The title is a ``rich.text.Text`` instance; callers asserting on title
+    content must use ``panel.title.plain``.
     """
     title = Text(
         f"LHP {header_context.command_name} — env={header_context.env} "
@@ -397,11 +396,7 @@ def rich_handler_attached(err_console: _RichConsole) -> Iterator[None]:
 
 
 def make_summary_table(title: str) -> Table:
-    """Build the shared skeleton for generate/validate post-run summary tables.
-
-    Returns a Rich ``Table`` with status-icon and Pipeline columns; callers
-    append their own data columns.
-    """
+    """Returns a Rich ``Table`` with status-icon and Pipeline columns; callers append their own data columns."""
     table = Table(
         title=title,
         title_style="bold",

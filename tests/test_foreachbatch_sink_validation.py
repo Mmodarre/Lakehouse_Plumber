@@ -11,7 +11,6 @@ class TestForEachBatchSinkValidation:
     """Test ForEachBatch sink write action validation."""
 
     def setup_method(self):
-        """Set up test fixtures."""
         self.action_registry = ActionRegistry()
         self.field_validator = ConfigFieldValidator()
         self.validator = WriteActionValidator(
@@ -34,7 +33,6 @@ class TestForEachBatchSinkValidation:
 
         errors = self.validator.validate(action, "test_foreachbatch_sink")
 
-        # Should have no errors
         assert len(errors) == 0
 
     def test_valid_foreachbatch_with_batch_handler(self):
@@ -53,7 +51,6 @@ class TestForEachBatchSinkValidation:
 
         errors = self.validator.validate(action, "test_foreachbatch_sink")
 
-        # Should have no errors
         assert len(errors) == 0
 
     def test_foreachbatch_missing_sink_name(self):
@@ -71,7 +68,6 @@ class TestForEachBatchSinkValidation:
 
         errors = self.validator.validate(action, "test_foreachbatch_sink")
 
-        # Should error about missing sink_name
         assert len(errors) > 0
         assert any("sink_name" in err.lower() for err in errors)
 
@@ -90,7 +86,6 @@ class TestForEachBatchSinkValidation:
 
         errors = self.validator.validate(action, "test_foreachbatch_sink")
 
-        # Should error about missing source
         assert len(errors) > 0
         assert any("source" in err.lower() for err in errors)
 
@@ -111,7 +106,6 @@ class TestForEachBatchSinkValidation:
 
         errors = self.validator.validate(action, "test_foreachbatch_sink")
 
-        # Should error about having both
         assert len(errors) > 0
         assert any(("one" in err.lower() or "both" in err.lower()) for err in errors)
 
@@ -130,7 +124,6 @@ class TestForEachBatchSinkValidation:
 
         errors = self.validator.validate(action, "test_foreachbatch_sink")
 
-        # Should error about missing both
         assert len(errors) > 0
         assert any(
             ("module_path" in err.lower() or "batch_handler" in err.lower())
@@ -153,7 +146,6 @@ class TestForEachBatchSinkValidation:
 
         errors = self.validator.validate(action, "test_foreachbatch_sink")
 
-        # Should error about list source
         assert len(errors) > 0
         assert any("single" in err.lower() or "string" in err.lower() for err in errors)
 
@@ -173,7 +165,6 @@ class TestForEachBatchSinkValidation:
 
         errors = self.validator.validate(action, "test_foreachbatch_sink")
 
-        # Should error about empty batch_handler
         assert len(errors) > 0
         assert any(
             "empty" in err.lower() or "batch_handler" in err.lower() for err in errors
@@ -195,6 +186,5 @@ class TestForEachBatchSinkValidation:
 
         errors = self.validator.validate(action, "test_foreachbatch_sink")
 
-        # Should error about dict source
         assert len(errors) > 0
         assert any("single" in err.lower() or "string" in err.lower() for err in errors)

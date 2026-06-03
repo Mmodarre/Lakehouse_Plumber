@@ -15,7 +15,6 @@ class TestPythonParser:
     """Test Python parser functionality."""
 
     def setup_method(self):
-        """Set up test instance."""
         self.parser = PythonParser()
 
     def test_basic_spark_sql_call(self):
@@ -42,7 +41,6 @@ class TestPythonParser:
         ]
 
     def test_spark_table_method(self):
-        """Test spark.table() method detection."""
         python_code = """
         df = spark.table("bronze.customers")
         """
@@ -50,7 +48,6 @@ class TestPythonParser:
         assert result == ["bronze.customers"]
 
     def test_spark_read_table_method(self):
-        """Test spark.read.table() method detection."""
         python_code = """
         df = spark.read.table("silver.processed_orders")
         """
@@ -78,7 +75,6 @@ class TestPythonParser:
         assert result == ["{catalog}.{schema}.customers"]
 
     def test_f_string_with_variables(self):
-        """Test f-string handling with various variable types."""
         python_code = '''
         table_name = "customers"
         df = spark.sql(f"""
@@ -172,7 +168,6 @@ class TestPythonParser:
 
         result = execute_query()
         """
-        # Only literal SQL strings in spark.sql() calls are extracted
         result = self.parser.extract_tables_from_python(python_code)
         assert result == ["bronze.test_data"]
 
@@ -274,7 +269,6 @@ class TestPythonParser:
         df3 = spark.sql(query3)
         """
         result = self.parser.extract_tables_from_python(python_code)
-        # Only the f-strings will be processed, variables won't be resolved
         assert result == []
 
     def test_extract_sql_from_python_separately(self):
@@ -287,7 +281,6 @@ class TestPythonParser:
         df2 = spark.sql(sql2)
         """
         sql_queries = self.parser.extract_sql_from_python(python_code)
-        # Only literal strings passed to spark.sql should be extracted
         assert len(sql_queries) == 0  # Variables are not resolved
 
     def test_direct_sql_strings_in_spark_sql(self):
@@ -382,7 +375,6 @@ class TestASTHandling:
         """Test that AST Call nodes are processed correctly."""
         parser = PythonParser()
 
-        # This should extract tables
         python_code = """
         result = spark.sql("SELECT * FROM bronze.test_table")
         """
@@ -394,7 +386,6 @@ class TestASTHandling:
         """Test handling of both Constant and Str AST nodes."""
         parser = PythonParser()
 
-        # Modern Python uses Constant nodes
         python_code = """
         df = spark.sql("SELECT * FROM bronze.modern_table")
         """
@@ -412,7 +403,6 @@ class TestASTHandling:
         df = spark.sql(f"SELECT * FROM bronze.{table}")
         """
 
-        # F-strings with unknown variables preserve variable names as placeholders
         result = parser.extract_tables_from_python(python_code)
         assert result == ["bronze.{table}"]
 
@@ -621,7 +611,6 @@ tbl += "_suffix"
 spark.table(tbl)
 """
         # AugAssign is not handled; the value tracked remains the original literal.
-        # Depending on intent, we may still emit the base value — document the behavior.
         assert self.parser.extract_tables_from_python(code) == ["cat.sch.t"]
 
     # ---- Integration with existing f-string support ----

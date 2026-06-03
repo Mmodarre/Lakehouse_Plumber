@@ -68,10 +68,7 @@ if TYPE_CHECKING:
 
 
 class ValidationFacade:
-    """Validation operations on a constructed project.
-
-    :stability: provisional
-    """
+    """:stability: provisional"""
 
     def __init__(self, orchestrator: "_Orchestrator") -> None:
         self._orchestrator = orchestrator
@@ -205,31 +202,18 @@ class ValidationFacade:
     ) -> Iterator[LHPEvent]:
         """Yield the full §5.7 validate progress stream (the stream body).
 
-        Implements the public :meth:`validate_pipelines` contract (see its
-        docstring); kept as a private generator so the public method can route
-        the stream through :func:`lhp.api._stream_guard._cap_event_stream` (the
-        §13.4 event-buffer soft cap), mirroring how
-        :meth:`GenerationFacade.generate_pipelines` delegates to
-        :func:`lhp.api._generate_stream._stream_pipeline_generation`.
+        Private generator so the public method can route through
+        :func:`lhp.api._stream_guard._cap_event_stream` (§13.4 event-buffer soft cap).
 
         :stability: internal
         """
         yield OperationStarted(operation_name="validate_pipelines", env=env)
 
-        # Shared ``(code, file)`` dedup set spanning BOTH deprecation-warning
-        # sources (main-thread discover-phase scan + worker validate-phase
-        # merge), so the union surfaces as ONE deduped, ordered sequence.
+        # Shared ``(code, file)`` dedup set spanning both deprecation-warning
+        # sources (main-thread discover phase + worker validate phase) so the
+        # union surfaces deduplicated.
         warnings_seen: Set[Tuple[str, Optional[Path]]] = set()
 
-        # Phase: discover (D3). Resolve the project-wide flowgroup set ONCE and
-        # thread it into BOTH the preflight and validate phases so neither
-        # re-discovers. A caller-supplied ``pre_discovered_all_flowgroups`` is
-        # adopted verbatim (the facade does not re-discover); otherwise the
-        # facade discovers via the orchestrator's EXISTING project-wide
-        # discovery surface ``bootstrap.discover_all_flowgroups()`` — the same
-        # memoized surface ``_run_project_preflight`` used as its lazy fallback,
-        # so reuse downstream costs no extra filesystem scan. Emitted as a
-        # paired Start/Complete so the §5.7 phase-pairing invariant holds.
         discover_start = time.perf_counter()
         yield PhaseStarted(phase="discover")
         if pre_discovered_all_flowgroups is not None:
@@ -241,22 +225,12 @@ class ValidationFacade:
             duration_s=time.perf_counter() - discover_start,
             success=True,
         )
-        # Main-thread bare-``{token}`` deprecation warnings (LHP-DEPR-001),
-        # scanned on the main thread (the read path precedes the worker pool);
-        # emitted right after the discover phase and seeding the shared set.
+        # Main-thread LHP-DEPR-001 warnings, seeding the shared dedup set.
         yield from _emit_deprecation_warnings(
             self._orchestrator.discovery.scan_deprecation_warnings(),
             seen=warnings_seen,
         )
 
-        # Phase: preflight. §9.24 — the preflight LOGIC is single-sourced in
-        # ``_run_project_preflight`` (shared with the generate path); this site
-        # only SURFACES its issues. validate FOLDS them into a failed batch
-        # (non-zero exit) — it never raises — whereas generate raises.
-        # ``bundle_enabled`` is threaded from the CLI (``--no-bundle`` +
-        # databricks.yml auto-detect) so the bundle catalog/schema preflight
-        # runs symmetrically with generate. The discover-phase ``resolved_flowgroups``
-        # is fed in so preflight does not re-discover.
         preflight_start = time.perf_counter()
         yield PhaseStarted(phase="preflight")
         preflight_issues = _run_project_preflight(
@@ -284,15 +258,6 @@ class ValidationFacade:
             success=True,
         )
 
-        # Phase: validate. Consume the orchestrator's outcome-generator
-        # end-to-end, emitting the paired per-pipeline events as each outcome
-        # crystallises. The helper RETURNS ``(response, warnings)`` (success or
-        # graceful non-LHP / report-only failure); a catastrophic LHPError
-        # escaping the consumer is surfaced via ErrorEmitted+raise here (per
-        # §1.4 the raise closes the stream, so the PhaseCompleted/
-        # ValidationCompleted below are skipped). The discover-phase
-        # ``resolved_flowgroups`` is threaded through so the worklist builder
-        # does not re-discover.
         validate_start = time.perf_counter()
         yield PhaseStarted(phase="validate")
         try:
@@ -317,8 +282,7 @@ class ValidationFacade:
             duration_s=time.perf_counter() - validate_start,
             success=response.success,
         )
-        # Worker deprecation warnings (LHP-DEPR-002/003/004), deduped against
-        # the main-thread set via the shared ``warnings_seen``.
+        # Worker LHP-DEPR-002/003/004 warnings, deduped against the main-thread set.
         yield from _emit_deprecation_warnings(worker_warnings, seen=warnings_seen)
         yield ValidationCompleted(response=response)
 
@@ -450,16 +414,12 @@ class ValidationFacade:
                 warnings,
             )
         except LHPError:
-            # §1.4 rendezvous: a catastrophic structured failure that escaped
-            # the report-only stream (NOT a per-pipeline finding) is re-raised
-            # so the public wrapper emits exactly one ErrorEmitted then
-            # re-raises. The bare ``raise`` keeps the cause chain (B904).
+            # §1.4 rendezvous: catastrophic LHPError re-raised so the public
+            # wrapper emits ErrorEmitted then re-raises.
             raise
         except Exception as exc:
-            # A NON-LHP failure folds into a batch-failure DTO (with
-            # ``error_code`` / ``error_message``), NOT the ErrorEmitted+raise
-            # rendezvous (reserved for LHPError). Intentional, documented
-            # degradation: validate REPORTS rather than aborting.
+            # Non-LHP failure folds into a batch-failure DTO rather than the
+            # ErrorEmitted+raise rendezvous — validate reports, never aborts.
             self._logger.exception("Batch pipeline validation failed")
             return (
                 _build_validation_batch(

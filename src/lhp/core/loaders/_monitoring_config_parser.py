@@ -106,13 +106,7 @@ def _validate_monitoring_config(
     event_log_config: Optional[EventLogConfig],
     project_root: Path,
 ) -> None:
-    """Validate monitoring configuration.
-
-    When enabled: event_log must be present and enabled, checkpoint_path must be
-    set, job_config_path must be set and (when free of substitution tokens) must
-    point to an existing file. Materialized view names must be unique and may
-    not specify both ``sql`` and ``sql_path``.
-    """
+    """When enabled: event_log must be present and enabled, checkpoint_path and job_config_path must be set (job_config_path existence check is deferred when it contains substitution tokens). Materialized view names must be unique; ``sql`` and ``sql_path`` are mutually exclusive."""
     if not config.enabled:
         return
 

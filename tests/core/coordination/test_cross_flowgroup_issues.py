@@ -86,7 +86,6 @@ def test_family_is_aggregated_one_error_for_multiple_strings():
 
     assert len(issues) == 1
     error = issues[0]
-    # All strings folded into one error's details, with an Error Count context.
     assert "first error" in error.details
     assert "second error" in error.details
     assert "third error" in error.details

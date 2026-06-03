@@ -1,22 +1,11 @@
 """KNOWN-FAILING (owner-authorized).
 
-Documents finding #1: TestActionValidator does not reject referential_integrity
-actions whose source_columns/reference_columns differ in length
-(src/lhp/core/validators/action/test.py ~L118-125; generator
-src/lhp/generators/test/referential_integrity.py ~L44 zip-truncates silently).
+TestActionValidator does not reject referential_integrity actions whose
+source_columns/reference_columns differ in length. The generator's
+``zip(source_columns, reference_columns)`` silently truncates to the shorter
+list, so a mismatch passes validation and the generated FK join omits columns.
 The CODE is wrong, not this test — fix the validator, do not weaken this
 assertion.
-
-Calling convention mirrors ``tests/core/validators/action/test_test_action.py``:
-construct the validator from ``ActionRegistry`` + ``ConfigFieldValidator``, build
-a ``models.Action``, and invoke ``validator.validate(action, prefix)``. The
-validator returns plain error strings (NOT raised exceptions), so assertions
-match on error-message substrings within the returned list.
-
-The generator at ``referential_integrity.py`` does
-``zip(source_columns, reference_columns)``, which silently TRUNCATES to the
-shorter list. A column-count mismatch therefore passes validation today and the
-generated FK join silently omits columns, testing the wrong constraint.
 """
 
 from lhp.core.registry import ActionRegistry
@@ -31,22 +20,16 @@ def _make_validator() -> TestActionValidator:
 
 
 def _errors_for(**kwargs) -> list:
-    """Build a test Action from kwargs and return the validator's error list."""
     validator = _make_validator()
     action = Action(name="test_action", type="test", **kwargs)
     return validator.validate(action, PREFIX)
 
 
 def test_known_bug_refintegrity_column_count_mismatch_rejected():
-    """KNOWN-FAILING: a referential_integrity action whose source_columns and
-    reference_columns differ in length must be rejected.
+    """KNOWN-FAILING: mismatched source_columns/reference_columns length must be rejected.
 
-    Otherwise-valid action (3-part reference, bare source, both column lists
-    present) with mismatched counts: 2 source columns vs 1 reference column.
-    The generator's ``zip`` would silently drop ``customer_id``, joining only on
-    ``order_id = id`` — the wrong FK constraint. The validator should catch this
-    BEFORE generation. No length-equality rule exists yet, so this FAILS by
-    design — fix the validator, do not weaken this assertion.
+    No length-equality rule exists yet — this FAILS by design. Fix the validator,
+    do not weaken this assertion.
     """
     errors = _errors_for(
         test_type="referential_integrity",
@@ -66,11 +49,7 @@ def test_known_bug_refintegrity_column_count_mismatch_rejected():
 
 
 def test_refintegrity_equal_column_counts_accepted():
-    """Contrast/regression anchor: equal-length column lists are accepted.
-
-    This is the correct, well-formed shape — the future validator fix must NOT
-    flag it. Expected GREEN today and after the fix.
-    """
+    """Regression anchor: the future validator fix must NOT flag equal-length column lists."""
     errors = _errors_for(
         test_type="referential_integrity",
         source="v_orders",

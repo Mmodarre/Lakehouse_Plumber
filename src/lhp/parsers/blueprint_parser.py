@@ -20,8 +20,6 @@ if TYPE_CHECKING:
 
 
 class BlueprintParser:
-    """Parses blueprint and instance YAML files into validated Pydantic models."""
-
     def __init__(
         self, caching_yaml_parser: Optional["CachingYAMLParser"] = None
     ) -> None:
@@ -39,17 +37,6 @@ class BlueprintParser:
         return load_yaml_documents_all(path, error_context=error_context)
 
     def parse_blueprint_file(self, path: Path) -> Blueprint:
-        """Parse a blueprint YAML file into a `Blueprint` model.
-
-        Args:
-            path: Path to a blueprint YAML file (single-document).
-
-        Returns:
-            A validated Blueprint model.
-
-        Raises:
-            LHPConfigError: If the file is empty, multi-document, or fails Pydantic validation.
-        """
         documents = self._load_documents(path, error_context=f"blueprint file {path}")
 
         if not documents:
@@ -116,26 +103,11 @@ class BlueprintParser:
     def parse_instance_file(
         self, path: Path, blueprints: Dict[str, Blueprint]
     ) -> BlueprintInstance:
-        """Parse an instance YAML file into a validated `BlueprintInstance`.
-
-        Two-pass parse: first reads the blueprint reference (``use_blueprint:`` or
+        """Two-pass parse: reads the blueprint reference (``use_blueprint:`` or
         legacy ``blueprint:``) to identify the referenced blueprint, then
         re-validates the supplied parameter dict against
         ``{p.name for p in blueprint.parameters}`` and raises on unknown keys
         with a `difflib.get_close_matches` suggestion.
-
-        Args:
-            path: Path to an instance YAML file (single-document).
-            blueprints: Mapping of blueprint name -> Blueprint, used to look up
-                the referenced blueprint and its declared parameter list.
-
-        Returns:
-            A validated BlueprintInstance.
-
-        Raises:
-            LHPConfigError: For empty/multi-doc files or YAML errors.
-            LHPValidationError: For unknown blueprint references, unknown parameter
-                keys (M5), or missing required parameters.
         """
         documents = self._load_documents(path, error_context=f"instance file {path}")
 
@@ -321,7 +293,6 @@ class BlueprintParser:
     def _validate_instance_keys(
         path: Path, params: Dict[str, Any], blueprint: Blueprint
     ) -> None:
-        """Verify each supplied parameter key is declared on the blueprint."""
         valid_keys = {p.name for p in blueprint.parameters}
         unknown = [k for k in params if k not in valid_keys]
         if not unknown:
@@ -359,7 +330,6 @@ class BlueprintParser:
     def _validate_required_parameters(
         path: Path, params: Dict[str, Any], blueprint: Blueprint
     ) -> None:
-        """Verify required parameters are present in the instance file."""
         missing = [
             p.name for p in blueprint.parameters if p.required and p.name not in params
         ]

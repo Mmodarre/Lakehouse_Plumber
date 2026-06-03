@@ -156,9 +156,7 @@ class TestQuarantineValidation:
         with caplog.at_level(logging.WARNING):
             errors = validator._validate_data_quality_transform(action, "test")
 
-        # Should not have errors (just warnings)
         assert errors == []
-        # Should have warnings for fail and warn rules
         assert any(
             "fail_rule" in r.message and "fail" in r.message for r in caplog.records
         )

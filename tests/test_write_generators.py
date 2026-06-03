@@ -28,7 +28,7 @@ class TestWriteGenerators:
                 "catalog": "silver_cat",
                 "schema": "silver_sch",
                 "table": "customers",
-                "create_table": True,  # ← Add explicit table creation flag
+                "create_table": True,
                 "partition_columns": ["year", "month"],
                 "cluster_columns": ["customer_id"],
                 "table_properties": {"quality": "silver"},
@@ -37,7 +37,6 @@ class TestWriteGenerators:
 
         code = generator.generate(action, {})
 
-        # Check generated code - standard mode creates table and append flow
         assert "dp.create_streaming_table" in code
         assert "@dp.append_flow(" in code
         assert "silver_cat.silver_sch.customers" in code
@@ -61,7 +60,6 @@ class TestWriteGenerators:
 
         code = generator.generate(action, {})
 
-        # Verify generated code
         assert "@dp.materialized_view(" in code
         assert 'name="gold_cat.gold_sch.customer_summary"' in code
         assert "spark.sql" in code
@@ -98,7 +96,6 @@ class TestWriteGenerators:
 
         code = generator.generate(action, {})
 
-        # Verify all options are included
         # Note: temporary parameter is accepted in config for backward compat but not passed to decorator
         assert "@dp.materialized_view(" in code
         assert 'name="gold_cat.gold_sch.advanced_table"' in code
@@ -122,7 +119,7 @@ class TestWriteGenerators:
                 "catalog": "silver_cat",
                 "schema": "silver_sch",
                 "table": "advanced_streaming",
-                "create_table": True,  # ← Add explicit table creation flag
+                "create_table": True,
                 "spark_conf": {
                     "spark.sql.streaming.checkpointLocation": "/checkpoints/advanced",
                     "spark.sql.streaming.stateStore.providerClass": "RocksDBStateStoreProvider",
@@ -142,7 +139,6 @@ class TestWriteGenerators:
 
         code = generator.generate(action, {})
 
-        # Verify all options are included in both create_streaming_table and @dp.append_flow
         assert "dp.create_streaming_table(" in code
         assert "@dp.append_flow(" in code
         assert 'name="silver_cat.silver_sch.advanced_streaming"' in code
@@ -175,7 +171,7 @@ class TestWriteGenerators:
                 "catalog": "silver_cat",
                 "schema": "silver_sch",
                 "table": "customers",
-                "create_table": True,  # ← Add explicit table creation flag
+                "create_table": True,
                 "snapshot_cdc_config": {
                     "source": "raw.customer_snapshots",
                     "keys": ["customer_id"],
@@ -186,7 +182,6 @@ class TestWriteGenerators:
 
         code = generator.generate(action, {})
 
-        # Verify snapshot CDC structure
         assert "dp.create_streaming_table(" in code
         assert 'name="silver_cat.silver_sch.customers"' in code
         assert "dp.create_auto_cdc_from_snapshot_flow(" in code
@@ -195,7 +190,6 @@ class TestWriteGenerators:
         assert 'keys=["customer_id"]' in code
         assert "stored_as_scd_type=1" in code
 
-        # Should not have function imports
         assert "import sys" not in code
         assert "sys.path.append" not in code
 
@@ -264,23 +258,19 @@ def next_customer_snapshot(latest_version: Optional[int]) -> Optional[Tuple[Data
         finally:
             Path(function_file).unlink()
 
-        # Import alias is plumbed (lives in the generator's import set, which
-        # the assembler hoists above the body).
         assert f"import custom_python_functions.{mod} as {alias}" in imports
 
         # BOTH session globals injected, unconditionally.
         assert f"{alias}.spark = spark" in pre
         assert f"{alias}.dbutils = dbutils" in pre
 
-        # No inlined function body in the rendered body.
         assert "# Snapshot function embedded directly in generated code" not in code
         assert "def next_customer_snapshot" not in code
 
-        # Snapshot CDC structure with the alias-qualified bare source.
         assert "dp.create_auto_cdc_from_snapshot_flow(" in code
         assert 'target="silver_cat.silver_sch.customers"' in code
         assert f"source={alias}.next_customer_snapshot" in code
-        assert "partial" not in code  # bare: no partial wrapper
+        assert "partial" not in code  # bare function: no partial wrapper needed
         assert 'keys=["customer_id", "region"]' in code
         assert "stored_as_scd_type=2" in code
 
@@ -342,7 +332,6 @@ def next_customer_snapshot(latest_version: Optional[int], *, region: str) -> Opt
         assert f"{alias}.spark = spark" in pre
         assert f"{alias}.dbutils = dbutils" in pre
 
-        # Body not inlined.
         assert "def next_customer_snapshot" not in code
         assert "# Snapshot function embedded directly in generated code" not in code
 
@@ -366,7 +355,7 @@ def next_customer_snapshot(latest_version: Optional[int], *, region: str) -> Opt
                 "catalog": "silver_cat",
                 "schema": "silver_sch",
                 "table": "products",
-                "create_table": True,  # ← Add explicit table creation flag
+                "create_table": True,
                 "snapshot_cdc_config": {
                     "source": "raw.product_snapshots",
                     "keys": ["product_id"],
@@ -382,7 +371,6 @@ def next_customer_snapshot(latest_version: Optional[int], *, region: str) -> Opt
 
         code = generator.generate(action, {})
 
-        # Verify except columns usage
         assert "dp.create_auto_cdc_from_snapshot_flow(" in code
         assert (
             'track_history_except_column_list=["created_at", "updated_at", "_metadata"]'
@@ -397,7 +385,7 @@ def test_materialized_view_string_source():
     action = Action(
         name="write_test",
         type=ActionType.WRITE,
-        source="v_simple_view",  # String source, no SQL in write_target
+        source="v_simple_view",
         write_target={
             "type": "materialized_view",
             "catalog": "test_cat",
@@ -408,11 +396,10 @@ def test_materialized_view_string_source():
 
     code = generator.generate(action, {})
 
-    # Verify the string source is correctly extracted and used
     assert "v_simple_view" in code
     assert "@dp.materialized_view(" in code
     assert 'name="test_cat.test_sch.test_table"' in code
-    assert "spark.read.table" in code  # Should use spark.read.table for source view
+    assert "spark.read.table" in code
 
 
 def test_materialized_view_list_source_first_item():
@@ -421,7 +408,7 @@ def test_materialized_view_list_source_first_item():
     action = Action(
         name="write_test",
         type=ActionType.WRITE,
-        source=["first_view", "ignored_view", "also_ignored"],  # List source
+        source=["first_view", "ignored_view", "also_ignored"],
         write_target={
             "type": "materialized_view",
             "catalog": "test_cat",
@@ -432,7 +419,6 @@ def test_materialized_view_list_source_first_item():
 
     code = generator.generate(action, {})
 
-    # Verify only the first item in the list is used
     assert "first_view" in code
     assert "ignored_view" not in code
     assert "also_ignored" not in code
@@ -445,7 +431,6 @@ def test_materialized_view_invalid_source_type():
     """Test materialized view with invalid source type raises ValueError."""
     generator = MaterializedViewWriteGenerator()
 
-    # Test the _extract_source_view method directly with invalid source
     with pytest.raises(ValueError) as exc_info:
         generator._extract_source_view(42)  # Invalid source type (int)
 
@@ -459,10 +444,8 @@ def test_materialized_view_missing_write_target():
         name="write_test",
         type=ActionType.WRITE,
         source="v_simple_view",
-        # Missing write_target field entirely
     )
 
-    # Should raise ValueError for missing write_target
     with pytest.raises(ValueError) as exc_info:
         generator.generate(action, {})
 
@@ -475,17 +458,14 @@ def test_materialized_view_missing_source_and_sql():
     action = Action(
         name="write_test",
         type=ActionType.WRITE,
-        # Missing source field and no SQL in write_target
         write_target={
             "type": "materialized_view",
             "catalog": "test_cat",
             "schema": "test_sch",
             "table": "test_table",
-            # Missing sql field
         },
     )
 
-    # Should raise ValueError when trying to extract source view from None
     with pytest.raises(ValueError) as exc_info:
         generator.generate(action, {})
 
@@ -498,7 +478,7 @@ def test_materialized_view_empty_list_source():
     action = Action(
         name="write_test",
         type=ActionType.WRITE,
-        source=[],  # Empty list source
+        source=[],
         write_target={
             "type": "materialized_view",
             "catalog": "test_cat",
@@ -507,7 +487,6 @@ def test_materialized_view_empty_list_source():
         },
     )
 
-    # Should raise ValueError for empty list source
     with pytest.raises(ValueError) as exc_info:
         generator.generate(action, {})
 
@@ -529,11 +508,8 @@ def test_materialized_view_no_catalog_schema_fallback():
 
     code = generator.generate(action, {})
 
-    # Verify table name is used without catalog.schema prefix
     assert 'name="test_table"' in code
-    assert (
-        'name="test_cat.test_sch.test_table"' not in code
-    )  # Should not have catalog.schema prefix
+    assert 'name="test_cat.test_sch.test_table"' not in code
     assert "@dp.materialized_view(" in code
     assert "spark.sql" in code
 
@@ -557,9 +533,8 @@ def test_materialized_view_custom_comment_and_description():
 
     code = generator.generate(action, {})
 
-    # Verify custom comment and description appear in generated code
     assert 'comment="Custom table comment"' in code
-    assert "Custom action description" in code  # Should appear in function docstring
+    assert "Custom action description" in code
     assert "@dp.materialized_view(" in code
     assert "spark.sql" in code
 
@@ -579,24 +554,18 @@ def test_materialized_view_with_flowgroup_context():
         },
     )
 
-    # Pass flowgroup in context
     context = {"flowgroup": "test_flowgroup"}
     code = generator.generate(action, context)
 
-    # Verify flowgroup context is used (check this is passed to template)
-    # The template should have access to flowgroup variable
     assert "@dp.materialized_view(" in code
     assert 'name="test_cat.test_sch.test_table"' in code
     assert "spark.sql" in code
-    # Note: The actual usage of flowgroup in template may vary,
-    # this test ensures it's passed to template context without errors
 
 
 def test_materialized_view_partition_and_cluster_variations():
     """Test materialized view with different partition and cluster column combinations."""
     generator = MaterializedViewWriteGenerator()
 
-    # Test 1: Both partition and cluster columns
     action_both = Action(
         name="write_test_both",
         type=ActionType.WRITE,
@@ -615,7 +584,6 @@ def test_materialized_view_partition_and_cluster_variations():
     assert 'partition_cols=["year", "month"]' in code_both
     assert 'cluster_by=["id"]' in code_both
 
-    # Test 2: Only partition columns
     action_partition = Action(
         name="write_test_partition",
         type=ActionType.WRITE,
@@ -633,7 +601,6 @@ def test_materialized_view_partition_and_cluster_variations():
     assert 'partition_cols=["region"]' in code_partition
     assert "cluster_by=" not in code_partition
 
-    # Test 3: Only cluster columns
     action_cluster = Action(
         name="write_test_cluster",
         type=ActionType.WRITE,
@@ -669,9 +636,8 @@ def test_materialized_view_disabled_metadata():
 
     code = generator.generate(action, {})
 
-    # Verify metadata is disabled by default
     assert "# Add operational metadata columns" not in code
-    assert "withColumn" not in code  # No metadata column additions
+    assert "withColumn" not in code
     assert "@dp.materialized_view(" in code
     assert "spark.sql" in code
 
@@ -695,18 +661,12 @@ def test_materialized_view_enabled_metadata_mock():
     original_generate = generator.generate
 
     def mock_generate(action, context):
-        # Call original generate
         code_lines = original_generate(action, context).split("\n")
 
-        # Find the template context creation and modify it to add metadata
-        # Since this is testing a disabled feature, we'll just verify
-        # that when metadata is force-enabled, the template can handle it
         modified_context = context.copy() if context else {}
         modified_context["metadata_columns"] = {"_test_column": "F.current_timestamp()"}
 
-        # Re-call with modified context that forces metadata
         with patch.object(generator, "render_template") as mock_render:
-            # Mock the template rendering to include metadata
             mock_render.return_value = '''@dp.materialized_view(
     name="test_cat.test_sch.test_table",
     comment="Materialized view: test_table",
@@ -725,7 +685,6 @@ def test_table():
     with patch.object(generator, "generate", side_effect=mock_generate):
         code = generator.generate(action, {})
 
-    # Verify mocked metadata is present
     assert "# Add operational metadata columns" in code
     assert "withColumn" in code
     assert "_test_column" in code
@@ -735,9 +694,7 @@ def test_table():
 @pytest.mark.parametrize(
     "source_config,expected_view",
     [
-        # String source
         ("v_string_view", "v_string_view"),
-        # List source (first item string)
         (["first_view", "ignored_view"], "first_view"),
     ],
 )
@@ -758,7 +715,6 @@ def test_materialized_view_parametrized_sources(source_config, expected_view):
 
     code = generator.generate(action, {})
 
-    # Verify expected view name appears in generated code
     assert expected_view in code
     assert "@dp.materialized_view(" in code
     assert 'name="test_cat.test_sch.test_table"' in code
@@ -800,10 +756,9 @@ def test_materialized_view_full_structure():
     context = {"flowgroup": "analytics_flowgroup"}
     code = generator.generate(action, context)
 
-    # Verify overall structure and order
     lines = code.split("\n")
 
-    # Check that @dp.materialized_view comes before function definition
+    # @dp.materialized_view must come before the function definition
     dlt_mv_line = next(
         i for i, line in enumerate(lines) if "@dp.materialized_view(" in line
     )
@@ -814,8 +769,6 @@ def test_materialized_view_full_structure():
         "DLT decorator should come before function definition"
     )
 
-    # Check that imports would be at the top (handled by base generator)
-    # Check specific configurations are included
     assert 'name="gold_cat.gold_sch.customer_analytics"' in code
     assert 'comment="Customer analytics materialized view"' in code
     assert 'spark_conf={"spark.sql.adaptive.enabled": "true"' in code
@@ -826,11 +779,9 @@ def test_materialized_view_full_structure():
     assert 'cluster_by=["customer_id"]' in code
     assert 'path="/mnt/data/gold/customer_analytics"' in code
 
-    # Verify source extraction and usage
     assert "silver.customer_data" in code
     assert "spark.read.table" in code
 
-    # Verify function structure
     assert "def customer_analytics():" in code
     assert '"""Complex materialized view with all options"""' in code
     assert "return df" in code
@@ -844,7 +795,6 @@ def test_materialized_view_with_sql_path():
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
 
-        # Create SQL file
         sql_dir = project_root / "sql" / "gold"
         sql_dir.mkdir(parents=True)
         sql_file = sql_dir / "customer_summary.sql"
@@ -875,7 +825,6 @@ GROUP BY customer_id, customer_name
         context = {"project_root": project_root}
         code = generator.generate(action, context)
 
-        # Verify SQL content is loaded from file
         assert "customer_id" in code
         assert "customer_name" in code
         assert "total_orders" in code
@@ -896,7 +845,6 @@ def test_materialized_view_sql_path_with_substitutions():
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
 
-        # Create SQL file with substitution variables
         sql_dir = project_root / "sql"
         sql_dir.mkdir()
         sql_file = sql_dir / "sales_summary.sql"
@@ -910,7 +858,6 @@ WHERE sale_date >= '{start_date}'
 GROUP BY product_id
 """)
 
-        # Mock substitution manager
         mock_subst_mgr = Mock()
         mock_subst_mgr._process_string.return_value = """
 SELECT 
@@ -943,11 +890,9 @@ GROUP BY product_id
         }
         code = generator.generate(action, context)
 
-        # Verify substitutions were applied
         assert "dev_catalog.bronze.sales" in code
         assert "2024-01-01" in code
 
-        # Verify substitution manager was called
         mock_subst_mgr._process_string.assert_called_once()
 
 
@@ -976,7 +921,6 @@ def test_materialized_view_sql_path_file_not_found():
 
         context = {"project_root": project_root}
 
-        # Should raise LHPError for missing file
         with pytest.raises(LHPError) as exc_info:
             generator.generate(action, context)
 
@@ -992,7 +936,6 @@ def test_materialized_view_sql_vs_sql_path_precedence():
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
 
-        # Create SQL file (should be ignored)
         sql_dir = project_root / "sql"
         sql_dir.mkdir()
         sql_file = sql_dir / "query.sql"
@@ -1015,7 +958,6 @@ def test_materialized_view_sql_vs_sql_path_precedence():
         context = {"project_root": project_root}
         code = generator.generate(action, context)
 
-        # Should use inline SQL, not file
         assert "silver.customers" in code
         assert "ignored_table" not in code
 
@@ -1028,7 +970,6 @@ def test_materialized_view_table_schema_from_ddl_file():
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
 
-        # Create DDL file
         schema_dir = project_root / "schemas" / "gold"
         schema_dir.mkdir(parents=True)
         schema_file = schema_dir / "product_view_schema.ddl"
@@ -1053,7 +994,6 @@ def test_materialized_view_table_schema_from_ddl_file():
         context = {"project_root": project_root}
         code = generator.generate(action, context)
 
-        # Verify schema is loaded from file
         assert (
             'schema="product_id BIGINT NOT NULL, product_name STRING, price DECIMAL(10,2), category STRING"'
             in code
@@ -1069,7 +1009,6 @@ def test_materialized_view_table_schema_from_sql_file():
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
 
-        # Create SQL file with schema DDL
         schema_dir = project_root / "schemas"
         schema_dir.mkdir()
         schema_file = schema_dir / "customer_view_schema.sql"
@@ -1094,7 +1033,6 @@ def test_materialized_view_table_schema_from_sql_file():
         context = {"project_root": project_root}
         code = generator.generate(action, context)
 
-        # Verify schema is loaded from file
         assert (
             'schema="customer_id BIGINT, name STRING, email STRING, region STRING"'
             in code
@@ -1109,7 +1047,6 @@ def test_materialized_view_table_schema_inline_vs_file():
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
 
-        # Test 1: Inline schema (no file extension)
         generator = MaterializedViewWriteGenerator()
         action_inline = Action(
             name="create_view_inline",
@@ -1127,10 +1064,8 @@ def test_materialized_view_table_schema_inline_vs_file():
         context = {"project_root": project_root}
         code_inline = generator.generate(action_inline, context)
 
-        # Should use inline schema
         assert 'schema="id BIGINT, name STRING, amount DECIMAL(18,2)"' in code_inline
 
-        # Test 2: File path with .ddl extension
         schema_dir = project_root / "schemas"
         schema_dir.mkdir()
         schema_file = schema_dir / "product_schema.ddl"
@@ -1151,7 +1086,6 @@ def test_materialized_view_table_schema_inline_vs_file():
 
         code_file = generator.generate(action_file, context)
 
-        # Should load from file
         assert 'schema="product_id BIGINT, product_name STRING"' in code_file
 
 
@@ -1163,7 +1097,6 @@ def test_streaming_table_table_schema_from_ddl_file():
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
 
-        # Create DDL file
         schema_dir = project_root / "schemas" / "bronze"
         schema_dir.mkdir(parents=True)
         schema_file = schema_dir / "customer_table.ddl"
@@ -1192,7 +1125,6 @@ _processing_timestamp TIMESTAMP""")
         context = {"project_root": project_root}
         code = generator.generate(action, context)
 
-        # Verify schema is loaded from file
         assert "customer_id BIGINT NOT NULL" in code
         assert "_source_file_path STRING" in code
         assert "_processing_timestamp TIMESTAMP" in code
@@ -1207,7 +1139,6 @@ def test_streaming_table_table_schema_from_sql_file():
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
 
-        # Create SQL file with schema DDL
         schema_dir = project_root / "schemas"
         schema_dir.mkdir()
         schema_file = schema_dir / "orders_table.sql"
@@ -1232,7 +1163,6 @@ def test_streaming_table_table_schema_from_sql_file():
         context = {"project_root": project_root}
         code = generator.generate(action, context)
 
-        # Verify schema is loaded from file
         assert "order_id BIGINT" in code
         assert "customer_id BIGINT" in code
         assert "order_amount DECIMAL(10,2)" in code
@@ -1246,7 +1176,6 @@ def test_streaming_table_table_schema_inline_vs_file():
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
 
-        # Test 1: Inline schema (multiline string)
         generator = StreamingTableWriteGenerator()
         action_inline = Action(
             name="write_table_inline",
@@ -1264,12 +1193,10 @@ def test_streaming_table_table_schema_inline_vs_file():
         context = {"project_root": project_root}
         code_inline = generator.generate(action_inline, context)
 
-        # Should use inline schema (with triple quotes for multiline)
         assert (
             'schema="""id BIGINT, name STRING, created_at TIMESTAMP"""' in code_inline
         )
 
-        # Test 2: File path with .ddl extension
         schema_dir = project_root / "schemas"
         schema_dir.mkdir()
         schema_file = schema_dir / "test_schema.ddl"
@@ -1292,7 +1219,6 @@ def test_streaming_table_table_schema_inline_vs_file():
 
         code_file = generator.generate(action_file, context)
 
-        # Should load from file
         assert (
             "product_id BIGINT, product_name STRING, price DECIMAL(10,2)" in code_file
         )
@@ -1306,7 +1232,6 @@ def test_streaming_table_table_schema_from_yaml_file():
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
 
-        # Create YAML file with schema definition
         schema_dir = project_root / "schemas"
         schema_dir.mkdir()
         schema_file = schema_dir / "customer_table.yaml"
@@ -1344,7 +1269,6 @@ columns:
         context = {"project_root": project_root}
         code = generator.generate(action, context)
 
-        # Verify schema is loaded from YAML file and converted to DDL
         assert "customer_id BIGINT NOT NULL" in code
         assert "customer_name STRING" in code
         assert "email STRING" in code
@@ -1359,7 +1283,6 @@ def test_streaming_table_table_schema_from_yml_file():
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
 
-        # Create .yml file with schema definition
         schema_dir = project_root / "schemas"
         schema_dir.mkdir()
         schema_file = schema_dir / "product_table.yml"
@@ -1394,7 +1317,6 @@ columns:
         context = {"project_root": project_root}
         code = generator.generate(action, context)
 
-        # Verify schema is loaded from .yml file and converted to DDL
         assert "product_id BIGINT NOT NULL" in code
         assert "product_name STRING NOT NULL" in code
         assert "price DECIMAL(10,2) NOT NULL" in code
@@ -1408,7 +1330,6 @@ def test_materialized_view_table_schema_from_yaml_file():
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
 
-        # Create YAML file with schema definition
         schema_dir = project_root / "schemas"
         schema_dir.mkdir()
         schema_file = schema_dir / "orders_aggregate.yaml"
@@ -1446,7 +1367,6 @@ columns:
         context = {"project_root": project_root}
         code = generator.generate(action, context)
 
-        # Verify schema is loaded from YAML file and converted to DDL
         assert "customer_id BIGINT NOT NULL" in code
         assert "total_orders INT NOT NULL" in code
         assert "total_amount DECIMAL(18,2) NOT NULL" in code
@@ -1455,7 +1375,6 @@ columns:
 
 def test_write_generator_imports():
     """Test that write generators manage imports correctly."""
-    # Write generator
     mv_gen = MaterializedViewWriteGenerator()
     assert "from pyspark import pipelines as dp" in mv_gen.imports
     assert "from pyspark.sql import DataFrame" in mv_gen.imports

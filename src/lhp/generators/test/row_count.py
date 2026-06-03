@@ -1,5 +1,3 @@
-"""Row-count test action generator."""
-
 import logging
 from typing import Any, Dict, List
 
@@ -14,7 +12,6 @@ class RowCountTestGenerator(BaseTestActionGenerator):
     """Generate a row_count test — compares source vs target row counts."""
 
     def generate(self, action: Action, context: Dict[str, Any]) -> str:
-        """Generate row_count test code."""
         config = action.model_dump(mode="json", exclude_none=True)
         test_type = "row_count"
 

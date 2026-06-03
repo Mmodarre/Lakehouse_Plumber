@@ -1,6 +1,5 @@
 """Snapshot tests for LHPError Rich Panel rendering.
 
-One snapshot per ErrorCategory in scope for Phase 2 (VALIDATION, CONFIG, IO).
 The snapshot pins the structural contract of the Rich Panel output. Substring
 assertions in other test files cover error-code presence for individual
 commands; this file is the single source of truth for whole-panel rendering.

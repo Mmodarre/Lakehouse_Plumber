@@ -11,18 +11,9 @@ logger = logging.getLogger(__name__)
 
 
 class BaseCommand:
-    """
-    Base class for all CLI commands providing shared utilities.
-
-    This class encapsulates common patterns used across CLI commands:
-    - Project root validation and discovery
-    - Error handling patterns
-    - Logging setup coordination
-    - Common validation checks
-    """
+    """Base class for all CLI commands providing shared utilities."""
 
     def __init__(self):
-        """Initialize base command with shared state."""
         self.logger = logging.getLogger(__name__)
         self.verbose = False
         self.log_file = None
@@ -38,15 +29,7 @@ class BaseCommand:
             self.perf = ctx.obj.get("perf", False)
 
     def ensure_project_root(self) -> Path:
-        """
-        Find and validate project root directory.
-
-        Returns:
-            Path to project root
-
-        Raises:
-            LHPError: If not in a LakehousePlumber project
-        """
+        """Find and validate project root directory. Raises LHPError if not in an LHP project."""
         from ...errors import ErrorFactory, codes
 
         if self._project_root is None:
@@ -66,25 +49,13 @@ class BaseCommand:
         return self._project_root
 
     def check_substitution_file(self, env: str) -> Path:
-        """
-        Check that substitution file exists for the given environment.
-
-        Args:
-            env: Environment name
-
-        Returns:
-            Path to substitution file
-
-        Raises:
-            LHPFileError: If substitution file doesn't exist
-        """
+        """Return path to substitution file for env, or raise LHPFileError if absent."""
         from ...errors import ErrorFactory, codes
 
         project_root = self.ensure_project_root()
         substitution_file = project_root / "substitutions" / f"{env}.yaml"
 
         if not substitution_file.exists():
-            # Discover available environments for suggestions
             sub_dir = project_root / "substitutions"
             available_envs = []
             if sub_dir.exists():

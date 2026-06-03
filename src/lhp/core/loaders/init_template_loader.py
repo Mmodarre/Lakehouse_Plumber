@@ -11,8 +11,6 @@ from .init_template_context import InitTemplateContext
 
 
 class InitTemplateLoader:
-    """Loader for project initialization templates."""
-
     def __init__(self):
         self.logger = logging.getLogger(__name__)
 
@@ -23,14 +21,6 @@ class InitTemplateLoader:
         )
 
     def load_template(self, template_path: str):
-        """Load a template from package resources.
-
-        Args:
-            template_path: Path to template file (e.g., 'lhp.yaml.j2')
-
-        Returns:
-            Jinja2 Template object
-        """
         try:
             return self.jinja_env.get_template(template_path)
         except Exception:
@@ -38,19 +28,9 @@ class InitTemplateLoader:
             raise
 
     def render_template(self, template_path: str, context: InitTemplateContext) -> str:
-        """Render a template with the given context.
-
-        Args:
-            template_path: Path to template file
-            context: Template context containing variables
-
-        Returns:
-            Rendered template content
-        """
         try:
             template = self.load_template(template_path)
 
-            # Convert context to dict for Jinja2
             context_dict = {
                 "project_name": context.project_name,
                 "current_date": context.current_date,
@@ -66,16 +46,7 @@ class InitTemplateLoader:
             raise
 
     def get_template_files(self, bundle_enabled: bool = False) -> List[str]:
-        """Get list of template files to process by auto-discovering all files.
-
-        Args:
-            bundle_enabled: Whether to include bundle-specific templates
-
-        Returns:
-            List of template file paths relative to the init template directory
-        """
         try:
-            # Get all files from the package resources
             package_files = files("lhp.templates.init")
             template_files = []
 
@@ -83,18 +54,14 @@ class InitTemplateLoader:
             excluded_dirs = {"__pycache__"}
 
             def collect_files(current_path, relative_path=""):
-                """Recursively collect all files, excluding certain directories."""
                 for item in current_path.iterdir():
                     if item.is_dir():
-                        # Skip excluded directories
                         if item.name in excluded_dirs:
                             continue
 
-                        # Skip bundle directory if bundle not enabled
                         if not bundle_enabled and item.name == "bundle":
                             continue
 
-                        # Recursively collect from subdirectory
                         subdir_path = (
                             f"{relative_path}/{item.name}"
                             if relative_path
@@ -102,7 +69,6 @@ class InitTemplateLoader:
                         )
                         collect_files(item, subdir_path)
                     elif item.is_file():
-                        # Add file to list
                         file_path = (
                             f"{relative_path}/{item.name}"
                             if relative_path
@@ -136,12 +102,10 @@ class InitTemplateLoader:
             return basic_files
 
     def _copy_latest_schemas(self, project_path: Path):
-        """Copy the latest schema files from lhp.schemas package to .vscode/schemas/."""
         try:
             schemas_dir = project_path / ".vscode" / "schemas"
             schemas_dir.mkdir(parents=True, exist_ok=True)
 
-            # Schema files to copy
             schema_files = {
                 "flowgroup.schema.json",
                 "template.schema.json",
@@ -150,7 +114,6 @@ class InitTemplateLoader:
                 "preset.schema.json",
             }
 
-            # Copy each schema file from lhp.schemas package
             package_files = files("lhp.schemas")
             copied_count = 0
 
@@ -173,23 +136,14 @@ class InitTemplateLoader:
             # Don't fail the entire init process for schema copy errors
 
     def create_project_files(self, project_path: Path, context: InitTemplateContext):
-        """Create all project files by rendering templates.
-
-        Args:
-            project_path: Path where project should be created
-            context: Template context containing variables
-        """
         self.logger.info(f"Creating project files at {project_path}")
 
-        # Get list of templates to process
         template_files = self.get_template_files(context.bundle_enabled)
 
         for template_file in template_files:
             try:
-                # Determine if this is a Jinja2 template or should be copied directly
                 is_jinja_template = template_file.endswith(".j2")
 
-                # Handle special case for .gitkeep (no rendering needed)
                 if template_file.endswith(".gitkeep"):
                     target_path = project_path / template_file.replace("bundle/", "")
                     target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -199,37 +153,29 @@ class InitTemplateLoader:
                     continue
 
                 if is_jinja_template:
-                    # Render Jinja2 template
                     rendered_content = self.render_template(template_file, context)
 
-                    # Determine target file path (remove .j2 extension and bundle/ prefix for bundle files)
                     target_file = template_file.replace(".j2", "")
                     if target_file.startswith("bundle/"):
                         target_file = target_file.replace("bundle/", "")
 
                     target_path = project_path / target_file
 
-                    # Create parent directories if needed
                     target_path.parent.mkdir(parents=True, exist_ok=True)
 
-                    # Write rendered content
                     target_path.write_text(rendered_content, encoding="utf-8")
                 else:
-                    # Copy file directly without rendering
                     package_files = files("lhp.templates.init")
                     source_file = package_files / template_file
 
-                    # Determine target file path (bundle/ prefix handling)
                     target_file = template_file
                     if target_file.startswith("bundle/"):
                         target_file = target_file.replace("bundle/", "")
 
                     target_path = project_path / target_file
 
-                    # Create parent directories if needed
                     target_path.parent.mkdir(parents=True, exist_ok=True)
 
-                    # Copy file content directly
                     content = source_file.read_text(encoding="utf-8")
                     target_path.write_text(content, encoding="utf-8")
 
@@ -243,7 +189,6 @@ class InitTemplateLoader:
                 )
                 raise
 
-        # Copy latest schemas to .vscode/schemas/
         self._copy_latest_schemas(project_path)
 
         self.logger.info(

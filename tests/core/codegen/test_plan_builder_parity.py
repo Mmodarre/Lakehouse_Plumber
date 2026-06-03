@@ -8,10 +8,10 @@ the formatted tree back, and returns an in-memory
 load-bearing invariant: **the in-memory plan equals a real generate's on-disk
 output, byte for byte, across every artifact kind.**
 
-Strategy (the one the task prescribes): build one project that exercises ALL
-five artifact kinds, run a REAL generate to a temp ``generated/<env>`` via the
-public facade, then run ``build_generation_plan`` over the same orchestrator and
-inputs. The two ``{relative_path: content}`` maps must be IDENTICAL.
+Strategy: build one project that exercises ALL five artifact kinds, run a REAL
+generate to a temp ``generated/<env>`` via the public facade, then run
+``build_generation_plan`` over the same orchestrator and inputs. The two
+``{relative_path: content}`` maps must be IDENTICAL.
 
 The fixture produces every ``PlannedArtifact`` kind:
 
@@ -207,15 +207,9 @@ class TestBuildGenerationPlanParity:
     """The in-memory plan == a real generate's disk output, byte for byte."""
 
     def test_plan_matches_real_generate_byte_for_byte(self, all_kinds_project):
-        """Run a REAL generate to disk, then ``build_generation_plan`` over the
-        same orchestrator/inputs; the two ``{path: content}`` maps must match
-        exactly — across flowgroup, aux, helper, test_hook, and monitoring
-        artifacts.
-        """
         facade, project_root, pipeline_fields = all_kinds_project
         output_dir = project_root / "generated" / "dev"
 
-        # The real generate, through the public facade (writes + formats).
         collect_response(
             facade.generation.generate_pipelines(
                 pipeline_fields=pipeline_fields,
@@ -226,7 +220,6 @@ class TestBuildGenerationPlanParity:
         )
         real = _disk_tree(output_dir)
 
-        # The in-memory plan, over the SAME orchestrator and inputs.
         plan = build_generation_plan(
             facade._orchestrator,
             env="dev",
@@ -235,14 +228,12 @@ class TestBuildGenerationPlanParity:
         )
         plan_map = {str(a.path): a.content for a in plan.artifacts}
 
-        # Same set of files, and identical content for every one of them.
         assert set(plan_map) == set(real), (
             f"file set diverged — only in plan: {sorted(set(plan_map) - set(real))}; "
             f"only on disk: {sorted(set(real) - set(plan_map))}"
         )
         mismatches = [p for p in real if plan_map[p] != real[p]]
         assert not mismatches, f"content diverged for: {mismatches}"
-        # The whole maps are equal (covers ordering-independent byte equality).
         assert plan_map == real
 
     def test_plan_covers_all_artifact_kinds(self, all_kinds_project):
@@ -266,7 +257,6 @@ class TestBuildGenerationPlanParity:
             "test_hook",
             "monitoring",
         }
-        # Spot-check the discriminating classifications.
         monitoring_pl = next(
             p for p in pipeline_fields if p.endswith("_event_log_monitoring")
         )
@@ -283,9 +273,7 @@ class TestBuildGenerationPlanParity:
         assert kind_by_path[f"{monitoring_pl}/jobs_stats_loader.py"] == "aux"
 
     def test_plan_streams_one_delta_per_pipeline_in_order(self, all_kinds_project):
-        """``on_pipeline_complete`` fires once per pipeline, in input order, as
-        the underlying delta-generator yields — the streaming wiring A2 reuses.
-        """
+        """``on_pipeline_complete`` fires once per pipeline, in input order, as the underlying delta-generator yields."""
         facade, _project_root, pipeline_fields = all_kinds_project
 
         seen: list[tuple[str, bool]] = []

@@ -1,8 +1,6 @@
 """E2E tests for LHP Python load action (B5.2).
 
-Covers the Python load source documented in
-``docs/actions/load_actions.rst:990-1090`` and unified in LHP v0.8.6 with the
-custom_datasource/custom_sink copy-and-import pattern (commit ``c1058c07``):
+Python load uses a copy-and-import pattern:
 
   - The user's ``.py`` module is **copied** into
     ``<output>/custom_python_functions/<leaf>.py`` next to the generated
@@ -12,12 +10,6 @@ custom_datasource/custom_sink copy-and-import pattern (commit ``c1058c07``):
   - The source view is emitted with ``@dp.temporary_view()`` (NOT
     ``@dp.table``) — Python load creates an in-memory view, not a persisted
     table.
-
-The fixture flowgroup and extractor module live under
-``tests/e2e/fixtures/testing_project/pipelines/15_python_load/``. The test
-verifies the generated pipeline ``.py`` matches the baseline AND the copied
-module ``custom_python_functions/api_extractor.py`` and its ``__init__.py``
-match their baselines.
 """
 
 import hashlib
@@ -33,11 +25,8 @@ from lhp.cli.main import cli
 
 @pytest.mark.e2e
 class TestLoadPythonE2E:
-    """E2E test for LHP Python load generation (v0.8.6 unified copy-and-import)."""
-
     @pytest.fixture(autouse=True)
     def setup_test_project(self, isolated_project):
-        """Create isolated copy of fixture project for each test."""
         fixture_path = Path(__file__).parent / "fixtures" / "testing_project"
         self.project_root = isolated_project / "test_project"
         shutil.copytree(fixture_path, self.project_root)
@@ -72,7 +61,6 @@ class TestLoadPythonE2E:
         self.resources_dir.mkdir(parents=True, exist_ok=True)
 
     def run_generate(self) -> tuple:
-        """Run 'lhp generate --env dev --force' (no --include-tests)."""
         runner = CliRunner()
         result = runner.invoke(
             cli,
@@ -126,7 +114,6 @@ class TestLoadPythonE2E:
             diff = self._compare_file_hashes(generated, baseline)
             assert diff == "", f"Baseline mismatch for {rel_path}: {diff}"
 
-        # Verify the pipeline resource YAML also matches its baseline.
         generated_resource = self.resources_dir / "15_python_load.pipeline.yml"
         assert generated_resource.exists(), (
             "15_python_load.pipeline.yml should be generated under resources/lhp/"

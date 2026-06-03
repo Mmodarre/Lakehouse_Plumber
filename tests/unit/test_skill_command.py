@@ -152,7 +152,6 @@ def test_update_replaces_files_and_updates_marker(
             encoding="utf-8"
         ).strip() == "1.0.0"
 
-        # User edits a file — update should overwrite it
         skill_md = _install_dir() / "SKILL.md"
         skill_md.write_text("user-modified", encoding="utf-8")
 
@@ -178,7 +177,6 @@ def test_update_downgrade_warns_requires_yes(
     with runner.isolated_filesystem():
         first = runner.invoke(cli, ["skill", "install"])
         assert first.exit_code == 0, first.output
-        # Now CLI version returns "1.0.0" but installed is "9.9.9"
 
         # Refuse the prompt
         aborted = runner.invoke(cli, ["skill", "update"], input="n\n")

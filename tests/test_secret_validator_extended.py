@@ -1,5 +1,3 @@
-"""Tests for secret validator."""
-
 import logging
 
 import pytest
@@ -9,8 +7,6 @@ from lhp.core.validators import SecretValidator
 
 
 class TestSecretValidator:
-    """Tests for SecretValidator validation methods."""
-
     def test_validate_scope_syntax_empty_scope(self):
         """Should return error message for empty scope name."""
         validator = SecretValidator()

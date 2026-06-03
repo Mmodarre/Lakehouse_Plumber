@@ -1,5 +1,3 @@
-"""Validator for job_name property in flowgroups."""
-
 import logging
 import re
 from typing import List
@@ -12,25 +10,15 @@ logger = logging.getLogger(__name__)
 
 
 def validate_job_name_format(job_name: str) -> bool:
-    """Validate that job_name contains only alphanumeric characters, underscores, and hyphens."""
     if not job_name:
         return False
 
-    # Pattern: alphanumeric + underscore + hyphen only
     pattern = r"^[a-zA-Z0-9_-]+$"
     return re.match(pattern, job_name) is not None
 
 
 def validate_job_names(flowgroups: List[FlowGroup]) -> None:
-    """
-    Validate job_name usage across all flowgroups.
-
-    Enforces "all or nothing" rule: if ANY flowgroup has job_name, ALL must have it.
-    Also validates job_name format for valid characters.
-
-    Raises:
-        LHPError: If validation fails (mixed job_name usage or invalid format)
-    """
+    """All-or-nothing: if ANY flowgroup has job_name, ALL must have it."""
     if not flowgroups:
         return
 

@@ -15,14 +15,12 @@ class TestSinkActionValidation:
     """Test sink write action validation."""
 
     def setup_method(self):
-        """Set up test fixtures."""
         self.action_registry = ActionRegistry()
         self.field_validator = ConfigFieldValidator()
         self.validator = WriteActionValidator(
             self.action_registry, self.field_validator
         )
 
-    # Delta Sink Validation
     def test_valid_delta_sink(self):
         """Test valid Delta sink configuration."""
         action = Action(
@@ -39,7 +37,6 @@ class TestSinkActionValidation:
 
         errors = self.validator.validate(action, "test_delta_sink")
 
-        # Should have no errors (or only warnings)
         assert len(errors) == 0
 
     def test_delta_sink_missing_options(self):
@@ -57,7 +54,6 @@ class TestSinkActionValidation:
 
         errors = self.validator.validate(action, "test_delta_sink")
 
-        # Should error about missing options
         assert any("options" in err.lower() for err in errors)
 
     def test_delta_sink_with_path(self):
@@ -134,10 +130,8 @@ class TestSinkActionValidation:
         )
 
         errors = self.validator.validate(action, "test_delta_sink")
-        # Should have no errors - extra options pass through
         assert len(errors) == 0
 
-    # Kafka Sink Validation
     def test_valid_kafka_sink(self):
         """Test valid Kafka sink configuration."""
         action = Action(
@@ -154,7 +148,6 @@ class TestSinkActionValidation:
         )
 
         errors = self.validator.validate(action, "test_kafka_sink")
-
         assert len(errors) == 0
 
     def test_kafka_sink_with_options(self):
@@ -177,7 +170,6 @@ class TestSinkActionValidation:
         )
 
         errors = self.validator.validate(action, "test_kafka_sink")
-
         assert len(errors) == 0
 
     def test_kafka_sink_missing_bootstrap_servers(self):
@@ -216,7 +208,6 @@ class TestSinkActionValidation:
 
         assert any("topic" in err.lower() for err in errors)
 
-    # Event Hubs Sink Validation (as Kafka)
     def test_valid_event_hubs_sink(self):
         """Test valid Event Hubs sink configuration."""
         action = Action(
@@ -240,10 +231,8 @@ class TestSinkActionValidation:
         )
 
         errors = self.validator.validate(action, "test_event_hubs_sink")
-
         assert len(errors) == 0
 
-    # Custom Sink Validation
     def test_valid_custom_sink(self):
         """Test valid custom sink configuration."""
         action = Action(
@@ -261,7 +250,6 @@ class TestSinkActionValidation:
         )
 
         errors = self.validator.validate(action, "test_custom_sink")
-
         assert len(errors) == 0
 
     def test_custom_sink_missing_module_path(self):
@@ -300,7 +288,6 @@ class TestSinkActionValidation:
 
         assert any("custom_sink_class" in err.lower() for err in errors)
 
-    # General Sink Validation
     def test_sink_missing_sink_type(self):
         """Test sink without sink_type."""
         action = Action(
@@ -382,7 +369,6 @@ class TestSinkActionValidation:
 
         errors = self.validator.validate(action, "test_sink")
 
-        # Should accept list of sources
         # May have an error about options but not about source format
         assert not any(
             "source must be a string or list" in err.lower() for err in errors
@@ -424,8 +410,6 @@ class TestSinkActionValidation:
         )
 
         errors = self.validator.validate(action, "test_kafka_sink")
-
-        # Should catch the unprefixed option
         assert len(errors) > 0
 
     def test_sink_missing_sink_type_early_return(self):
@@ -436,16 +420,14 @@ class TestSinkActionValidation:
             source="v_input_data",
             write_target={
                 "type": "sink",
-                # Missing sink_type - should return early
                 "sink_name": "test_sink",
             },
         )
 
         errors = self.validator.validate(action, "test_sink")
 
-        # Should have error about sink_type but NOT sink_name (early return)
-        assert any("sink_type" in err.lower() for err in errors)
         # sink_name error should not be present due to early return
+        assert any("sink_type" in err.lower() for err in errors)
         assert not any("sink_name" in err.lower() for err in errors)
 
     def test_sink_missing_sink_name_with_sink_type(self):
@@ -457,14 +439,12 @@ class TestSinkActionValidation:
             write_target={
                 "type": "sink",
                 "sink_type": "delta",
-                # Missing sink_name
                 "options": {"tableName": "catalog.schema.table"},
             },
         )
 
         errors = self.validator.validate(action, "test_sink")
 
-        # Should have error about sink_name
         assert any("sink_name" in err.lower() for err in errors)
 
     def test_kafka_sink_validator_exception_handling(self):
@@ -488,9 +468,7 @@ class TestSinkActionValidation:
 
         errors = self.validator.validate(action, "test_kafka_sink")
 
-        # Should catch validator exception and add to errors
         assert len(errors) > 0
-        # Error should be from validator
         assert any(
             "oauth" in err.lower() or "required" in err.lower() for err in errors
         )
@@ -514,7 +492,6 @@ class TestSinkActionValidation:
 
         errors = validate_delta_sink(action, "test_delta_sink")
 
-        # Should have error about both being present
         assert any("cannot have both" in err.lower() for err in errors)
 
     def test_delta_sink_neither_tablename_nor_path_error(self):
@@ -533,16 +510,13 @@ class TestSinkActionValidation:
 
         errors = validate_delta_sink(action, "test_delta_sink")
 
-        # Should have error about missing both tableName and path
         assert len(errors) > 0
-        # Error message mentions both tableName and path
         assert any(
             "tablename" in err.lower() or "path" in err.lower() for err in errors
         )
 
     def test_validate_sink_error_paths(self):
         """Test error paths in the validate_sink free function."""
-        # Test missing sink_type (early return)
         action = Action(
             name="test_sink",
             type=ActionType.WRITE,
@@ -554,7 +528,6 @@ class TestSinkActionValidation:
         assert len(errors) == 1
         assert "sink_type" in errors[0].lower()
 
-        # Test missing sink_name (continues after sink_type check)
         action = Action(
             name="test_sink",
             type=ActionType.WRITE,
@@ -569,7 +542,6 @@ class TestSinkActionValidation:
         errors = validate_sink(action, "test_sink")
         assert any("sink_name" in err.lower() for err in errors)
 
-        # Test missing source
         action = Action(
             name="test_sink",
             type=ActionType.WRITE,
@@ -584,7 +556,6 @@ class TestSinkActionValidation:
         errors = validate_sink(action, "test_sink")
         assert any("source" in err.lower() for err in errors)
 
-        # Test invalid source type
         action = Action(
             name="test_sink",
             type=ActionType.WRITE,

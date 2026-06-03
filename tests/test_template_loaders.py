@@ -27,8 +27,7 @@ def test_get_lhp_template_loader_raises_template_not_found_for_missing() -> None
 
 
 def test_template_renderer_from_package_resolves_bundle_template() -> None:
-    """TemplateRenderer.from_package() wires the package loader so real
-    templates under lhp/templates/ resolve."""
+    """TemplateRenderer.from_package() wires the package loader so real templates resolve."""
     renderer = TemplateRenderer.from_package()
     template = renderer.env.get_template("bundle/pipeline_resource.yml.j2")
     assert template is not None
@@ -56,6 +55,5 @@ def test_base_generator_subclass_can_render() -> None:
             return ""
 
     gen = _ConcreteGen()
-    # cloudfiles.py.j2 is one of the standard load action templates.
     template = gen.env.get_template("load/cloudfiles.py.j2")
     assert template is not None

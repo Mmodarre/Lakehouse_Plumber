@@ -1,5 +1,3 @@
-"""Validator for CDC configuration parameters."""
-
 import logging
 from typing import Any, Dict, List
 
@@ -45,7 +43,7 @@ class CdcConfigValidator:
             errors.append(f"{prefix}: cdc_config must have 'keys'")
         elif not isinstance(keys, list):
             errors.append(f"{prefix}: 'keys' must be a list")
-        elif not keys:  # Empty list
+        elif not keys:
             errors.append(f"{prefix}: 'keys' cannot be empty")
         else:
             for i, key in enumerate(keys):
@@ -64,7 +62,7 @@ class CdcConfigValidator:
             if isinstance(sequence_by, str):
                 pass
             elif isinstance(sequence_by, list):
-                if not sequence_by:  # Empty list
+                if not sequence_by:
                     errors.append(f"{prefix}: 'sequence_by' list cannot be empty")
                 else:
                     for i, col in enumerate(sequence_by):

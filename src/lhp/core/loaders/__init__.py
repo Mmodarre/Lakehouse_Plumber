@@ -1,14 +1,4 @@
-"""Config-loader services for LHP.
-
-Public re-exports:
-- PipelineConfigLoader  loads pipeline-config.yml files
-- ProjectConfigLoader   loads lhp.yaml + .lhp.local.yaml (project root)
-- JobConfigLoader       loads orchestration-job config YAML (multi-doc)
-- InitTemplateLoader    discovers / instantiates init templates
-- InitTemplateContext   DTO for init-template rendering context
-- External-file helpers (resolve_external_file_path, load_external_file_text, is_file_path)
-- enforce_version_requirements   project required_lhp_version check
-"""
+"""Config-loader services for LHP."""
 
 from .external_file_loader import (
     is_file_path,

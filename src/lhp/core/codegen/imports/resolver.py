@@ -36,12 +36,12 @@ def detect_submodule_conflicts(
 ) -> None:
     """Populate ``parent_child_conflicts`` with parent/child wildcard collisions.
 
-    For each wildcard module, check whether any other module is its prefix
-    *and* that prefix's import statement binds the child segment as an alias.
-    When both are true, record the conflict so the caller can drop the parent
+    For each wildcard module, checks whether any other module is its prefix
+    and that prefix's import statement binds the child segment as an alias.
+    When both are true, records the conflict so the caller can drop the parent
     import in favour of the child wildcard.
 
-    Mutates ``parent_child_conflicts`` in place; returns ``None``.
+    Mutates ``parent_child_conflicts`` in place.
     """
     for wildcard_module in wildcard_modules:
         wildcard_parts = wildcard_module.split(".")

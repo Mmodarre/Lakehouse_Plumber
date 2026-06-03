@@ -62,7 +62,6 @@ class TestSchemaParsePerf:
 
         for name in names:
             result = generator._load_schema_file(name, tmp_path)
-            # Output neutrality sanity check: parsing still works as before.
             assert result["column_mapping"] == {
                 "c_custkey": "customer_id",
                 "c_name": "customer_name",

@@ -28,12 +28,7 @@ DEFAULT_INSTANCE_PATTERNS = ["pipelines/**/*.yaml", "pipelines/**/*.yml"]
 
 
 class BlueprintDiscoverer:
-    """Discovers blueprint and instance YAML files according to project config patterns.
-
-    Returns:
-        - `discover_blueprints`: dict[blueprint_name, (Blueprint, blueprint_path)]
-        - `discover_instances`: list[(BlueprintInstance, instance_path)]
-    """
+    """Discovers blueprint and instance YAML files according to project config patterns."""
 
     def __init__(
         self,
@@ -131,13 +126,6 @@ class BlueprintDiscoverer:
         instance only if `BlueprintParser.looks_like_instance()` returns True;
         all other files (regular flowgroups, blueprint definitions, etc.) are
         skipped here and handled by their respective discoverers.
-
-        Args:
-            blueprints: Output of `discover_blueprints()`. Used by the parser
-                to validate `use_blueprint:` references and parameter names.
-
-        Returns:
-            List of (BlueprintInstance, instance_path).
         """
         with perf_timer(
             "discover_instances [discoverer]",

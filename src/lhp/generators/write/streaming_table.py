@@ -25,15 +25,12 @@ logger = logging.getLogger(__name__)
 
 
 class StreamingTableWriteGenerator(BaseActionGenerator):
-    """Generate streaming table write actions."""
-
     def __init__(self):
         super().__init__()
         self.add_import("from pyspark import pipelines as dp")
         self.schema_parser = SchemaParser()
 
     def generate(self, action: Action, context: dict) -> str:
-        """Generate streaming table code."""
         target_config = action.write_target
         if not target_config:
             raise ErrorFactory.missing_required_field(
@@ -53,13 +50,9 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             )
         logger.debug(f"Generating streaming table write for action '{action.name}'")
 
-        # Extract source views as a list
         source_views = self._extract_source_views(action.source)
-
-        # Get readMode from action or default to stream
         readMode = action.readMode or "stream"
 
-        # Extract configuration
         mode = target_config.get(
             "mode", "standard"
         )  # Valid modes: "standard" (default), "cdc", "snapshot_cdc"
@@ -79,51 +72,35 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             f"Streaming table '{action.name}': target='{full_table_name}', mode='{mode}', readMode='{readMode}', sources={source_views}"
         )
 
-        # Table properties
         properties = {}
         if target_config.get("table_properties"):
             properties.update(target_config["table_properties"])
-
-        # Spark configuration
         spark_conf = target_config.get("spark_conf", {})
-
-        # Schema definition (SQL DDL string or StructType)
         schema_value = target_config.get("table_schema")
         schema = None
 
         if schema_value:
-            # Check if it's a file path
             if is_file_path(schema_value):
-                # Load from external file
                 project_root = context.get("project_root", Path.cwd())
                 file_ext = Path(schema_value).suffix.lower()
 
                 if file_ext in [".yaml", ".yml", ".json"]:
-                    # YAML/JSON schema - parse and convert to DDL
                     resolved_path = resolve_external_file_path(
                         schema_value, project_root, file_type="table schema file"
                     )
                     schema_data = self.schema_parser.parse_schema_file(resolved_path)
                     schema = self.schema_parser.to_schema_hints(schema_data)
                 else:
-                    # DDL/SQL file - load as plain text
                     schema = load_external_file_text(
                         schema_value, project_root, file_type="table schema file"
                     ).strip()
             else:
-                # Inline DDL
                 schema = schema_value
 
-        # Row filter clause
         row_filter = target_config.get("row_filter")
-
-        # Temporary table flag
         temporary = target_config.get("temporary", False)
-
-        # Handle CDC configuration for auto_cdc mode
         cdc_config = target_config.get("cdc_config", {}) if mode == "cdc" else {}
 
-        # Check if we need struct import for sequence_by
         if (
             mode == "cdc"
             and cdc_config.get("sequence_by")
@@ -131,7 +108,6 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         ):
             self.add_import("from pyspark.sql.functions import struct")
 
-        # Handle snapshot CDC configuration for snapshot_cdc mode
         snapshot_cdc_config = (
             target_config.get("snapshot_cdc_config", {})
             if mode == "snapshot_cdc"
@@ -160,7 +136,6 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             self.add_pre_pipeline_statement(f"{alias}.dbutils = dbutils")
             source_expression = self._build_source_expression(result, alias)
 
-        # Process data quality expectations
         expectations = context.get("expectations", [])
         expect_all = {}
         expect_all_or_drop = {}
@@ -177,19 +152,15 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         metadata_columns = {}
         flowgroup = context.get("flowgroup")
 
-        # Per-flow CDC config for the single-action path (empty for non-CDC).
         flow_cdc_config = self._build_flow_cdc_config(mode, cdc_config)
 
-        # Check if this is a combined action with individual metadata
         if hasattr(action, "_action_metadata") and action._action_metadata:
-            # Use new action metadata structure for individual append flows
             action_metadata = action._action_metadata
             flow_name = action_metadata[0][
                 "flow_name"
             ]  # Use first flow name for template compatibility
             flow_names = [meta["flow_name"] for meta in action_metadata]
         elif hasattr(action, "_flow_names") and action._flow_names:
-            # Legacy combined actions - convert to new structure
             flow_names = action._flow_names
             flow_name = flow_names[0]
             action_metadata = []
@@ -200,7 +171,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
                     {
                         "action_name": f"{action.name}_{i + 1}",
                         "source_view": source_view,
-                        "once": action.once or False,  # Legacy: same once flag for all
+                        "once": action.once or False,
                         "flow_name": flow_name_item,
                         "description": action.description
                         or f"Append flow to {full_table_name}",
@@ -208,10 +179,9 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
                     }
                 )
         else:
-            # Single action - create metadata structure for each source view
             base_flow_name = action.name.replace("-", "_").replace(" ", "_")
             if base_flow_name.startswith("write_"):
-                base_flow_name = base_flow_name[6:]  # Remove "write_" prefix
+                base_flow_name = base_flow_name[6:]
             base_flow_name = (
                 f"f_{base_flow_name}"
                 if not base_flow_name.startswith("f_")
@@ -222,7 +192,6 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             flow_names = []
 
             if len(source_views) > 1:
-                # Multiple sources: create separate append flow for each
                 for i, source_view in enumerate(source_views):
                     flow_name = f"{base_flow_name}_{i + 1}"
                     action_metadata.append(
@@ -230,7 +199,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
                             "action_name": f"{action.name}_{i + 1}",
                             "source_view": source_view,
                             "once": action.once or False,
-                            "readMode": action.readMode,  # Preserve readMode
+                            "readMode": action.readMode,
                             "flow_name": flow_name,
                             "description": action.description
                             or f"Append flow to {full_table_name} from {source_view}",
@@ -239,14 +208,13 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
                     )
                     flow_names.append(flow_name)
             else:
-                # Single source: create one append flow
                 flow_name = base_flow_name
                 action_metadata.append(
                     {
                         "action_name": action.name,
                         "source_view": source_views[0] if source_views else "",
                         "once": action.once or False,
-                        "readMode": action.readMode,  # Preserve readMode
+                        "readMode": action.readMode,
                         "flow_name": flow_name,
                         "description": action.description
                         or f"Append flow to {full_table_name}",
@@ -255,20 +223,19 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
                 )
                 flow_names.append(flow_name)
 
-            # Set flow_name for backward compatibility (use first flow name)
             flow_name = flow_names[0] if flow_names else base_flow_name
 
         template_context = {
             "action_name": action.name,
-            "table_name": table.replace(".", "_"),  # Function name safe
+            "table_name": table.replace(".", "_"),
             "full_table_name": full_table_name,
-            "source_views": source_views,  # Keep for backward compatibility
+            "source_views": source_views,
             "source_view": (
                 source_views[0] if source_views and mode == "cdc" else None
             ),  # CDC only supports single source
-            "flow_name": flow_name,  # Keep for backward compatibility
+            "flow_name": flow_name,
             "mode": mode,
-            "create_table": create_table,  # Pass create_table flag to template
+            "create_table": create_table,
             "properties": properties,
             "spark_conf": spark_conf,
             "schema": schema,
@@ -288,8 +255,8 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             "metadata_columns": metadata_columns,
             "flowgroup": flowgroup,
             "description": action.description or f"Append flow to {full_table_name}",
-            "once": action.once or False,  # Keep for backward compatibility
-            "action_metadata": action_metadata,  # New: individual action metadata
+            "once": action.once or False,
+            "action_metadata": action_metadata,
             "readMode": readMode,
         }
 
@@ -314,7 +281,6 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         }
 
     def _extract_source_views(self, source) -> List[str]:
-        """Extract source views as a list from action source."""
         if isinstance(source, str):
             return [source]
         if isinstance(source, list):

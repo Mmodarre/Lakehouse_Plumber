@@ -22,9 +22,7 @@ class WriteTarget(BaseModel):
     )
     database: Optional[str] = None  # REMOVE_AT_V1.0.0: deprecated, use catalog + schema
     table: Optional[str] = None
-    create_table: bool = (
-        True  # Default to True - optional, only set to False when needed
-    )
+    create_table: bool = True
     comment: Optional[str] = None
     table_properties: Optional[Dict[str, Any]] = None
     partition_columns: Optional[List[str]] = None
@@ -52,15 +50,10 @@ class WriteTarget(BaseModel):
     custom_sink_class: Optional[str] = None
 
     # ForEachBatch sink fields
-    batch_handler: Optional[str] = None  # Inline batch handler code
+    batch_handler: Optional[str] = None
 
     # Common sink options
     options: Optional[Dict[str, Any]] = None
-
-    # NOTE: schema field now represents UC namespace, not DDL. Use table_schema for DDL.
-    # The legacy schema→table_schema property was removed in v0.7.8.
-    # The namespace_normalizer handles redirecting schema→table_schema when
-    # schema appears alongside database (DDL collision case).
 
 
 class Action(BaseModel):
@@ -75,16 +68,12 @@ class Action(BaseModel):
         None,
         description="Read mode: 'batch' or 'stream'. Controls spark.read vs spark.readStream",
     )
-    # Write-specific target configuration
     write_target: Optional[Union[WriteTarget, Dict[str, Any]]] = None
-    # Action-specific configurations
     transform_type: Optional[TransformType] = None
     sql: Optional[str] = None
     sql_path: Optional[str] = None
-    operational_metadata: Optional[Union[bool, List[str]]] = (
-        None  # Simplified: bool or list of column names
-    )
-    expectations_file: Optional[str] = None  # For data quality transforms
+    operational_metadata: Optional[Union[bool, List[str]]] = None
+    expectations_file: Optional[str] = None
     mode: Optional[str] = Field(
         None,
         description="Data quality mode: 'dqe' (default) or 'quarantine' (DLQ recycling)",
@@ -97,36 +86,36 @@ class Action(BaseModel):
     schema_inline: Optional[str] = (
         None  # Inline schema definition (arrow or YAML format)
     )
-    schema_file: Optional[str] = None  # External schema file path
+    schema_file: Optional[str] = None
     enforcement: Optional[str] = None  # Schema enforcement mode: strict or permissive
     # Python transform specific fields
     module_path: Optional[str] = (
         None  # Path to Python module (relative to project root)
     )
-    function_name: Optional[str] = None  # Python function name to call
-    parameters: Optional[Dict[str, Any]] = None  # Parameters passed to Python function
+    function_name: Optional[str] = None
+    parameters: Optional[Dict[str, Any]] = None
     # Custom data source specific fields
-    custom_datasource_class: Optional[str] = None  # Custom DataSource class name
+    custom_datasource_class: Optional[str] = None
     # Write action specific
-    once: Optional[bool] = None  # For one-time flows/backfills
+    once: Optional[bool] = None
     # Test action specific fields
-    test_type: Optional[str] = None  # Test type (row_count, uniqueness, etc.)
-    on_violation: Optional[str] = None  # Action on violation (fail, warn)
-    tolerance: Optional[int] = None  # Tolerance for row_count tests
-    columns: Optional[List[str]] = None  # Columns for uniqueness/completeness tests
+    test_type: Optional[str] = None
+    on_violation: Optional[str] = None
+    tolerance: Optional[int] = None
+    columns: Optional[List[str]] = None
     filter: Optional[str] = None  # Optional WHERE clause filter for uniqueness tests
-    reference: Optional[str] = None  # Reference table for referential integrity
-    source_columns: Optional[List[str]] = None  # Source columns for joins
-    reference_columns: Optional[List[str]] = None  # Reference columns for joins
-    required_columns: Optional[List[str]] = None  # Required columns for completeness
-    column: Optional[str] = None  # Column for range tests
-    min_value: Optional[Any] = None  # Min value for range tests
-    max_value: Optional[Any] = None  # Max value for range tests
+    reference: Optional[str] = None
+    source_columns: Optional[List[str]] = None
+    reference_columns: Optional[List[str]] = None
+    required_columns: Optional[List[str]] = None
+    column: Optional[str] = None
+    min_value: Optional[Any] = None
+    max_value: Optional[Any] = None
     lookup_table: Optional[str] = None  # Lookup table for ALL_LOOKUPS_FOUND
-    lookup_columns: Optional[List[str]] = None  # Lookup columns
-    lookup_result_columns: Optional[List[str]] = None  # Expected result columns
-    expectations: Optional[List[Dict[str, Any]]] = None  # Custom expectations
-    test_id: Optional[str] = None  # External test management ID for reporting
+    lookup_columns: Optional[List[str]] = None
+    lookup_result_columns: Optional[List[str]] = None
+    expectations: Optional[List[Dict[str, Any]]] = None
+    test_id: Optional[str] = None
 
     @property
     def resolved_test_target(self) -> str:
@@ -134,7 +123,7 @@ class Action(BaseModel):
         return self.target or f"tmp_test_{self.name}"
 
     def model_post_init(self, __context: Any) -> None:
-        """Post-initialization processing - normalize all path fields for cross-platform compatibility."""
+        """Normalize path fields for cross-platform compatibility."""
         path_fields = ["module_path", "sql_path", "expectations_file", "schema_file"]
 
         for field in path_fields:

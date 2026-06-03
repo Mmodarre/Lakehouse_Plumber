@@ -1,5 +1,3 @@
-"""Validator for CDC schema requirements."""
-
 from typing import List
 
 from lhp.models import Action

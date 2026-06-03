@@ -1,5 +1,3 @@
-"""Base validator class for action validation."""
-
 import logging
 from abc import ABC, abstractmethod
 from typing import List, Union
@@ -15,12 +13,10 @@ ValidationError = Union[str, LHPError]
 
 
 class BaseActionValidator(ABC):
-    """Base class for action validators."""
-
     def __init__(self, action_registry, field_validator):
         self.action_registry = action_registry
         self.field_validator = field_validator
 
     @abstractmethod
     def validate(self, action: Action, prefix: str) -> List[ValidationError]:
-        """Validate an action and return list of error messages."""
+        pass

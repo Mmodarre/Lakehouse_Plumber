@@ -5,8 +5,6 @@
 # not refactored in the architecture-residual-cleanup change. Remove this block
 # once the presenter extraction lands and the file drops back under 500 lines.
 
-# TODO(Phase 9.2): redistribute version-resolution helpers to cli/_version.py after presenter extraction lands
-
 import logging
 
 import rich_click as click
@@ -27,7 +25,6 @@ except ImportError:
 
 
 def get_version():
-    """Get the package version dynamically from package metadata."""
     try:
         return version("lakehouse-plumber")
     except Exception:

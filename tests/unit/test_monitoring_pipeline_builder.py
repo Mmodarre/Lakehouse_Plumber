@@ -41,7 +41,6 @@ def _make_project_config(
     monitoring_mvs=None,
     monitoring_enable_job_monitoring=False,
 ):
-    """Helper to build a ProjectConfig with event_log and monitoring."""
     event_log = EventLogConfig(
         enabled=event_log_enabled,
         catalog=event_log_catalog,
@@ -291,7 +290,6 @@ class TestBuild:
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
         result = builder.build(["bronze"])
 
-        # 2 custom MVs only
         assert len(result.flowgroup.actions) == 2
         assert result.flowgroup.actions[0].write_target["table"] == "summary"
         assert result.flowgroup.actions[0].write_target["sql"] == "SELECT 1"
@@ -318,7 +316,6 @@ class TestBuild:
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
         result = builder.build(["bronze"])
 
-        # MV action should use overridden catalog/schema
         mv = result.flowgroup.actions[0]
         assert mv.write_target["catalog"] == "override_cat"
         assert mv.write_target["schema"] == "_analytics"
@@ -556,7 +553,6 @@ class TestJobMonitoring:
         result = builder.build(["bronze"])
         fg = result.flowgroup
 
-        # Jobs stats write action (index 1)
         jobs_stats_write = fg.actions[1]
         assert jobs_stats_write.type == ActionType.WRITE
         assert jobs_stats_write.write_target["type"] == "materialized_view"
@@ -580,7 +576,6 @@ class TestJobMonitoring:
         content = aux[JOBS_STATS_MODULE_PATH]
         assert "def get_jobs_stats" in content
         assert "WorkspaceClient" in content
-        # Verify it matches the package resource file
         from importlib.resources import files
 
         expected = (

@@ -1,9 +1,4 @@
-"""Operational metadata core: the ``OperationalMetadataCatalog`` class.
-
-Owns the catalog of built-in metadata columns, the merge of preset / flowgroup
-/ action selections, the substitution context, column resolution, and the SQL
-expression adaptation for wildcard-import-aware codegen.
-"""
+"""Operational metadata core: the ``OperationalMetadataCatalog`` class."""
 
 import logging
 import re
@@ -23,8 +18,6 @@ logger = logging.getLogger(__name__)
 
 
 class OperationalMetadataCatalog:
-    """Enhanced operational metadata handler with project-level configuration and ImportManager integration."""
-
     def __init__(
         self, project_config: Optional[ProjectOperationalMetadataConfig] = None
     ):
@@ -32,37 +25,34 @@ class OperationalMetadataCatalog:
         self.import_detector = ImportDetector(strategy="ast")
         self.project_config = project_config
 
-        # Default metadata columns with adaptive expressions
-        # These will be dynamically adjusted based on available imports
         self.default_columns = {
             "_ingestion_timestamp": MetadataColumnConfig(
-                expression="F.current_timestamp()",  # Default format
+                expression="F.current_timestamp()",
                 description="When the record was ingested",
                 applies_to=["streaming_table", "materialized_view", "view"],
             ),
             "_source_file": MetadataColumnConfig(
-                expression="F.input_file_name()",  # Default format
+                expression="F.input_file_name()",
                 description="Source file path",
                 applies_to=["view"],  # Only views (load actions)
             ),
             "_pipeline_run_id": MetadataColumnConfig(
-                expression='F.lit(spark.conf.get("pipelines.id", "unknown"))',  # Default format
+                expression='F.lit(spark.conf.get("pipelines.id", "unknown"))',
                 description="Pipeline run identifier",
                 applies_to=["streaming_table", "materialized_view", "view"],
             ),
             "_pipeline_name": MetadataColumnConfig(
-                expression='F.lit("${pipeline_name}")',  # Default format
+                expression='F.lit("${pipeline_name}")',
                 description="Pipeline name",
                 applies_to=["streaming_table", "materialized_view", "view"],
             ),
             "_flowgroup_name": MetadataColumnConfig(
-                expression='F.lit("${flowgroup_name}")',  # Default format
+                expression='F.lit("${flowgroup_name}")',
                 description="FlowGroup name",
                 applies_to=["streaming_table", "materialized_view", "view"],
             ),
         }
 
-        # Alternative expressions for when wildcard imports are available
         self.wildcard_expressions = {
             "_ingestion_timestamp": "current_timestamp()",
             "_source_file": "input_file_name()",
@@ -71,23 +61,15 @@ class OperationalMetadataCatalog:
             "_flowgroup_name": 'lit("${flowgroup_name}")',
         }
 
-        # Context for substitutions
         self.pipeline_name = None
         self.flowgroup_name = None
 
     def update_context(self, pipeline_name: str, flowgroup_name: str):
-        """Update context for substitutions."""
         self.pipeline_name = pipeline_name
         self.flowgroup_name = flowgroup_name
 
     def adapt_expressions_for_imports(self, import_manager=None) -> None:
-        """Adapt expressions based on available imports from ImportManager.
-
-        If wildcard imports are available, use direct function calls; otherwise
-        keep the F. prefix format. Applies to both default columns and
-        project-level custom columns (local copies, no mutation of shared
-        project config).
-        """
+        """Applies to project-level custom columns via local copies — does not mutate shared project config."""
         if not import_manager:
             return
 
@@ -139,9 +121,7 @@ class OperationalMetadataCatalog:
                     self._adapted_project_columns[column_name] = column_config
 
     def _adapt_expression_for_wildcard(self, expression: str) -> str:
-        """Adapt a single expression to use direct function calls when wildcard imports are available.
-
-        Examples: ``F.current_timestamp()`` → ``current_timestamp()``,
+        """Examples: ``F.current_timestamp()`` → ``current_timestamp()``,
         ``F.col('name')`` → ``col('name')``, ``F.lit('value')`` → ``lit('value')``.
         """
         adaptations = {
@@ -206,7 +186,6 @@ class OperationalMetadataCatalog:
         ):
             return None
 
-        # Additive collection from all three levels
         result = {}
         if "operational_metadata" in preset_config:
             result["preset"] = preset_config["operational_metadata"]
@@ -307,11 +286,8 @@ class OperationalMetadataCatalog:
         return self.default_columns
 
     def _extract_column_names(self, selection, context: str = "metadata") -> List[str]:
-        """Extract column names from selection (a list of strings).
-
-        ``context="metadata"`` is lenient (logs and drops unknown columns);
-        any other context is strict and raises ``LHPError``. Returns the
-        column names in the order they appear in ``selection``.
+        """``context="metadata"`` is lenient (logs and drops unknown columns);
+        any other context is strict and raises ``LHPError``.
         """
         if not isinstance(selection, list):
             return []
@@ -364,11 +340,7 @@ class OperationalMetadataCatalog:
         return expression
 
     def get_required_imports(self, columns: Dict[str, str]) -> Set[str]:
-        """Get the union of imports required by selected columns.
-
-        ``columns`` is a dict of column_name -> expression as returned from
-        ``get_selected_columns``.
-        """
+        """``columns`` is a dict of column_name -> expression as returned from ``get_selected_columns``."""
         if not columns:
             return set()
 

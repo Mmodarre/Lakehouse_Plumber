@@ -1,9 +1,8 @@
 """Isolated unit tests for :class:`OperationalMetadataService`.
 
 Covers ``get_metadata_and_imports`` and ``get_all_metadata_column_names`` in
-``lhp/core/codegen/operational_metadata/service.py``. Per LOCAL/TEST_AUDIT.md
-(P0-3) this orchestration class was never imported by name in any test; it was
-only reached transitively through full pipeline generation. It is the sole
+``lhp/core/codegen/operational_metadata/service.py``. This orchestration class
+was only reached transitively through full pipeline generation. It is the sole
 caller that wires ``adapt_expressions_for_imports`` into the catalog, so its
 contract is asserted here directly.
 
@@ -56,11 +55,6 @@ def _f_prefix_manager() -> ImportManager:
     return im
 
 
-# ---------------------------------------------------------------------------
-# get_metadata_and_imports — return-tuple contract
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.unit
 def test_returns_three_tuple_of_bool_dict_list():
     """Contract: (add_metadata: bool, columns: dict, imports: list)."""
@@ -85,8 +79,6 @@ def test_returns_three_tuple_of_bool_dict_list():
 
 @pytest.mark.unit
 def test_add_metadata_true_when_columns_selected():
-    """add_metadata is True and columns are populated when a valid column is
-    selected."""
     service = OperationalMetadataService()
 
     add_metadata, columns, _ = service.get_metadata_and_imports(
@@ -122,11 +114,6 @@ def test_add_metadata_false_when_no_columns_selected():
     assert imports == []
 
 
-# ---------------------------------------------------------------------------
-# adapt_* is invoked when an import_manager is present
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.unit
 def test_wildcard_import_manager_drives_expression_adaptation():
     """Behavioral evidence that adapt_expressions_for_imports ran: with a
@@ -151,8 +138,6 @@ def test_wildcard_import_manager_drives_expression_adaptation():
 
 @pytest.mark.unit
 def test_f_prefix_import_manager_keeps_prefixed_expression():
-    """Without a wildcard (F-prefix import manager) the expression keeps the
-    F. prefix and the ``functions as F`` import is required."""
     service = OperationalMetadataService()
 
     _, columns, imports = service.get_metadata_and_imports(
@@ -189,7 +174,6 @@ def test_adapt_expressions_called_exactly_when_import_manager_present(
     service = OperationalMetadataService()
     im = _f_prefix_manager()
 
-    # With an import_manager -> called once, with that manager.
     service.get_metadata_and_imports(
         _action(),
         _flowgroup_selecting("_ingestion_timestamp"),
@@ -200,7 +184,6 @@ def test_adapt_expressions_called_exactly_when_import_manager_present(
     )
     assert calls == [im]
 
-    # Without an import_manager -> not called again.
     calls.clear()
     service.get_metadata_and_imports(
         _action(),
@@ -211,11 +194,6 @@ def test_adapt_expressions_called_exactly_when_import_manager_present(
         import_manager=None,
     )
     assert calls == []
-
-
-# ---------------------------------------------------------------------------
-# None project_config guard
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
@@ -238,11 +216,6 @@ def test_none_project_config_uses_defaults_without_crashing():
     assert isinstance(imports, list)
 
 
-# ---------------------------------------------------------------------------
-# get_all_metadata_column_names
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.unit
 def test_get_all_metadata_column_names_returns_builtin_defaults():
     """With no project config, the column-name set is exactly the five built-in
@@ -262,7 +235,6 @@ def test_get_all_metadata_column_names_returns_builtin_defaults():
 
 @pytest.mark.unit
 def test_get_all_metadata_column_names_unions_project_columns():
-    """Project-defined column names are unioned with the built-in defaults."""
     from lhp.models import (
         MetadataColumnConfig,
         ProjectOperationalMetadataConfig,
@@ -283,5 +255,4 @@ def test_get_all_metadata_column_names_unions_project_columns():
     names = service.get_all_metadata_column_names(proj)
 
     assert "_custom" in names
-    # Built-in defaults are still present in the union.
     assert {"_ingestion_timestamp", "_pipeline_name"} <= names

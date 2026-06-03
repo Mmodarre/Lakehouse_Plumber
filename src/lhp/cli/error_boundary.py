@@ -14,15 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def cli_error_boundary(operation: str) -> Callable:
-    """Decorator that provides consistent error handling for CLI commands.
-
-    Catches exceptions and displays user-friendly error messages with
-    appropriate POSIX exit codes.
-
-    Args:
-        operation: Human-readable name of the operation
-            (e.g. "Code generation")
-    """
+    """Decorator that catches exceptions and displays user-friendly error messages with POSIX exit codes."""
 
     def decorator(func: Callable) -> Callable:
         @wraps(func)

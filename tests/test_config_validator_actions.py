@@ -1,6 +1,4 @@
-"""
-Action validation tests for ConfigValidator.
-"""
+"""Action validation tests for ConfigValidator."""
 
 from unittest.mock import patch
 
@@ -11,17 +9,9 @@ from lhp.models import Action, ActionType, TransformType
 
 
 class TestConfigValidatorActions:
-    """Action validation tests for ConfigValidator."""
-
     def test_load_action_early_returns(self):
-        """Test all early return paths in load action validation.
-
-        Target lines: 146-147, 157-159, 173, 179
-        Tests early returns in _validate_load_action method.
-        """
         validator = ConfigValidator()
 
-        # Test 1: Missing source configuration (lines 146-147)
         action = Action(
             name="test_load_no_source",
             type=ActionType.LOAD,
@@ -31,7 +21,6 @@ class TestConfigValidatorActions:
         errors = validator.validate_action(action, 0)
         assert any("must have a 'source' configuration" in error for error in errors)
 
-        # Test 2: Source not a dict (lines 157-159)
         action = Action(
             name="test_load_string_source",
             type=ActionType.LOAD,
@@ -41,7 +30,6 @@ class TestConfigValidatorActions:
         errors = validator.validate_action(action, 0)
         assert any("source must be a configuration object" in error for error in errors)
 
-        # Test 3: Missing source type (line 173)
         action = Action(
             name="test_load_no_type",
             type=ActionType.LOAD,
@@ -51,7 +39,6 @@ class TestConfigValidatorActions:
         errors = validator.validate_action(action, 0)
         assert any("source must have a 'type' field" in error for error in errors)
 
-        # Test 4: Unknown source type (line 179)
         # Mock action_registry to return False for unknown type
         with patch.object(
             validator.action_registry, "is_generator_available"
@@ -71,14 +58,8 @@ class TestConfigValidatorActions:
             mock_available.assert_called_with(ActionType.LOAD, "unknown_type")
 
     def test_transform_action_early_returns(self):
-        """Test early return paths in transform action validation.
-
-        Target lines: 199, 208-209
-        Tests early returns in _validate_transform_action method.
-        """
         validator = ConfigValidator()
 
-        # Test 1: Missing transform_type (line 199)
         action = Action(
             name="test_transform_no_type",
             type=ActionType.TRANSFORM,
@@ -89,7 +70,6 @@ class TestConfigValidatorActions:
         errors = validator.validate_action(action, 0)
         assert any("must have 'transform_type'" in error for error in errors)
 
-        # Test 2: Unknown transform type (lines 208-209)
         # Mock action_registry to return False for unknown type
         with patch.object(
             validator.action_registry, "is_generator_available"
@@ -110,14 +90,8 @@ class TestConfigValidatorActions:
 
     @pytest.mark.filterwarnings("ignore:Pydantic serializer warnings:UserWarning")
     def test_write_action_early_returns_and_warnings(self):
-        """Test write action early returns and target warnings.
-
-        Target lines: 221, 226, 231, 233, 238-241, 255-256, 260-261, 266-267, 277-279
-        Tests early returns in _validate_write_action method and target field warning.
-        """
         validator = ConfigValidator()
 
-        # Test 1: Missing write_target (line 221)
         action = Action(
             name="test_write_no_target",
             type=ActionType.WRITE,
@@ -129,7 +103,6 @@ class TestConfigValidatorActions:
             "must have 'write_target' configuration" in error for error in errors
         )
 
-        # Test 2: write_target not a dict (lines 226)
         action = Action(
             name="test_write_string_target",
             type=ActionType.WRITE,
@@ -141,15 +114,13 @@ class TestConfigValidatorActions:
                 "table": "test",
             },  # Valid initially
         )
-        # Manually set invalid write_target to bypass Pydantic validation
-        action.write_target = "string_target"  # Should be dict
+        action.write_target = "string_target"  # bypass Pydantic validation
 
         errors = validator.validate_action(action, 0)
         assert any(
             "write_target must be a configuration object" in error for error in errors
         )
 
-        # Test 3: Missing target type (line 231)
         action = Action(
             name="test_write_no_type",
             type=ActionType.WRITE,
@@ -163,7 +134,6 @@ class TestConfigValidatorActions:
         errors = validator.validate_action(action, 0)
         assert any("write_target must have a 'type' field" in error for error in errors)
 
-        # Test 4: Unknown write target type (lines 238-241)
         with patch.object(
             validator.action_registry, "is_generator_available"
         ) as mock_available:
@@ -186,7 +156,6 @@ class TestConfigValidatorActions:
             )
             mock_available.assert_called_with(ActionType.WRITE, "unknown_type")
 
-        # Test 5: Write action with target field should log warning (line 277-279)
         # WriteActionValidator emits via its own module logger (not the injected
         # ConfigValidator logger), so patch the write module's logger directly.
         with patch("lhp.core.validators.action.write.logger") as mock_logger:
@@ -205,21 +174,14 @@ class TestConfigValidatorActions:
 
             errors = validator.validate_action(action, 0)
 
-            # Should log warning (line 277-279)
             mock_logger.warning.assert_called_once()
             warning_call = mock_logger.warning.call_args[0][0]
             assert "Write actions typically don't have 'target' field" in warning_call
-            assert len(errors) == 0  # Should not be an error, just a warning
+            assert len(errors) == 0  # warning only, not an error
 
     def test_write_target_validation_edge_cases(self):
-        """Test write target validation edge cases.
-
-        Target lines: 382, 392, 397
-        Tests unknown write target types and missing catalog/schema/table combinations.
-        """
         validator = ConfigValidator()
 
-        # Test 1: Unknown write target type (lines 382, 392, 397)
         with patch.object(
             validator.action_registry, "is_generator_available"
         ) as mock_available:
@@ -243,7 +205,6 @@ class TestConfigValidatorActions:
                 for error in errors
             )
 
-        # Test 2: Missing catalog/schema in write target (edge case)
         action = Action(
             name="test_missing_catalog_schema",
             type=ActionType.WRITE,
@@ -256,10 +217,8 @@ class TestConfigValidatorActions:
         )
 
         errors = validator.validate_action(action, 0)
-        # This should be caught by field validation
         assert len(errors) > 0
 
-        # Test 3: Missing table in write target (edge case)
         action = Action(
             name="test_missing_table",
             type=ActionType.WRITE,
@@ -273,7 +232,6 @@ class TestConfigValidatorActions:
         )
 
         errors = validator.validate_action(action, 0)
-        # This should be caught by field validation
         assert len(errors) > 0
 
 

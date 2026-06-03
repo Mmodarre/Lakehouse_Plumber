@@ -84,9 +84,9 @@ logger = logging.getLogger(__name__)
 
 # Per-pipeline slice of the flat engine's output. NOT a carrier DTO
 # (constitution §3.6 forbids a new transport type) — a plain ``NamedTuple``
-# of existing types, never crossing the spawn boundary (runs on the
-# coordinator), so slots/picklability are moot. Returned in input pipeline
-# order; both consumers (validate here; the generate gate) read this one shape:
+# of existing types, never crossing the spawn boundary (coordinator-side only).
+# Returned in input pipeline order; both consumers (validate; the generate
+# gate) read this one shape:
 #   - ``outcomes_in_order``: the pipeline's FlowgroupOutcomes SORTED by
 #     ``flowgroup_name``. Carries per-fg success/lhp_error/errors
 #     (validate + gate) AND formatted_code/copy_records/auxiliary_files
@@ -95,12 +95,8 @@ logger = logging.getLogger(__name__)
 #     barrier on the RESOLVED set (§9.24), via build_cross_flowgroup_issues.
 #   - ``cross_fg_errors``  : degraded string errors for the defensive case
 #     where the barrier raises a NON-LHPError.
-#   - ``warnings``         : the pipeline's deprecation warnings, MERGED across
-#     all its flowgroup outcomes and DEDUPED by ``(code, file)`` at the merge
-#     point (``_finalize``), in deterministic first-seen order. Carries what the
-#     workers attached to ``FlowgroupOutcome.warnings`` (logged under a worker
-#     ``NullHandler``, so they ride back as structured data) for the main
-#     thread to re-emit as ``WarningEmitted`` events. Defaults to ``()``.
+#   - ``warnings``         : per-pipeline deprecation warnings, merged +
+#     deduped by ``(code, file)`` in deterministic first-seen order.
 class _PipelinePoolResult(NamedTuple):
     pipeline: str
     outcomes_in_order: Tuple[FlowgroupOutcome, ...]
@@ -238,17 +234,13 @@ def _run_flowgroup_pool_core(
     release_resolved = mode == "generate" and not worker_state.include_tests
 
     def _finalize(pipeline: str, outcomes: List[FlowgroupOutcome]) -> None:
-        # Deterministic per-pipeline order before the barrier.
         ordered = tuple(sorted(outcomes, key=lambda o: o.flowgroup_name))
         cross_issues, cross_errors = _run_pipeline_cross_fg_barrier(
             pipeline, ordered, validation_service
         )
-        # Merge each flowgroup outcome's worker-attached deprecation warnings
-        # into one per-pipeline collection, deduped by (code, file). Iterating
-        # ``ordered`` (sorted by flowgroup_name) gives a deterministic first-seen
-        # order independent of pool completion order. Done BEFORE the
-        # ``release_resolved`` replace below — warnings are independent of
-        # ``resolved_flowgroup``, so collecting first keeps the order stable.
+        # Done BEFORE the ``release_resolved`` replace below — warnings are
+        # independent of ``resolved_flowgroup``, so collecting first keeps
+        # first-seen order stable regardless of pool completion order.
         warnings = merge_flowgroup_warnings(ordered)
         if release_resolved:
             ordered = tuple(

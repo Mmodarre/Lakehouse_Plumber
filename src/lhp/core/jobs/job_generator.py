@@ -1,9 +1,4 @@
-"""
-Job generator service for creating orchestration jobs from dependency analysis.
-
-This module provides the JobGenerator class that creates Databricks job YAML
-configurations based on pipeline dependency analysis results.
-"""
+"""Job generator service for Databricks orchestration jobs."""
 
 import logging
 from pathlib import Path
@@ -62,20 +57,12 @@ EXPLICITLY_RENDERED_JOB_CONFIG_KEYS = frozenset(
 
 
 class JobGenerator:
-    """
-    Generates Databricks orchestration jobs from dependency analysis results.
-
-    This service transforms pipeline dependency information into executable
-    job configurations with proper task ordering and dependency management.
-    """
-
-    # Default job configuration values
     DEFAULT_JOB_CONFIG = {
         "max_concurrent_runs": 1,
         "queue": {"enabled": True},
         "performance_target": "STANDARD",
-        "generate_master_job": True,  # Control master job generation
-        "master_job_name": None,  # Custom master job name (None = auto-generate)
+        "generate_master_job": True,
+        "master_job_name": None,
     }
 
     def __init__(
@@ -85,8 +72,6 @@ class JobGenerator:
         config_file_path: Optional[str] = None,
     ):
         """
-        Initialize the job generator.
-
         Args:
             template_dir: Directory containing Jinja2 templates. If None, uses
                 the LHP package template loader.
@@ -96,12 +81,10 @@ class JobGenerator:
         from jinja2 import Environment
 
         if template_dir is None:
-            # Default: load templates from the installed lhp package.
             from ..codegen.template_renderer import get_lhp_template_loader
 
             loader = get_lhp_template_loader()
         else:
-            # Test/injection path: read templates from the provided directory.
             from jinja2 import FileSystemLoader
 
             loader = FileSystemLoader(template_dir)
@@ -126,11 +109,9 @@ class JobGenerator:
         )
         self.logger = logger
 
-        # Load and merge job configuration (used by the `deps` orchestration-job flow)
         self.project_defaults, self.job_specific_configs = JobConfigLoader().load(
             project_root, config_file_path
         )
-        # For backward compatibility, store merged defaults as job_config
         self.job_config = self._deep_merge_dicts(
             self.DEFAULT_JOB_CONFIG.copy(), self.project_defaults
         )
@@ -150,7 +131,6 @@ class JobGenerator:
             ):
                 result[key] = JobGenerator._deep_merge_dicts(result[key], value)
             else:
-                # Replace value (including lists)
                 result[key] = value
 
         return result
@@ -171,30 +151,11 @@ class JobGenerator:
         return config
 
     def should_generate_master_job(self) -> bool:
-        """Check if master orchestration job should be generated.
-
-        Reads from project_defaults.generate_master_job in job_config.yaml.
-
-        Returns:
-            bool: True if master job should be generated (default: True)
-        """
+        """Reads from project_defaults.generate_master_job in job_config.yaml."""
         return self.project_defaults.get("generate_master_job", True)
 
     def get_master_job_name(self, project_name: str) -> str:
-        """Get master job name from config or generate default.
-
-        Reads from project_defaults.master_job_name in job_config.yaml.
-
-        Args:
-            project_name: Project name for auto-generating default name
-
-        Returns:
-            str: Master job name (custom or auto-generated)
-
-        Example:
-            Custom: "production_orchestrator"
-            Auto: "acme_edw_master"
-        """
+        """Reads from project_defaults.master_job_name in job_config.yaml; auto-generates ``{project_name}_master`` when unset."""
         custom_name = self.project_defaults.get("master_job_name")
         if custom_name:
             self.logger.info(f"Using custom master job name: {custom_name}")
@@ -207,20 +168,7 @@ class JobGenerator:
         job_name: Optional[str] = None,
         project_name: Optional[str] = None,
     ) -> str:
-        """
-        Generate job YAML content from dependency analysis results.
-
-        Args:
-            dependency_result: Results from dependency analysis
-            job_name: Custom name for the job (defaults to project_name_orchestration)
-            project_name: Name of the project (used in template)
-
-        Returns:
-            YAML content for the orchestration job
-
-        Raises:
-            ValueError: If no pipelines found in dependency results
-        """
+        """Generate job YAML; raises if dependency_result has no execution stages."""
         if not dependency_result.execution_stages:
             raise ErrorFactory.validation_error(
                 codes.VAL_009,
@@ -265,21 +213,7 @@ class JobGenerator:
         job_name: Optional[str] = None,
         project_name: Optional[str] = None,
     ) -> Path:
-        """
-        Generate and save job YAML to a file.
-
-        Args:
-            dependency_result: Results from dependency analysis
-            output_path: Directory or file path to save the job YAML
-            job_name: Custom name for the job
-            project_name: Name of the project
-
-        Returns:
-            Path to the generated job file
-
-        Raises:
-            IOError: If file cannot be written
-        """
+        """Generate and save job YAML to a file."""
         job_content = self.generate_job(dependency_result, job_name, project_name)
 
         if output_path.is_dir():
@@ -295,16 +229,7 @@ class JobGenerator:
         job_results: Dict[str, DependencyAnalysisResult],
         project_name: Optional[str] = None,
     ) -> Dict[str, str]:
-        """
-        Generate multiple job YAML files from job-specific dependency results.
-
-        Args:
-            job_results: Dictionary mapping job_name to DependencyAnalysisResult
-            project_name: Name of the project (used in templates)
-
-        Returns:
-            Dictionary mapping job_name to YAML content
-        """
+        """Generate YAML for each job in job_results; returns {job_name: yaml_str}."""
         if not project_name:
             project_name = "lhp_project"
 
@@ -347,25 +272,7 @@ class JobGenerator:
         project_name: Optional[str] = None,
         global_result: Optional[DependencyAnalysisResult] = None,
     ) -> str:
-        """
-        Generate master orchestration job with cross-job dependencies.
-
-        Uses global dependency analysis to determine which jobs depend on others
-        based on their pipeline relationships.
-
-        Args:
-            job_results: Mapping of job_name to individual job's DependencyAnalysisResult
-            master_job_name: Name for the master orchestration job
-            project_name: Project name for metadata
-            global_result: Global DependencyAnalysisResult from analyzing all flowgroups.
-                          REQUIRED for correct dependency resolution.
-
-        Returns:
-            YAML string for master orchestration job with proper depends_on clauses
-
-        Raises:
-            ValueError: If global_result is None (required for correct dependencies)
-        """
+        """Generate master orchestration job; global_result is REQUIRED for correct cross-job dependency resolution."""
         if not project_name:
             project_name = "lhp_project"
 
@@ -425,9 +332,6 @@ class JobGenerator:
                 and substituted). The caller is responsible for building this dict —
                 typically via ``JobGenerator.resolve_monitoring_job_config``.
             has_pipeline: Whether a DLT pipeline exists (False = notebook-only job)
-
-        Returns:
-            Rendered YAML string for the monitoring job resource
         """
         context = {
             "job_name": job_name,
@@ -450,17 +354,5 @@ class JobGenerator:
     def resolve_monitoring_job_config(
         cls, raw_config: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Deep-merge a raw monitoring job config dict over ``DEFAULT_JOB_CONFIG``.
-
-        This keeps merge semantics inside the class that owns ``DEFAULT_JOB_CONFIG``
-        and is used by the orchestrator to build the per-generate monitoring job
-        config from the dedicated YAML file referenced by
-        ``monitoring.job_config_path``.
-
-        Args:
-            raw_config: Parsed monitoring job config (post token substitution).
-
-        Returns:
-            Merged config dict ready to hand to ``generate_monitoring_job``.
-        """
+        """Deep-merge raw_config over DEFAULT_JOB_CONFIG; keeps merge semantics inside the class that owns DEFAULT_JOB_CONFIG."""
         return cls._deep_merge_dicts(cls.DEFAULT_JOB_CONFIG.copy(), raw_config or {})

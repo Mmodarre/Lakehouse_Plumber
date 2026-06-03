@@ -1,5 +1,3 @@
-"""Validator for DLT table options (spark_conf, table_properties, schema, etc.)."""
-
 import logging
 from typing import List
 

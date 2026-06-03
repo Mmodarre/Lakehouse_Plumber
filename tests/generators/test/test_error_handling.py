@@ -1,16 +1,12 @@
 """Generator-layer behaviour for test actions: genuine errors + edge-case SQL.
 
-Scope and division of labour
-----------------------------
-Input *validation* (required-field presence, 3-part-name rules, invalid
-``test_type``) is owned by ``TestActionValidator`` and is covered
-authoritatively by ``tests/core/validators/action/test_test_action.py``.
-Generators do NOT validate — so a generator test that feeds invalid/empty
-input and then asserts merely that ``def tmp_test_...`` exists asserts
-nothing meaningful and duplicates the validator suite. Those false-confidence
-tests have been retired.
+Input validation (required-field presence, 3-part-name rules, invalid
+``test_type``) is owned by ``TestActionValidator`` and covered by
+``tests/core/validators/action/test_test_action.py``.
+Generators do NOT validate — a generator test that only asserts ``def tmp_test_...``
+exists asserts nothing meaningful and duplicates the validator suite.
 
-What remains here is strictly generator-layer behaviour:
+Scope here is strictly generator-layer:
 
 * Errors the *generator* itself raises (registry lookup, schema_match's
   strict 3-part contract) — asserting the real error, not that code exists.
@@ -33,7 +29,6 @@ registry = ActionRegistry()
 
 
 def _generate(action):
-    """Resolve the leaf for this action's test_type and generate its code."""
     generator = registry.get_generator(ActionType.TEST, action.test_type)
     return generator.generate(action=action, context={})
 
@@ -48,19 +43,12 @@ class TestTestActionGeneratorErrors:
 
         assert "test_type" in str(excinfo.value)
         assert "invalid_test_type" in str(excinfo.value)
-        # Should suggest valid test types
         assert "row_count" in str(excinfo.value) or "Valid test_type" in str(
             excinfo.value
         )
 
     def test_schema_match_without_reference_raises_val_022(self):
-        """schema_match without a valid 3-part reference must raise LHP-VAL-022.
-
-        Previously the generator silently emitted SQL that did not match
-        anything in information_schema; the contract is now strict, so this
-        is generator-layer behaviour (a raised error), not a "code exists"
-        assertion.
-        """
+        """schema_match without a valid 3-part reference must raise LHP-VAL-022."""
         action = Action(
             name="test_schema",
             type=ActionType.TEST,
@@ -120,9 +108,7 @@ class TestTestActionEdgeCaseSql:
     def test_custom_sql_missing_sql_falls_back_to_source_table(self):
         """When ``sql`` is omitted, custom_sql emits ``spark.table(<source>)``.
 
-        This documented fallback (byte-matching the pre-Phase-9.3 generator)
-        is the generator's behaviour for a source-only custom_sql action.
-        Required-field rejection is the validator's job (B8); here we pin the
+        Required-field rejection is the validator's job; here we pin the
         rendered SQL the generator actually produces.
         """
         action = Action(
@@ -134,7 +120,6 @@ class TestTestActionEdgeCaseSql:
 
         code = _generate(action)
 
-        # The fallback reads the source as a table — not a spark.sql() block.
         assert 'return spark.table("test_table")' in code
         assert "spark.sql(" not in code
 
@@ -327,9 +312,7 @@ class TestTestActionEdgeCaseSql:
 
         code = _generate(action)
 
-        # else fork fires: literal fallback table name in the FROM clause.
         assert "FROM source_table s" in code
-        # The lookup join still renders (proves the rest of the SQL is intact).
         assert "LEFT JOIN dim_lookup l ON s.id = l.id" in code
 
     def test_completeness_empty_source_list_falls_back_to_source_table(self):
@@ -344,9 +327,7 @@ class TestTestActionEdgeCaseSql:
 
         code = _generate(action)
 
-        # else fork fires: literal fallback table name in the FROM clause.
         assert "FROM source_table" in code
-        # The required column drives the projection (proves the SQL is intact).
         assert "SELECT x" in code
 
     def test_completeness_no_required_columns_selects_star_no_decorator(self):
@@ -366,9 +347,7 @@ class TestTestActionEdgeCaseSql:
 
         code = _generate(action)
 
-        # The defensive empty-columns variant projects everything.
         assert "SELECT *" in code
-        # No expectations built → no decorator of any kind.
         assert "@dp.expect" not in code
 
     def test_custom_expectations_empty_source_list_falls_back_to_source_table(self):
@@ -383,9 +362,7 @@ class TestTestActionEdgeCaseSql:
 
         code = _generate(action)
 
-        # else fork fires: literal fallback table name in the FROM clause.
         assert "SELECT * FROM source_table" in code
-        # The user expectation still routes through the fail bucket.
         assert '@dp.expect_all_or_fail({"e": "x > 0"})' in code
 
     def test_custom_sql_empty_source_list_no_sql_falls_back_to_source_table(self):
@@ -405,9 +382,7 @@ class TestTestActionEdgeCaseSql:
 
         code = _generate(action)
 
-        # else fork fires: literal fallback table name read as a table.
         assert 'return spark.table("source_table")' in code
-        # The no-sql path is taken, not the spark.sql() block.
         assert "spark.sql(" not in code
 
     def test_referential_integrity_empty_source_list_falls_back_to_source_table(self):
@@ -424,9 +399,7 @@ class TestTestActionEdgeCaseSql:
 
         code = _generate(action)
 
-        # else fork fires: literal fallback table name in the FROM clause.
         assert "FROM source_table s" in code
-        # The join still renders (proves the rest of the SQL is intact).
         assert "LEFT JOIN customers r ON s.id = r.id" in code
 
     def test_uniqueness_empty_source_list_falls_back_to_source_table(self):
@@ -441,9 +414,7 @@ class TestTestActionEdgeCaseSql:
 
         code = _generate(action)
 
-        # else fork fires: literal fallback table name in the FROM clause.
         assert "FROM source_table" in code
-        # The group-by still renders the column (proves the SQL is intact).
         assert "GROUP BY id" in code
         assert "no_duplicates" in code
 
@@ -465,10 +436,8 @@ class TestTestActionEdgeCaseSql:
 
         code = _generate(action)
 
-        # The no-expressions fork fires: nothing routed through any bucket.
         assert "value_in_range" not in code
         assert "@dp.expect" not in code
-        # The column projection still renders (proves the SQL is intact).
         assert "SELECT c" in code
 
     def test_range_empty_source_list_falls_back_to_source_table(self):
@@ -484,9 +453,7 @@ class TestTestActionEdgeCaseSql:
 
         code = _generate(action)
 
-        # else fork fires: literal fallback table name in the FROM clause.
         assert "FROM source_table" in code
-        # The lower-bound predicate still renders (proves the SQL is intact).
         assert "c >= '0'" in code
 
 

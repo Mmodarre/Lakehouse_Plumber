@@ -1,6 +1,3 @@
-"""LakehousePlumber action generators."""
-
-# Load generators
 from .load import (
     CloudFilesLoadGenerator,
     DeltaLoadGenerator,
@@ -8,8 +5,6 @@ from .load import (
     PythonLoadGenerator,
     SQLLoadGenerator,
 )
-
-# Transform generators
 from .transform import (
     DataQualityTransformGenerator,
     PythonTransformGenerator,
@@ -17,8 +12,6 @@ from .transform import (
     SQLTransformGenerator,
     TempTableTransformGenerator,
 )
-
-# Write generators
 from .write import (
     MaterializedViewWriteGenerator,
     StreamingTableWriteGenerator,

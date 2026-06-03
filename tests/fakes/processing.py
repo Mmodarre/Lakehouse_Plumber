@@ -13,12 +13,7 @@ from typing import Any
 
 @dataclass
 class CallRecord:
-    """A single captured call to a fake collaborator method.
-
-    ``args`` and ``kwargs`` are stored by reference. The caller must therefore
-    pass picklable arguments if the fake will itself cross a process boundary
-    with the recorded call still attached.
-    """
+    """``args`` and ``kwargs`` stored by reference — caller must pass picklable arguments if the fake crosses a process boundary with the call still attached."""
 
     args: tuple[Any, ...]
     kwargs: dict[str, Any]

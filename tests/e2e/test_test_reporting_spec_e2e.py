@@ -1,14 +1,4 @@
-"""Spec-derived E2E tests for Test Result Reporting feature.
-
-Tests derived from docs/design/test_reporting_implementation_plan.md only.
-No implementation code was read during test authoring.
-
-Uses the testing_project fixture which includes:
-- lhp.yaml with test_reporting section
-- pipelines/02_bronze/tst_customer_dq.yaml with test_id fields
-- py_functions/test_reporting_publisher.py provider stub
-- generated_baseline_with_tests/dev/ for --include-tests baselines
-"""
+"""E2E tests for test result reporting feature."""
 
 import hashlib
 import json
@@ -31,7 +21,6 @@ class TestTestReportingSpecE2E:
 
     @pytest.fixture(autouse=True)
     def setup_test_project(self, isolated_project):
-        """Create isolated copy of fixture project for each test."""
         fixture_path = Path(__file__).parent / "fixtures" / "testing_project"
         self.project_root = isolated_project / "test_project"
         shutil.copytree(fixture_path, self.project_root)
@@ -48,7 +37,6 @@ class TestTestReportingSpecE2E:
         os.chdir(self.original_cwd)
 
     def _init_working_dirs(self):
-        """Wipe and recreate working directories."""
         if self.generated_dir.exists():
             shutil.rmtree(self.generated_dir)
         self.generated_dir.mkdir(parents=True, exist_ok=True)
@@ -56,10 +44,6 @@ class TestTestReportingSpecE2E:
         if self.resources_dir.exists():
             shutil.rmtree(self.resources_dir)
         self.resources_dir.mkdir(parents=True, exist_ok=True)
-
-    # ========================================================================
-    # HELPER METHODS
-    # ========================================================================
 
     def run_generate(self) -> tuple:
         """Run 'lhp generate --env dev'. Returns (exit_code, output)."""
@@ -178,11 +162,6 @@ class TestTestReportingSpecE2E:
         content.pop("test_reporting", None)
         lhp_yaml.write_text(yaml.dump(content, default_flow_style=False))
 
-    # ========================================================================
-    # TEST CASES
-    # ========================================================================
-
-    # TC-07: test_id recognized by config field validator
     def test_tc07_test_id_recognized_by_validator(self):
         """TC-07: test_id in YAML does not trigger 'Unknown field' validation error."""
         exit_code, output = self.run_validate()
@@ -193,7 +172,6 @@ class TestTestReportingSpecE2E:
             f"test_id should be recognized, not flagged as unknown: {output}"
         )
 
-    # TC-17: Hook generation skipped when --include-tests not passed
     def test_tc17_no_hook_without_include_tests_flag(self):
         """TC-17: Without --include-tests, no hook file is generated."""
         exit_code, output = self.run_generate()
@@ -204,7 +182,6 @@ class TestTestReportingSpecE2E:
             "Hook file should NOT exist without --include-tests"
         )
 
-    # TC-18: Hook generation skipped when no test_reporting in config
     def test_tc18_no_hook_without_test_reporting_config(self):
         """TC-18: Even with --include-tests, no hook when test_reporting absent."""
         self._remove_test_reporting_from_config()
@@ -217,7 +194,6 @@ class TestTestReportingSpecE2E:
             "Hook file should NOT exist without test_reporting config"
         )
 
-    # TC-20: lhp validate --env dev --include-tests validates successfully
     def test_tc20_validate_with_include_tests_succeeds(self):
         """TC-20: lhp validate --env dev --include-tests succeeds with valid config."""
         exit_code, output = self.run_validate_with_tests()
@@ -225,7 +201,6 @@ class TestTestReportingSpecE2E:
             f"Validation with --include-tests should succeed. Output: {output}"
         )
 
-    # TC-21: lhp validate --env dev (no flag) still validates file existence
     def test_tc21_validate_without_flag_checks_file_existence(self):
         """TC-21: validate without --include-tests still checks module_path exists."""
         exit_code, output = self.run_validate()
@@ -235,7 +210,6 @@ class TestTestReportingSpecE2E:
 
     def test_tc21b_validate_fails_when_provider_missing(self):
         """TC-21b: validate fails when module_path file doesn't exist."""
-        # Remove the provider file
         provider = self.project_root / "py_functions" / "test_reporting_publisher.py"
         if provider.exists():
             provider.unlink()
@@ -246,32 +220,13 @@ class TestTestReportingSpecE2E:
         )
 
     def test_tc22_generate_fails_when_provider_missing(self) -> None:
-        """TC-22: generate fails with LHP-CFG-032 when the provider file is missing.
-
-        Proves the documented behavior change (constitution §9.24): generate and
-        validate now share one preflight (`_run_project_preflight`), so the
-        test-reporting file-existence check fires on `lhp generate` *independent
-        of* `--include-tests`. This is the generate-side mirror of
-        `test_tc21b_validate_fails_when_provider_missing`.
-
-        Fixture arrangement (so test-reporting is the surfaced issue, not a
-        bundle or duplicate issue which precede/follow it in the shared
-        preflight's issue order: duplicate -> test-reporting -> bundle):
-        - The standard `testing_project` fixture has a valid catalog/schema
-          (no LHP-CFG-026) and no duplicate flowgroup.
-        - We delete only the `test_reporting` provider module so the
-          test-reporting check (LHP-CFG-032) is the first/only issue raised.
-
-        Note: `run_generate()` does NOT pass `--include-tests` -- that is the
-        whole point of this test.
-        """
+        """Constitution §9.24: generate and validate share one preflight, so LHP-CFG-032
+        fires on ``lhp generate`` independent of ``--include-tests``."""
         # Remove the provider file (mirror test_tc21b's setup).
         provider = self.project_root / "py_functions" / "test_reporting_publisher.py"
         if provider.exists():
             provider.unlink()
 
-        # Drive generate WITHOUT --include-tests; the file-existence check
-        # must still fire via the shared preflight.
         exit_code, output = self.run_generate()
         assert exit_code != 0, (
             "Generate should fail when the test_reporting provider file is "
@@ -282,7 +237,6 @@ class TestTestReportingSpecE2E:
             f"independent of --include-tests. Output: {output}"
         )
 
-    # TC-22: Full generation with --include-tests produces hook matching baseline
     def test_tc22_hook_matches_baseline(self):
         """TC-22: Generated hook file matches baseline via hash comparison."""
         exit_code, output = self.run_generate_with_tests()
@@ -351,13 +305,11 @@ class TestTestReportingSpecE2E:
         diff = self._compare_file_hashes(generated_provider, baseline_provider)
         assert diff == "", f"Provider copy baseline mismatch: {diff}"
 
-    # TC-23: Existing (non-test) baselines unaffected by test_reporting config
     def test_tc23_existing_baselines_unaffected(self):
         """TC-23: Standard baselines are identical whether or not test_reporting is in config."""
         exit_code, output = self.run_generate()
         assert exit_code == 0, f"Generation failed: {output}"
 
-        # Check that each file in generated_baseline/dev/ matches generated/dev/
         baseline_dir = self.project_root / "generated_baseline" / "dev"
         for baseline_file in baseline_dir.rglob("*.py"):
             relative = baseline_file.relative_to(baseline_dir)

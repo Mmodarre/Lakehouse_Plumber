@@ -274,15 +274,6 @@ class GenerateCommand(BaseCommand):
                     )
                     live.update(_render())
 
-                    # NOTE (C4): the pre-pool bare-``{token}`` deprecation scan
-                    # was removed here. Detection moved to the core read path
-                    # (``FlowgroupDiscoveryService.scan_deprecation_warnings``),
-                    # which scans every file and emits one structured
-                    # ``DeprecationWarningRecord`` per offending file. C5 wires
-                    # that through the facade as ``WarningEmitted`` events and
-                    # retires this ``warning_collector`` side channel; until
-                    # then the bare-token warning is not surfaced by the CLI.
-
                     # Fired on the main thread by the facade, so it may touch
                     # the Live frame / PhaseTracker directly.
                     def _on_pipeline_complete(
@@ -307,15 +298,10 @@ class GenerateCommand(BaseCommand):
                         overall_progress.advance()
                         live.update(_render())
 
-                    # Enter the "Generation" phase once, before the pool
-                    # runs. The flat engine has no per-pipeline start
-                    # boundary (it gates all-or-nothing and fires only a
-                    # per-pipeline completion callback), so a single phase
-                    # start here is the natural place to mark the boundary.
-                    # ``PhaseTracker.start`` is an idempotent setter; this
-                    # activates the ``show_progress`` gate and seeds the
-                    # start-time that the ``complete("Generation")`` calls
-                    # below consume.
+                    # Single start before the pool: the flat engine fires only
+                    # a per-pipeline completion callback (no per-pipeline start
+                    # boundary), so one call here seeds the start-time that
+                    # ``complete("Generation")`` consumes.
                     phase_tracker.start("Generation")
                     live.update(_render())
 
@@ -362,14 +348,8 @@ class GenerateCommand(BaseCommand):
                                 warning_collector=warning_collector,
                             ):
                                 if isinstance(event, OperationStarted):
-                                    # First event — Live frame already
-                                    # initialized; no extra work needed.
                                     continue
                                 if isinstance(event, ErrorEmitted):
-                                    # The next iteration step raises; the
-                                    # event is a hook to inspect the error
-                                    # if needed. Capture not required since
-                                    # the raise is handled below.
                                     continue
                                 if isinstance(event, GenerationCompleted):
                                     batch_response = event.response
@@ -402,8 +382,6 @@ class GenerateCommand(BaseCommand):
                             phase_tracker.complete("Monitoring artifacts")
                             live.update(_render())
 
-                        # ``should_enable_bundle_support`` already factors in
-                        # ``no_bundle`` (returns False when --no-bundle is set).
                         if bundle_enabled:
                             bundle_phase_label = (
                                 "Bundle sync"
@@ -508,15 +486,10 @@ class GenerateCommand(BaseCommand):
         output_dir: Path,
         env: str,
     ) -> None:
-        """Sync bundle resources for the generated output via the public facade.
+        """``wipe=True`` clears ``resources/lhp/`` before re-syncing in one call.
 
-        Delegates to :meth:`BundleFacade.sync_resources` with
-        ``wipe=True``: the facade clears ``resources/lhp/`` before
-        re-syncing in a single call, honoring the wipe-and-regenerate
-        contract on :class:`BundleManager`. Bundle activity is rendered
-        as a phase marker by the outer ``execute()``; detail here routes
-        to ``logger.debug``. Caller must gate on ``bundle_enabled`` and
-        on ``not dry_run`` — this method assumes both checks have run.
+        Caller must gate on ``bundle_enabled`` and ``not dry_run`` — both
+        checks are assumed done.
         """
         sync_result = collect_response(
             application_facade.bundle.sync_resources(env, output_dir, wipe=True)

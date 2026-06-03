@@ -2,8 +2,7 @@
 
 Field-name data consumed by ``ConfigFieldValidator``: valid fields for each
 load-source type, each write-target type, and the always-valid action-level
-fields. Split from ``_field_suggestions`` to stay within the per-file line
-budget.
+fields.
 """
 
 LOAD_SOURCE_FIELDS = {
@@ -68,8 +67,7 @@ WRITE_TARGET_FIELDS = {
         "partition_columns",
         "cluster_columns",
         "spark_conf",
-        # UC namespace schema name
-        "table_schema",  # DDL table schema definition
+        "table_schema",
         "row_filter",
         "temporary",
         "path",
@@ -90,8 +88,7 @@ WRITE_TARGET_FIELDS = {
         "partition_columns",
         "cluster_columns",
         "spark_conf",
-        # UC namespace schema name
-        "table_schema",  # DDL table schema definition
+        "table_schema",
         "row_filter",
         "temporary",
         "path",
@@ -105,15 +102,11 @@ WRITE_TARGET_FIELDS = {
         "sink_name",
         "comment",
         "description",
-        # Kafka/Event Hubs fields
         "bootstrap_servers",
         "topic",
-        # Custom sink fields
         "module_path",
         "custom_sink_class",
-        # ForEachBatch sink fields
         "batch_handler",
-        # Common fields
         "options",
     },
 }
@@ -134,17 +127,13 @@ ACTION_FIELDS = {
     "mode",
     "quarantine",
     "once",
-    # Python transform specific fields
     "module_path",
     "function_name",
     "parameters",
-    # Custom data source specific fields
     "custom_datasource_class",
-    # Schema transform specific fields
     "schema_inline",
     "schema_file",
     "enforcement",
-    # Test action specific fields
     "test_type",
     "on_violation",
     "tolerance",

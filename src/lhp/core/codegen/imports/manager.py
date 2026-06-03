@@ -62,8 +62,6 @@ class ImportManager:
         modules — without this check, the second import would silently shadow
         the first and SDP would register the wrong class.
 
-        Args:
-            import_stmt: Import statement like ``"from pyspark import pipelines as dp"``.
         """
         if not import_stmt or not import_stmt.strip():
             return
@@ -135,8 +133,6 @@ class ImportManager:
         Detection failures are logged at DEBUG and swallowed — expression
         scanning is best-effort.
 
-        Args:
-            expression: PySpark expression like ``"F.current_timestamp()"``.
         """
         try:
             detected = self._expression_detector.detect_imports(expression)
@@ -147,12 +143,7 @@ class ImportManager:
             )
 
     def get_consolidated_imports(self) -> List[str]:
-        """Return the final consolidated, sorted, deduplicated import list.
-
-        Applies wildcard-precedence resolution (via :func:`resolve_conflicts`)
-        then category-sort (via :func:`sort_imports`) — both pure functions
-        from the sibling modules.
-        """
+        """Return the final consolidated, sorted, deduplicated import list."""
         all_imports = (
             self._manual_imports | self._expression_imports | self._file_imports
         )
@@ -176,7 +167,6 @@ class ImportManager:
         return sort_imports(resolved_imports)
 
     def clear(self) -> None:
-        """Drop all collected imports across every bucket."""
         self._manual_imports.clear()
         self._expression_imports.clear()
         self._file_imports.clear()

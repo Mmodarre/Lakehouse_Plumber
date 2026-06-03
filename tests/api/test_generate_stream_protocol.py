@@ -1,35 +1,30 @@
 """§3bis.3 stream-protocol guard for the all-or-nothing generate gate.
 
-This is the dedicated test the parallel-execution consolidation spec
-(`LOCAL/parallel_execution_consolidation_spec.md` §3bis.3) calls out as the
-single highest-risk item: the global generate GATE's aggregated failure must
-surface as **exactly one** :class:`~lhp.api.ErrorEmitted` followed by a
-``raise`` of the aggregate :class:`~lhp.errors.LHPError`, emitted in the OUTER
-``generate_pipelines`` stream wrapper — *outside* ``_do_generate_pipelines``'s
-graceful-DTO ``except Exception -> return failure`` body. If the gate raise were
-swallowed into a DTO there, no ``ErrorEmitted`` would fire and the §1.4 / §9.19
-event protocol would silently break.
+The global generate GATE's aggregated failure must surface as **exactly one**
+:class:`~lhp.api.ErrorEmitted` followed by a ``raise`` of the aggregate
+:class:`~lhp.errors.LHPError`, emitted in the OUTER ``generate_pipelines``
+stream wrapper — *outside* ``_do_generate_pipelines``'s graceful-DTO
+``except Exception -> return failure`` body. If the gate raise were swallowed
+into a DTO there, no ``ErrorEmitted`` would fire and the §1.4 / §9.19 event
+protocol would silently break.
 
-Two failure classes are exercised, because they take DIFFERENT surfacing paths
-and the spec's §3bis.3 risk is specifically about the GATE path:
+Two failure classes are exercised because they take DIFFERENT surfacing paths:
 
-* **Gate-aggregate failure (the §3bis.3 path).** A flowgroup that PARSES
-  cleanly (valid action types) but fails per-flowgroup *validation* in the
-  worker — here ``LHP-CFG-004`` "Multiple table creators detected" — reaches the
-  all-or-nothing gate, which raises through ``_do_generate_pipelines``'s
-  ``except LHPError`` and into the ``generate_pipelines`` rendezvous. THIS is
-  what must yield exactly one ``ErrorEmitted`` then raise.
-* **Non-LHP commit failure.** An ``OSError`` from a
-  commit-time disk write AFTER the gate has passed degrades to a batch-failure
-  DTO (``BatchGenerationResponse.success is False``) — NOT an ``ErrorEmitted`` /
+* **Gate-aggregate failure.** A flowgroup that PARSES cleanly but fails
+  per-flowgroup validation — here ``LHP-CFG-004`` — reaches the all-or-nothing
+  gate, which raises through ``_do_generate_pipelines``'s ``except LHPError``
+  and into the ``generate_pipelines`` rendezvous. This is what must yield
+  exactly one ``ErrorEmitted`` then raise.
+* **Non-LHP commit failure.** An ``OSError`` from a commit-time disk write
+  AFTER the gate has passed degrades to a batch-failure DTO
+  (``BatchGenerationResponse.success is False``) — NOT an ``ErrorEmitted`` /
   raise, and NOT a silent success. This is the documented, intentional
-  trade-off (a partial tree may remain); it is the counter-case that proves the
-  ``ErrorEmitted``+raise rendezvous is reserved for ``LHPError`` only.
+  trade-off; it proves the ``ErrorEmitted``+raise rendezvous is reserved for
+  ``LHPError`` only.
 
 Tests import strictly from :mod:`lhp.api` and :mod:`lhp.errors` — no internal
 modules — except the single ``_commit.write_normalized`` patch target for the
-OSError injection (the lowest-level commit-time disk write, reached only on the
-gate-passed path), which is necessarily an implementation seam.
+OSError injection, which is necessarily an implementation seam.
 """
 
 from __future__ import annotations

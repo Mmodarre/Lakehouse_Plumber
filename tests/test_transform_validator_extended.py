@@ -162,7 +162,6 @@ class TestValidatePythonTransform:
         validator = _make_validator()
         action = self._make_python_action(source=["v_input", "v_lookup"])
         errors = validator._validate_python_transform(action, "test")
-        # No source-related errors
         assert not any("source" in e.lower() for e in errors)
 
     def test_python_missing_module_path_produces_error(self):

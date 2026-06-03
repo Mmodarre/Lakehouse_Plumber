@@ -83,7 +83,7 @@ def _find_best_match(unknown_field: str, expected_fields: Set[str]) -> Optional[
 
     for field in expected_fields:
         score = _calculate_similarity(unknown_field, field)
-        if score > best_score and score > 0.6:  # Minimum threshold
+        if score > best_score and score > 0.6:
             best_score = score
             best_match = field
 
@@ -100,15 +100,12 @@ def _find_best_match(unknown_field: str, expected_fields: Set[str]) -> Optional[
 
 
 def _calculate_similarity(str1: str, str2: str) -> float:
-    # Simple similarity: longer common substring ratio
     if not str1 or not str2:
         return 0.0
 
-    # Check if one is contained in the other
     if str1 in str2 or str2 in str1:
         return 0.8
 
-    # Calculate longest common subsequence ratio
     common_chars = sum(1 for c1, c2 in zip(str1, str2, strict=False) if c1 == c2)
     max_len = max(len(str1), len(str2))
     return common_chars / max_len if max_len > 0 else 0.0

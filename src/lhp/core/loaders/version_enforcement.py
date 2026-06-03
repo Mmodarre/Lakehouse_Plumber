@@ -26,20 +26,11 @@ def enforce_version_requirements(
     *,
     actual_version: Optional[str] = None,
 ) -> None:
-    """Enforce ``required_lhp_version`` if specified in the project config.
+    """Enforce ``required_lhp_version``; no-op when unset or ``LHP_IGNORE_VERSION`` is truthy (``"1"``, ``"true"``, ``"yes"``).
 
-    Raises :class:`LHPError` (codes 006, 007, 008) when the installed
-    LHP version does not satisfy the project's PEP 440 specifier set.
-    Returns silently when no requirement is set, or when the
-    ``LHP_IGNORE_VERSION`` environment variable is truthy
-    (``"1"``, ``"true"``, ``"yes"`` — case-insensitive).
-
-    ``actual_version`` is an explicit override for the currently-installed
-    LHP version; orchestrator callers pass ``get_version()`` from their own
-    module namespace so the existing tests that
-    ``patch('lhp.core.coordination.orchestrator.get_version', ...)`` still take effect.
-    When ``None`` (the default — internal callers that need no test seam),
-    we look up the version via :func:`lhp.utils.version.get_version`.
+    ``actual_version`` lets orchestrator callers pass ``get_version()`` from their own
+    module so that ``patch('lhp.core.coordination.orchestrator.get_version', ...)`` in
+    tests still takes effect.
     """
     if not project_config or not project_config.required_lhp_version:
         return

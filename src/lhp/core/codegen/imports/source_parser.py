@@ -52,12 +52,8 @@ def parse_user_module(path: Path, *, cache: Optional[dict]) -> ast.Module:
     when a populated cache returns the tree.
 
     Args:
-        path: Path to the user module on disk.
         cache: Per-pipeline tree cache keyed by ``str(path.resolve())``,
             or ``None`` to parse without caching.
-
-    Returns:
-        The parsed ``ast.Module``.
 
     Raises:
         LHPError: IO/003 when the file contains invalid Python syntax,
@@ -115,10 +111,6 @@ def local_import_targets(tree: ast.Module, root: Path) -> list[ImportTarget]:
       is additionally flagged ``is_plain_dotted=True`` (cannot be
       prefix-rewritten cleanly).
     - otherwise external/stdlib → ``is_local=False``.
-
-    Args:
-        tree: A parsed user module.
-        root: The closure root (the entry file's own directory).
 
     Returns:
         One ``ImportTarget`` per import binding (one per ``ast.Import``

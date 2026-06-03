@@ -62,13 +62,6 @@ _FIELD_DEFAULTS: Dict[str, Any] = {
 
 
 class CdcFanInCompatibilityValidator:
-    """Cross-action compatibility for CDC fan-in.
-
-    Groups every write action by full target name, filters to the CDC
-    contributors, and validates that the shared fields match. Also rejects
-    mode-mixing (CDC action + non-CDC action both targeting the same table).
-    """
-
     def validate(self, flowgroups: List[FlowGroup]) -> List[str]:
         """Validate CDC fan-in compatibility.
 
@@ -102,13 +95,11 @@ class CdcFanInCompatibilityValidator:
                 # Don't bother checking field mismatches when modes collide.
                 continue
 
-            # (b) must-match cdc_config fields
             for field in _SHARED_CDC_CONFIG_FIELDS:
                 mismatch = self._check_equal(cdc_contribs, "cdc_config", field)
                 if mismatch:
                     raise mismatch_error(table_name, "cdc_config", field, mismatch)
 
-            # (c) must-match write_target table-level fields
             for field in _SHARED_TARGET_FIELDS:
                 mismatch = self._check_equal(cdc_contribs, "write_target", field)
                 if mismatch:
@@ -124,7 +115,6 @@ class CdcFanInCompatibilityValidator:
         return getattr(wt, "mode", None) == "cdc"
 
     def _full_name(self, write_target: Union[Dict[str, Any], Any]) -> Optional[str]:
-        """Build full ``catalog.schema.table`` name if fully specified."""
         if isinstance(write_target, dict):
             catalog = write_target.get("catalog")
             schema = write_target.get("schema")
@@ -182,5 +172,4 @@ class CdcFanInCompatibilityValidator:
 
     @staticmethod
     def _values_equal(a: Any, b: Any) -> bool:
-        """Equality that treats dicts/lists by value and handles None."""
         return a == b

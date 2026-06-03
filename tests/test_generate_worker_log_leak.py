@@ -1,16 +1,11 @@
 """Worker-log leak regression test for ``lhp generate``.
 
-The defining defect: spawn-pool workers used to attach ``logging.basicConfig``
-with a ``[worker %(process)d]`` stderr stream handler. The parent's
-``Live(... redirect_stderr=True)`` only intercepts the parent's own
-``sys.stderr``, not the worker's, so up to N copies of every worker-side
-warning leaked verbatim to the user's terminal — including multi-line
-``===``-bordered LHPError blocks.
-
-Phase 3 of the LHP error-UX hardening replaced ``basicConfig`` in
-``_init_worker_logger`` with a ``NullHandler``-only setup. This test
-exercises the failing reproducer end-to-end via a real subprocess and
-asserts that zero ``[worker `` lines escape to either output stream.
+The defect: spawn-pool workers used to attach ``logging.basicConfig`` with a
+``[worker %(process)d]`` stderr stream handler. The parent's
+``Live(redirect_stderr=True)`` only intercepts the parent's own ``sys.stderr``,
+not the worker's, so up to N copies of every worker-side warning leaked
+verbatim to the user's terminal — including multi-line ``===``-bordered LHPError
+blocks. ``_init_worker_logger`` now uses a ``NullHandler``-only setup.
 """
 
 import os
@@ -98,14 +93,10 @@ def _build_leak_repro_fixture(project_root: Path) -> None:
 
 @pytest.mark.e2e
 def test_no_worker_log_leak_on_failure(tmp_path: Path) -> None:
-    """On a failing generate run, no `[worker NNNN]`-prefixed lines may
-    reach the user's terminal on either stdout or stderr.
+    """No ``[worker NNNN]``-prefixed lines may reach stdout or stderr on a failing generate run.
 
-    The fixture is built fresh under ``tmp_path`` so the test is fully
-    self-contained — no dependency on Example_Projects fixture state.
-    The CLI is invoked via ``python -m lhp.cli.main`` so the test runs
-    whenever the package is importable, regardless of whether the
-    ``lhp`` console script is on PATH.
+    CLI invoked via ``python -m lhp.cli.main`` so the test runs whenever the package is
+    importable, regardless of whether the ``lhp`` console script is on PATH.
     """
     project_root = tmp_path / "lhp_proj_worker_log_leak"
     _build_leak_repro_fixture(project_root)
@@ -127,8 +118,7 @@ def test_no_worker_log_leak_on_failure(tmp_path: Path) -> None:
         timeout=300,
     )
 
-    # The reproducer fixture has an intentional ``cloudfilesd`` typo,
-    # so a clean failing run exits non-zero with an LHPError panel.
+    # Intentional ``cloudfilesd`` typo causes a clean failing run with an LHPError panel.
     assert result.returncode != 0, (
         f"expected non-zero exit, got {result.returncode}\n"
         f"stdout tail:\n{result.stdout[-500:]}\n"
@@ -136,8 +126,6 @@ def test_no_worker_log_leak_on_failure(tmp_path: Path) -> None:
     )
 
     combined = result.stdout + result.stderr
-    # Sanity: ensure we actually ran the LHP CLI (the failure panel
-    # references the LHP-VAL-007 code surfaced for the cloudfilesd typo).
     assert "LHP-VAL-" in combined, (
         f"lhp generate did not produce an LHPError panel — subprocess "
         f"may have failed before reaching the generate path.\n"

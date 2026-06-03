@@ -47,13 +47,11 @@ class DependencyAnalyzer:
         """
         self.logger.info("Starting dependency analysis...")
 
-        # Analyze pipeline dependencies
         pipeline_dependencies = self._analyze_pipeline_dependencies(graphs)
 
-        # Detect circular dependencies BEFORE trying to get execution order
+        # Detect circular dependencies before topological sort — nx raises on cycles.
         circular_dependencies = self._detect_circular_dependencies(graphs)
 
-        # Get execution order using topological sorting (only if no circular dependencies)
         if circular_dependencies:
             self.logger.warning(
                 "Skipping execution order generation due to circular dependencies"
@@ -62,10 +60,7 @@ class DependencyAnalyzer:
         else:
             execution_stages = self._get_execution_order(graphs.pipeline_graph)
 
-        # Collect external sources
         external_sources = self._collect_external_sources(graphs)
-
-        # Update pipeline dependencies with stage information
         self._update_pipeline_stages(pipeline_dependencies, execution_stages)
 
         result = DependencyAnalysisResult(
@@ -118,18 +113,15 @@ class DependencyAnalyzer:
             job_fg_names = {fg.flowgroup for fg in job_flowgroups}
             job_pipeline_names = {fg.pipeline for fg in job_flowgroups}
 
-            # Filter action graph: keep nodes belonging to this job's flowgroups
             job_action_graph = nx.DiGraph()
             for node, data in global_result.graphs.action_graph.nodes(data=True):
                 if data.get("flowgroup") in job_fg_names:
                     job_action_graph.add_node(node, **data)
 
-            # Keep edges where both nodes are in the filtered graph
             for u, v, data in global_result.graphs.action_graph.edges(data=True):
                 if u in job_action_graph and v in job_action_graph:
                     job_action_graph.add_edge(u, v, **data)
 
-            # Filter flowgroup graph
             job_fg_graph = nx.DiGraph()
             for node, data in global_result.graphs.flowgroup_graph.nodes(data=True):
                 if node in job_fg_names:
@@ -139,7 +131,6 @@ class DependencyAnalyzer:
                 if u in job_fg_graph and v in job_fg_graph:
                     job_fg_graph.add_edge(u, v, **data)
 
-            # Filter pipeline graph
             job_pipeline_graph = nx.DiGraph()
             for node, data in global_result.graphs.pipeline_graph.nodes(data=True):
                 if node in job_pipeline_names:
@@ -149,7 +140,6 @@ class DependencyAnalyzer:
                 if u in job_pipeline_graph and v in job_pipeline_graph:
                     job_pipeline_graph.add_edge(u, v, **data)
 
-            # Build partitioned graphs
             job_graphs = DependencyGraphs(
                 action_graph=job_action_graph,
                 flowgroup_graph=job_fg_graph,
@@ -165,20 +155,14 @@ class DependencyAnalyzer:
             # producing correct intra-job depends_on lists by construction
             # (cross-job dependencies are handled by the master job).
             job_pipeline_deps = self._analyze_pipeline_dependencies(job_graphs)
-
-            # Detect circular deps for this partition
             job_circular_deps = self._detect_circular_dependencies(job_graphs)
 
-            # Compute execution order for this partition
             if job_circular_deps:
                 job_execution_stages = []
             else:
                 job_execution_stages = self._get_execution_order(job_pipeline_graph)
 
-            # Collect external sources for this job
             job_external = self._collect_external_sources(job_graphs)
-
-            # Log cross-job dependencies
             cross_job_sources = set(job_external) - global_external_sources
             if cross_job_sources:
                 self.logger.info(
@@ -225,8 +209,6 @@ class DependencyAnalyzer:
         """
         return self._detect_circular_dependencies(graphs)
 
-    # Private helper methods
-
     def _is_external_source(self, source: str, all_targets: set) -> bool:
         """
         Check if a source is external using explicit tracking.
@@ -243,8 +225,6 @@ class DependencyAnalyzer:
 
         for pipeline in graphs.pipeline_graph.nodes():
             node_data = graphs.pipeline_graph.nodes[pipeline]
-
-            # Get direct dependencies
             depends_on = list(graphs.pipeline_graph.predecessors(pipeline))
 
             pipeline_deps[pipeline] = PipelineDependency(
@@ -263,10 +243,8 @@ class DependencyAnalyzer:
             return []
 
         try:
-            # Use topological generations to get stages of parallel execution
             return list(nx.topological_generations(pipeline_graph))
         except nx.NetworkXError:
-            # This should not happen if circular dependencies are handled properly
             self.logger.exception("Error in topological sorting")
             return []
 
@@ -317,7 +295,6 @@ class DependencyAnalyzer:
         """Collect all external sources identified across the project."""
         external_sources = set()
 
-        # Collect from action graph
         for node in graphs.action_graph.nodes():
             node_external_sources = graphs.action_graph.nodes[node].get(
                 "external_sources", []

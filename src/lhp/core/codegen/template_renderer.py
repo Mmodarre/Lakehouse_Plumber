@@ -1,9 +1,4 @@
-"""
-Template rendering utility for LakehousePlumber.
-
-This module provides the TemplateRenderer class that encapsulates Jinja2 template
-rendering functionality, promoting composition over inheritance.
-"""
+"""Template rendering utility for LakehousePlumber."""
 
 import functools
 import json
@@ -27,13 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_lhp_template_loader() -> PackageLoader:
-    """Return a Jinja2 loader rooted at ``src/lhp/templates/``.
-
-    Uses :class:`jinja2.PackageLoader`, which resolves templates via
-    ``importlib.util.find_spec()`` (PEP 451). This is the single source of
-    truth for the LHP package-template location; renames/moves are a one-line
-    change here.
-    """
+    """Single source of truth for LHP package-template location; renames/moves are a one-line change here."""
     return PackageLoader("lhp", "templates")
 
 
@@ -70,28 +59,13 @@ def get_shared_generator_environment() -> Environment:
 
 
 class TemplateRenderer:
-    """
-    Template rendering utility using Jinja2.
-
-    Provides a composition-based approach to template rendering to promote
-    clear separation of concerns.
-    """
-
     def __init__(self, loader: Optional[BaseLoader] = None):
-        """
-        Initialize template renderer.
-
-        Args:
-            loader: Jinja2 loader. Defaults to the LHP package loader
-                (``PackageLoader("lhp", "templates")``).
-        """
         if loader is None:
             loader = get_lhp_template_loader()
         self.env = Environment(  # nosec B701 — generates Python, not HTML
             loader=loader, trim_blocks=True, lstrip_blocks=True
         )
 
-        # Add common filters
         self.env.filters["tojson"] = json.dumps
         self.env.filters["toyaml"] = dict_to_yaml
 
@@ -101,19 +75,6 @@ class TemplateRenderer:
         return cls(get_lhp_template_loader())
 
     def render_template(self, template_name: str, context: Dict[str, Any]) -> str:
-        """
-        Render a template with the given context.
-
-        Args:
-            template_name: Name of the template file (e.g., "pipeline_resource.yml.j2")
-            context: Template context variables
-
-        Returns:
-            Rendered template content as string
-
-        Raises:
-            LHPConfigError: If the template file doesn't exist or rendering fails
-        """
         try:
             template = self.env.get_template(template_name)
         except TemplateNotFound as e:

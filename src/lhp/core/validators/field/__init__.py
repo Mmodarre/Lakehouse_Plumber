@@ -1,4 +1,4 @@
-"""Field-level validators (§1 home)."""
+"""Field-level validators."""
 
 from .config_field import ConfigFieldValidator
 from .kafka_options import KafkaOptionsValidator

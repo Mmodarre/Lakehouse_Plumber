@@ -25,18 +25,12 @@ class StatsCommand(BaseCommand):
     """Pipeline statistics and complexity metrics."""
 
     def execute(self, pipeline: Optional[str] = None) -> None:
-        """Run the stats command for one pipeline or all of them.
+        """Routes all domain calls through the facade (§1.10 / §9.13).
 
-        Routes every domain call through
-        :class:`LakehousePlumberApplicationFacade` so the CLI never
-        touches internal ``lhp.core`` / ``lhp.parsers`` modules
-        (constitution §1.10 / §9.13). When ``pipeline`` is ``None``
-        the global :meth:`InspectionFacade.compute_stats` result is
-        rendered directly; when scoped to a single pipeline the
-        per-flowgroup view tuple from
-        :meth:`InspectionFacade.list_flowgroups` is re-aggregated
-        into a single-pipeline :class:`StatsResult` for uniform
-        rendering downstream.
+        When ``pipeline`` is ``None`` the global
+        :meth:`InspectionFacade.compute_stats` result is rendered
+        directly; when scoped, per-flowgroup views are re-aggregated
+        into a single-pipeline :class:`StatsResult` for uniform rendering.
         """
         render_command_header("lhp stats")
         self.setup_from_context()

@@ -45,7 +45,6 @@ def _capture(
     show_all: bool = False,
     elapsed_s: float = 1.5,
 ) -> str:
-    """Render the summary table at a fixed width without ANSI color and return the captured text."""
     with capture_lhp_console(80) as buf:
         print_summary_table(
             records,

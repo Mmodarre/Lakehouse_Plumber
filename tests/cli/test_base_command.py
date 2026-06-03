@@ -12,8 +12,6 @@ from lhp.cli.commands.base_command import BaseCommand
 
 
 def _run(verbose, log_file):
-    """Invoke announce_log_file inside a Click context, return captured stdout."""
-
     @click.command()
     def _cmd():
         cmd = BaseCommand()

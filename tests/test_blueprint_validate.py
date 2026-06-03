@@ -1,4 +1,4 @@
-"""Spec-driven unit tests for `lhp validate` blueprint integration (Phase 13/A).
+"""Unit tests for `lhp validate` and `lhp generate` blueprint integration.
 
 Covers:
   (a) silent pass when no blueprints/instances present
@@ -79,7 +79,6 @@ def test_validate_instance_unknown_blueprint_raises_041(tmp_path):
     with runner.isolated_filesystem(temp_dir=tmp_path) as fs:
         root = Path(fs)
         _bootstrap(root)
-        # No blueprint files; instance references a nonexistent blueprint.
         _write(
             root / "pipelines" / "erp" / "bronze" / "sg.yaml",
             "blueprint: nonexistent_blueprint\nsite_name: apac_sg\n",
@@ -99,7 +98,6 @@ def test_generate_instance_unknown_blueprint_raises_041(tmp_path):
     with runner.isolated_filesystem(temp_dir=tmp_path) as fs:
         root = Path(fs)
         _bootstrap(root)
-        # No blueprint files; instance references a nonexistent blueprint.
         _write(
             root / "pipelines" / "erp" / "bronze" / "sg.yaml",
             "blueprint: nonexistent_blueprint\nsite_name: apac_sg\n",
@@ -238,7 +236,6 @@ flowgroups:
             "blueprint: erp\nsite_name: apac_sg\n",
         )
         result = runner.invoke(cli, ["validate", "--env", "dev"])
-    # A well-formed blueprint project must validate cleanly (exit 0).
     assert result.exit_code == 0, f"validate failed: {result.output}"
 
 
@@ -272,7 +269,6 @@ actions:
         result = runner.invoke(
             cli, ["validate", "--env", "dev", "--pipeline", "bronze_pipe"]
         )
-    # A valid project with a matching --pipeline filter validates cleanly.
     assert result.exit_code == 0, f"validate failed: {result.output}"
 
 

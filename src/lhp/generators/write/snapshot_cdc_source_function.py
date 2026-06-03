@@ -37,13 +37,10 @@ from ...utils.performance_timer import incr_event
 
 logger = logging.getLogger(__name__)
 
-# Allowed types for source_function parameter values
 _ALLOWED_PARAM_TYPES = (str, int, float, bool, list, dict, type(None))
 
 
 class SourceFunctionResult(NamedTuple):
-    """Result of resolving a source_function configuration."""
-
     name: str
     parameters: Optional[Dict[str, Any]] = None
 
@@ -126,7 +123,6 @@ def resolve_source_function(
         if parameters:
             parameters = substitution_mgr.substitute_yaml(parameters)
 
-        # Single collection point after parameter substitution.
         secret_refs = substitution_mgr.secret_references
         if "secret_references" in context and context["secret_references"] is not None:
             context["secret_references"].update(secret_refs)
@@ -164,7 +160,6 @@ def resolve_source_function(
         # somehow produced a signature would not be miscounted as a hit.
         incr_event("snapshot_sigcache_hit")
 
-    # Validate THIS flowgroup's parameters against the cached signature.
     if parameters:
         _validate_function_parameters(signature, function_name, parameters)
 
@@ -233,7 +228,6 @@ def {function_name}(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, 
 def _find_function_node(
     tree: ast.Module, function_name: str
 ) -> "ast.FunctionDef | None":
-    """Find a top-level FunctionDef by name in the AST."""
     for node in tree.body:
         if isinstance(node, ast.FunctionDef) and node.name == function_name:
             return node
@@ -245,21 +239,12 @@ def _validate_function_parameters(
     function_name: str,
     parameters: Dict[str, Any],
 ) -> None:
-    """Validate that parameters match the function's keyword-only arguments.
-
-    Skips name validation if the function accepts ``**kwargs``.
-
-    Args:
-        signature: Cached signature for the target function.
-        function_name: Name of the target function (for error messages).
-        parameters: Parameter dict from YAML config.
+    """Skips name validation if the function accepts ``**kwargs``.
 
     Raises:
-        LHPError: If parameter names don't match keyword-only args
-                  (CONFIG/006), or if parameter values have unsupported
-                  types (CONFIG/005).
+        LHPError: CONFIG/006 (unknown param name) or CONFIG/005
+                  (unsupported param type).
     """
-    # Type guard: validate parameter values
     for key, value in parameters.items():
         if not isinstance(value, _ALLOWED_PARAM_TYPES):
             raise ErrorFactory.config_error(
@@ -275,7 +260,6 @@ def _validate_function_parameters(
                 ],
             )
 
-    # If function accepts **kwargs, skip name validation
     if signature.has_kwargs:
         logger.debug(
             f"Function '{function_name}' accepts **kwargs, "
@@ -285,7 +269,6 @@ def _validate_function_parameters(
 
     kw_only_names = signature.kwonly_names
 
-    # Check for unknown parameter names
     unknown = set(parameters.keys()) - kw_only_names
     if unknown:
         raise ErrorFactory.config_error(

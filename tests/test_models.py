@@ -17,22 +17,15 @@ from lhp.models import (
 
 
 class TestModels:
-    """Test the core data models."""
-
     def test_action_type_enum(self):
-        """Test ActionType enum values."""
         assert ActionType.LOAD.value == "load"
         assert ActionType.TRANSFORM.value == "transform"
         assert ActionType.WRITE.value == "write"
-        # Test for new TEST action type
         assert ActionType.TEST.value == "test"
 
     def test_test_type_enum(self):
-        """Test TestActionType enum exists with all required test types."""
-        # Test that TestActionType enum exists
         assert TestActionType is not None
 
-        # Test all 9 test types exist
         assert TestActionType.ROW_COUNT.value == "row_count"
         assert TestActionType.UNIQUENESS.value == "uniqueness"
         assert TestActionType.REFERENTIAL_INTEGRITY.value == "referential_integrity"
@@ -44,16 +37,11 @@ class TestModels:
         assert TestActionType.CUSTOM_EXPECTATIONS.value == "custom_expectations"
 
     def test_violation_action_enum(self):
-        """Test ViolationAction enum exists with required values."""
-        # Test that ViolationAction enum exists
         assert ViolationAction is not None
-
-        # Test violation action values
         assert ViolationAction.FAIL.value == "fail"
         assert ViolationAction.WARN.value == "warn"
 
     def test_action_model(self):
-        """Test Action model creation."""
         action = Action(
             name="test_action",
             type=ActionType.LOAD,
@@ -66,7 +54,6 @@ class TestModels:
         assert action.target == "test_view"
 
     def test_flowgroup_model(self):
-        """Test FlowGroup model creation."""
         flowgroup = FlowGroup(
             pipeline="test_pipeline",
             flowgroup="test_flowgroup",
@@ -86,7 +73,6 @@ class TestModels:
         assert flowgroup.presets == ["bronze_layer"]
 
     def test_preset_model(self):
-        """Test Preset model creation."""
         preset = Preset(
             name="bronze_layer",
             version="1.0",

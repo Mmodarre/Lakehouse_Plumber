@@ -1,7 +1,7 @@
-"""Spec-driven unit tests for blueprint CLI surface (Phase 12).
+"""Unit tests for blueprint CLI surface.
 
-Covers ``lhp list_blueprints`` (with/without --verbose), ``lhp show --instance``
-(M4), and the mutual-exclusion error codes 057 / 058 raised by the show
+Covers ``lhp list_blueprints`` (with/without --verbose), ``lhp show --instance``,
+and the mutual-exclusion error codes 057 / 058 raised by the show
 command's argument parsing.
 """
 
@@ -82,7 +82,6 @@ def test_list_blueprints_verbose_shows_instances(tmp_path):
         result = runner.invoke(cli, ["list-blueprints", "--verbose"])
     assert result.exit_code == 0, result.output
     out = result.output
-    # Verbose mode lists each instance + its resolved pipelines.
     assert "apac_sg" in out or "sg.yaml" in out
     assert "emea_uk" in out or "uk.yaml" in out
 
@@ -97,7 +96,6 @@ def test_show_instance_resolves_flowgroups(tmp_path):
             ["show", "--env", "dev", "--instance", "pipelines/erp/bronze/sg.yaml"],
         )
     assert result.exit_code == 0, result.output
-    # The resolved pipeline / flowgroup names should appear in the output.
     assert "apac_sg_raw" in result.output or "apac_sg_orders" in result.output
 
 

@@ -20,18 +20,15 @@ class TestIntegrationCore:
 
     @pytest.fixture
     def temp_project(self):
-        """Create a temporary project directory."""
         with tempfile.TemporaryDirectory() as tmpdir:
             yield Path(tmpdir)
 
     @pytest.fixture
     def runner(self):
-        """Create a CLI runner."""
         return CliRunner()
 
     def create_project_structure(self, project_path: Path):
         """Create standard LHP project structure."""
-        # Create directories as per requirements
         directories = [
             "presets",
             "templates",
@@ -45,7 +42,6 @@ class TestIntegrationCore:
         for dir_name in directories:
             (project_path / dir_name).mkdir(parents=True)
 
-        # Create project config
         (project_path / "lhp.yaml").write_text("""
 name: test_project
 version: "1.0"
@@ -55,16 +51,9 @@ description: "Test LakehousePlumber project"
         return project_path
 
     def test_bronze_ingestion_pattern(self, temp_project):
-        """Test the bronze ingestion pattern from requirements.
-
-        This test implements the example from the requirements:
-        - CloudFiles source (Auto Loader)
-        - Operational metadata addition
-        - Write to streaming table
-        """
+        """Test the bronze ingestion pattern."""
         project_root = self.create_project_structure(temp_project)
 
-        # Create bronze layer preset as per requirements
         (project_root / "presets" / "bronze_layer.yaml").write_text("""
 name: bronze_layer
 version: "1.0"
@@ -88,7 +77,6 @@ defaults:
         cloudFiles.schemaHints: "true"
 """)
 
-        # Create substitutions for dev environment
         (project_root / "substitutions" / "dev.yaml").write_text("""
 dev:
   catalog: dev_catalog
@@ -97,7 +85,6 @@ dev:
   checkpoint_path: /mnt/dev/checkpoints
 """)
 
-        # Create customer ingestion flowgroup
         pipeline_dir = project_root / "pipelines" / "sales_bronze"
         pipeline_dir.mkdir(parents=True)
 
@@ -129,7 +116,6 @@ actions:
     description: "Write to bronze customer table"
 """)
 
-        # Generate pipeline
         facade = LakehousePlumberApplicationFacade.for_project(
             project_root, enforce_version=False
         )
@@ -140,11 +126,9 @@ actions:
             output_dir=project_root / "generated",
         )
 
-        # Verify generated code
         assert "customer_ingestion.py" in generated_files
         code = generated_files["customer_ingestion.py"]
 
-        # Check for required elements from requirements
         assert "@dp.temporary_view()" in code
         assert "spark.readStream" in code
         assert "cloudFiles" in code
@@ -152,7 +136,7 @@ actions:
         assert "dp.create_streaming_table(" in code  # Using append flow API
         assert "dev_catalog.bronze.customer_raw" in code
 
-        # Check for operational metadata (enabled in preset)
+        # operational metadata enabled by the bronze_layer preset
         assert "_ingestion_timestamp" in code
         assert "F.current_timestamp()" in code
         assert "_pipeline_name" in code
@@ -169,7 +153,6 @@ actions:
         """
         project_root = self.create_project_structure(temp_project)
 
-        # Create substitutions with secret configuration
         (project_root / "substitutions" / "prod.yaml").write_text("""
 prod:
   catalog: prod_catalog
@@ -182,7 +165,6 @@ secrets:
     apis: prod_api_secrets
 """)
 
-        # Create flowgroup with JDBC source using secrets
         pipeline_dir = project_root / "pipelines" / "customer_ingestion"
         pipeline_dir.mkdir(parents=True)
 
@@ -220,7 +202,6 @@ actions:
       create_table: true
 """)
 
-        # Generate pipeline
         facade = LakehousePlumberApplicationFacade.for_project(
             project_root, enforce_version=False
         )
@@ -231,11 +212,9 @@ actions:
             output_dir=project_root / "generated",
         )
 
-        # Verify generated code
         assert "external_customer_load.py" in generated_files
         code = generated_files["external_customer_load.py"]
 
-        # JDBC scaffolding still present
         assert "spark.read" in code
         assert '.format("jdbc")' in code
 
@@ -291,18 +270,15 @@ actions:
             in code
         ), "Expected f-string with embedded dbutils call for URL; got:\n" + code
 
-        # Verify SQL query is included
         assert "SELECT" in code
         assert "customer_id" in code
 
-        # Most importantly, verify the generated code is syntactically valid Python
         compile(code, "<string>", "exec")
 
     def test_cdc_silver_layer(self, temp_project):
-        """Test CDC pattern for silver layer as per requirements."""
+        """Test CDC pattern for silver layer."""
         project_root = self.create_project_structure(temp_project)
 
-        # Create silver layer preset
         (project_root / "presets" / "silver_layer.yaml").write_text("""
 name: silver_layer
 version: "1.0"
@@ -316,7 +292,6 @@ defaults:
         quality: "silver"
 """)
 
-        # Create substitutions
         (project_root / "substitutions" / "dev.yaml").write_text("""
 dev:
   env: dev
@@ -325,7 +300,6 @@ dev:
   source: v_customer_changes
 """)
 
-        # Create CDC flowgroup as per requirements example
         pipeline_dir = project_root / "pipelines" / "sales_silver"
         pipeline_dir.mkdir(parents=True)
 
@@ -379,7 +353,6 @@ actions:
         track_history_columns: [customer_name, email]
 """)
 
-        # Generate pipeline
         facade = LakehousePlumberApplicationFacade.for_project(
             project_root, enforce_version=False
         )
@@ -390,19 +363,15 @@ actions:
             output_dir=project_root / "generated",
         )
 
-        # Verify generated code
         assert "customer_dimensions.py" in generated_files
         code = generated_files["customer_dimensions.py"]
 
-        # Check for Delta CDC source
         assert 'option("readChangeFeed", "true")' in code
         assert "dev.bronze_sales.customer_raw" in code
 
-        # Check for SQL transformation
         assert "UPPER(TRIM(customer_name))" in code
         assert "LOWER(TRIM(email))" in code
 
-        # Check for CDC write (auto_cdc)
         assert "dp.create_streaming_table" in code  # Table must be created first
         assert 'name="dev.silver_sales.dim_customer"' in code
         assert "dp.create_auto_cdc_flow" in code
@@ -411,10 +380,9 @@ actions:
         assert "scd_type=2" in code
 
     def test_template_usage(self, temp_project):
-        """Test template system as per requirements."""
+        """Test template system."""
         project_root = self.create_project_structure(temp_project)
 
-        # Create bronze ingestion template as per requirements
         (project_root / "templates" / "bronze_ingestion.yaml").write_text("""
 name: bronze_ingestion
 version: "1.0"
@@ -463,13 +431,11 @@ actions:
       create_table: true
 """)
 
-        # Create substitutions
         (project_root / "substitutions" / "dev.yaml").write_text("""
 dev:
   env: dev
 """)
 
-        # Create flowgroup using template
         pipeline_dir = project_root / "pipelines" / "orders_bronze"
         pipeline_dir.mkdir(parents=True)
 
@@ -485,7 +451,6 @@ template_parameters:
   schema: sales
 """)
 
-        # Generate pipeline
         facade = LakehousePlumberApplicationFacade.for_project(
             project_root, enforce_version=False
         )
@@ -496,11 +461,9 @@ template_parameters:
             output_dir=project_root / "generated",
         )
 
-        # Verify generated code
         assert "order_ingestion.py" in generated_files
         code = generated_files["order_ingestion.py"]
 
-        # Check that template was expanded correctly
         assert "v_orders_raw" in code
         assert "v_orders_with_metadata" in code
         assert "/mnt/landing/dev/orders/*.json" in code
@@ -512,7 +475,6 @@ template_parameters:
         """Test data quality expectations integration."""
         project_root = self.create_project_structure(temp_project)
 
-        # Create expectations file as per requirements
         (project_root / "expectations" / "customer_quality.json").write_text(
             json.dumps(
                 {
@@ -539,7 +501,6 @@ template_parameters:
             )
         )
 
-        # Create flowgroup with data quality action
         pipeline_dir = project_root / "pipelines" / "customer_quality"
         pipeline_dir.mkdir(parents=True)
 
@@ -573,7 +534,6 @@ actions:
       create_table: true
 """)
 
-        # Generate pipeline
         facade = LakehousePlumberApplicationFacade.for_project(
             project_root, enforce_version=False
         )
@@ -584,10 +544,8 @@ actions:
             output_dir=project_root / "generated",
         )
 
-        # Verify generated code
         code = generated_files["customer_validation.py"]
 
-        # Check for DLT expectations
         assert "@dp.expect_all_or_fail" in code
         assert '"customer_id IS NOT NULL"' in code
 

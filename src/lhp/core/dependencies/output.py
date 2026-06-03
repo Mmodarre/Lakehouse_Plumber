@@ -62,12 +62,10 @@ def export_to_dot(graphs: DependencyGraphs, level: str = "pipeline") -> str:
     dot_lines.append("  rankdir=LR;")
     dot_lines.append("  node [shape=box];")
 
-    # Add nodes with attributes
     for node in graph.nodes():
         node_attrs = graph.nodes[node]
         label = node
 
-        # Add additional info to label based on level
         if level == "pipeline" and "flowgroup_count" in node_attrs:
             label = f"{node}\\n({node_attrs['flowgroup_count']} flowgroups)"
         elif level == "flowgroup" and "action_count" in node_attrs:
@@ -75,7 +73,6 @@ def export_to_dot(graphs: DependencyGraphs, level: str = "pipeline") -> str:
 
         dot_lines.append(f'  "{node}" [label="{label}"];')
 
-    # Add edges
     for source, target in graph.edges():
         dot_lines.append(f'  "{source}" -> "{target}";')
 
@@ -134,14 +131,12 @@ def _generate_text_representation(result: DependencyAnalysisResult) -> str:
     """
     lines = []
 
-    # Header
     lines.append("=" * 80)
     lines.append("LAKEHOUSE PLUMBER - PIPELINE DEPENDENCY ANALYSIS")
     lines.append("=" * 80)
     lines.append(f"Generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     lines.append("")
 
-    # Summary statistics
     lines.append("SUMMARY")
     lines.append("-" * 40)
     lines.append(f"Total Pipelines: {result.total_pipelines}")
@@ -150,7 +145,6 @@ def _generate_text_representation(result: DependencyAnalysisResult) -> str:
     lines.append(f"Circular Dependencies: {len(result.circular_dependencies)}")
     lines.append("")
 
-    # Execution order
     lines.append("EXECUTION ORDER")
     lines.append("-" * 40)
     if result.execution_stages:
@@ -167,7 +161,6 @@ def _generate_text_representation(result: DependencyAnalysisResult) -> str:
         )
     lines.append("")
 
-    # Pipeline details
     lines.append("PIPELINE DETAILS")
     lines.append("-" * 40)
     for pipeline_name in sorted(result.pipeline_dependencies.keys()):
@@ -186,7 +179,6 @@ def _generate_text_representation(result: DependencyAnalysisResult) -> str:
                 lines.append(f"    ... and {len(dep.external_sources) - 5} more")
         lines.append("")
 
-    # External sources
     if result.external_sources:
         lines.append("EXTERNAL SOURCES")
         lines.append("-" * 40)
@@ -194,7 +186,6 @@ def _generate_text_representation(result: DependencyAnalysisResult) -> str:
             lines.append(f"  {ext_source}")
         lines.append("")
 
-    # Circular dependencies
     if result.circular_dependencies:
         lines.append("CIRCULAR DEPENDENCIES")
         lines.append("-" * 40)
@@ -204,7 +195,6 @@ def _generate_text_representation(result: DependencyAnalysisResult) -> str:
             lines.append(f"  {cycle[0]}")
         lines.append("")
 
-    # Dependency tree visualization
     lines.append("DEPENDENCY TREE")
     lines.append("-" * 40)
     lines.extend(_generate_dependency_tree_text(result))
@@ -222,7 +212,6 @@ def _generate_dependency_tree_text(
         lines.append("No pipelines found.")
         return lines
 
-    # Find root pipelines (no dependencies)
     root_pipelines = [
         name for name, dep in result.pipeline_dependencies.items() if not dep.depends_on
     ]
@@ -231,7 +220,6 @@ def _generate_dependency_tree_text(
         lines.append("⚠️  No root pipelines found (possible circular dependencies)")
         return lines
 
-    # Build tree representation
     visited: set = set()
 
     def add_pipeline_tree(pipeline: str, indent: str = "", is_last: bool = True):
@@ -242,8 +230,6 @@ def _generate_dependency_tree_text(
             return
 
         visited.add(pipeline)
-
-        # Pipeline info
         dep = result.pipeline_dependencies.get(pipeline)
         if dep:
             info = f"{pipeline} ({dep.flowgroup_count} flowgroups, {dep.action_count} actions)"
@@ -252,20 +238,17 @@ def _generate_dependency_tree_text(
 
         lines.append(f"{indent}{'└── ' if is_last else '├── '}{info}")
 
-        # Find dependents
         dependents = [
             name
             for name, dep in result.pipeline_dependencies.items()
             if pipeline in dep.depends_on
         ]
 
-        # Add dependent pipelines
         child_indent = indent + ("    " if is_last else "│   ")
         for i, dependent in enumerate(sorted(dependents)):
             is_last_child = i == len(dependents) - 1
             add_pipeline_tree(dependent, child_indent, is_last_child)
 
-    # Add each root pipeline and its dependents
     for i, root_pipeline in enumerate(sorted(root_pipelines)):
         is_last_root = i == len(root_pipelines) - 1
         add_pipeline_tree(root_pipeline, "", is_last_root)
@@ -274,21 +257,9 @@ def _generate_dependency_tree_text(
 
 
 class DependencyOutputManager:
-    """
-    Manages different output formats for dependency analysis results.
-
-    Follows Python best practices for file I/O, error handling, and
-    separation of concerns. Provides multiple output formats with
-    consistent naming and structure.
-    """
+    """File-I/O facade for dependency analysis results (DOT/JSON/text/job formats)."""
 
     def __init__(self, base_output_dir: Optional[Path] = None):
-        """
-        Initialize output manager.
-
-        Args:
-            base_output_dir: Base directory for outputs. If None, uses .lhp/dependencies/
-        """
         self.base_output_dir = base_output_dir
         self.logger = logging.getLogger(__name__)
 
@@ -321,15 +292,12 @@ class DependencyOutputManager:
             IOError: If output directory cannot be created or files cannot be written
             ValueError: If invalid output format specified
         """
-        # Determine output directory
         target_dir = self._resolve_output_directory(output_dir)
         self._ensure_directory_exists(target_dir)
 
-        # Expand "all" format
         if "all" in output_formats:
             output_formats = ["dot", "json", "text", "job"]
 
-        # Validate formats
         valid_formats = {"dot", "json", "text", "job"}
         invalid_formats = set(output_formats) - valid_formats
         if invalid_formats:
@@ -349,7 +317,6 @@ class DependencyOutputManager:
 
         generated_files = {}
 
-        # Generate each requested format
         if "dot" in output_formats:
             dot_file = self._save_dot_format(analyzer, result.graphs, target_dir)
             generated_files["dot"] = dot_file
@@ -392,21 +359,8 @@ class DependencyOutputManager:
         output_path: Path,
         level: str = "pipeline",
     ) -> Path:
-        """
-        Save dependency graph in DOT format.
-
-        Args:
-            analyzer: DependencyAnalysisService instance (kept on the signature
-                for backward compatibility with callers that pass it; the DOT
-                conversion no longer routes through the analyzer — it calls
-                the module-level :func:`export_to_dot` directly).
-            graphs: Dependency graphs
-            output_path: Full path for the output file
-            level: Graph level to export ("action", "flowgroup", or "pipeline")
-
-        Returns:
-            Path to the generated DOT file
-        """
+        """``analyzer`` is kept for backward compatibility; DOT conversion uses
+        :func:`export_to_dot` directly."""
         del analyzer  # Unused — DOT conversion is now a pure module-level function.
         dot_content = export_to_dot(graphs, level)
 
@@ -424,20 +378,8 @@ class DependencyOutputManager:
         result: DependencyAnalysisResult,
         output_path: Path,
     ) -> Path:
-        """
-        Save dependency analysis in structured JSON format.
-
-        Args:
-            analyzer: DependencyAnalysisService instance (kept on the signature
-                for backward compatibility; JSON conversion no longer routes
-                through the analyzer — it calls the module-level
-                :func:`export_to_json` directly).
-            result: Complete dependency analysis result
-            output_path: Full path for the output file
-
-        Returns:
-            Path to the generated JSON file
-        """
+        """``analyzer`` is kept for backward compatibility; JSON conversion uses
+        :func:`export_to_json` directly."""
         del analyzer  # Unused — JSON conversion is now a pure module-level function.
         json_data = export_to_json(result)
 
@@ -459,16 +401,6 @@ class DependencyOutputManager:
     def save_text_format(
         self, result: DependencyAnalysisResult, output_path: Path
     ) -> Path:
-        """
-        Save dependency analysis in human-readable text format.
-
-        Args:
-            result: Complete dependency analysis result
-            output_path: Full path for the output file
-
-        Returns:
-            Path to the generated text file
-        """
         text_content = self._generate_text_representation(result)
 
         try:
@@ -480,16 +412,13 @@ class DependencyOutputManager:
             raise IOError(f"Failed to save text file to {output_path}: {e}") from e
 
     def _resolve_output_directory(self, output_dir: Optional[Path]) -> Path:
-        """Resolve the output directory to use."""
         if output_dir:
             return output_dir
         if self.base_output_dir:
             return self.base_output_dir
-        # Default to .lhp/dependencies/ in current working directory
         return Path.cwd() / ".lhp" / "dependencies"
 
     def _ensure_directory_exists(self, directory: Path) -> None:
-        """Ensure output directory exists, creating it if necessary."""
         try:
             directory.mkdir(parents=True, exist_ok=True)
         except OSError as e:
@@ -501,12 +430,10 @@ class DependencyOutputManager:
         graphs: DependencyGraphs,
         target_dir: Path,
     ) -> Path:
-        """Save DOT format files for both pipeline and flowgroup levels."""
-        # Save pipeline-level dependencies
+        """Returns pipeline-level DOT path; also writes flowgroup-level file."""
         pipeline_dot_file = target_dir / "pipeline_dependencies.dot"
         self.save_dot_format(analyzer, graphs, pipeline_dot_file, level="pipeline")
 
-        # Save flowgroup-level dependencies
         flowgroup_dot_file = target_dir / "flowgroup_dependencies.dot"
         self.save_dot_format(analyzer, graphs, flowgroup_dot_file, level="flowgroup")
 
@@ -514,7 +441,6 @@ class DependencyOutputManager:
             f"Generated DOT files: {pipeline_dot_file.name} and {flowgroup_dot_file.name}"
         )
 
-        # Return the pipeline file for backward compatibility
         return pipeline_dot_file
 
     def _save_json_format(
@@ -523,33 +449,21 @@ class DependencyOutputManager:
         result: DependencyAnalysisResult,
         target_dir: Path,
     ) -> Path:
-        """Save JSON format to standard filename."""
         json_file = target_dir / "pipeline_dependencies.json"
         return self.save_json_format(analyzer, result, json_file)
 
     def _save_text_format(
         self, result: DependencyAnalysisResult, target_dir: Path
     ) -> Path:
-        """Save text format to standard filename."""
         text_file = target_dir / "pipeline_dependencies.txt"
         return self.save_text_format(result, text_file)
 
     def _generate_text_representation(self, result: DependencyAnalysisResult) -> str:
-        """Generate human-readable text representation of dependency analysis.
-
-        Forwarder to the module-level :func:`_generate_text_representation`
-        so :class:`DependencyOutputManager` and :func:`export_to_text`
-        share the same implementation.
-        """
         return _generate_text_representation(result)
 
     def _generate_dependency_tree_text(
         self, result: DependencyAnalysisResult
     ) -> List[str]:
-        """Generate ASCII tree representation of pipeline dependencies.
-
-        Forwarder to the module-level :func:`_generate_dependency_tree_text`.
-        """
         return _generate_dependency_tree_text(result)
 
     def _save_job_format(
@@ -580,16 +494,12 @@ class DependencyOutputManager:
             Path or Dict[str, Path] - single path for backward compat, dict for multiple jobs
         """
 
-        # Create JobGenerator with project root and config path
         job_generator = JobGenerator(
             project_root=analyzer.project_root, config_file_path=job_config_path
         )
 
-        # Extract project name from lhp.yaml or fallback to directory name
         project_name = analyzer.get_project_name()
 
-        # Check if flowgroups have job_name property
-        # Defensive: handle case where analyzer is mocked in tests
         try:
             flowgroups = analyzer.get_flowgroups()
             has_job_name = any(fg.job_name for fg in flowgroups)
@@ -599,21 +509,16 @@ class DependencyOutputManager:
             has_job_name = False
 
         if not has_job_name:
-            # Backward compatible: single job mode
             self.logger.info(
                 "No job_name defined - generating single orchestration job"
             )
 
-            # Use provided job name or generate default
             if not job_name:
                 job_name = f"{project_name}_orchestration"
 
-            # Determine output path based on bundle_output flag
             if bundle_output:
-                # Save to resources/ directory for Databricks bundle integration
                 job_file = analyzer.project_root / "resources" / f"{job_name}.job.yml"
             else:
-                # Save to specified target directory (usually .lhp/dependencies/)
                 job_file = target_dir / f"{job_name}.job.yml"
 
             return job_generator.save_job_to_file(
@@ -625,11 +530,9 @@ class DependencyOutputManager:
             "job_name detected - generating multiple jobs + master orchestration job"
         )
 
-        # Partition existing result by job instead of re-analyzing
         job_results = analyzer.partition_result_by_job(result, flowgroups)
         global_result = result
 
-        # Determine output directory (flat structure)
         if bundle_output:
             output_dir = analyzer.project_root / "resources"
         else:
@@ -637,10 +540,7 @@ class DependencyOutputManager:
 
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Generate individual job YAMLs
         job_yamls = job_generator.generate_jobs_by_name(job_results, project_name)
-
-        # Save individual job files
         generated_files = {}
         for job_name_key, job_yaml in job_yamls.items():
             job_file = output_dir / f"{job_name_key}.job.yml"

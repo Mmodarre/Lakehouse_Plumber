@@ -1,9 +1,6 @@
 """Unit tests for the snapshot-CDC source-function resolver.
 
-These tests cover the module-level helpers in
-``lhp.generators.write.snapshot_cdc_source_function`` directly, without going
-through the StreamingTableWriteGenerator. End-to-end coverage of the
-resolver through the generator lives in
+End-to-end coverage of the resolver through the generator lives in
 ``tests/unit/test_snapshot_cdc_parameters.py``.
 """
 
@@ -24,20 +21,12 @@ from lhp.generators.write.snapshot_cdc_source_function import (
 
 
 def _write_source(tmpdir: str, name: str, body: str) -> str:
-    """Write a source file under tmpdir and return its (relative) name."""
     path = Path(tmpdir) / name
     path.write_text(body, encoding="utf-8")
     return name
 
 
-# NOTE: The old TestResolveSourceFunctionConfigValidation class (which
-# asserted a CONFIG/002 presence raise for a missing 'file'/'function')
-# was removed. That generate-side guard was redundant: the snapshot-CDC
-# validator (SnapshotCdcConfigValidator, reached via
-# ConfigValidator.validate_flowgroup → WriteActionValidator) enforces both
-# fields and runs UNCONDITIONALLY in the per-flowgroup worker before the
-# codegen branch in BOTH validate and generate modes. The generate-path
-# rejection is now proven by
+# CONFIG/002 rejection for missing 'file'/'function' is proven by
 # tests/test_generate_command_parallel.py::TestGenerateCommandParallel::test_snapshot_cdc_missing_source_function_function_rejected_at_generate.
 
 
@@ -50,7 +39,6 @@ class TestResolveSourceFunctionFileNotFound:
     """
 
     def test_missing_file_raises_lhp_error_with_file_type(self):
-        """A non-existent file raises an LHPError mentioning the file_type."""
         with tempfile.TemporaryDirectory() as tmpdir:
             with pytest.raises(LHPError) as exc_info:
                 resolve_source_function(
@@ -61,8 +49,6 @@ class TestResolveSourceFunctionFileNotFound:
 
 
 class TestResolveSourceFunctionResult:
-    """resolve_source_function returns the expected (name, parameters)."""
-
     def test_returns_name_and_parameters(self):
         body = "def my_func(latest, *, catalog, schema):\n    return None\n"
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -123,7 +109,6 @@ class TestPerPipelineSignatureCache:
                 "project_root": Path(tmpdir),
                 "source_function_signature_cache": shared_cache,
             }
-            # Two flowgroups binding to the SAME file (distinct param sets).
             resolve_source_function(
                 {
                     "file": file_name,
@@ -145,13 +130,11 @@ class TestPerPipelineSignatureCache:
             "Source file must be parsed exactly once per pipeline; "
             "per-flowgroup re-parsing was reintroduced."
         )
-        # The cache holds a FunctionSignature keyed by resolved absolute path.
         (key,) = shared_cache.keys()
         assert Path(key).is_absolute()
         assert isinstance(shared_cache[key], FunctionSignature)
 
     def test_cache_hit_skips_reparse_via_counter(self, monkeypatch):
-        """Second call with the cache pre-populated does not parse at all."""
         body = "def my_func(latest, *, catalog):\n    return None\n"
         parse_calls = {"n": 0}
         real_parse = ast.parse
@@ -167,12 +150,10 @@ class TestPerPipelineSignatureCache:
                 "project_root": Path(tmpdir),
                 "source_function_signature_cache": shared_cache,
             }
-            # Warm the cache (real parse).
             resolve_source_function(
                 {"file": file_name, "function": "my_func"},
                 context=ctx,
             )
-            # Now count: a cache hit must not parse.
             monkeypatch.setattr(mod.ast, "parse", counting_parse)
             resolve_source_function(
                 {"file": file_name, "function": "my_func"},
@@ -182,8 +163,6 @@ class TestPerPipelineSignatureCache:
 
 
 class TestParameterValidationErrors:
-    """Parameter validation through resolve_source_function (CONFIG/005, /006)."""
-
     def test_unknown_param_name_raises_config_006(self):
         body = "def my_func(latest, *, catalog):\n    return None\n"
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -311,11 +290,7 @@ class TestSignatureCacheEventCounters:
             pt._perf_logger.removeHandler(handler)
 
     def test_miss_then_hit_counts(self, _perf_window, tmp_path):
-        """Same file + shared cache: 1st call misses, 2nd call hits.
-
-        ``snapshot()`` (get_perf_summary) does not expose event counts; the
-        public inspection path for events is ``export_perf_for_merge``.
-        """
+        """``snapshot()`` (get_perf_summary) does not expose event counts; the public inspection path for events is ``export_perf_for_merge``."""
         pt = _perf_window
         body = "def my_func(latest, *, catalog):\n    return None\n"
         file_name = _write_source(str(tmp_path), "funcs.py", body)
@@ -326,12 +301,10 @@ class TestSignatureCacheEventCounters:
             "source_function_signature_cache": shared_cache,
         }
 
-        # First call: cache empty -> MISS (parse runs, signature stored).
         resolve_source_function(
             {"file": file_name, "function": "my_func"},
             context=ctx,
         )
-        # Second call: same file, populated cache -> HIT (no parse).
         resolve_source_function(
             {"file": file_name, "function": "my_func"},
             context=ctx,
@@ -343,13 +316,10 @@ class TestSignatureCacheEventCounters:
 
 
 class TestValidateFunctionParametersDirect:
-    """Direct unit tests for _validate_function_parameters on FunctionSignature."""
-
     def test_keyword_only_args_accepted(self):
         sig = FunctionSignature(
             kwonly_names=frozenset({"catalog", "schema"}), has_kwargs=False
         )
-        # Should not raise.
         _validate_function_parameters(sig, "my_func", {"catalog": "c", "schema": "s"})
 
     def test_kwargs_signature_skips_name_validation(self):

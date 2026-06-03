@@ -31,7 +31,6 @@ class ErrorCode:
         return f"LHP-{self.category.value}-{self.number}"
 
 
-# VALIDATION (VAL)
 VAL_001 = ErrorCode(ErrorCategory.VALIDATION, "001")
 VAL_002 = ErrorCode(ErrorCategory.VALIDATION, "002")
 VAL_003 = ErrorCode(ErrorCategory.VALIDATION, "003")
@@ -69,7 +68,6 @@ VAL_061 = ErrorCode(ErrorCategory.VALIDATION, "061")
 VAL_902 = ErrorCode(ErrorCategory.VALIDATION, "902")
 VAL_DUPFG = ErrorCode(ErrorCategory.VALIDATION, "DUPFG")
 
-# IO
 IO_001 = ErrorCode(ErrorCategory.IO, "001")
 IO_002 = ErrorCode(ErrorCategory.IO, "002")
 IO_003 = ErrorCode(ErrorCategory.IO, "003")
@@ -80,7 +78,6 @@ IO_007 = ErrorCode(ErrorCategory.IO, "007")
 IO_020 = ErrorCode(ErrorCategory.IO, "020")
 IO_021 = ErrorCode(ErrorCategory.IO, "021")
 
-# CONFIG (CFG)
 CFG_001 = ErrorCode(ErrorCategory.CONFIG, "001")
 CFG_002 = ErrorCode(ErrorCategory.CONFIG, "002")
 CFG_003 = ErrorCode(ErrorCategory.CONFIG, "003")
@@ -124,15 +121,12 @@ CFG_057 = ErrorCode(ErrorCategory.CONFIG, "057")
 CFG_058 = ErrorCode(ErrorCategory.CONFIG, "058")
 CFG_059 = ErrorCode(ErrorCategory.CONFIG, "059")
 
-# DEPENDENCY (DEP)
 DEP_001 = ErrorCode(ErrorCategory.DEPENDENCY, "001")
 DEP_022 = ErrorCode(ErrorCategory.DEPENDENCY, "022")
 
-# ACTION (ACT)
 ACT_001 = ErrorCode(ErrorCategory.ACTION, "001")
 ACT_002 = ErrorCode(ErrorCategory.ACTION, "002")
 
-# GENERAL (GEN)
 GEN_001 = ErrorCode(ErrorCategory.GENERAL, "001")
 GEN_901 = ErrorCode(ErrorCategory.GENERAL, "901")
 GEN_902 = ErrorCode(ErrorCategory.GENERAL, "902")

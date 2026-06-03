@@ -216,9 +216,8 @@ def _consume_generate_stream(
                 pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
                 max_workers=max_workers,
             )
-            # Drive the delta-generator explicitly so its ``StopIteration.value``
-            # (the merged worker warnings) is captured while each ``PipelineDelta``
-            # is transformed into the paired §5.7 progress events.
+            # Drive explicitly (not ``yield from``) to capture ``StopIteration.value``
+            # (merged worker warnings) while transforming deltas into §5.7 events.
             while True:
                 try:
                     delta = next(delta_stream)
@@ -227,7 +226,6 @@ def _consume_generate_stream(
                     break
                 response = _delta_to_generation_response(delta, output_dir=output_dir)
                 pipeline_responses[delta.pipeline_name] = response
-                # Started + its single terminal, as a pair (no dangling Start).
                 yield PipelineStarted(pipeline=delta.pipeline_name)
                 if delta.success:
                     yield PipelineCompleted(
@@ -332,14 +330,9 @@ def _stream_pipeline_generation(
     # so the union surfaces as ONE deduped, ordered WarningEmitted sequence.
     warnings_seen: Set[Tuple[str, Optional[Path]]] = set()
 
-    # Phase: discover. Reconcile the caller-supplied ``pre_discovered_all_flowgroups``
-    # with facade-owned discovery: when the caller did NOT supply a list, run
-    # the orchestrator's ``bootstrap.discover_all_flowgroups`` HERE (a legal
-    # ``api → core`` downward edge — the same call ``_inspection_facade`` makes)
-    # and thread the resolved list forward to BOTH preflight and generate. This
-    # makes the discover phase wrap real work (closing E3's GAP) AND guarantees
-    # discovery runs exactly once across the three downstream consumers. A
-    # caller-supplied list WINS and is forwarded unchanged (no double-discover).
+    # Phase: discover. When no pre_discovered_all_flowgroups is supplied, runs
+    # discovery HERE and threads the list forward to preflight + generate so
+    # discovery runs exactly once. A caller-supplied list is used as-is.
     discover_start = time.perf_counter()
     yield PhaseStarted(phase="discover")
     resolved_flowgroups: Optional[Sequence["FlowGroup"]] = pre_discovered_all_flowgroups
@@ -350,27 +343,18 @@ def _stream_pipeline_generation(
         duration_s=time.perf_counter() - discover_start,
         success=True,
     )
-    # Main-thread bare-``{token}`` deprecation warnings (LHP-DEPR-001). Scanned
-    # on the main thread (the read path precedes the worker pool); emitted right
-    # after the discover phase and seeding the shared dedup set.
+    # LHP-DEPR-001 warnings: scanned on the main thread before the worker pool,
+    # seeding the shared dedup set.
     yield from _emit_deprecation_warnings(
         orchestrator.discovery.scan_deprecation_warnings(),
         seen=warnings_seen,
     )
 
-    # Phase: preflight. §9.24 — the preflight LOGIC is single-sourced in
-    # ``_run_project_preflight`` (shared with the validate path). This call site
-    # only SURFACES failures: generate raises (validate folds them into a failed
-    # batch instead). It MUST sit in this OUTER generator — BEFORE the generate
-    # phase below — because the delta-consumption helper's
-    # ``except Exception → return failure`` body SWALLOWS exceptions into a DTO,
-    # which would eat the ErrorEmitted/raise rendezvous.
-    #
-    # ``bundle_enabled`` is threaded from the CLI (``--no-bundle`` +
-    # databricks.yml auto-detect): when ``True`` this preflight also runs the
-    # bundle catalog/schema check (→ ``LHP-CFG-026``), single-sourced with
-    # validate. It only fires if the orchestrator was constructed with a
-    # ``pipeline_config_path``. Covers DUPLICATE + TEST-REPORTING + bundle.
+    # Phase: preflight. §9.24 — MUST sit in this outer generator BEFORE generate,
+    # because the delta-consumption helper's ``except Exception → return failure``
+    # body swallows exceptions into a DTO, which would eat the ErrorEmitted/raise
+    # rendezvous. When ``bundle_enabled``, also runs the bundle catalog/schema
+    # check (→ LHP-CFG-026), only if orchestrator has a pipeline_config_path.
     preflight_start = time.perf_counter()
     yield PhaseStarted(phase="preflight")
     preflight_issues = _run_project_preflight(
@@ -395,12 +379,8 @@ def _stream_pipeline_generation(
         success=True,
     )
 
-    # Phase: generate. Consume the orchestrator's delta-generator end-to-end,
-    # emitting the paired per-pipeline events as each delta crystallises. The
-    # helper RETURNS ``(response, warnings)`` (success or graceful non-LHP
-    # failure); an LHPError gate failure is surfaced via ErrorEmitted+raise
-    # INSIDE the helper (per §1.4 the raise closes the stream, so the
-    # PhaseCompleted/GenerationCompleted below are skipped).
+    # Phase: generate. LHPError gate failure raises inside the helper (§1.4),
+    # closing the stream so PhaseCompleted/GenerationCompleted below are skipped.
     generate_start = time.perf_counter()
     yield PhaseStarted(phase="generate")
     response, worker_warnings = yield from _consume_generate_stream(
@@ -421,18 +401,12 @@ def _stream_pipeline_generation(
         duration_s=time.perf_counter() - generate_start,
         success=response.success,
     )
-    # Worker deprecation warnings (LHP-DEPR-002/003/004), deduped against the
-    # main-thread set via the shared ``warnings_seen``.
+    # LHP-DEPR-002/003/004 worker warnings, deduped against the discover-phase set.
     yield from _emit_deprecation_warnings(worker_warnings, seen=warnings_seen)
 
-    # Phase: monitoring (absorbed from the former standalone
-    # ``finalize_monitoring_artifacts`` public step). Routed through the
-    # orchestrator (``api → core``, legal) so the ``core`` MonitoringFinalizerService
-    # stays below ``api``. Skipped on a dry-run (``output_dir is None`` — there is
-    # no real tree to reconcile) and on a degraded generate (``response.success``
-    # is ``False`` — mirrors the CLI, which finalized monitoring only after a
-    # clean batch). On the LHPError gate-failure path the generate phase above
-    # already raised, so this is never reached.
+    # Phase: monitoring. Skipped on dry-run (no real tree to reconcile) and on a
+    # degraded generate (mirrors CLI behavior). Routed through the orchestrator
+    # (api → core) — MonitoringFinalizerService must stay below api.
     if output_dir is not None and response.success:
         monitoring_start = time.perf_counter()
         yield PhaseStarted(phase="monitoring")
@@ -443,16 +417,10 @@ def _stream_pipeline_generation(
             success=True,
         )
 
-    # Phase: bundle_sync (D2). ONLY when bundle is enabled, the generate
-    # succeeded, and this is not a dry-run. Composed in the ``api`` layer by
-    # calling the ``bundle`` layer DIRECTLY (NEVER through the orchestrator —
-    # that would be a forbidden ``core → bundle`` edge). A bundle-sync
-    # ``LHPError`` (``LHP-CFG-020`` from BundleResourceError) performs the §1.4
-    # rendezvous here: emit one ErrorEmitted then re-raise (the raise is the
-    # terminal, NOT ``GenerationCompleted``). The Python files already written to
-    # ``generated/<env>`` by the generate commit PERSIST — the bundle phase only
-    # writes ``resources/lhp/`` and never rolls the generated tree back (mirrors
-    # the commit-time OSError degradation note in ``_consume_generate_stream``).
+    # Phase: bundle_sync. Composed directly in the api layer (never through the
+    # orchestrator — that would be a forbidden core → bundle edge). A bundle-sync
+    # LHPError (LHP-CFG-020) performs the §1.4 rendezvous; the generated tree
+    # already written to disk persists — the bundle phase never rolls it back.
     if bundle_enabled and output_dir is not None and response.success:
         bundle_start = time.perf_counter()
         yield PhaseStarted(phase="bundle_sync")

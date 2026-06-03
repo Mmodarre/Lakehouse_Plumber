@@ -11,13 +11,14 @@ class Template(BaseModel):
     name: str
     version: str = "1.0"
     description: Optional[str] = None
-    presets: List[str] = []  # List of preset names to apply to template actions
+    presets: List[str] = []
     parameters: List[Dict[str, Any]] = []
     actions: Union[List[Action], List[Dict[str, Any]]] = []
-    _raw_actions: bool = False  # Internal flag to track if actions are raw dictionaries
+    _raw_actions: bool = (
+        False  # True when actions are raw dicts (not validated Action objects)
+    )
 
     def has_raw_actions(self) -> bool:
-        """Check if template contains raw action dictionaries (not validated Action objects)."""
         return self._raw_actions
 
 

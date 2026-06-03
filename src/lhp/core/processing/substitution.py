@@ -83,18 +83,15 @@ class EnhancedSubstitutionManager:
         self._expand_recursive_tokens()
 
     def _add_reserved_tokens(self):
-        """Add reserved tokens automatically available."""
         self.mappings["workspace_env"] = self.env
         self.mappings["logical_env"] = self.env
 
-        # From environment variables
         if "WORKSPACE_ENV" in os.environ:
             self.mappings["workspace_env"] = os.environ["WORKSPACE_ENV"]
         if "LOGICAL_ENV" in os.environ:
             self.mappings["logical_env"] = os.environ["LOGICAL_ENV"]
 
     def _load_config_from_file(self, file_path: Path, env: str):
-        """Load tokens, secrets, and rules from YAML file."""
         try:
             from lhp.parsers.yaml_loader import load_yaml_file
 
@@ -117,37 +114,29 @@ class EnhancedSubstitutionManager:
         if not config:
             return
 
-        # Load token substitutions
         env_tokens = config.get(env, {})
         global_tokens = config.get("global", {})
 
-        # Merge tokens (environment-specific overrides global)
-        # Convert primitive types to strings for text substitution
+        # env-specific tokens override global
         logger.debug(
             f"Loaded {len(env_tokens) if isinstance(env_tokens, dict) else 0} env-specific "
             f"and {len(global_tokens) if isinstance(global_tokens, dict) else 0} global token(s)"
         )
         if isinstance(env_tokens, dict):
             for key, value in env_tokens.items():
-                # Convert primitive types to strings for text-based substitution
                 if isinstance(value, bool):
-                    # Convert booleans to lowercase for YAML compatibility
+                    # Lowercase for YAML compatibility (True → "true")
                     self.mappings[key] = str(value).lower()
                 elif isinstance(value, (str, int, float)):
                     self.mappings[key] = str(value)
                 elif not isinstance(value, (dict, list)):
-                    # Handle other non-nested types
                     self.mappings[key] = str(value)
                 else:
-                    # Keep nested structures (dicts/lists) as-is for prefix_suffix handling
                     self.mappings[key] = value
         if isinstance(global_tokens, dict):
-            # Only add global tokens that aren't already set
             for key, value in global_tokens.items():
                 if key not in self.mappings:
-                    # Convert primitive types to strings
                     if isinstance(value, bool):
-                        # Convert booleans to lowercase for YAML compatibility
                         self.mappings[key] = str(value).lower()
                     elif isinstance(value, (str, int, float)):
                         self.mappings[key] = str(value)
@@ -156,19 +145,16 @@ class EnhancedSubstitutionManager:
                     else:
                         self.mappings[key] = value
 
-        # Load secret configuration
         secrets_config = config.get("secrets", {})
         if isinstance(secrets_config, dict):
             self.default_secret_scope = secrets_config.get("default_scope")
             self.secret_scopes = secrets_config.get("scopes", {})
 
-        # Load prefix/suffix rules
         prefix_suffix = config.get("prefix_suffix_rules", {})
         if isinstance(prefix_suffix, dict):
             self.prefix_suffix_rules = prefix_suffix
 
     def _expand_recursive_tokens(self):
-        """Recursively expand tokens that reference other tokens."""
         max_iterations = 10
         for _ in range(max_iterations):
             changed = False
@@ -181,8 +167,7 @@ class EnhancedSubstitutionManager:
             if not changed:
                 break
         else:
-            # Reached max iterations - likely circular reference
-            # Log warning but don't fail here - validation will catch it
+            # Don't fail here — unresolved tokens caught by validation pass.
             logger.warning(
                 f"Token expansion reached maximum iterations ({max_iterations}). "
                 f"Possible circular reference in substitutions/{self.env}.yaml. "
@@ -190,14 +175,12 @@ class EnhancedSubstitutionManager:
             )
 
     def substitute_yaml(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Recursively substitute tokens and collect secret references."""
         logger.debug(
             f"Substituting tokens in YAML data ({len(self.mappings)} mapping(s) available)"
         )
         return self._substitute_recursive(data)
 
     def _substitute_recursive(self, obj: Any) -> Any:
-        """Recursively substitute tokens and secrets in any object."""
         if isinstance(obj, str):
             return self._process_string(obj)
         if isinstance(obj, dict):
@@ -207,11 +190,8 @@ class EnhancedSubstitutionManager:
         return obj
 
     def _process_string(self, text: str) -> str:
-        """Process string for both token and secret substitution."""
-        # First handle regular token substitution
         text = self._replace_tokens_in_string(text)
 
-        # Handle secret references
         def secret_replacer(match):
             secret_ref = match.group(1)
             if "/" in secret_ref:
@@ -261,12 +241,10 @@ class EnhancedSubstitutionManager:
         return self.SECRET_PATTERN.sub(secret_replacer, text)
 
     def _replace_tokens_in_string(self, text: str) -> str:
-        """Replace all {TOKEN} and ${TOKEN} patterns in a string."""
-
         def _lookup(match):
             return self.mappings.get(match.group(1), match.group(0))
 
-        # Apply patterns - dollar pattern first to avoid conflicts
+        # Dollar pattern first — avoids conflict with bare {TOKEN} pattern.
         text = self.DOLLAR_TOKEN_PATTERN.sub(_lookup, text)
 
         # Flip per-instance flag the first time a deprecated bare
@@ -289,16 +267,6 @@ class EnhancedSubstitutionManager:
     ) -> List[str]:
         """Detect unresolved tokens after substitution.
 
-        Scans configuration for any remaining {token} patterns that weren't
-        resolved during substitution, indicating missing values in substitutions file.
-
-        Args:
-            data: Configuration data to validate (dict, list, str, or other)
-            path: Current path in config tree for error reporting
-
-        Returns:
-            List of error messages describing unresolved tokens with their locations
-
         Examples:
             >>> mgr = EnhancedSubstitutionManager()
             >>> mgr.mappings = {"catalog": "main"}
@@ -310,10 +278,8 @@ class EnhancedSubstitutionManager:
         errors = []
 
         if isinstance(data, str):
-            # Find all unresolved tokens except dbutils expressions
             matches = self.UNRESOLVED_TOKEN_PATTERN.findall(data)
             if matches:
-                # Format all unresolved tokens in this string
                 token_list = ", ".join(f"{{{m}}}" for m in matches)
                 errors.append(
                     f"Unresolved token(s) {token_list} found at {path}. "
@@ -327,6 +293,5 @@ class EnhancedSubstitutionManager:
         elif isinstance(data, list):
             for i, item in enumerate(data):
                 errors.extend(self.validate_no_unresolved_tokens(item, f"{path}[{i}]"))
-        # For other types (int, bool, None, etc.), nothing to validate
 
         return errors

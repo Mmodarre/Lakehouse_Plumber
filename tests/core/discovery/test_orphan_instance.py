@@ -2,21 +2,7 @@
 
 Pins CODING_CONSTITUTION §9.24 — blueprint *instances* are ALWAYS discovered,
 symmetrically with the validate path, so instance/blueprint validation is never
-silently skipped just because no blueprint *files* are present. The production
-contract lives in
-:meth:`lhp.core.coordination.bootstrap_service.FlowgroupBootstrapService._expand_blueprints`,
-which calls ``BlueprintDiscoverer.discover_instances`` unconditionally; the
-041 raise itself is in
-:meth:`lhp.parsers.blueprint_parser.BlueprintParser.parse_instance_file` when
-the referenced blueprint name is absent from the registry.
-
-This is the orphan-instance guard: a project that contains exactly one
-instance file referencing a blueprint that does not exist must raise
-``LHPValidationError`` (code ``LHP-VAL-041``) when discovery runs — proving the
-always-discover-instances path is wired through the orchestrator boundary.
-
-Written before the Phase-2 parser refactor as a baseline that must stay green
-through that refactor.
+silently skipped just because no blueprint *files* are present.
 
 :stability: provisional
 """
@@ -33,13 +19,8 @@ from lhp.errors import LHPValidationError
 def _build_orphan_instance_project(tmpdir: Path) -> Path:
     """Build a minimal LHP project whose only pipeline file is an orphan instance.
 
-    Mirrors the construction idiom in
-    ``tests/core/coordination/test_bootstrap_discovery_memo.py`` (presets/,
-    templates/, substitutions/dev.yaml), but the single file under
-    ``pipelines/`` is a blueprint *instance* (``use_blueprint:`` shape) that
-    references a blueprint name which is never defined. No ``lhp.yaml`` is
-    written, so the default ``instance_include = ['pipelines/**/*.yaml']`` glob
-    discovers the instance file.
+    No ``lhp.yaml`` is written, so the default
+    ``instance_include = ['pipelines/**/*.yaml']`` glob discovers the instance file.
     """
     project_root = Path(tmpdir)
     project_root.mkdir(parents=True, exist_ok=True)

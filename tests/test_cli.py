@@ -16,7 +16,6 @@ class TestCLI:
 
     @pytest.fixture
     def runner(self):
-        """Create a CLI runner."""
         return CliRunner()
 
     @pytest.fixture
@@ -42,7 +41,6 @@ class TestCLI:
 
             assert result.exit_code == 0
 
-            # Check project structure created in CWD
             assert Path("lhp.yaml").exists()
             assert Path("pipelines").exists()
             assert Path("presets").exists()
@@ -52,7 +50,6 @@ class TestCLI:
             assert Path("presets/bronze_layer.yaml.tmpl").exists()
             assert Path("README.md").exists()
             assert Path(".gitignore").exists()
-            # Bundle files present by default
             assert Path("databricks.yml").exists()
             assert Path("resources").exists()
 
@@ -77,11 +74,9 @@ class TestCLI:
 
             assert result.exit_code == 0
 
-            # Standard files present
             assert Path("lhp.yaml").exists()
             assert Path("pipelines").exists()
 
-            # Bundle files NOT present
             assert not Path("databricks.yml").exists()
             assert not Path("resources").exists()
 
@@ -145,8 +140,6 @@ class TestCLI:
             with open(pipeline_dir / "test_flowgroup.yaml", "w") as f:
                 yaml.dump(flowgroup_content, f)
 
-            # Run stats with non-existent pipeline — should exit cleanly
-            # (returns early instead of crashing).
             result = runner.invoke(cli, ["stats", "--pipeline", "UNKNOWN_PIPELINE"])
 
             assert result.exit_code == 0
@@ -164,8 +157,6 @@ class TestCLI:
 
             # Create dev.yaml for testing by copying the template
             shutil.copy("substitutions/dev.yaml.tmpl", "substitutions/dev.yaml")
-
-            # databricks.yml already created by default bundle init
 
             # Create a pipeline
             pipeline_dir = Path("pipelines/test_pipeline")
@@ -250,27 +241,18 @@ class TestCLI:
         """Test CLI help command."""
         result = runner.invoke(cli, ["--help"])
         assert result.exit_code == 0
-        assert (
-            "LakehousePlumber" in result.output
-        )  # SNAPSHOT-TODO: re-target to new Rich output in Phase 1
-        assert (
-            "Generate Lakeflow pipelines from YAML configs" in result.output
-        )  # SNAPSHOT-TODO: re-target to new Rich output in Phase 1
+        assert "LakehousePlumber" in result.output
+        assert "Generate Lakeflow pipelines from YAML configs" in result.output
 
     def test_validate_with_pipeline(self, runner, temp_project):
         """Test validate with a valid pipeline."""
         with runner.isolated_filesystem(temp_dir=temp_project):
-            # Initialize project in CWD
             runner.invoke(cli, ["init", "test_project"])
-
-            # Create dev.yaml for testing by copying the template
             shutil.copy("substitutions/dev.yaml.tmpl", "substitutions/dev.yaml")
 
-            # Create a pipeline
             pipeline_dir = Path("pipelines/test_pipeline")
             pipeline_dir.mkdir(parents=True)
 
-            # Create a flowgroup
             flowgroup_content = {
                 "pipeline": "test_pipeline",
                 "flowgroup": "test_flowgroup",
@@ -334,11 +316,8 @@ class TestCLI:
         """Test generate command with dry-run."""
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ["init", "test_project"])
-
-            # Create dev.yaml for testing by copying the template
             shutil.copy("substitutions/dev.yaml.tmpl", "substitutions/dev.yaml")
 
-            # Create a pipeline
             pipeline_dir = Path("pipelines/test_pipeline")
             pipeline_dir.mkdir(parents=True)
 
@@ -389,11 +368,8 @@ class TestCLI:
         """Test show command."""
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ["init", "test_project"])
-
-            # Copy template to actual substitution file
             shutil.copy("substitutions/dev.yaml.tmpl", "substitutions/dev.yaml")
 
-            # Create a pipeline with flowgroup
             pipeline_dir = Path("pipelines/test_pipeline")
             pipeline_dir.mkdir(parents=True)
 
@@ -443,7 +419,6 @@ class TestCLI:
             # Create dev.yaml for testing by copying the template
             shutil.copy("substitutions/dev.yaml.tmpl", "substitutions/dev.yaml")
 
-            # Create a pipeline with secrets
             pipeline_dir = Path("pipelines/test_pipeline")
             pipeline_dir.mkdir(parents=True)
 
@@ -482,7 +457,6 @@ class TestCLI:
             with open(pipeline_dir / "test_flowgroup.yaml", "w") as f:
                 yaml.dump(flowgroup_content, f)
 
-            # Run validate
             result = runner.invoke(
                 cli, ["validate", "--env", "dev", "--verbose", "--no-bundle"]
             )
@@ -493,11 +467,9 @@ class TestCLI:
         """Test get_version() fallback logic when package metadata is not available."""
         from unittest.mock import patch
 
-        # Test 1: Mock importlib.metadata.version to raise exception, should fall back to pyproject.toml
         with patch("lhp.cli.main.version") as mock_version:
             mock_version.side_effect = Exception("Package not found")
 
-            # Create a temporary directory with pyproject.toml
             with tempfile.TemporaryDirectory() as tmpdir:
                 pyproject_path = Path(tmpdir) / "pyproject.toml"
                 pyproject_path.write_text("""
@@ -507,12 +479,10 @@ version = "1.2.3"
 description = "Test package"
 """)
 
-                # Temporarily change the module's __file__ to point to our temp dir
                 import lhp.cli.main
 
                 original_file = lhp.cli.main.__file__
                 try:
-                    # Set __file__ to be inside our temp structure
                     lhp.cli.main.__file__ = str(
                         Path(tmpdir) / "src" / "lhp" / "cli" / "main.py"
                     )
@@ -521,12 +491,10 @@ description = "Test package"
                 finally:
                     lhp.cli.main.__file__ = original_file
 
-        # Test 2: No pyproject.toml found, should return default version
         with patch("lhp.cli.main.version") as mock_version:
             mock_version.side_effect = Exception("Package not found")
 
             with tempfile.TemporaryDirectory() as tmpdir:
-                # Set __file__ to empty directory with no pyproject.toml
                 import lhp.cli.main
 
                 original_file = lhp.cli.main.__file__
@@ -544,7 +512,6 @@ description = "Test package"
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ["init", "test_project"])
 
-            # Remove all template files from the templates directory
             templates_dir = Path("templates")
             if templates_dir.exists():
                 for template_file in templates_dir.glob("*.yaml"):
@@ -552,8 +519,6 @@ description = "Test package"
                 for template_file in templates_dir.glob("*.yml"):
                     template_file.unlink()
 
-            # Run list-templates — should exit cleanly when no templates
-            # are present (early return path).
             result = runner.invoke(cli, ["list-templates"])
 
             assert result.exit_code == 0
@@ -563,7 +528,6 @@ description = "Test package"
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ["init", "test_project"])
 
-            # Remove all preset files from the presets directory
             presets_dir = Path("presets")
             if presets_dir.exists():
                 for preset_file in presets_dir.glob("*.yaml"):
@@ -571,8 +535,6 @@ description = "Test package"
                 for preset_file in presets_dir.glob("*.yml"):
                     preset_file.unlink()
 
-            # Run list-presets — should exit cleanly when no presets
-            # are present (early return path).
             result = runner.invoke(cli, ["list-presets"])
 
             assert result.exit_code == 0
@@ -582,10 +544,8 @@ description = "Test package"
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ["init", "test_project"])
 
-            # Create dev.yaml for testing by copying the template
             shutil.copy("substitutions/dev.yaml.tmpl", "substitutions/dev.yaml")
 
-            # Create an empty pipeline directory (no YAML files)
             pipeline_dir = Path("pipelines/empty_pipeline")
             pipeline_dir.mkdir(parents=True)
 

@@ -1,9 +1,6 @@
-"""Pipeline configuration loader with multi-document YAML support."""
-
 # JUSTIFIED: pipeline-config resolution is one substitution-pass over
 # a unified document tree; splitting load/substitute/validate creates
 # 3-pass overhead and a shared mutable state surface.
-# TODO(Phase 9.5): re-evaluate after core/processing/substitution.py evacuates utils/
 
 import logging
 from copy import deepcopy
@@ -16,12 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class PipelineConfigLoader:
-    """
-    Load and merge pipeline configurations from multi-document YAML.
-
-    Supports project-level defaults and per-pipeline overrides.
-    Config loaded once at initialization for efficiency.
-    """
+    """Load and merge pipeline configurations from multi-document YAML."""
 
     DEFAULT_PIPELINE_CONFIG = {
         "serverless": True,
@@ -41,13 +33,6 @@ class PipelineConfigLoader:
         monitoring_pipeline_name: Optional[str] = None,
     ):
         """
-        Initialize and load config.
-
-        Args:
-            project_root: Project root directory
-            config_file_path: Config file path relative to project_root or absolute
-            monitoring_pipeline_name: Resolved monitoring pipeline name for alias support
-
         Raises:
             FileNotFoundError: If explicit config_file_path doesn't exist
             yaml.YAMLError: If YAML syntax is invalid
@@ -57,32 +42,18 @@ class PipelineConfigLoader:
         self.logger = logger
         self.monitoring_pipeline_name = monitoring_pipeline_name
 
-        # Load and parse config
         self.project_defaults, self.pipeline_configs = self._load_config(
             config_file_path
         )
         self._resolve_monitoring_alias()
 
     def get_pipeline_config(self, pipeline_name: str) -> Dict[str, Any]:
-        """
-        Get merged config for a specific pipeline.
-
-        Merge order: DEFAULT -> project_defaults -> pipeline_specific
-
-        Args:
-            pipeline_name: Name of the pipeline
-
-        Returns:
-            Merged configuration dictionary
-        """
-        # Start with defaults (deep copy to avoid mutation)
+        """Merge order: DEFAULT -> project_defaults -> pipeline_specific."""
         config = deepcopy(self.DEFAULT_PIPELINE_CONFIG)
 
-        # Deep merge with project_defaults
         if self.project_defaults:
             config = self._deep_merge(config, self.project_defaults)
 
-        # Deep merge with pipeline-specific (if exists)
         if pipeline_name in self.pipeline_configs:
             config = self._deep_merge(config, self.pipeline_configs[pipeline_name])
 
@@ -90,24 +61,19 @@ class PipelineConfigLoader:
 
     def _load_config(self, config_file_path: Optional[str]) -> Tuple[Dict, Dict]:
         """
-        Load and parse multi-document YAML config.
-
         Returns:
             Tuple of (project_defaults, pipeline_configs)
             - project_defaults: Dict with project-level settings
             - pipeline_configs: Dict mapping pipeline names to their configs
         """
-        # No config file specified - return empty defaults
         if config_file_path is None:
             self.logger.debug("No pipeline config file specified, using defaults only")
             return {}, {}
 
-        # Resolve config file path
         config_path = Path(config_file_path)
         if not config_path.is_absolute():
             config_path = self.project_root / config_path
 
-        # Check file exists
         if not config_path.exists():
             raise ErrorFactory.io_error(
                 codes.IO_001,
@@ -126,7 +92,6 @@ class PipelineConfigLoader:
 
         self.logger.info(f"Loading pipeline config from: {config_path}")
 
-        # Load all YAML documents (including empty ones for project_defaults handling)
         from ...parsers.yaml_loader import load_yaml_documents_all
 
         documents = load_yaml_documents_all(
@@ -137,10 +102,9 @@ class PipelineConfigLoader:
         project_defaults = {}
         pipeline_configs = {}
         seen_pipelines = set()
-        first_seen = {}  # Track which document first defined each pipeline
+        first_seen = {}  # document index where each pipeline was first defined
 
         for idx, doc in enumerate(documents):
-            # Skip None/empty documents
             if doc is None:
                 continue
 
@@ -148,20 +112,16 @@ class PipelineConfigLoader:
                 self.logger.warning(f"Ignoring non-dict document: {doc}")
                 continue
 
-            # Check if it's project defaults
             if "project_defaults" in doc:
                 project_defaults = doc["project_defaults"]
                 self.logger.debug(
                     f"Loaded project defaults: {list(project_defaults.keys())}"
                 )
-                # Validate project defaults
                 self._validate_config(project_defaults)
 
-            # Check if it's a pipeline-specific config
             elif "pipeline" in doc:
                 pipeline_names_raw = doc["pipeline"]
 
-                # Normalize to list (support both string and list)
                 if isinstance(pipeline_names_raw, str):
                     pipeline_names = [pipeline_names_raw]
                 elif isinstance(pipeline_names_raw, list):
@@ -173,7 +133,6 @@ class PipelineConfigLoader:
                     )
                     continue
 
-                # Validate non-empty list
                 if not pipeline_names:
                     raise ErrorFactory.validation_error(
                         codes.VAL_005,
@@ -189,7 +148,6 @@ class PipelineConfigLoader:
                         ],
                     )
 
-                # Validate: monitoring alias cannot be in a pipeline list
                 if self.MONITORING_ALIAS in pipeline_names and len(pipeline_names) > 1:
                     raise ErrorFactory.validation_error(
                         codes.VAL_011,
@@ -205,15 +163,11 @@ class PipelineConfigLoader:
                         context={"Pipeline List": pipeline_names},
                     )
 
-                # Extract all keys except 'pipeline'
                 pipeline_config = {k: v for k, v in doc.items() if k != "pipeline"}
 
-                # Validate the config before processing
                 self._validate_config(pipeline_config)
 
-                # Process each pipeline_name in the list
                 for pipeline_name in pipeline_names:
-                    # Validate for duplicates
                     if pipeline_name in seen_pipelines:
                         raise ErrorFactory.validation_error(
                             codes.VAL_006,
@@ -238,7 +192,6 @@ class PipelineConfigLoader:
                     seen_pipelines.add(pipeline_name)
                     first_seen[pipeline_name] = idx + 1
 
-                    # Deep copy config for each pipeline to ensure independence
                     pipeline_configs[pipeline_name] = deepcopy(pipeline_config)
                     self.logger.debug(
                         f"Loaded config for pipeline '{pipeline_name}': {list(pipeline_config.keys())}"
@@ -262,7 +215,6 @@ class PipelineConfigLoader:
         if self.MONITORING_ALIAS not in self.pipeline_configs:
             return
 
-        # Check: monitoring not configured → warn and ignore
         if self.monitoring_pipeline_name is None:
             self.logger.warning(
                 f"'{self.MONITORING_ALIAS}' found in pipeline config but monitoring "
@@ -271,7 +223,6 @@ class PipelineConfigLoader:
             del self.pipeline_configs[self.MONITORING_ALIAS]
             return
 
-        # Check: collision — both alias and actual name defined
         if self.monitoring_pipeline_name in self.pipeline_configs:
             raise ErrorFactory.validation_error(
                 codes.VAL_010,
@@ -293,7 +244,6 @@ class PipelineConfigLoader:
                 },
             )
 
-        # Resolve: rename alias key to actual name
         config = self.pipeline_configs.pop(self.MONITORING_ALIAS)
         self.pipeline_configs[self.monitoring_pipeline_name] = config
         self.logger.debug(
@@ -302,18 +252,8 @@ class PipelineConfigLoader:
 
     def _deep_merge(self, base: Dict, override: Dict) -> Dict:
         """
-        Deep merge override into base.
-
         - Nested dicts are merged recursively
         - Lists are REPLACED (not appended)
-        - Other values are replaced
-
-        Args:
-            base: Base dictionary
-            override: Override dictionary
-
-        Returns:
-            Merged dictionary (new dict, doesn't mutate inputs)
         """
         result = deepcopy(base)
 
@@ -323,30 +263,19 @@ class PipelineConfigLoader:
                 and isinstance(result[key], dict)
                 and isinstance(value, dict)
             ):
-                # Recursively merge nested dicts
                 result[key] = self._deep_merge(result[key], value)
             else:
-                # Replace value (including lists - they don't merge)
                 result[key] = deepcopy(value)
 
         return result
 
     def _validate_config(self, config: Dict) -> None:
         """
-        Validate configuration values.
-
-        Validates:
-        - edition: Must be in ALLOWED_EDITIONS
-        - channel: Must be in ALLOWED_CHANNELS
-
-        Does NOT validate:
-        - Complex structures (clusters, notifications, etc.)
-        - Unknown keys (allows forward compatibility)
+        Does NOT validate unknown keys (allows forward compatibility).
 
         Raises:
             ValueError: If validation fails with helpful message
         """
-        # Validate edition
         if "edition" in config:
             if config["edition"] not in self.ALLOWED_EDITIONS:
                 raise ErrorFactory.validation_error(
@@ -363,7 +292,6 @@ class PipelineConfigLoader:
                     context={"Provided": config["edition"]},
                 )
 
-        # Validate channel
         if "channel" in config:
             if config["channel"] not in self.ALLOWED_CHANNELS:
                 raise ErrorFactory.validation_error(
@@ -380,7 +308,6 @@ class PipelineConfigLoader:
                     context={"Provided": config["channel"]},
                 )
 
-        # Validate environment (if present, must be a dict)
         if "environment" in config:
             if not isinstance(config["environment"], dict):
                 raise ErrorFactory.validation_error(
@@ -398,7 +325,6 @@ class PipelineConfigLoader:
                     example="environment:\n  dependencies:\n    - package==1.0.0",
                 )
 
-        # Validate configuration (if present, must be a dict with string values)
         if "configuration" in config:
             if not isinstance(config["configuration"], dict):
                 raise ErrorFactory.validation_error(
@@ -435,10 +361,8 @@ class PipelineConfigLoader:
                         },
                     )
 
-        # Validate permissions (if present): list of dicts, each with a 'level'
-        # string and exactly one of user_name / group_name / service_principal_name.
-        # Catching these at `lhp validate` time produces specific messages instead of
-        # opaque failures at `databricks bundle deploy`.
+        # Catching permission errors at `lhp validate` time produces specific messages
+        # instead of opaque failures at `databricks bundle deploy`.
         if "permissions" in config:
             if not isinstance(config["permissions"], list):
                 raise ErrorFactory.validation_error(
@@ -517,10 +441,3 @@ class PipelineConfigLoader:
                             "Identities Found": present,
                         },
                     )
-
-        # Note: We intentionally do NOT validate:
-        # - cluster structures
-        # - notification formats
-        # - tag values
-        # - other complex nested structures
-        # This provides flexibility and forward compatibility

@@ -1,6 +1,4 @@
-"""
-DLT table options and CDC configuration tests for ConfigValidator.
-"""
+"""DLT table options and CDC configuration tests for ConfigValidator."""
 
 import pytest
 
@@ -9,17 +7,9 @@ from lhp.models import Action, ActionType
 
 
 class TestConfigValidatorDltCdc:
-    """DLT table options and CDC configuration tests for ConfigValidator."""
-
     def test_dlt_table_options_validation_comprehensive(self):
-        """Test DLT table options validation comprehensively.
-
-        Target lines: 405-406, 421, 424, 433, 435, 439, 458, 462, 468, 472, 477, 481-482, 485-486, 491, 493, 495, 499
-        Tests spark_conf keys, table_properties keys, schema/row_filter/temporary types, and column validation.
-        """
         validator = ConfigValidator()
 
-        # Test 1: Invalid spark_conf keys (lines 405-406)
         action = Action(
             name="test_invalid_spark_conf_keys",
             type=ActionType.WRITE,
@@ -38,7 +28,6 @@ class TestConfigValidatorDltCdc:
         errors = validator.validate_action(action, 0)
         assert any("spark_conf key '123' must be a string" in error for error in errors)
 
-        # Test 2: Invalid table_properties keys (lines 421, 424, 433, 435, 439)
         action = Action(
             name="test_invalid_table_props_keys",
             type=ActionType.WRITE,
@@ -59,7 +48,6 @@ class TestConfigValidatorDltCdc:
             "table_properties key '456' must be a string" in error for error in errors
         )
 
-        # Test 3: Invalid schema type (lines 458, 462)
         action = Action(
             name="test_invalid_schema_type",
             type=ActionType.WRITE,
@@ -75,7 +63,6 @@ class TestConfigValidatorDltCdc:
         errors = validator.validate_action(action, 0)
         assert any("'table_schema' must be a string" in error for error in errors)
 
-        # Test 4: Invalid row_filter type (lines 468, 472)
         action = Action(
             name="test_invalid_row_filter_type",
             type=ActionType.WRITE,
@@ -91,7 +78,6 @@ class TestConfigValidatorDltCdc:
         errors = validator.validate_action(action, 0)
         assert any("'row_filter' must be a string" in error for error in errors)
 
-        # Test 5: Invalid temporary type (lines 477)
         action = Action(
             name="test_invalid_temporary_type",
             type=ActionType.WRITE,
@@ -107,7 +93,6 @@ class TestConfigValidatorDltCdc:
         errors = validator.validate_action(action, 0)
         assert any("'temporary' must be a boolean" in error for error in errors)
 
-        # Test 6: Invalid partition_columns type (lines 481-482)
         action = Action(
             name="test_invalid_partition_cols_type",
             type=ActionType.WRITE,
@@ -123,7 +108,6 @@ class TestConfigValidatorDltCdc:
         errors = validator.validate_action(action, 0)
         assert any("'partition_columns' must be a list" in error for error in errors)
 
-        # Test 7: Invalid partition_columns element type (lines 485-486)
         action = Action(
             name="test_invalid_partition_col_element",
             type=ActionType.WRITE,
@@ -139,7 +123,6 @@ class TestConfigValidatorDltCdc:
         errors = validator.validate_action(action, 0)
         assert any("partition_columns[0] must be a string" in error for error in errors)
 
-        # Test 8: Invalid cluster_columns type (lines 491, 493)
         action = Action(
             name="test_invalid_cluster_cols_type",
             type=ActionType.WRITE,
@@ -155,7 +138,6 @@ class TestConfigValidatorDltCdc:
         errors = validator.validate_action(action, 0)
         assert any("'cluster_columns' must be a list" in error for error in errors)
 
-        # Test 9: Invalid cluster_columns element type (lines 495, 499)
         action = Action(
             name="test_invalid_cluster_col_element",
             type=ActionType.WRITE,
@@ -172,14 +154,8 @@ class TestConfigValidatorDltCdc:
         assert any("cluster_columns[0] must be a string" in error for error in errors)
 
     def test_cdc_config_validation_comprehensive(self):
-        """Test CDC configuration validation comprehensively.
-
-        Target lines: 503->519, 507-516, 520->525, 522, 527-528, 533-534, 539-543
-        Tests sequence_by validation, SCD type validation, and boolean/string validations.
-        """
         validator = ConfigValidator()
 
-        # Test 1: Invalid sequence_by type (lines 503->519, 507-516)
         action = Action(
             name="test_invalid_sequence_by_type",
             type=ActionType.WRITE,
@@ -202,7 +178,6 @@ class TestConfigValidatorDltCdc:
             for error in errors
         )
 
-        # Test 2: Invalid sequence_by list elements (lines 507-516)
         action = Action(
             name="test_invalid_sequence_by_elements",
             type=ActionType.WRITE,
@@ -225,7 +200,6 @@ class TestConfigValidatorDltCdc:
         errors = validator.validate_action(action, 0)
         assert any("sequence_by[1] must be a string" in error for error in errors)
 
-        # Test 3: Invalid SCD type (lines 520->525, 522)
         action = Action(
             name="test_invalid_scd_type",
             type=ActionType.WRITE,
@@ -245,7 +219,6 @@ class TestConfigValidatorDltCdc:
         errors = validator.validate_action(action, 0)
         assert any("'scd_type' must be 1 or 2" in error for error in errors)
 
-        # Test 4: Invalid apply_as_deletes type (lines 539-543)
         action = Action(
             name="test_invalid_apply_as_deletes_type",
             type=ActionType.WRITE,
@@ -268,7 +241,6 @@ class TestConfigValidatorDltCdc:
             for error in errors
         )
 
-        # Test 5: Invalid ignore_null_updates type (lines 533-534)
         action = Action(
             name="test_invalid_ignore_null_updates",
             type=ActionType.WRITE,
@@ -290,7 +262,6 @@ class TestConfigValidatorDltCdc:
             "'ignore_null_updates' must be a boolean" in error for error in errors
         )
 
-        # Test 6: Valid apply_as_deletes (should NOT error)
         action = Action(
             name="test_valid_apply_as_deletes",
             type=ActionType.WRITE,
@@ -308,11 +279,9 @@ class TestConfigValidatorDltCdc:
             },
         )
         errors = validator.validate_action(action, 0)
-        # This should NOT produce an error since it's a valid string
         delete_errors = [e for e in errors if "apply_as_deletes" in e]
         assert len(delete_errors) == 0
 
-        # Test 7: Valid sequence_by string (should NOT error)
         action = Action(
             name="test_valid_sequence_by_string",
             type=ActionType.WRITE,
@@ -330,11 +299,9 @@ class TestConfigValidatorDltCdc:
             },
         )
         errors = validator.validate_action(action, 0)
-        # Should NOT have sequence_by-related errors
         seq_errors = [e for e in errors if "sequence_by" in e]
         assert len(seq_errors) == 0
 
-        # Test 8: Valid sequence_by list (should NOT error)
         action = Action(
             name="test_valid_sequence_by_list",
             type=ActionType.WRITE,
@@ -352,11 +319,9 @@ class TestConfigValidatorDltCdc:
             },
         )
         errors = validator.validate_action(action, 0)
-        # Should NOT have sequence_by-related errors
         seq_errors = [e for e in errors if "sequence_by" in e]
         assert len(seq_errors) == 0
 
-        # Test 9: Valid SCD type (should NOT error)
         action = Action(
             name="test_valid_scd_type",
             type=ActionType.WRITE,
@@ -371,19 +336,12 @@ class TestConfigValidatorDltCdc:
             },
         )
         errors = validator.validate_action(action, 0)
-        # Should NOT have scd_type-related errors
         scd_errors = [e for e in errors if "scd_type" in e]
         assert len(scd_errors) == 0
 
     def test_cdc_schema_validation_comprehensive(self):
-        """Test CDC schema validation comprehensively.
-
-        Target lines: 550, 554-560, 564-570, 576, 580, 585, 589
-        Tests missing __START_AT and __END_AT columns in CDC schemas.
-        """
         validator = ConfigValidator()
 
-        # Test 1: CDC schema missing __START_AT column (lines 554-560)
         action = Action(
             name="test_cdc_schema_missing_start_at",
             type=ActionType.WRITE,
@@ -405,7 +363,6 @@ class TestConfigValidatorDltCdc:
             for error in errors
         )
 
-        # Test 2: CDC schema missing __END_AT column (lines 564-570)
         action = Action(
             name="test_cdc_schema_missing_end_at",
             type=ActionType.WRITE,
@@ -427,7 +384,6 @@ class TestConfigValidatorDltCdc:
             for error in errors
         )
 
-        # Test 3: CDC schema missing both __START_AT and __END_AT columns (lines 554-560, 564-570)
         action = Action(
             name="test_cdc_schema_missing_both",
             type=ActionType.WRITE,
@@ -454,7 +410,6 @@ class TestConfigValidatorDltCdc:
             for error in errors
         )
 
-        # Test 4: CDC schema with table_schema field - alternate test (lines 576, 580, 585, 589)
         action = Action(
             name="test_cdc_schema_alternate_missing_both",
             type=ActionType.WRITE,
@@ -481,7 +436,6 @@ class TestConfigValidatorDltCdc:
             for error in errors
         )
 
-        # Test 5: CDC schema with valid __START_AT and __END_AT (should NOT error)
         action = Action(
             name="test_cdc_schema_valid",
             type=ActionType.WRITE,
@@ -497,11 +451,9 @@ class TestConfigValidatorDltCdc:
             },
         )
         errors = validator.validate_action(action, 0)
-        # Should NOT have CDC schema-related errors
         cdc_errors = [e for e in errors if "__START_AT" in e or "__END_AT" in e]
         assert len(cdc_errors) == 0
 
-        # Test 6: CDC mode without schema (should NOT trigger schema validation)
         action = Action(
             name="test_cdc_no_schema",
             type=ActionType.WRITE,
@@ -517,11 +469,9 @@ class TestConfigValidatorDltCdc:
             },
         )
         errors = validator.validate_action(action, 0)
-        # Should NOT have CDC schema-related errors since no schema is provided
         cdc_errors = [e for e in errors if "__START_AT" in e or "__END_AT" in e]
         assert len(cdc_errors) == 0
 
-        # Test 7: Non-CDC mode with schema (should NOT trigger CDC schema validation)
         action = Action(
             name="test_standard_with_schema",
             type=ActionType.WRITE,
@@ -536,7 +486,6 @@ class TestConfigValidatorDltCdc:
             },
         )
         errors = validator.validate_action(action, 0)
-        # Should NOT have CDC schema-related errors since it's not CDC mode
         cdc_errors = [e for e in errors if "__START_AT" in e or "__END_AT" in e]
         assert len(cdc_errors) == 0
 

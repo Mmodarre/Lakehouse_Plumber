@@ -255,10 +255,6 @@ flowgroup: flowgroup3
             flowgroup_names = {fg.flowgroup for fg, _ in flowgroups_with_paths}
             assert flowgroup_names == {"flowgroup1", "flowgroup2", "flowgroup3"}
 
-    # Note: Include patterns test removed - it's testing include pattern filtering
-    # (existing feature) not multi-flowgroup support specifically. Include pattern
-    # filtering works with multi-flowgroup files automatically.
-
 
 class TestFlowgroupDiscovererBackwardCompatibility:
     """Test that single-flowgroup files still work as before."""

@@ -13,24 +13,16 @@ class TestValidationIncludeTests:
     """Test validation behavior with include_tests flag scenarios."""
 
     def setup_method(self):
-        """Set up test environment."""
-        # Create temporary directory for test project
         self.test_dir = Path(tempfile.mkdtemp())
-
-        # Create basic project structure
         (self.test_dir / "substitutions").mkdir()
-
-        # Initialize validator
         self.validator = ConfigValidator(self.test_dir)
 
     def teardown_method(self):
-        """Clean up test environment."""
         if self.test_dir.exists():
             shutil.rmtree(self.test_dir)
 
     def test_config_validator_processes_test_actions_when_present(self):
         """Test that ConfigValidator validates test actions when present in the flowgroup."""
-        # Create flowgroup with test action that has a validation error
         flowgroup = FlowGroup(
             pipeline="test_pipeline",
             flowgroup="test_flowgroup",
@@ -60,16 +52,13 @@ class TestValidationIncludeTests:
             ],
         )
 
-        # Validation should always catch test action errors
         errors = self.validator.validate_flowgroup(flowgroup)
 
-        # Should have validation errors for the invalid test type
         assert len(errors) > 0
         assert any("invalid_type" in error for error in errors)
 
     def test_config_validator_validates_test_only_flowgroup(self):
         """Test that ConfigValidator validates test-only flowgroups."""
-        # Create test-only flowgroup with validation error
         flowgroup = FlowGroup(
             pipeline="test_only_pipeline",
             flowgroup="test_only_flowgroup",
@@ -90,21 +79,14 @@ class TestValidationIncludeTests:
             ],
         )
 
-        # Validation should catch errors in test-only flowgroups
         errors = self.validator.validate_flowgroup(flowgroup)
 
-        # Should have validation errors for missing required fields
         assert len(errors) > 0
-        assert any(
-            "columns" in error for error in errors
-        )  # Missing columns for uniqueness
-        assert any(
-            "source" in error or "required_columns" in error for error in errors
-        )  # Missing fields for completeness
+        assert any("columns" in error for error in errors)
+        assert any("source" in error or "required_columns" in error for error in errors)
 
     def test_validation_includes_valid_test_actions(self):
         """Test that validation accepts valid test actions."""
-        # Create flowgroup with valid test actions
         flowgroup = FlowGroup(
             pipeline="valid_test_pipeline",
             flowgroup="valid_test_flowgroup",
@@ -136,15 +118,12 @@ class TestValidationIncludeTests:
             ],
         )
 
-        # Validation should pass for valid test actions
         errors = self.validator.validate_flowgroup(flowgroup)
 
-        # Should have no validation errors
         assert len(errors) == 0, f"Unexpected validation errors: {errors}"
 
     def test_validation_handles_test_with_filter(self):
         """Test that validation handles uniqueness tests with filter field."""
-        # Create flowgroup with uniqueness test using filter
         flowgroup = FlowGroup(
             pipeline="filter_test_pipeline",
             flowgroup="filter_test_flowgroup",
@@ -161,27 +140,14 @@ class TestValidationIncludeTests:
             ],
         )
 
-        # Validation should accept filter field
         errors = self.validator.validate_flowgroup(flowgroup)
 
-        # Should have no validation errors
         assert len(errors) == 0, f"Filter field should be valid: {errors}"
 
 
 class TestValidatePassesPreDiscoveredFlowgroups:
-    """Test that the validation layer forwards pre_discovered_all_flowgroups through.
-
-    The CLI helper ``ValidateCommand._validate_all_pipelines`` (which looped
-    per-pipeline and called the removed
-    ``ActionOrchestrator.validate_pipelines_by_fields``) was consolidated. The
-    CLI now calls ``application_facade.validation.validate_pipelines(...)``
-    directly (``src/lhp/cli/commands/validate_command.py:363-373``), and the
-    ``pre_discovered_all_flowgroups`` threading is owned by
-    ``ValidationFacade._consume_validate_stream``, which forwards it verbatim onto
-    the plural ``ActionOrchestrator.validate_pipelines(pipeline_fields=...,
-    pre_discovered_all_flowgroups=...)`` (``src/lhp/api/facade.py:418,429,465,472``;
-    ``src/lhp/core/coordination/orchestrator.py:590,597``). These tests assert
-    that forwarding seam against a mocked orchestrator.
+    """Test that ``ValidationFacade._consume_validate_stream`` forwards
+    ``pre_discovered_all_flowgroups`` verbatim onto the orchestrator.
     """
 
     @staticmethod
@@ -196,12 +162,9 @@ class TestValidatePassesPreDiscoveredFlowgroups:
         return ValidationFacade(mock_orchestrator), mock_orchestrator
 
     def test_validate_pipelines_forwards_pre_discovered(self):
-        """_consume_validate_stream forwards pre_discovered_all_flowgroups
-        verbatim onto orchestrator.validate_pipelines.
-
-        The per-pipeline loop is replaced by a single call to the plural
-        orchestrator method, so the assertion targets that one call. The
-        consumer is a generator, so it is drained to force the forward.
+        """``_consume_validate_stream`` forwards ``pre_discovered_all_flowgroups``
+        verbatim onto ``orchestrator.validate_pipelines`` (drain the generator
+        to force the forward).
         """
         facade, mock_orchestrator = self._facade_with_mock_orchestrator()
 
@@ -219,18 +182,13 @@ class TestValidatePassesPreDiscoveredFlowgroups:
             )
         )
 
-        # The plural orchestrator method gets called exactly once with the
-        # pre-discovered list passed through verbatim.
         assert mock_orchestrator.validate_pipelines.call_count == 1
         call_kwargs = mock_orchestrator.validate_pipelines.call_args.kwargs
         assert call_kwargs["pre_discovered_all_flowgroups"] is all_flowgroups
         assert list(call_kwargs["pipeline_fields"]) == ["p1", "p2"]
 
     def test_validate_pipelines_default_none_without_pre_discovered(self):
-        """Without pre_discovered_all_flowgroups, the forwarded value is None.
-
-        The assertion targets the plural orchestrator method.
-        """
+        """Without pre_discovered_all_flowgroups, the forwarded value is None."""
         facade, mock_orchestrator = self._facade_with_mock_orchestrator()
 
         list(

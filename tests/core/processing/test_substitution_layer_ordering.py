@@ -1,7 +1,6 @@
 """End-to-end ordering proof for the four-layer substitution chain.
 
-The documented precedence (``CLAUDE.md`` and ``LOCAL/TARGET_ARCHITECTURE.md``)
-is::
+The documented precedence is::
 
     %{local_var}  ->  {{ template_param }}  ->  ${env_token}  ->  ${secret:scope/key}
 
@@ -64,11 +63,9 @@ class TestSubstitutionLayerOrdering:
 
     @staticmethod
     def _write_template(templates_dir: Path) -> None:
-        """A real template whose action carries the cross-layer chain.
-
-        ``source`` is the load-bearing carrier string. ``target`` and
-        ``description`` carry independent single-boundary probes so a failure
-        pinpoints *which* boundary broke rather than only the composite.
+        """``source`` is the composite carrier; ``target`` and ``description``
+        are single-boundary probes so a failure pinpoints *which* boundary
+        broke rather than only the composite.
         """
         templates_dir.mkdir(parents=True, exist_ok=True)
         (templates_dir / "ordering_chain.yaml").write_text(
@@ -89,7 +86,7 @@ class TestSubstitutionLayerOrdering:
 
     @staticmethod
     def _write_substitutions(sub_file: Path) -> None:
-        """Real substitution file. ``env_tok`` resolves to a *secret* token.
+        """``env_tok`` resolves to a *secret* token.
 
         The ``db`` scope alias maps to ``dev_db_secrets``; the alias resolution
         is part of the secret layer and is asserted via the registered
@@ -132,7 +129,7 @@ class TestSubstitutionLayerOrdering:
         local_variables = {"lv": "{{ tparam }}"}
         template_parameters = {"tparam": "${env_tok}"}
 
-        # ---- Layer 1: local variables (%{}) — REAL LocalVariableResolver ----
+        # Layer 1: local variables (%{})
         resolver = LocalVariableResolver(local_variables)
         after_local = resolver.resolve(flowgroup_dict)
 
@@ -144,21 +141,14 @@ class TestSubstitutionLayerOrdering:
         # description had no %{} and is carried through untouched.
         assert after_local["description"] == "${env_tok}"
 
-        # ---- Layer 2: template params ({{ }}) — REAL TemplateEngine ----------
-        # render_template parses the on-disk template and builds a real Action,
-        # validating it; we then fold its rendered fields back onto the carrier
-        # dict exactly as process_flowgroup merges template actions.
+        # Layer 2: template params ({{ }})
         engine = TemplateEngine(templates_dir)
         rendered_actions = engine.render_template("ordering_chain", template_parameters)
         assert len(rendered_actions) == 1
         rendered = rendered_actions[0]
 
-        # The template's own `source: "{{ tparam }}"` resolved to ${env_tok}.
         assert rendered.source == "${env_tok}"
 
-        # Apply the SAME template engine to the carrier strings produced by
-        # layer 1 (TemplateEngine._render_value is what process_flowgroup runs
-        # over template action dicts). This is the real layer-2 transform.
         after_template = {
             k: engine._render_value(v, template_parameters)
             for k, v in after_local.items()
@@ -169,7 +159,7 @@ class TestSubstitutionLayerOrdering:
         # description still untouched (no {{ }}); ${} is not Jinja2 syntax.
         assert after_template["description"] == "${env_tok}"
 
-        # ---- Layers 3 & 4: env tokens + secrets — REAL EnhancedSubstitution --
+        # Layers 3 & 4: env tokens + secrets
         sub_mgr = EnhancedSubstitutionManager(sub_file, env="dev")
 
         # The env mapping itself must NOT have been collapsed at construction:

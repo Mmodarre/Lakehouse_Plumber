@@ -24,7 +24,6 @@ class TestSchemaTransformParserArrowFormat:
 
         result = parser.parse_arrow_format(data)
 
-        # Enforcement is no longer returned by parser (action-level only)
         assert "enforcement" not in result
         assert result["column_mapping"] == {
             "c_custkey": "customer_id",
@@ -194,7 +193,6 @@ class TestSchemaTransformParserArrowFormat:
 
         result = parser.parse_arrow_format(data)
 
-        # Enforcement is action-level only, not returned by parser
         assert "enforcement" not in result
         assert "column_mapping" in result
 
@@ -239,7 +237,6 @@ class TestSchemaTransformParserLegacyFormat:
 
         result = parser.parse_legacy_format(data)
 
-        # Enforcement is not returned by parser (action-level only)
         assert "enforcement" not in result
         assert result["column_mapping"] == {
             "c_custkey": "customer_id",
@@ -293,7 +290,6 @@ class TestSchemaTransformParserLegacyFormat:
 
         result = parser.parse_legacy_format(data)
 
-        # Enforcement is action-level only, not returned by parser
         assert "enforcement" not in result
         assert "column_mapping" in result
 
@@ -308,7 +304,6 @@ class TestSchemaTransformParserLegacyFormat:
 
         result = parser.parse_legacy_format(data)
 
-        # Enforcement is ignored by parser (action-level only)
         assert "enforcement" not in result
         assert result["column_mapping"] == {"c_custkey": "customer_id"}
 
@@ -322,7 +317,6 @@ class TestSchemaTransformParserValidation:
 
         data = {"columns": ["c_custkey -> customer_id"]}
 
-        # parse_file should detect arrow format
         result = parser.parse_file_data(data)
 
         assert result["column_mapping"] == {"c_custkey": "customer_id"}
@@ -333,7 +327,6 @@ class TestSchemaTransformParserValidation:
 
         data = {"column_mapping": {"c_custkey": "customer_id"}}
 
-        # parse_file should detect legacy format
         result = parser.parse_file_data(data)
 
         assert result["column_mapping"] == {"c_custkey": "customer_id"}
@@ -388,6 +381,5 @@ class TestSchemaTransformParserValidation:
             "columns": ["c_custkey -> customer_id", "address"]  # Pass-through column
         }
 
-        # Pass-through columns are now allowed in parser (enforcement validation is action-level)
         result = parser.parse_arrow_format(data)
         assert "address" in result["pass_through_columns"]

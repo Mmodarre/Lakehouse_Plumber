@@ -1,35 +1,20 @@
 """Behavior-locking test for ``InspectionFacade.list_flowgroups`` filtering.
 
-This pins the one intentional semantic change ("Decision B") from the
-inspection-path reach-through elimination
-(``LOCAL/inspection_reachthrough_elimination_spec.md`` §7): the *filtered*
-branch of ``list_flowgroups(pipeline_filter=X)`` now routes through
+The *filtered* branch of ``list_flowgroups(pipeline_filter=X)`` routes through
 ``bootstrap.discover_all_flowgroups()`` + an in-memory ``fg.pipeline == X``
-filter, instead of the old raw disk-discovery path
-(``orchestrator.discover_flowgroups_by_pipeline_field`` →
-``FlowgroupDiscoveryService.discover_flowgroups_by_pipeline_field`` →
-disk-only ``discover_all_flowgroups``, with **no** blueprint expansion and
-**no** monitoring attach).
-
-Effect: the filtered result is now the SAME expanded set as the unfiltered
-branch, narrowed to pipeline X — i.e.::
+filter. The filtered result is therefore the SAME expanded set as the
+unfiltered branch, narrowed to pipeline X::
 
     set(list_flowgroups(pipeline_filter=X))
         == {fg for fg in list_flowgroups() if fg.pipeline == X}
 
-The fixture below builds a project whose pipeline ``apac_sg_raw`` exists
-*only* via blueprint expansion. Raw disk discovery never emits a flowgroup
-for that pipeline, so the old filtered branch returned an empty result for
-it. Under Decision B the filtered branch includes the blueprint-expanded
-``apac_sg_orders`` flowgroup.
-
-Why this test is behavior-locking (revert-failure argument): if the filtered
-branch reverted to raw disk discovery, ``list_flowgroups(pipeline_filter=
-"apac_sg_raw")`` would be empty — the ``inclusion`` assertion (and the
-``equivalence`` assertion, since the unfiltered branch still expands
-blueprints) would both fail. The ``test_disk_discovery_omits_blueprint_
-flowgroups`` guard asserts directly that the raw path omits the flowgroup,
-documenting exactly what would change on revert.
+The fixture builds a project whose pipeline ``apac_sg_raw`` exists *only* via
+blueprint expansion. Raw disk discovery never emits a flowgroup for that
+pipeline. If the filtered branch reverted to raw disk discovery,
+``list_flowgroups(pipeline_filter="apac_sg_raw")`` would be empty — the
+``inclusion`` and ``equivalence`` assertions would both fail. The
+``test_disk_discovery_omits_blueprint_flowgroups`` guard documents exactly
+what would change on revert.
 """
 
 from __future__ import annotations
@@ -108,7 +93,6 @@ def _make_facade(tmp_path: Path) -> InspectionFacade:
 
 
 def _key(view) -> tuple[str, str]:
-    """Stable identity for a flowgroup view: (pipeline, flowgroup name)."""
     return (view.pipeline, view.name)
 
 

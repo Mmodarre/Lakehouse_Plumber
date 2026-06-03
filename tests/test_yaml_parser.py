@@ -12,20 +12,18 @@ from lhp.parsers.yaml_parser import YAMLParser
 
 
 class TestYAMLParserErrorHandling:
-    """Test YAML parser error handling - targeting coverage lines 19-25."""
+    """Test YAML parser error handling."""
 
     def test_parse_file_yaml_error(self):
-        """Test handling of invalid YAML syntax (line 19-20)."""
+        """Test handling of invalid YAML syntax."""
         parser = YAMLParser()
 
-        # Create a temporary file with invalid YAML
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("invalid: yaml: content: [")  # Missing closing bracket
             f.flush()
             yaml_file = Path(f.name)
 
         try:
-            # Should raise ValueError with YAML error message
             with pytest.raises(ValueError) as exc_info:
                 parser.parse_file(yaml_file)
 
@@ -35,10 +33,9 @@ class TestYAMLParserErrorHandling:
             yaml_file.unlink()
 
     def test_parse_file_lhp_error_reraise(self):
-        """Test that LHPError is re-raised as-is (lines 21-23)."""
+        """Test that LHPError is re-raised as-is."""
         parser = YAMLParser()
 
-        # Create a mock LHPError
         lhp_error = LHPError(
             category=ErrorCategory.CONFIG,
             code_number="001",
@@ -46,25 +43,20 @@ class TestYAMLParserErrorHandling:
             details="This is a test LHP error",
         )
 
-        # Mock yaml.safe_load_all to raise LHPError
         with patch("yaml.safe_load_all") as mock_yaml_load_all:
             mock_yaml_load_all.side_effect = lhp_error
 
-            # Mock file open
             with patch("builtins.open", mock_open(read_data="test: data")):
-                # Should re-raise LHPError without modification
                 with pytest.raises(LHPError) as exc_info:
                     parser.parse_file(Path("test.yaml"))
 
-                # Verify it's the exact same error object
                 assert exc_info.value is lhp_error
                 assert exc_info.value.title == "Test LHP Error"
 
     def test_parse_file_generic_error(self):
-        """Test handling of generic file errors (lines 24-25)."""
+        """Test handling of generic file errors."""
         parser = YAMLParser()
 
-        # Test with non-existent file
         non_existent_file = Path("/non/existent/file.yaml")
 
         with pytest.raises((ValueError, FileNotFoundError)) as exc_info:
@@ -74,10 +66,9 @@ class TestYAMLParserErrorHandling:
         assert str(non_existent_file) in str(exc_info.value)
 
     def test_parse_file_permission_error(self):
-        """Test handling of permission errors (lines 24-25)."""
+        """Test handling of permission errors."""
         parser = YAMLParser()
 
-        # Mock file open to raise PermissionError
         with patch("builtins.open") as mock_open_func:
             mock_open_func.side_effect = PermissionError("Permission denied")
 
@@ -93,14 +84,12 @@ class TestYAMLParserErrorHandling:
 
         from lhp.errors import MultiDocumentError
 
-        # Create temporary empty file
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            f.write("")  # Empty file
+            f.write("")
             f.flush()
             yaml_file = Path(f.name)
 
         try:
-            # Empty files (0 documents) should raise MultiDocumentError
             with pytest.raises(MultiDocumentError) as exc_info:
                 result = parser.parse_file(yaml_file)
 
@@ -108,21 +97,16 @@ class TestYAMLParserErrorHandling:
         finally:
             yaml_file.unlink()
 
-    # Note: test_discover_flowgroups_basic removed - discover_flowgroups() method
-    # has been removed from YAMLParser. Use FlowgroupDiscoveryService.discover_flowgroups() instead.
-
     def test_parse_file_success_with_null_yaml(self):
         """Test successful parsing of YAML file with null content."""
         parser = YAMLParser()
 
-        # Create temporary file with null YAML
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            f.write("null")  # YAML null
+            f.write("null")
             f.flush()
             yaml_file = Path(f.name)
 
         try:
-            # Should return empty dict for null content
             result = parser.parse_file(yaml_file)
             assert result == {}
         finally:

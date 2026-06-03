@@ -4,7 +4,7 @@ A single syrupy snapshot pins the contract: the resolved flowgroup is
 dumped as YAML and wrapped in a Rich ``Syntax`` block inside a
 ``Panel`` whose title carries ``pipeline.flowgroup   env: ENV``.
 
-``_display_flowgroup_configuration`` now consumes a frozen
+``_display_flowgroup_configuration`` consumes a frozen
 :class:`lhp.api.views.ProcessedFlowgroupView` (built by the facade via
 ``dataclasses.asdict``), not a Pydantic :class:`FlowGroup`. The test
 builds that view through the real converter

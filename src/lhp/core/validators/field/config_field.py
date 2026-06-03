@@ -18,11 +18,6 @@ class ConfigFieldValidator:
     def validate_load_source(
         self, source_config: Dict[str, Any], action_name: str
     ) -> None:
-        """Validate load source configuration for unknown fields.
-
-        Raises:
-            LHPError: If unknown fields are found
-        """
         logger.debug(f"Validating load source fields for action '{action_name}'")
 
         if not isinstance(source_config, dict):
@@ -67,11 +62,6 @@ class ConfigFieldValidator:
     def validate_write_target(
         self, write_target: Dict[str, Any], action_name: str
     ) -> None:
-        """Validate write target configuration for unknown fields.
-
-        Raises:
-            LHPError: If unknown fields are found
-        """
         logger.debug(f"Validating write target fields for action '{action_name}'")
 
         if not isinstance(write_target, dict):
@@ -116,11 +106,6 @@ class ConfigFieldValidator:
     def validate_action_fields(
         self, action_dict: Dict[str, Any], action_name: str
     ) -> None:
-        """Validate action-level fields for unknown fields.
-
-        Raises:
-            LHPError: If unknown fields are found
-        """
         logger.debug(f"Validating action-level fields for action '{action_name}'")
         actual_fields = set(action_dict.keys())
         unknown_fields = actual_fields - self.action_fields

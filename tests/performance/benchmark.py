@@ -36,11 +36,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 BASELINES_DIR = Path(__file__).resolve().parent / "baselines"
 
 
-# ---------------------------------------------------------------------------
-# Types
-# ---------------------------------------------------------------------------
-
-
 @dataclass(frozen=True, slots=True)
 class BenchmarkRun:
     phases: Mapping[str, float]
@@ -93,11 +88,6 @@ class BaselineDoc(TypedDict):
     metrics: dict[str, dict[str, float | str]]
 
 
-# ---------------------------------------------------------------------------
-# Internal helpers (testable in isolation)
-# ---------------------------------------------------------------------------
-
-
 _SEMVER_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)\.json$")
 
 
@@ -124,7 +114,6 @@ def _percentiles(values: list[float]) -> tuple[float, float, float]:
 
 
 def _flatten_run(run: BenchmarkRun) -> dict[str, tuple[float, str]]:
-    """Convert a run into a flat ``{metric_key: (value, unit)}`` mapping."""
     out: dict[str, tuple[float, str]] = {}
     for name, dur in run.phases.items():
         out[f"phase.{name}"] = (float(dur), "seconds")
@@ -264,7 +253,6 @@ def _parse_perf_log_text(text: str) -> BenchmarkRun:
 
 
 def _format_count(value: float) -> str:
-    """Render a count value: integer if whole, else 3-decimal float."""
     return f"{int(value):d}" if float(value).is_integer() else f"{value:.3f}"
 
 
@@ -328,11 +316,6 @@ def _format_failure_message(
         ]
     )
     return "\n".join(lines)
-
-
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
 
 
 def machine_fingerprint() -> str:
@@ -400,7 +383,6 @@ def run_benchmark(fixture_path: Path, runs: int = 5) -> list[BenchmarkRun]:
 
 
 def summarize(runs: list[BenchmarkRun]) -> dict[str, MetricSummary]:
-    """Compute ``MetricSummary`` (median, p25, p75) per metric across runs."""
     if not runs:
         return {}
     accum: dict[str, tuple[list[float], str]] = {}
@@ -422,7 +404,6 @@ def compare(
     candidate: Mapping[str, MetricSummary],
     candidate_shape: Mapping[str, int],
 ) -> ComparisonResult:
-    """Compare candidate metrics against baseline; classify each entry."""
     regressions: list[ComparisonEntry] = []
     improvements: list[ComparisonEntry] = []
     stable: list[ComparisonEntry] = []
@@ -651,7 +632,6 @@ def capture_baseline(
 
 
 def load_latest_baseline(baselines_dir: Path) -> BaselineDoc:
-    """Return the baseline with the highest semver in ``baselines_dir``."""
     candidates: list[tuple[tuple[int, int, int], Path]] = []
     for p in baselines_dir.glob("v*.json"):
         try:
@@ -672,7 +652,6 @@ def _seed_from_log(
     version: str,
     output_dir: Path,
 ) -> Path:
-    """Build a single-run baseline JSON from one existing ``perf.log``."""
     text = perf_log_path.read_text(encoding="utf-8")
     run = _parse_perf_log_text(text)
     if not run.phases:
@@ -691,11 +670,6 @@ def _seed_from_log(
     target = output_dir / f"{version}.json"
     target.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
     return target
-
-
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
 
 
 def _resolve_fixture_path(name: str) -> Path:

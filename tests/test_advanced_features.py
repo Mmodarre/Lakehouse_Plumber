@@ -51,7 +51,6 @@ dev:
 
     def test_python_source_and_transform(self, project_root):
         """Test Python-based load and transform actions."""
-        # Create flowgroup with Python actions
         pipeline_dir = project_root / "pipelines" / "python_pipeline"
         pipeline_dir.mkdir(parents=True)
 
@@ -88,7 +87,6 @@ actions:
       create_table: true
 """)
 
-        # Create the Python transform function file
         transformers_dir = project_root / "transformers"
         transformers_dir.mkdir(parents=True)
         (transformers_dir / "enrich_customers.py").write_text("""
@@ -97,7 +95,6 @@ def enrich_customers(df, spark, parameters):
     return df.withColumn("enriched", "true")
 """)
 
-        # Python LOAD now hard-requires a real .py file too.
         loaders_dir = project_root / "loaders"
         loaders_dir.mkdir(parents=True)
         (loaders_dir / "customer_loader.py").write_text("""
@@ -105,7 +102,6 @@ def get_df(spark, parameters):
     return spark.range(1)
 """)
 
-        # Generate pipeline
         facade = LakehousePlumberApplicationFacade.for_project(
             project_root, enforce_version=False
         )
@@ -118,14 +114,9 @@ def get_df(spark, parameters):
 
         code = generated_files["python_processing.py"]
 
-        # Check for Python imports
         assert "from custom_python_functions.customer_loader import" in code
         assert "from custom_python_functions.enrich_customers import" in code
-
-        # Check for DLT decorators
         assert "@dp.temporary_view()" in code
-
-        # Python sources should still be wrapped in DLT views
         assert "def v_customers_python" in code
         assert "def v_customers_enriched" in code
 
@@ -196,20 +187,15 @@ actions:
 
         code = generated_files["temp_processing.py"]
 
-        # Check for correct temporary table implementation
         assert "@dp.table(" in code
         assert "temporary=True" in code
         assert "def temp_daily_aggregates():" in code
-        # Verify it does NOT use the old incorrect temp table pattern
         assert "temp_daily_aggregates_temp" not in code
-        # Verify the temp table section uses @dp.table, not dp.create_streaming_table for temp
         temp_table_section = code.split("# TRANSFORMATION VIEWS")[1].split(
             "# TARGET TABLES"
         )[0]
         assert "@dp.table(" in temp_table_section
         assert "dp.create_streaming_table" not in temp_table_section
-
-        # Check for SQL with multiple sources
         assert "v_raw_data r" in code
         assert "temp_daily_aggregates t" in code
 
@@ -268,19 +254,14 @@ actions:
 
         code = generated_files["schema_application.py"]
 
-        # Check for schema enforcement
         assert "cast" in code.lower()
         assert "customer_id" in code
         assert "BIGINT" in code
-
-        # Check for column mapping
         assert "withColumnRenamed" in code
         assert '"cust_id"' in code
         assert '"customer_id"' in code
-
-        # Check for materialized view
         assert "@dp.materialized_view(" in code
-        # Note: refresh_schedule no longer supported in @dp.materialized_view
+        # refresh_schedule no longer supported in @dp.materialized_view
 
     def test_many_to_many_relationships(self, project_root):
         """Test many-to-many action relationships."""
@@ -371,15 +352,11 @@ actions:
 
         code = generated_files["many_to_many.py"]
 
-        # Check for multiple sources in SQL
         assert "v_orders o" in code
         assert "v_customers c" in code
-
-        # Check for both write targets
         assert "fact_orders" in code
         assert "dim_customer_metrics" in code
 
-        # Check proper ordering (loads before transforms before writes)
         code_lines = code.split("\n")
         v_orders_idx = next(
             i for i, line in enumerate(code_lines) if "def v_orders" in line
@@ -391,13 +368,11 @@ actions:
             i for i, line in enumerate(code_lines) if "def v_order_details" in line
         )
 
-        # Transforms should come after loads
         assert v_order_details_idx > v_orders_idx
         assert v_order_details_idx > v_customers_idx
 
     def test_operational_metadata_configurations(self, project_root):
         """Test different operational metadata configurations."""
-        # Create preset with operational metadata
         (project_root / "presets" / "with_metadata.yaml").write_text("""
 name: with_metadata
 version: "1.0"
@@ -408,7 +383,6 @@ defaults:
         pipeline_dir = project_root / "pipelines" / "metadata_test"
         pipeline_dir.mkdir(parents=True)
 
-        # Flowgroup 1: Operational metadata from preset
         (pipeline_dir / "with_preset_metadata.yaml").write_text("""
 pipeline: metadata_test
 flowgroup: with_preset_metadata
@@ -434,7 +408,6 @@ actions:
       create_table: true
 """)
 
-        # Flowgroup 2: Operational metadata override
         (pipeline_dir / "override_metadata.yaml").write_text("""
 pipeline: metadata_test
 flowgroup: override_metadata
@@ -463,7 +436,6 @@ actions:
             project_root, enforce_version=False
         )
 
-        # Test preset metadata
         files1 = read_generated_pipeline(
             facade,
             pipeline_field="metadata_test",
@@ -472,12 +444,10 @@ actions:
         )
         code1 = files1["with_preset_metadata.py"]
 
-        # Should have metadata columns
         assert "_ingestion_timestamp" in code1
         assert "F.current_timestamp()" in code1
         assert "_pipeline_name" in code1
 
-        # Test override metadata
         files2 = read_generated_pipeline(
             facade,
             pipeline_field="metadata_test",
@@ -486,27 +456,18 @@ actions:
         )
         code2 = files2["override_metadata.py"]
 
-        # Should also have metadata columns
         assert "_ingestion_timestamp" in code2
         assert "_pipeline_name" in code2
 
     def test_error_handling_invalid_configurations(self, project_root):
-        """Invalid configurations are REJECTED by ``generate_pipelines``.
+        """Invalid configs raise ``LHPError`` via ``collect_response``.
 
-        The all-or-nothing generate gate RAISES the
-        aggregated ``LHPError`` straight through ``collect_response`` instead
-        of folding it into a ``not response.success`` DTO. Each invalid
-        flowgroup below must therefore make ``collect_response`` raise an
-        ``LHPError`` — the test's original intent ("a bad config is
-        rejected") is preserved; only the surfacing channel moved from a
-        returned DTO to a raised exception. The third (multiple-table-
-        creators) case keeps its specific ``LHP-CFG-004`` + message
-        assertion because that error is stable and uniquely identifying;
-        the first two assert the raise and an LHP-coded error (their precise
-        code is incidental — the deprecated bare-``{source}`` token in the
-        fixture trips substitution validation first).
+        The generate gate raises the aggregated error directly rather than
+        returning a failed DTO. The third case (multiple table creators)
+        asserts the specific ``LHP-CFG-004`` code because that error is stable
+        and uniquely identifying; the first two assert only that an LHP-coded
+        error is raised.
         """
-        # Test 1: Missing required Load action
         pipeline_dir1 = project_root / "pipelines" / "invalid_no_load"
         pipeline_dir1.mkdir(parents=True)
 
@@ -527,8 +488,6 @@ actions:
             project_root, enforce_version=False
         )
 
-        # The gate raises the aggregated LHPError through
-        # collect_response (it no longer returns a failed DTO).
         with pytest.raises(LHPError) as exc_info:
             collect_response(
                 facade.generation.generate_pipelines(
@@ -539,7 +498,6 @@ actions:
             )
         assert exc_info.value.code.startswith("LHP-")
 
-        # Test 2: Circular dependency - Create separate pipeline
         pipeline_dir2 = project_root / "pipelines" / "invalid_circular"
         pipeline_dir2.mkdir(parents=True)
 
@@ -580,7 +538,6 @@ actions:
       create_table: true
 """)
 
-        # Create fresh facade instance
         facade2 = LakehousePlumberApplicationFacade.for_project(
             project_root, enforce_version=False
         )
@@ -595,7 +552,6 @@ actions:
             )
         assert exc_info2.value.code.startswith("LHP-")
 
-        # Test 3: Multiple table creators (rich error formatting)
         pipeline_dir3 = project_root / "pipelines" / "invalid_multiple_creators"
         pipeline_dir3.mkdir(parents=True)
 
@@ -633,14 +589,12 @@ actions:
       create_table: true
 """)
 
-        # Create fresh facade instance
         facade3 = LakehousePlumberApplicationFacade.for_project(
             project_root, enforce_version=False
         )
 
-        # The gate raises the rich LHPError through collect_response.
-        # Identity-level assertions only; rendered LHPError shape is owned
-        # by snapshot tests in tests/test_lhperror_rendering.py.
+        # Identity-level assertions only; rendered shape is owned by
+        # snapshot tests in tests/test_lhperror_rendering.py.
         with pytest.raises(LHPError) as exc_info3:
             collect_response(
                 facade3.generation.generate_pipelines(
@@ -654,7 +608,6 @@ actions:
 
     def test_preset_inheritance_chain(self, project_root):
         """Test complex preset inheritance chains."""
-        # Create base preset
         (project_root / "presets" / "base.yaml").write_text("""
 name: base
 version: "1.0"
@@ -666,7 +619,6 @@ defaults:
       schema_evolution_mode: "failOnNewColumns"
 """)
 
-        # Create bronze preset extending base
         (project_root / "presets" / "bronze.yaml").write_text("""
 name: bronze
 version: "1.0"
@@ -681,7 +633,6 @@ defaults:
       rescue_data_column: "_rescued_data"
 """)
 
-        # Create source-specific preset extending bronze
         (project_root / "presets" / "customer_bronze.yaml").write_text("""
 name: customer_bronze
 version: "1.0"

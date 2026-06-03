@@ -24,7 +24,6 @@ class TestEnvironmentTemplateRendering:
 
     @pytest.fixture
     def temp_project(self):
-        """Create temporary project structure."""
         temp_dir = tempfile.mkdtemp()
         project_root = Path(temp_dir)
 
@@ -33,7 +32,6 @@ class TestEnvironmentTemplateRendering:
         (project_root / "pipelines").mkdir(parents=True)
         (project_root / "generated").mkdir(parents=True)
 
-        # Create minimal substitution file
         sub_content = {"dev": {"catalog": "dev_catalog", "schema": "dev_schema"}}
         with open(project_root / "substitutions" / "dev.yaml", "w") as f:
             yaml.dump(sub_content, f)
@@ -50,7 +48,6 @@ class TestEnvironmentTemplateRendering:
     def _render_resource(
         self, temp_project, config_path, pipeline_name="test_pipeline"
     ):
-        """Render the actual template and return the output YAML string."""
         manager = BundleManager(
             project_root=temp_project,
             pipeline_config_path=str(config_path),
@@ -150,7 +147,6 @@ environment:
         parsed = yaml.safe_load(content)
 
         pipeline = parsed["resources"]["pipelines"]["test_pipeline_pipeline"]
-        # Both should be direct children of the pipeline definition
         assert "tags" in pipeline
         assert "environment" in pipeline
         assert "libraries" in pipeline
@@ -216,9 +212,6 @@ environment:
         config = captured_context["pipeline_config"]
         assert config["environment"]["dependencies"] == ["msal==1.31.0"]
 
-        # Companion real-render assertion: drive the REAL template renderer
-        # (fresh manager, no mock) and verify the substituted value lands in
-        # valid resource YAML under resources.pipelines.<name>_pipeline.
         real_manager = BundleManager(
             project_root=temp_project,
             pipeline_config_path=str(config_path),
@@ -266,8 +259,6 @@ schema: "${schema}"
         config = captured_context["pipeline_config"]
         assert config["environment"]["dependencies"] == ["msal==1.31.0"]
 
-        # Companion real-render assertion: inherited environment must reach the
-        # emitted resource YAML, not just the resolved context dict.
         real_manager = BundleManager(
             project_root=temp_project,
             pipeline_config_path=str(config_path),
@@ -316,11 +307,9 @@ environment:
         manager.generate_resource_file_content("test_pipeline", output_dir, "dev")
 
         config = captured_context["pipeline_config"]
-        # Lists replace, not append — only the pipeline-specific value should remain
+        # Lists replace, not append — only the pipeline-specific value should remain.
         assert config["environment"]["dependencies"] == ["requests>=2.28.0"]
 
-        # Companion real-render assertion: the list-replace result must be the
-        # only environment dependency emitted in the resource YAML.
         real_manager = BundleManager(
             project_root=temp_project,
             pipeline_config_path=str(config_path),
@@ -394,7 +383,6 @@ class TestConfigurationTemplateRendering:
 
     @pytest.fixture
     def temp_project(self):
-        """Create temporary project structure."""
         temp_dir = tempfile.mkdtemp()
         project_root = Path(temp_dir)
 
@@ -609,9 +597,6 @@ configuration:
             config["configuration"]["spark.databricks.delta.minFileSize"] == "134217728"
         )
 
-        # Companion real-render assertion: substituted configuration value must
-        # appear (as a quoted string) in the emitted resource YAML, alongside
-        # the LHP-managed bundle.sourcePath default.
         real_manager = BundleManager(
             project_root=temp_project,
             pipeline_config_path=str(config_path),
@@ -667,8 +652,6 @@ schema: "${schema}"
             == "false"
         )
 
-        # Companion real-render assertion: inherited configuration entry must
-        # land in the emitted resource YAML.
         real_manager = BundleManager(
             project_root=temp_project,
             pipeline_config_path=str(config_path),
@@ -719,20 +702,16 @@ configuration:
         manager.generate_resource_file_content("test_pipeline", output_dir, "dev")
 
         config = captured_context["pipeline_config"]
-        # Pipeline-specific overrides the default
+        # Pipeline-specific overrides the default.
         assert (
             config["configuration"]["pipelines.incompatibleViewCheck.enabled"] == "true"
         )
-        # Project default is preserved via deep merge
+        # Project default is preserved via deep merge.
         assert (
             config["configuration"]["spark.databricks.delta.minFileSize"] == "134217728"
         )
-        # Pipeline-specific addition
         assert config["configuration"]["spark.sql.shuffle.partitions"] == "200"
 
-        # Companion real-render assertion: the deep-merged configuration
-        # (override + preserved default + addition) must all appear in the
-        # emitted resource YAML.
         real_manager = BundleManager(
             project_root=temp_project,
             pipeline_config_path=str(config_path),

@@ -10,7 +10,6 @@ def test_streaming_table_with_multiple_sources():
     """Test streaming table with multiple sources using append flow."""
     generator = StreamingTableWriteGenerator()
 
-    # Create action with multiple sources
     action = Action(
         name="write_all_events",
         type="write",
@@ -20,7 +19,7 @@ def test_streaming_table_with_multiple_sources():
             "catalog": "silver_cat",
             "schema": "silver_sch",
             "table": "all_events",
-            "create_table": True,  # ← Add explicit table creation flag
+            "create_table": True,
             "partition_columns": ["event_date"],
             "comment": "Unified events table",
         },
@@ -29,18 +28,13 @@ def test_streaming_table_with_multiple_sources():
     context = {"expectations": []}
     code = generator.generate(action, context)
 
-    # Check that create_streaming_table is used
     assert "dp.create_streaming_table(" in code
     assert 'name="silver_cat.silver_sch.all_events"' in code
-
-    # Check that multiple append_flows are created for single action with multiple sources
     assert "@dp.append_flow(" in code
     assert 'target="silver_cat.silver_sch.all_events"' in code
     assert "def f_all_events_1():" in code
     assert "def f_all_events_2():" in code
     assert "def f_all_events_3():" in code
-
-    # Each append flow should read from its respective source
     assert 'spark.readStream.table("v_orders")' in code
     assert 'spark.readStream.table("v_returns")' in code
     assert 'spark.readStream.table("v_cancellations")' in code
@@ -50,33 +44,27 @@ def test_streaming_table_with_backfill():
     """Test streaming table with one-time flow (backfill)."""
     generator = StreamingTableWriteGenerator()
 
-    # Create action with once=True for backfill and explicit readMode: batch
     action = Action(
         name="backfill_historical",
         type="write",
         source="v_historical_orders",
         once=True,
-        readMode="batch",  # Explicitly set batch mode for backfill
+        readMode="batch",
         write_target={
             "type": "streaming_table",
             "catalog": "silver_cat",
             "schema": "silver_sch",
             "table": "events",
-            "create_table": True,  # ← Add explicit table creation flag
+            "create_table": True,
         },
     )
 
     context = {"expectations": []}
     code = generator.generate(action, context)
 
-    # Check that append_flow has once=True
     assert "once=True" in code
-
-    # Check that it uses spark.read.table() instead of spark.readStream.table()
     assert 'spark.read.table("v_historical_orders")' in code
     assert "spark.readStream." not in code
-
-    # Check comment indicates batch mode
     assert "Batch mode" in code
 
 
@@ -94,7 +82,7 @@ def test_streaming_table_cdc_mode():
             "catalog": "silver_cat",
             "schema": "silver_sch",
             "table": "dim_customer",
-            "create_table": True,  # ← Add explicit table creation flag
+            "create_table": True,
             "cdc_config": {
                 "keys": ["customer_id"],
                 "sequence_by": "_commit_timestamp",
@@ -106,18 +94,13 @@ def test_streaming_table_cdc_mode():
     context = {"expectations": []}
     code = generator.generate(action, context)
 
-    # Check that create_streaming_table is used first
     assert "dp.create_streaming_table(" in code
     assert 'name="silver_cat.silver_sch.dim_customer"' in code
-
-    # Check that create_auto_cdc_flow is used
     assert "dp.create_auto_cdc_flow(" in code
     assert 'target="silver_cat.silver_sch.dim_customer"' in code
     assert 'source="v_customer_changes"' in code
     assert 'keys=["customer_id"]' in code
     assert "stored_as_scd_type=2" in code
-
-    # Should not have append_flow decorator
     assert "@dp.append_flow" not in code
 
 
@@ -134,14 +117,13 @@ def test_streaming_table_single_source():
             "catalog": "silver_cat",
             "schema": "silver_sch",
             "table": "events",
-            "create_table": True,  # ← Add explicit table creation flag
+            "create_table": True,
         },
     )
 
     context = {"expectations": []}
     code = generator.generate(action, context)
 
-    # Check basic structure
     assert "dp.create_streaming_table(" in code
     assert "@dp.append_flow(" in code
     assert "def f_events():" in code
@@ -154,7 +136,6 @@ def test_source_list_validation():
 
     validator = ConfigValidator()
 
-    # Valid: source as list
     action = Action(
         name="write_multi",
         type="write",
@@ -164,19 +145,17 @@ def test_source_list_validation():
             "catalog": "silver_cat",
             "schema": "silver_sch",
             "table": "multi_source",
-            "create_table": True,  # ← Add explicit table creation flag
+            "create_table": True,
         },
     )
 
     errors = validator.validate_action(action, 0)
     assert len(errors) == 0
 
-    # Valid: source as string
     action.source = "v_single"
     errors = validator.validate_action(action, 0)
     assert len(errors) == 0
 
-    # Invalid: source as dict (not allowed for write)
     action.source = {"view": "v_test"}
     errors = validator.validate_action(action, 0)
     assert any("source must be a string or list" in e for e in errors)
@@ -205,18 +184,17 @@ def test_multiple_write_actions_same_table_mixed_once_flags():
         name="write_lineitem_backfill",
         type="write",
         source="v_lineitem_historical",
-        once=True,  # One-time backfill
-        readMode="batch",  # Explicit batch mode for backfill
+        once=True,
+        readMode="batch",
         write_target={
             "type": "streaming_table",
             "catalog": "catalog",
             "schema": "schema",
             "table": "lineitem",
-            "create_table": False,  # Don't create table again
+            "create_table": False,
         },
     )
 
-    # Test orchestrator combination logic
     orchestrator = build_facade_orchestrator(Path("."), enforce_version=False)
     actions = [streaming_action, backfill_action]
     target_table = "catalog.schema.lineitem"
@@ -225,57 +203,44 @@ def test_multiple_write_actions_same_table_mixed_once_flags():
         actions, target_table
     )
 
-    # Verify individual action metadata is preserved
     assert hasattr(combined_action, "_action_metadata")
     assert len(combined_action._action_metadata) == 2
 
-    # Check streaming action metadata
     streaming_meta = combined_action._action_metadata[0]
     assert streaming_meta["action_name"] == "write_lineitem_streaming"
     assert streaming_meta["source_view"] == "v_lineitem_processed"
     assert streaming_meta["once"] is False
     assert streaming_meta["flow_name"] == "f_lineitem_streaming"
 
-    # Check backfill action metadata
     backfill_meta = combined_action._action_metadata[1]
     assert backfill_meta["action_name"] == "write_lineitem_backfill"
     assert backfill_meta["source_view"] == "v_lineitem_historical"
     assert backfill_meta["once"] is True
     assert backfill_meta["flow_name"] == "f_lineitem_backfill"
 
-    # Verify table creator is correctly identified
     assert hasattr(combined_action, "_table_creator")
-    assert (
-        combined_action._table_creator.name == "write_lineitem_streaming"
-    )  # Has create_table=True
+    assert combined_action._table_creator.name == "write_lineitem_streaming"
 
-    # Test code generation
     generator = StreamingTableWriteGenerator()
     context = {"expectations": []}
     code = generator.generate(combined_action, context)
 
-    # Verify streaming table is created
     assert "dp.create_streaming_table(" in code
     assert 'name="catalog.schema.lineitem"' in code
-
-    # Verify both append flows are generated with correct once flags
     assert "@dp.append_flow(" in code
     assert "def f_lineitem_streaming():" in code
     assert "def f_lineitem_backfill():" in code
 
-    # Check that streaming flow doesn't have once=True
     streaming_flow_section = code.split("def f_lineitem_streaming():")[0]
     streaming_append = streaming_flow_section.split("@dp.append_flow(")[-1]
     assert "once=True" not in streaming_append
 
-    # Check that backfill flow has once=True
     backfill_flow_section = code.split("def f_lineitem_backfill():")[0]
     backfill_append = backfill_flow_section.split("@dp.append_flow(")[-1]
     assert "once=True" in backfill_append
 
-    # Verify correct read methods
-    assert 'spark.readStream.table("v_lineitem_processed")' in code  # Streaming
-    assert 'spark.read.table("v_lineitem_historical")' in code  # Batch for once=True
+    assert 'spark.readStream.table("v_lineitem_processed")' in code
+    assert 'spark.read.table("v_lineitem_historical")' in code
 
 
 def test_table_creation_validation_multiple_creators():
@@ -292,7 +257,7 @@ def test_table_creation_validation_multiple_creators():
             "catalog": "catalog",
             "schema": "schema",
             "table": "events",
-            "create_table": True,  # ← First creator
+            "create_table": True,
         },
     )
 
@@ -305,7 +270,7 @@ def test_table_creation_validation_multiple_creators():
             "catalog": "catalog",
             "schema": "schema",
             "table": "events",
-            "create_table": True,  # ← Second creator (should cause error)
+            "create_table": True,
         },
     )
 
@@ -313,15 +278,12 @@ def test_table_creation_validation_multiple_creators():
         pipeline="test_pipeline", flowgroup="test_flowgroup", actions=[action1, action2]
     )
 
-    # Validate table creation rules - should raise LHPError for multiple creators
     try:
         TableCreationValidator().validate([flowgroup])
-        # If we get here, validation unexpectedly passed - this is an error
         raise AssertionError(
             "Expected LHPError to be raised for multiple table creators"
         )
     except Exception as e:
-        # Handle LHPError by converting to string (like the orchestrator does)
         error_str = str(e)
         assert (
             "multiple creators" in error_str.lower()
@@ -334,7 +296,6 @@ def test_table_creation_validation_no_creators():
     """Test that table creation validation catches tables with no creators."""
     from lhp.core.validators import TableCreationValidator
 
-    # Create two actions that both have create_table=False
     action1 = Action(
         name="write_events_1",
         type="write",
@@ -344,7 +305,7 @@ def test_table_creation_validation_no_creators():
             "catalog": "catalog",
             "schema": "schema",
             "table": "events",
-            "create_table": False,  # ← No creator
+            "create_table": False,
         },
     )
 
@@ -357,7 +318,7 @@ def test_table_creation_validation_no_creators():
             "catalog": "catalog",
             "schema": "schema",
             "table": "events",
-            "create_table": False,  # ← No creator
+            "create_table": False,
         },
     )
 
@@ -365,10 +326,8 @@ def test_table_creation_validation_no_creators():
         pipeline="test_pipeline", flowgroup="test_flowgroup", actions=[action1, action2]
     )
 
-    # Validate table creation rules - should return errors for no creators
     errors = TableCreationValidator().validate([flowgroup])
 
-    # Should detect no creators (this case returns errors instead of raising exception)
     assert len(errors) == 1
     assert "no creator" in errors[0].lower()
     assert "catalog.schema.events" in errors[0]
@@ -378,13 +337,12 @@ def test_backward_compatibility_single_action():
     """Test that single write actions still work correctly (backward compatibility)."""
     generator = StreamingTableWriteGenerator()
 
-    # Single action (existing functionality should still work)
     action = Action(
         name="write_single_events",
         type="write",
         source="v_events",
         once=True,
-        readMode="batch",  # Explicit batch mode for once=True backfill
+        readMode="batch",
         write_target={
             "type": "streaming_table",
             "catalog": "silver_cat",
@@ -402,7 +360,7 @@ def test_backward_compatibility_single_action():
     assert "@dp.append_flow(" in code
     assert "once=True" in code
     assert "def f_single_events():" in code
-    assert 'spark.read.table("v_events")' in code  # Batch for readMode="batch"
+    assert 'spark.read.table("v_events")' in code
 
 
 def test_orchestrator_preserves_table_creation_logic():
@@ -412,7 +370,6 @@ def test_orchestrator_preserves_table_creation_logic():
 
     orchestrator = build_facade_orchestrator(Path("."), enforce_version=False)
 
-    # Test scenario: first action has create_table=False, second has create_table=True
     action1 = Action(
         name="write_events_append",
         type="write",
@@ -422,7 +379,7 @@ def test_orchestrator_preserves_table_creation_logic():
             "catalog": "catalog",
             "schema": "schema",
             "table": "events",
-            "create_table": False,  # Should not be the table creator
+            "create_table": False,
         },
     )
 
@@ -435,7 +392,7 @@ def test_orchestrator_preserves_table_creation_logic():
             "catalog": "catalog",
             "schema": "schema",
             "table": "events",
-            "create_table": True,  # Should be the table creator
+            "create_table": True,
         },
     )
 
@@ -446,14 +403,11 @@ def test_orchestrator_preserves_table_creation_logic():
         actions, target_table
     )
 
-    # Verify that the table creator is correctly identified (action2, not action1)
     assert combined_action._table_creator.name == "write_events_creator"
     assert combined_action.write_target.get("create_table") is True
 
-    # Test code generation uses the correct table creator config
     generator = StreamingTableWriteGenerator()
     context = {"expectations": []}
     code = generator.generate(combined_action, context)
 
-    # Should create the table because table creator has create_table=True
     assert "dp.create_streaming_table(" in code

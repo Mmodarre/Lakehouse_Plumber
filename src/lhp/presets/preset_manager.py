@@ -14,8 +14,6 @@ logger = logging.getLogger(__name__)
 
 
 class PresetManager:
-    """Manages preset loading and inheritance resolution."""
-
     def __init__(self, presets_dir: Path):
         self.presets_dir = presets_dir
         self.presets: Dict[str, Preset] = {}
@@ -23,7 +21,6 @@ class PresetManager:
         self._load_presets()
 
     def _load_presets(self):
-        """Load all presets from the presets directory."""
         if not self.presets_dir.exists():
             logger.debug(f"Presets directory does not exist: {self.presets_dir}")
             return
@@ -35,7 +32,6 @@ class PresetManager:
         logger.info(f"Discovered {len(self.presets)} preset(s) from {self.presets_dir}")
 
     def resolve_preset_chain(self, preset_names: List[str]) -> Dict[str, Any]:
-        """Resolve a chain of presets with inheritance."""
         with perf_timer("preset_resolve", category="preset_resolve"):
             logger.debug(f"Resolving preset chain: {preset_names}")
             resolved = {}
@@ -51,15 +47,10 @@ class PresetManager:
         visited: Optional[set] = None,
         path: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
-        """Resolve preset inheritance chain.
-
+        """
         Args:
-            preset_name: Name of the preset to resolve
             visited: Set of already-visited preset names (cycle detection)
             path: Ordered list of visited preset names (deterministic cycle path)
-
-        Returns:
-            Merged preset configuration
 
         Raises:
             LHPConfigError: If the preset is not found (LHP-ACT-001).
@@ -70,7 +61,6 @@ class PresetManager:
         if path is None:
             path = []
 
-        # Cycle detection
         if preset_name in visited:
             cycle_path = " -> ".join([*path, preset_name])
             raise ErrorFactory.dependency_error(
@@ -95,7 +85,6 @@ class PresetManager:
         preset = self.presets[preset_name]
         result = preset.defaults or {}
 
-        # If extends another preset, merge parent first
         if preset.extends:
             logger.debug(
                 f"Preset '{preset_name}' extends '{preset.extends}', resolving parent"
@@ -136,5 +125,4 @@ class PresetManager:
         return result
 
     def list_presets(self) -> List[str]:
-        """List all available preset names."""
         return list(self.presets.keys())

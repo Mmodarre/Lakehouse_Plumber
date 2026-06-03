@@ -13,10 +13,6 @@ from lhp.models.dependencies import (
     PipelineDependency,
 )
 
-# ============================================================================
-# Config Loading Tests
-# ============================================================================
-
 
 def test_load_default_config_when_no_user_config(tmp_path):
     """Should use DEFAULT_JOB_CONFIG when no user config file exists."""
@@ -26,7 +22,6 @@ def test_load_default_config_when_no_user_config(tmp_path):
 
     generator = JobGenerator(project_root=project_root)
 
-    # Should have default values
     assert generator.job_config["max_concurrent_runs"] == 1
     assert generator.job_config["queue"]["enabled"] is True
     assert generator.job_config["performance_target"] == "STANDARD"
@@ -48,10 +43,8 @@ performance_target: PERFORMANCE_OPTIMIZED
 
     generator = JobGenerator(project_root=project_root)
 
-    # User values should override
     assert generator.job_config["max_concurrent_runs"] == 3
     assert generator.job_config["performance_target"] == "PERFORMANCE_OPTIMIZED"
-    # Defaults should still be present for non-overridden values
     assert generator.job_config["queue"]["enabled"] is True
 
 
@@ -76,7 +69,6 @@ email_notifications:
 
     generator = JobGenerator(project_root=project_root)
 
-    # Should have optional fields
     assert "timeout_seconds" in generator.job_config
     assert generator.job_config["timeout_seconds"] == 7200
     assert "tags" in generator.job_config
@@ -101,7 +93,6 @@ def test_load_config_raises_error_on_invalid_yaml(tmp_path):
     templates_dir = project_root / "templates" / "bundle"
     templates_dir.mkdir(parents=True)
 
-    # Create invalid YAML
     config_file = templates_dir / "job_config.yaml"
     config_file.write_text("invalid: yaml:\n  - wrong indentation")
 
@@ -115,13 +106,11 @@ def test_load_config_with_empty_file(tmp_path):
     templates_dir = project_root / "templates" / "bundle"
     templates_dir.mkdir(parents=True)
 
-    # Create empty config
     config_file = templates_dir / "job_config.yaml"
     config_file.write_text("# Empty config\n")
 
     generator = JobGenerator(project_root=project_root)
 
-    # Should have default values
     assert generator.job_config["max_concurrent_runs"] == 1
     assert generator.job_config["queue"]["enabled"] is True
     assert generator.job_config["performance_target"] == "STANDARD"
@@ -132,7 +121,6 @@ def test_load_config_with_custom_path(tmp_path):
     project_root = tmp_path / "project"
     project_root.mkdir()
 
-    # Create config in custom location
     custom_config = project_root / "custom_job_config.yaml"
     custom_config.write_text("max_concurrent_runs: 10\n")
 
@@ -143,14 +131,8 @@ def test_load_config_with_custom_path(tmp_path):
     assert generator.job_config["max_concurrent_runs"] == 10
 
 
-# ============================================================================
-# Job Generation Tests
-# ============================================================================
-
-
 def create_test_dependency_result():
     """Helper to create a minimal DependencyAnalysisResult for testing."""
-    # Create minimal graphs
     action_graph = nx.DiGraph()
     flowgroup_graph = nx.DiGraph()
     pipeline_graph = nx.DiGraph()
@@ -163,7 +145,6 @@ def create_test_dependency_result():
         metadata={},
     )
 
-    # Create pipeline dependency
     pipeline_dep = PipelineDependency(
         pipeline="test_pipeline",
         depends_on=[],
@@ -194,10 +175,8 @@ def test_generate_job_with_default_config(tmp_path):
         result, job_name="test_job", project_name="test_project"
     )
 
-    # Parse the generated YAML
     job_data = yaml.safe_load(job_yaml)
 
-    # Check default values
     assert job_data["resources"]["jobs"]["test_job"]["max_concurrent_runs"] == 1
     assert job_data["resources"]["jobs"]["test_job"]["performance_target"] == "STANDARD"
     assert job_data["resources"]["jobs"]["test_job"]["queue"]["enabled"] is True
@@ -398,15 +377,12 @@ def test_generate_job_preserves_commented_examples(tmp_path):
     )
 
 
-# =====================================================================
 # Pass-through tests: unknown job_config keys render as YAML verbatim.
-#
-# This is the V0.8.7 escape hatch — users can specify any Databricks
-# Jobs API field (trigger.file_arrival, continuous, run_as, git_source,
-# health, environments, parameters, …) without waiting for LHP to
-# explicitly support the key, so LHP never blocks a user from using
-# newly-released Databricks job features.
-# =====================================================================
+# Escape hatch — users can specify any Databricks Jobs API field
+# (trigger.file_arrival, continuous, run_as, git_source, health,
+# environments, parameters, …) without waiting for LHP to explicitly
+# support the key, so LHP never blocks newly-released Databricks job
+# features.
 
 
 def _write_config(tmp_path, body: str):
@@ -419,7 +395,7 @@ def _write_config(tmp_path, body: str):
 
 
 def test_passthrough_trigger_file_arrival_renders_in_job_yaml(tmp_path):
-    """The user's reported bug: trigger.file_arrival now lands in output."""
+    """trigger.file_arrival passes through to generated YAML."""
     project_root = _write_config(
         tmp_path,
         """

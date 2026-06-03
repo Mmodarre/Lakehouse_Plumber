@@ -1,5 +1,3 @@
-"""Extended tests for ProjectConfigLoader covering edge cases and error paths."""
-
 from pathlib import Path
 
 import pytest
@@ -9,8 +7,6 @@ from lhp.errors import LHPError
 
 
 class TestLoadProjectConfig:
-    """Tests for load_project_config method."""
-
     def test_empty_yaml_raises_error(self, tmp_path):
         """Empty YAML file raises LHPError with the specific IO-003 code.
 
@@ -129,8 +125,6 @@ class TestParseIncludePatterns:
 
 
 class TestParseEventLogConfig:
-    """Tests for _parse_event_log_config method."""
-
     def test_non_dict_event_log_raises_error(self, tmp_path):
         """Non-dict event_log value raises LHPError with the specific CFG-006 code."""
         config_file = tmp_path / "lhp.yaml"
@@ -163,8 +157,6 @@ class TestParseEventLogConfig:
 
 
 class TestValidatePresetReferences:
-    """Tests for _validate_preset_references method."""
-
     def test_preset_references_undefined_column_raises_error(self, tmp_path):
         """Preset referencing an undefined column raises LHPError (originally CFG-005)."""
         config_file = tmp_path / "lhp.yaml"
@@ -206,8 +198,6 @@ class TestValidatePresetReferences:
 
 
 class TestParseOperationalMetadata:
-    """Tests for _parse_operational_metadata_config method."""
-
     def test_string_col_config_converted_to_dict(self, tmp_path):
         """String column config is converted to dict with 'expression' key."""
         config_file = tmp_path / "lhp.yaml"

@@ -1,10 +1,7 @@
 """Unit tests for the process-local shared generator Jinja2 Environment.
 
-Covers ``get_shared_generator_environment`` (the lru_cache-memoized factory)
-and its byte-identity contract with the historical per-instance Environment
-that ``BaseActionGenerator`` used to build. The shared Environment is the
-single biggest hot-path lever: it amortizes template compilation across the
-per-action generators returned by the registry.
+The shared Environment is the single biggest hot-path lever: it amortizes
+template compilation across the per-action generators returned by the registry.
 """
 
 import json
@@ -49,7 +46,6 @@ def test_shared_environment_is_memoized_singleton() -> None:
 
 
 def test_generator_subclasses_share_one_environment() -> None:
-    """Two different BaseActionGenerator subclasses share the same env object."""
     gen_a = _ConcreteGenA()
     gen_b = _ConcreteGenB()
 

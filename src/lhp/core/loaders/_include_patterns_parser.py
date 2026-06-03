@@ -35,7 +35,6 @@ def parse_include_patterns(
 
 
 def _parse_include_list(include_data: Any) -> List[str]:
-    """Parse and validate a single include-pattern list."""
     if not isinstance(include_data, list):
         raise ErrorFactory.config_error(
             codes.CFG_003,

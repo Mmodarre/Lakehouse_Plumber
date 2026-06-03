@@ -1,4 +1,4 @@
-"""Tests for Action Orchestrator - Step 4.5.8."""
+"""Tests for Action Orchestrator."""
 
 import tempfile
 from pathlib import Path
@@ -10,24 +10,17 @@ from lhp.api import LakehousePlumberApplicationFacade
 from lhp.core.coordination.layers import build_facade_orchestrator
 from tests.helpers import read_generated_pipeline
 
-# Flat-engine generate-gate injection helpers.
-# Shared by the TestGeneratePipelinesByFields failure-mode tests. They drive the
-# REAL orchestrator ``generate_pipelines`` (and therefore the real generate
-# gate) while swapping the engine's two module-level seams — the spawn pool and
-# the per-flowgroup worker — exactly as ``tests/core/coordination/
-# test_flowgroup_pool.py`` does. The fake worker returns a canned
-# ``FlowgroupOutcome`` per (pipeline, flowgroup_name); pipelines without a canned
-# failure get an ok-with-code outcome (the gate raises before commit on the
-# failing ones, so the project's flowgroups are never really codegen'd).
+# Generate-gate injection helpers for TestGeneratePipelinesByFields failure-mode
+# tests. Swap the engine's spawn pool + per-flowgroup worker for in-process fakes;
+# the fake worker returns a canned FlowgroupOutcome per (pipeline, flowgroup_name).
+# The gate raises before commit on failing pipelines, so no real codegen runs.
 
 
 class _SyncGenerateExecutor:
     """Synchronous in-process stand-in for ``ProcessPoolExecutor``.
 
-    Runs each submitted callable eagerly and returns an already-completed
-    Future, keeping the engine's submit / as_completed / result call shape while
-    removing the spawn boundary (so the locally-defined fake worker need not
-    pickle). Accepts and ignores the pool kwargs the engine passes.
+    Runs callables eagerly and returns already-completed Futures, removing the
+    spawn boundary so locally-defined fake workers need not be picklable.
     """
 
     def __init__(self, *args, **kwargs) -> None:
@@ -51,12 +44,8 @@ class _SyncGenerateExecutor:
 
 
 def _failure_outcome(pipeline, *, lhp_error=None, errors=()):
-    """Build a generate-mode failure ``FlowgroupOutcome`` for ``pipeline``.
-
-    ``lhp_error`` rides the structured channel (arm 1 of
-    ``pipeline_failure_descriptor`` → verbatim single re-raise / 902 listing);
-    ``errors`` rides the degraded string channel (arm 2 → rebuilt 901).
-    """
+    """``lhp_error`` → arm 1 (verbatim re-raise / 902 listing);
+    ``errors`` → arm 2 degraded string channel (rebuilt 901)."""
     from lhp.models.processing import FlowgroupOutcome
 
     return FlowgroupOutcome.failure(
@@ -67,10 +56,9 @@ def _failure_outcome(pipeline, *, lhp_error=None, errors=()):
 def _install_fake_generate_worker(monkeypatch, outcomes_by_key):
     """Swap the engine's spawn pool + worker for in-process fakes.
 
-    ``outcomes_by_key`` maps ``(pipeline, flowgroup_name)`` to the canned
-    failure ``FlowgroupOutcome`` the worker returns; any other flowgroup gets a
-    success outcome carrying trivial formatted code (so a clean pipeline would
-    commit, though the failing ones make the gate raise first).
+    ``outcomes_by_key`` maps ``(pipeline, flowgroup_name)`` to a canned failure
+    ``FlowgroupOutcome``; unmatched flowgroups get a success outcome with trivial
+    code (the failing ones make the gate raise before any commit).
     """
     from lhp.core.coordination import _pool as fe
     from lhp.models.processing import FlowgroupOutcome
@@ -94,12 +82,10 @@ def _install_fake_generate_worker(monkeypatch, outcomes_by_key):
 
 
 def _build_multipipeline_project(tmpdir, pipeline_names):
-    """Build a multi-pipeline project with one flowgroup per pipeline.
+    """Build a multi-pipeline project (one flowgroup each, same load+transform+write).
 
-    Each flowgroup performs the same load + transform + write pattern so
-    the comparison ``plural-output == repeated-single-output`` is a
-    meaningful byte-identical test. Shared by ``TestGeneratePipelinesByFields``
-    and ``TestValidatePipelinesByFields``.
+    Uniform pattern makes the plural-vs-repeated-single byte-identity assertion meaningful.
+    Shared by ``TestGeneratePipelinesByFields`` and ``TestValidatePipelinesByFields``.
     """
     project_root = Path(tmpdir)
     (project_root / "presets").mkdir()
@@ -162,17 +148,9 @@ def _build_multipipeline_project(tmpdir, pipeline_names):
 
 
 def _generate_filenames(orch, **kwargs) -> dict:
-    """Drain ``orch.generate_pipelines`` (now a generator yielding per-pipeline
-    ``PipelineDelta``s) into the ``{pipeline -> generated filenames}`` mapping.
+    """Drain ``orch.generate_pipelines`` into ``{pipeline -> generated filenames}``.
 
-    E3 turned the orchestrator's ``generate_pipelines`` into a generator: it
-    ``yield from`` ``PipelineExecutionService.run_generate`` and surfaces one
-    :class:`~lhp.models.processing.PipelineDelta` per pipeline in input order
-    (the facade renders these as §5.7 per-pipeline events). This helper rebuilds
-    the projection the method used to RETURN directly — exactly
-    ``{delta.pipeline_name: delta.generated_filenames}`` — so the byte-identity
-    / determinism / empty-pipeline assertions below read unchanged. The drain
-    also fully runs the commit + terminal format pass (consumers MUST drain).
+    Consumers MUST drain the generator to run the commit + terminal format pass.
     """
     return {
         delta.pipeline_name: delta.generated_filenames
@@ -184,16 +162,13 @@ class TestActionOrchestrator:
     """Test action orchestrator functionality."""
 
     def create_test_project(self, tmpdir):
-        """Create a test project structure with sample files."""
         project_root = Path(tmpdir)
 
-        # Create directories
         (project_root / "pipelines" / "test_pipeline").mkdir(parents=True)
         (project_root / "presets").mkdir()
         (project_root / "templates").mkdir()
         (project_root / "substitutions").mkdir()
 
-        # Create substitution file
         substitutions = {
             "dev": {
                 "catalog": "dev_catalog",
@@ -208,7 +183,6 @@ class TestActionOrchestrator:
         with open(project_root / "substitutions" / "dev.yaml", "w") as f:
             yaml.dump(substitutions, f)
 
-        # Create preset file
         preset = {
             "name": "bronze_layer",
             "version": "1.0",
@@ -224,7 +198,6 @@ class TestActionOrchestrator:
         with open(project_root / "presets" / "bronze_layer.yaml", "w") as f:
             yaml.dump(preset, f)
 
-        # Create a simple flowgroup
         flowgroup = {
             "pipeline": "test_pipeline",
             "flowgroup": "test_flowgroup",
@@ -273,9 +246,7 @@ class TestActionOrchestrator:
         """Test flowgroup discovery."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = self.create_test_project(tmpdir)
-            # B-target via build_facade_orchestrator: the test calls
-            # ``discover_flowgroups(pipeline_dir)`` (directory-based), which
-            # is an orchestrator-internal method without a facade equivalent.
+            # ``discover_flowgroups(pipeline_dir)`` is orchestrator-internal with no facade equivalent.
             orchestrator = build_facade_orchestrator(project_root)
 
             pipeline_dir = project_root / "pipelines" / "test_pipeline"
@@ -293,7 +264,6 @@ class TestActionOrchestrator:
                 project_root, enforce_version=False
             )
 
-            # Generate pipeline
             output_dir = project_root / "generated"
             generated_files = read_generated_pipeline(
                 facade,
@@ -302,33 +272,22 @@ class TestActionOrchestrator:
                 output_dir=output_dir,
             )
 
-            # Verify files were generated
             assert len(generated_files) == 1
             assert "test_flowgroup.py" in generated_files
 
-            # Verify generated code content
             code = generated_files["test_flowgroup.py"]
 
-            # Check header
             assert "# Generated by LakehousePlumber" in code
             assert "# Pipeline: test_pipeline" in code
             assert "# FlowGroup: test_flowgroup" in code
-
-            # Check imports
             assert "from pyspark import pipelines as dp" in code
-
-            # Check generated functions
             assert "@dp.temporary_view()" in code
             assert "def v_customers_raw():" in code
             assert "def v_customers_clean():" in code
-
-            # Check substitutions were applied
             assert "/mnt/dev/landing/customers" in code  # ${landing_path} substituted
             assert (
                 'name="dev_catalog.bronze.customers"' in code
             )  # ${catalog}.${bronze_schema} substituted in table name
-
-            # Check preset defaults were applied
             assert "addNewColumns" in code
             assert "_rescued_data" in code
 
@@ -404,9 +363,7 @@ class TestActionOrchestrator:
 
             code = generated_files["secret_flowgroup.py"]
 
-            # Entire-value fields must use the bare-call form. ruff
-            # normalizes top-level string quotes to double, so the
-            # dbutils call uses double-quoted scope/key here.
+            # ruff normalizes top-level string quotes to double, so dbutils call uses double-quoted scope/key.
             assert (
                 '.option("user", dbutils.secrets.get(scope="dev_db_secrets", key="username"))'
                 in code
@@ -422,9 +379,7 @@ class TestActionOrchestrator:
                 "generated code:\n" + code
             )
 
-            # The wrapped-string regression form must not appear: a string
-            # literal whose content is the call text instead of the call
-            # itself. Any of these substrings indicates the bug.
+            # Wrapped-string regression: a string literal containing the call text instead of the call itself.
             for bad in (
                 '.option("user", "dbutils.secrets.get',
                 '.option("password", "dbutils.secrets.get',
@@ -435,9 +390,8 @@ class TestActionOrchestrator:
                     "regressed. Generated code:\n" + code
                 )
 
-            # Embedded secret in the URL must become an f-string. Inside an
-            # f-string interpolation the dbutils call uses single quotes so
-            # it doesn't collide with the outer double-quoted f-string.
+            # Inside an f-string interpolation the dbutils call uses single quotes to avoid
+            # colliding with the outer double-quoted f-string.
             assert (
                 "f\"jdbc:postgresql://{dbutils.secrets.get(scope='dev_db_secrets', key='host')}:5432/mydb\""
                 in code
@@ -446,7 +400,6 @@ class TestActionOrchestrator:
                 "generated code:\n" + code
             )
 
-            # Compile check: the surviving syntactic contract.
             compile(code, "<string>", "exec")
 
     def test_template_expansion(self):
@@ -454,7 +407,6 @@ class TestActionOrchestrator:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = self.create_test_project(tmpdir)
 
-            # Create a template
             template = {
                 "name": "standard_ingestion",
                 "version": "1.0",
@@ -492,7 +444,6 @@ class TestActionOrchestrator:
             with open(project_root / "templates" / "standard_ingestion.yaml", "w") as f:
                 yaml.dump(template, f)
 
-            # Create flowgroup using template
             flowgroup = {
                 "pipeline": "test_pipeline",
                 "flowgroup": "template_flowgroup",
@@ -522,7 +473,6 @@ class TestActionOrchestrator:
                 output_dir=project_root / "generated",
             )
 
-            # Verify template was expanded
             code = generated_files["template_flowgroup.py"]
             assert "def v_orders_raw():" in code
             assert (
@@ -537,7 +487,6 @@ class TestActionOrchestrator:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = self.create_test_project(tmpdir)
 
-            # Create invalid flowgroup (missing required fields)
             invalid_flowgroup = {
                 "pipeline": "test_pipeline",
                 "flowgroup": "invalid_flowgroup",
@@ -555,15 +504,11 @@ class TestActionOrchestrator:
             ) as f:
                 yaml.dump(invalid_flowgroup, f)
 
-            # B-target via build_facade_orchestrator: the test expects
-            # ``generate_pipelines`` to raise the validation ValueError
-            # directly. The facade swallows exceptions and returns a
-            # DTO with error_code, so we exercise the raw orchestrator
-            # method here to preserve the original assertion semantics.
+            # Use raw orchestrator: the facade swallows exceptions and returns a DTO, so
+            # we need the orchestrator directly to assert on the raised ValueError.
             orchestrator = build_facade_orchestrator(project_root)
 
-            # Should raise validation error. ``generate_pipelines`` is now a
-            # generator (E3), so drain it to drive the raise.
+            # ``generate_pipelines`` is a generator; drain it to drive the raise.
             with pytest.raises(ValueError, match="validation failed"):
                 list(
                     orchestrator.generate_pipelines(
@@ -576,7 +521,6 @@ class TestActionOrchestrator:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = self.create_test_project(tmpdir)
 
-            # Create flowgroup with complex dependencies
             flowgroup = {
                 "pipeline": "test_pipeline",
                 "flowgroup": "dependency_flowgroup",
@@ -646,12 +590,10 @@ class TestActionOrchestrator:
 
             code = generated_files["dependency_flowgroup.py"]
 
-            # Find positions of function definitions
             pos_a = code.find("def v_a():")
             pos_b = code.find("def v_b():")
             pos_ab = code.find("def v_ab():")
 
-            # Verify dependency order: loads before join
             assert pos_a < pos_ab
             assert pos_b < pos_ab
 
@@ -676,17 +618,13 @@ class TestOrchestratorDependencyInjection:
             project_root = Path(tmpdir)
             (project_root / "substitutions").mkdir()
 
-            # Create custom dependencies
             mock_substitution_factory = Mock()
             custom_deps = OrchestrationDependencies(
                 substitution_factory=mock_substitution_factory,
             )
 
-            # B-target via direct ActionOrchestrator: the test exercises
-            # the ``dependencies=`` injection seam, which lives on the raw
-            # orchestrator. We wire the same collaborators that
-            # ``build_facade_orchestrator`` would so the new __init__
-            # contract is satisfied.
+            # Use raw ActionOrchestrator: the ``dependencies=`` injection seam lives
+            # on the orchestrator, not the facade.
             project_config = ProjectConfigLoader(project_root).load_project_config()
             template_engine = TemplateEngine(project_root / "templates")
             preset_manager = PresetManager(project_root / "presets")
@@ -711,12 +649,7 @@ class TestOrchestratorDependencyInjection:
                 config_validator=config_validator,
             )
 
-            # Verify custom dependencies are used. The v0.0.9 refactor
-            # renamed the attribute holding ``OrchestrationDependencies``
-            # from ``orchestrator.dependencies`` (now holds the
-            # :class:`DependencyAnalysisService`) to
-            # ``orchestrator._orchestration_dependencies`` — see
-            # ``orchestrator.__init__`` line ~176.
+            # ``_orchestration_dependencies`` — not ``.dependencies`` (now holds DependencyAnalysisService).
             assert (
                 orchestrator._orchestration_dependencies.substitution_factory
                 == mock_substitution_factory
@@ -731,21 +664,15 @@ class TestOrchestratorWithPipelineConfig:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
 
-            # Create minimal project structure
             (project_root / "lhp.yaml").write_text("name: test\nversion: '1.0'")
             (project_root / "pipelines").mkdir()
 
-            # B-target via build_facade_orchestrator: asserts on the
-            # orchestrator-internal ``pipeline_config_path`` and
-            # ``project_root`` attributes, which the facade does not
-            # surface as public DTO fields.
+            # Asserts on orchestrator-internal attributes not surfaced by the facade.
             orchestrator = build_facade_orchestrator(
                 project_root, enforce_version=False
             )
 
-            # Should initialize successfully
             assert orchestrator.project_root == project_root
-            # pipeline_config_path should be None by default
             assert hasattr(orchestrator, "pipeline_config_path")
             assert orchestrator.pipeline_config_path is None
 
@@ -754,13 +681,10 @@ class TestOrchestratorWithPipelineConfig:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
 
-            # Create minimal project structure
             (project_root / "lhp.yaml").write_text("name: test\nversion: '1.0'")
             (project_root / "pipelines").mkdir()
 
             config_path = "custom/path/config.yaml"
-            # B-target via build_facade_orchestrator: asserts on the
-            # orchestrator-internal ``pipeline_config_path`` attribute.
             orchestrator = build_facade_orchestrator(
                 project_root,
                 enforce_version=False,
@@ -787,22 +711,8 @@ class TestGeneratePipelinesByFields:
                 tmpdir, ["p_alpha", "p_beta", "p_gamma"]
             )
 
-            # Reference: repeated single-pipeline calls via the orchestrator's
-            # ``generate_pipelines(pipeline_filter=...)`` form — the same path
-            # the CLI drives for ``lhp generate -p <pipeline>`` (which resolves
-            # ``-p`` to a single-element list; see
-            # ``generate_command._get_pipeline_names``).
-            #
-            # Each ``generate_pipelines`` invocation is an independent FULL
-            # regenerate of its ``output_dir``: the commit step wipes the whole
-            # env output tree once up front (``_commit._wipe_env_output_dir``)
-            # before writing only the pipelines it was asked for. So each
-            # single-pipeline call gets its OWN output dir (``ref/<name>``) — a
-            # faithful model of three separate ``lhp generate -p <name>`` runs,
-            # each into its own ``generated/<env>``. Pointing all three at ONE
-            # shared dir would (correctly) have each run wipe the previous run's
-            # output, leaving only the last pipeline — which is the
-            # full-regenerate contract, not a comparable reference.
+            # Each invocation is a full regenerate: the commit wipes the whole output dir first.
+            # Each single-pipeline call gets its OWN output dir so they don't wipe each other.
             ref_orch = build_facade_orchestrator(project_root, max_workers=1)
             ref_out_dirs = {
                 name: project_root / "ref" / name
@@ -818,7 +728,6 @@ class TestGeneratePipelinesByFields:
                 for name in ["p_alpha", "p_beta", "p_gamma"]
             }
 
-            # Plural: one call across all 3
             plural_orch = build_facade_orchestrator(project_root, max_workers=4)
             plural_out_dir = project_root / "plural"
             plural = _generate_filenames(
@@ -828,8 +737,6 @@ class TestGeneratePipelinesByFields:
                 output_dir=plural_out_dir,
             )
 
-            # Same set of pipelines, same files, same contents.
-            # Filenames travel back via the return; content is read from disk.
             assert set(plural.keys()) == set(single.keys())
             for name in single:
                 assert set(plural[name]) == set(single[name])
@@ -915,16 +822,7 @@ class TestGeneratePipelinesByFields:
             assert "e_real_fg.py" in out["e_real"]
 
     def test_generate_pipelines_yields_one_delta_per_pipeline(self):
-        """The generator yields exactly one :class:`PipelineDelta` per pipeline.
-
-        E3 replaced the ``on_pipeline_complete`` callback with a delta STREAM:
-        ``generate_pipelines`` is now a generator yielding one
-        :class:`~lhp.models.processing.PipelineDelta` per pipeline (the facade
-        renders each as a paired ``PipelineStarted`` + terminal §5.7 event).
-        This pins the per-pipeline cardinality the callback used to guarantee —
-        on a clean run every pipeline yields exactly one success delta, in
-        input order.
-        """
+        """The generator yields exactly one :class:`PipelineDelta` per pipeline, in input order."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = _build_multipipeline_project(tmpdir, ["c1", "c2", "c3"])
 
@@ -937,23 +835,11 @@ class TestGeneratePipelinesByFields:
                 )
             )
 
-            # One success delta per pipeline, in deterministic input order.
             assert [d.pipeline_name for d in deltas] == ["c1", "c2", "c3"]
             assert all(d.success for d in deltas)
 
     def test_single_lhp_failure_unwraps_original(self, monkeypatch):
-        """One failing flowgroup carrying a live lhp_error → the orchestrator
-        re-raises the original LHPError unchanged (original code preserved,
-        not wrapped as LHP-GEN-901 or LHP-VAL-902).
-
-        Migrated from the deleted pipeline-batched pool-runner monkeypatch
-        (which returned per-pipeline ``PipelineDelta``s) to the flat engine +
-        generate gate. Drives the REAL ``generate_pipelines`` but swaps the engine's
-        spawn pool for a synchronous executor and the per-flowgroup worker for a
-        fake returning canned :class:`FlowgroupOutcome`s — so the gate's
-        single-vs-902 shaping (``_generate_gate.gate_or_raise`` /
-        ``raise_aggregate_failure``) is the real code under test.
-        """
+        """One failing flowgroup with a live lhp_error → original LHPError re-raised verbatim (not 901/902)."""
         from lhp.errors import ErrorCategory, LHPError, LHPValidationError
 
         original = LHPValidationError(
@@ -963,8 +849,6 @@ class TestGeneratePipelinesByFields:
             details="action 'foo' references missing source 'bar'",
             context={"pipeline": "p_alpha"},
         )
-        # p_alpha's sole flowgroup fails with the live error; arm 1 of
-        # pipeline_failure_descriptor carries it for verbatim single re-raise.
         outcomes = {
             ("p_alpha", "p_alpha_fg"): _failure_outcome("p_alpha", lhp_error=original)
         }
@@ -975,8 +859,6 @@ class TestGeneratePipelinesByFields:
             _install_fake_generate_worker(monkeypatch, outcomes)
 
             with pytest.raises(LHPError) as excinfo:
-                # generate_pipelines is now a generator; drain it so the gate
-                # raises (failure deltas are yielded first, then the raise).
                 list(
                     orch.generate_pipelines(
                         pipeline_fields=["p_alpha"],
@@ -985,18 +867,11 @@ class TestGeneratePipelinesByFields:
                     )
                 )
 
-            # Single failure → the ORIGINAL LHPError re-raised verbatim.
-            # Code is LHP-VAL-007 (not LHP-GEN-901, not LHP-VAL-902).
             assert excinfo.value is original
             assert excinfo.value.code == "LHP-VAL-007"
 
     def test_multi_lhp_failure_aggregates_with_902(self, monkeypatch):
-        """Multiple failing flowgroups with distinct LHPError codes → the gate
-        raises LHP-VAL-902 with per-pipeline codes in the context dict.
-
-        Migrated off the deleted pipeline-batched pool runner the same way as
-        ``test_single_lhp_failure_unwraps_original``.
-        """
+        """Multiple failing flowgroups → LHP-VAL-902 with per-pipeline codes in context dict."""
         from lhp.errors import (
             ErrorCategory,
             LHPConfigError,
@@ -1036,8 +911,6 @@ class TestGeneratePipelinesByFields:
             _install_fake_generate_worker(monkeypatch, outcomes)
 
             with pytest.raises(LHPError) as excinfo:
-                # Drain the generator: every failure delta is yielded, then the
-                # gate raises the LHP-VAL-902 aggregate.
                 list(
                     orch.generate_pipelines(
                         pipeline_fields=["p_alpha", "p_beta", "p_gamma"],
@@ -1046,8 +919,6 @@ class TestGeneratePipelinesByFields:
                     )
                 )
 
-            # Many failures → synthesized LHP-VAL-902 with per-pipeline original
-            # codes surfaced in the context dict.
             assert excinfo.value.code == "LHP-VAL-902"
             ctx = excinfo.value.context
             assert ctx["failure_count"] == 3
@@ -1056,15 +927,7 @@ class TestGeneratePipelinesByFields:
             assert "LHP-VAL-019" in ctx["p_gamma"]
 
     def test_single_non_lhp_failure_wraps_as_901(self, monkeypatch):
-        """One failing flowgroup whose error rode the degraded string channel
-        (no live LHPError — e.g. a worker KeyError) → the gate rebuilds it via
-        ``lhp_error_from_worker_failure`` → LHP-GEN-901.
-
-        Migrated off the deleted pipeline-batched pool runner; the non-LHP
-        failure now travels on ``FlowgroupOutcome.errors`` (arm 2 of
-        pipeline_failure_descriptor) and
-        the single-failure gate arm rebuilds the 901.
-        """
+        """One failing flowgroup on the degraded string channel (no live LHPError) → LHP-GEN-901."""
         from lhp.errors import LHPError
 
         outcomes = {
@@ -1079,7 +942,6 @@ class TestGeneratePipelinesByFields:
             _install_fake_generate_worker(monkeypatch, outcomes)
 
             with pytest.raises(LHPError) as excinfo:
-                # Drain the generator so the single-failure gate arm raises.
                 list(
                     orch.generate_pipelines(
                         pipeline_fields=["p_alpha"],
@@ -1088,7 +950,6 @@ class TestGeneratePipelinesByFields:
                     )
                 )
 
-            # Non-LHP worker failures are reconstructed → LHP-GEN-901.
             assert excinfo.value.code == "LHP-GEN-901"
 
 
@@ -1107,7 +968,6 @@ class TestValidatePipelinesByFields:
             project_root = _build_multipipeline_project(tmpdir, ["v1", "v2", "v3"])
             orch = build_facade_orchestrator(project_root, max_workers=4)
 
-            # ``validate_pipelines`` is now an outcome GENERATOR (E4); drain it.
             outcomes = list(
                 orch.validate_pipelines(
                     pipeline_fields=["v1", "v2", "v3"],
@@ -1165,7 +1025,6 @@ class TestValidatePipelinesByFields:
             by_name = {o.pipeline: o for o in outcomes}
             assert by_name["real_one"].success is True
             assert by_name["missing_pipeline"].success is False
-            # The 'No flowgroups found' finding is an unattributed string issue.
             assert any(
                 isinstance(r.issue, str) and "No flowgroups found" in r.issue
                 for r in by_name["missing_pipeline"].issues
@@ -1191,8 +1050,6 @@ class TestValidatePipelinesByFields:
 
             assert len(outcomes) == 1
             outcome = outcomes[0]
-            # Happy-path project — no findings expected, and the outcome
-            # reports success.
             assert outcome.issues == ()
             assert outcome.success is True
 

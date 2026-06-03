@@ -2,12 +2,11 @@
 
 # REMOVE_AT_V1.0.0: Delete with the database_suffix support it guards.
 
-Previously the legacy ``database_suffix`` path in
-:meth:`FlowgroupResolutionService._apply_suffix` was applied SILENTLY. It now
-records a structured :class:`DeprecationWarningRecord` (``LHP-DEPR-004``) onto
-the active worker scope (workers run under a NullHandler, so a log warning would
-be lost). These tests open a ``collect_deprecations`` scope — as the worker
-wrapper does around each flowgroup — and assert on the drained records.
+``database_suffix`` now records a structured :class:`DeprecationWarningRecord`
+(``LHP-DEPR-004``) onto the active worker scope (workers run under a
+NullHandler, so a log warning would be lost). These tests open a
+``collect_deprecations`` scope — as the worker wrapper does around each
+flowgroup — and assert on the drained records.
 """
 
 from pathlib import Path
@@ -32,7 +31,7 @@ class TestDatabaseSuffixDeprecation:
             file=Path("flowgroups/fg.yaml"), flowgroup="fg_s"
         ) as collector:
             _apply_suffix(target, {"database_suffix": "_dev"})
-        # The suffix is still applied (back-compat behavior preserved).
+        # Back-compat: suffix is still applied despite the deprecation.
         assert target["database"] == "cat.sch_dev"
         records = drain_deprecations(collector)
         assert len(records) == 1
@@ -65,7 +64,6 @@ class TestDatabaseSuffixDeprecation:
         target = {"schema": "sch"}
         with collect_deprecations(file=None, flowgroup="fg_s") as collector:
             _apply_suffix(target, {"schema_suffix": "_prod", "database_suffix": "_dev"})
-        # schema_suffix takes precedence, so the deprecated key is not the source.
         assert target["schema"] == "sch_prod"
         assert drain_deprecations(collector) == ()
 

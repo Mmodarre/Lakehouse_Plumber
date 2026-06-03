@@ -23,7 +23,6 @@ class TestUnknownFieldValidation:
             "options": {"cloudFiles.header": True},
         }
 
-        # Should not raise any exception
         self.validator.validate_load_source(source_config, "test_action")
 
     def test_unknown_field_in_cloudfiles_source(self):
@@ -55,7 +54,6 @@ class TestUnknownFieldValidation:
             "readMode": "batch",
         }
 
-        # Should not raise any exception
         self.validator.validate_load_source(source_config, "test_action")
 
     def test_unknown_field_in_delta_source(self):
@@ -85,7 +83,6 @@ class TestUnknownFieldValidation:
             "table_properties": {"delta.enableChangeDataFeed": "true"},
         }
 
-        # Should not raise any exception
         self.validator.validate_write_target(write_target, "test_action")
 
     def test_unknown_field_in_write_target(self):
@@ -119,7 +116,6 @@ class TestUnknownFieldValidation:
             "sql": "SELECT * FROM source_table",
         }
 
-        # Should not raise any exception
         self.validator.validate_write_target(write_target, "test_action")
 
     def test_valid_action_fields(self):
@@ -133,7 +129,6 @@ class TestUnknownFieldValidation:
             "readMode": "stream",
         }
 
-        # Should not raise any exception
         self.validator.validate_action_fields(action_dict, "test_action")
 
     def test_unknown_action_field(self):
@@ -156,11 +151,9 @@ class TestUnknownFieldValidation:
 
     def test_sql_source_validation(self):
         """Test SQL source validation."""
-        # Valid SQL source
         valid_sql = {"type": "sql", "sql": "SELECT * FROM table"}
         self.validator.validate_load_source(valid_sql, "test_action")
 
-        # Invalid SQL source with unknown field
         invalid_sql = {
             "type": "sql",
             "sql": "SELECT * FROM table",
@@ -176,7 +169,6 @@ class TestUnknownFieldValidation:
 
     def test_jdbc_source_validation(self):
         """Test JDBC source validation."""
-        # Valid JDBC source
         valid_jdbc = {
             "type": "jdbc",
             "url": "jdbc:postgresql://localhost:5432/db",
@@ -186,7 +178,6 @@ class TestUnknownFieldValidation:
         }
         self.validator.validate_load_source(valid_jdbc, "test_action")
 
-        # Invalid JDBC source with unknown field
         invalid_jdbc = {
             "type": "jdbc",
             "url": "jdbc:postgresql://localhost:5432/db",
@@ -205,7 +196,6 @@ class TestUnknownFieldValidation:
 
     def test_python_source_validation(self):
         """Test Python source validation."""
-        # Valid Python source
         valid_python = {
             "type": "python",
             "module_path": "my_module",
@@ -214,7 +204,6 @@ class TestUnknownFieldValidation:
         }
         self.validator.validate_load_source(valid_python, "test_action")
 
-        # Invalid Python source with unknown field
         invalid_python = {
             "type": "python",
             "module_path": "my_module",
@@ -229,17 +218,14 @@ class TestUnknownFieldValidation:
 
     def test_skip_validation_for_non_dict_source(self):
         """Test validation is skipped for non-dict sources."""
-        # String source (should be skipped)
         self.validator.validate_load_source("SELECT * FROM table", "test_action")
-
-        # List source (should be skipped)
         self.validator.validate_load_source(["view1", "view2"], "test_action")
 
     def test_skip_validation_for_unknown_source_type(self):
         """Test validation is skipped for unknown source types."""
         unknown_source = {"type": "unknown_type", "any_field": "any_value"}
 
-        # Should not raise exception (will be caught by other validation)
+        # Unknown source types are silently skipped — caught by a different validator
         self.validator.validate_load_source(unknown_source, "test_action")
 
     def test_error_message_quality(self):
@@ -258,7 +244,6 @@ class TestUnknownFieldValidation:
         error = exc_info.value
         error_str = str(error)
 
-        # Check error contains helpful information
         assert "load_data" in error_str  # Action name
         assert "cloudfiles" in error_str  # Source type
         assert "'mode' → 'readMode'" in error_str  # Suggestion
@@ -274,7 +259,6 @@ class TestUnknownFieldValidation:
             "sql_path": "sql/gold/ecomm_summary.sql",
         }
 
-        # Should not raise any exception
         self.validator.validate_write_target(write_target, "test_action")
 
     def test_custom_datasource_valid(self):
@@ -286,7 +270,6 @@ class TestUnknownFieldValidation:
             "options": {"key": "value"},
         }
 
-        # Should not raise any exception
         self.validator.validate_load_source(source_config, "test_action")
 
     def test_custom_datasource_typo_detected(self):

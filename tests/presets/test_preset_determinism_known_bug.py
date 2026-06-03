@@ -33,12 +33,6 @@ import pytest
 SEEDS = ["0", "1", "2", "42", "7", "99"]
 
 
-# ---------------------------------------------------------------------------
-# Child script #1: operational_metadata list merge (preset_manager.py ~L122)
-# ---------------------------------------------------------------------------
-# Constructs two presets whose operational_metadata lists combine into 8
-# distinct columns, runs the REAL PresetManager.resolve_preset_chain merge,
-# and prints the resulting column list as JSON (one list).
 _MERGE_CHILD = r"""
 import json, tempfile
 from pathlib import Path
@@ -73,13 +67,6 @@ with tempfile.TemporaryDirectory() as td:
 """
 
 
-# ---------------------------------------------------------------------------
-# Child script #2: circular-inheritance cycle-path message (preset_manager.py ~L67)
-# ---------------------------------------------------------------------------
-# Builds a 4-preset inheritance cycle (a -> b -> c -> dd -> a), triggers the
-# LHP-CFG-022 circular-inheritance error, and prints the cycle-path string the
-# error reports. The path is joined over a `set` (`visited`), so its order is
-# randomized per process.
 _CYCLE_CHILD = r"""
 import tempfile
 from pathlib import Path
@@ -103,11 +90,7 @@ with tempfile.TemporaryDirectory() as td:
 
 
 def _run_with_seed(child_source: str, seed: str) -> str:
-    """Run `child_source` in a fresh interpreter with PYTHONHASHSEED=seed.
-
-    Returns the child's stdout (stripped). Fails loudly if the child errors,
-    so a real product/import regression cannot masquerade as a green test.
-    """
+    """Fails loudly if the child errors, so a real product/import regression cannot masquerade as a green test."""
     env = {**os.environ, "PYTHONHASHSEED": seed}
     proc = subprocess.run(
         [sys.executable, "-c", child_source],

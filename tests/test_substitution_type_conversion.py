@@ -1,10 +1,4 @@
-"""
-Tests for EnhancedSubstitutionManager type conversion functionality.
-
-This module tests that the substitution manager correctly converts
-primitive types (bool, int, float) to strings for text-based token
-replacement while preserving nested structures.
-"""
+"""Tests for EnhancedSubstitutionManager type conversion functionality."""
 
 from pathlib import Path
 from tempfile import TemporaryDirectory

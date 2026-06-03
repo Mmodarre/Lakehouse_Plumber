@@ -1,4 +1,4 @@
-"""Spec-driven unit tests for BlueprintParser (Phase 3, Phase 5 step 2).
+"""Unit tests for BlueprintParser.
 
 Covers error codes 041, 042, 043, 047-050 (blueprint), 051-054 (instance),
 plus the public ``looks_like_blueprint`` helper.
@@ -18,11 +18,6 @@ def _write(path: Path, content: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content)
     return path
-
-
-# ---------------------------------------------------------------------------
-# parse_blueprint_file
-# ---------------------------------------------------------------------------
 
 
 def test_parse_blueprint_file_valid(tmp_path):
@@ -108,11 +103,6 @@ flowgroups: not_a_list
     with pytest.raises(LHPError) as exc:
         BlueprintParser().parse_blueprint_file(bp_file)
     assert exc.value.code == "LHP-CFG-050"
-
-
-# ---------------------------------------------------------------------------
-# parse_instance_file
-# ---------------------------------------------------------------------------
 
 
 def _make_blueprint(parser: BlueprintParser, tmp_path: Path):
@@ -338,11 +328,6 @@ blueprint:
     with pytest.raises(LHPError) as exc:
         parser.parse_instance_file(inst_file, blueprints)
     assert exc.value.code.endswith("-054")
-
-
-# ---------------------------------------------------------------------------
-# looks_like_blueprint static helper
-# ---------------------------------------------------------------------------
 
 
 def test_looks_like_blueprint_true_for_blueprint_shape():

@@ -61,8 +61,6 @@ class TestValidateEmptyPipelinesGuard:
             f"Expected empty-pipelines warning in output. output:\n{result.output}"
         )
 
-        # Prior to T8 this warning was emitted twice (once as a Rich panel
-        # via ``warning_collector`` and once as a plain ``click.echo``).
         matches = re.findall(
             r"no pipelines found to validate", result.output, re.IGNORECASE
         )
@@ -100,10 +98,6 @@ class TestValidateEmptyPipelinesGuard:
                 encoding="utf-8",
             )
 
-            # Source-path resolution now lives on the flowgroup view itself:
-            # ``execute`` reads ``fg.file_path`` directly (validate_command.py:305)
-            # — mirroring ``FlowgroupView.file_path`` (api/views.py:70) — rather
-            # than calling the removed ``ActionOrchestrator._find_source_yaml_for_flowgroup``.
             fake_fg = SimpleNamespace(pipeline="ignored", file_path=bare_yaml)
 
             monkeypatch.setattr(

@@ -50,7 +50,6 @@ class TestPlanConflict:
         with pytest.raises(PythonFunctionConflictError) as exc_info:
             copier.plan(records)
 
-        # Surface the canonical LHP-VAL-019 contract.
         assert exc_info.value.code_number == "019"
         assert exc_info.value.existing_source == "pkg_a/timestamp.py"
         assert exc_info.value.new_source == "pkg_b/timestamp.py"
@@ -127,7 +126,6 @@ class TestPlanNoSideEffects:
         copier = PythonFileCopier()
         copier.plan(records)
 
-        # No module files, no __init__.py, no custom_python_functions dir.
         assert list(tmp_path.iterdir()) == []
 
     def test_plan_does_not_mutate_instance_registry(self, tmp_path):
@@ -210,8 +208,6 @@ class TestPlanMultiRecordFromComputeCopyRecords:
             if not p.name == "__init__.py" or "helpers" in str(p)
         }
 
-        # Every planned module dest exists on disk; the planner did not invent
-        # or drop any module write relative to apply.
         for dest in planned_dests:
             assert dest.exists(), f"planned dest not written: {dest}"
         assert planned_dests <= written
@@ -256,6 +252,5 @@ class TestPlanMultiRecordFromComputeCopyRecords:
 
         assert exc_info.value.code_number == "019"
         assert exc_info.value.destination == str(cfd / "sib.py")
-        # The two clashing sources are the distinct real helper paths.
         assert exc_info.value.existing_source == str((root_a / "sib.py").resolve())
         assert exc_info.value.new_source == str((root_b / "sib.py").resolve())

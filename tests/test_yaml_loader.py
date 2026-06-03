@@ -14,8 +14,6 @@ from lhp.parsers.yaml_loader import (
 
 
 class TestLoadYAMLDocumentsAll:
-    """Test load_yaml_documents_all() function for multi-document YAML support."""
-
     def test_single_document(self):
         """Test loading single document returns list with one element (backward compat)."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
@@ -109,7 +107,6 @@ flowgroup: flowgroup2
 
         try:
             documents = load_yaml_documents_all(yaml_file)
-            # Should only have 2 non-empty documents
             assert len(documents) == 2
             assert documents[0]["flowgroup"] == "flowgroup1"
             assert documents[1]["flowgroup"] == "flowgroup2"
@@ -192,8 +189,6 @@ template_parameters:
 
 
 class TestLoadYAMLFileBackwardCompat:
-    """Ensure existing load_yaml_file() still works as expected."""
-
     def test_load_yaml_file_single_doc(self):
         """Test that load_yaml_file still works for single documents."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
@@ -328,7 +323,6 @@ class TestSafeLoadYAMLWithFallback:
             result = safe_load_yaml_with_fallback(bad_file, log_errors=True)
 
         assert result == {}
-        # Check that warning was logged
         assert any("Could not load" in record.message for record in caplog.records)
 
     def test_with_logging_disabled(self, tmp_path, caplog):
@@ -342,7 +336,6 @@ class TestSafeLoadYAMLWithFallback:
             result = safe_load_yaml_with_fallback(bad_file, log_errors=False)
 
         assert result == {}
-        # Check that no warning was logged
         assert not any("Could not load" in record.message for record in caplog.records)
 
     def test_with_error_context(self, tmp_path, caplog):
@@ -368,7 +361,6 @@ class TestLoadYAMLDocumentsAllLHPError:
         """Test that LHPError is re-raised as-is without wrapping."""
         from unittest.mock import mock_open, patch
 
-        # Create a mock LHPError
         lhp_error = LHPError(
             category=ErrorCategory.CONFIG,
             code_number="001",
@@ -376,19 +368,15 @@ class TestLoadYAMLDocumentsAllLHPError:
             details="This is a test LHP error",
         )
 
-        # Mock yaml.safe_load_all to raise LHPError
         import yaml
 
         with patch.object(yaml, "safe_load_all") as mock_yaml_load_all:
             mock_yaml_load_all.side_effect = lhp_error
 
-            # Mock file open
             with patch("builtins.open", mock_open(read_data="test: data")):
-                # Should re-raise LHPError without modification
                 with pytest.raises(LHPError) as exc_info:
                     load_yaml_documents_all(Path("test.yaml"))
 
-                # Verify it's the exact same error object
                 assert exc_info.value is lhp_error
                 assert exc_info.value.title == "Test LHP Error"
 

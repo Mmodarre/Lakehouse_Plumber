@@ -72,16 +72,9 @@ class _MinimalFlowGroup:
 def _build_multipipeline_project(
     project_root: Path, pipeline_names, *, with_presets: bool = False
 ) -> None:
-    """Project with one small flowgroup per pipeline (load + transform + write).
-
-    Mirrors ``tests/test_generate_command_parallel.py``'s builder so the worker
-    path exercised here is identical to the existing parallel-generate tests.
-
-    ``with_presets`` adds one shared preset file and references it from every
-    flowgroup. That lights the preset-resolution path (``preset_resolve`` /
-    ``fg_presets`` categories), which is otherwise dead because the bare
-    fixture declares no presets — ``resolve_preset_chain`` is gated on
-    ``flowgroup.presets`` at all three call sites.
+    """``with_presets`` lights the preset-resolution path (``preset_resolve`` / ``fg_presets``
+    categories), which is otherwise dead — ``resolve_preset_chain`` is gated on
+    ``flowgroup.presets`` at every call site.
     """
     (project_root / "presets").mkdir(parents=True, exist_ok=True)
     (project_root / "templates").mkdir(parents=True, exist_ok=True)
@@ -191,12 +184,8 @@ class TestGeneratePerfPropagation:
 
     @pytest.fixture(autouse=True)
     def _reset_perf_state(self):
-        """Disable + clear the module-global perf singleton around each test.
-
-        A ``--perf`` run flips ``performance_timer._enabled`` True and adds a
-        file handler in THIS process; without a reset that state leaks into
-        sibling tests (notably the zero-overhead proof, which asserts perf is
-        OFF). Mirrors ``tests/unit/test_performance_timer.py``'s fixture.
+        """Reset the module-global perf singleton; without it a ``--perf`` run leaks ``_enabled=True``
+        and the file handler into sibling tests (especially the zero-overhead proof).
         """
         self._reset_perf_module()
         yield
@@ -261,36 +250,24 @@ class TestGeneratePerfPropagation:
     def test_all_worker_categories_visible_with_expected_counts(
         self, runner, tmp_path, monkeypatch
     ):
-        """Consolidated worker-visibility: every per-category row a ``--perf``
-        generate lights up appears with the count the fixture dictates.
+        """Pin every per-category row a ``--perf`` generate lights up.
 
-        Built WITH presets (``with_presets=True``) so the preset-resolution
-        path is alive — without it ``preset_resolve`` / ``fg_presets`` never
-        fire (``resolve_preset_chain`` is gated on ``flowgroup.presets`` at
-        every call site).
+        Built WITH presets so the preset-resolution path is alive — without it
+        ``preset_resolve`` / ``fg_presets`` never fire (``resolve_preset_chain``
+        is gated on ``flowgroup.presets`` at every call site).
 
-        Observed counts for this 2-flowgroup, 3-action-per-flowgroup fixture:
+        Expected counts for this 2-flowgroup, 3-action-per-flowgroup fixture:
 
-        * ``resolve_dependencies`` cnt=2  (once per flowgroup; coordinator)
-        * ``assemble_code``        cnt=2  (once per flowgroup; coordinator)
+        * ``resolve_dependencies`` cnt=2  (once per flowgroup)
+        * ``assemble_code``        cnt=2  (once per flowgroup)
         * ``get_generator``        cnt=6  (one per action: load+transform+write)
-        * ``jinja_render``         cnt=6  (one render per action generator)
-        * ``preset_resolve``       cnt=4  == ``2 * flowgroup_count``
-        * ``format_tree``          cnt=1  (one terminal ruff-format pass per
-          run; MAIN THREAD — the worker no longer formats)
+        * ``jinja_render``         cnt=6  (one per action generator)
+        * ``preset_resolve``       cnt=4  == ``2 * flowgroup_count`` (resolved in
+          the resolver AND the codegen coordinator — double-resolution exposure)
+        * ``format_tree``          cnt=1  (one terminal ruff-format pass per run)
 
-        The ``preset_resolve`` ratio is the headline finding: each flowgroup's
-        preset chain is resolved TWICE per run — once in the resolver
-        (``flowgroup_resolver.py``, the ``fg_presets`` path, cnt=2 here) and a
-        second time in the codegen coordinator (``coordinator.py`` line ~160).
-        The assertion pins the observed ``== 2 * flowgroup_count`` relationship
-        to lock that double-resolution exposure in place.
-
-        ``black_format`` is intentionally ABSENT: the former per-flowgroup
-        in-worker format pass was relocated to a single terminal ruff pass on
-        the coordinator (``format_tree``, recorded ONCE per run, not per
-        flowgroup). ``black_format`` was the historical key name for the
-        removed per-flowgroup pass; it must never reappear.
+        ``black_format`` must never reappear — it was the key for the removed
+        per-flowgroup in-worker pass; its absence is asserted below.
         """
         project_root = tmp_path
         _build_multipipeline_project(project_root, self.PIPELINES, with_presets=True)
@@ -332,29 +309,23 @@ class TestGeneratePerfPropagation:
                 f"{flowgroup_count} (one per flowgroup).\n\nperf.log:\n{text}"
             )
 
-        # Action-count-driven categories: non-zero (one per action generator).
         for category in ("get_generator", "jinja_render"):
             assert _present(category) > 0, (
                 f"Category '{category}' has cnt={counts[category]}, expected "
                 f"> 0 (one per action generated).\n\nperf.log:\n{text}"
             )
 
-        # format_tree: the relocated terminal ruff-format pass runs ONCE per
-        # run on the coordinator (NOT per flowgroup), replacing the former
-        # worker-side per-flowgroup pass. Its presence here proves the
-        # main-thread timer records into the same summary singleton --perf renders.
+        # format_tree: one terminal ruff-format pass on the coordinator (NOT per flowgroup).
         assert _present("format_tree") == 1, (
             f"format_tree cnt={counts.get('format_tree')}, expected 1 (one "
             f"terminal ruff-format pass per run).\n\nperf.log:\n{text}"
         )
-        # The former per-flowgroup worker category is gone.
         assert "black_format" not in counts, (
             "black_format should no longer be recorded — in-worker formatting "
             f"was relocated to the terminal format_tree pass.\n\nperf.log:\n{text}"
         )
 
-        # preset_resolve: each flowgroup's chain is resolved twice (resolver +
-        # codegen coordinator), so cnt is exactly 2x the flowgroup count.
+        # preset_resolve: resolved twice per flowgroup (resolver + codegen coordinator).
         preset_cnt = _present("preset_resolve")
         assert preset_cnt > flowgroup_count, (
             f"preset_resolve cnt={preset_cnt} should exceed the flowgroup "
@@ -386,7 +357,6 @@ class TestGeneratePerfPropagation:
            worker), and ``validate`` mode exercises only the resolver — so the
            empty-surface ``FakeCodeGenerator`` is never called.
         """
-        # --- Proof 1: no --perf => no perf.log written ----------------------
         project_root = tmp_path
         _build_multipipeline_project(project_root, self.PIPELINES)
 
@@ -403,8 +373,6 @@ class TestGeneratePerfPropagation:
             f"CLI output:\n{result.output}"
         )
 
-        # --- Proof 2: envelope returns perf=None when perf is disabled -------
-        # Perf is off by default in this (parent) process.
         assert not is_perf_enabled()
 
         state = _FlowgroupWorkerState(

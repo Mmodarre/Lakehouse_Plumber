@@ -1,24 +1,7 @@
-"""E2E tests for LHP temp_table transform action (B5.3).
+"""E2E tests for LHP temp_table transform action.
 
-Covers the temp_table transform documented in
-``docs/actions/transform_actions.rst:794-897``. A temp_table materializes an
-intermediate staging view once so multiple downstream actions can read it
-without recomputing the source.
-
-LHP emits ``@dp.table(temporary=True)`` for temp_table — this matches the
-documented Python output examples at lines 867-874 (simple passthrough) and
-883-897 (with SQL). It is NOT the same shape as ``@dp.temporary_view()``,
+LHP emits ``@dp.table(temporary=True)`` for temp_table — NOT ``@dp.temporary_view()``,
 which is used for non-materialized logical views.
-
-The fixture chain (load → temp_table → sql transform → mv write) verifies
-that:
-  - The temp_table emits ``@dp.table(temporary=True)`` with the target name
-    as the function name.
-  - Downstream actions reference the temp table by its target name.
-  - Section ordering remains SOURCE VIEWS → TRANSFORMATION VIEWS → TARGET
-    TABLES across mixed action types.
-
-Fixture flowgroup lives in ``tests/e2e/fixtures/testing_project/pipelines/16_temp_table/``.
 """
 
 import hashlib
@@ -38,7 +21,6 @@ class TestTransformTempTableE2E:
 
     @pytest.fixture(autouse=True)
     def setup_test_project(self, isolated_project):
-        """Create isolated copy of fixture project for each test."""
         fixture_path = Path(__file__).parent / "fixtures" / "testing_project"
         self.project_root = isolated_project / "test_project"
         shutil.copytree(fixture_path, self.project_root)
@@ -73,7 +55,7 @@ class TestTransformTempTableE2E:
         self.resources_dir.mkdir(parents=True, exist_ok=True)
 
     def run_generate(self) -> tuple:
-        """Run 'lhp generate --env dev --force' (no --include-tests)."""
+        """Run 'lhp generate --env dev' (no --include-tests)."""
         runner = CliRunner()
         result = runner.invoke(
             cli,
@@ -101,12 +83,7 @@ class TestTransformTempTableE2E:
         return ""
 
     def test_temp_table_creates_staging_view_matches_baseline(self):
-        """temp_table emits @dp.table(temporary=True) for an intermediate staging table.
-
-        Verifies the full load → temp_table → sql → MV chain in
-        ``16_temp_table/staging_chain.py`` matches the baseline, AND the
-        pipeline resource YAML matches.
-        """
+        """temp_table emits @dp.table(temporary=True); verifies generated file and resource YAML match baselines."""
         exit_code, output = self.run_generate()
         assert exit_code == 0, f"Generation failed: {output}"
 
@@ -121,7 +98,6 @@ class TestTransformTempTableE2E:
         diff = self._compare_file_hashes(generated, baseline)
         assert diff == "", f"Baseline mismatch for {filename}: {diff}"
 
-        # Verify the pipeline resource YAML also matches its baseline.
         generated_resource = self.resources_dir / "16_temp_table.pipeline.yml"
         assert generated_resource.exists(), (
             "16_temp_table.pipeline.yml should be generated under resources/lhp/"

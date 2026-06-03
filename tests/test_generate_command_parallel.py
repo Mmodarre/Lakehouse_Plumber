@@ -84,7 +84,6 @@ def _patch_worker_state_with_cfg031_codegen(monkeypatch) -> None:
 
 
 def _build_multipipeline_project(project_root: Path, pipeline_names) -> None:
-    """Project with one small flowgroup per pipeline covering load + transform + write."""
     (project_root / "presets").mkdir(parents=True, exist_ok=True)
     (project_root / "templates").mkdir(parents=True, exist_ok=True)
     (project_root / "substitutions").mkdir(parents=True, exist_ok=True)
@@ -240,7 +239,6 @@ def _add_snapshot_cdc_missing_function_flowgroup(
 
 
 def _py_files_under(output_root: Path):
-    """All generated ``.py`` files under an env output dir (empty if absent)."""
     if not output_root.exists():
         return []
     return sorted(output_root.rglob("*.py"))
@@ -285,10 +283,7 @@ class TestGenerateCommandParallel:
         _build_multipipeline_project(project_root, self.PIPELINES)
 
         monkeypatch.chdir(project_root)
-        # ``--show-all`` opts into the full per-pipeline summary table;
-        # the failures-only default would suppress the table on a
-        # successful run, but this test asserts on per-pipeline row
-        # visibility.
+        # ``--show-all``: failures-only default would suppress the table on a successful run.
         result = runner.invoke(
             cli,
             [
@@ -400,28 +395,22 @@ class TestGenerateCommandParallel:
             ],
         )
 
-        # Non-zero exit: the gate raised; the CLI fail-fast boundary mapped
-        # it to a non-zero code.
         assert result.exit_code != 0, (
             f"Expected non-zero exit on a failing flowgroup; got "
             f"{result.exit_code}:\n{result.output}"
         )
 
-        # Zero .py written: no partial output for the valid pipelines.
         py_files = _py_files_under(output_root)
         assert py_files == [], (
             f"Expected ZERO generated .py files on all-or-nothing failure; "
             f"found: {[str(p) for p in py_files]}"
         )
 
-        # The pre-existing tree was left untouched (no post-gate wipe ran).
         assert sentinel.exists(), (
             "A gate failure must NOT wipe the pre-existing output tree; the "
             "sentinel file was deleted."
         )
 
-        # The failure is surfaced: the bad pipeline and its unknown action
-        # type both appear in the rendered error output.
         assert "p_broken" in result.output, (
             f"Failing pipeline 'p_broken' missing from output:\n{result.output}"
         )
@@ -456,8 +445,6 @@ class TestGenerateCommandParallel:
           place this could fail, and the file IS present on disk).
         """
         project_root = tmp_path
-        # A couple of valid pipelines plus the one bad snapshot_cdc flowgroup,
-        # exercising the all-or-nothing gate through the real fan-out engine.
         _build_multipipeline_project(project_root, ["p_alpha", "p_beta"])
         _add_snapshot_cdc_missing_function_flowgroup(project_root, "p_snap_bad")
 
@@ -472,7 +459,6 @@ class TestGenerateCommandParallel:
             f"source_function.function; got {result.exit_code}:\n{result.output}"
         )
 
-        # It must be the VALIDATOR error, not the deleted CONFIG/002 guard.
         assert "LHP-CFG-002" not in result.output, (
             "Rejection must come from the snapshot-CDC validator, NOT the "
             f"deleted generate-side CONFIG/002 guard:\n{result.output}"
@@ -485,8 +471,6 @@ class TestGenerateCommandParallel:
             f"missing 'function') in output:\n{result.output}"
         )
 
-        # Zero .py written: codegen never ran, so resolve_source_function
-        # was never reached.
         output_root = project_root / "generated" / "dev"
         py_files = _py_files_under(output_root)
         assert py_files == [], (
@@ -535,8 +519,7 @@ class TestGenerateCommandParallel:
         seq_out = seq_root / "generated" / "dev"
         par_out = par_root / "generated" / "dev"
 
-        # 1) Identical RELATIVE file sets (compare paths relative to each
-        #    env output root so the tmp prefixes don't matter).
+        # Relative paths so the tmp-dir prefixes don't affect the comparison.
         seq_rel = {p.relative_to(seq_out) for p in _py_files_under(seq_out)}
         par_rel = {p.relative_to(par_out) for p in _py_files_under(par_out)}
         assert seq_rel, "Expected generated .py files; found none for max-workers=1"
@@ -546,7 +529,6 @@ class TestGenerateCommandParallel:
             f"  only in w8: {sorted(str(p) for p in par_rel - seq_rel)}"
         )
 
-        # 2) Byte-identical contents for every file in the set.
         for rel in sorted(seq_rel, key=str):
             seq_bytes = (seq_out / rel).read_bytes()
             par_bytes = (par_out / rel).read_bytes()
@@ -565,26 +547,14 @@ class TestGenerateCommandParallel:
         gate aggregates it, and the run aborts with ZERO files written. The
         other (valid) pipeline must NOT be committed.
 
-        ROOT-CAUSE PATH (not a mocked guard): the in-worker formatting pass was
-        relocated to a single terminal coordinator pass, and the worker now
-        runs the REAL ``ast.parse`` guard
-        (:func:`lhp.core.codegen.formatter.assert_generated_python_valid`) over
-        the generator's output. A genuine bad GENERATION still cannot be
-        constructed via config on this branch — the seams that embed user text
-        into generated source all sanitize it (``sql`` transform bodies are
-        escaped; custom-Python / snapshot-CDC modules are COPIED verbatim and
-        AST-validated separately). ``LHP-CFG-031`` by design only fires on an
-        actual LHP generator/template bug. So the injection corrupts the
-        GENERATOR OUTPUT (not the guard): :class:`_Cfg031CodeGenerator` wraps
-        the real ``CodeGenerationService`` on the worker state and returns
-        un-parseable Python (``def (:``) for the one marked flowgroup, so the
-        REAL guard raises a REAL ``LHP-CFG-031``. The gate, the facade
-        ``ErrorEmitted``+raise rendezvous, and the no-write contract are all
-        exercised for real — and so is the syntax guard itself.
+        ``LHP-CFG-031`` by design only fires on an actual LHP generator/template
+        bug — config seams sanitize user text before it enters generated source.
+        So the test corrupts the GENERATOR OUTPUT (not the guard):
+        :class:`_Cfg031CodeGenerator` wraps the real ``CodeGenerationService``
+        on the worker state and returns un-parseable Python for the one marked
+        flowgroup, so the REAL guard raises a REAL ``LHP-CFG-031``.
         """
         project_root = tmp_path
-        # Two valid pipelines; the second's table name carries the marker so
-        # ONLY its generated source is corrupted into un-parseable Python.
         _build_multipipeline_project(project_root, ["p_ok"])
         bad_dir = project_root / "pipelines" / "p_cfg031"
         bad_dir.mkdir(parents=True)
@@ -642,11 +612,3 @@ class TestGenerateCommandParallel:
             f"Expected ZERO generated .py files on a syntax-guard abort; "
             f"found: {[str(p) for p in py_files]}"
         )
-
-
-# NOTE: the per-pipeline-start submission-order test was RETIRED here. It tested
-# the deleted pipeline-batched pool runner firing a per-pipeline start callback
-# once per pipeline in submission order. Stage-2's flat engine fans out per
-# FLOWGROUP (no per-pipeline submission order), so the contract under test no
-# longer exists; the provisional per-pipeline start callback was subsequently
-# removed end-to-end (facade/orchestrator/executor/CLI).

@@ -106,7 +106,6 @@ class LakehousePlumberApplicationFacade:
         )
         return cls(orchestrator)
 
-    # Shortcut delegations — §1.11.
     def generate_pipelines(
         self,
         *,

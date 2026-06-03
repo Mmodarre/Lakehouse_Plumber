@@ -12,13 +12,11 @@ from lhp.models import Action, ActionType, FlowGroup, TransformType
 
 @pytest.fixture
 def mock_action_registry():
-    """Create mock action registry."""
     return Mock()
 
 
 @pytest.fixture
 def mock_dependency_resolver():
-    """Create mock dependency resolver."""
     resolver = Mock()
     resolver.resolve_dependencies.return_value = []
     return resolver
@@ -26,7 +24,6 @@ def mock_dependency_resolver():
 
 @pytest.fixture
 def mock_preset_manager():
-    """Create mock preset manager."""
     manager = Mock()
     manager.resolve_preset_chain.return_value = {}
     return manager
@@ -34,7 +31,6 @@ def mock_preset_manager():
 
 @pytest.fixture
 def code_generator(mock_action_registry, mock_dependency_resolver, mock_preset_manager):
-    """Create CodeGenerationService instance."""
     return CodeGenerationService(
         action_registry=mock_action_registry,
         dependency_resolver=mock_dependency_resolver,
@@ -343,7 +339,7 @@ class TestCodeGeneratorCreateCombinedWriteAction:
             [action1, action2], "test_cat.test_sch.table1"
         )
 
-        assert combined.name == action1.name  # Uses table creator
+        assert combined.name == action1.name
         assert hasattr(combined, "_action_metadata")
         assert len(combined._action_metadata) == 2
 
@@ -454,13 +450,13 @@ class TestCodeGeneratorExtractSourceViewsFromAction:
         """Test extracting source views from empty dict."""
         result = code_generator._extract_source_views_from_action({})
 
-        assert result == ["source"]  # Generic fallback
+        assert result == ["source"]
 
     def test_extract_source_views_other_type(self, code_generator):
-        """Test extracting source views from other type - now returns fallback (Phase 1 refactoring)."""
+        """Test extracting source views from other type - returns fallback."""
         result = code_generator._extract_source_views_from_action(123)
 
-        assert result == ["source"]  # Fallback for non-standard types
+        assert result == ["source"]
 
 
 class TestCodeGeneratorGenerateActionSections:

@@ -37,7 +37,6 @@ c_name -> customer_name
         context = {}
         code = generator.generate(action, context)
 
-        # In strict mode, should use df.select() to drop unmapped columns
         assert "df.select(" in code
         assert '"customer_id"' in code
         assert '"customer_name"' in code
@@ -63,7 +62,6 @@ c -> col_c
         context = {}
         code = generator.generate(action, context)
 
-        # Check that all renamed columns are in the select
         assert '"col_a"' in code
         assert '"col_b"' in code
         assert '"col_c"' in code
@@ -102,7 +100,6 @@ c_custkey -> customer_id
         context = {"project_config": project_config}
         code = generator.generate(action, context)
 
-        # Check that metadata columns are in the select
         assert '"_ingestion_timestamp"' in code
         assert '"_source_file"' in code
         assert '"customer_id"' in code
@@ -141,7 +138,6 @@ c_custkey -> customer_id
         context = {"project_config": project_config}
         code = generator.generate(action, context)
 
-        # Verify that schema columns are added directly (not checked)
         assert "columns_to_select = [" in code
         assert '"customer_id"' in code
 
@@ -171,8 +167,6 @@ c_custkey -> customer_id
         context = {}
         code = generator.generate(action, context)
 
-        # In permissive mode, should NOT use df.select()
-        # All columns pass through, only specified ones are renamed/cast
         assert "df.select(" not in code
         assert 'df.withColumnRenamed("c_custkey", "customer_id")' in code
 
@@ -197,11 +191,8 @@ account_balance: DECIMAL(18,2)
         context = {}
         code = generator.generate(action, context)
 
-        # Check renames
         assert 'df.withColumnRenamed("c_custkey", "customer_id")' in code
         assert 'df.withColumnRenamed("c_name", "customer_name")' in code
-
-        # Check casts
         assert 'F.col("customer_id").cast("BIGINT")' in code
         assert 'F.col("account_balance").cast("DECIMAL(18,2)")' in code
 
@@ -217,14 +208,12 @@ account_balance: DECIMAL(18,2)
             schema_inline="""
 c_custkey -> customer_id
             """,
-            # No enforcement specified - defaults to permissive
             target="v_clean",
         )
 
         context = {}
         code = generator.generate(action, context)
 
-        # Should behave like permissive (no df.select)
         assert "df.select(" not in code
         assert 'df.withColumnRenamed("c_custkey", "customer_id")' in code
 
@@ -248,7 +237,6 @@ amount: DECIMAL(18,2)
         context = {}
         code = generator.generate(action, context)
 
-        # Should still use select in strict mode
         assert "df.select(" in code
         assert '"customer_id"' in code
         assert '"amount"' in code
@@ -290,17 +278,14 @@ _source_file: STRING
         context = {"project_config": project_config}
         code = generator.generate(action, context)
 
-        # Metadata columns should NOT be renamed
         assert 'withColumnRenamed("_ingestion_timestamp"' not in code
 
-        # Metadata columns should NOT be cast
         assert (
             "_source_file" not in code
             or "cast" not in code
             or code.index("_source_file") > code.index("return df")
         )
 
-        # Regular columns should be transformed
         assert 'withColumnRenamed("c_custkey", "customer_id")' in code
         assert 'F.col("customer_id").cast("BIGINT")' in code
 
@@ -330,7 +315,6 @@ b_col -> second
         context = {}
         code = generator.generate(action, context)
 
-        # Extract the order of columns in columns_to_select list
         select_idx = code.index("columns_to_select = [")
         select_section = code[select_idx : select_idx + 500]
 
@@ -378,20 +362,15 @@ b -> col_b
         context = {"project_config": project_config}
         code = generator.generate(action, context)
 
-        # Extract the columns_to_select section and metadata_columns section
-        # Data columns are in columns_to_select
         select_idx = code.index("columns_to_select = [")
         select_section = code[select_idx : select_idx + 200]
 
-        # Metadata columns are in metadata_columns list
         meta_idx = code.index("metadata_columns = [")
         meta_section = code[meta_idx : meta_idx + 200]
 
-        # Verify data columns are in columns_to_select
         assert '"col_a"' in select_section
         assert '"col_b"' in select_section
 
-        # Verify metadata columns are in metadata_columns (not in initial columns_to_select)
         assert '"_ingestion_timestamp"' in meta_section
         assert '"_source_file"' in meta_section
         assert '"_ingestion_timestamp"' not in select_section
@@ -418,12 +397,9 @@ c -> third
         context = {}
         code = generator.generate(action, context)
 
-        # Check df.select() has all columns
         assert '"first"' in code
         assert '"second"' in code
         assert '"third"' in code
-
-        # Verify transformations are applied
         assert 'withColumnRenamed("a", "first")' in code
         assert 'withColumnRenamed("c", "third")' in code
         assert 'F.col("second").cast("BIGINT")' in code

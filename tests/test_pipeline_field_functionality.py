@@ -1,5 +1,3 @@
-"""Tests for pipeline field functionality - generated code constants."""
-
 import tempfile
 from pathlib import Path
 
@@ -10,10 +8,7 @@ from tests.helpers import read_generated_pipeline
 
 
 class TestPipelineFieldFunctionality:
-    """Test pipeline field functionality for the orchestrator."""
-
     def test_generated_constants_have_correct_values(self):
-        """Test that generated constants PIPELINE_ID and FLOWGROUP_ID have correct values."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
 
@@ -24,13 +19,11 @@ class TestPipelineFieldFunctionality:
             try:
                 os.chdir(str(project_root))
 
-                # Create project structure
                 (project_root / "pipelines" / "test").mkdir(parents=True)
                 (project_root / "substitutions").mkdir()
                 (project_root / "templates").mkdir()
                 (project_root / "presets").mkdir()
 
-                # Create flowgroup
                 flowgroup_dict = {
                     "pipeline": "test",  # Match the search term
                     "flowgroup": "customer_ingestion",
@@ -56,14 +49,12 @@ class TestPipelineFieldFunctionality:
                     ],
                 }
 
-                # Save flowgroup
                 flowgroup_file = (
                     project_root / "pipelines" / "test" / "customer_ingestion.yaml"
                 )
                 with open(flowgroup_file, "w") as f:
                     yaml.dump(flowgroup_dict, f)
 
-                # Create substitution file
                 sub_file = project_root / "substitutions" / "dev.yaml"
                 with open(sub_file, "w") as f:
                     yaml.dump({"dev": {}}, f)
@@ -81,14 +72,10 @@ class TestPipelineFieldFunctionality:
                     output_dir=output_dir,
                 )
 
-                # Get generated code
                 assert len(generated_files) == 1
                 code = next(iter(generated_files.values()))
 
-                # Verify the fixed behavior where constants have correct values
-                assert (
-                    'PIPELINE_ID = "test"' in code
-                )  # Should be pipeline field from YAML
+                assert 'PIPELINE_ID = "test"' in code
                 assert 'FLOWGROUP_ID = "customer_ingestion"' in code
             finally:
-                os.chdir(original_cwd)  # Should be flowgroup field
+                os.chdir(original_cwd)

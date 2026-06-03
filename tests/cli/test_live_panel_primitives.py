@@ -534,8 +534,6 @@ def test_render_live_frame_wordmark_version_uses_package_metadata():
 
 
 class _RecordingLive:
-    """Test double for ``rich.live.Live`` — counts update() calls."""
-
     def __init__(self) -> None:
         self.updates: list = []
 

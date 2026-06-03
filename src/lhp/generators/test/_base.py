@@ -29,16 +29,13 @@ class BaseTestActionGenerator(BaseActionGenerator):
     __test__ = False  # Tell pytest this is not a test class
 
     def __init__(self) -> None:
-        """Initialize the test generator with the two universal imports."""
         super().__init__()
 
         self.add_import("from pyspark import pipelines as dp")
         self.add_import("from pyspark.sql.functions import *")
 
     @abstractmethod
-    def generate(self, action: Action, context: Dict[str, Any]) -> str:
-        """Generate test code for this test type."""
-        ...
+    def generate(self, action: Action, context: Dict[str, Any]) -> str: ...
 
     def _normalize_on_violation(self, config: Dict[str, Any]) -> str:
         """Return a valid ``on_violation`` value, defaulting to ``fail``."""
@@ -66,7 +63,6 @@ class BaseTestActionGenerator(BaseActionGenerator):
         # In orchestrator mode, imports are added at file-level so we skip them.
         add_imports = not context or "flowgroup" not in context
 
-        # Group expectations by violation action
         fail_expectations, drop_expectations, warn_expectations = (
             self._bucket_expectations(expectations)
         )

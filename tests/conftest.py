@@ -123,27 +123,23 @@ def force_close_all_log_handlers():
     """Force close all logging handlers to release file locks on Windows."""
     root_logger = logging.getLogger()
 
-    # Close and remove all handlers
     for handler in root_logger.handlers[:]:
         try:
             handler.close()
         except Exception:
-            pass  # Ignore errors during cleanup
+            pass
         root_logger.removeHandler(handler)
 
-    # Reset logging configuration
     logging.basicConfig(force=True)
 
 
 @pytest.fixture(autouse=True)
 def clean_logging():
     """Automatically clean up logging for all tests to prevent Windows file locking."""
-    # Setup: Clean logging state before test
     force_close_all_log_handlers()
 
     yield
 
-    # Teardown: Clean logging state after test
     force_close_all_log_handlers()
 
 
@@ -156,30 +152,25 @@ def isolated_project():
         yield temp_dir
     finally:
         if temp_dir and temp_dir.exists():
-            # Force close any log handlers before cleanup
             force_close_all_log_handlers()
 
-            # Try to remove directory, with special handling for Windows
             try:
                 shutil.rmtree(temp_dir)
             except PermissionError:
                 if sys.platform == "win32":
-                    # On Windows, try to handle file locking issues
                     import gc
                     import time
 
-                    # Force garbage collection to close any remaining file handles
                     gc.collect()
-                    time.sleep(0.1)  # Brief pause to let Windows release locks
+                    time.sleep(0.1)
 
                     try:
                         shutil.rmtree(temp_dir)
                     except PermissionError:
-                        # Last resort: rename the directory and let system cleanup later
                         try:
                             temp_dir.rename(temp_dir.with_suffix(".cleanup"))
                         except Exception:
-                            pass  # Give up gracefully
+                            pass
                 else:
                     raise
 
@@ -188,7 +179,6 @@ def isolated_project():
 def mock_logging_config():
     """Mock the configure_logging function to prevent file creation during tests."""
     with patch("lhp.cli.main.configure_logging") as mock_config:
-        # Return a mock log file path that doesn't actually create files
         mock_config.return_value = Path(tempfile.gettempdir()) / "mock_lhp.log"
         yield mock_config
 
@@ -199,40 +189,32 @@ def temp_project_with_logging_cleanup():
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
 
-        # Ensure logging is configured to not interfere
         force_close_all_log_handlers()
 
-        # Configure minimal logging for tests
         logging.basicConfig(
-            level=logging.WARNING,  # Reduce log noise in tests
+            level=logging.WARNING,
             format="%(levelname)s: %(message)s",
             force=True,
         )
 
         yield project_root
 
-        # Clean up logging before directory deletion
         force_close_all_log_handlers()
 
 
-# Platform-specific fixtures
 @pytest.fixture
 def windows_safe_tempdir():
     """Create a temporary directory with Windows-safe cleanup."""
     if sys.platform != "win32":
-        # On non-Windows platforms, use standard tempfile
         with tempfile.TemporaryDirectory() as tmpdir:
             yield Path(tmpdir)
     else:
-        # On Windows, use custom cleanup logic
         temp_dir = Path(tempfile.mkdtemp())
         try:
             yield temp_dir
         finally:
-            # Windows-specific cleanup
             force_close_all_log_handlers()
 
-            # Try multiple cleanup strategies
             for attempt in range(3):
                 try:
                     shutil.rmtree(temp_dir)
@@ -245,7 +227,6 @@ def windows_safe_tempdir():
                         gc.collect()
                         time.sleep(0.1 * (attempt + 1))
                     else:
-                        # Final attempt: rename and let OS clean up later
                         try:
                             temp_dir.rename(temp_dir.with_suffix(f".cleanup.{attempt}"))
                         except Exception:
@@ -255,20 +236,13 @@ def windows_safe_tempdir():
 @pytest.fixture(autouse=True, scope="session")
 def configure_test_logging():
     """Configure logging for the entire test session."""
-    # Set up minimal logging configuration for tests
     logging.getLogger("lhp").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.ERROR)
     logging.getLogger("requests").setLevel(logging.ERROR)
 
     yield
 
-    # Final cleanup at end of test session
     force_close_all_log_handlers()
-
-
-# ============================================================================
-# Multi-Job Orchestration Test Fixtures
-# ============================================================================
 
 
 @pytest.fixture
@@ -366,7 +340,7 @@ tags:
 """
     config_file = config_dir / "job_config.yaml"
     config_file.write_text(config_content)
-    return tmp_path  # Return tmp_path (project root)
+    return tmp_path
 
 
 @pytest.fixture

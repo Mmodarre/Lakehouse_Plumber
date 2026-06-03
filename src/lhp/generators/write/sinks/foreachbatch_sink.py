@@ -1,5 +1,3 @@
-"""ForEachBatch sink generator."""
-
 import logging
 from pathlib import Path
 from typing import Any, Dict
@@ -26,22 +24,8 @@ class ForEachBatchSinkWriteGenerator(BaseSinkWriteGenerator):
         self.logger = logging.getLogger(__name__)
 
     def generate(self, action: Action, context: Dict[str, Any]) -> str:
-        """Generate ForEachBatch sink code.
-
-        Args:
-            action: Action configuration
-            context: Context dictionary with flowgroup and project info
-
-        Returns:
-            Generated Python code for ForEachBatch sink
-
-        Raises:
-            FileNotFoundError: If module_path file doesn't exist
-            ValueError: If configuration is invalid
-        """
         sink_config = action.write_target
 
-        # Extract configuration
         sink_name = sink_config.get("sink_name")
         module_path = sink_config.get("module_path")
         batch_handler = sink_config.get("batch_handler")
@@ -52,7 +36,7 @@ class ForEachBatchSinkWriteGenerator(BaseSinkWriteGenerator):
             f"Generating ForEachBatch sink for action '{action.name}': sink_name='{sink_name}', handler_source='{handler_source}'"
         )
 
-        # Validate required fields (should already be validated, but double-check)
+        # Should already be validated upstream.
         if not sink_name:
             raise ErrorFactory.missing_required_field(
                 field_name="sink_name",
@@ -70,7 +54,6 @@ class ForEachBatchSinkWriteGenerator(BaseSinkWriteGenerator):
       module_path: "batch_handlers/my_handler.py" """,
             )
 
-        # Get batch handler code (from file or inline)
         if module_path:
             batch_handler_code = self._load_batch_handler_from_file(
                 module_path, action, context
@@ -92,12 +75,10 @@ class ForEachBatchSinkWriteGenerator(BaseSinkWriteGenerator):
   #   df.write.format("delta").save("/path")""",
             )
 
-        # Apply substitutions to batch handler code (both inline and file-based)
         if batch_handler_code and context and "substitution_manager" in context:
             substitution_mgr = context["substitution_manager"]
             batch_handler_code = substitution_mgr._process_string(batch_handler_code)
 
-            # Track secret references if they exist
             secret_refs = substitution_mgr.secret_references
             if (
                 "secret_references" in context
@@ -105,7 +86,6 @@ class ForEachBatchSinkWriteGenerator(BaseSinkWriteGenerator):
             ):
                 context["secret_references"].update(secret_refs)
 
-        # Extract source view (single source only)
         if not action.source:
             raise ErrorFactory.missing_required_field(
                 field_name="source",
@@ -133,17 +113,14 @@ class ForEachBatchSinkWriteGenerator(BaseSinkWriteGenerator):
 
         source_view = action.source
 
-        # Get operational metadata configuration
         add_metadata, metadata_columns = self._get_operational_metadata(action, context)
 
-        # Build comment
         comment = (
             sink_config.get("comment")
             or action.description
             or f"ForEachBatch sink: {action.name}"
         )
 
-        # Build template context
         template_context = {
             "action_name": action.name,
             "sink_name": sink_name,
@@ -163,19 +140,6 @@ class ForEachBatchSinkWriteGenerator(BaseSinkWriteGenerator):
     def _load_batch_handler_from_file(
         self, module_path: str, action: Action, context: Dict[str, Any]
     ) -> str:
-        """Load batch handler code from external file.
-
-        Args:
-            module_path: Path to Python file containing batch handler body
-            action: Action configuration
-            context: Context dictionary
-
-        Returns:
-            Batch handler code (function body only)
-
-        Raises:
-            FileNotFoundError: If file doesn't exist
-        """
         project_root = context.get("spec_dir") or Path.cwd()
         handler_path = project_root / module_path
 

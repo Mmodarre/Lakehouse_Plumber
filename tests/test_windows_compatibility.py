@@ -60,7 +60,6 @@ class TestWindowsCompatibility:
 
     def test_ascii_success_indicators(self):
         """Test that ASCII success indicators work correctly."""
-        # Test the specific pattern we use in CI
         test_messages = [
             "[OK] Package imports successfully",
             "[OK] CLI help works",
@@ -69,7 +68,6 @@ class TestWindowsCompatibility:
         ]
 
         for message in test_messages:
-            # Verify these can be encoded to Windows-compatible encoding
             try:
                 encoded = message.encode("cp1252")  # Windows default encoding
                 decoded = encoded.decode("cp1252")
@@ -81,19 +79,14 @@ class TestWindowsCompatibility:
 
     def test_unicode_replacement_effectiveness(self):
         """Test that our Unicode character replacements are effective."""
-        # Test that problematic Unicode characters would fail
         problematic_chars = ["✓", "✅", "❌", "🔧", "🚀"]
 
         for char in problematic_chars:
             try:
                 char.encode("cp1252")
-                # If we get here, the character is actually compatible
-                # (this test might fail on systems with extended codepage support)
             except UnicodeEncodeError:
-                # This is expected - the character is not CP1252 compatible
                 pass
 
-        # Test that our ASCII replacements work
         ascii_replacements = ["[OK]", "[PASS]", "[FAIL]", "[INFO]", "[DONE]"]
 
         for replacement in ascii_replacements:

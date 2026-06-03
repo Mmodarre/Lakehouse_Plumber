@@ -11,8 +11,6 @@ import pytest
 from click.testing import CliRunner
 
 from lhp.cli.commands.dependencies_command import DependenciesCommand
-
-# Import the CLI module and deps command
 from lhp.cli.main import cli, deps
 from lhp.errors import ErrorCategory, LHPError
 from lhp.models.dependencies import (
@@ -23,21 +21,16 @@ from lhp.models.dependencies import (
 
 
 class TestCliDepsIntegration:
-    """Test CLI integration for the deps command."""
-
     def setup_method(self):
-        """Set up test fixtures."""
         self.runner = CliRunner()
         self.temp_dir = Path(tempfile.mkdtemp())
 
     def teardown_method(self):
-        """Clean up test fixtures."""
         import shutil
 
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def create_mock_analysis_result(self):
-        """Create a mock dependency analysis result."""
         graphs = DependencyGraphs(
             action_graph=nx.DiGraph(),
             flowgroup_graph=nx.DiGraph(),
@@ -96,13 +89,13 @@ class TestCliDepsIntegration:
 
         assert result.exit_code == 0
         mock_execute.assert_called_once_with(
-            "all",  # default format
-            None,  # no output dir specified
-            None,  # no pipeline filter
-            None,  # no job name
-            None,  # no job config
-            False,  # bundle_output=False
-            False,  # verbose=False
+            "all",
+            None,
+            None,
+            None,
+            None,
+            False,
+            False,
             expand_blueprints=False,
             blueprint_filter=None,
         )
@@ -128,13 +121,13 @@ class TestCliDepsIntegration:
 
         assert result.exit_code == 0
         mock_execute.assert_called_once_with(
-            "json",  # format
-            str(self.temp_dir),  # output dir
-            "test_pipeline",  # pipeline filter
-            "custom_job",  # job name
-            None,  # no job config
-            False,  # bundle_output=False
-            True,  # verbose=True
+            "json",
+            str(self.temp_dir),
+            "test_pipeline",
+            "custom_job",
+            None,
+            False,
+            True,
             expand_blueprints=False,
             blueprint_filter=None,
         )
@@ -160,13 +153,13 @@ class TestCliDepsIntegration:
 
         assert result.exit_code == 0
         mock_execute.assert_called_once_with(
-            "dot",  # format
-            str(self.temp_dir),  # output dir
-            "specific_pipeline",  # pipeline filter
-            "my_job",  # job name
-            None,  # no job config
-            False,  # bundle_output=False
-            True,  # verbose=True
+            "dot",
+            str(self.temp_dir),
+            "specific_pipeline",
+            "my_job",
+            None,
+            False,
+            True,
             expand_blueprints=False,
             blueprint_filter=None,
         )
@@ -206,10 +199,7 @@ class TestCliDepsIntegration:
         """Test deps command error handling for LHPError."""
         result = self.runner.invoke(cli, ["deps"])
 
-        # Command should fail with non-zero exit code
         assert result.exit_code != 0
-        # Click's test runner doesn't always capture exception output in result.output
-        # The important thing is that the command fails appropriately
 
     @patch(
         "lhp.cli.commands.dependencies_command.DependenciesCommand.execute",
@@ -219,7 +209,6 @@ class TestCliDepsIntegration:
         """Test deps command error handling for generic exceptions."""
         result = self.runner.invoke(cli, ["deps"])
 
-        # Command should fail with non-zero exit code
         assert result.exit_code != 0
 
     def test_deps_command_case_insensitive_format(self):
@@ -229,7 +218,6 @@ class TestCliDepsIntegration:
         ) as mock_execute:
             result = self.runner.invoke(cli, ["deps", "--format", "JSON"])
 
-            # Click Choice should handle case insensitivity
             assert result.exit_code == 0
             mock_execute.assert_called_once()
 
@@ -241,13 +229,11 @@ class TestCliDepsIntegration:
 
         result = self.runner.invoke(cli, ["deps"])
 
-        # Should create DependenciesCommand instance
         mock_command_class.assert_called_once()
         mock_command.execute.assert_called_once()
 
     def test_deps_command_output_path_validation(self):
         """Test output path option validation."""
-        # Test with valid path
         with patch(
             "lhp.cli.commands.dependencies_command.DependenciesCommand.execute"
         ) as mock_execute:
@@ -300,7 +286,6 @@ class TestCliDepsIntegration:
             for job_name in job_names:
                 result = self.runner.invoke(cli, ["deps", "--job-name", job_name])
                 assert result.exit_code == 0
-                # job_name should be passed as 4th argument
                 assert mock_execute.call_args[0][3] == job_name
 
     def test_deps_command_verbose_flag(self):
@@ -308,23 +293,16 @@ class TestCliDepsIntegration:
         with patch(
             "lhp.cli.commands.dependencies_command.DependenciesCommand.execute"
         ) as mock_execute:
-            # Test without verbose
             result = self.runner.invoke(cli, ["deps"])
             assert result.exit_code == 0
-            assert (
-                mock_execute.call_args[0][6] is False
-            )  # verbose=False (now 7th argument, index 6)
+            assert mock_execute.call_args[0][6] is False
 
-            # Test with verbose
             result = self.runner.invoke(cli, ["deps", "--verbose"])
             assert result.exit_code == 0
-            assert (
-                mock_execute.call_args[0][6] is True
-            )  # verbose=True (now 7th argument, index 6)
+            assert mock_execute.call_args[0][6] is True
 
     def test_deps_command_multiple_format_handling(self):
         """Test that format option handles single values correctly."""
-        # The CLI option is single choice, so test individual formats
         formats_to_test = ["dot", "json", "text", "job", "all"]
 
         for format_choice in formats_to_test:
@@ -338,7 +316,6 @@ class TestCliDepsIntegration:
     @patch("lhp.cli.commands.dependencies_command.DependenciesCommand.execute")
     def test_deps_command_integration_with_real_paths(self, mock_execute):
         """Test deps command with real filesystem paths."""
-        # Create a real directory structure
         test_output_dir = self.temp_dir / "output"
         test_output_dir.mkdir()
 
@@ -367,20 +344,18 @@ class TestCliDepsIntegration:
             result = self.runner.invoke(cli, ["deps"])
 
             assert result.exit_code == 0
-            # Check default values (updated for new signature)
             call_args = mock_execute.call_args[0]
-            assert call_args[0] == "all"  # default format
-            assert call_args[1] is None  # default output (None)
-            assert call_args[2] is None  # default pipeline (None)
-            assert call_args[3] is None  # default job_name (None)
-            assert call_args[4] is None  # default job_config_path (None)
-            assert call_args[5] is False  # default bundle_output (False)
-            assert call_args[6] is False  # default verbose (False)
+            assert call_args[0] == "all"
+            assert call_args[1] is None
+            assert call_args[2] is None
+            assert call_args[3] is None
+            assert call_args[4] is None
+            assert call_args[5] is False
+            assert call_args[6] is False
 
     @patch("lhp.cli.commands.dependencies_command.DependenciesCommand.execute")
     def test_deps_command_option_order_independence(self, mock_execute):
         """Test that option order doesn't matter."""
-        # Test different orders of the same options
         option_sets = [
             ["--format", "json", "--verbose", "--pipeline", "test"],
             ["--verbose", "--pipeline", "test", "--format", "json"],
@@ -391,11 +366,10 @@ class TestCliDepsIntegration:
             result = self.runner.invoke(cli, ["deps", *options])
             assert result.exit_code == 0
 
-            # All should result in the same call (updated for new signature)
             call_args = mock_execute.call_args[0]
-            assert call_args[0] == "json"  # format
-            assert call_args[2] == "test"  # pipeline
-            assert call_args[6] is True  # verbose (now 7th argument, index 6)
+            assert call_args[0] == "json"
+            assert call_args[2] == "test"
+            assert call_args[6] is True
 
     def test_deps_command_in_main_cli_registration(self):
         """Test that deps command is properly registered in main CLI."""
@@ -407,7 +381,6 @@ class TestCliDepsIntegration:
 
     def test_deps_command_import_path(self):
         """Test that the deps command can be imported correctly."""
-        # This test ensures the import path is correct
         from lhp.cli.main import deps as imported_deps
 
         assert imported_deps is not None
@@ -416,7 +389,6 @@ class TestCliDepsIntegration:
     @patch("lhp.cli.commands.dependencies_command.DependenciesCommand.execute")
     def test_deps_command_stdin_handling(self, mock_execute):
         """Test that deps command handles stdin gracefully."""
-        # Test with empty stdin
         result = self.runner.invoke(cli, ["deps"], input="")
         assert result.exit_code == 0
         mock_execute.assert_called_once()
@@ -426,7 +398,6 @@ class TestCliDepsIntegration:
         with patch(
             "lhp.cli.commands.dependencies_command.DependenciesCommand.execute"
         ) as mock_execute:
-            # Test in isolated environment
             with self.runner.isolated_filesystem():
                 result = self.runner.invoke(cli, ["deps"])
                 assert result.exit_code == 0
@@ -434,10 +405,7 @@ class TestCliDepsIntegration:
 
 
 class TestDepsCommandEdgeCases:
-    """Test edge cases for the deps command."""
-
     def setup_method(self):
-        """Set up test fixtures."""
         self.runner = CliRunner()
 
     def test_deps_command_with_empty_string_options(self):

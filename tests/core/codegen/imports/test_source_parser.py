@@ -1,11 +1,3 @@
-"""Unit tests for the shared parse substrate (``source_parser``).
-
-Covers the single parse contract (``parse_user_module``: parse-OK, the
-generic ``LHP-IO-003`` syntax-error path, and the per-pipeline tree
-cache) and the import classifier (``local_import_targets``: relative,
-absolute-local, external, and plain-dotted-local imports).
-"""
-
 import ast
 from pathlib import Path
 
@@ -21,7 +13,6 @@ from lhp.errors import LHPError
 
 @pytest.mark.unit
 def test_parse_ok_returns_module(tmp_path):
-    """A syntactically-valid file parses to an ``ast.Module``."""
     path = tmp_path / "good.py"
     path.write_text("import os\n\n\ndef f():\n    return os.getcwd()\n")
 
@@ -32,7 +23,6 @@ def test_parse_ok_returns_module(tmp_path):
 
 @pytest.mark.unit
 def test_syntax_error_raises_generic_io_003_with_file_path(tmp_path):
-    """Invalid syntax raises LHP-IO-003 parameterized by the file path."""
     path = tmp_path / "broken.py"
     path.write_text("def f(:\n    pass\n")
 
@@ -52,7 +42,6 @@ def test_syntax_error_raises_generic_io_003_with_file_path(tmp_path):
 
 @pytest.mark.unit
 def test_cache_parses_once_for_two_requests_same_path(tmp_path, monkeypatch):
-    """A shared cache parses a path once; the second request is a hit."""
     path = tmp_path / "cached.py"
     path.write_text("x = 1\n")
 
@@ -83,7 +72,6 @@ def test_cache_parses_once_for_two_requests_same_path(tmp_path, monkeypatch):
 
 @pytest.mark.unit
 def test_cache_none_counts_miss_and_does_not_cache(tmp_path, monkeypatch):
-    """With ``cache=None`` every call parses and counts a miss, no hit."""
     path = tmp_path / "uncached.py"
     path.write_text("y = 2\n")
 
@@ -110,14 +98,11 @@ def test_cache_none_counts_miss_and_does_not_cache(tmp_path, monkeypatch):
 
 
 def _build_classification_tree(tmp_path: Path) -> ast.Module:
-    """Build an on-disk root with all four import kinds and parse the entry."""
-    # Local sub-package: helpers/ with __init__.py and a module.
     helpers = tmp_path / "helpers"
     helpers.mkdir()
     (helpers / "__init__.py").write_text("")
     (helpers / "date_change.py").write_text("def to_snapshot_date():\n    return 1\n")
 
-    # Local sibling module (flat under root).
     (tmp_path / "sibling.py").write_text("VALUE = 1\n")
 
     entry = tmp_path / "entry.py"
@@ -136,7 +121,6 @@ def _build_classification_tree(tmp_path: Path) -> ast.Module:
 
 @pytest.mark.unit
 def test_classification_covers_all_four_kinds(tmp_path):
-    """Relative / absolute-local / external / plain-dotted are distinguished."""
     tree = _build_classification_tree(tmp_path)
 
     targets = local_import_targets(tree, tmp_path)
@@ -144,7 +128,6 @@ def test_classification_covers_all_four_kinds(tmp_path):
     for t in targets:
         by_module.setdefault((t.module, t.level, t.is_plain_dotted), t)
 
-    # External: `import os` and `from pyspark.sql import DataFrame`.
     os_t = next(t for t in targets if t.module == "os" and t.level == 0)
     assert os_t.is_local is False
     assert os_t.is_plain_dotted is False
@@ -154,7 +137,6 @@ def test_classification_covers_all_four_kinds(tmp_path):
     assert pyspark_t.level == 0
     assert pyspark_t.names == ("DataFrame",)
 
-    # Absolute-local from-import of a sub-package module.
     helpers_from = next(
         t
         for t in targets
@@ -163,19 +145,16 @@ def test_classification_covers_all_four_kinds(tmp_path):
     assert helpers_from.is_local is True
     assert helpers_from.names == ("to_snapshot_date",)
 
-    # Absolute-local from-import of a flat sibling module.
     sibling_t = next(t for t in targets if t.module == "sibling")
     assert sibling_t.is_local is True
     assert sibling_t.is_plain_dotted is False
 
-    # Relative imports: level > 0, not local-absolute, level recorded.
     relative_targets = [t for t in targets if t.level > 0]
     assert len(relative_targets) == 2
     for rel in relative_targets:
         assert rel.is_local is False
         assert rel.level == 1
 
-    # Plain-dotted-local: `import helpers.date_change` (+ the aliased form).
     plain_dotted = [t for t in targets if t.is_plain_dotted]
     assert len(plain_dotted) == 2
     for pd in plain_dotted:
@@ -189,7 +168,6 @@ def test_classification_covers_all_four_kinds(tmp_path):
 
 @pytest.mark.unit
 def test_lazy_function_body_import_is_classified(tmp_path):
-    """Imports inside a function body are walked and classified, not skipped."""
     helpers = tmp_path / "helpers"
     helpers.mkdir()
     (helpers / "__init__.py").write_text("")
@@ -206,12 +184,11 @@ def test_lazy_function_body_import_is_classified(tmp_path):
     lazy = next(t for t in targets if t.module == "helpers.util")
     assert lazy.is_local is True
     assert lazy.names == ("go",)
-    assert lazy.lineno > 1  # located inside the function body
+    assert lazy.lineno > 1
 
 
 @pytest.mark.unit
 def test_import_target_is_frozen():
-    """``ImportTarget`` is immutable (frozen dataclass)."""
     target = ImportTarget(
         module="os",
         level=0,

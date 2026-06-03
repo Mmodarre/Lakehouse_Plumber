@@ -43,10 +43,8 @@ def _build_minimal_lhp_project(project_root: Path) -> None:
         "dev:\n  env: dev\n  catalog: test_catalog\n  bronze_schema: bronze\n"
     )
 
-    # One trivial flowgroup so discovery has something to find. We don't
-    # need it to generate — the monkeypatched __init__ will stop us before
-    # generation runs to completion (or it may run; either is fine because
-    # the assertion is purely on the constructor args).
+    # One flowgroup so discovery has something to find; generation may or may
+    # not complete — the assertion is purely on the constructor args.
     pdir = project_root / "pipelines" / "01_trivial"
     pdir.mkdir(parents=True, exist_ok=True)
     (pdir / "fg1.yaml").write_text(
@@ -74,7 +72,7 @@ def _build_minimal_lhp_project(project_root: Path) -> None:
 
 @pytest.mark.unit
 class TestMaxWorkersWiringEndToEnd:
-    """Plan task E: ``--max-workers 3`` reaches ActionOrchestrator.__init__."""
+    """Asserts ``--max-workers 3`` reaches ``ActionOrchestrator.__init__``."""
 
     def test_cli_max_workers_arg_reaches_orchestrator_constructor(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -82,11 +80,7 @@ class TestMaxWorkersWiringEndToEnd:
         project_root = tmp_path / "lhp_proj_mw"
         _build_minimal_lhp_project(project_root)
 
-        # Capture ALL ActionOrchestrator.__init__ invocations with their
-        # full args/kwargs. We then assert one of them received
-        # ``max_workers=3``. We don't constrain WHICH invocation if the
-        # CLI happens to construct an orchestrator more than once — only
-        # that the value reached the constructor at least once.
+        # Capture all __init__ calls; assert at least one received max_workers=3.
         from lhp.core.coordination import orchestrator as orchestrator_module
 
         original_init = orchestrator_module.ActionOrchestrator.__init__
@@ -102,7 +96,6 @@ class TestMaxWorkersWiringEndToEnd:
             capturing_init,
         )
 
-        # Invoke the CLI inside the project root.
         from lhp.cli.main import cli
 
         runner = CliRunner()
@@ -117,19 +110,13 @@ class TestMaxWorkersWiringEndToEnd:
         finally:
             os.chdir(prev_cwd)
 
-        # The CLI may or may not exit zero depending on whether the
-        # generation succeeded — we don't care. What we care about is
-        # whether ActionOrchestrator.__init__ was called with
-        # ``max_workers=3``.
+        # Exit code is irrelevant — we only care that __init__ was called with max_workers=3.
         assert captured_calls, (
             "Expected at least one ActionOrchestrator construction; got 0.\n"
             f"CLI exit_code={result.exit_code}\nOutput:\n{result.output}"
         )
 
-        # Find a call with max_workers == 3 (kwarg-form), or with 3 as the
-        # max_workers positional (the orchestrator signature is keyword-only
-        # for that arg in the current codebase, but we accept both forms
-        # defensively).
+        # Accept kwarg-form; orchestrator arg is keyword-only but we check defensively.
         found_max_workers_3 = False
         for _args, kwargs in captured_calls:
             if kwargs.get("max_workers") == 3:

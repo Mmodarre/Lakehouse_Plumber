@@ -65,7 +65,6 @@ class CodeAssembler:
         fl, complete_code = extract_future_imports(complete_code)
         future_imports.extend(fl)
 
-        # Dedupe in declaration order.
         seen: Set[str] = set()
         ordered_futures = [f for f in future_imports if not (f in seen or seen.add(f))]
 

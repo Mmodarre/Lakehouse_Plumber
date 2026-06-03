@@ -132,7 +132,6 @@ LEFT JOIN run_config rc
 ORDER BY ri.run_start_time DESC\
 """
 
-# Python load constants for jobs stats
 JOBS_STATS_MODULE_PATH = "jobs_stats_loader.py"
 JOBS_STATS_FUNCTION_NAME = "get_jobs_stats"
 JOBS_STATS_VIEW_NAME = "v_jobs_stats"
@@ -147,7 +146,6 @@ except ImportError:
 
 
 def _load_jobs_stats_source() -> str:
-    """Load jobs_stats_loader.py source from package resources."""
     resource = files("lhp.templates.monitoring") / "jobs_stats_loader.py"
     return resource.read_text(encoding="utf-8")
 
@@ -202,7 +200,6 @@ class MonitoringPipelineBuilder:
 
     @property
     def pipeline_name(self) -> str:
-        """Resolved monitoring pipeline name."""
         if self.monitoring_config and self.monitoring_config.pipeline_name:
             return self.monitoring_config.pipeline_name
         return f"{self.project_config.name}_event_log_monitoring"
@@ -228,12 +225,6 @@ class MonitoringPipelineBuilder:
 
         For pipelines with custom event_log dicts: include but use project-level
         naming convention + emit warning (V1 simplification).
-
-        Args:
-            all_pipeline_names: All discovered pipeline names
-
-        Returns:
-            Pipeline names that will have event_log tables
         """
         monitoring_name = self.pipeline_name
         eligible: List[str] = []
@@ -268,12 +259,6 @@ class MonitoringPipelineBuilder:
         """Build the fully-qualified event log table reference for a pipeline.
 
         Uses project-level event_log config for catalog, schema, prefix, suffix.
-
-        Args:
-            pipeline_name: Pipeline name
-
-        Returns:
-            Fully-qualified table reference (e.g. catalog.schema.prefix_name_suffix)
         """
         event_log = self.project_config.event_log
         assert event_log is not None  # Caller ensures this
@@ -285,13 +270,7 @@ class MonitoringPipelineBuilder:
         return f"{catalog}.{schema}.{name}"
 
     def _resolve_catalog_schema(self) -> tuple:
-        """Resolve catalog and schema for monitoring tables.
-
-        Priority: monitoring config overrides > event_log config defaults.
-
-        Returns:
-            (catalog, schema) tuple
-        """
+        """Resolve catalog and schema; monitoring config overrides event_log defaults."""
         event_log = self.project_config.event_log
         assert event_log is not None
 
@@ -307,7 +286,6 @@ class MonitoringPipelineBuilder:
         return catalog, schema
 
     def _build_python_load_action(self) -> Action:
-        """Build the Python load action for jobs stats."""
         return Action(
             name="load_jobs_stats",
             type=ActionType.LOAD,
@@ -321,11 +299,7 @@ class MonitoringPipelineBuilder:
         )
 
     def _build_jobs_stats_write_action(self, catalog: str, schema: str) -> Action:
-        """Build the materialized view write action for jobs stats.
-
-        Uses a materialized view (not streaming table) because the Python
-        SDK source returns batch data, not a streaming DataFrame.
-        """
+        """Materialized view (not streaming table) — Python SDK source returns batch data."""
         return Action(
             name="write_jobs_stats",
             type=ActionType.WRITE,
@@ -341,7 +315,6 @@ class MonitoringPipelineBuilder:
     def _build_mv_action(
         self, mv_name: str, sql: str, catalog: str, schema: str
     ) -> Action:
-        """Build a materialized view action."""
         return Action(
             name=f"mv_{mv_name}",
             type=ActionType.WRITE,
@@ -357,16 +330,7 @@ class MonitoringPipelineBuilder:
     def _resolve_mv_sql(
         self, mv_name: str, sql: Optional[str], sql_path: Optional[str]
     ) -> str:
-        """Resolve SQL for a materialized view from inline or file.
-
-        Args:
-            mv_name: MV name (for error messages)
-            sql: Inline SQL string
-            sql_path: Path to external SQL file
-
-        Returns:
-            Resolved SQL string
-        """
+        """Resolve SQL for a materialized view from inline string or external file."""
         if sql:
             return sql
 
@@ -389,22 +353,10 @@ class MonitoringPipelineBuilder:
         return ""
 
     def _get_default_mv_sql(self, target_table_fqn: str) -> str:
-        """Get default MV SQL with the Delta table name substituted."""
         return DEFAULT_MV_SQL.format(streaming_table=target_table_fqn)
 
     def build(self, all_pipeline_names: List[str]) -> Optional[MonitoringBuildResult]:
-        """Build complete monitoring artifacts. Returns None if not applicable.
-
-        Produces:
-        1. An MVs-only DLT FlowGroup (no streaming table, no UNION SQL load)
-        2. A rendered notebook with N independent streaming queries
-
-        Args:
-            all_pipeline_names: All discovered pipeline names
-
-        Returns:
-            MonitoringBuildResult or None if monitoring should not be built
-        """
+        """Build complete monitoring artifacts; returns ``None`` if not applicable."""
         if not self.should_build():
             return None
 
@@ -426,14 +378,12 @@ class MonitoringPipelineBuilder:
             f"for {len(eligible_pipelines)} pipeline(s): {eligible_pipelines}"
         )
 
-        # Resolve catalog/schema
         catalog, schema = self._resolve_catalog_schema()
         target_fqn = f"{catalog}.{schema}.{self.monitoring_config.streaming_table}"
 
         # Build actions (MVs only — no SQL load, no streaming table write)
         actions: List[Action] = []
 
-        # Optional: Python Load + MV Write (jobs stats via Databricks SDK)
         if self.monitoring_config.enable_job_monitoring:
             actions.append(self._build_python_load_action())
             actions.append(self._build_jobs_stats_write_action(catalog, schema))
@@ -448,7 +398,6 @@ class MonitoringPipelineBuilder:
                     self._build_mv_action(mv_config.name, mv_sql, catalog, schema)
                 )
         else:
-            # Default: pipeline run summary MV
             default_sql = self._get_default_mv_sql(target_fqn)
             actions.append(
                 self._build_mv_action("events_summary", default_sql, catalog, schema)

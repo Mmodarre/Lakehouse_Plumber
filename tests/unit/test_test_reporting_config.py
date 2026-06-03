@@ -13,8 +13,6 @@ from lhp.models import (
 
 @pytest.mark.unit
 class TestTestReportingConfig:
-    """Tests for TestReportingConfig model."""
-
     __test__ = True  # Explicitly mark as a test class (overrides __test__ = False on some models)
 
     def test_required_fields(self):
@@ -49,8 +47,6 @@ class TestTestReportingConfig:
 
 @pytest.mark.unit
 class TestActionTestId:
-    """Tests for test_id field on Action model."""
-
     def test_test_id_defaults_to_none(self):
         action = Action(name="test_1", type=ActionType.TEST)
         assert action.test_id is None
@@ -75,8 +71,6 @@ class TestActionTestId:
 
 @pytest.mark.unit
 class TestProjectConfigTestReporting:
-    """Tests for test_reporting field on ProjectConfig."""
-
     def test_defaults_to_none(self):
         config = ProjectConfig(name="test_project")
         assert config.test_reporting is None
@@ -93,8 +87,6 @@ class TestProjectConfigTestReporting:
 
 @pytest.mark.unit
 class TestProjectConfigLoaderTestReporting:
-    """Tests for test_reporting parsing in ProjectConfigLoader."""
-
     def test_parses_test_reporting_section(self, tmp_path):
         """Config loader parses test_reporting from lhp.yaml."""
         lhp_yaml = tmp_path / "lhp.yaml"

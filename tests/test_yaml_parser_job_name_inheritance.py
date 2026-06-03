@@ -12,12 +12,10 @@ class TestJobNameInheritance:
     """Test job_name inheritance in multi-flowgroup arrays."""
 
     def setup_method(self):
-        """Set up test fixtures."""
         self.temp_dir = Path(tempfile.mkdtemp())
         self.parser = YAMLParser()
 
     def teardown_method(self):
-        """Clean up test fixtures."""
         import shutil
 
         shutil.rmtree(self.temp_dir, ignore_errors=True)
@@ -43,10 +41,8 @@ flowgroups:
         yaml_file = self.temp_dir / "test.yaml"
         yaml_file.write_text(yaml_content)
 
-        # Parse the file
         flowgroups = self.parser.parse_flowgroups_from_file(yaml_file)
 
-        # Should have 2 flowgroups, both with job_name inherited
         assert len(flowgroups) == 2
         assert flowgroups[0].flowgroup == "fg1"
         assert flowgroups[0].job_name == "bronze_job"
@@ -75,10 +71,8 @@ flowgroups:
         yaml_file = self.temp_dir / "test.yaml"
         yaml_file.write_text(yaml_content)
 
-        # Parse the file
         flowgroups = self.parser.parse_flowgroups_from_file(yaml_file)
 
-        # fg1 should inherit bronze_job, fg2 should override with silver_job
         assert len(flowgroups) == 2
         assert flowgroups[0].job_name == "bronze_job"
         assert flowgroups[1].job_name == "silver_job"
@@ -104,19 +98,15 @@ flowgroups:
         yaml_file = self.temp_dir / "test.yaml"
         yaml_file.write_text(yaml_content)
 
-        # Parse the file
         flowgroups = self.parser.parse_flowgroups_from_file(yaml_file)
 
-        # Both should inherit job_name, pipeline, use_template
         assert len(flowgroups) == 2
 
-        # fg1 inherits everything
         assert flowgroups[0].job_name == "bronze_job"
         assert flowgroups[0].pipeline == "test_pipeline"
         assert flowgroups[0].use_template == "test_template"
         assert flowgroups[0].presets == ["bronze_preset"]
 
-        # fg2 inherits job_name, pipeline, use_template but overrides presets
         assert flowgroups[1].job_name == "bronze_job"
         assert flowgroups[1].pipeline == "test_pipeline"
         assert flowgroups[1].use_template == "test_template"

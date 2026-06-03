@@ -80,7 +80,6 @@ def _field_type_str(field: dataclasses.Field) -> str:
 
 
 def _json_round_trip(payload: object) -> object:
-    """Round-trip a JSON-safe payload via ``json.dumps`` / ``json.loads``."""
     return json.loads(json.dumps(payload))
 
 
@@ -91,7 +90,6 @@ def _json_round_trip(payload: object) -> object:
 
 @pytest.fixture
 def issue_view() -> ValidationIssueView:
-    """A fully-populated ValidationIssueView referenced by GenerationResponse."""
     return ValidationIssueView(
         code="LHP-VAL-021",
         category="VAL",
@@ -124,7 +122,6 @@ def generation_response(issue_view: ValidationIssueView) -> GenerationResponse:
 
 @pytest.fixture
 def failed_generation_response(issue_view: ValidationIssueView) -> GenerationResponse:
-    """Failure path — error_code + error view populated."""
     return GenerationResponse(
         success=False,
         generated_filenames=(),
@@ -200,7 +197,6 @@ class TestFrozenContract:
         ],
     )
     def test_dataclass_params_frozen(self, cls: type) -> None:
-        """Every response DTO declares frozen=True on its dataclass."""
         assert dataclasses.is_dataclass(cls), f"{cls.__name__} is not a dataclass"
         params = getattr(cls, "__dataclass_params__", None)
         assert params is not None, f"{cls.__name__} has no __dataclass_params__"
@@ -212,8 +208,6 @@ class TestFrozenContract:
 
 @pytest.mark.unit
 class TestFrozenMutationRaises:
-    """Assigning to a field of a frozen DTO raises FrozenInstanceError."""
-
     def test_generation_response_mutation_raises(
         self, generation_response: GenerationResponse
     ) -> None:
@@ -268,7 +262,6 @@ class TestPickleRoundTrip:
     def test_generation_response_pickle_failure_path(
         self, failed_generation_response: GenerationResponse
     ) -> None:
-        """Pickle preserves the nested ValidationIssueView on failure."""
         restored = pickle.loads(pickle.dumps(failed_generation_response))
         assert restored == failed_generation_response
         assert restored.error is not None
@@ -340,7 +333,6 @@ class TestJSONRoundTripViaFields:
         assert round_tripped == info
 
     def test_generation_response_performance_info_json_round_trip_proxy(self) -> None:
-        # This case exercises Mapping protocol acceptance, not the production default (which is dict).
         info_proxy = MappingProxyType(
             {"duration_s": 1.5, "files": 3, "nested": ("a", "b")}
         )
@@ -352,7 +344,6 @@ class TestJSONRoundTripViaFields:
             output_location=None,
             performance_info=info_proxy,
         )
-        # dict(mappingproxy) returns a fresh dict that json.dumps can serialize.
         round_tripped = _json_round_trip(dict(gen.performance_info))
         # Tuple becomes list through json — that's a JSON-shape invariant.
         assert round_tripped == {
@@ -468,7 +459,6 @@ class TestFieldTypeContract:
         so the bare-word rule applies uniformly.
         """
         for name, annotation in _annotation_strings_for(cls).items():
-            # Skip fields whose annotation is exactly the JSONValue token.
             if annotation in _ALLOWED_ANY_CONTEXTS:
                 continue
             assert "Any" not in annotation, (

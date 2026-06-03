@@ -1,4 +1,4 @@
-"""Python parser utility for extracting table references from Python code."""
+"""Python parser utility for extracting Spark table references from Python code."""
 
 import ast
 import logging
@@ -163,24 +163,10 @@ class _TableExtractor(ast.NodeVisitor):
 
 
 class PythonParser:
-    """Parser for extracting table references from Python code that uses Spark SQL."""
-
     def __init__(self):
         self.logger = logging.getLogger(__name__)
 
     def extract_tables_from_python(self, python_code: str) -> List[str]:
-        """
-        Extract table references from Python code.
-
-        Analyzes Python code for Spark SQL method calls and extracts
-        table references from SQL strings and direct table references.
-
-        Args:
-            python_code: The Python source code string
-
-        Returns:
-            List of table references found in the Python code
-        """
         if not python_code or not isinstance(python_code, str):
             return []
 
@@ -189,12 +175,10 @@ class PythonParser:
         )
         tables = set()
 
-        # Extract SQL queries from spark.sql() and related methods
         sql_queries = self.extract_sql_from_python(python_code)
         for sql_query in sql_queries:
             tables.update(extract_tables_from_sql(sql_query))
 
-        # Extract direct table references from Spark methods
         direct_tables = self._extract_direct_table_references(python_code)
         tables.update(direct_tables)
 
@@ -202,25 +186,9 @@ class PythonParser:
         return sorted(tables)
 
     def extract_sql_from_python(self, python_code: str) -> List[str]:
-        """
-        Extract SQL query strings from Python code.
-
-        Looks for calls to methods that contain SQL queries:
-        - spark.sql()
-        - spark.createGlobalTempView()
-        - spark.createOrReplaceTempView()
-        - df.createOrReplaceTempView()
-
-        Args:
-            python_code: The Python source code string
-
-        Returns:
-            List of SQL query strings found in the code
-        """
         sql_queries = []
 
         try:
-            # Normalize indentation to handle indented code blocks
             normalized_code = self._normalize_python_code(python_code)
             tree = ast.parse(normalized_code)
 
@@ -238,23 +206,8 @@ class PythonParser:
         return sql_queries
 
     def _extract_direct_table_references(self, python_code: str) -> Set[str]:
-        """
-        Extract direct table references from Spark methods.
-
-        Scope-aware traversal: string-literal variable bindings are tracked
-        through the module, function, and class scope stack so that patterns
-        like ``tbl = "cat.sch.t"; spark.read.table(tbl)`` resolve correctly.
-
-        Looks for:
-        - ``spark.table("table_name")`` / ``spark.table(var)``
-        - ``spark.read.table("table_name")`` / ``spark.read.table(var)``
-        - ``spark.catalog.tableExists / dropTempView``
-
-        Args:
-            python_code: The Python source code string
-
-        Returns:
-            Set of table references
+        """Scope-aware traversal: variable bindings are tracked through the scope stack
+        so that patterns like ``tbl = "cat.sch.t"; spark.read.table(tbl)`` resolve correctly.
         """
         try:
             normalized_code = self._normalize_python_code(python_code)
@@ -268,8 +221,6 @@ class PythonParser:
         return extractor.tables
 
     def _extract_sql_from_call(self, node: ast.Call) -> str:
-        """Extract SQL string from a function call node."""
-        # Check for spark.sql() calls
         if (
             isinstance(node.func, ast.Attribute)
             and node.func.attr == "sql"
@@ -277,13 +228,10 @@ class PythonParser:
         ):
             return self._get_string_argument(node, 0)
 
-        # Check for createOrReplaceTempView() calls (they might contain SQL in subqueries)
         if isinstance(node.func, ast.Attribute) and node.func.attr in [
             "createOrReplaceTempView",
             "createGlobalTempView",
         ]:
-            # These methods don't directly contain SQL, but we might want to track them
-            # for completeness in future enhancements
             pass
 
         return None
@@ -301,7 +249,6 @@ class PythonParser:
         multiple possible values when the user reassigns or conditionally
         branches.
         """
-        # spark.table(...)
         if (
             isinstance(node.func, ast.Attribute)
             and node.func.attr == "table"
@@ -309,7 +256,6 @@ class PythonParser:
         ):
             return self._get_string_argument_values(node, 0, name_resolver)
 
-        # spark.read.table(...)
         if (
             isinstance(node.func, ast.Attribute)
             and node.func.attr == "table"
@@ -319,7 +265,6 @@ class PythonParser:
         ):
             return self._get_string_argument_values(node, 0, name_resolver)
 
-        # spark.catalog.<method>(...)
         if (
             isinstance(node.func, ast.Attribute)
             and isinstance(node.func.value, ast.Attribute)
@@ -334,14 +279,10 @@ class PythonParser:
 
     def _is_spark_object(self, node: ast.AST) -> bool:
         """Check if an AST node represents a spark object."""
-        # Direct spark reference: spark
         if isinstance(node, ast.Name) and node.id == "spark":
             return True
-
-        # Attribute access: self.spark, obj.spark
         if isinstance(node, ast.Attribute) and node.attr == "spark":
             return True
-
         return False
 
     def _get_string_argument(
@@ -388,11 +329,9 @@ class PythonParser:
 
         arg = node.args[arg_index]
 
-        # String literal
         if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
             return frozenset({arg.value})
 
-        # f-string
         if isinstance(arg, ast.JoinedStr):
             rendered = self._process_f_string(arg)
             return frozenset({rendered}) if rendered else frozenset()
@@ -415,20 +354,14 @@ class PythonParser:
         return frozenset()
 
     def _process_f_string(self, node: ast.JoinedStr) -> str:
-        """
-        Process an f-string node and return the template string.
-
-        Replaces variable interpolations with placeholders to preserve
-        the overall SQL structure while keeping substitution tokens intact.
-        """
+        """Render an f-string as a template, substituting known schema/catalog variable names
+        with ``{name}`` and collapsing unknown interpolations to ``{var}``."""
         parts = []
 
         for value in node.values:
-            # Handle string constants (ast.Constant available since Python 3.8)
             if isinstance(value, ast.Constant) and isinstance(value.value, str):
                 parts.append(value.value)
             elif isinstance(value, ast.FormattedValue):
-                # For formatted values, try to preserve substitution tokens
                 if isinstance(value.value, ast.Name) and value.value.id in [
                     "catalog",
                     "schema",
@@ -441,23 +374,12 @@ class PythonParser:
                 ]:
                     parts.append(f"{{{value.value.id}}}")
                 else:
-                    # For other variables, use a generic placeholder
                     parts.append("{var}")
 
         return "".join(parts)
 
     def _normalize_python_code(self, python_code: str) -> str:
-        """
-        Normalize Python code by removing common indentation.
-
-        This allows parsing of code blocks that are indented (like in test strings).
-
-        Args:
-            python_code: The Python source code string
-
-        Returns:
-            Normalized Python code with leading indentation removed
-        """
+        """Remove common indentation so indented code blocks (e.g. in test strings) parse cleanly."""
         if not python_code or not isinstance(python_code, str):
             return ""
 
@@ -466,30 +388,11 @@ class PythonParser:
         return textwrap.dedent(python_code).strip()
 
 
-# Convenience functions for direct usage
 def extract_tables_from_python(python_code: str) -> List[str]:
-    """
-    Convenience function to extract table references from Python code.
-
-    Args:
-        python_code: The Python source code string
-
-    Returns:
-        List of table references found in the Python code
-    """
     parser = PythonParser()
     return parser.extract_tables_from_python(python_code)
 
 
 def extract_sql_from_python(python_code: str) -> List[str]:
-    """
-    Convenience function to extract SQL queries from Python code.
-
-    Args:
-        python_code: The Python source code string
-
-    Returns:
-        List of SQL query strings found in the code
-    """
     parser = PythonParser()
     return parser.extract_sql_from_python(python_code)

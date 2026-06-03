@@ -14,9 +14,8 @@ Verifies the behavioral contracts of generate flags:
 - ``--output <dir>`` redirects generated Python output to the given
   path; ``generated/dev/`` stays empty.
 
-Phase 2 invariant: all mutations target the deep-copied tmp project
-(``self.project_root``); no permanent fixtures are added under
-``tests/e2e/fixtures/testing_project/``.
+All mutations target the deep-copied tmp project (``self.project_root``);
+no permanent fixtures are added under ``tests/e2e/fixtures/testing_project/``.
 """
 
 import os
@@ -64,10 +63,6 @@ class TestGenerateFlagsE2E:
             shutil.rmtree(self.resources_dir)
         self.resources_dir.mkdir(parents=True, exist_ok=True)
 
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
     def run_generate(self, *args) -> tuple:
         """Run 'lhp generate' with the given args. Returns (exit_code, output).
 
@@ -90,10 +85,6 @@ class TestGenerateFlagsE2E:
             argv.extend(["--pipeline-config", "config/pipeline_config.yaml"])
         result = runner.invoke(cli, ["generate", *argv])
         return result.exit_code, result.output
-
-    # ------------------------------------------------------------------
-    # Tests
-    # ------------------------------------------------------------------
 
     def test_dry_run_emits_no_python_files(self):
         """``--dry-run`` previews generation without writing .py files."""

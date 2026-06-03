@@ -30,10 +30,6 @@ import pytest
 
 from lhp.api.views import SecretReferenceView, SubstitutionView
 
-# ---------------------------------------------------------------------------
-# Helpers — JSON-shape projections.
-# ---------------------------------------------------------------------------
-
 
 def _secret_to_json_safe_dict(view: SecretReferenceView) -> dict[str, object]:
     return {"scope": view.scope, "key": view.key}
@@ -76,11 +72,6 @@ def _substitution_from_json_safe_dict(
     )
 
 
-# ---------------------------------------------------------------------------
-# Fixtures.
-# ---------------------------------------------------------------------------
-
-
 @pytest.fixture
 def populated_secret_ref() -> SecretReferenceView:
     return SecretReferenceView(scope="my-scope", key="db_password")
@@ -94,7 +85,6 @@ def empty_substitution_view() -> SubstitutionView:
 
 @pytest.fixture
 def populated_substitution_view() -> SubstitutionView:
-    """A fully-populated view: tokens, secrets, default scope."""
     return SubstitutionView(
         env="prod",
         tokens={
@@ -112,11 +102,6 @@ def populated_substitution_view() -> SubstitutionView:
         ),
         default_secret_scope="my-scope",
     )
-
-
-# ---------------------------------------------------------------------------
-# Frozen contract.
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
@@ -159,11 +144,6 @@ class TestFrozenMutationRaises:
             populated_substitution_view.secret_references = ()  # type: ignore[misc]
 
 
-# ---------------------------------------------------------------------------
-# Pickle round-trip.
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.unit
 class TestPickleRoundTrip:
     def test_secret_reference_view_pickles(
@@ -183,11 +163,6 @@ class TestPickleRoundTrip:
     ) -> None:
         restored = pickle.loads(pickle.dumps(populated_substitution_view))
         assert restored == populated_substitution_view
-
-
-# ---------------------------------------------------------------------------
-# JSON round-trip (field-flat projection).
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
@@ -228,11 +203,6 @@ class TestJSONRoundTrip:
         wire = json.loads(json.dumps(projection))
         restored = _substitution_from_json_safe_dict(wire)
         assert restored == empty_substitution_view
-
-
-# ---------------------------------------------------------------------------
-# Field-type contract.
-# ---------------------------------------------------------------------------
 
 
 _BANNED_FIELD_PATTERNS = {
@@ -316,11 +286,6 @@ class TestFieldTypeContract:
         assert not missing, (
             f"SecretReferenceView is missing required fields: {missing}."
         )
-
-
-# ---------------------------------------------------------------------------
-# Public exposure.
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit

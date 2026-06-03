@@ -1,5 +1,3 @@
-"""ConfigValidator -- project-wide configuration aggregator/validator."""
-
 from __future__ import annotations
 
 import logging
@@ -47,16 +45,7 @@ if TYPE_CHECKING:
 
 
 class ConfigValidator:
-    """Validate LakehousePlumber configurations."""
-
     def __init__(self, project_root=None, project_config=None):
-        # Local imports to break the cold-import cycles documented at the
-        # top of this module. ``DependencyResolver`` lives in
-        # ``core.dependencies`` whose ``__init__`` pulls in the discovery /
-        # coordination chain. (``ActionRegistry`` no longer imports
-        # ``lhp.generators`` — generators register into it from the
-        # composition root — so it is decoupled, but kept local here
-        # alongside ``DependencyResolver`` for consistency.)
         from ..dependencies.dependency_resolver import DependencyResolver
         from ..registry import ActionRegistry
 
@@ -67,7 +56,6 @@ class ConfigValidator:
         self.dependency_resolver = DependencyResolver()
         self.field_validator = ConfigFieldValidator()
 
-        # Initialize action validators
         self.load_validator = LoadActionValidator(
             self.action_registry, self.field_validator
         )
@@ -85,17 +73,8 @@ class ConfigValidator:
         )
 
     def validate_flowgroup(self, flowgroup: FlowGroup) -> List[ValidationError]:
-        """Validate flowgroups and actions.
-
-        Args:
-            flowgroup: FlowGroup to validate
-
-        Returns:
-            List of validation errors (strings or LHPError objects)
-        """
         errors = []
 
-        # Validate basic fields
         if not flowgroup.pipeline:
             errors.append("FlowGroup must have a 'pipeline' name")
 
@@ -105,7 +84,6 @@ class ConfigValidator:
         if not flowgroup.actions:
             errors.append("FlowGroup must have at least one action")
 
-        # Validate each action
         action_names = set()
         target_names = set()
 
@@ -113,12 +91,10 @@ class ConfigValidator:
             action_errors = self.validate_action(action, i)
             errors.extend(action_errors)
 
-            # Check for duplicate action names
             if action.name in action_names:
                 errors.append(f"Duplicate action name: '{action.name}'")
             action_names.add(action.name)
 
-            # Check for duplicate target names
             if action.target and action.target in target_names:
                 errors.append(
                     f"Duplicate target name: '{action.target}' in action '{action.name}'"
@@ -126,7 +102,6 @@ class ConfigValidator:
             if action.target:
                 target_names.add(action.target)
 
-        # Validate dependencies
         if flowgroup.actions:
             try:
                 dependency_errors = self.dependency_resolver.validate_relationships(
@@ -140,7 +115,6 @@ class ConfigValidator:
                 logger.debug(f"Dependency validation error: {e}")
                 errors.append(str(e))
 
-        # Validate template usage
         if flowgroup.use_template and not flowgroup.template_parameters:
             self.logger.warning(
                 f"FlowGroup uses template '{flowgroup.use_template}' but no parameters provided"
@@ -149,19 +123,9 @@ class ConfigValidator:
         return errors
 
     def validate_action(self, action: Action, index: int) -> List[ValidationError]:
-        """Validate action types and required fields.
-
-        Args:
-            action: Action to validate
-            index: Action index in the flowgroup
-
-        Returns:
-            List of validation errors (strings or LHPError objects)
-        """
         errors = []
         prefix = f"Action[{index}] '{action.name}'"
 
-        # Basic validation
         if not action.name:
             errors.append(f"Action[{index}]: Missing 'name' field")
             return errors  # Can't continue without name
@@ -170,7 +134,6 @@ class ConfigValidator:
             errors.append(f"{prefix}: Missing 'type' field")
             return errors  # Can't continue without type
 
-        # Strict field validation - validate action-level fields
         try:
             action_dict = action.model_dump()
             self.field_validator.validate_action_fields(action_dict, action.name)
@@ -181,7 +144,6 @@ class ConfigValidator:
             errors.append(str(e))
             return errors
 
-        # Type-specific validation using action validators
         if action.type == ActionType.LOAD:
             errors.extend(self.load_validator.validate(action, prefix))
 
@@ -202,19 +164,10 @@ class ConfigValidator:
     def validate_duplicate_pipeline_flowgroup(
         self, flowgroups: List[FlowGroup]
     ) -> List[str]:
-        """Validate that there are no duplicate pipeline+flowgroup combinations.
-
-        Args:
-            flowgroups: List of all flowgroups to validate
-
-        Returns:
-            List of validation error messages
-        """
         errors = []
         seen_combinations = set()
 
         for flowgroup in flowgroups:
-            # Create a unique key from pipeline and flowgroup
             combination_key = f"{flowgroup.pipeline}.{flowgroup.flowgroup}"
 
             if combination_key in seen_combinations:

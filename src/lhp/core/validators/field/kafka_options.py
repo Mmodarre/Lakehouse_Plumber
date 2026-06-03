@@ -6,9 +6,7 @@ from ....errors import ErrorFactory, codes
 
 
 class KafkaOptionsValidator:
-    """Validate Kafka and Event Hubs options for both sources and sinks."""
-
-    # Known kafka options (from Databricks Kafka connector documentation)
+    # From Databricks Kafka connector documentation.
     KNOWN_KAFKA_OPTIONS = {
         "bootstrap.servers",
         "group.id",
@@ -68,7 +66,6 @@ class KafkaOptionsValidator:
         "client.rack",
     }
 
-    # Source-only options (for subscription methods and reading)
     SOURCE_ONLY_OPTIONS = {
         "subscribe",
         "subscribePattern",
@@ -81,18 +78,12 @@ class KafkaOptionsValidator:
         "includeHeaders",
     }
 
-    # Sink-only options (for writing)
     SINK_ONLY_OPTIONS = {
         "topic",  # Sinks use single topic, sources use subscribe/subscribePattern/assign
     }
 
     @staticmethod
     def validate_msk_iam_auth(options: Dict[str, Any], action_name: str) -> None:
-        """Validate AWS MSK IAM authentication configuration.
-
-        Raises:
-            ValueError: If required MSK IAM options are missing
-        """
         if options.get("kafka.sasl.mechanism") == "AWS_MSK_IAM":
             required_msk_options = {
                 "kafka.sasl.jaas.config",
@@ -118,11 +109,6 @@ class KafkaOptionsValidator:
 
     @staticmethod
     def validate_event_hubs_oauth(options: Dict[str, Any], action_name: str) -> None:
-        """Validate Azure Event Hubs OAuth configuration.
-
-        Raises:
-            ValueError: If required OAuth options are missing
-        """
         if options.get("kafka.sasl.mechanism") == "OAUTHBEARER":
             required_oauth_options = {
                 "kafka.sasl.jaas.config",
@@ -151,20 +137,7 @@ class KafkaOptionsValidator:
     def process_options(
         cls, options: Dict[str, Any], action_name: str, is_source: bool = True
     ) -> Dict[str, Any]:
-        """Process and validate Kafka options.
-
-        Args:
-            options: Options dictionary from YAML
-            action_name: Name of the action for error messages
-            is_source: True for sources (subscribe/subscribePattern/assign allowed),
-                      False for sinks (topic allowed)
-
-        Returns:
-            Processed options dictionary
-
-        Raises:
-            ValueError: If invalid options are found
-        """
+        """Validate Kafka options. is_source=True allows subscribe/subscribePattern/assign; False allows topic."""
         processed_options = {}
 
         allowed_special = (
@@ -172,9 +145,7 @@ class KafkaOptionsValidator:
         )
 
         for key, value in options.items():
-            # Check if this looks like a kafka option without prefix
             if not key.startswith("kafka.") and key not in allowed_special:
-                # Check if it's a known kafka option that should have prefix
                 if key in cls.KNOWN_KAFKA_OPTIONS:
                     raise ErrorFactory.configuration_conflict(
                         action_name=action_name,
@@ -182,7 +153,6 @@ class KafkaOptionsValidator:
                         preset_name=None,
                     )
 
-            # Preserve original type for all options
             processed_options[key] = value
 
         if processed_options.get("kafka.sasl.mechanism") == "AWS_MSK_IAM":

@@ -85,9 +85,7 @@ class TestTestActionValidation:
 
         action = Action(name="test_default", type=ActionType.TEST, source="test_table")
 
-        # Missing test_type should either default or produce error
         errors = validator.validate_action(action, 0)
-        # Based on current implementation, it should require test_type
         assert len(errors) > 0, "Missing test_type should produce validation error"
         assert any("test_type" in error.lower() for error in errors)
 

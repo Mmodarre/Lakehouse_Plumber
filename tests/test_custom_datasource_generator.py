@@ -9,11 +9,7 @@ from lhp.models import Action, ActionType, FlowGroup
 
 
 class TestCustomDataSourceGenerator:
-    """Test the custom data source load generator."""
-
     def test_basic_generation_no_parameters(self, tmp_path):
-        """Test basic generation with no parameters."""
-        # Create a simple custom data source file
         custom_source_file = tmp_path / "test_source.py"
         custom_source_file.write_text("""
 from pyspark.sql.datasource import DataSource, DataSourceReader
@@ -42,24 +38,20 @@ class TestDataSourceReader(DataSourceReader):
 spark.dataSource.register(TestDataSource)
 """)
 
-        # Create action
         action = Action(
             name="test_load",
             type=ActionType.LOAD,
             target="v_test_data",
             readMode="stream",
         )
-        # Set source configuration (new structure)
         action.source = {
             "type": "custom_datasource",
             "module_path": str(custom_source_file.relative_to(tmp_path)),
             "custom_datasource_class": "TestDataSource",
         }
 
-        # Create generator
         generator = CustomDataSourceLoadGenerator()
 
-        # Create context
         context = {
             "spec_dir": tmp_path,
             "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
@@ -67,7 +59,6 @@ spark.dataSource.register(TestDataSource)
             "project_config": None,
         }
 
-        # Generate code
         result = generator.generate(action, context)
 
         # Verify format is correct (uses name() method, not class name)
@@ -91,8 +82,6 @@ spark.dataSource.register(TestDataSource)
         ]
 
     def test_generation_with_parameters(self, tmp_path):
-        """Test generation with parameters."""
-        # Create a simple custom data source file
         custom_source_file = tmp_path / "api_source.py"
         custom_source_file.write_text("""
 class APIDataSource(DataSource):
@@ -101,14 +90,12 @@ class APIDataSource(DataSource):
         return "api_datasource"
 """)
 
-        # Create action with parameters
         action = Action(
             name="test_api_load",
             type=ActionType.LOAD,
             target="v_api_data",
             readMode="batch",
         )
-        # Set source configuration with options (new structure)
         action.source = {
             "type": "custom_datasource",
             "module_path": str(custom_source_file.relative_to(tmp_path)),
@@ -122,10 +109,8 @@ class APIDataSource(DataSource):
             },
         }
 
-        # Create generator
         generator = CustomDataSourceLoadGenerator()
 
-        # Create context
         context = {
             "spec_dir": tmp_path,
             "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
@@ -133,7 +118,6 @@ class APIDataSource(DataSource):
             "project_config": None,
         }
 
-        # Generate code
         result = generator.generate(action, context)
 
         # Verify format is correct (uses name() method, not class name)
@@ -149,9 +133,7 @@ class APIDataSource(DataSource):
         assert "spark.readStream" not in result
 
     def test_missing_module_path_error(self):
-        """Test error when module_path is missing."""
         action = Action(name="test_load", type=ActionType.LOAD, target="v_test_data")
-        # Set source with missing module_path
         action.source = {
             "type": "custom_datasource",
             "custom_datasource_class": "TestDataSource",
@@ -166,12 +148,10 @@ class APIDataSource(DataSource):
         assert "module_path" in str(exc_info.value)
 
     def test_missing_custom_datasource_class_error(self, tmp_path):
-        """Test error when custom_datasource_class is missing."""
         custom_source_file = tmp_path / "test_source.py"
         custom_source_file.write_text("# test file")
 
         action = Action(name="test_load", type=ActionType.LOAD, target="v_test_data")
-        # Set source with missing custom_datasource_class
         action.source = {
             "type": "custom_datasource",
             "module_path": str(custom_source_file.relative_to(tmp_path)),
@@ -186,9 +166,7 @@ class APIDataSource(DataSource):
         assert "custom_datasource_class" in str(exc_info.value)
 
     def test_missing_file_error(self, tmp_path):
-        """Test error when module file doesn't exist."""
         action = Action(name="test_load", type=ActionType.LOAD, target="v_test_data")
-        # Set source with nonexistent file
         action.source = {
             "type": "custom_datasource",
             "module_path": "nonexistent_file.py",
@@ -204,7 +182,6 @@ class APIDataSource(DataSource):
         assert "Custom data source file not found" in str(exc_info.value)
 
     def test_values_with_quotes_escaped(self, tmp_path):
-        """Test that option values containing quotes are properly escaped."""
         custom_source_file = tmp_path / "test_source.py"
         custom_source_file.write_text("""
 class TestDataSource(DataSource):
@@ -246,7 +223,6 @@ class TestDataSource(DataSource):
         compile(result, "<string>", "exec")
 
     def test_values_with_backslashes_escaped(self, tmp_path):
-        """Test that option values containing backslashes are properly escaped."""
         custom_source_file = tmp_path / "test_source.py"
         custom_source_file.write_text("""
 class TestDataSource(DataSource):
@@ -292,7 +268,6 @@ class TestDataSource(DataSource):
         warnings.simplefilter("default", SyntaxWarning)
 
     def test_json_config_with_quotes(self, tmp_path):
-        """Test JSON configuration strings with quotes."""
         custom_source_file = tmp_path / "api_source.py"
         custom_source_file.write_text("""
 class APIDataSource(DataSource):
@@ -427,15 +402,8 @@ class FutureDataSource(DataSource):
         assert "from __future__" not in copied
 
 
-# ============================================================================
-# Golden Output Tests
-# ============================================================================
-
-
 @pytest.mark.unit
 class TestCustomDataSourceGoldenOutput:
-    """Golden output test for CustomDataSource load generator."""
-
     def test_custom_datasource_golden(self, golden, tmp_path):
         custom_source_file = tmp_path / "test_source.py"
         custom_source_file.write_text(
@@ -490,12 +458,7 @@ class TestCustomDataSourceGoldenOutput:
 
 @pytest.mark.unit
 class TestCustomDataSourceCopyAndImportInvariants:
-    """Cross-action invariants for the copy-and-import pattern.
-
-    These tests verify the architectural guarantees of the refactor:
-    boilerplate dedup across multiple custom actions in one flowgroup,
-    and clear errors on class-name collisions.
-    """
+    """Cross-action invariants: boilerplate dedup across multiple custom actions and class-name collision detection."""
 
     @staticmethod
     def _write_source(path, class_name, format_name):

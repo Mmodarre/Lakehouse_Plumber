@@ -1,5 +1,5 @@
-"""Integration (§-S4 parse-once guard for Phase 2): each pipeline YAML file is
-physically read+parsed EXACTLY ONCE per ``discover_all_flowgroups()`` call.
+"""Integration parse-once guard: each pipeline YAML file is physically
+read+parsed EXACTLY ONCE per ``discover_all_flowgroups()`` call.
 
 Discovery runs two passes that both glob and load every file matching
 ``pipelines/**/*.yaml``:
@@ -15,13 +15,6 @@ Discovery runs two passes that both glob and load every file matching
      then skips the non-instance ones -> ``_load_documents`` ->
      the same shared ``CachingYAMLParser.load_documents_all``.
 
-Before T6/T7 the instance pass re-read every file from disk (physical read
-count 2 per file). T6/T7 introduced the shared ``CachingYAMLParser`` and its
-mtime-keyed ``_documents_cache``: the flowgroup pass populates it on a miss and
-the instance pass hits it, collapsing the read to count 1. T7 proved that 2->1
-reduction for a single file; this module makes it a permanent regression guard
-over a real multi-file project.
-
 Spy target (§8.8 — spy a real boundary, do not fake what we own): the physical
 read is :func:`lhp.parsers.yaml_loader.load_yaml_documents_all`. It is patched
 ``wraps=`` the real function so genuine parsing still happens and we can count
@@ -35,11 +28,11 @@ separate name there at import time). Patching only the definition site leaves
 that global pointing at the original and the spy records ZERO calls — i.e. the
 non-empty assertion below would catch a mis-aimed patch as a vacuous test.
 
-Simplification (sanctioned by the task): this uses a pure-FlowGroup project
-rather than a real blueprint+instance pair. Both discovery passes already glob
-and load every ``pipelines/**/*.yaml`` file regardless of its shape (the
-instance pass must read each one to classify it), so the parse-once assertion is
-exercised identically without the fiddle of constructing a valid blueprint.
+A pure-FlowGroup project is used rather than a real blueprint+instance pair.
+Both discovery passes already glob and load every ``pipelines/**/*.yaml`` file
+regardless of its shape (the instance pass must read each one to classify it),
+so the parse-once assertion is exercised identically without constructing a
+valid blueprint.
 
 :stability: provisional
 """
@@ -65,13 +58,10 @@ _PIPELINE_LAYOUT = {
 def _build_multi_flowgroup_project(tmpdir: Path) -> Path:
     """Build a minimal LHP project with several regular FlowGroup files.
 
-    Mirrors the ``tmp_path`` construction idiom in
-    ``tests/core/discovery/test_orphan_instance.py`` and
-    ``tests/core/coordination/test_bootstrap_discovery_memo.py``
-    (presets/, templates/, substitutions/dev.yaml). Lays down >=3 flowgroup
-    files spread across two pipeline subdirectories so both discovery passes
-    have several files to glob and load. No ``lhp.yaml`` is written, so the
-    default ``include = ['pipelines/**/*.yaml']`` glob discovers them all.
+    Lays down >=3 flowgroup files spread across two pipeline subdirectories so
+    both discovery passes have several files to glob and load. No ``lhp.yaml``
+    is written, so the default ``include = ['pipelines/**/*.yaml']`` glob
+    discovers them all.
     """
     project_root = Path(tmpdir)
     project_root.mkdir(parents=True, exist_ok=True)
@@ -159,7 +149,6 @@ def test_each_pipeline_file_parsed_exactly_once(tmp_path):
     """
     project_root = _build_multi_flowgroup_project(tmp_path / "parse_once_project")
     expected_keys = _expected_pipeline_yaml_keys(project_root)
-    # Sanity: the project really has >=3 pipeline YAML files across two dirs.
     assert len(expected_keys) >= 3
 
     real_load_yaml_documents_all = yaml_parser_module.load_yaml_documents_all
@@ -180,10 +169,8 @@ def test_each_pipeline_file_parsed_exactly_once(tmp_path):
     ):
         flowgroups = orchestrator.bootstrap.discover_all_flowgroups()
 
-    # Real wiring ran end-to-end: every flowgroup file produced a flowgroup.
     assert len(flowgroups) == len(expected_keys), flowgroups
 
-    # Non-vacuous: the spy actually captured the reads.
     assert read_counter, (
         "The load spy captured zero reads. The patch target "
         "(lhp.parsers.yaml_parser.load_yaml_documents_all) is no longer on the "
@@ -195,7 +182,6 @@ def test_each_pipeline_file_parsed_exactly_once(tmp_path):
         "read per file."
     )
 
-    # Parse-once: every pipeline file present, each read exactly once.
     missing = expected_keys - set(read_counter)
     assert not missing, f"Pipeline file(s) never read during discovery: {missing}"
 
@@ -213,10 +199,8 @@ def test_each_pipeline_file_parsed_exactly_once(tmp_path):
 def _build_n_flowgroup_project(tmpdir: Path, n: int) -> Path:
     """Build an LHP project with exactly ``n`` regular FlowGroup files.
 
-    Same idiom as :func:`_build_multi_flowgroup_project` (presets/, templates/,
-    substitutions/dev.yaml, default ``pipelines/**/*.yaml`` glob), but lays down
-    a parameterized count of files in a single pipeline subdirectory so the
-    discovery working set can be made to exceed a small cache cap cheaply.
+    Lays down a parameterized count of files in a single pipeline subdirectory
+    so the discovery working set can be made to exceed a small cache cap cheaply.
     """
     project_root = Path(tmpdir)
     project_root.mkdir(parents=True, exist_ok=True)

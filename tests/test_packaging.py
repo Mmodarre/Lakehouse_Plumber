@@ -21,7 +21,6 @@ REPO = pathlib.Path(__file__).resolve().parent.parent
 
 
 def _tracked_template_files() -> set[str]:
-    """Return the set of ``lhp/templates/...`` wheel paths that git tracks."""
     result = subprocess.run(
         ["git", "ls-files", "src/lhp/templates"],
         cwd=REPO,
@@ -40,7 +39,6 @@ def _tracked_template_files() -> set[str]:
 
 @pytest.mark.slow
 def test_wheel_contains_every_template_file(tmp_path: pathlib.Path) -> None:
-    """Every git-tracked file under src/lhp/templates/ must appear in the built wheel."""
     subprocess.run(
         [sys.executable, "-m", "build", "--wheel", "--outdir", str(tmp_path)],
         cwd=REPO,
@@ -65,12 +63,7 @@ def test_wheel_contains_every_template_file(tmp_path: pathlib.Path) -> None:
 
 
 def test_py_typed_marker_ships_with_package() -> None:
-    """PEP 561 marker ``lhp/py.typed`` must ship with the installed package.
-
-    Without it, mypy/pyright treat the package as untyped even though
-    every public symbol is annotated. Required by constitution §1.13 +
-    TARGET §8.
-    """
+    """Without py.typed, mypy/pyright treat the package as untyped. Required by §1.13 + TARGET §8."""
     import importlib.resources
 
     assert importlib.resources.files("lhp").joinpath("py.typed").is_file()

@@ -51,7 +51,6 @@ class TestReadMode:
         code = generator.generate(action, {})
         assert "spark.readStream" in code
 
-        # Should fail with batch mode
         action_batch = Action(
             name="cf_load_batch",
             type=ActionType.LOAD,
@@ -90,7 +89,6 @@ class TestReadMode:
         code = generator.generate(action, {"spec_dir": Path(expectations_file).parent})
         assert "spark.readStream.table" in code
 
-        # Should fail with batch mode
         action_batch = Action(
             name="dq_check_batch",
             type=ActionType.TRANSFORM,
@@ -132,7 +130,6 @@ class TestReadMode:
         assert "spark.read.table" in code
         assert "spark.readStream" not in code
 
-        # Test stream mode
         action_stream = Action(
             name="delta_stream",
             type=ActionType.LOAD,
@@ -323,15 +320,10 @@ environment:
   schema: dev_schema
 """)
 
-            # Generate code (output_dir required to read back content for
-            # assertions; payload diet stripped content from the return).
+            # output_dir required to read back content for assertions.
             output_dir = project_root / "generated"
             orchestrator = build_facade_orchestrator(project_root)
-            # Single-pipeline generation now goes through the consolidated
-            # ``generate_pipelines`` (a generator since E3); the per-field helper
-            # ``generate_pipeline_by_field`` was removed. A single pipeline is
-            # selected via the keyword-only ``pipeline_filter``. Drain the
-            # generator so the commit step actually writes the files read below.
+            # Drain the generator so the commit step actually writes the files read below.
             list(
                 orchestrator.generate_pipelines(
                     pipeline_filter="test_pipeline",
@@ -340,14 +332,11 @@ environment:
                 )
             )
 
-            # Get the generated code for test_flow
             test_flow = output_dir / "test_pipeline" / "test_flow.py"
             generated_code = test_flow.read_text() if test_flow.exists() else ""
 
-            # Find the sections
             lines = generated_code.split("\n")
 
-            # Check that load action uses batch mode
             load_section_found = False
             transform_section_found = False
 
@@ -407,7 +396,6 @@ environment:
             {"flowgroup": FlowGroup(pipeline="test", flowgroup="test", actions=[])},
         )
 
-        # Should use spark.readStream by default
         assert "spark.readStream.table" in code
         assert "spark.read.table" not in code or code.count("spark.read.table") == 0
 
@@ -434,7 +422,6 @@ environment:
             {"flowgroup": FlowGroup(pipeline="test", flowgroup="test", actions=[])},
         )
 
-        # Should use spark.readStream
         assert "spark.readStream.table" in code
 
     def test_streaming_table_batch_readmode(self):
@@ -460,7 +447,6 @@ environment:
             {"flowgroup": FlowGroup(pipeline="test", flowgroup="test", actions=[])},
         )
 
-        # Should use spark.read
         assert "spark.read.table" in code
         assert "spark.readStream" not in code
 
@@ -488,9 +474,7 @@ environment:
             {"flowgroup": FlowGroup(pipeline="test", flowgroup="test", actions=[])},
         )
 
-        # Should use spark.readStream (default readMode)
         assert "spark.readStream.table" in code
-        # Should have once=True in decorator
         assert "once=True" in code
 
     def test_streaming_table_once_flag_with_batch_readmode(self):
@@ -517,10 +501,8 @@ environment:
             {"flowgroup": FlowGroup(pipeline="test", flowgroup="test", actions=[])},
         )
 
-        # Should use spark.read (explicit readMode: batch)
         assert "spark.read.table" in code
         assert "spark.readStream" not in code
-        # Should have once=True in decorator
         assert "once=True" in code
 
     def test_streaming_table_once_false_with_batch_readmode(self):
@@ -547,7 +529,6 @@ environment:
             {"flowgroup": FlowGroup(pipeline="test", flowgroup="test", actions=[])},
         )
 
-        # Should use spark.read (explicit readMode: batch)
         assert "spark.read.table" in code
         assert "spark.readStream" not in code
 

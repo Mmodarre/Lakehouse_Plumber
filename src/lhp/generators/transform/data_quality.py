@@ -16,19 +16,15 @@ logger = logging.getLogger(__name__)
 
 
 class DataQualityTransformGenerator(BaseActionGenerator):
-    """Generate data quality transformation actions."""
-
     def __init__(self):
         super().__init__()
         self.add_import("from pyspark import pipelines as dp")
         self.dqe_parser = DQEParser()
 
     def generate(self, action: Action, flowgroup_config: Dict[str, Any]) -> str:
-        """Generate data quality transform code."""
         logger.debug(
             f"Generating data quality transform for target '{action.target}', action '{action.name}'"
         )
-        # Data quality transforms require stream mode
         readMode = action.readMode or "stream"
         if readMode != "stream":
             raise ErrorFactory.invalid_read_mode(
@@ -38,7 +34,6 @@ class DataQualityTransformGenerator(BaseActionGenerator):
                 valid_modes=["stream"],
             )
 
-        # Read expectations from file
         expectations_file = action.expectations_file
         if not expectations_file:
             raise ErrorFactory.missing_required_field(
@@ -62,7 +57,6 @@ class DataQualityTransformGenerator(BaseActionGenerator):
             f"Data quality '{action.name}': {total_rules} expectation rules loaded, source='{self._extract_source_view(action.source)}'"
         )
 
-        # Check mode — dispatch to quarantine helper or existing DQE logic
         dq_mode = getattr(action, "mode", None) or "dqe"
 
         if dq_mode == "quarantine":
@@ -74,10 +68,8 @@ class DataQualityTransformGenerator(BaseActionGenerator):
     def _generate_dqe_mode(
         self, action: Action, expectations, flowgroup_config: Dict[str, Any]
     ) -> str:
-        """Generate standard DQE mode code (existing behavior)."""
         readMode = action.readMode or "stream"
 
-        # Parse expectations based on format
         if expectations and isinstance(expectations, list):
             # Old format: list of dicts with constraint/type fields
             expect_all, expect_all_or_drop, expect_all_or_fail = (
@@ -103,10 +95,8 @@ class DataQualityTransformGenerator(BaseActionGenerator):
                 else:  # warn or default
                     warn_expectations[name] = constraint
 
-        # Extract source view
         source_view = self._extract_source_view(action.source)
 
-        # Handle operational metadata
         add_operational_metadata, metadata_columns = self._get_operational_metadata(
             action, flowgroup_config
         )
@@ -221,7 +211,6 @@ class DataQualityTransformGenerator(BaseActionGenerator):
         )
 
     def _extract_source_view(self, source) -> str:
-        """Extract source view name from source configuration."""
         if isinstance(source, str):
             return source
         if isinstance(source, dict):
@@ -229,16 +218,13 @@ class DataQualityTransformGenerator(BaseActionGenerator):
         return ""
 
     def _load_expectations(self, action: Action, spec_dir: Path | None = None) -> List:
-        """Load expectations from action configuration."""
         # Check if action has expectations as an attribute (from test)
         if hasattr(action, "expectations") and action.expectations:
             return action.expectations
 
-        # Check if source is a dict with expectations
         if isinstance(action.source, dict) and "expectations" in action.source:
             return action.source["expectations"]
 
-        # Check for expectations_file
         expectations_file = None
         if hasattr(action, "expectations_file"):
             expectations_file = action.expectations_file
@@ -246,7 +232,6 @@ class DataQualityTransformGenerator(BaseActionGenerator):
             expectations_file = action.source["expectations_file"]
 
         if expectations_file:
-            # Use common utility for path resolution
             from ...parsers.yaml_loader import load_yaml_file
 
             project_root = spec_dir or Path.cwd()
@@ -259,15 +244,13 @@ class DataQualityTransformGenerator(BaseActionGenerator):
                 resolved_path, error_context="data quality expectations file"
             )
 
-            # Handle different formats
             if isinstance(data, dict):
-                # Check if it has 'expectations' key (old format)
+                # Old format: dict with 'expectations' key
                 if "expectations" in data:
                     return data["expectations"]
-                # New format: direct dictionary of constraints
+                # New format: direct dict of constraints
                 return data
             if isinstance(data, list):
-                # Direct list of expectations
                 return data
             logger.warning(
                 f"Expectations file '{expectations_file}' has unexpected format "
@@ -275,5 +258,4 @@ class DataQualityTransformGenerator(BaseActionGenerator):
                 "proceeding with empty expectations"
             )
 
-        # No expectations_file configured — return empty
         return {}

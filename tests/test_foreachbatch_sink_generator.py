@@ -24,14 +24,12 @@ class TestForEachBatchSinkWriteGenerator:
     """Test ForEachBatch sink write generator."""
 
     def setup_method(self):
-        """Set up test fixtures."""
         self.generator = ForEachBatchSinkWriteGenerator()
         self.temp_dir = Path(tempfile.mkdtemp())
         self.project_root = self.temp_dir / "test_project"
         self.project_root.mkdir()
 
     def teardown_method(self):
-        """Clean up test environment."""
         shutil.rmtree(self.temp_dir)
 
     def test_generate_with_module_path(self):
@@ -60,15 +58,12 @@ class TestForEachBatchSinkWriteGenerator:
 
         code = self.generator.generate(action, context)
 
-        # Check for decorator
         assert "@dp.foreach_batch_sink" in code
         assert 'name="my_batch_sink"' in code
 
-        # Check for function body
         assert "df.write.format('delta')" in code
         assert "saveAsTable('target')" in code
 
-        # Check for append_flow
         assert "@dp.append_flow" in code
         assert 'target="my_batch_sink"' in code
         assert "f_my_batch_sink_1" in code
@@ -91,15 +86,12 @@ class TestForEachBatchSinkWriteGenerator:
 
         code = self.generator.generate(action, context)
 
-        # Check for decorator
         assert "@dp.foreach_batch_sink" in code
         assert 'name="inline_sink"' in code
 
-        # Check for inline code
         assert "df.write.format('delta')" in code
         assert "saveAsTable('target_table')" in code
 
-        # Check for append_flow
         assert "@dp.append_flow" in code
         assert 'target="inline_sink"' in code
 
@@ -179,7 +171,6 @@ class TestForEachBatchSinkWriteGenerator:
 
         code = self.generator.generate(action, context)
 
-        # Should have metadata column
         assert "withColumn" in code
         assert "_ingestion_timestamp" in code
 
@@ -199,7 +190,6 @@ class TestForEachBatchSinkWriteGenerator:
 
         code = self.generator.generate(action, {})
 
-        # Should not have metadata columns
         assert "Add operational metadata" not in code
 
     def test_generate_function_signature(self):
@@ -218,7 +208,6 @@ class TestForEachBatchSinkWriteGenerator:
 
         code = self.generator.generate(action, {})
 
-        # Check signature
         assert "def my_sink(df, batch_id):" in code
 
     def test_generate_return_statement(self):
@@ -237,9 +226,8 @@ class TestForEachBatchSinkWriteGenerator:
 
         code = self.generator.generate(action, {})
 
-        # Should have return statement
         assert "return" in code
-        # Return should be after the batch handler code
+        # Return must follow the batch handler body, not precede it.
         assert code.index("saveAsTable") < code.index("return")
 
     def test_generate_docstring(self):
@@ -258,7 +246,6 @@ class TestForEachBatchSinkWriteGenerator:
 
         code = self.generator.generate(action, {})
 
-        # Should have docstring
         assert '"""ForEachBatch sink: my_action"""' in code
 
     def test_generate_file_not_found(self):
@@ -313,7 +300,6 @@ class TestForEachBatchSinkWriteGenerator:
 
         code = self.generator.generate(action, context)
 
-        # Token should be replaced
         assert "catalog.schema.my_table" in code
         assert "${target_table}" not in code
 
@@ -343,7 +329,6 @@ df.write.format("delta").save("${backup_path}")""",
 
         code = self.generator.generate(action, context)
 
-        # Tokens should be replaced
         assert "catalog.bronze.events" in code
         assert "/mnt/backup/events" in code
         assert "${events_table}" not in code
@@ -366,7 +351,6 @@ df.write.format("delta").save("${backup_path}")""",
 
         code = self.generator.generate(action, {})
 
-        # Description should appear in docstring
         assert "Custom batch processing logic" in code or "test_action" in code
 
     def test_generate_imports(self):
@@ -385,7 +369,6 @@ df.write.format("delta").save("${backup_path}")""",
 
         self.generator.generate(action, {})
 
-        # Check imports via import manager
         imports = self.generator.get_import_manager().get_consolidated_imports()
         assert "from pyspark import pipelines as dp" in imports
 
@@ -405,13 +388,10 @@ df.write.format("delta").save("${backup_path}")""",
 
         code = self.generator.generate(action, {})
 
-        # Code should be valid Python (basic check)
         assert "def " in code
-        assert "    " in code  # Should have indentation
-        # Function body should be indented
+        assert "    " in code
         lines = code.split("\n")
         func_line_idx = next(i for i, line in enumerate(lines) if "def " in line)
-        # Next non-empty line should be indented
         next_line = lines[func_line_idx + 1]
         assert next_line.startswith("    ")
 
@@ -444,7 +424,6 @@ df.write.format("delta").save("${backup_path}")""",
                 "type": "sink",
                 "sink_type": "foreachbatch",
                 "sink_name": "test_sink",
-                # Missing both module_path and batch_handler
             },
         )
 
@@ -460,7 +439,6 @@ df.write.format("delta").save("${backup_path}")""",
         action = Action(
             name="test_action",
             type=ActionType.WRITE,
-            # Missing source
             write_target={
                 "type": "sink",
                 "sink_type": "foreachbatch",
@@ -479,7 +457,7 @@ df.write.format("delta").save("${backup_path}")""",
         action = Action(
             name="test_action",
             type=ActionType.WRITE,
-            source=["v_source1", "v_source2"],  # List instead of string
+            source=["v_source1", "v_source2"],
             write_target={
                 "type": "sink",
                 "sink_type": "foreachbatch",
@@ -508,7 +486,6 @@ class TestSinkWriteGeneratorDispatcher:
         self.project_root.mkdir()
 
     def teardown_method(self):
-        """Clean up test environment."""
         shutil.rmtree(self.temp_dir)
 
     def test_dispatch_to_foreachbatch(self):
@@ -532,11 +509,6 @@ class TestSinkWriteGeneratorDispatcher:
     def test_foreachbatch_in_generators_dict(self):
         """Test that foreachbatch is registered in dispatcher."""
         assert "foreachbatch" in self.generator.generators
-
-
-# ============================================================================
-# Golden Output Tests
-# ============================================================================
 
 
 @pytest.mark.unit

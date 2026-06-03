@@ -15,7 +15,6 @@ class TestCLIComprehensive:
 
     @pytest.fixture
     def runner(self):
-        """Create CLI runner."""
         return CliRunner()
 
     @pytest.fixture
@@ -24,7 +23,6 @@ class TestCLIComprehensive:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
 
-            # Create full project structure
             directories = [
                 "presets",
                 "templates",
@@ -38,14 +36,12 @@ class TestCLIComprehensive:
             for dir_name in directories:
                 (project_root / dir_name).mkdir(parents=True)
 
-            # Create project config
             (project_root / "lhp.yaml").write_text("""
 name: test_cli_project
 version: "1.0"
 description: "Test project for CLI"
 """)
 
-            # Create basic presets
             (project_root / "presets" / "bronze_layer.yaml").write_text("""
 name: bronze_layer
 version: "1.0"
@@ -55,7 +51,6 @@ defaults:
     quality: "bronze"
 """)
 
-            # Create basic template
             (project_root / "templates" / "basic_ingestion.yaml").write_text("""
 name: basic_ingestion
 version: "1.0"
@@ -82,7 +77,6 @@ actions:
       create_table: true
 """)
 
-            # Create substitutions
             (project_root / "substitutions" / "dev.yaml").write_text("""
 dev:
   env: dev
@@ -107,7 +101,6 @@ secrets:
     database: prod_db_secrets
 """)
 
-            # Create sample pipeline
             pipeline_dir = project_root / "pipelines" / "test_pipeline"
             pipeline_dir.mkdir(parents=True)
 
@@ -144,7 +137,6 @@ actions:
     def test_validate_command_success(self, runner, temp_project):
         """Test validate command with valid configuration."""
         with runner.isolated_filesystem():
-            # Change to project directory
             import os
 
             os.chdir(str(temp_project))
@@ -206,7 +198,6 @@ actions: []
 
             assert result.exit_code == 0
 
-            # Check generated files
             generated_file = (
                 temp_project
                 / "generated"
@@ -216,7 +207,6 @@ actions: []
             )
             assert generated_file.exists()
 
-            # Verify generated code content
             code = generated_file.read_text()
             assert "from pyspark import pipelines as dp" in code
             assert "@dp.temporary_view()" in code
@@ -235,7 +225,6 @@ actions: []
 
             assert result.exit_code == 0
 
-            # Check it used prod substitutions
             generated_file = (
                 temp_project
                 / "generated"
@@ -349,12 +338,10 @@ actions:
 
             os.chdir(str(temp_project))
 
-            # Validate should include secret validation
             result = runner.invoke(
                 cli, ["validate", "--env", "dev", "--pipeline", "secret_pipeline"]
             )
 
-            # Validation should pass (we have database scope configured)
             assert result.exit_code == 0
 
     def test_no_project_root(self, runner):
@@ -362,7 +349,6 @@ actions:
         from lhp.cli.exit_codes import ExitCode
 
         with runner.isolated_filesystem():
-            # Try to validate without being in a project
             result = runner.invoke(cli, ["validate"])
 
             # LHP-CFG-011 raised by _ensure_project_root.
@@ -380,8 +366,6 @@ actions:
                 cli, ["--verbose", "validate", "--env", "dev", "--verbose"]
             )
 
-            # With verbose, should see more detailed logging
-            # (exact output depends on logging configuration)
             assert result.exit_code == 0
 
     def test_version_command(self, runner):
@@ -406,7 +390,6 @@ actions:
 
             assert result.exit_code == 0
 
-            # Check files were generated in custom directory
             output_file = (
                 temp_project / custom_output / "test_pipeline" / "test_flowgroup.py"
             )
@@ -414,7 +397,6 @@ actions:
 
     def test_help_commands(self, runner):
         """Test help output for all commands (smoke: --help exits 0)."""
-        # Main help — content covered by test_cli.test_cli_help.
         result = runner.invoke(cli, ["--help"])
         assert result.exit_code == 0
 

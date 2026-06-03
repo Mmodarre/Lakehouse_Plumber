@@ -1,8 +1,6 @@
-"""C5: deprecation warnings surface as ``WarningEmitted`` in the facade streams.
+"""Deprecation warnings surface as ``WarningEmitted`` in the facade streams.
 
-C5 merged the two deprecation-warning sources into the §5.7 event stream as
-public :class:`~lhp.api.WarningEmitted` events and REMOVED the legacy
-``WarningCollector`` side channel entirely:
+Two deprecation-warning sources feed the §5.7 event stream:
 
 * the MAIN-THREAD bare-``{token}`` scan
   (``orchestrator.discovery.scan_deprecation_warnings()`` → ``LHP-DEPR-001``),
@@ -15,9 +13,8 @@ public :class:`~lhp.api.WarningEmitted` events and REMOVED the legacy
 Both are merged + deduped by ``(code, file)`` into ONE ordered sequence the
 facade re-emits. These tests pin:
 
-1. The **previously-silenced** worker ``database`` deprecation now SURFACES via
-   the validate stream as a ``WarningEmitted`` with ``code='LHP-DEPR-002'`` and
-   the offending file (it rode a swallowed worker ``logger.warning`` before).
+1. The worker ``database`` deprecation SURFACES via the validate stream as a
+   ``WarningEmitted`` with ``code='LHP-DEPR-002'`` and the offending file.
 2. The ``database_suffix`` preset deprecation surfaces (``LHP-DEPR-004``).
 3. The main-thread bare-``{token}`` deprecation surfaces (``LHP-DEPR-001``),
    carrying the source file and no flowgroup.
@@ -50,7 +47,6 @@ from lhp.api import (
 
 
 def _base_project(root: Path) -> None:
-    """Write the lhp.yaml + substitutions skeleton shared by every fixture."""
     for sub in ("presets", "templates", "substitutions"):
         (root / sub).mkdir(parents=True, exist_ok=True)
     (root / "lhp.yaml").write_text("name: warning_stream\nversion: '1.0'\n")
@@ -78,7 +74,6 @@ def _write_flowgroup(root: Path, pipeline: str, fg: dict, *, name: str) -> Path:
 
 @pytest.fixture
 def facade_in(tmp_path: Path):
-    """Yield a builder that writes a project, chdirs in, and returns the facade."""
     created: list[str] = []
 
     def _build() -> LakehousePlumberApplicationFacade:
@@ -104,12 +99,7 @@ class TestWorkerDeprecationsSurface:
     def test_database_field_deprecation_now_surfaces(
         self, tmp_path: Path, facade_in
     ) -> None:
-        """The previously-silenced ``database`` worker warning surfaces (DEPR-002).
-
-        Before C5 this rode a worker ``logger.warning`` swallowed by the
-        worker ``NullHandler`` and the only main-thread channel was the
-        retired ``WarningCollector``; now it surfaces on the validate stream.
-        """
+        """The ``database`` worker deprecation surfaces as DEPR-002 on the validate stream."""
         _base_project(tmp_path)
         src_file = _write_flowgroup(
             tmp_path,
@@ -160,14 +150,12 @@ class TestWorkerDeprecationsSurface:
         (warning,) = depr_002
         assert warning.category == "deprecation"
         assert warning.flowgroup == "p_db_fg"
-        # The warning carries the offending flowgroup's source YAML on disk.
         assert warning.file == src_file
         assert "database" in warning.message.lower()
 
     def test_database_suffix_preset_deprecation_surfaces(
         self, tmp_path: Path, facade_in
     ) -> None:
-        """The deprecated preset ``database_suffix`` key surfaces (DEPR-004)."""
         _base_project(tmp_path)
         (tmp_path / "presets" / "legacy_suffix.yaml").write_text(
             yaml.safe_dump(
@@ -236,12 +224,9 @@ class TestWorkerDeprecationsSurface:
 
 @pytest.mark.integration
 class TestMainThreadDeprecationSurfaces:
-    """The main-thread bare-``{token}`` scan surfaces as ``WarningEmitted``."""
-
     def test_bare_token_deprecation_surfaces_with_file(
         self, tmp_path: Path, facade_in
     ) -> None:
-        """A bare ``{token}`` in a flowgroup YAML surfaces as DEPR-001."""
         _base_project(tmp_path)
         src_file = _write_flowgroup(
             tmp_path,
@@ -298,7 +283,6 @@ class TestMainThreadDeprecationSurfaces:
     def test_warnings_drain_via_collect_response_sink(
         self, tmp_path: Path, facade_in
     ) -> None:
-        """``collect_response(warnings_sink=...)`` recovers the same events."""
         _base_project(tmp_path)
         _write_flowgroup(
             tmp_path,
@@ -342,7 +326,6 @@ class TestMainThreadDeprecationSurfaces:
             ),
             warnings_sink=sink,
         )
-        # The terminal DTO is still returned, and the sink captured the warning.
         from lhp.api import BatchValidationResponse
 
         assert isinstance(response, BatchValidationResponse)
@@ -391,7 +374,6 @@ class TestEmissionHelperDedupAndOrder:
 
         f = Path("pipelines/p/fg.yaml")
         seen: set = set()
-        # Discover-phase (main) emission.
         main = list(
             _emit_deprecation_warnings(
                 [self._record("LHP-DEPR-001", f, None)], seen=seen
@@ -432,7 +414,6 @@ class TestEmissionHelperDedupAndOrder:
             "LHP-DEPR-003",
             "LHP-DEPR-004",
         ]
-        # Each carries category="deprecation" and the source file.
         assert all(w.category == "deprecation" for w in emitted)
         assert all(w.file == f for w in emitted)
 

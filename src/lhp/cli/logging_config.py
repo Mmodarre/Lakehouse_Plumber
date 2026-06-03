@@ -20,7 +20,7 @@ def configure_logging(
     root_logger.setLevel(logging.DEBUG if (verbose or log_to_file) else logging.INFO)
 
     # Diagnostic logs go to stderr so they never collide with primary
-    # command output on stdout. See STYLE.md section 2.
+    # command output on stdout.
     console_handler = logging.StreamHandler(sys.stderr)
     console_handler.setLevel(logging.WARNING if not verbose else logging.DEBUG)
     console_formatter = logging.Formatter("%(levelname)s: %(message)s")
@@ -45,7 +45,6 @@ def configure_logging(
 
 
 def cleanup_logging():
-    """Clean up logging handlers."""
     root_logger = logging.getLogger()
     for handler in root_logger.handlers[:]:
         handler.close()
