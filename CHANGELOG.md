@@ -7,6 +7,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### CLI rebuilt as a pure presentation layer over the event-stream facade
+
+**Summary.** Every `lhp` command is now a thin shell — parse arguments, call one
+public-facade method, render through a presenter, map to an exit code. The
+streaming commands (`generate`, `validate`, `diff`) consume the facade's ordered
+`LHPEvent` stream through a shared renderer that shows a live progress display on
+a TTY and one line per event otherwise; diagnostics go to **stderr**, leaving
+**stdout** clean for machine consumption. Process exit codes collapse to a fixed
+set — `0` success, `1` error, `2` usage error, `3` unexpected internal error.
+The inspection commands `show`, `stats`, and `info` are removed; `deps` becomes a
+hidden deprecated alias for the new `dag` command; and the standalone
+`list_presets` / `list_templates` commands become one `list` group.
+
+**Added.**
+
+- **`lhp diff` command.** Previews the change set of a generation run
+  (`~` modified / `+` would-create / `-` orphan) without writing anything, backed
+  by the facade's `plan_generation` path; `--exit-code` exits `1` on a non-empty
+  diff and `-s/--show-details` shows a unified per-file diff.
+- **`lhp dag` command** (replacing `deps`). Renders dependency analysis —
+  execution stages, adjacency, cycle status, external sources — with file outputs
+  on **stdout** and the rich graph on **stderr**.
+- **`lhp list` group.** `list presets`, `list templates`, and
+  `list blueprints [--instances]` replace the former `list_presets` /
+  `list_templates` commands; a missing directory yields an empty list and exit `0`
+  rather than an error.
+- **`--show-details/-s`, `--strict`, and `--no-progress` flags** on the streaming
+  commands, plus a global `--no-progress` (also honoured via `CI` /
+  `LHP_NO_PROGRESS`) that forces the non-interactive one-line-per-event renderer.
+
+**Changed.**
+
+- **`cli/` is now a pure presentation layer.** Commands hold no domain logic;
+  shared wiring lives in `cli/_app_context.py`, Rich rendering in `cli/presenters/`
+  (including the `presenters/event_stream/` renderer package), and
+  `cli/error_panel.py` is the sole module bridging `rich` and `lhp.errors`.
+- **Exit codes collapsed to `0/1/2/3`** (success / error / usage / internal),
+  replacing the former `sysexits`-style fan-out.
+- **`generate` / `validate` diagnostics now print to stderr**, with a live
+  progress display on a TTY and one line per event otherwise; validation failures
+  are attributed as `pipeline / flowgroup  file  CODE  message`.
+- **An unknown `--pipeline <name>` filter now reports `LHP-VAL-901`** (a facade
+  finding, exit `1`) rather than the previously-planned `LHP-CFG-015`; filter
+  validation moved into the facade.
+
+**Removed.**
+
+- **`show`, `stats`, and `info` commands** (and any `doctor` remnant). Inspection
+  moves to `lhp diff`, `lhp dag`, and reading the generated files directly.
+- **`generate --dry-run`** — replaced by `lhp diff`.
+- **`generate --no-state`** — passing it is now a Click usage error (exit `2`);
+  the incremental/state model was removed earlier (every run is a full
+  regenerate), so the flag no longer has meaning.
+- **Internal CLI rendering modules** `live_panel.py`, `warning_panel.py`,
+  `generate_summary.py`, `validate_summary.py`, `render.py`, `yaml_scanner.py`,
+  and the `BaseCommand` base class — superseded by `cli/presenters/`.
+
+**Deprecated.**
+
+- **`generate --force`** is now a hidden no-op that emits a one-line deprecation
+  note (every run is already a full regenerate). [`CLI-DEPR-FORCE`, removal → v1.0]
+- **`lhp deps`** is a hidden alias for `lhp dag` that emits a `DeprecationWarning`.
+  [`CLI-DEPR-DEPS`, removal → v1.0]
+
+**Deferred.**
+
+- **`build_substitution_view` returns an empty `secret_references` list.** The
+  `substitutions` presenter renders secret references when present, but the facade
+  view loads the project's `default_secret_scope` without running substitution, so
+  the list is currently always empty. A facade enhancement, not a CLI defect.
+  [`CLI-SUBST-SECRETS`]
+- **Worker performance categories do not propagate to the parent perf log.** The
+  single-stream generate path (the orchestration change below) loses the
+  worker → parent `PerfSummary.merge`, so per-category worker timings are absent
+  from aggregated `--perf` output. Documented by the hard-red
+  `tests/test_generate_perf_propagation.py::...test_known_bug_*` sentinels for a
+  future fix. [`CLI-PERF-PROPAGATION`]
+
 ### Single-stream generate/validate orchestration with an in-stream event surface
 
 **Summary.** The public facade's generate/validate paths are consolidated into
@@ -22,9 +100,9 @@ without touching the real output tree, and per-issue attribution
 previously-silent `database`-field deprecation now surfaces as a structured
 `WarningEmitted`, backed by a new internal `DEPRECATION` error category
 (`LHP-DEPR-001..004`). The `blueprint:` legacy syntax is **unchanged** — mixed
-syntax remains a hard `LHP-VAL-061` error, not a soft deprecation. The existing
-CLI and E2E suites are intentionally **red** pending the separate CLI-rebuild
-phase, which still consumed the removed callback/collector surface.
+syntax remains a hard `LHP-VAL-061` error, not a soft deprecation. This infra
+change temporarily left the CLI and E2E suites red; they are restored to green by
+the CLI-rebuild phase documented above.
 
 **Added.**
 

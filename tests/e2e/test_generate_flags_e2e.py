@@ -2,13 +2,11 @@
 
 Verifies the behavioral contracts of generate flags:
 
-- ``--dry-run`` writes no Python files; preview output describes
-  what would be generated.
+- ``lhp diff`` (the replacement for the removed ``generate --dry-run``)
+  writes no Python files; preview output describes what would change.
 - ``--pipeline <name>`` restricts generation to one pipeline.
 - ``--no-bundle`` skips ``resources/lhp/`` even when ``databricks.yml``
   is present.
-- ``--no-cleanup`` preserves orphaned Python files from removed
-  flowgroups (default behavior deletes them).
 - ``--pipeline-config <path>`` applies explicit cluster/serverless
   overrides to the generated pipeline YAML.
 - ``--output <dir>`` redirects generated Python output to the given
@@ -86,20 +84,29 @@ class TestGenerateFlagsE2E:
         result = runner.invoke(cli, ["generate", *argv])
         return result.exit_code, result.output
 
-    def test_dry_run_emits_no_python_files(self):
-        """``--dry-run`` previews generation without writing .py files."""
-        exit_code, output = self.run_generate("--env", "dev", "--dry-run")
-        assert exit_code == 0, f"Dry-run should succeed, got:\n{output[-2000:]}"
+    def test_diff_emits_no_python_files(self):
+        """``lhp diff`` previews generation without writing .py files.
+
+        ``generate --dry-run`` was removed in the CLI rebuild; the preview
+        contract now lives in the dedicated ``lhp diff`` command. ``diff``
+        plans every flowgroup, writes nothing, and prints one ``+`` / ``~`` /
+        ``-`` line per changed path. It is a bundle-independent preview and
+        does NOT take ``--pipeline-config``.
+        """
+        runner = CliRunner()
+        result = runner.invoke(cli, ["diff", "--env", "dev"])
+        output = result.output
+        assert result.exit_code == 0, (
+            f"diff should succeed, got exit {result.exit_code}:\n{output[-2000:]}"
+        )
 
         py_files = list(self.generated_dir.rglob("*.py"))
-        assert py_files == [], f"Dry-run must not write .py files, found:\n{py_files}"
+        assert py_files == [], f"diff must not write .py files, found:\n{py_files}"
 
-        # Output should describe what would be generated and confirm dry-run
-        assert (
-            "Would generate" in output
-            or "Dry run" in output
-            or "dry-run" in output.lower()
-        ), f"Expected dry-run preview output, got:\n{output[-2000:]}"
+        # Output describes what would change on disk (every file is new here).
+        assert "would-create" in output.lower(), (
+            f"Expected diff preview output, got:\n{output[-2000:]}"
+        )
 
     def test_pipeline_filter_generates_only_matching_pipelines(self):
         """``--pipeline <name>`` restricts generation to one pipeline only."""

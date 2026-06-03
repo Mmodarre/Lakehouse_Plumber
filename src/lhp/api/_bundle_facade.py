@@ -27,7 +27,7 @@ from lhp.api.responses import (
     BundleSyncResult,
     BundleValidationResult,
 )
-from lhp.errors import LHPError
+from lhp.errors import LHPConfigError, LHPError
 from lhp.utils.performance_timer import perf_timer
 
 if TYPE_CHECKING:
@@ -165,7 +165,7 @@ def _wipe_resources_lhp(project_root: Path) -> int:
     return deleted_count
 
 
-def _missing_pipeline_config_error() -> Exception:
+def _missing_pipeline_config_error() -> LHPConfigError:
     """Build the structured ``LHP-CFG-023`` for missing pipeline_config.
 
     Mirrors the CLI's ``--pipeline-config`` requirement (the same

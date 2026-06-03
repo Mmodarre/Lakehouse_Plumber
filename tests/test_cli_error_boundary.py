@@ -33,8 +33,8 @@ class TestCliErrorBoundary:
             exit_func()
         assert exc_info.value.code == 0
 
-    def test_lhp_error_causes_sys_exit_with_mapped_code(self):
-        """Should catch LHPError and sys.exit with the mapped exit code."""
+    def test_lhp_error_causes_sys_exit_with_error_code(self):
+        """Should catch LHPError and sys.exit with ExitCode.ERROR (1)."""
         lhp_error = LHPError(
             category=ErrorCategory.CONFIG,
             code_number="001",
@@ -48,10 +48,10 @@ class TestCliErrorBoundary:
 
         with pytest.raises(SystemExit) as exc_info:
             config_error_func()
-        assert exc_info.value.code == ExitCode.CONFIG_ERROR
+        assert exc_info.value.code == ExitCode.ERROR
 
-    def test_lhp_validation_error_maps_to_data_error(self):
-        """Should map VALIDATION category to DATA_ERROR exit code."""
+    def test_lhp_validation_error_maps_to_error(self):
+        """Any LHPError category collapses to ExitCode.ERROR (1)."""
         lhp_error = LHPError(
             category=ErrorCategory.VALIDATION,
             code_number="001",
@@ -65,10 +65,10 @@ class TestCliErrorBoundary:
 
         with pytest.raises(SystemExit) as exc_info:
             validation_error_func()
-        assert exc_info.value.code == ExitCode.DATA_ERROR
+        assert exc_info.value.code == ExitCode.ERROR
 
-    def test_lhp_io_error_maps_to_no_input(self):
-        """Should map IO category to NO_INPUT exit code."""
+    def test_lhp_io_error_maps_to_error(self):
+        """Any LHPError category collapses to ExitCode.ERROR (1)."""
         lhp_error = LHPError(
             category=ErrorCategory.IO,
             code_number="001",
@@ -82,10 +82,10 @@ class TestCliErrorBoundary:
 
         with pytest.raises(SystemExit) as exc_info:
             io_error_func()
-        assert exc_info.value.code == ExitCode.NO_INPUT
+        assert exc_info.value.code == ExitCode.ERROR
 
-    def test_bundle_resource_error_is_converted_and_exits(self):
-        """Should catch BundleResourceError, convert it, and sys.exit with CONFIG_ERROR."""
+    def test_bundle_resource_error_exits_with_error(self):
+        """BundleResourceError is an LHPError subclass -> caught and exits ExitCode.ERROR."""
         bundle_error = BundleResourceError("Bundle sync failed")
 
         @cli_error_boundary("bundle sync")
@@ -94,11 +94,10 @@ class TestCliErrorBoundary:
 
         with pytest.raises(SystemExit) as exc_info:
             bundle_error_func()
-        # BundleResourceError converts to CONFIG category -> CONFIG_ERROR
-        assert exc_info.value.code == ExitCode.CONFIG_ERROR
+        assert exc_info.value.code == ExitCode.ERROR
 
-    def test_template_error_is_converted_and_exits(self):
-        """Should catch TemplateError, convert it, and sys.exit."""
+    def test_template_error_exits_with_error(self):
+        """TemplateError is an LHPError subclass -> caught and exits ExitCode.ERROR."""
         template_error = TemplateError("Template fetch failed")
 
         @cli_error_boundary("template init")
@@ -107,11 +106,10 @@ class TestCliErrorBoundary:
 
         with pytest.raises(SystemExit) as exc_info:
             template_error_func()
-        # TemplateError converts to CONFIG category -> CONFIG_ERROR
-        assert exc_info.value.code == ExitCode.CONFIG_ERROR
+        assert exc_info.value.code == ExitCode.ERROR
 
-    def test_generic_exception_exits_with_general_error(self):
-        """Should catch generic exceptions and exit with GENERAL_ERROR."""
+    def test_generic_exception_exits_with_internal_error(self):
+        """Should catch generic exceptions and exit with ExitCode.INTERNAL_ERROR (3)."""
 
         @cli_error_boundary("process data")
         def generic_error_func():
@@ -119,7 +117,7 @@ class TestCliErrorBoundary:
 
         with pytest.raises(SystemExit) as exc_info:
             generic_error_func()
-        assert exc_info.value.code == ExitCode.GENERAL_ERROR
+        assert exc_info.value.code == ExitCode.INTERNAL_ERROR
 
     def test_error_message_echoed_to_stderr_for_lhp_error(self, capsys):
         """Should print the LHPError Rich Panel to stderr."""
@@ -177,7 +175,7 @@ class TestCliErrorBoundary:
         assert result == (1, 2, "value")
 
     def test_bundle_resource_error_subclass_dispatched_correctly(self):
-        """Should dispatch BundleConfigurationError (subclass of BundleResourceError) via convert."""
+        """BundleConfigurationError (an LHPError subclass) is caught and exits ExitCode.ERROR."""
         from lhp.bundle.exceptions import BundleConfigurationError
 
         config_error = BundleConfigurationError("Missing bundle name")
@@ -188,7 +186,7 @@ class TestCliErrorBoundary:
 
         with pytest.raises(SystemExit) as exc_info:
             config_error_func()
-        assert exc_info.value.code == ExitCode.CONFIG_ERROR
+        assert exc_info.value.code == ExitCode.ERROR
 
     def test_generic_exception_renders_lhp_gen_902_panel(self, capsys):
         """Generic fallback should render a Rich panel with LHP-GEN-902."""
@@ -199,7 +197,7 @@ class TestCliErrorBoundary:
 
         with pytest.raises(SystemExit) as exc_info:
             boom_func()
-        assert exc_info.value.code == ExitCode.GENERAL_ERROR
+        assert exc_info.value.code == ExitCode.INTERNAL_ERROR
 
         captured = capsys.readouterr()
         assert "LHP-GEN-902" in captured.err

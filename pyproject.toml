@@ -198,6 +198,10 @@ ignore = [
     "TRY300",  # consider-else — noisy
     "TRY301",  # raise-within-try — noisy
 ]
+# `×` (MULTIPLICATION SIGN) is intentional in the CLI warning rollup count
+# suffix (e.g. "×2288") and its tests; permit just that confusable rather than
+# disabling RUF001 wholesale.
+allowed-confusables = ["×"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 40   # RATCHET — target 10; lower as functions are refactored (see CHANGELOG)

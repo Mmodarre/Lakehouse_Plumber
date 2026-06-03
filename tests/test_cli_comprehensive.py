@@ -181,11 +181,12 @@ actions: []
                 cli, ["validate", "--env", "dev", "--pipeline", "invalid_pipeline"]
             )
 
-            # Validation failures raise SystemExit(DATA_ERROR) from the
-            # validate command after the summary is rendered.
+            # Validation failures exit ExitCode.ERROR from the validate command
+            # after the summary is rendered (the exit-code scheme collapsed the
+            # old sysexits DATA_ERROR into the single domain-level ERROR=1).
             from lhp.cli.exit_codes import ExitCode
 
-            assert result.exit_code == ExitCode.DATA_ERROR
+            assert result.exit_code == ExitCode.ERROR
 
     def test_generate_command(self, runner, temp_project):
         """Test code generation command."""
@@ -242,7 +243,7 @@ actions: []
 
             os.chdir(str(temp_project))
 
-            result = runner.invoke(cli, ["list-presets"])
+            result = runner.invoke(cli, ["list", "presets"])
 
             assert result.exit_code == 0
             # Behavioral: bronze_layer.yaml was discovered and surfaced.
@@ -255,50 +256,11 @@ actions: []
 
             os.chdir(str(temp_project))
 
-            result = runner.invoke(cli, ["list-templates"])
+            result = runner.invoke(cli, ["list", "templates"])
 
             assert result.exit_code == 0
             # Behavioral: basic_ingestion.yaml was discovered and surfaced.
             assert "basic_ingestion" in result.output
-
-    def test_show_command(self, runner, temp_project):
-        """Test show command for resolved configuration."""
-        with runner.isolated_filesystem():
-            import os
-
-            os.chdir(str(temp_project))
-
-            result = runner.invoke(cli, ["show", "test_flowgroup", "--env", "dev"])
-
-            assert result.exit_code == 0
-            # Behavioral: flowgroup body (action names) appears in rendered output.
-            assert "load_test_data" in result.output
-            assert "save_test_data" in result.output
-
-    def test_info_command(self, runner, temp_project):
-        """Test info command for project information."""
-        with runner.isolated_filesystem():
-            import os
-
-            os.chdir(str(temp_project))
-
-            result = runner.invoke(cli, ["info"])
-
-            assert result.exit_code == 0
-            # Behavioral: lhp.yaml name and discovered pipeline appear in output.
-            assert "test_cli_project" in result.output
-            assert "test_pipeline" in result.output
-
-    def test_stats_command(self, runner, temp_project):
-        """Test stats command for pipeline statistics."""
-        with runner.isolated_filesystem():
-            import os
-
-            os.chdir(str(temp_project))
-
-            result = runner.invoke(cli, ["stats"])
-
-            assert result.exit_code == 0
 
     def test_secret_validation_with_references(self, runner, temp_project):
         """Test secret validation with actual secret references."""
@@ -351,8 +313,9 @@ actions:
         with runner.isolated_filesystem():
             result = runner.invoke(cli, ["validate"])
 
-            # LHP-CFG-011 raised by _ensure_project_root.
-            assert result.exit_code == ExitCode.CONFIG_ERROR
+            # LHP-CFG-011 raised by resolve_project_root; any LHPError maps to
+            # the collapsed domain-level ERROR=1.
+            assert result.exit_code == ExitCode.ERROR
             assert "LHP-CFG-011" in result.output
 
     def test_verbose_flag(self, runner, temp_project):
@@ -362,9 +325,9 @@ actions:
 
             os.chdir(str(temp_project))
 
-            result = runner.invoke(
-                cli, ["--verbose", "validate", "--env", "dev", "--verbose"]
-            )
+            # ``--verbose`` is now a GLOBAL group option and must precede the
+            # subcommand; there is no per-command ``--verbose`` anymore.
+            result = runner.invoke(cli, ["--verbose", "validate", "--env", "dev"])
 
             assert result.exit_code == 0
 
@@ -403,14 +366,14 @@ actions:
         # Command-specific help smoke: every top-level command must exit 0
         # when invoked with --help (the only behavior Click guarantees here).
         commands = [
-            "init",
-            "validate",
             "generate",
-            "list-presets",
-            "list-templates",
-            "show",
-            "info",
-            "stats",
+            "validate",
+            "dag",
+            "list",
+            "substitutions",
+            "diff",
+            "init",
+            "skill",
         ]
 
         for cmd in commands:

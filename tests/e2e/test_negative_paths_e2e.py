@@ -314,7 +314,7 @@ class TestNegativePathsE2E:
         be duplicated across paths: ``lhp validate`` runs the same check as
         ``lhp generate``; the duplicate batch carries
         ``error_code="LHP-VAL-009"``, which validate counts as an error and
-        maps to a non-zero exit (ExitCode.DATA_ERROR).
+        maps to a non-zero exit (ExitCode.ERROR, exit 1).
         """
         original = (
             self.project_root

@@ -172,6 +172,7 @@ class GenerationFacade:
         env: str,
         *,
         pipeline_filter: Optional[str] = None,
+        pipeline_fields: Sequence[str] = (),
         include_tests: bool = False,
     ) -> Iterator[LHPEvent]:
         """Stream-protocol wrapper around plan-only generation (§5.7).
@@ -184,6 +185,16 @@ class GenerationFacade:
         ``generated/<env>`` tree (monitoring *finalization* is likewise
         skipped); the plan still REPORTS that directory as its
         ``output_location`` so callers learn where the files would land.
+
+        The worklist is keyed by pipeline name, exactly like
+        :meth:`generate_pipelines`: a single name via ``pipeline_filter``
+        OR a batch via ``pipeline_fields`` (mutually exclusive — when
+        ``pipeline_filter`` is set, ``pipeline_fields`` is ignored). Passing
+        NEITHER plans nothing (the
+        :func:`~lhp.core.codegen.build_generation_plan` primitive narrows by
+        the worklist and does not auto-derive the full set); a caller wanting
+        the whole project must enumerate the pipeline names and pass them as
+        ``pipeline_fields``.
 
         Yields the full §5.7 progress stream, in order:
 
@@ -229,6 +240,7 @@ class GenerationFacade:
                 self._orchestrator,
                 env=env,
                 pipeline_filter=pipeline_filter,
+                pipeline_fields=pipeline_fields,
                 include_tests=include_tests,
             )
         )

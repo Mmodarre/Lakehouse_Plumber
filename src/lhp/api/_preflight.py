@@ -56,8 +56,12 @@ def _run_project_preflight(
        of ``include_tests``; the ``include_tests``-gated portion adds the
        "no ``test_id``" check. Each message becomes a
        ``LHP-CFG-032`` issue.
-    3. **Bundle catalog/schema preflight** — ONLY when ``bundle_enabled``;
-       via :meth:`BundleFacade.validate_bundle_assets`. Each failure
+    3. **Bundle preflight** — ONLY when ``bundle_enabled``. When the
+       orchestrator has no ``pipeline_config_path`` the bundle check
+       cannot run, so a single ``LHP-CFG-023`` issue is surfaced (built
+       from :func:`_missing_pipeline_config_error`). Otherwise the
+       catalog/schema check runs via
+       :meth:`BundleFacade.validate_bundle_assets` and each failure
        becomes an ``LHP-CFG-026`` issue.
 
     The flowgroup set used by checks (1) and (2) is resolved EXACTLY ONCE
@@ -84,9 +88,29 @@ def _run_project_preflight(
         _check_test_reporting(orchestrator, all_flowgroups, include_tests=include_tests)
     )
     if bundle_enabled:
-        issues.extend(_check_bundle_assets(orchestrator, env=env))
+        # When no pipeline_config_path is configured, ``validate_bundle_assets``
+        # already returns an ``LHP-CFG-023``-coded result — but
+        # ``_check_bundle_assets`` would re-stamp it with the GENERIC
+        # catalog/schema title. Surface the proper ``LHP-CFG-023`` ONCE here
+        # (built from the canonical ``_missing_pipeline_config_error``) instead
+        # of letting it round-trip through the catalog/schema converter.
+        if orchestrator.pipeline_config_path is None:
+            issues.append(_missing_pipeline_config_issue())
+        else:
+            issues.extend(_check_bundle_assets(orchestrator, env=env))
 
     return tuple(issues)
+
+
+def _missing_pipeline_config_issue() -> ValidationIssueView:
+    # §9.24 single surface: reuse the canonical ``LHP-CFG-023`` builder and the
+    # SAME LHPError->view converter ``_check_bundle_assets`` uses, so the issue
+    # keeps its proper "pipeline_config is required for bundle validation" title
+    # (not the generic bundle catalog/schema one) and the never-raises contract
+    # holds — this only constructs a view, it does not emit or raise.
+    from lhp.api._bundle_facade import _missing_pipeline_config_error
+
+    return _lhp_error_to_issue_view(_missing_pipeline_config_error())
 
 
 def _check_duplicate_flowgroups(

@@ -98,7 +98,14 @@ class TestValidateCommandParallel:
                 os.chdir(project_root)
                 result = runner.invoke(
                     cli,
-                    ["validate", "--env", "dev", "--max-workers", "4", "--show-all"],
+                    [
+                        "validate",
+                        "--env",
+                        "dev",
+                        "--max-workers",
+                        "4",
+                        "--show-details",
+                    ],
                 )
                 assert result.exit_code == 0, (
                     f"CLI exited {result.exit_code}: {result.output}"
@@ -127,14 +134,28 @@ class TestValidateCommandParallel:
                 os.chdir(par_root)
                 par_result = runner.invoke(
                     cli,
-                    ["validate", "--env", "dev", "--max-workers", "4", "--show-all"],
+                    [
+                        "validate",
+                        "--env",
+                        "dev",
+                        "--max-workers",
+                        "4",
+                        "--show-details",
+                    ],
                 )
                 assert par_result.exit_code == 0
 
                 os.chdir(seq_root)
                 seq_result = runner.invoke(
                     cli,
-                    ["validate", "--env", "dev", "--max-workers", "1", "--show-all"],
+                    [
+                        "validate",
+                        "--env",
+                        "dev",
+                        "--max-workers",
+                        "1",
+                        "--show-details",
+                    ],
                 )
                 assert seq_result.exit_code == 0
 
@@ -395,10 +416,10 @@ def test_validate_catches_template_resolved_duplicate_table_invisible_in_raw():
             )
             assert raw_cross.cdc_fanin_errors == []
 
-            result = runner.invoke(cli, ["validate", "--env", "dev", "--show-all"])
+            result = runner.invoke(cli, ["validate", "--env", "dev", "--show-details"])
 
-            assert result.exit_code == ExitCode.DATA_ERROR, (
-                f"expected validate to FAIL (exit {ExitCode.DATA_ERROR}); got "
+            assert result.exit_code == ExitCode.ERROR, (
+                f"expected validate to FAIL (exit {ExitCode.ERROR}); got "
                 f"{result.exit_code}:\n{result.output}"
             )
             assert "LHP-CFG-004" in result.output, result.output

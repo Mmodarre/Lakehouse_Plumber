@@ -286,7 +286,6 @@ resources:
                 "generate",
                 "--env",
                 "dev",
-                "--dry-run",
                 "--pipeline-config",
                 "config/pipeline_config.yaml",
             ],

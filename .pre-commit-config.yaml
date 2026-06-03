@@ -63,6 +63,12 @@ repos:
         language: system
         files: ^src/lhp/api/.*\.py$
 
+      - id: check-docs
+        name: "Docs Constitution — admonition palette / terminology / meta (changed RST)"
+        entry: python scripts/check_docs.py
+        language: system
+        files: ^docs/.*\.rst$
+
   - repo: https://github.com/seddonym/import-linter
     rev: v2.11
     hooks:

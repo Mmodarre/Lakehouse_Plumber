@@ -2,12 +2,14 @@
 End-to-end integration tests for job orchestration file generation.
 
 Tests the complete workflow of generating job orchestration files using
-the `lhp deps -b` command with and without job configuration.
+the `lhp dag -b` command with and without job configuration.
 """
 
 import hashlib
+import json
 import os
 import shutil
+import warnings
 from pathlib import Path
 
 import pytest
@@ -37,10 +39,10 @@ class TestJobOrchestrationE2E:
 
         os.chdir(self.original_cwd)
 
-    def run_deps_command(self, *args) -> tuple:
-        """Run lhp deps command and return (exit_code, output)."""
+    def run_dag_command(self, *args) -> tuple:
+        """Run lhp dag command and return (exit_code, output)."""
         runner = CliRunner()
-        result = runner.invoke(cli, ["deps", *args])
+        result = runner.invoke(cli, ["dag", *args])
         return result.exit_code, result.output
 
     def _compare_file_hashes(self, file1: Path, file2: Path) -> str:
@@ -98,10 +100,10 @@ class TestJobOrchestrationE2E:
         file_path.write_text("".join(lines))
 
     def test_deps_bundle_without_job_config(self):
-        """Test lhp deps -b generates correct orchestration job without job config."""
+        """Test lhp dag -b generates correct orchestration job without job config."""
         self.resources_dir.mkdir(parents=True, exist_ok=True)
 
-        exit_code, output = self.run_deps_command("-b")
+        exit_code, output = self.run_dag_command("-b")
 
         assert exit_code == 0, f"Command should succeed: {output}"
 
@@ -117,10 +119,10 @@ class TestJobOrchestrationE2E:
         print("✅ Job orchestration file (without job config) matches baseline")
 
     def test_deps_bundle_with_job_config(self):
-        """Test lhp deps -b -jc generates correct orchestration job with job config applied."""
+        """Test lhp dag -b -jc generates correct orchestration job with job config applied."""
         self.resources_dir.mkdir(parents=True, exist_ok=True)
 
-        exit_code, output = self.run_deps_command("-b", "-jc", "config/job_config.yaml")
+        exit_code, output = self.run_dag_command("-b", "-jc", "config/job_config.yaml")
 
         assert exit_code == 0, f"Command should succeed: {output}"
 
@@ -145,7 +147,7 @@ class TestJobOrchestrationE2E:
 
         self.resources_dir.mkdir(parents=True, exist_ok=True)
 
-        exit_code, output = self.run_deps_command("-b", "-jc", "config/job_config.yaml")
+        exit_code, output = self.run_dag_command("-b", "-jc", "config/job_config.yaml")
 
         assert exit_code == 0, f"Command should succeed: {output}"
 
@@ -194,7 +196,7 @@ class TestJobOrchestrationE2E:
 
         self.resources_dir.mkdir(parents=True, exist_ok=True)
 
-        exit_code, output = self.run_deps_command("-b", "-jc", "config/job_config.yaml")
+        exit_code, output = self.run_dag_command("-b", "-jc", "config/job_config.yaml")
 
         assert exit_code == 0, f"Command should succeed: {output}"
 
@@ -241,7 +243,7 @@ class TestJobOrchestrationE2E:
 
         self.resources_dir.mkdir(parents=True, exist_ok=True)
 
-        exit_code, output = self.run_deps_command("-b", "-jc", "config/job_config.yaml")
+        exit_code, output = self.run_dag_command("-b", "-jc", "config/job_config.yaml")
 
         assert exit_code == 0, f"Command should succeed: {output}"
 
@@ -308,10 +310,10 @@ class TestJobOrchestrationE2E:
             "    pause_status: PAUSED\n"
         )
 
-        exit_code, output = self.run_deps_command(
+        exit_code, output = self.run_dag_command(
             "-b", "-jc", "config/job_config_trigger_e2e.yaml"
         )
-        assert exit_code == 0, f"lhp deps failed: {output}"
+        assert exit_code == 0, f"lhp dag failed: {output}"
 
         generated_file = self.resources_dir / "acme_edw_orchestration.job.yml"
         assert generated_file.exists(), "orchestration job YAML was not generated"
@@ -327,3 +329,57 @@ class TestJobOrchestrationE2E:
         assert job["trigger"]["file_arrival"]["wait_after_last_change_seconds"] == 30
         assert job["trigger"]["pause_status"] == "UNPAUSED"
         assert job["continuous"]["pause_status"] == "PAUSED"
+
+    def test_deps_alias_still_works_with_deprecation_warning(self):
+        """The hidden ``deps`` alias forwards to ``dag``: it must emit a
+        ``DeprecationWarning`` and produce output identical to ``dag``.
+
+        ``deps`` was renamed to ``dag`` in the CLI rebuild; ``deps`` survives
+        as a hidden alias that forwards via ``ctx.forward`` with a deprecation
+        notice. This is the single test guarding that backward-compat path.
+        """
+        dep_json = (
+            self.project_root / ".lhp" / "dependencies" / "pipeline_dependencies.json"
+        )
+
+        # 1. Canonical command.
+        runner = CliRunner()
+        dag_result = runner.invoke(cli, ["dag", "-b"])
+        assert dag_result.exit_code == 0, f"lhp dag failed: {dag_result.output}"
+        dag_data = json.loads(dep_json.read_text())
+
+        # Reset the dependency artifacts so the alias run regenerates them.
+        shutil.rmtree(self.project_root / ".lhp", ignore_errors=True)
+
+        # 2. Deprecated alias -- capture the DeprecationWarning it emits.
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            deps_result = runner.invoke(cli, ["deps", "-b"])
+
+        assert deps_result.exit_code == 0, (
+            f"hidden 'deps' alias failed: {deps_result.output}"
+        )
+
+        deprecations = [
+            str(w.message) for w in caught if issubclass(w.category, DeprecationWarning)
+        ]
+        assert any("deps" in m and "dag" in m for m in deprecations), (
+            "'deps' alias must emit a DeprecationWarning pointing at 'dag'; "
+            f"caught: {deprecations}"
+        )
+
+        # 3. Output parity with ``dag`` (stdout byte-identical; the dependency
+        # JSON identical modulo the per-run ``generated_at`` timestamp). Compare
+        # ``.stdout`` specifically: the alias additionally emits a one-line
+        # deprecation notice to stderr (mirroring ``generate --force``), so the
+        # combined ``.output`` stream intentionally differs from ``dag``.
+        assert deps_result.stdout == dag_result.stdout, (
+            "Deprecated 'deps' alias must produce the same stdout as 'dag'."
+        )
+        deps_data = json.loads(dep_json.read_text())
+        for payload in (dag_data, deps_data):
+            payload.get("generation_info", {}).pop("generated_at", None)
+        assert deps_data == dag_data, (
+            "Deprecated 'deps' alias must produce the same dependency analysis "
+            "as 'dag' (ignoring the per-run timestamp)."
+        )

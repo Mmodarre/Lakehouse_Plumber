@@ -272,30 +272,38 @@ actions:
     assert result.exit_code == 0, f"validate failed: {result.output}"
 
 
-def test_validate_verbose_flag_emits_extra_output(tmp_path):
-    """Exercises the verbose-flag branch."""
+def test_validate_show_details_flag_emits_extra_output(tmp_path):
+    """Exercises the --show-details flag branch (renamed from --verbose)."""
     runner = CliRunner()
     with runner.isolated_filesystem(temp_dir=tmp_path) as fs:
         _bootstrap(Path(fs))
-        result = runner.invoke(cli, ["validate", "--env", "dev", "--verbose"])
-    # The --verbose flag must be recognized by Click (no usage error).
-    assert result.exit_code != 2, f"--verbose was not recognized: {result.output}"
+        result = runner.invoke(cli, ["validate", "--env", "dev", "--show-details"])
+    # The --show-details flag must be recognized by Click (no usage error).
+    assert result.exit_code != 2, f"--show-details was not recognized: {result.output}"
 
 
-def test_validate_no_flowgroups_raises_014(tmp_path):
-    """Empty project (no pipelines, no blueprints) → code 014 'No flowgroups
-    found' on the pipeline-discovery path."""
+def test_validate_no_flowgroups_exits_zero(tmp_path):
+    """Empty project (no pipelines, no blueprints) → validate completes cleanly
+    and exits 0 (ratified spec §6.6; was code 014)."""
     runner = CliRunner()
     with runner.isolated_filesystem(temp_dir=tmp_path) as fs:
         _bootstrap(Path(fs))
         result = runner.invoke(cli, ["validate", "--env", "dev"])
-    assert result.exit_code != 0
-    # Code 014 is the existing "no flowgroups" config error.
-    assert "LHP-CFG-014" in result.output
+    assert result.exit_code == 0, f"validate did not exit 0: {result.output}"
+    # The empty-project no-flowgroups config error is no longer raised.
+    assert "LHP-CFG-014" not in result.output
 
 
-def test_validate_pipeline_filter_not_found_raises_015(tmp_path):
-    """An unknown --pipeline filter must surface code 015."""
+def test_validate_pipeline_filter_not_found_raises_901(tmp_path):
+    """An unknown --pipeline filter must surface code LHP-VAL-901 at exit 1.
+
+    Filter validation moved into the facade (§9.11: no business logic in
+    cli/). ``lhp validate`` no longer raises the old fatal LHP-CFG-015 for an
+    unmatched ``--pipeline`` filter; per §9.24 it folds the unmatched-filter
+    failure into a clean validation terminal as a finding (LHP-VAL-901, "No
+    flowgroups found for pipeline field: <name>") and exits 1. Failure
+    behavior (exit non-zero) is preserved; only the surface changed.
+    """
     runner = CliRunner()
     with runner.isolated_filesystem(temp_dir=tmp_path) as fs:
         root = Path(fs)
@@ -324,8 +332,8 @@ actions:
         result = runner.invoke(
             cli, ["validate", "--env", "dev", "--pipeline", "missing_pipeline"]
         )
-    assert result.exit_code != 0
-    assert "LHP-CFG-015" in result.output
+    assert result.exit_code == 1
+    assert "LHP-VAL-901" in result.output
 
 
 def test_validate_include_tests_runs_test_reporting(tmp_path):

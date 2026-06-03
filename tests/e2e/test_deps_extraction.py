@@ -2,13 +2,13 @@
 End-to-end tests for dependency extraction from externalized SQL/Python inside
 ``write_target``.
 
-These tests exist to prevent a regression of the bug where ``lhp deps`` under-
+These tests exist to prevent a regression of the bug where ``lhp dag`` under-
 reported dependencies for materialized views (``write_target.sql_path``),
 custom sinks (``write_target.module_path``), and ForEachBatch handlers
 (``write_target.batch_handler``). See the V0.8.6 changelog entry.
 
 Each test gets an isolated deep copy of the ``testing_project`` fixture and
-may add per-test flowgroups/files before running ``lhp deps``. The full
+may add per-test flowgroups/files before running ``lhp dag``. The full
 fixture project is left undisturbed between tests.
 """
 
@@ -26,7 +26,7 @@ from lhp.cli.main import cli
 
 @pytest.mark.e2e
 class TestDepsExtraction:
-    """E2E tests validating lhp deps extraction from write_target bodies."""
+    """E2E tests validating lhp dag extraction from write_target bodies."""
 
     @pytest.fixture(autouse=True)
     def setup_test_project(self, isolated_project):
@@ -42,10 +42,10 @@ class TestDepsExtraction:
 
         os.chdir(self.original_cwd)
 
-    def run_deps_command(self, *args) -> tuple:
-        """Run ``lhp deps`` and return (exit_code, output)."""
+    def run_dag_command(self, *args) -> tuple:
+        """Run ``lhp dag`` and return (exit_code, output)."""
         runner = CliRunner()
-        result = runner.invoke(cli, ["deps", *args])
+        result = runner.invoke(cli, ["dag", *args])
         return result.exit_code, result.output
 
     def _load_json_output(self) -> dict:
@@ -75,8 +75,8 @@ class TestDepsExtraction:
         the analyzer skipped ``write_target.sql_path`` entirely and the
         upstream silver table never surfaced.
         """
-        exit_code, output = self.run_deps_command("-f", "json")
-        assert exit_code == 0, f"lhp deps failed: {output}"
+        exit_code, output = self.run_dag_command("--format", "json")
+        assert exit_code == 0, f"lhp dag failed: {output}"
 
         data = self._load_json_output()
         gold = data["pipelines"].get("gold_load")
@@ -136,8 +136,8 @@ class TestDepsExtraction:
             encoding="utf-8",
         )
 
-        exit_code, output = self.run_deps_command("-f", "json")
-        assert exit_code == 0, f"lhp deps failed: {output}"
+        exit_code, output = self.run_dag_command("--format", "json")
+        assert exit_code == 0, f"lhp dag failed: {output}"
 
         data = self._load_json_output()
         gold = data["pipelines"].get("gold_load")
@@ -221,8 +221,8 @@ class TestDepsExtraction:
             encoding="utf-8",
         )
 
-        exit_code, output = self.run_deps_command()
-        assert exit_code == 0, f"lhp deps failed: {output}"
+        exit_code, output = self.run_dag_command()
+        assert exit_code == 0, f"lhp dag failed: {output}"
 
         dot = self._load_flowgroup_dot()
 
@@ -301,8 +301,8 @@ class TestDepsExtraction:
             encoding="utf-8",
         )
 
-        exit_code, output = self.run_deps_command("-f", "json")
-        assert exit_code == 0, f"lhp deps failed: {output}"
+        exit_code, output = self.run_dag_command("--format", "json")
+        assert exit_code == 0, f"lhp dag failed: {output}"
 
         data = self._load_json_output()
         gold = data["pipelines"].get("gold_load")

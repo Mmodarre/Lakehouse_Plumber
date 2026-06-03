@@ -82,7 +82,7 @@ bundle:
             # Run generate with --no-bundle flag
             result = self.runner.invoke(
                 cli,
-                ["--verbose", "generate", "--env", "dev", "--no-bundle", "--dry-run"],
+                ["--verbose", "generate", "--env", "dev", "--no-bundle"],
             )
 
             assert result.exit_code == 0
@@ -104,7 +104,6 @@ bundle:
                     "generate",
                     "--env",
                     "dev",
-                    "--dry-run",
                     "--pipeline-config",
                     "config/pipeline_config.yaml",
                 ],
@@ -122,7 +121,7 @@ bundle:
         try:
             os.chdir(str(self.project_root))
 
-            result = self.runner.invoke(cli, ["generate", "--env", "dev", "--dry-run"])
+            result = self.runner.invoke(cli, ["generate", "--env", "dev"])
 
             assert result.exit_code == 0
         finally:
@@ -438,7 +437,6 @@ actions:
                     "generate",
                     "--env",
                     "dev",
-                    "--dry-run",
                     "--pipeline-config",
                     "config/pipeline_config.yaml",
                 ],
@@ -459,9 +457,7 @@ actions:
         try:
             os.chdir(str(self.project_root))
 
-            result = self.runner.invoke(
-                cli, ["--verbose", "generate", "--env", "dev", "--dry-run"]
-            )
+            result = self.runner.invoke(cli, ["--verbose", "generate", "--env", "dev"])
 
             assert result.exit_code == 0
         finally:
@@ -475,7 +471,7 @@ actions:
 
             result = self.runner.invoke(
                 cli,
-                ["--verbose", "generate", "--env", "dev", "--no-bundle", "--dry-run"],
+                ["--verbose", "generate", "--env", "dev", "--no-bundle"],
             )
 
             assert result.exit_code == 0
@@ -497,7 +493,6 @@ actions:
                     "dev",
                     "--output",
                     "custom_output",
-                    "--dry-run",
                     "--pipeline-config",
                     "config/pipeline_config.yaml",
                 ],
@@ -507,13 +502,12 @@ actions:
         finally:
             os.chdir(original_cwd)
 
-    def test_generate_bundle_sync_with_dry_run(self):
-        """Should perform bundle sync in dry-run mode."""
+    def test_generate_bundle_sync_runs(self):
+        """Should perform bundle sync during generation."""
         original_cwd = os.getcwd()
         try:
             os.chdir(str(self.project_root))
 
-            # Test with dry-run
             result = self.runner.invoke(
                 cli,
                 [
@@ -521,7 +515,6 @@ actions:
                     "generate",
                     "--env",
                     "dev",
-                    "--dry-run",
                     "--pipeline-config",
                     "config/pipeline_config.yaml",
                 ],
@@ -547,11 +540,37 @@ class TestCLIBundleErrorHandling:
         # Create minimal project without bundle setup
         (self.project_root / "lhp.yaml").write_text("name: test")
 
+        # A flowgroup that references a ${catalog} token, so generation must
+        # consult the (absent) dev substitution file. Without any flowgroup an
+        # empty project generates 0 files and exits 0 (ratified, spec §6.6) —
+        # the substitution file is never read. The flowgroup forces the
+        # missing-substitution error path this test asserts on.
+        pipe_dir = self.project_root / "pipelines"
+        pipe_dir.mkdir()
+        (pipe_dir / "test_pipeline.yaml").write_text("""pipeline: test
+flowgroup: test_pipeline
+actions:
+  - name: test_load
+    type: load
+    source:
+      type: delta
+      database: "${catalog}.raw"
+      table: test_table
+    target: v_test_table
+  - name: test_write
+    type: write
+    source: v_test_table
+    write_target:
+      type: streaming_table
+      database: "${catalog}.bronze"
+      table: test_table
+""")
+
         original_cwd = os.getcwd()
         try:
             os.chdir(str(self.project_root))
 
-            result = self.runner.invoke(cli, ["generate", "--env", "dev", "--dry-run"])
+            result = self.runner.invoke(cli, ["generate", "--env", "dev"])
 
             assert result.exit_code != 0
         finally:
@@ -612,7 +631,6 @@ actions:
                     "generate",
                     "--env",
                     "dev",
-                    "--dry-run",
                     "--pipeline-config",
                     "config/pipeline_config.yaml",
                 ],
@@ -682,7 +700,6 @@ actions:
                     "generate",
                     "--env",
                     "dev",
-                    "--dry-run",
                     "--pipeline-config",
                     "config/pipeline_config.yaml",
                 ],
@@ -719,7 +736,7 @@ actions:
 """)
 
             result = self.runner.invoke(
-                cli, ["generate", "--env", "dev", "--no-bundle", "--dry-run"]
+                cli, ["generate", "--env", "dev", "--no-bundle"]
             )
 
             assert result.exit_code == 0

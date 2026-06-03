@@ -5,6 +5,8 @@ import sys
 from functools import wraps
 from typing import Callable
 
+import click
+
 from ..errors import LHPError
 from . import console as _console_module
 from .error_panel import render_error_panel
@@ -14,25 +16,33 @@ logger = logging.getLogger(__name__)
 
 
 def cli_error_boundary(operation: str) -> Callable:
-    """Decorator that catches exceptions and displays user-friendly error messages with POSIX exit codes."""
+    """Decorator that catches exceptions and displays user-friendly error messages with POSIX exit codes.
+
+    Exit code mapping:
+      0  SUCCESS        — no exception
+      1  ERROR          — LHPError (domain-level failure)
+      2  USAGE_ERROR    — click.UsageError propagates natively (Click owns this path)
+      3  INTERNAL_ERROR — unexpected exception (bug)
+    """
 
     def decorator(func: Callable) -> Callable:
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: object, **kwargs: object) -> object:
             try:
                 return func(*args, **kwargs)
             except SystemExit:
-                raise  # Let SystemExit pass through
+                raise
+            except click.UsageError:
+                raise
             except LHPError as e:
                 _console_module.err_console.print(render_error_panel(e))
-                exit_code = ExitCode.from_lhp_error(e)
                 logger.debug(f"{operation} failed with {e.code}: {e.title}")
-                sys.exit(exit_code)
+                sys.exit(ExitCode.ERROR)
             except Exception as e:
                 lhp_error = LHPError.from_unexpected_exception(e, operation)
                 _console_module.err_console.print(render_error_panel(lhp_error))
                 logger.exception(f"{operation} failed with unexpected error")
-                sys.exit(ExitCode.GENERAL_ERROR)
+                sys.exit(ExitCode.INTERNAL_ERROR)
 
         return wrapper
 

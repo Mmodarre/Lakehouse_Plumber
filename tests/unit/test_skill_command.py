@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from lhp.cli.commands.skill_command import MARKER_FILE
+from lhp.cli._skill_files import MARKER_FILE, enumerate_skill_files
 from lhp.cli.main import cli
 
 pytestmark = pytest.mark.unit
@@ -21,7 +21,7 @@ def fake_version(monkeypatch: pytest.MonkeyPatch) -> str:
     """Pin the LHP version reported by ``importlib.metadata.version``."""
     target = "9.9.9"
     monkeypatch.setattr(
-        "lhp.cli.commands.skill_command.version",
+        "lhp.cli._skill_files.version",
         lambda _name: target,
     )
     return target
@@ -32,21 +32,14 @@ def _install_dir(home: bool = False) -> Path:
 
 
 def _expected_relative_files() -> list[str]:
-    """Files that should land in the installed skill directory."""
-    return [
-        "SKILL.md",
-        "references/actions-load.md",
-        "references/actions-test.md",
-        "references/actions-transform.md",
-        "references/actions-write.md",
-        "references/advanced.md",
-        "references/best-practices.md",
-        "references/cdc-patterns.md",
-        "references/errors.md",
-        "references/monitoring.md",
-        "references/project-config.md",
-        "references/templates-presets.md",
-    ]
+    """Files that should land in the installed skill directory.
+
+    Derived from the packaged skill content (the same enumeration the install
+    command copies from) so the invariant under test is "installed set ==
+    packaged set + marker", not a brittle hand-maintained snapshot that drifts
+    whenever a reference file is added or split.
+    """
+    return list(enumerate_skill_files())
 
 
 def _list_relative_files(root: Path) -> list[str]:
@@ -143,7 +136,7 @@ def test_update_replaces_files_and_updates_marker(
     def _version(_name: str) -> str:
         return next(versions)
 
-    monkeypatch.setattr("lhp.cli.commands.skill_command.version", _version)
+    monkeypatch.setattr("lhp.cli._skill_files.version", _version)
 
     with runner.isolated_filesystem():
         first = runner.invoke(cli, ["skill", "install"])
@@ -172,7 +165,7 @@ def test_update_downgrade_warns_requires_yes(
     def _version(_name: str) -> str:
         return next(versions)
 
-    monkeypatch.setattr("lhp.cli.commands.skill_command.version", _version)
+    monkeypatch.setattr("lhp.cli._skill_files.version", _version)
 
     with runner.isolated_filesystem():
         first = runner.invoke(cli, ["skill", "install"])
@@ -221,7 +214,7 @@ def test_status_older_install(
     def _version(_name: str) -> str:
         return next(versions)
 
-    monkeypatch.setattr("lhp.cli.commands.skill_command.version", _version)
+    monkeypatch.setattr("lhp.cli._skill_files.version", _version)
 
     with runner.isolated_filesystem():
         runner.invoke(cli, ["skill", "install"])
@@ -240,7 +233,7 @@ def test_status_newer_install(
     def _version(_name: str) -> str:
         return next(versions)
 
-    monkeypatch.setattr("lhp.cli.commands.skill_command.version", _version)
+    monkeypatch.setattr("lhp.cli._skill_files.version", _version)
 
     with runner.isolated_filesystem():
         runner.invoke(cli, ["skill", "install"])

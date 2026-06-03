@@ -98,13 +98,41 @@ When creating reusable templates:
 
 ## Quick Reference: Action Types
 
-| Action | Sub-types | Key |
-|--------|-----------|-----|
-| **Load** | cloudfiles, delta, sql, jdbc, python, kafka, custom_datasource | See [actions-load.md](references/actions-load.md) |
-| **Transform** | sql, python, schema, data_quality, temp_table | `stream(view)` required for streaming SQL |
-| **Write** | streaming_table, materialized_view, sink (delta/kafka/custom) | CDC/SCD via `mode: cdc` + `cdc_config` |
-| **Test** | row_count, uniqueness, referential_integrity, completeness, range, schema_match, all_lookups_found, custom_sql, custom_expectations | `--include-tests` flag needed |
-| **Monitoring** | event_log, monitoring in lhp.yaml | See [monitoring.md](references/monitoring.md) |
+Each sub-type has its own leaf reference file. Load only the one(s) you need.
+
+| Action | Sub-type | Reference |
+|--------|----------|-----------|
+| **Load** | cloudfiles | [actions-load-cloudfiles.md](references/actions-load-cloudfiles.md) |
+| **Load** | delta | [actions-load-delta.md](references/actions-load-delta.md) |
+| **Load** | sql | [actions-load-sql.md](references/actions-load-sql.md) |
+| **Load** | python | [actions-load-python.md](references/actions-load-python.md) |
+| **Load** | jdbc | [actions-load-jdbc.md](references/actions-load-jdbc.md) |
+| **Load** | custom_datasource | [actions-load-custom-datasource.md](references/actions-load-custom-datasource.md) |
+| **Load** | kafka | [actions-load-kafka.md](references/actions-load-kafka.md) |
+| **Transform** | sql (`stream(view)` for streaming) | [actions-transform-sql.md](references/actions-transform-sql.md) |
+| **Transform** | python | [actions-transform-python.md](references/actions-transform-python.md) |
+| **Transform** | data_quality | [actions-transform-data-quality.md](references/actions-transform-data-quality.md) |
+| **Transform** | temp_table | [actions-transform-temp-table.md](references/actions-transform-temp-table.md) |
+| **Transform** | schema | [actions-transform-schema.md](references/actions-transform-schema.md) |
+| **Write** | streaming_table (standard) | [actions-write-streaming-table-standard.md](references/actions-write-streaming-table-standard.md) |
+| **Write** | streaming_table `mode: cdc` (`cdc_config`) | [actions-write-streaming-table-cdc.md](references/actions-write-streaming-table-cdc.md) |
+| **Write** | streaming_table `mode: snapshot_cdc` | [actions-write-streaming-table-snapshot-cdc.md](references/actions-write-streaming-table-snapshot-cdc.md) |
+| **Write** | materialized_view | [actions-write-materialized-view.md](references/actions-write-materialized-view.md) |
+| **Write** | sink (delta) | [actions-write-sink-delta.md](references/actions-write-sink-delta.md) |
+| **Write** | sink (kafka) | [actions-write-sink-kafka.md](references/actions-write-sink-kafka.md) |
+| **Write** | sink (Azure Event Hubs, via Kafka) | [actions-write-sink-eventhubs.md](references/actions-write-sink-eventhubs.md) |
+| **Write** | sink (custom) | [actions-write-sink-custom.md](references/actions-write-sink-custom.md) |
+| **Write** | sink (foreachbatch) | [actions-write-sink-foreachbatch.md](references/actions-write-sink-foreachbatch.md) |
+| **Test** | row_count (`--include-tests` needed) | [actions-test-row-count.md](references/actions-test-row-count.md) |
+| **Test** | uniqueness | [actions-test-uniqueness.md](references/actions-test-uniqueness.md) |
+| **Test** | referential_integrity | [actions-test-referential-integrity.md](references/actions-test-referential-integrity.md) |
+| **Test** | completeness | [actions-test-completeness.md](references/actions-test-completeness.md) |
+| **Test** | range | [actions-test-range.md](references/actions-test-range.md) |
+| **Test** | schema_match | [actions-test-schema-match.md](references/actions-test-schema-match.md) |
+| **Test** | all_lookups_found | [actions-test-all-lookups-found.md](references/actions-test-all-lookups-found.md) |
+| **Test** | custom_sql | [actions-test-custom-sql.md](references/actions-test-custom-sql.md) |
+| **Test** | custom_expectations | [actions-test-custom-expectations.md](references/actions-test-custom-expectations.md) |
+| **Monitoring** | event_log, monitoring in lhp.yaml | [monitoring.md](references/monitoring.md) |
 
 ## Key Rules
 
@@ -116,7 +144,7 @@ When creating reusable templates:
 6. **Validate before generating**: `lhp validate --env <env>`
 7. **`readMode: stream`** -> `spark.readStream`, **`batch`** -> `spark.read`
 8. **Monitoring requires event_log** — `monitoring: {}` won't work without `event_log` section
-9. **`catalog` and `schema` are REQUIRED in `pipeline_config.yaml`** — set them per-pipeline or in a top-level `project_defaults` block. Missing either fails `lhp generate` with `BundleResourceError`. See [project-config.md](references/project-config.md) and `docs/configure_catalog_schema.rst`.
+9. **`catalog` and `schema` are REQUIRED in `pipeline_config.yaml`** — set them per-pipeline or in a top-level `project_defaults` block. Missing either fails `lhp generate` with `BundleResourceError`. See [project-config.md](references/project-config.md) and `docs/how-to/configure-catalog-and-schema.rst`.
 10. **`resources/lhp/` is exclusively managed by LHP** — every `lhp generate` wipes it and rewrites it. Place custom resource YAMLs (hand-written jobs, dashboards, secret scopes) under `resources/` at the top level or any non-`lhp` subdirectory.
 
 ## Best Practice Defaults (apply unless the user overrides)
@@ -152,10 +180,12 @@ lhp deps --format job --job-name <name> --bundle-output  # Orchestration job
 
 Load these based on the user's task:
 
-- **[actions-load.md](references/actions-load.md)** — Load action types (cloudfiles, delta, sql, jdbc, kafka, python, custom_datasource) with all fields. Load when writing/debugging load configurations.
-- **[actions-transform.md](references/actions-transform.md)** — Transform types (sql, python, data_quality, schema, temp_table). Load when writing/debugging transforms.
-- **[actions-write.md](references/actions-write.md)** — Write targets (streaming_table, materialized_view), CDC modes, sinks (delta, kafka, custom, foreachbatch). Load when configuring writes or sinks.
-- **[actions-test.md](references/actions-test.md)** — All 9 test types with field references. Load when adding data quality tests.
+Action references are split per sub-type — one leaf file per action sub-type. Load only the leaf for the sub-type you are writing or debugging. The full set is enumerated in the **Quick Reference: Action Types** table above. By category:
+
+- **Load** — [cloudfiles](references/actions-load-cloudfiles.md), [delta](references/actions-load-delta.md), [sql](references/actions-load-sql.md), [python](references/actions-load-python.md), [jdbc](references/actions-load-jdbc.md), [custom_datasource](references/actions-load-custom-datasource.md), [kafka](references/actions-load-kafka.md).
+- **Transform** — [sql](references/actions-transform-sql.md), [python](references/actions-transform-python.md), [data_quality](references/actions-transform-data-quality.md), [temp_table](references/actions-transform-temp-table.md), [schema](references/actions-transform-schema.md).
+- **Write** — [streaming_table standard](references/actions-write-streaming-table-standard.md), [streaming_table cdc](references/actions-write-streaming-table-cdc.md), [streaming_table snapshot_cdc](references/actions-write-streaming-table-snapshot-cdc.md), [materialized_view](references/actions-write-materialized-view.md), [sink delta](references/actions-write-sink-delta.md), [sink kafka](references/actions-write-sink-kafka.md), [sink eventhubs](references/actions-write-sink-eventhubs.md), [sink custom](references/actions-write-sink-custom.md), [sink foreachbatch](references/actions-write-sink-foreachbatch.md).
+- **Test** — [row_count](references/actions-test-row-count.md), [uniqueness](references/actions-test-uniqueness.md), [referential_integrity](references/actions-test-referential-integrity.md), [completeness](references/actions-test-completeness.md), [range](references/actions-test-range.md), [schema_match](references/actions-test-schema-match.md), [all_lookups_found](references/actions-test-all-lookups-found.md), [custom_sql](references/actions-test-custom-sql.md), [custom_expectations](references/actions-test-custom-expectations.md). All 9 require the `--include-tests` flag.
 - **[cdc-patterns.md](references/cdc-patterns.md)** — CDC and SCD2 patterns for Delta CDF, PostgreSQL WAL, and snapshot CDC. Load when implementing any CDC/SCD2 pattern.
 - **[templates-presets.md](references/templates-presets.md)** — Template structure, naming conventions, parameter types, preset matching/merge behavior. Load when creating or editing templates or presets.
 - **[project-config.md](references/project-config.md)** — lhp.yaml, substitutions, local variables, operational metadata, CLI commands, multi-flowgroup syntax. Load for project setup or config questions.

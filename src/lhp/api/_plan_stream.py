@@ -31,6 +31,7 @@ from typing import (
     Iterator,
     List,
     Optional,
+    Sequence,
 )
 
 from lhp.api._converters_common import _issue_view_to_lhp_error
@@ -95,6 +96,7 @@ def _stream_plan_generation(
     *,
     env: str,
     pipeline_filter: Optional[str] = None,
+    pipeline_fields: Sequence[str] = (),
     include_tests: bool = False,
 ) -> Iterator[LHPEvent]:
     """Yield the full §5.7 progress stream for plan-only generation.
@@ -105,6 +107,12 @@ def _stream_plan_generation(
     ``generate`` phase with per-pipeline ``PipelineStarted`` + terminal pairs →
     terminal :class:`GenerationPlanCompleted` carrying the
     :class:`~lhp.api.GenerationPlan`.
+
+    The worklist is keyed by pipeline name and forwarded to
+    :func:`~lhp.core.codegen.build_generation_plan` mutually-exclusively (the
+    same shape as the real generate path): a single ``pipeline_filter`` OR a
+    ``pipeline_fields`` batch (forwarded only when ``pipeline_filter`` is
+    ``None``). Passing neither plans nothing.
 
     A structured (:class:`LHPError`) failure — most importantly the
     all-or-nothing gate aggregate — RAISES after the per-pipeline failure
@@ -165,6 +173,9 @@ def _stream_plan_generation(
                 orchestrator,
                 env=env,
                 pipeline_filter=pipeline_filter,
+                pipeline_fields=(
+                    list(pipeline_fields) if pipeline_filter is None else None
+                ),
                 include_tests=include_tests,
                 on_pipeline_complete=collected_deltas.append,
             )

@@ -67,7 +67,7 @@ from lhp.api.events import (
     PipelineFailed,
     PipelineStarted,
 )
-from lhp.errors import LHPError
+from lhp.errors import ErrorFactory, LHPError, codes
 from lhp.utils.performance_timer import perf_timer
 
 if TYPE_CHECKING:
@@ -343,6 +343,30 @@ def _stream_pipeline_generation(
         duration_s=time.perf_counter() - discover_start,
         success=True,
     )
+
+    # Empty-project guard (spec §6.6, GENERATE-only). A project with ZERO
+    # flowgroups is a fatal LHP-CFG-014 on generate — intentionally asymmetric
+    # with validate, which folds the empty case into a clean ValidationCompleted
+    # (exit 0). This keys on the PROJECT-WIDE discovered set, NOT on the
+    # ``--pipeline``/``pipeline_fields`` worklist: a valid project whose filter
+    # selects nothing keeps its existing "generate nothing" behavior (the engine
+    # produces an empty success batch). Following the §1.4/§9.24 generate-fatal
+    # pattern, emit exactly one ErrorEmitted then raise so the CLI boundary
+    # renders the panel + exits 1; the never-raises preflight contract is
+    # untouched (this guard lives in the stream, not in ``_run_project_preflight``).
+    if not resolved_flowgroups:
+        empty_project_error = ErrorFactory.config_error(
+            codes.CFG_014,
+            title="No flowgroups found",
+            details="No flowgroups found in project",
+            suggestions=[
+                "Check that the project contains YAML flowgroup files",
+                "Run 'lhp info' to see project configuration",
+            ],
+        )
+        yield ErrorEmitted(lhp_error=empty_project_error)
+        raise empty_project_error
+
     # LHP-DEPR-001 warnings: scanned on the main thread before the worker pool,
     # seeding the shared dedup set.
     yield from _emit_deprecation_warnings(

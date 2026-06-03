@@ -75,7 +75,7 @@ from `pipeline_config.yaml`, either as a per-pipeline entry or via the top-level
 fast with `BundleResourceError` when either value is missing, when only one of
 the pair is set, or when a value resolves to the empty string after substitution.
 
-See `docs/configure_catalog_schema.rst` for the full contract and migration guide.
+See `docs/how-to/configure-catalog-and-schema.rst` for the full contract and migration guide.
 
 ### Resolution order (deep merge, later overrides earlier)
 

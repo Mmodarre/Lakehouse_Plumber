@@ -283,7 +283,8 @@ class TestGenerateCommandParallel:
         _build_multipipeline_project(project_root, self.PIPELINES)
 
         monkeypatch.chdir(project_root)
-        # ``--show-all``: failures-only default would suppress the table on a successful run.
+        # ``--show-details`` expands per-pipeline detail; the per-pipeline rows
+        # render on a successful run regardless, so each name appears in output.
         result = runner.invoke(
             cli,
             [
@@ -293,7 +294,7 @@ class TestGenerateCommandParallel:
                 "--max-workers",
                 "4",
                 "--no-bundle",
-                "--show-all",
+                "--show-details",
             ],
         )
         assert result.exit_code == 0, f"CLI exited {result.exit_code}: {result.output}"

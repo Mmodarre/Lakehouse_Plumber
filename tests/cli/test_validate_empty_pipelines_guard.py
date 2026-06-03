@@ -1,26 +1,31 @@
-"""Empty-pipelines guard in ``ValidateCommand.execute``: emit a warning and
-exit 0 (asymmetric with generate, which raises ``LHPConfigError-014``).
+"""Empty-project ``lhp validate`` behaviour (ratified spec §6.6).
+
+A project with no flowgroups validates to a clean ``ValidationCompleted`` and
+exits 0 (asymmetric with ``generate``, which still raises ``LHP-CFG-014`` on a
+truly empty project). The deprecation scan still runs over any flowgroup files
+that are present, surfacing ``LHP-DEPR-001`` for the bare ``{token}`` syntax.
+
+These are thin CliRunner tests against the ``cli`` group object: the old
+``ValidateCommand`` class and its ``_determine_pipelines_to_validate`` seam were
+removed in the CLI rebuild, so the empty-worklist state is driven through real
+on-disk fixtures rather than a monkeypatched method.
 """
 
 from __future__ import annotations
 
 import os
-import re
 import tempfile
 from pathlib import Path
-from types import SimpleNamespace
 
-import pytest
 import yaml
 from click.testing import CliRunner
 
-from lhp.cli.commands.validate_command import ValidateCommand
 from lhp.cli.main import cli
 
 
 def _bare_project(project_root: Path) -> None:
-    """Minimum on-disk project so ``ensure_project_root`` and
-    ``ProjectConfigLoader`` succeed; flowgroup discovery is monkeypatched.
+    """Minimum on-disk project so ``resolve_project_root`` and the facade
+    succeed; the ``pipelines/`` tree is left empty (no flowgroups).
     """
     (project_root / "presets").mkdir(parents=True, exist_ok=True)
     (project_root / "templates").mkdir(parents=True, exist_ok=True)
@@ -34,13 +39,8 @@ def _bare_project(project_root: Path) -> None:
 
 
 class TestValidateEmptyPipelinesGuard:
-    def test_empty_pipelines_warns_and_exits_zero(self, monkeypatch):
-        monkeypatch.setattr(
-            ValidateCommand,
-            "_determine_pipelines_to_validate",
-            lambda self, pipeline, orchestrator: ([], []),
-        )
-
+    def test_empty_project_exits_zero(self):
+        """No flowgroups -> validate completes cleanly and exits 0 (ratified)."""
         runner = CliRunner()
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
@@ -57,56 +57,51 @@ class TestValidateEmptyPipelinesGuard:
             f"CLI exited {result.exit_code} (expected 0).\noutput:\n{result.output}"
         )
 
-        assert "no pipelines found to validate" in result.output.lower(), (
-            f"Expected empty-pipelines warning in output. output:\n{result.output}"
-        )
-
-        matches = re.findall(
-            r"no pipelines found to validate", result.output, re.IGNORECASE
-        )
-        assert len(matches) == 1, (
-            f"Expected the empty-pipelines warning exactly once, "
-            f"got {len(matches)}.\noutput:\n{result.output}"
+        # The event-stream renderer reports a clean validate stage and a
+        # zero-count summary; nothing was validated and no error is raised.
+        assert "0 validated" in result.output, (
+            f"Expected a zero-count validation summary. output:\n{result.output}"
         )
 
         # CliRunner reports SystemExit(0) via result.exception even on success.
-        assert result.exception is None or isinstance(result.exception, SystemExit), (
-            f"Unexpected exception: {result.exception!r}"
-        )
+        from click.exceptions import Exit as ClickExit
 
-    def test_deprecation_scan_runs_when_pipelines_empty_but_flowgroups_exist(
-        self, monkeypatch
-    ):
-        """Deprecation scan must run when ``pipelines_to_validate`` is empty
-        but ``all_flowgroups`` is non-empty (e.g. ``--pipeline foo`` filter
-        resolves to no flowgroups). Previously the scan sat inside the
-        ``if not empty_no_op:`` gate.
+        assert result.exception is None or isinstance(
+            result.exception, (SystemExit, ClickExit)
+        ), f"Unexpected exception: {result.exception!r}"
+
+    def test_deprecation_scan_runs_for_present_flowgroups(self):
+        """The deprecation scan surfaces ``LHP-DEPR-001`` for a flowgroup file
+        that uses the bare ``{token}`` substitution syntax, while validate still
+        exits 0 (a deprecation is a warning, not a failure).
         """
+        runner = CliRunner()
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             _bare_project(project_root)
 
-            # Path must exist on disk: ``emit_deprecation_warning_if_needed``
-            # calls ``Path.read_text`` and skips on ``OSError``.
-            bare_yaml = project_root / "fake_flowgroup.yaml"
-            bare_yaml.write_text(
-                "pipeline: ignored\nflowgroup: ignored\n"
+            # A flowgroup whose write target uses the deprecated bare {token}
+            # syntax. ``emit_deprecation_warning_if_needed`` reads the file
+            # from disk, so it must exist on disk (it does).
+            (project_root / "pipelines" / "fg.yaml").write_text(
+                "pipeline: p\nflowgroup: fg\n"
                 "actions:\n"
                 "  - name: load_table\n"
                 "    type: load\n"
-                "    target: {catalog}.{schema}.table\n",
+                "    source:\n"
+                "      type: sql\n"
+                "      sql: 'SELECT 1'\n"
+                "    target: v_raw\n"
+                "  - name: write_table\n"
+                "    type: write\n"
+                "    source: v_raw\n"
+                "    write_target:\n"
+                "      type: streaming_table\n"
+                "      database: '{catalog}.bronze'\n"
+                "      table: t\n",
                 encoding="utf-8",
             )
 
-            fake_fg = SimpleNamespace(pipeline="ignored", file_path=bare_yaml)
-
-            monkeypatch.setattr(
-                ValidateCommand,
-                "_determine_pipelines_to_validate",
-                lambda self, pipeline, orchestrator: ([], [fake_fg]),
-            )
-
-            runner = CliRunner()
             cwd = os.getcwd()
             try:
                 os.chdir(project_root)
@@ -118,8 +113,10 @@ class TestValidateEmptyPipelinesGuard:
             f"CLI exited {result.exit_code} (expected 0).\noutput:\n{result.output}"
         )
 
-        assert "bare {token} substitution syntax is deprecated" in result.output, (
-            "Expected deprecation warning in output when "
-            "pipelines_to_validate is empty but all_flowgroups is non-empty. "
+        assert "LHP-DEPR-001" in result.output, (
+            "Expected the bare {token} deprecation (LHP-DEPR-001) in output. "
             f"output:\n{result.output}"
+        )
+        assert "substitution syntax is deprecated" in result.output, (
+            f"Expected the deprecation message text in output. output:\n{result.output}"
         )

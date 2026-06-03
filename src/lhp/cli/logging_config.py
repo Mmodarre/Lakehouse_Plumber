@@ -8,7 +8,7 @@ from typing import Optional
 
 def configure_logging(
     verbose: bool, project_root: Optional[Path] = None, log_to_file: bool = False
-):
+) -> Optional[str]:
     """Configure logging for LakehousePlumber.
 
     A DEBUG log file is written only when ``log_to_file`` is true and a project
@@ -44,7 +44,7 @@ def configure_logging(
     return str(log_file_path) if log_file_path else None
 
 
-def cleanup_logging():
+def cleanup_logging() -> None:
     root_logger = logging.getLogger()
     for handler in root_logger.handlers[:]:
         handler.close()

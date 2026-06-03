@@ -323,10 +323,10 @@ dev:
         try:
             os.chdir(str(project_with_pipeline_field_structure))
 
-            # Generate using pipeline field. ``--show-all`` opts into the
-            # full per-pipeline summary table; the failures-only default
-            # would suppress the table on a clean run, but this test
-            # asserts that the pipeline name appears in stdout.
+            # Generate using pipeline field. ``--show-details`` expands
+            # per-pipeline detail; the per-pipeline row renders on a clean
+            # run regardless, and this test asserts the pipeline name
+            # appears in stdout.
             result = runner.invoke(
                 cli,
                 [
@@ -335,7 +335,7 @@ dev:
                     "dev",
                     "--pipeline",
                     "raw_ingestions",
-                    "--show-all",
+                    "--show-details",
                 ],
             )
 
@@ -372,11 +372,10 @@ dev:
 
             os.chdir(str(project_with_pipeline_field_structure))
 
-            # Generate using different pipeline field. ``--show-all``
-            # opts into the full per-pipeline summary table; the
-            # failures-only default would suppress the table on a clean
-            # run, but this test asserts that the pipeline name appears
-            # in stdout.
+            # Generate using different pipeline field. ``--show-details``
+            # expands per-pipeline detail; the per-pipeline row renders on a
+            # clean run regardless, and this test asserts the pipeline name
+            # appears in stdout.
             result = runner.invoke(
                 cli,
                 [
@@ -385,7 +384,7 @@ dev:
                     "dev",
                     "--pipeline",
                     "silver_transforms",
-                    "--show-all",
+                    "--show-details",
                 ],
             )
 
@@ -418,10 +417,10 @@ dev:
 
             os.chdir(str(project_with_pipeline_field_structure))
 
-            # Validate using pipeline field. ``--show-all`` opts into
-            # the full per-pipeline summary table; the failures-only
-            # default would suppress the table on a clean run, but this
-            # test asserts that the pipeline name appears in stdout.
+            # Validate using pipeline field. ``--show-details`` expands
+            # per-pipeline detail; the per-pipeline row renders on a clean
+            # run regardless, and this test asserts the pipeline name
+            # appears in stdout.
             result = runner.invoke(
                 cli,
                 [
@@ -430,7 +429,7 @@ dev:
                     "dev",
                     "--pipeline",
                     "raw_ingestions",
-                    "--show-all",
+                    "--show-details",
                 ],
             )
 

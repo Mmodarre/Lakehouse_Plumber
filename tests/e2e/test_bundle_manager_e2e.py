@@ -364,16 +364,10 @@ class TestBundleManagerE2E:
         self.generated_dir.mkdir(parents=True, exist_ok=True)
         self.resources_dir.mkdir(parents=True, exist_ok=True)
 
-        # Try to separate stderr from stdout when supported by the installed
-        # Click version; older versions only support `mix_stderr=False` while
-        # newer ones combine streams unless an alternate API is used.
-        try:
-            runner = CliRunner(mix_stderr=False)
-            separate_streams = True
-        except TypeError:
-            runner = CliRunner()
-            separate_streams = False
-
+        # Click 8.4's CliRunner has no `mix_stderr` kwarg; `result.output` is
+        # the combined stdout+stderr stream. Diagnostics now go to stderr, so
+        # they surface in `result.output`.
+        runner = CliRunner()
         result = runner.invoke(
             cli,
             [
@@ -386,30 +380,25 @@ class TestBundleManagerE2E:
             ],
         )
 
-        stderr_text = (getattr(result, "stderr", "") if separate_streams else "") or ""
-        stdout_text = result.output or ""
+        output = result.output or ""
         assert result.exit_code != 0, (
             "Generate must fail fast when catalog/schema are missing from "
             f"pipeline_config.yaml. Got exit_code={result.exit_code}, "
-            f"stdout={stdout_text!r}, stderr={stderr_text!r}"
+            f"output={output!r}"
         )
 
         # Expected: error output references the configure_catalog_schema doc
         # via the LHPError-formatted "More info" link. The structured signal
         # `configure_catalog_schema` (page slug) must appear and the error
         # code `LHP-CFG-026` must be present; full wording is not asserted to
-        # keep the test resilient to copy edits. When stderr cannot be
-        # separated from stdout on the installed Click, accept the union.
-        combined = stderr_text + stdout_text
-        assert "configure_catalog_schema" in combined, (
+        # keep the test resilient to copy edits.
+        assert "configure_catalog_schema" in output, (
             "Error output must reference the configure_catalog_schema doc page.\n"
-            f"  stderr: {stderr_text!r}\n"
-            f"  stdout: {stdout_text!r}"
+            f"  output: {output!r}"
         )
-        assert "LHP-CFG-026" in combined, (
+        assert "LHP-CFG-026" in output, (
             "Error output must include the structured code LHP-CFG-026.\n"
-            f"  stderr: {stderr_text!r}\n"
-            f"  stdout: {stdout_text!r}"
+            f"  output: {output!r}"
         )
 
     def test_validate_fails_on_missing_catalog_schema(self) -> None:
@@ -458,15 +447,10 @@ class TestBundleManagerE2E:
         self.generated_dir.mkdir(parents=True, exist_ok=True)
         self.resources_dir.mkdir(parents=True, exist_ok=True)
 
-        # Separate stderr from stdout when the installed Click supports it
-        # (mirror test_missing_catalog_schema_fails_fast).
-        try:
-            runner = CliRunner(mix_stderr=False)
-            separate_streams = True
-        except TypeError:
-            runner = CliRunner()
-            separate_streams = False
-
+        # Click 8.4's CliRunner has no `mix_stderr` kwarg; `result.output` is
+        # the combined stdout+stderr stream (mirror
+        # test_missing_catalog_schema_fails_fast).
+        runner = CliRunner()
         # `lhp validate` requires -pc on bundle projects; the variant ships a databricks.yml.
         result = runner.invoke(
             cli,
@@ -480,19 +464,16 @@ class TestBundleManagerE2E:
             ],
         )
 
-        stderr_text = (getattr(result, "stderr", "") if separate_streams else "") or ""
-        stdout_text = result.output or ""
+        output = result.output or ""
         assert result.exit_code != 0, (
             "Validate must fail when catalog/schema are missing from "
             f"pipeline_config.yaml. Got exit_code={result.exit_code}, "
-            f"stdout={stdout_text!r}, stderr={stderr_text!r}"
+            f"output={output!r}"
         )
 
-        combined = stderr_text + stdout_text
-        assert "LHP-CFG-026" in combined, (
+        assert "LHP-CFG-026" in output, (
             "Validate's bundle preflight must surface LHP-CFG-026.\n"
-            f"  stderr: {stderr_text!r}\n"
-            f"  stdout: {stdout_text!r}"
+            f"  output: {output!r}"
         )
         # NB: the `configure_catalog_schema` doc-link is intentionally NOT
         # asserted here -- see the docstring's "Surfacing asymmetry" note.
@@ -622,25 +603,32 @@ class TestBundleManagerE2E:
             f"found: {list(self.resources_dir.iterdir())}"
         )
 
-    def test_preflight_runs_in_dry_run(self):
-        """Preflight executes under ``--dry-run`` -- proves it is not gated by side effects.
+    def test_diff_previews_bundle_project_without_pipeline_config(self):
+        """``lhp diff`` is a side-effect-free preview that does NOT run the
+        bundle ``-pc`` preflight.
 
-        Invokes with ``--dry-run`` AND without ``-pc``; expects ``LHP-CFG-023``
-        specifically (B-gate raised before any work). This is the inverse
-        guarantee of ``check_substitution_file``: dry-run does NOT skip
-        preflight.
+        ``generate --dry-run`` was removed in the CLI rebuild; ``lhp diff`` is
+        its replacement. Unlike ``generate``, ``diff`` plans output without
+        writing and is bundle-independent: on a bundle-enabled project
+        (``databricks.yml`` present) it neither requires ``--pipeline-config``
+        nor raises ``LHP-CFG-023``. It exits 0 and writes no Python files.
+
+        (The B-gate contract -- ``generate`` + bundle enabled + no ``-pc`` ->
+        ``LHP-CFG-023`` with zero side effects -- is covered by
+        ``test_preflight_blocks_when_pc_missing_and_bundle_enabled``.)
         """
         runner = CliRunner()
-        result = runner.invoke(cli, ["generate", "--env", "dev", "--dry-run"])
+        result = runner.invoke(cli, ["diff", "--env", "dev"])
 
-        assert result.exit_code != 0, (
-            f"Dry-run must still fail B-gate. "
+        assert result.exit_code == 0, (
+            f"diff must preview a bundle project without -pc. "
             f"exit_code={result.exit_code}, output={result.output!r}"
         )
-        assert "LHP-CFG-023" in result.output, (
-            f"Expected LHP-CFG-023 specifically (not a generic error); "
-            f"got:\n{result.output}"
+        assert "LHP-CFG-023" not in result.output, (
+            f"diff must not run the bundle -pc preflight; got:\n{result.output}"
         )
+        py_files = list(self.generated_dir.rglob("*.py"))
+        assert py_files == [], f"diff must not write .py files, found:\n{py_files}"
 
     def test_bundle_yaml_regenerated_every_run(self):
         """Every `*.pipeline.yml` in `resources/lhp/` is regenerated on every run."""

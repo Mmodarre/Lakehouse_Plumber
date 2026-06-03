@@ -38,8 +38,7 @@ class EnhancedSubstitutionManager:
     # against ``${X}``, ``%{X}``, or ``{{X}}`` because it is applied AFTER
     # Jinja2 template rendering and the ``%{}`` local-variable pass have
     # already consumed those syntaxes — the blind spot is not exercised in
-    # this context. The standalone YAML scanner in ``lhp.cli.yaml_scanner``
-    # runs on raw YAML and therefore uses a stricter pattern.
+    # this context.
     DEFAULT_TOKEN_PATTERN = re.compile(r"\{(\w+)\}")
     DOLLAR_TOKEN_PATTERN = re.compile(r"\$\{(\w+)\}")
     SECRET_PATTERN = re.compile(r"\$\{secret:([^}]*)\}")

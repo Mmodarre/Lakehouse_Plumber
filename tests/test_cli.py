@@ -62,9 +62,9 @@ class TestCLI:
 
             result = runner.invoke(cli, ["init", "test_project"])
 
-            # LHP-IO-007 raised when lhp.yaml already exists; error boundary
-            # maps IO category to NO_INPUT exit code.
-            assert result.exit_code == ExitCode.NO_INPUT
+            # LHP-IO-007 raised when lhp.yaml already exists; the error boundary
+            # maps every LHPError to the collapsed ERROR exit code.
+            assert result.exit_code == ExitCode.ERROR
             assert "LHP-IO-007" in result.output
 
     def test_init_no_bundle(self, runner, temp_project):
@@ -86,9 +86,9 @@ class TestCLI:
 
         result = runner.invoke(cli, ["validate"])
 
-        # LHP-CFG-011 raised by _ensure_project_root; CONFIG category maps
-        # to CONFIG_ERROR exit code.
-        assert result.exit_code == ExitCode.CONFIG_ERROR
+        # LHP-CFG-011 raised by resolve_project_root; the error boundary maps
+        # every LHPError to the collapsed ERROR exit code.
+        assert result.exit_code == ExitCode.ERROR
         assert "LHP-CFG-011" in result.output
 
     def test_validate_empty_project(self, runner, temp_project):
@@ -106,51 +106,20 @@ class TestCLI:
             # ``--no-bundle`` to opt out.
             result = runner.invoke(cli, ["validate", "--no-bundle"])
 
-            # LHP-CFG-014 raised when no flowgroups discovered.
+            # Ratified behaviour (spec §6.6): an empty project — no flowgroups
+            # discovered — yields a clean ``ValidationCompleted`` and exits 0.
+            # (This is intentionally asymmetric with generate's LHP-CFG-014.)
             from lhp.cli.exit_codes import ExitCode
 
-            assert result.exit_code == ExitCode.CONFIG_ERROR
-            assert "LHP-CFG-014" in result.output
-
-    def test_stats_invalid_pipeline(self, runner, temp_project):
-        """Test stats command with non-existent pipeline."""
-        with runner.isolated_filesystem(temp_dir=temp_project):
-            runner.invoke(cli, ["init", "test_project"])
-
-            # Create dev.yaml for testing by copying the template
-            shutil.copy("substitutions/dev.yaml.tmpl", "substitutions/dev.yaml")
-
-            # Create a valid pipeline first
-            pipeline_dir = Path("pipelines/test_pipeline")
-            pipeline_dir.mkdir(parents=True)
-
-            flowgroup_content = {
-                "pipeline": "test_pipeline",
-                "flowgroup": "test_flowgroup",
-                "actions": [
-                    {
-                        "name": "load_data",
-                        "type": "load",
-                        "target": "v_raw_data",
-                        "source": {"type": "sql", "sql": "SELECT * FROM raw_table"},
-                    }
-                ],
-            }
-
-            with open(pipeline_dir / "test_flowgroup.yaml", "w") as f:
-                yaml.dump(flowgroup_content, f)
-
-            result = runner.invoke(cli, ["stats", "--pipeline", "UNKNOWN_PIPELINE"])
-
-            assert result.exit_code == 0
+            assert result.exit_code == ExitCode.SUCCESS
 
     def test_generate_bundle_sync_dry_run(self, runner, temp_project):
-        """Test bundle sync detection in dry-run mode.
+        """Test that ``lhp diff`` (the dry-run successor) materializes nothing.
 
-        Under the v0.8.7 preflight contract, bundle-enabled projects must
-        pass ``--pipeline-config`` (or ``--no-bundle``). This test supplies
-        a minimal config so it can reach the bundle-sync dry-run code path
-        being exercised.
+        ``generate --dry-run`` was removed; the plan-only ``diff`` command is its
+        successor. The original intent here was that a dry run never writes bundle
+        resource files — ``diff`` plans every flowgroup but writes nothing, so the
+        ``resources/lhp`` tree must remain unmaterialized.
         """
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ["init", "test_project"])
@@ -190,59 +159,25 @@ class TestCLI:
             with open(pipeline_dir / "test_flowgroup.yaml", "w") as f:
                 yaml.dump(flowgroup_content, f)
 
-            # Minimal pipeline_config that satisfies preflight (project_defaults
-            # apply to every discovered pipeline).
-            Path("config/pipeline_config.yaml").write_text(
-                "project_defaults:\n"
-                "  catalog: test_cat\n"
-                "  schema: bronze\n"
-                "  serverless: true\n",
-                encoding="utf-8",
-            )
-
-            # Run generate with verbose and dry-run to see bundle sync message
-            result = runner.invoke(
-                cli,
-                [
-                    "--verbose",
-                    "generate",
-                    "--env",
-                    "dev",
-                    "--dry-run",
-                    "--pipeline-config",
-                    "config/pipeline_config.yaml",
-                ],
-            )
+            # ``diff`` is plan-only and bundle-independent, so it needs neither
+            # ``--pipeline-config`` nor ``--no-bundle``. ``--verbose`` is now a
+            # global group option and must precede the subcommand.
+            result = runner.invoke(cli, ["--verbose", "diff", "--env", "dev"])
 
             assert result.exit_code == 0, (
                 f"Unexpected failure; output:\n{result.output}"
             )
-            # Dry-run must not materialize bundle resource files.
+            # The plan-only diff must not materialize bundle resource files.
             assert not (Path("resources") / "lhp").exists() or not any(
                 (Path("resources") / "lhp").iterdir()
             )
-
-    def test_load_project_config_malformed(self, runner, temp_project):
-        """Test _load_project_config with malformed YAML returns defaults."""
-        with runner.isolated_filesystem(temp_dir=temp_project):
-            runner.invoke(cli, ["init", "test_project"])
-
-            # Create malformed lhp.yaml
-            with open("lhp.yaml", "w") as f:
-                f.write("name: test\nversion: 1.0\ninvalid_yaml: [unclosed list")
-
-            # Run info command which uses _load_project_config — malformed
-            # YAML should be handled gracefully via defaults (no crash).
-            result = runner.invoke(cli, ["info"])
-
-            assert result.exit_code == 0
 
     def test_cli_help(self, runner):
         """Test CLI help command."""
         result = runner.invoke(cli, ["--help"])
         assert result.exit_code == 0
         assert "LakehousePlumber" in result.output
-        assert "Generate Lakeflow pipelines from YAML configs" in result.output
+        assert "generate Lakeflow pipelines from YAML configs" in result.output
 
     def test_validate_with_pipeline(self, runner, temp_project):
         """Test validate with a valid pipeline."""
@@ -291,29 +226,29 @@ class TestCLI:
             assert result.exit_code == 0
 
     def test_list_presets(self, runner, temp_project):
-        """Test list-presets command."""
+        """Test ``list presets`` command."""
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ["init", "test_project"])
 
-            result = runner.invoke(cli, ["list-presets"])
+            result = runner.invoke(cli, ["list", "presets"])
 
             assert result.exit_code == 0
             # Behavioral: bronze_layer.yaml was discovered and surfaced.
             assert "bronze_layer" in result.output
 
     def test_list_templates(self, runner, temp_project):
-        """Test list-templates command."""
+        """Test ``list templates`` command."""
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ["init", "test_project"])
 
-            result = runner.invoke(cli, ["list-templates"])
+            result = runner.invoke(cli, ["list", "templates"])
 
             assert result.exit_code == 0
             # Behavioral: standard_ingestion.yaml was discovered and surfaced.
             assert "standard_ingestion" in result.output
 
     def test_generate_dry_run(self, runner, temp_project):
-        """Test generate command with dry-run."""
+        """Test the plan-only ``lhp diff`` command (the dry-run successor)."""
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ["init", "test_project"])
             shutil.copy("substitutions/dev.yaml.tmpl", "substitutions/dev.yaml")
@@ -349,67 +284,17 @@ class TestCLI:
             with open(pipeline_dir / "test_flowgroup.yaml", "w") as f:
                 yaml.dump(flowgroup_content, f)
 
-            # Run generate with dry-run. ``--no-bundle`` avoids the v0.8.7
-            # preflight requirement for ``--pipeline-config`` since this test
-            # exercises the dry-run flow, not bundle integration.
-            result = runner.invoke(
-                cli,
-                ["generate", "--env", "dev", "--dry-run", "--no-bundle"],
-            )
+            # ``generate --dry-run`` was removed; ``diff`` is the plan-only
+            # successor. It is bundle-independent, so no ``--no-bundle`` /
+            # ``--pipeline-config`` is needed.
+            result = runner.invoke(cli, ["diff", "--env", "dev"])
 
             assert result.exit_code == 0
-            # Dry-run must not materialize any .py output.
+            # The plan-only diff must not materialize any .py output.
             generated_root = Path("generated")
             assert not generated_root.exists() or not list(
                 generated_root.glob("**/*.py")
             )
-
-    def test_show_command(self, runner, temp_project):
-        """Test show command."""
-        with runner.isolated_filesystem(temp_dir=temp_project):
-            runner.invoke(cli, ["init", "test_project"])
-            shutil.copy("substitutions/dev.yaml.tmpl", "substitutions/dev.yaml")
-
-            pipeline_dir = Path("pipelines/test_pipeline")
-            pipeline_dir.mkdir(parents=True)
-
-            flowgroup_content = {
-                "pipeline": "test_pipeline",
-                "flowgroup": "test_flowgroup",
-                "actions": [
-                    {
-                        "name": "load_data",
-                        "type": "load",
-                        "target": "v_raw_data",
-                        "source": {
-                            "type": "sql",
-                            "sql": "SELECT * FROM {catalog}.{bronze_schema}.source_table",
-                        },
-                    },
-                    {
-                        "name": "write_bronze",
-                        "type": "write",
-                        "source": "v_raw_data",
-                        "write_target": {
-                            "type": "streaming_table",
-                            "catalog": "{catalog}",
-                            "schema": "{bronze_schema}",
-                            "table": "processed_data",
-                            "create_table": True,
-                        },
-                    },
-                ],
-            }
-
-            with open(pipeline_dir / "test_flowgroup.yaml", "w") as f:
-                yaml.dump(flowgroup_content, f)
-
-            # Run show command
-            result = runner.invoke(cli, ["show", "test_flowgroup", "--env", "dev"])
-
-            assert result.exit_code == 0
-            # Behavioral: flowgroup name appears in the rendered YAML body.
-            assert "test_flowgroup" in result.output
 
     def test_validate_with_secrets(self, runner, temp_project):
         """Test validate with secret references."""
@@ -457,17 +342,26 @@ class TestCLI:
             with open(pipeline_dir / "test_flowgroup.yaml", "w") as f:
                 yaml.dump(flowgroup_content, f)
 
+            # ``--verbose`` is now a global group option and must precede the
+            # subcommand.
             result = runner.invoke(
-                cli, ["validate", "--env", "dev", "--verbose", "--no-bundle"]
+                cli, ["--verbose", "validate", "--env", "dev", "--no-bundle"]
             )
 
             assert result.exit_code == 0
 
     def test_get_version_fallbacks(self, runner, temp_project):
-        """Test get_version() fallback logic when package metadata is not available."""
+        """Test get_version() fallback logic when package metadata is not available.
+
+        ``get_version`` and the ``version`` metadata helper now live in
+        ``lhp.cli._version`` (re-exported into ``lhp.cli.main``); the patch
+        target and ``__file__`` override move with them.
+        """
         from unittest.mock import patch
 
-        with patch("lhp.cli.main.version") as mock_version:
+        import lhp.cli._version
+
+        with patch("lhp.cli._version.version") as mock_version:
             mock_version.side_effect = Exception("Package not found")
 
             with tempfile.TemporaryDirectory() as tmpdir:
@@ -479,36 +373,32 @@ version = "1.2.3"
 description = "Test package"
 """)
 
-                import lhp.cli.main
-
-                original_file = lhp.cli.main.__file__
+                original_file = lhp.cli._version.__file__
                 try:
-                    lhp.cli.main.__file__ = str(
-                        Path(tmpdir) / "src" / "lhp" / "cli" / "main.py"
+                    lhp.cli._version.__file__ = str(
+                        Path(tmpdir) / "src" / "lhp" / "cli" / "_version.py"
                     )
-                    version_result = lhp.cli.main.get_version()
+                    version_result = lhp.cli._version.get_version()
                     assert version_result == "1.2.3"
                 finally:
-                    lhp.cli.main.__file__ = original_file
+                    lhp.cli._version.__file__ = original_file
 
-        with patch("lhp.cli.main.version") as mock_version:
+        with patch("lhp.cli._version.version") as mock_version:
             mock_version.side_effect = Exception("Package not found")
 
             with tempfile.TemporaryDirectory() as tmpdir:
-                import lhp.cli.main
-
-                original_file = lhp.cli.main.__file__
+                original_file = lhp.cli._version.__file__
                 try:
-                    lhp.cli.main.__file__ = str(
-                        Path(tmpdir) / "deep" / "nested" / "path" / "main.py"
+                    lhp.cli._version.__file__ = str(
+                        Path(tmpdir) / "deep" / "nested" / "path" / "_version.py"
                     )
-                    version_result = lhp.cli.main.get_version()
+                    version_result = lhp.cli._version.get_version()
                     assert version_result == "0.2.11"
                 finally:
-                    lhp.cli.main.__file__ = original_file
+                    lhp.cli._version.__file__ = original_file
 
     def test_list_templates_empty_dir(self, runner, temp_project):
-        """Test list-templates command with no template files."""
+        """Test ``list templates`` command with no template files."""
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ["init", "test_project"])
 
@@ -519,12 +409,12 @@ description = "Test package"
                 for template_file in templates_dir.glob("*.yml"):
                     template_file.unlink()
 
-            result = runner.invoke(cli, ["list-templates"])
+            result = runner.invoke(cli, ["list", "templates"])
 
             assert result.exit_code == 0
 
     def test_list_presets_empty_dir(self, runner, temp_project):
-        """Test list-presets command with no preset files."""
+        """Test ``list presets`` command with no preset files."""
         with runner.isolated_filesystem(temp_dir=temp_project):
             runner.invoke(cli, ["init", "test_project"])
 
@@ -535,7 +425,7 @@ description = "Test package"
                 for preset_file in presets_dir.glob("*.yml"):
                     preset_file.unlink()
 
-            result = runner.invoke(cli, ["list-presets"])
+            result = runner.invoke(cli, ["list", "presets"])
 
             assert result.exit_code == 0
 
@@ -554,8 +444,11 @@ description = "Test package"
             # this test specifically verifies the "no flowgroups" error.
             result = runner.invoke(cli, ["generate", "--env", "dev", "--no-bundle"])
 
-            # LHP-CFG-014 raised when no flowgroups discovered.
+            # Spec §6.6 mandates generate-on-empty raise LHP-CFG-014 (exit 1) —
+            # intentionally asymmetric with validate's clean exit 0. The
+            # exit-code constant rename (CONFIG_ERROR -> ERROR) is the only
+            # mechanical change applied here; the asserted INTENT is unchanged.
             from lhp.cli.exit_codes import ExitCode
 
-            assert result.exit_code == ExitCode.CONFIG_ERROR
+            assert result.exit_code == ExitCode.ERROR
             assert "LHP-CFG-014" in result.output

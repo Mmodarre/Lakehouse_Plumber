@@ -286,12 +286,12 @@ class TestBlueprintE2E:
             f"Got:\n{output[-2000:]}"
         )
 
-    def test_BP9_lhp_deps_includes_synthetic_flowgroups(self):
-        """`lhp deps` must surface the 3 acme_edw_bp_* pipelines and all 6
+    def test_BP9_lhp_dag_includes_synthetic_flowgroups(self):
+        """`lhp dag` must surface the 3 acme_edw_bp_* pipelines and all 6
         synthetic flowgroups in its dependency analysis output."""
         runner = CliRunner()
-        result = runner.invoke(cli, ["deps", "-b"])
-        assert result.exit_code == 0, f"deps failed: {result.output}"
+        result = runner.invoke(cli, ["dag", "-b"])
+        assert result.exit_code == 0, f"dag failed: {result.output}"
 
         deps_json = (
             self.project_root / ".lhp" / "dependencies" / "pipeline_dependencies.json"

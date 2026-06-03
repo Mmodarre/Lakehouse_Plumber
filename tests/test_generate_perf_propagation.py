@@ -1,18 +1,39 @@
 """Cross-process perf-propagation proof for ``lhp --perf generate``.
 
-The per-flowgroup work runs inside a ``ProcessPoolExecutor(mp_context="spawn")``.
-Spawned workers re-import the perf module with ``_enabled = False``, so before
-the worker→parent perf channel landed, every in-worker ``perf_timer(...)`` call
-hit the disabled fast-path and recorded nothing — the "Per-category aggregate
-stats" table in ``perf.log`` showed only coordinator-side categories.
+KNOWN BUG (documented hard-red — do NOT fix-to-green, xfail, or skip).
+=====================================================================
+The two ``test_known_bug_*`` tests in this file are an intentional hard-red
+left for a future infra fix-agent, per the project deferred-bug policy. They
+assert the CORRECT end-state and currently FAIL because of a PRE-EXISTING
+regression in the single-stream ``generate`` path: the worker's
+``PerfSummary`` is never merged back across the ``spawn`` boundary into the
+coordinator singleton.
 
-This test proves the channel now works end-to-end: a ``--perf`` generate run
-over a ≥2-flowgroup project produces a perf.log whose per-category table now
-contains the previously dead WORKER-side rows ``resolve_dependencies`` and
-``assemble_code``, each with ``cnt == flowgroup count``. Those categories are
-recorded ONLY inside the worker (``core/codegen/coordinator.py``), so their
-presence here is direct evidence that the worker's in-memory aggregate crossed
-the spawn boundary and was merged into the coordinator singleton that
+Concretely, the worker exports its metrics via
+``PerfSummary.export_for_merge`` (and the disabled-perf fast-path returns
+``FlowgroupOutcome.perf is None``), but the single-stream generate coordinator
+never calls ``PerfSummary.merge`` / ``merge_perf`` on the per-flowgroup
+outcome's perf payload. So the WORKER-side per-category rows
+(``resolve_dependencies``, ``assemble_code``, ``get_generator``,
+``jinja_render``, worker-side ``preset_resolve``) never reach the parent's
+``perf.log`` — the "Per-category aggregate stats" table shows only
+coordinator-side categories. Pre-existing as of commit 4a5532d5
+(single-stream generate/validate orchestration). Fix is to wire the worker
+``PerfSummary.merge`` into the single-stream generate collection path so the
+in-worker aggregate crosses the spawn boundary; once wired, drop the
+``known_bug`` marker from the two test names.
+
+The third test (``test_no_perf_flag_writes_no_log_and_outcome_perf_is_none``)
+is GREEN: it proves the disabled fast-path (no ``perf.log``,
+``outcome.perf is None``) and is independent of the merge bug.
+
+Intended end-state proven by the ``known_bug`` tests: a ``--perf`` generate
+run over a ≥2-flowgroup project produces a perf.log whose per-category table
+contains the WORKER-side rows ``resolve_dependencies`` and ``assemble_code``,
+each with ``cnt == flowgroup count``. Those categories are recorded ONLY
+inside the worker (``core/codegen/coordinator.py``), so their presence is
+direct evidence that the worker's in-memory aggregate crossed the spawn
+boundary and was merged into the coordinator singleton that
 ``log_perf_summary()`` renders.
 
 This file also carries (T9):
@@ -200,9 +221,12 @@ class TestGeneratePerfPropagation:
             handler.close()
             pt._perf_logger.removeHandler(handler)
 
-    def test_worker_category_stats_propagate_to_parent_perf_log(
+    def test_known_bug_worker_category_stats_propagate_to_parent_perf_log(
         self, runner, tmp_path, monkeypatch
     ):
+        # KNOWN BUG (hard-red): worker PerfSummary.merge is not called in the
+        # single-stream generate path, so worker-side categories never reach
+        # perf.log. Asserts the CORRECT behavior. See module docstring.
         project_root = tmp_path
         _build_multipipeline_project(project_root, self.PIPELINES)
         flowgroup_count = len(self.PIPELINES)  # one flowgroup per pipeline
@@ -247,10 +271,15 @@ class TestGeneratePerfPropagation:
                 f"{flowgroup_count} (one per flowgroup).\n\nperf.log:\n{text}"
             )
 
-    def test_all_worker_categories_visible_with_expected_counts(
+    def test_known_bug_all_worker_categories_visible_with_expected_counts(
         self, runner, tmp_path, monkeypatch
     ):
         """Pin every per-category row a ``--perf`` generate lights up.
+
+        KNOWN BUG (hard-red): asserts the CORRECT end-state; currently fails
+        because the worker ``PerfSummary`` is not merged across the spawn
+        boundary in the single-stream generate path. See module docstring.
+
 
         Built WITH presets so the preset-resolution path is alive — without it
         ``preset_resolve`` / ``fg_presets`` never fire (``resolve_preset_chain``

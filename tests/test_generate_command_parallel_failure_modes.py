@@ -7,7 +7,7 @@ cross-pipeline races and partial-failure state isolation.
 These tests build a fresh LHP project under ``tmp_path`` from scratch
 (no shared helpers with the legacy parallel-test file). The Click CLI
 is invoked via ``click.testing.CliRunner.invoke`` so we exercise the
-whole stack: CLI -> GenerateCommand -> ApplicationFacade -> orchestrator
+whole stack: ``lhp generate`` -> ApplicationFacade -> orchestrator
 -> flat-pool engine.
 """
 
@@ -149,14 +149,14 @@ class TestParallelGenerateFailureModes:
     ) -> None:
         """Each pipeline appears at least once in the run summary table.
 
-        ``--show-all`` is required: the failures-only default suppresses the table on an
-        all-success run, so the per-pipeline row visibility assertion would vacuously pass.
+        ``--show-details`` expands per-pipeline detail; the per-pipeline rows
+        render on an all-success run regardless, so each name surfaces in output.
         """
         project_root = tmp_path / "lhp_proj_per_pipeline_marker"
         _build_lhp_project(project_root)
         _write_3x4_fixture(project_root)  # All valid
 
-        result = self._invoke_cli(project_root, "--show-all")
+        result = self._invoke_cli(project_root, "--show-details")
         # All pipelines succeed.
         assert result.exit_code == 0, (
             f"Expected exit 0 with all-valid fixture; got "
@@ -190,7 +190,7 @@ class TestParallelGenerateFailureModes:
             broken_flowgroup_index=2,
         )
 
-        result = self._invoke_cli(project_root, "--show-all")
+        result = self._invoke_cli(project_root, "--show-details")
 
         assert result.exit_code != 0, (
             f"Expected non-zero exit when a flowgroup is broken; got "
