@@ -213,7 +213,7 @@ def _success_outcome():
 
 def test_generate_counts_line_uses_generated_and_failed():
     outcome = _generate_outcome()
-    header = RunHeader(command="generate", env="dev", pipeline_count=2)
+    header = RunHeader(command="generate", env="dev")
     console, buf = capture_err_console()
     print_run_summary(
         outcome,
@@ -223,15 +223,58 @@ def test_generate_counts_line_uses_generated_and_failed():
         err_console=console,
     )
     text = buf.getvalue()
-    assert "1 generated" in text
+    # Generate now names the unit and carries a file count derived from the
+    # response (1 success -> singular "pipeline"; total_files_written=1 -> "file").
+    assert "1 pipeline generated" in text
+    assert "1 file" in text
     assert "validated" not in text
     assert "1 failed" in text
     assert "4.4s" in text
 
 
+def test_generate_counts_line_pluralizes_pipelines_and_files():
+    # Counts are read off the terminal response (per-pipeline success +
+    # total_files_written): the header carries no count at all, so the banner
+    # can only have come from the response.
+    response = BatchGenerationResponse(
+        success=True,
+        pipeline_responses={
+            "bronze": GenerationResponse(
+                success=True,
+                generated_filenames=("a.py",),
+                files_written=1,
+                total_flowgroups=1,
+                output_location=None,
+                performance_info={},
+            ),
+            "silver": GenerationResponse(
+                success=True,
+                generated_filenames=("b.py", "c.py"),
+                files_written=2,
+                total_flowgroups=2,
+                output_location=None,
+                performance_info={},
+            ),
+        },
+        total_files_written=3,
+        aggregate_generated_filenames=("a.py", "b.py", "c.py"),
+        output_location=None,
+    )
+    outcome = RunOutcome(response=response, warnings=(), failures=(), errored=False)
+    header = RunHeader(command="generate", env="dev")
+    console, buf = capture_err_console()
+    print_run_summary(
+        outcome, header, elapsed_s=1.0, options=RenderOptions(), err_console=console
+    )
+    text = buf.getvalue()
+    # 2 successes -> "2 pipelines generated"; total_files_written=3 -> "3 files".
+    assert "2 pipelines generated" in text
+    assert "3 files" in text
+
+
 def test_validate_counts_line_uses_validated_and_warning_and_failed():
     outcome = _validate_outcome()
-    header = RunHeader(command="validate", env="prod", pipeline_count=4)
+    header = RunHeader(command="validate", env="prod")
     console, buf = capture_err_console()
     print_run_summary(
         outcome,
@@ -260,7 +303,7 @@ def test_warning_plural_two_warnings():
         failures=outcome.failures,
         errored=False,
     )
-    header = RunHeader(command="validate", env="prod", pipeline_count=4)
+    header = RunHeader(command="validate", env="prod")
     console, buf = capture_err_console()
     print_run_summary(
         outcome, header, elapsed_s=2.0, options=RenderOptions(), err_console=console
@@ -275,7 +318,7 @@ def test_warning_plural_two_warnings():
 
 def test_validate_failures_include_flowgroup_and_file_segments():
     outcome = _validate_outcome()
-    header = RunHeader(command="validate", env="prod", pipeline_count=4)
+    header = RunHeader(command="validate", env="prod")
     console, buf = capture_err_console()
     print_run_summary(
         outcome, header, elapsed_s=2.0, options=RenderOptions(), err_console=console
@@ -294,7 +337,7 @@ def test_validate_failures_include_flowgroup_and_file_segments():
 
 def test_generate_failures_are_pipeline_level_no_flowgroup_segment():
     outcome = _generate_outcome()
-    header = RunHeader(command="generate", env="dev", pipeline_count=2)
+    header = RunHeader(command="generate", env="dev")
     console, buf = capture_err_console(width=200)
     print_run_summary(
         outcome, header, elapsed_s=1.0, options=RenderOptions(), err_console=console
@@ -309,26 +352,115 @@ def test_generate_failures_are_pipeline_level_no_flowgroup_segment():
 
 
 # --------------------------------------------------------------------------- #
+# Preflight failure (batch-level, empty-pipeline)                              #
+# --------------------------------------------------------------------------- #
+
+
+def _preflight_failure_outcome():
+    """A validate run halted by a folded preflight (e.g. CFG-023).
+
+    Mirrors the non-raising validate path: ``_build_validation_batch_from_issues``
+    yields a failed ``BatchValidationResponse`` with NO per-pipeline entries but
+    a batch-level ``error_code`` / ``error_message``, and ``merge_terminal_validation``
+    synthesizes exactly one empty-pipeline ``FailureLine`` from it (see
+    ``event_stream/_outcome.py``). This is the shape the summary must surface as
+    an explicit stop rather than as a missing stage.
+    """
+    response = BatchValidationResponse(
+        success=False,
+        pipeline_responses={},
+        total_errors=1,
+        total_warnings=0,
+        validated_pipelines=(),
+        error_message="Error [LHP-CFG-023]: Project preflight failed",
+        error_code="LHP-CFG-023",
+    )
+    failures = (
+        FailureLine(
+            pipeline="",
+            code="LHP-CFG-023",
+            message="Error [LHP-CFG-023]: Project preflight failed",
+        ),
+    )
+    return RunOutcome(response=response, warnings=(), failures=failures, errored=False)
+
+
+def test_preflight_failure_is_surfaced_explicitly():
+    outcome = _preflight_failure_outcome()
+    header = RunHeader(command="validate", env="prod")
+    console, buf = capture_err_console()
+    print_run_summary(
+        outcome, header, elapsed_s=1.2, options=RenderOptions(), err_console=console
+    )
+    text = buf.getvalue()
+    # Reads as an explicit error that stopped the run, not a missing stage.
+    assert "preflight failed" in text
+    assert "later stages not run" in text
+    # The code still surfaces, and the banner tallies the one failure.
+    assert "LHP-CFG-023" in text
+    assert "1 failed" in text
+    # Still points the user at the next step.
+    assert "lhp validate --env prod --show-details" in text
+
+
+def test_preflight_failure_omits_bare_empty_pipeline_line():
+    # The synthetic FailureLine has an empty pipeline; the explicit-stop line
+    # MUST be printed instead of the bare _failure_line (which would render the
+    # empty pipeline + lone code as if a stage were simply missing).
+    outcome = _preflight_failure_outcome()
+    header = RunHeader(command="validate", env="prod")
+    console, buf = capture_err_console(width=200)
+    print_run_summary(
+        outcome, header, elapsed_s=1.2, options=RenderOptions(), err_console=console
+    )
+    lines = [ln for ln in buf.getvalue().splitlines() if ln.strip()]
+    # The failure line is the dedicated preflight line — it leads with the code
+    # immediately followed by the explicit phrase (no empty-pipeline prefix).
+    failure_lines = [ln for ln in lines if "LHP-CFG-023" in ln]
+    assert len(failure_lines) == 1
+    assert failure_lines[0].lstrip().startswith("LHP-CFG-023  preflight failed")
+
+
+def test_preflight_failure_explicit_under_show_details():
+    # --show-details must NOT fall back to render_issue_panel here: the batch
+    # carries no per-pipeline ValidationIssueView to expand, so the explicit
+    # stop line is the right surface regardless of the flag.
+    outcome = _preflight_failure_outcome()
+    header = RunHeader(command="validate", env="prod")
+    console, buf = capture_err_console()
+    print_run_summary(
+        outcome,
+        header,
+        elapsed_s=1.2,
+        options=RenderOptions(show_details=True),
+        err_console=console,
+    )
+    text = buf.getvalue()
+    assert "preflight failed" in text
+    assert "later stages not run" in text
+
+
+# --------------------------------------------------------------------------- #
 # Next-step hint                                                               #
 # --------------------------------------------------------------------------- #
 
 
 def test_success_prints_no_next_step_hint():
     outcome = _success_outcome()
-    header = RunHeader(command="generate", env="dev", pipeline_count=1)
+    header = RunHeader(command="generate", env="dev")
     console, buf = capture_err_console()
     print_run_summary(
         outcome, header, elapsed_s=0.5, options=RenderOptions(), err_console=console
     )
     text = buf.getvalue()
-    assert "1 generated" in text
+    assert "1 pipeline generated" in text
     assert "Re-run" not in text
     assert "--show-details" not in text
 
 
 def test_failures_print_next_step_hint():
     outcome = _validate_outcome()
-    header = RunHeader(command="validate", env="prod", pipeline_count=4)
+    header = RunHeader(command="validate", env="prod")
     console, buf = capture_err_console()
     print_run_summary(
         outcome, header, elapsed_s=2.0, options=RenderOptions(), err_console=console
@@ -344,7 +476,7 @@ def test_failures_print_next_step_hint():
 
 def test_show_details_prints_panel_per_failure():
     outcome = _validate_outcome()
-    header = RunHeader(command="validate", env="prod", pipeline_count=4)
+    header = RunHeader(command="validate", env="prod")
     console, buf = capture_err_console()
     print_run_summary(
         outcome,
@@ -369,7 +501,7 @@ def test_show_details_prints_panel_per_failure():
 
 def test_show_details_generate_pipeline_level_panel():
     outcome = _generate_outcome()
-    header = RunHeader(command="generate", env="dev", pipeline_count=2)
+    header = RunHeader(command="generate", env="dev")
     console, buf = capture_err_console()
     print_run_summary(
         outcome,
@@ -425,7 +557,7 @@ def _warnings_outcome():
 
 def test_warning_rollup_lists_codes_when_details_collapsed():
     outcome = _warnings_outcome()
-    header = RunHeader(command="generate", env="dev", pipeline_count=1)
+    header = RunHeader(command="generate", env="dev")
     console, buf = capture_err_console()
     print_run_summary(
         outcome, header, elapsed_s=1.0, options=RenderOptions(), err_console=console
@@ -447,7 +579,7 @@ def test_warning_rollup_absent_with_show_details():
     # With --show-details the renderer already streamed the full per-file
     # lines, so the summary must NOT also print the collapsed rollup.
     outcome = _warnings_outcome()
-    header = RunHeader(command="generate", env="dev", pipeline_count=1)
+    header = RunHeader(command="generate", env="dev")
     console, buf = capture_err_console()
     print_run_summary(
         outcome,

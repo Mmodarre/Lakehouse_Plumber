@@ -42,10 +42,10 @@ def test_clean_run_generates_files_and_reports_nonzero_count(
 
     When no ``-p`` is given the command must derive ``pipeline_fields`` from the
     discovered flowgroups; omitting it makes the facade generate ZERO pipelines
-    (exit 0, empty stdout, ``0 generated`` on stderr) — a silent no-op this test
-    is built to catch. Asserts the real worklist: exit 0, empty stdout, >=10
-    generated ``.py`` files under ``generated/dev``, and the stderr summary's
-    ``N generated`` count is non-zero and matches the files on disk.
+    (exit 0, empty stdout, ``0 pipelines generated`` on stderr) — a silent no-op
+    this test is built to catch. Asserts the real worklist: exit 0, empty stdout,
+    >=10 generated ``.py`` files under ``generated/dev``, and the stderr summary's
+    ``N pipelines generated`` count is non-zero and matches the files on disk.
     """
     monkeypatch.chdir(project_dir)
     result = CliRunner().invoke(
@@ -67,8 +67,10 @@ def test_clean_run_generates_files_and_reports_nonzero_count(
     )
 
     # The post-run summary banner reports a NON-ZERO count on stderr.
-    match = re.search(r"(\d+)\s+generated", result.stderr)
-    assert match is not None, f"no 'N generated' summary on stderr:\n{result.stderr}"
+    match = re.search(r"(\d+)\s+pipelines?\s+generated", result.stderr)
+    assert match is not None, (
+        f"no 'N pipelines generated' summary on stderr:\n{result.stderr}"
+    )
     generated_count = int(match.group(1))
     assert generated_count > 0, f"summary reports zero generated:\n{result.stderr}"
 

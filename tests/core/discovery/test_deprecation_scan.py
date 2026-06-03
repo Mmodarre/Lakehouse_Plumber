@@ -170,3 +170,65 @@ def test_service_no_pipelines_dir_yields_no_records(tmp_path: Path) -> None:
     service = FlowgroupDiscoveryService(tmp_path)
 
     assert service.scan_deprecation_warnings() == ()
+
+
+def _write_flowgroup_with_bare_token(path: Path, pipeline: str, name: str) -> None:
+    """A minimal, real flowgroup (pipeline + flowgroup + a bare ``{token}``)."""
+    _write_fg(
+        path,
+        f"pipeline: {pipeline}\n"
+        f"flowgroup: {name}\n"
+        "actions:\n"
+        "  - name: load_src\n"
+        "    type: load\n"
+        "    source:\n"
+        "      type: sql\n"
+        "      sql: 'SELECT * FROM {bare_token}'\n"  # bare {token} -> LHP-DEPR-001
+        "    target: v_src\n",
+    )
+
+
+@pytest.mark.integration
+def test_service_pipeline_filter_scans_only_matching_pipeline(tmp_path: Path) -> None:
+    """``pipeline_filter`` restricts the scan to the matching pipeline's files.
+
+    Two pipelines, each in its own file, each carrying a bare ``{token}``.
+    Filtering to ``target_pipe`` must report ONLY that file — the deprecation
+    in ``other_pipe`` must NOT surface. Would FAIL if the filter were ignored
+    (the unfiltered scan reports BOTH files, asserted below).
+    """
+    pipelines = tmp_path / "pipelines"
+    target_file = pipelines / "target" / "fg_target.yaml"
+    other_file = pipelines / "other" / "fg_other.yaml"
+    _write_flowgroup_with_bare_token(target_file, "target_pipe", "fg_target")
+    _write_flowgroup_with_bare_token(other_file, "other_pipe", "fg_other")
+
+    service = FlowgroupDiscoveryService(tmp_path)
+
+    # Sanity: unfiltered scan sees BOTH offending files (so the filter below is
+    # the only thing that can exclude ``other_pipe`` — a no-op filter would
+    # leave this same two-file set and fail the single-file assertions).
+    unfiltered = service.scan_deprecation_warnings()
+    assert {r.file.name for r in unfiltered} == {"fg_target.yaml", "fg_other.yaml"}
+
+    filtered = service.scan_deprecation_warnings(pipeline_filter="target_pipe")
+
+    assert len(filtered) == 1
+    assert filtered[0].file.name == "fg_target.yaml"
+    assert filtered[0].code == _DEPR_001
+    assert {r.file.name for r in filtered} == {"fg_target.yaml"}
+
+
+@pytest.mark.integration
+def test_service_pipeline_filter_unknown_pipeline_yields_no_records(
+    tmp_path: Path,
+) -> None:
+    """Filtering to a pipeline that owns no files yields zero records."""
+    pipelines = tmp_path / "pipelines"
+    _write_flowgroup_with_bare_token(
+        pipelines / "real" / "fg.yaml", "real_pipe", "fg_real"
+    )
+
+    service = FlowgroupDiscoveryService(tmp_path)
+
+    assert service.scan_deprecation_warnings(pipeline_filter="no_such_pipe") == ()

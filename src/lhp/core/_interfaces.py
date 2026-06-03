@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
+    Callable,
     Generator,
     List,
     Literal,
@@ -36,7 +37,6 @@ from typing import (
 
 from lhp.models import FlowGroup, FlowGroupContext
 
-from ..models.dependencies import DependencyAnalysisResult, DependencyGraphs
 from ..models.processing import CopiedModuleRecord, DeprecationWarningRecord
 from .processing.substitution import EnhancedSubstitutionManager as SubstitutionManager
 
@@ -63,6 +63,13 @@ class CrossFlowgroupCheckResult:
 if TYPE_CHECKING:
     from lhp.models import ProjectConfig
 
+    # Annotation-only here (used solely in BaseDependencyAnalysisService's
+    # abstractmethod signatures). models.dependencies eagerly imports
+    # networkx (~190ms), needed only when `dag` actually runs — keeping
+    # this import out of module scope keeps networkx off the `import
+    # lhp.api` / general `core` import path. Resolved lazily by the
+    # concrete service (core/dependencies/) when dependency analysis runs.
+    from ..models.dependencies import DependencyAnalysisResult, DependencyGraphs
     from ..models.processing import PipelineDelta
 
     # PipelineValidationOutcome lives in the leaf module
@@ -100,12 +107,19 @@ class BaseFlowgroupDiscoveryService(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def scan_deprecation_warnings(self) -> Tuple[DeprecationWarningRecord, ...]:
+    def scan_deprecation_warnings(
+        self, *, pipeline_filter: Optional[str] = None
+    ) -> Tuple[DeprecationWarningRecord, ...]:
         """Detect deprecated bare-``{token}`` syntax (``LHP-DEPR-001``; use
         ``${token}`` — ``%{local_var}`` stays valid). Returns EXACTLY ONE
         :class:`DeprecationWarningRecord` per offending file (multiple bare
         tokens in a file collapse to one record; ``flowgroup`` is ``None``).
         Files using only ``${...}`` / ``%{...}`` / ``{{...}}`` yield none.
+
+        When ``pipeline_filter`` is given, only the source files contributing a
+        flowgroup to that pipeline are scanned (mirrors the ``--pipeline``
+        slice so a one-pipeline run does not emit the whole project's
+        deprecations); when ``None``, every pipeline file is scanned.
 
         Main-thread warnings (read path precedes the worker pool), distinct
         from the worker-side warnings that ride back on
@@ -229,6 +243,8 @@ class BasePipelineExecutionService(ABC):
         project_root: Path,
         max_workers: Optional[int] = None,
         apply_formatting: bool = True,
+        on_total: Optional[Callable[[int], None]] = None,
+        on_flowgroup_done: Optional[Callable[[], None]] = None,
     ) -> Generator["PipelineDelta", None, Tuple[DeprecationWarningRecord, ...]]:
         """The flat four-map shape — produced by
         ``flowgroup_worklist_builder.build_flowgroup_worklist`` with a REAL
@@ -265,6 +281,8 @@ class BasePipelineExecutionService(ABC):
         substitution_managers: Mapping[str, "SubstitutionManager"],
         output_dirs: Mapping[str, Optional[Path]],
         discovery_errors: Mapping[str, str],
+        on_total: Optional[Callable[[int], None]] = None,
+        on_flowgroup_done: Optional[Callable[[], None]] = None,
     ) -> Generator[
         "PipelineValidationOutcome", None, Tuple[DeprecationWarningRecord, ...]
     ]:
@@ -297,18 +315,18 @@ class BaseDependencyAnalysisService(ABC):
     """
 
     @abstractmethod
-    def build_graphs(self, flowgroups: Sequence[FlowGroup]) -> DependencyGraphs:
+    def build_graphs(self, flowgroups: Sequence[FlowGroup]) -> "DependencyGraphs":
         raise NotImplementedError
 
     @abstractmethod
-    def analyze(self, graphs: DependencyGraphs) -> DependencyAnalysisResult:
+    def analyze(self, graphs: "DependencyGraphs") -> "DependencyAnalysisResult":
         """Run topological / cycle / external-source analysis on the given graphs."""
         raise NotImplementedError
 
     @abstractmethod
     def export(
         self,
-        result: DependencyAnalysisResult,
+        result: "DependencyAnalysisResult",
         format: Literal["dot", "json", "text"],
     ) -> str:
         raise NotImplementedError

@@ -7,6 +7,94 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### CLI smoothness and startup — animated progress, lazy startup, and a readable run summary
+
+**Summary.** A presentation/startup polish pass over the streaming commands.
+`generate` / `validate` / `diff` now drive a real animated spinner and a live
+`N/M flowgroups` progress bar (previously a frozen glyph that never moved), fed
+by a new public `ProgressSink` counter the facade advances per flowgroup — so a
+WebUI / VSCode embedder can read live progress off the same object the CLI does,
+not just the CLI. Startup latency drops because command modules, generator
+registration, and the `networkx` dependency-analysis import all load lazily, so
+`lhp --version` / `--help` no longer pay those costs. The CLI also stops doing an
+eager up-front discovery pass before it renders (the facade auto-derives the
+worklist internally), the run-summary banner names its unit for `generate`, a
+failed preflight reads as an explicit error rather than as missing stages, and a
+group-level `lhp --no-progress <command>` is now honoured. Scope is the streaming
+commands; the remaining "other commands" polish is deferred below with the
+`CLI-OTHERCMD-DEFER` tracking ID.
+
+**Added.**
+
+- **Public `progress` observer — `lhp.api.ProgressSink` (`:stability:
+  provisional`).** A concrete mutable counter (`total` / `done`, advanced via
+  `on_total(n)` once and `on_advance()` per finished flowgroup) accepted as the
+  keyword-only `progress=` parameter on `generate_pipelines`,
+  `validate_pipelines`, and `plan_generation`. It surfaces live flowgroup
+  progress to every public-API audience — read its `total` / `done` fields while
+  iterating the event stream to drive a progress bar — so non-CLI embedders
+  (WebUI / VSCode) get the same progress the CLI does, not just the CLI's
+  renderer. Deliberately a bare counter, **not** a `Protocol` / `ABC` (one
+  consumer today; §3.6).
+
+**Changed.**
+
+- **`generate` / `validate` / `diff` show an animated spinner and a live
+  `N/M flowgroups` progress bar.** The status bar is a real
+  `rich.spinner.Spinner` plus a flowgroup bar on Rich's refresh thread, fed by
+  the shared `ProgressSink`; the spinner glyph is no longer a static constant.
+- **Faster startup via lazy loading.** Command modules import on first use
+  (`LazyGroup` / `COMMAND_IMPORTS` in `cli/_lazy_group.py`), generator
+  registration moved to the single facade composition point as a lazy
+  `register_all()` import (so bare `import lhp` stays light), and the
+  `networkx` dependency-analysis import is deferred to the operation that builds
+  a graph. `lhp --version` / `--help` no longer pull command modules or
+  `networkx`; a `tests/cli/test_startup_imports.py` regression locks the
+  import-absence contract, with `lhp --version` cold start recorded under ~100 ms
+  (best-of-3, soft floor — not a hard latency assertion).
+- **No eager up-front discovery pass before rendering.** The CLI no longer runs
+  a pre-render pipeline-discovery pass; the facade auto-derives the whole-project
+  worklist from its own discover phase when neither `--pipeline` nor a field
+  filter is given, so the first status line appears immediately instead of after
+  a silent blank pause.
+- **Run-summary banner disambiguated for `generate`.** The banner now names its
+  unit — `N pipelines generated · M files · W warnings · F failed · Ts` —
+  instead of a bare count. `validate`'s banner (`N validated; W warnings ·
+  F failed · Ts`, no file count) is unchanged.
+- **`--pipeline` scopes the bare-`{token}` deprecation scan to the selected
+  pipeline.** The scan was previously whole-project; with `--pipeline` set, only
+  the YAML files contributing a flowgroup to that pipeline are scanned (mirroring
+  the `--pipeline` slice), which also relieves the event-buffer cap on large
+  projects.
+- **A group-level `lhp --no-progress <command>` is now honoured.** Each streaming
+  command ORs its per-command `--no-progress` with the group value carried on
+  `ctx.obj`, so the global flag works (previously only the per-command
+  `lhp <command> --no-progress` took effect).
+- **Incomplete phases leave a visible trace on teardown; unwired events are
+  logged.** A phase that started but never completed prints a warning-glyphed
+  trace line on renderer teardown rather than vanishing, and an event with no
+  wired handler is logged at WARNING (§7.1) rather than silently dropped.
+
+**Fixed.**
+
+- **A failed preflight now reads as an explicit error.** The summary surfaces
+  `preflight failed — later stages not run` instead of presenting the skipped
+  later stages as merely missing.
+
+**Deferred (decided; tracked for follow-up).**
+
+- **`CLI-OTHERCMD-DEFER`** — out-of-scope "other commands" polish not addressed
+  by this streaming-command pass:
+  - **`dag` blocking-analyze feedback** — `dag` calls
+    `analyze_dependencies` synchronously and renders only after it returns, so
+    there is no progress surface while the dependency analysis blocks.
+  - **`substitutions` presenter TTY-bypass** — `substitutions_presenter` renders
+    to stdout with no TTY / non-TTY branch.
+  - **`skill_command.py` ≤100-line advisory** — at 113 lines it exceeds the
+    per-command size advisory.
+  - **`skill_presenter` no-TTY branch** — `skill_presenter` has no non-TTY
+    rendering branch.
+
 ### CLI rebuilt as a pure presentation layer over the event-stream facade
 
 **Summary.** Every `lhp` command is now a thin shell — parse arguments, call one

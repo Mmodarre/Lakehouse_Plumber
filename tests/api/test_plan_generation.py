@@ -179,24 +179,29 @@ def _assert_no_dangling_pipeline_starts(events: list) -> None:
 
 @pytest.mark.integration
 class TestPlanGenerationStream:
-    def test_unfiltered_call_yields_empty_plan_with_full_frame(self, facade_in):
-        """``plan_generation``'s only narrowing knob is ``pipeline_filter``; a
-        ``None`` filter plans nothing (the primitive yields no pipeline), but
-        the full §5.7 phase frame + an EMPTY terminal plan are still emitted."""
+    def test_unfiltered_call_auto_derives_full_project_plan(self, facade_in):
+        """With NEITHER ``pipeline_filter`` NOR ``pipeline_fields``, the plan
+        stream auto-derives the full project worklist from its discover-phase
+        flowgroup set and plans EVERY pipeline — the unfiltered plan is not
+        empty. The full §5.7 phase frame + a terminal plan covering both
+        fixture pipelines are emitted."""
         facade, project_root = facade_in
         events = list(facade.generation.plan_generation("dev", pipeline_filter=None))
 
         assert isinstance(events[0], OperationStarted)
         _assert_phase_pairs(events)
-        # No pipelines planned → no per-pipeline events.
-        assert not any(isinstance(e, PipelineStarted) for e in events)
-        # Terminal still present, carrying an empty-but-valid plan.
+        # Auto-derived worklist → every pipeline pairs (no dangling Starts).
+        _assert_no_dangling_pipeline_starts(events)
+        completed = [e for e in events if isinstance(e, PipelineCompleted)]
+        assert sorted(e.pipeline for e in completed) == ["p_one", "p_two"]
+        assert not any(isinstance(e, PipelineFailed) for e in events)
+        # Terminal carries a non-empty plan spanning both pipelines.
         assert isinstance(events[-1], GenerationPlanCompleted)
         plan = events[-1].response
         assert isinstance(plan, GenerationPlan)
-        assert plan.files == ()
-        assert plan.file_count == 0
-        assert plan.pipeline_count == 0
+        assert plan.pipeline_count == 2
+        assert plan.file_count > 0
+        assert plan.files != ()
         assert plan.output_location == project_root / "generated" / "dev"
 
     def test_filtered_stream_shape_and_terminal_plan(self, facade_in):

@@ -1,6 +1,6 @@
 # LHP Best Practices Reference
 
-Authoritative guidance for enterprise LHP projects. Source: https://lakehouse-plumber.readthedocs.io/best_practices.html
+Authoritative guidance for LHP projects. Source: https://lakehouse-plumber.readthedocs.io/best_practices/index.html (subpages: project_structure, environments, performance, governance, testing).
 
 Load this file when:
 - Setting up a new LHP project structure
@@ -27,11 +27,10 @@ Load this file when:
 - [Operational Metadata](#13-operational-metadata)
 - [Schema Management](#14-schema-management)
 - [Validation & CI](#15-validation--ci)
-- [State Management](#16-state-management)
-- [Bundle Integration](#17-bundle-integration)
-- [Medallion Pattern](#18-medallion-pattern)
-- [Documentation](#19-documentation)
-- [Anti-Patterns](#20-anti-patterns)
+- [Bundle Integration](#16-bundle-integration)
+- [Medallion Pattern](#17-medallion-pattern)
+- [Documentation](#18-documentation)
+- [Anti-Patterns](#19-anti-patterns)
 
 ---
 
@@ -92,7 +91,7 @@ Load this file when:
 - **BP-5.1** Design preset hierarchies with `extends`: `global_defaults` → `bronze_standard` → `orders_bronze`.
 - **BP-5.2** Encode organizational standards in presets — group related properties (schema evolution, rescue columns, metadata).
 - **BP-5.3** Cap total presets at **15–20 files** to avoid confusion and misuse.
-- **BP-5.4** Verify effective config with `lhp show <flowgroup> --env <env>` after preset merging/template expansion.
+- **BP-5.4** Verify effective config with `lhp validate --env <env> --verbose` (or `lhp diff --env <env>` to see the regenerated output) after preset merging/template expansion.
 - **BP-5.5** Treat preset changes as **high blast radius** — run full project validation before merging.
 
 ## 6. Substitutions & Environments
@@ -114,7 +113,7 @@ Load this file when:
 
 - **BP-8.1** Use array syntax (`flowgroups:`) with field inheritance when multiple flowgroups share `pipeline`, `use_template`, `presets`, `operational_metadata`, or `job_name`.
 - **BP-8.2** One pipeline per data domain. `orders_bronze` groups `raw_orders`, `raw_returns`, `raw_refunds`.
-- **BP-8.3** Use `job_name` to aggregate flowgroups into Databricks Workflow jobs; generate via `lhp deps --format job`.
+- **BP-8.3** Use `job_name` to aggregate flowgroups into Databricks Workflow jobs; generate via `lhp dag --format job`.
 - **BP-8.4** Order actions **Load → Transform → Write → Test**.
 
 ## 9. Load Actions
@@ -154,6 +153,7 @@ Load this file when:
 - **BP-12.2** Centralize expectations in external DQE files: `expectations/<domain>/<layer>/<description>.yaml`.
 - **BP-12.3** Name expectations descriptively: `valid_<column>_<constraint>` (e.g., `valid_order_id_not_null`, `valid_amount_positive`).
 - **BP-12.4** Use the 9 test action types for cross-table validation: `row_count`, `uniqueness`, `referential_integrity`, `completeness`, `range`, `schema_match`, `all_lookups_found`, `custom_sql`, `custom_expectations`. Generate with `--include-tests`.
+- **BP-12.5** To publish test results to an external system (via a `test_reporting` provider), set `test_id` on the test action — only `test_id`-tagged actions are published. The expectation must use `on_violation: warn`, **not** `fail`: a `fail` aborts the SDP flow before metrics are emitted, so the reporting hook never receives the result. Requires `--include-tests`.
 
 ## 13. Operational Metadata
 
@@ -174,20 +174,22 @@ Load this file when:
 - **BP-15.2** `lhp generate --dry-run` to verify codegen without writing files.
 - **BP-15.3** Maintain dry-run baselines in version control; diff against them to detect preset-change regressions.
 - **BP-15.4** **Layered CI:** yamllint → JSON Schema → `lhp validate` → `lhp generate --dry-run` → baseline diff → pytest `--include-tests`.
+- **BP-15.5** `lhp validate` runs the **same** structural and preflight checks as `lhp generate` (no-creator/duplicate `LHP-VAL-009`, blueprint/instance `LHP-VAL-041` family, test-reporting file existence `LHP-CFG-032`, bundle catalog/schema `LHP-CFG-026`). On a project containing `databricks.yml`, pass `--pipeline-config`/`-pc` to the CI `lhp validate` step (or `--no-bundle`) — without it validate fails fast with `LHP-CFG-023`, exactly like generate.
+- **BP-15.6** `lhp validate` runs cross-flowgroup conflict detection on the **resolved** flowgroups (after presets, templates, and substitutions). A conflict introduced by resolution — e.g. a template that expands into two `create_table: true` actions targeting the same table — now fails `lhp validate`, not just `lhp generate`.
+- **BP-15.7** `lhp generate`/`lhp validate` process flowgroups in a CPU-bound worker pool. Pool size precedence: `--max-workers N` flag → `LHP_MAX_WORKERS` env var → auto-default. Auto-default = `max(1, floor(detected_cpus * 0.8))` (20% headroom for the main thread + OS). Floored, so: 1→1, 2→1, 8→6, 16→12, 64→51.
+- **BP-15.8** On a **dedicated batch host** for large projects, the 0.8 auto-default under-utilizes CPU. Set `LHP_MAX_WORKERS=<physical core count>` (or `--max-workers N` per run) to maximize generation throughput.
+- **BP-15.9** Worker count clamps to ≥ 1: `LHP_MAX_WORKERS=0` runs sequentially (does not disable the pool); a non-integer value warns and falls back to auto-detect.
 
-## 16. State Management
+## 16. Bundle Integration
 
-- **BP-16.1** **Do not commit `.lhp_state.json`** — local only. It enables smart regeneration.
-- **BP-16.2** Audit with `lhp state`: `--orphaned`, `--stale`, `--new`. Combine with `--cleanup` or `--regen`.
-- **BP-16.3** `--force` only after framework upgrades or global preset changes requiring full regeneration.
+- **BP-16.1** `lhp dag --format job` generates DAB job resource definitions from dependency analysis.
+- **BP-16.2** Bundle scaffolding is default in `lhp init`; use `--no-bundle` if managed separately.
+- **BP-16.3** Store generated bundle resources in a dedicated directory (e.g., `bundle/generated/`) separate from hand-written configs.
+- **BP-16.4** **`resources/lhp/` is exclusively LHP-managed.** Every `lhp generate` wipes it and regenerates one `<pipeline_name>.pipeline.yml` per pipeline. Never hand-edit anything under `resources/lhp/` — your changes will be overwritten on the next generate.
+- **BP-16.5** **Place custom resource YAMLs (hand-written jobs, dashboards, secret scopes) under `resources/` at the top level or in any non-`lhp` subdirectory.** Files outside `resources/lhp/` are never touched by LHP. One exception: the monitoring job YAML at `resources/<name>.job.yml`, which LHP identifies by its sentinel header (`# Generated by LakehousePlumber - Monitoring Job`) and replaces on each run.
+- **BP-16.6** **`catalog` and `schema` are required in `pipeline_config.yaml`** — set them per-pipeline or in a top-level `project_defaults` block. Do not rely on `databricks.yml` variables for catalog/schema; that pathway was removed in 0.8.7.
 
-## 17. Bundle Integration
-
-- **BP-17.1** `lhp deps --format job` generates DAB job resource definitions from dependency analysis.
-- **BP-17.2** Bundle scaffolding is default in `lhp init`; use `--no-bundle` if managed separately.
-- **BP-17.3** Store generated bundle resources in a dedicated directory (e.g., `bundle/generated/`) separate from hand-written configs.
-
-## 18. Medallion Pattern
+## 17. Medallion Pattern
 
 | Layer | Target | Expectations | Metadata |
 |-------|--------|--------------|----------|
@@ -196,17 +198,17 @@ Load this file when:
 | **Gold** | `materialized_view` | `fail` on critical invariants | inherited |
 
 - Environment promotion: identical YAML, per-env substitution files.
-- Multi-pipeline orchestration: `job_name` + `lhp deps`.
+- Multi-pipeline orchestration: `job_name` + `lhp dag`.
 - Multi-source ingestion: multiple load/write actions to the same table → auto-consolidated `append_flow`s.
 
-## 19. Documentation
+## 18. Documentation
 
-- **BP-19.1** Include `description` on every action and write target (becomes generated-code comments).
-- **BP-19.2** Include `comment` on write targets (UC descriptions, queryable in Data Explorer).
-- **BP-19.3** YAML comments explain **why**, not **what**.
-- **BP-19.4** Use `lhp info` and `lhp stats` for project summaries.
+- **BP-18.1** Include `description` on every action and write target (becomes generated-code comments).
+- **BP-18.2** Include `comment` on write targets (UC descriptions, queryable in Data Explorer).
+- **BP-18.3** YAML comments explain **why**, not **what**.
+- **BP-18.4** Use `lhp info` and `lhp stats` for project summaries.
 
-## 20. Anti-Patterns (Never)
+## 19. Anti-Patterns (Never)
 
 | Anti-Pattern | Harm | Fix |
 |--------------|------|-----|
@@ -223,3 +225,5 @@ Load this file when:
 | Flat `sql/` with 100+ files | Unfindable | `sql/<system>/<layer>/` subdirectories |
 | Subdirectories under `templates/` or `presets/` | Not discovered | Prefix-based flat naming |
 | Generic names (`pipeline_v2`) | Meaningless at 500+ flowgroups | ID-based: `erp_brz_raw_orders` |
+| Hand-editing files under `resources/lhp/` | Overwritten on next `lhp generate` | Put custom resources in `resources/` (top level) or a non-`lhp` subdirectory |
+| Setting catalog/schema only in `databricks.yml` variables | Pathway removed in 0.8.7 — `lhp generate` fails fast with `BundleResourceError` | Move catalog/schema into `pipeline_config.yaml` (`project_defaults` or per-pipeline) |

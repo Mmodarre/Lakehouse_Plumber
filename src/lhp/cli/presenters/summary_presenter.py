@@ -22,6 +22,7 @@ from rich.text import Text
 
 from ..error_panel import render_issue_panel
 from ._style import warning_suffix_parts
+from .event_stream._outcome import is_preflight_failure, preflight_failure_text
 
 if TYPE_CHECKING:
     from rich.console import Console
@@ -41,29 +42,61 @@ def _verb(command: str) -> str:
     return "validated" if command == "validate" else "generated"
 
 
-def _success_count(outcome: "RunOutcome", header: "RunHeader") -> int:
-    """Count of pipelines that succeeded (for the counts banner).
+def _success_count(outcome: "RunOutcome") -> int:
+    """Count of pipelines that succeeded, derived from the terminal response.
 
     Validate counts validated pipelines; generate counts pipelines that
-    produced output. Both fall back to ``header.pipeline_count`` minus the
-    failures when the response does not expose a richer figure.
+    produced output. Both read the per-pipeline ``success`` flags off
+    ``response.pipeline_responses`` — the authoritative source. Returns
+    ``0`` when the response carries no per-pipeline breakdown.
     """
-    response = outcome.response
-    pipeline_responses = getattr(response, "pipeline_responses", None)
-    if pipeline_responses is not None:
-        return sum(
-            1 for r in pipeline_responses.values() if getattr(r, "success", False)
-        )
-    return max(header.pipeline_count - len(outcome.failures), 0)
+    pipeline_responses = getattr(outcome.response, "pipeline_responses", None)
+    if pipeline_responses is None:
+        return 0
+    return sum(1 for r in pipeline_responses.values() if getattr(r, "success", False))
+
+
+def _file_count(outcome: "RunOutcome") -> int:
+    """Total files written across the run, from ``response.total_files_written``.
+
+    Generate's :class:`BatchGenerationResponse` carries this aggregate;
+    validate's response does not, so it is only consulted for the generate
+    banner. Returns ``0`` when the field is absent.
+    """
+    return int(getattr(outcome.response, "total_files_written", 0) or 0)
+
+
+def _lead_segment(command: str, succeeded: int) -> str:
+    """The opening segment of the counts banner.
+
+    Generate names the unit: ``N pipelines generated`` (pluralised);
+    validate keeps its terse ``N validated`` shape with no unit noun.
+    """
+    if command == "validate":
+        return f"{succeeded} {_verb(command)}"
+    noun = "pipeline" if succeeded == 1 else "pipelines"
+    return f"{succeeded} {noun} {_verb(command)}"
 
 
 def _counts_line(outcome: "RunOutcome", header: "RunHeader", elapsed_s: float) -> Text:
-    """Assemble the ``N generated · M warning · K failed · 4.4s`` banner."""
-    succeeded = _success_count(outcome, header)
+    """Assemble the post-run counts banner.
+
+    Generate: ``N pipelines generated · M files · W warnings · F failed · Ts``.
+    Validate: ``N validated; W warnings · F failed · Ts`` (no file count).
+
+    Pipeline / success / file counts are all derived from the terminal
+    response (``outcome.response``); the header carries no pipeline count.
+    """
+    succeeded = _success_count(outcome)
     failed = len(outcome.failures)
-    parts = [
-        (f"{succeeded} {_verb(header.command)}", "bold"),
+    parts: list[Tuple[str, str]] = [
+        (_lead_segment(header.command, succeeded), "bold"),
     ]
+    if header.command != "validate":
+        files = _file_count(outcome)
+        noun = "file" if files == 1 else "files"
+        parts.append((" · ", "default"))
+        parts.append((f"{files} {noun}", "bold"))
     parts.extend(warning_suffix_parts(len(outcome.warnings)))
     if failed:
         parts.append((" · ", "default"))
@@ -239,6 +272,16 @@ def print_run_summary(
             err_console.print(line)
 
     if not outcome.failures:
+        return
+
+    # A folded preflight stop (batch-level, empty-pipeline failure): say so
+    # EXPLICITLY (line text built in event_stream._outcome) rather than printing
+    # the bare empty-pipeline failure line, which reads as a merely missing stage.
+    if is_preflight_failure(outcome.response):
+        err_console.print(
+            Text(preflight_failure_text(outcome.failures[0]), style="bold red")
+        )
+        err_console.print(_next_step_hint(header, options))
         return
 
     if options.show_details:

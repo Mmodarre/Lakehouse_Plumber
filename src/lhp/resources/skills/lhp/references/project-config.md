@@ -137,10 +137,10 @@ them after the deep merge.
 |-------|--------|------|-------|
 | 1st | `%{var}` | Local variable | Flowgroup-scoped |
 | 2nd | `{{ param }}` | Template parameter | Template-scoped |
-| 3rd | `${token}` or `{token}` | Environment substitution | From substitutions/env.yaml |
+| 3rd | `${token}` | Environment substitution | From substitutions/env.yaml |
 | 4th | `${secret:scope/key}` | Secret reference | Becomes dbutils.secrets.get() |
 
-**Prefer `${token}` over `{token}`** for environment substitutions (avoids Python string format conflicts).
+**Always use `${token}`.** The bare-braces `{token}` form is **deprecated** (`LHP-DEPR-001`, removed in v1.0); the only non-`$` braces syntax is `%{local_var}`.
 
 ### Environment Substitution File
 
@@ -189,7 +189,7 @@ actions:
     type: load
     source:
       type: delta
-      database: "{catalog}.{raw_schema}"
+      database: "${catalog}.${raw_schema}"
       table: "%{source_table}"
     target: "v_%{entity}_raw"
 
@@ -198,7 +198,7 @@ actions:
     source: "v_%{entity}_raw"
     write_target:
       type: streaming_table
-      database: "{catalog}.{bronze_schema}"
+      database: "${catalog}.${bronze_schema}"
       table: "%{entity}"
 ```
 
@@ -222,8 +222,8 @@ actions:
 
 ```bash
 # Project setup
-lhp init <project>              # Scaffold new project
-lhp init <project> --bundle     # With Databricks Asset Bundle support
+lhp init <project>              # Scaffold new project (Databricks Asset Bundle ON by default)
+lhp init <project> --no-bundle  # Scaffold without bundle support
 
 # Validation (runs the same structural + preflight checks as generate)
 lhp validate --env <env>                    # Validate all configurations
@@ -238,15 +238,17 @@ lhp generate --env <env> --dry-run --verbose  # Preview without writing
 lhp generate --env <env> --pipeline-config config/pipeline_config.yaml  # Regen bundle resources; required when databricks.yml present
 lhp generate --env <env> --no-bundle        # Generate Python only; skip bundle sync
 
-# Dependency analysis
-lhp deps                                      # Full analysis (all formats)
-lhp deps --format job --job-name <name>        # Generate orchestration job
-lhp deps --format job --job-config config/job_config.yaml --bundle-output  # Job with config
-lhp deps --format mermaid                      # Mermaid diagram
-lhp deps --pipeline <name> --format json       # Analyze specific pipeline
+# Dependency analysis  (lhp deps is a hidden, deprecated alias for lhp dag)
+lhp dag                                       # Full analysis (all formats: dot, json, text, job, all)
+lhp dag --format job --job-name <name>         # Generate orchestration job
+lhp dag --format job --job-config config/job_config.yaml --bundle-output  # Job with config
+lhp dag --format dot                           # GraphViz dot (visualize, spot cycles)
+lhp dag --format json                          # Dependency graph as JSON
+lhp dag --expand-blueprints                    # One node per blueprint instance
 
 # Inspection
-lhp show <flowgroup> --env <env>              # Show specific flowgroup config
+lhp diff --env <env>                          # Show what `lhp generate` would change on disk
+lhp substitutions --env <env>                 # Show resolved substitution tokens
 ```
 
 ## Multi-Flowgroup Files

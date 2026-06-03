@@ -55,7 +55,7 @@ def _console(*, terminal: bool) -> Console:
 
 
 def _header() -> RunHeader:
-    return RunHeader(command="generate", env="dev", pipeline_count=2)
+    return RunHeader(command="generate", env="dev")
 
 
 @pytest.fixture(autouse=True)
@@ -161,6 +161,50 @@ def test_render_clean_generate_non_terminal_path_returns_outcome():
 
 
 # ---------------------------------------------------------------------------
+# render(): begin() fires before the first event is pulled
+# ---------------------------------------------------------------------------
+def test_render_calls_begin_before_pulling_first_event(monkeypatch):
+    # The stream's opening next() may block on discovery, so render() must call
+    # the renderer's begin() (which paints the first frame) BEFORE it pulls the
+    # first event. A generator that records when its first item is pulled, vs a
+    # begin() spy that records when it fired, proves the order.
+    order: list[str] = []
+
+    real_select = select_renderer
+
+    def _spy_select(header, **kwargs):
+        renderer = real_select(header, **kwargs)
+        real_begin = renderer.begin
+
+        def _begin() -> None:
+            order.append("begin")
+            real_begin()
+
+        monkeypatch.setattr(renderer, "begin", _begin)
+        return renderer
+
+    monkeypatch.setattr(factory, "select_renderer", _spy_select)
+
+    def _recording_stream():
+        order.append("first-event-pulled")
+        yield from clean_generate_stream()
+
+    console = _console(terminal=True)
+    err_console = _console(terminal=False)
+    render(
+        _recording_stream(),
+        _header(),
+        options=RenderOptions(),
+        console=console,
+        err_console=err_console,
+    )
+
+    assert order[:2] == ["begin", "first-event-pulled"], (
+        f"begin() must fire before the first event is pulled; saw {order!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # render(): failure-rendezvous re-raises after teardown
 # ---------------------------------------------------------------------------
 def test_render_error_stream_reraises_after_teardown(monkeypatch):
@@ -201,7 +245,7 @@ def test_render_error_stream_reraises_after_teardown(monkeypatch):
 # render(): validate folds terminal-response issues into RunOutcome (D0)
 # ---------------------------------------------------------------------------
 def _validate_header() -> RunHeader:
-    return RunHeader(command="validate", env="prod", pipeline_count=3)
+    return RunHeader(command="validate", env="prod")
 
 
 def _issue(*, severity, code, title, pipeline, flowgroup=None, file=None):

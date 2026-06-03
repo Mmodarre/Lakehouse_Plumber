@@ -45,6 +45,7 @@ from concurrent.futures import Future, ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
+    Callable,
     Dict,
     List,
     Mapping,
@@ -163,6 +164,8 @@ def _run_flowgroup_pool_core(
     validation_service: "ValidationService",
     max_workers: int,
     mode: WorkerMode,
+    on_total: Optional[Callable[[int], None]] = None,
+    on_flowgroup_done: Optional[Callable[[], None]] = None,
 ) -> List[_PipelinePoolResult]:
     """The single flat fan-out engine — one future per flowgroup, both modes.
 
@@ -203,6 +206,16 @@ def _run_flowgroup_pool_core(
 
     Returns one :class:`_PipelinePoolResult` per pipeline in input pipeline
     order; a zero-flowgroup pipeline yields an empty entry.
+
+    ``on_total`` / ``on_flowgroup_done`` are an OPTIONAL plain-callable side
+    channel for a live ``done/total`` flowgroup counter — NOT events, never an
+    ``lhp.api`` import (constitution §13.5). ``on_total`` fires ONCE with the
+    flat worklist length right after it is built. ``on_flowgroup_done`` fires
+    ONCE per flowgroup-future resolution — in BOTH the ``as_completed`` branch
+    (incl. the worker-death guard) AND the ``executor.submit``-failure branch —
+    so the count is per-flowgroup, never per-pipeline (``_finalize`` is the
+    per-pipeline seam and is deliberately NOT hooked). Both default to ``None``
+    (no-op) for the non-CLI consumers (scripts, WebUI, tests).
     """
     pipelines: List[str] = list(flowgroups_by_pipeline.keys())
     progress: Dict[str, _PipelineProgress] = {
@@ -214,6 +227,12 @@ def _run_flowgroup_pool_core(
         progress[p].expected = len(ctxs)
         for ctx in ctxs:
             worklist.append((p, ctx))
+
+    # Plain-callable progress side channel (§13.5): announce the total ONCE,
+    # here — the only point where the flat flowgroup count is known. Per
+    # flowgroup, ``on_flowgroup_done`` fires at each future resolution below.
+    if on_total is not None:
+        on_total(len(worklist))
 
     results_by_pipeline: Dict[str, _PipelinePoolResult] = {}
 
@@ -305,6 +324,11 @@ def _run_flowgroup_pool_core(
                         fg_name,
                         errors=(f"Flowgroup '{fg_name}': {submit_exc}",),
                     )
+                    # Per-flowgroup tick: this flowgroup produced no future, so
+                    # ``as_completed`` will NEVER see it — fire here so the
+                    # done/total counter stays exact on the submit-failure path.
+                    if on_flowgroup_done is not None:
+                        on_flowgroup_done()
                     bucket = progress[pipeline]
                     bucket.results.append(outcome)
                     if bucket.is_complete():
@@ -327,6 +351,11 @@ def _run_flowgroup_pool_core(
                         fg_name,
                         errors=(f"Flowgroup '{fg_name}': {exc}",),
                     )
+                # Per-flowgroup tick on EVERY future resolution — success or
+                # the worker-death guard above — fired before the per-pipeline
+                # ``_finalize`` so the count is per-flowgroup, never per-pipeline.
+                if on_flowgroup_done is not None:
+                    on_flowgroup_done()
 
                 # Merge the worker's perf payload into the coordinator
                 # singleton (no-op when --perf is off / payload is None).

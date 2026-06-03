@@ -31,7 +31,10 @@ from typing import (
     Tuple,
 )
 
-from lhp.api._converters_common import _emit_deprecation_warnings
+from lhp.api._converters_common import (
+    _derive_worklist_fields,
+    _emit_deprecation_warnings,
+)
 from lhp.api._preflight import _run_project_preflight
 from lhp.api._stream_guard import _cap_event_stream
 from lhp.api._validation_converters import (
@@ -58,6 +61,7 @@ from lhp.errors import LHPError
 from lhp.utils.performance_timer import perf_timer
 
 if TYPE_CHECKING:
+    from lhp.api._progress import ProgressSink
     from lhp.models import FlowGroup
     from lhp.models.processing import DeprecationWarningRecord
 
@@ -84,6 +88,7 @@ class ValidationFacade:
         include_tests: bool = True,
         bundle_enabled: bool = False,
         pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
+        progress: ProgressSink | None = None,
     ) -> Iterator[LHPEvent]:
         """Stream-protocol wrapper around batch pipeline validation (§5.7).
 
@@ -164,6 +169,13 @@ class ValidationFacade:
         with a ``pipeline_config_path``. Defaults to ``False`` so the
         non-bundle behavior is unchanged (§9.24).
 
+        ``progress`` is an optional :class:`~lhp.api.ProgressSink` advanced
+        as flowgroups complete (``on_total`` once with the total flowgroup
+        count, then ``on_advance`` per finished flowgroup), adapted to the
+        plain core callables the coordinator added; read its ``total`` /
+        ``done`` fields while iterating the stream to drive a progress bar.
+        ``None`` (the default) wires no progress callbacks.
+
         The §5.7 stream body lives in :meth:`_validate_pipelines_stream`;
         this method restates the canonical signature (§4.2) and forwards it
         through :func:`lhp.api._stream_guard._cap_event_stream` (the §13.4
@@ -186,6 +198,7 @@ class ValidationFacade:
                 include_tests=include_tests,
                 bundle_enabled=bundle_enabled,
                 pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
+                progress=progress,
             )
         )
 
@@ -199,6 +212,7 @@ class ValidationFacade:
         include_tests: bool = True,
         bundle_enabled: bool = False,
         pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
+        progress: ProgressSink | None = None,
     ) -> Iterator[LHPEvent]:
         """Yield the full §5.7 validate progress stream (the stream body).
 
@@ -220,6 +234,14 @@ class ValidationFacade:
             resolved_flowgroups: Sequence["FlowGroup"] = pre_discovered_all_flowgroups
         else:
             resolved_flowgroups = self._orchestrator.bootstrap.discover_all_flowgroups()
+        # Auto-derive the all-pipelines worklist from the just-discovered set
+        # when the caller supplied no worklist: passing NEITHER a
+        # ``pipeline_filter`` NOR a ``pipeline_fields`` batch validates the WHOLE
+        # project. A supplied filter/batch is honored unchanged (§4.1: the same
+        # ``_derive_worklist_fields`` seam the generate/plan streams use).
+        effective_pipeline_fields = _derive_worklist_fields(
+            pipeline_filter, pipeline_fields, resolved_flowgroups
+        )
         yield PhaseCompleted(
             phase="discover",
             duration_s=time.perf_counter() - discover_start,
@@ -227,7 +249,9 @@ class ValidationFacade:
         )
         # Main-thread LHP-DEPR-001 warnings, seeding the shared dedup set.
         yield from _emit_deprecation_warnings(
-            self._orchestrator.discovery.scan_deprecation_warnings(),
+            self._orchestrator.discovery.scan_deprecation_warnings(
+                pipeline_filter=pipeline_filter
+            ),
             seen=warnings_seen,
         )
 
@@ -248,7 +272,7 @@ class ValidationFacade:
             )
             yield ValidationCompleted(
                 response=_build_validation_batch_from_issues(
-                    preflight_issues, tuple(pipeline_fields)
+                    preflight_issues, tuple(effective_pipeline_fields)
                 )
             )
             return
@@ -263,11 +287,12 @@ class ValidationFacade:
         try:
             response, worker_warnings = yield from self._consume_validate_stream(
                 pipeline_filter=pipeline_filter,
-                pipeline_fields=pipeline_fields,
+                pipeline_fields=effective_pipeline_fields,
                 env=env,
                 max_workers=max_workers,
                 include_tests=include_tests,
                 pre_discovered_all_flowgroups=resolved_flowgroups,
+                progress=progress,
             )
         except LHPError as exc:
             yield PhaseCompleted(
@@ -295,6 +320,7 @@ class ValidationFacade:
         max_workers: Optional[int] = None,
         include_tests: bool = True,
         pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
+        progress: ProgressSink | None = None,
     ) -> Generator[
         LHPEvent,
         None,
@@ -365,6 +391,12 @@ class ValidationFacade:
                     include_tests=include_tests,
                     pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
                     max_workers=max_workers,
+                    # Adapt the public counter to the plain core callables (§3.6:
+                    # no Protocol/ABC — a concrete sink suffices for one consumer).
+                    on_total=None if progress is None else progress.on_total,
+                    on_flowgroup_done=(
+                        None if progress is None else progress.on_advance
+                    ),
                 )
                 # Drive the outcome-generator explicitly so its
                 # ``StopIteration.value`` (the merged worker warnings) is captured

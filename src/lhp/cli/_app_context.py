@@ -1,8 +1,8 @@
 """Cross-command stateless wiring for the LHP CLI.
 
 Only cross-command stateless wiring lives here: project-root discovery,
-facade construction, pipeline-worklist derivation, substitution-file
-resolution, and outcome-to-exit-code mapping. Anything command-specific stays
+facade construction, substitution-file resolution, and
+outcome-to-exit-code mapping. Anything command-specific stays
 in the command file. This module
 holds no class and no module state (§3.4 / §3.6) so it cannot accrete into a
 god-object — every export is a free function.
@@ -69,21 +69,6 @@ def build_facade(
         pipeline_config_path=pipeline_config,
         max_workers=max_workers,
     )
-
-
-def derive_pipeline_fields(
-    facade: LakehousePlumberApplicationFacade, pipeline: Optional[str]
-) -> tuple[str, ...]:
-    """Return the pipeline-name worklist for a streaming command.
-
-    A ``-p`` filter is keyed downstream via ``pipeline_filter``, so the field
-    list is empty; otherwise every discovered pipeline name is returned. The
-    facade does not auto-derive this — passing neither generates nothing.
-    """
-    if pipeline:
-        return ()
-    flowgroups = facade.inspection.list_flowgroups()
-    return tuple(sorted({fg.pipeline for fg in flowgroups}))
 
 
 def require_substitution_file(project_root: Path, env: str) -> Path:

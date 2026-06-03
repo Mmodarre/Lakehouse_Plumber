@@ -22,7 +22,42 @@ from lhp.api.views import ValidationIssueView
 
 if TYPE_CHECKING:
     from lhp.errors import LHPError
+    from lhp.models import FlowGroup
     from lhp.models.processing import DeprecationWarningRecord
+
+
+def _derive_worklist_fields(
+    pipeline_filter: Optional[str],
+    pipeline_fields: Sequence[str],
+    resolved_flowgroups: Sequence["FlowGroup"],
+) -> Sequence[str]:
+    """Return the pipeline-name worklist, auto-deriving the all-pipelines set.
+
+    Single canonical worklist-derivation seam shared by the generate, validate,
+    and plan streams (§4.1: one helper, not three copy-pastes). The streams
+    already resolve the project-wide flowgroup set inside their ``discover``
+    phase; this folds the previously-eager CLI ``derive_pipeline_fields`` step
+    into the facade so a caller that supplies NEITHER a ``pipeline_filter`` NOR
+    a ``pipeline_fields`` batch processes the WHOLE project (rather than getting
+    the orchestrator's empty-worklist no-op).
+
+    Precedence (unchanged when a worklist is supplied):
+
+    * ``pipeline_filter`` set — returned unchanged; the single-pipeline filter
+      is keyed downstream via ``pipeline_filter``, so ``pipeline_fields`` stays
+      whatever the caller passed (the orchestrator forwards ``None`` for the
+      fields when a filter is present).
+    * ``pipeline_fields`` non-empty — returned unchanged (explicit batch wins).
+    * NEITHER supplied — derive ``tuple(sorted({fg.pipeline for fg
+      in resolved_flowgroups}))``: the deduplicated, sorted pipeline names from
+      the stream's already-discovered set. This is byte-for-byte the worklist
+      the CLI used to pre-compute via ``list_flowgroups()`` (the same
+      ``bootstrap.discover_all_flowgroups()`` source), so no new discovery
+      mechanism is introduced and no extra filesystem scan occurs.
+    """
+    if pipeline_filter is not None or pipeline_fields:
+        return pipeline_fields
+    return tuple(sorted({fg.pipeline for fg in resolved_flowgroups}))
 
 
 def _lhp_error_to_issue_view(

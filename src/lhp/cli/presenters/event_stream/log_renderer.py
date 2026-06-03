@@ -64,6 +64,15 @@ class LogRenderer(EventSink):
         self._response: object = None
 
     # -- non-printing progress markers --------------------------------------
+    def begin(self) -> None:
+        """No-op: the non-interactive renderer paints nothing pre-stream.
+
+        The live renderer uses :meth:`begin` to start its spinner before the
+        first (possibly discovery-blocked) event; the log renderer has no live
+        region and emits one stable line per *completed* event, so there is
+        nothing to paint before the stream opens.
+        """
+
     def on_operation_started(self, operation_name: str, env: Optional[str]) -> None:
         """Opening :class:`OperationStarted`; the banner is the summary's job."""
         logger.debug(f"log-render: operation started {operation_name} env={env}")

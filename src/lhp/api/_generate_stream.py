@@ -47,6 +47,7 @@ from typing import (
 
 from lhp.api._bundle_facade import _wipe_resources_lhp
 from lhp.api._converters_common import (
+    _derive_worklist_fields,
     _emit_deprecation_warnings,
     _issue_view_to_lhp_error,
 )
@@ -71,6 +72,7 @@ from lhp.errors import ErrorFactory, LHPError, codes
 from lhp.utils.performance_timer import perf_timer
 
 if TYPE_CHECKING:
+    from lhp.api._progress import ProgressSink
     from lhp.api.responses import BatchGenerationResponse, GenerationResponse
     from lhp.models import FlowGroup
     from lhp.models.processing import DeprecationWarningRecord
@@ -139,6 +141,7 @@ def _consume_generate_stream(
     apply_formatting: bool | None = None,
     pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
     max_workers: Optional[int] = None,
+    progress: ProgressSink | None = None,
 ) -> Generator[
     LHPEvent,
     None,
@@ -215,6 +218,10 @@ def _consume_generate_stream(
                 apply_formatting=apply_formatting,
                 pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
                 max_workers=max_workers,
+                # Adapt the public counter to the plain core callables (§3.6:
+                # no Protocol/ABC — a concrete sink suffices for one consumer).
+                on_total=None if progress is None else progress.on_total,
+                on_flowgroup_done=None if progress is None else progress.on_advance,
             )
             # Drive explicitly (not ``yield from``) to capture ``StopIteration.value``
             # (merged worker warnings) while transforming deltas into §5.7 events.
@@ -276,6 +283,7 @@ def _stream_pipeline_generation(
     bundle_enabled: bool = False,
     pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
     max_workers: Optional[int] = None,
+    progress: ProgressSink | None = None,
 ) -> Iterator[LHPEvent]:
     """Yield the full §5.7 progress stream for the full generation path.
 
@@ -289,7 +297,11 @@ def _stream_pipeline_generation(
        the caller did NOT supply ``pre_discovered_all_flowgroups``; the
        resolved list is threaded forward to preflight + generate so discovery
        runs exactly once. A caller-supplied list is honored as-is (no
-       re-discovery) and forwarded unchanged. Immediately AFTER the phase pair,
+       re-discovery) and forwarded unchanged. When NEITHER ``pipeline_filter``
+       NOR ``pipeline_fields`` was supplied, the all-pipelines worklist is
+       auto-derived from that resolved set via
+       :func:`~lhp.api._converters_common._derive_worklist_fields` before the
+       generate phase. Immediately AFTER the phase pair,
        the MAIN-THREAD bare-``{token}`` deprecation scan
        (``orchestrator.discovery.scan_deprecation_warnings()`` →
        ``LHP-DEPR-001``) is emitted as :class:`WarningEmitted` events (the read
@@ -367,10 +379,20 @@ def _stream_pipeline_generation(
         yield ErrorEmitted(lhp_error=empty_project_error)
         raise empty_project_error
 
+    # Auto-derive the all-pipelines worklist from the just-discovered set when
+    # the caller supplied no worklist, so passing NEITHER a ``pipeline_filter``
+    # NOR a ``pipeline_fields`` batch generates the WHOLE project. A supplied
+    # filter/batch is honored unchanged (§4.1 single seam).
+    effective_pipeline_fields = _derive_worklist_fields(
+        pipeline_filter, pipeline_fields, resolved_flowgroups
+    )
+
     # LHP-DEPR-001 warnings: scanned on the main thread before the worker pool,
     # seeding the shared dedup set.
     yield from _emit_deprecation_warnings(
-        orchestrator.discovery.scan_deprecation_warnings(),
+        orchestrator.discovery.scan_deprecation_warnings(
+            pipeline_filter=pipeline_filter
+        ),
         seen=warnings_seen,
     )
 
@@ -411,7 +433,7 @@ def _stream_pipeline_generation(
         orchestrator,
         logger,
         pipeline_filter=pipeline_filter,
-        pipeline_fields=pipeline_fields,
+        pipeline_fields=effective_pipeline_fields,
         env=env,
         output_dir=output_dir,
         specific_flowgroups=specific_flowgroups,
@@ -419,6 +441,7 @@ def _stream_pipeline_generation(
         apply_formatting=apply_formatting,
         pre_discovered_all_flowgroups=resolved_flowgroups,
         max_workers=max_workers,
+        progress=progress,
     )
     yield PhaseCompleted(
         phase="generate",

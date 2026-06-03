@@ -30,6 +30,7 @@ import logging
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
+    Callable,
     Generator,
     Mapping,
     Optional,
@@ -128,6 +129,8 @@ class PipelineExecutionService(BasePipelineExecutionService):
         project_root: Path,
         max_workers: Optional[int] = None,
         apply_formatting: bool = True,
+        on_total: Optional[Callable[[int], None]] = None,
+        on_flowgroup_done: Optional[Callable[[], None]] = None,
     ) -> Generator[PipelineDelta, None, Tuple[DeprecationWarningRecord, ...]]:
         """Run generate through the unified flat engine and YIELD deltas.
 
@@ -137,6 +140,10 @@ class PipelineExecutionService(BasePipelineExecutionService):
 
         This is a generator: consumers MUST fully drain it (the terminal
         whole-env format pass runs after the last success delta).
+
+        ``on_total`` / ``on_flowgroup_done`` are the optional plain-callable
+        flowgroup-progress side channel (§13.5 — not events, no ``lhp.api``
+        import) threaded to the engine for a live ``done/total`` counter.
 
         :raises LHPError: the sole failure's error, or ``LHP-VAL-902`` (many);
             also raised for a non-empty ``discovery_errors``.
@@ -182,6 +189,8 @@ class PipelineExecutionService(BasePipelineExecutionService):
                 project_root=project_root,
                 max_workers=max_workers,
                 apply_formatting=apply_formatting,
+                on_total=on_total,
+                on_flowgroup_done=on_flowgroup_done,
             )
         )
 
@@ -192,6 +201,8 @@ class PipelineExecutionService(BasePipelineExecutionService):
         substitution_managers: Mapping[str, "EnhancedSubstitutionManager"],
         output_dirs: Mapping[str, Optional[Path]],
         discovery_errors: Mapping[str, str],
+        on_total: Optional[Callable[[int], None]] = None,
+        on_flowgroup_done: Optional[Callable[[], None]] = None,
     ) -> Generator[
         PipelineValidationOutcome, None, Tuple[DeprecationWarningRecord, ...]
     ]:
@@ -200,6 +211,10 @@ class PipelineExecutionService(BasePipelineExecutionService):
         Validate REPORTS, never raising on findings. Derives the
         ``(pipeline, flowgroup) -> source-YAML`` map from each
         :attr:`FlowGroupContext.source_yaml` so every finding carries its file.
+
+        ``on_total`` / ``on_flowgroup_done`` are the optional plain-callable
+        flowgroup-progress side channel (§13.5 — not events, no ``lhp.api``
+        import) threaded to the engine for a live ``done/total`` counter.
         """
         if self._validate_worker_state is None:
             raise ValueError(
@@ -229,6 +244,8 @@ class PipelineExecutionService(BasePipelineExecutionService):
                 validation_service=self._validation_service,
                 discovery_errors=discovery_errors,
                 source_paths=source_paths,
+                on_total=on_total,
+                on_flowgroup_done=on_flowgroup_done,
             )
         )
 
@@ -240,6 +257,8 @@ class PipelineExecutionService(BasePipelineExecutionService):
         validation_service: "ValidationService",
         discovery_errors: Mapping[str, str],
         source_paths: Optional[Mapping[Tuple[str, str], Path]] = None,
+        on_total: Optional[Callable[[int], None]] = None,
+        on_flowgroup_done: Optional[Callable[[], None]] = None,
     ) -> Generator[
         PipelineValidationOutcome, None, Tuple[DeprecationWarningRecord, ...]
     ]:
@@ -248,6 +267,10 @@ class PipelineExecutionService(BasePipelineExecutionService):
         No gate — validate REPORTS findings, never raises on them; this
         generator runs to completion. RETURNS (via ``StopIteration.value``)
         the batch's worker deprecation warnings for the facade to re-emit.
+
+        ``on_total`` / ``on_flowgroup_done`` are the optional plain-callable
+        flowgroup-progress side channel threaded straight to the engine
+        (§13.5 — not events, no ``lhp.api`` import).
         """
         if source_paths is None:
             source_paths = {}
@@ -257,6 +280,8 @@ class PipelineExecutionService(BasePipelineExecutionService):
             validation_service=validation_service,
             max_workers=self._max_workers,
             mode="validate",
+            on_total=on_total,
+            on_flowgroup_done=on_flowgroup_done,
         )
         yield from assemble_validate_outcomes(
             pool_results,
@@ -276,6 +301,8 @@ class PipelineExecutionService(BasePipelineExecutionService):
         project_root: Optional[Path] = None,
         max_workers: Optional[int] = None,
         apply_formatting: bool = True,
+        on_total: Optional[Callable[[int], None]] = None,
+        on_flowgroup_done: Optional[Callable[[], None]] = None,
     ) -> Generator[PipelineDelta, None, Tuple[DeprecationWarningRecord, ...]]:
         """Run the flat engine in generate mode and YIELD per-pipeline deltas.
 
@@ -289,6 +316,10 @@ class PipelineExecutionService(BasePipelineExecutionService):
         RETURNS (via ``StopIteration.value``) the batch's worker deprecation
         warnings; on the gate-raise path they are simply not delivered.
 
+        ``on_total`` / ``on_flowgroup_done`` are the optional plain-callable
+        flowgroup-progress side channel threaded straight to the engine
+        (§13.5 — not events, no ``lhp.api`` import).
+
         :raises LHPError: the sole failure's error, or ``LHP-VAL-902`` (many).
         """
         pool_results = _run_flowgroup_pool_core(
@@ -299,6 +330,8 @@ class PipelineExecutionService(BasePipelineExecutionService):
                 self._max_workers if max_workers is None else max(1, max_workers)
             ),
             mode="generate",
+            on_total=on_total,
+            on_flowgroup_done=on_flowgroup_done,
         )
         # Collected up front so it reflects ALL pipelines even though the gate
         # may raise below before the success deltas are yielded.

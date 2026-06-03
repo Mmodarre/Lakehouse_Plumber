@@ -13,11 +13,18 @@ from typing import Optional, Tuple
 
 @dataclass(frozen=True)
 class RunHeader:
-    """Identifies a single CLI run for the renderers and summary."""
+    """Identifies a single CLI run for the renderers and summary.
+
+    Carries only ``command`` + ``env`` — the header line reads
+    ``lhp <command> · <env>`` with no up-front pipeline count. Pipeline /
+    flowgroup counts are derived from the terminal response by the summary
+    presenter and from the shared ``ProgressSink`` by the live bar; nothing
+    consumes a header-supplied count, so the CLI no longer eagerly discovers
+    the worklist just to populate one.
+    """
 
     command: str
     env: str
-    pipeline_count: int
 
 
 @dataclass(frozen=True)

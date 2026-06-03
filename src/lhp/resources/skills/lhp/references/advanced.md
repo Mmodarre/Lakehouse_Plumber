@@ -105,7 +105,7 @@ permissions:
     user_name: admin@company.com
 ```
 
-Usage: `lhp deps --format job --job-config config/job_config.yaml --bundle-output`
+Usage: `lhp dag --format job --job-config config/job_config.yaml --bundle-output`
 
 ---
 
@@ -116,21 +116,23 @@ Analyzes FlowGroup YAML to detect pipeline dependencies, execution stages, and e
 ### Commands
 
 ```bash
-lhp deps                                    # All formats
-lhp deps --format job --job-name my_etl      # Orchestration job
-lhp deps --format job --bundle-output        # Save to resources/
-lhp deps --format mermaid                    # Mermaid diagram
-lhp deps --pipeline bronze --format json     # Specific pipeline
+lhp dag                                    # All formats
+lhp dag --format job --job-name my_etl      # Orchestration job
+lhp dag --format job --bundle-output        # Save to resources/
+lhp dag --format dot                        # GraphViz diagram
+lhp dag --format json                       # Structured dependency graph
+lhp dag --expand-blueprints                 # One node per blueprint instance
 ```
 
 ### Output Formats
+
+`--format` accepts a comma-separated list; `all` (the default) emits every format.
 
 | Format | Description |
 |--------|-------------|
 | `text` | Human-readable report |
 | `json` | Structured data |
 | `dot` | GraphViz diagram |
-| `mermaid` | Mermaid diagram |
 | `job` | Databricks job YAML |
 | `all` | All formats |
 
@@ -228,7 +230,7 @@ required_lhp_version: ">=0.7.0,<1.0.0"
 pip install lakehouse-plumber
 lhp validate --env $ENV
 lhp generate --env $ENV
-lhp deps --format job --job-config config/job_config.yaml --bundle-output
+lhp dag --format job --job-config config/job_config.yaml --bundle-output
 databricks bundle deploy --target $ENV
 ```
 

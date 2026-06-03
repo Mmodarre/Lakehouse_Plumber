@@ -139,6 +139,45 @@ def _is_batch_level_failure(response: BatchValidationResponse) -> bool:
     )
 
 
+def is_preflight_failure(response: object) -> bool:
+    """True when ``response`` is a preflight-folded batch-level validation failure.
+
+    The non-raising validate path (``_validation_facade``) folds a project
+    preflight (e.g. ``CFG-023`` / ``CFG-026``) into a
+    :class:`BatchValidationResponse` that failed, carries an ``error_code`` /
+    ``error_message``, and has NO per-pipeline issues — the run stopped before
+    any pipeline was validated. The summary presenter uses this to state the
+    stop EXPLICITLY ("preflight failed — later stages not run") rather than
+    rendering the lone synthetic failure with an empty pipeline name, which
+    reads as a missing stage. Returns ``False`` for any non-validation terminal
+    or an ordinary per-pipeline failure.
+    """
+    return isinstance(response, BatchValidationResponse) and _is_batch_level_failure(
+        response
+    )
+
+
+_PREFLIGHT_STOP_PHRASE = "preflight failed — later stages not run"
+
+
+def preflight_failure_text(failure: FailureLine) -> str:
+    """Plain text for the explicit preflight-stop summary line.
+
+    Returns ``CODE  preflight failed — later stages not run  ·  <message>`` (the
+    code and message segments are dropped when absent). Pure string assembly —
+    the summary presenter wraps the result in a Rich ``Text`` for styling, so
+    this module stays Rich-free. Pairs with :func:`is_preflight_failure`.
+    """
+    parts: List[str] = []
+    if failure.code:
+        parts.append(failure.code)
+    parts.append(_PREFLIGHT_STOP_PHRASE)
+    text = "  ".join(parts)
+    if failure.message:
+        text = f"{text}  ·  {failure.message}"
+    return text
+
+
 def _failure_from_issue(issue: "ValidationIssueView") -> FailureLine:
     """Map an error-severity issue to a :class:`FailureLine`."""
     return FailureLine(

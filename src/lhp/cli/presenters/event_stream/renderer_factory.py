@@ -36,6 +36,7 @@ from lhp.cli.presenters.event_stream.log_renderer import LogRenderer
 if TYPE_CHECKING:
     from rich.console import Console
 
+    from lhp.api import ProgressSink
     from lhp.api.events import LHPEvent
 
     from ._model import RenderOptions, RunHeader
@@ -71,24 +72,33 @@ def select_renderer(
     *,
     no_progress: bool = False,
     show_details: bool = False,
+    progress: "Optional[ProgressSink]" = None,
     console: "Console",
     err_console: "Console",
 ) -> _Renderer:
     """Pick the renderer for one run, deciding interactivity once.
 
     The selection is made a single time here and is not revisited while
-    the stream drains. :class:`LiveRenderer` drives its transient status
+    the stream drains. :class:`LiveRenderer` drives its self-animating status
     bar on ``console`` (and prints permanent lines above it); the
     fallback :class:`LogRenderer` writes one stable line per rendered
     event to ``err_console``. ``show_details`` is threaded into the chosen
     renderer so per-file warning lines are emitted only on demand (default:
     suppressed, leaving the count to the summary's per-code rollup).
+
+    ``progress`` is the shared :class:`~lhp.api.ProgressSink` the facade
+    advances per-flowgroup; it is handed to :class:`LiveRenderer` so the bar
+    reads live ``done`` / ``total`` off the SAME instance. The bar's total comes
+    from the sink (the header carries no pipeline count: pipelines are coarser
+    than the flowgroups the sink counts, and on the diff/plan path no count is
+    driven at all). :class:`LogRenderer` has no live bar, so it ignores
+    ``progress``.
     """
     if _force_log_renderer(console, no_progress=no_progress):
         logger.debug("renderer-factory: selected LogRenderer (non-interactive)")
         return LogRenderer(err_console, show_details=show_details)
     logger.debug("renderer-factory: selected LiveRenderer (interactive)")
-    return LiveRenderer(console, total=header.pipeline_count, show_details=show_details)
+    return LiveRenderer(console, progress=progress, show_details=show_details)
 
 
 def render(
@@ -97,6 +107,7 @@ def render(
     *,
     options: "RenderOptions",
     no_progress: bool = False,
+    progress: "Optional[ProgressSink]" = None,
     console: Optional["Console"] = None,
     err_console: Optional["Console"] = None,
 ) -> RunOutcome:
@@ -104,7 +115,10 @@ def render(
 
     Selects :class:`LiveRenderer` vs :class:`LogRenderer` once (see
     :func:`select_renderer`), drains ``events`` via :func:`drive`, and
-    returns the renderer's accumulated :class:`RunOutcome` on success. On
+    returns the renderer's accumulated :class:`RunOutcome` on success. The
+    ``progress`` sink — the SAME instance the caller passed to the facade's
+    long-running operation — is handed to the live renderer so its flowgroup
+    bar reflects live progress; the log renderer ignores it. On
     the validate path — which never raises on findings and folds every
     issue, fully attributed, into the terminal
     :class:`BatchValidationResponse` (while ALSO emitting a per-pipeline
@@ -134,10 +148,16 @@ def render(
         header,
         no_progress=no_progress,
         show_details=options.show_details,
+        progress=progress,
         console=console,
         err_console=err_console,
     )
     try:
+        # Paint the first frame BEFORE pulling the first event: the stream's
+        # opening ``next()`` may block while the facade discovers the worklist,
+        # so the live renderer starts its spinner here (no-op on the log
+        # renderer) to avoid a blank screen during discovery.
+        renderer.begin()
         drive(events, renderer)
     except BaseException:
         # §9.5: never inspect or import the error type. Tear the renderer

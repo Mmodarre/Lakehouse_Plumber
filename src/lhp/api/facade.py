@@ -27,6 +27,7 @@ from lhp.api._generation_facade import (
 from lhp.api._inspection_facade import (
     InspectionFacade as InspectionFacade,  # re-export (§1.10)
 )
+from lhp.api._progress import ProgressSink
 from lhp.api._validation_facade import (
     ValidationFacade as ValidationFacade,  # re-export (§1.10)
 )
@@ -98,6 +99,15 @@ class LakehousePlumberApplicationFacade:
         # source (§1.10, §9.13). Lazy import.
         from lhp.core.coordination.layers import build_facade_orchestrator
 
+        # Wire the per-action generators into the core ``ActionRegistry``
+        # at this single composition point. ``core`` must not import
+        # ``generators`` (layering), so registration is pushed from
+        # ``api`` (the legal downward ``api -> generators`` edge). Lazy so
+        # bare ``import lhp`` stays light; idempotent (later calls update).
+        from lhp.generators.registration import register_all
+
+        register_all()
+
         orchestrator = build_facade_orchestrator(
             project_root,
             pipeline_config_path=pipeline_config_path,
@@ -119,6 +129,7 @@ class LakehousePlumberApplicationFacade:
         bundle_enabled: bool = False,
         pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
         max_workers: Optional[int] = None,
+        progress: ProgressSink | None = None,
     ) -> Iterator[LHPEvent]:
         """Shortcut for ``self.generation.generate_pipelines(...)``.
 
@@ -129,6 +140,10 @@ class LakehousePlumberApplicationFacade:
         (``None`` = use the project's ``lhp.yaml`` ``apply_formatting``
         setting; ``True`` / ``False`` override it), resolved downstream
         in the orchestrator.
+
+        ``progress`` is an optional :class:`~lhp.api.ProgressSink` the run
+        advances as flowgroups complete; read its ``total`` / ``done``
+        fields while iterating the stream to observe live progress.
 
         :stability: provisional
         :raises lhp.errors.LHPError: same families as
@@ -146,6 +161,7 @@ class LakehousePlumberApplicationFacade:
             bundle_enabled=bundle_enabled,
             pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
             max_workers=max_workers,
+            progress=progress,
         )
 
     def validate_pipelines(
@@ -158,11 +174,16 @@ class LakehousePlumberApplicationFacade:
         include_tests: bool = True,
         bundle_enabled: bool = False,
         pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
+        progress: ProgressSink | None = None,
     ) -> Iterator[LHPEvent]:
         """Shortcut for ``self.validation.validate_pipelines(...)``.
 
         Restates the canonical signature (§4.2) and forwards every
         parameter unchanged via ``yield from`` (§1.4, §5.7).
+
+        ``progress`` is an optional :class:`~lhp.api.ProgressSink` the run
+        advances as flowgroups complete; read its ``total`` / ``done``
+        fields while iterating the stream to observe live progress.
 
         :stability: provisional
         :raises lhp.errors.LHPError: same families as
@@ -177,4 +198,5 @@ class LakehousePlumberApplicationFacade:
             include_tests=include_tests,
             bundle_enabled=bundle_enabled,
             pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
+            progress=progress,
         )

@@ -1146,3 +1146,193 @@ def test_flowgroup_pool_merges_and_dedups_warnings_by_code_file(monkeypatch):
         ("LHP-DEPR-002", a_yaml),
         ("LHP-DEPR-001", b_yaml),
     ]
+
+
+# Per-flowgroup progress side channel: on_total / on_flowgroup_done
+#
+# The engine exposes two OPTIONAL plain callables (NOT events, no ``lhp.api``
+# import — constitution §13.5) so the CLI can render a live ``done/total``
+# flowgroup counter:
+#   - ``on_total`` fires ONCE with the flat worklist length.
+#   - ``on_flowgroup_done`` fires ONCE per flowgroup-FUTURE resolution — in the
+#     ``as_completed`` branch AND the ``executor.submit``-failure branch — so the
+#     count is per-flowgroup, never per-pipeline (``_finalize`` is the per-pipeline
+#     seam and is deliberately NOT hooked). These spies prove both counts.
+
+
+class _SubmitFailExecutor(_SyncExecutor):
+    """``_SyncExecutor`` that raises on ``submit`` for chosen flowgroup names.
+
+    Drives the engine's ``executor.submit``-failure guard: a flowgroup whose
+    name is in ``fail_flowgroups`` never produces a future, so ``as_completed``
+    will NEVER see it. The engine must still tick ``on_flowgroup_done`` for it
+    (on the submit-failure path) or the done/total count would silently
+    under-count — exactly the per-pipeline-miswiring bug this exercises.
+
+    The submitted callable's first positional arg is the ``FlowGroupContext``
+    (the engine calls ``executor.submit(_process_one_flowgroup, fg_ctx, ...)``),
+    so the flowgroup name is read off ``args[0].flowgroup.flowgroup``.
+    """
+
+    def __init__(self, *args, fail_flowgroups: frozenset[str] = frozenset()) -> None:
+        super().__init__(*args)
+        self._fail = fail_flowgroups
+
+    def submit(self, fn, /, *args, **kwargs) -> Future:
+        if args and args[0].flowgroup.flowgroup in self._fail:
+            raise RuntimeError("submit boom (pool shutting down)")
+        return super().submit(fn, *args, **kwargs)
+
+
+def _counting_worker(fg_ctx: FlowGroupContext, *, mode: str) -> FlowgroupOutcome:
+    pipeline = fg_ctx.flowgroup.pipeline
+    fg_name = fg_ctx.flowgroup.flowgroup
+    return FlowgroupOutcome.ok(
+        pipeline, fg_name, resolved_flowgroup=_FakeFlowGroup(pipeline, fg_name)
+    )
+
+
+def _worker_state_for(pipelines: Sequence[str]) -> _FlowgroupWorkerState:
+    return _FlowgroupWorkerState(
+        processor=_FakeResolver(),
+        substitution_managers={p: object() for p in pipelines},
+        include_tests=False,
+        code_generator=_FakeCodeGen(),
+        pipeline_output_dirs=dict.fromkeys(pipelines, None),
+        environment="dev",
+    )
+
+
+@pytest.mark.unit
+def test_progress_callbacks_total_once_and_done_per_flowgroup(monkeypatch):
+    """on_total fires ONCE with the count; on_flowgroup_done ONCE per flowgroup.
+
+    Two pipelines, FOUR flowgroups total (3 + 1) — deliberately more than the
+    pipeline count so a per-pipeline miswiring of ``on_flowgroup_done`` would
+    yield 2 ticks (one per pipeline) instead of 4. ``on_total`` must be called
+    exactly once with ``4``.
+    """
+    multi = "pipe_multi"
+    single = "pipe_single"
+    flowgroups_by_pipeline: Dict[str, List[FlowGroupContext]] = {
+        multi: [
+            _ctx(pipeline=multi, flowgroup="fg_a"),
+            _ctx(pipeline=multi, flowgroup="fg_b"),
+            _ctx(pipeline=multi, flowgroup="fg_c"),
+        ],
+        single: [_ctx(pipeline=single, flowgroup="fg_solo")],
+    }
+
+    monkeypatch.setattr(fe, "ProcessPoolExecutor", _SyncExecutor)
+    monkeypatch.setattr(fe, "_process_one_flowgroup", _counting_worker)
+
+    totals: List[int] = []
+    done = 0
+
+    def _on_done() -> None:
+        nonlocal done
+        done += 1
+
+    results = _run_flowgroup_pool_core(
+        flowgroups_by_pipeline=flowgroups_by_pipeline,
+        worker_state=_worker_state_for([multi, single]),
+        validation_service=_BarrierSpy(),
+        max_workers=4,
+        mode="validate",
+        on_total=totals.append,
+        on_flowgroup_done=_on_done,
+    )
+
+    # Engine still returns its normal per-pipeline results.
+    assert [r.pipeline for r in results] == [multi, single]
+    # on_total: exactly once, with the FLAT flowgroup count (not pipeline count).
+    assert totals == [4]
+    # on_flowgroup_done: exactly once per flowgroup (per-flowgroup granularity,
+    # NOT the 2 it would be if it were hooked in the per-pipeline _finalize).
+    assert done == 4
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("mode", ["validate", "generate"])
+def test_progress_done_fires_on_submit_failure_path(monkeypatch, mode):
+    """A flowgroup whose ``submit`` raises STILL ticks on_flowgroup_done.
+
+    Forces ``executor.submit`` to raise for one of three flowgroups: that
+    flowgroup produces no future, so it never reaches ``as_completed``. The
+    done count must STILL equal the total (3), proving the submit-failure
+    branch ticks the counter — a per-pipeline (or as_completed-only) miswiring
+    would under-count to 2 here. Covered in BOTH modes (the submit guard is
+    mode-agnostic). The engine keeps the failure on the DTO channel (never
+    raises), so the run completes normally.
+    """
+    pipeline = "pipe_x"
+    flowgroups_by_pipeline = {
+        pipeline: [
+            _ctx(pipeline=pipeline, flowgroup="fg_a"),
+            _ctx(pipeline=pipeline, flowgroup="fg_boom"),  # submit() will raise
+            _ctx(pipeline=pipeline, flowgroup="fg_c"),
+        ],
+    }
+
+    def _executor_factory(*args, **kwargs):
+        return _SubmitFailExecutor(*args, fail_flowgroups=frozenset({"fg_boom"}))
+
+    monkeypatch.setattr(fe, "ProcessPoolExecutor", _executor_factory)
+    monkeypatch.setattr(fe, "_process_one_flowgroup", _counting_worker)
+
+    totals: List[int] = []
+    done = 0
+
+    def _on_done() -> None:
+        nonlocal done
+        done += 1
+
+    results = _run_flowgroup_pool_core(
+        flowgroups_by_pipeline=flowgroups_by_pipeline,
+        worker_state=_worker_state_for([pipeline]),
+        validation_service=_BarrierSpy(),
+        max_workers=4,
+        mode=mode,
+        on_total=totals.append,
+        on_flowgroup_done=_on_done,
+    )
+
+    assert totals == [3]
+    # The submit-failure flowgroup ticks too: done == total even though one
+    # flowgroup never produced a future. (2 here would mean the submit-failure
+    # branch was missing the tick — the per-pipeline-miswiring failure mode.)
+    assert done == 3
+    # The engine still represents the pipeline; the failed-submit flowgroup
+    # rides as a failure outcome (never raised).
+    assert len(results) == 1
+    (result,) = results
+    fg_names = {o.flowgroup_name for o in result.outcomes_in_order}
+    assert fg_names == {"fg_a", "fg_boom", "fg_c"}
+    boom = next(o for o in result.outcomes_in_order if o.flowgroup_name == "fg_boom")
+    assert boom.success is False
+
+
+@pytest.mark.unit
+def test_progress_callbacks_optional_default_none(monkeypatch):
+    """Omitting both callables is a no-op: the engine runs unchanged.
+
+    Guards the ``Optional[...] = None`` default — the non-CLI consumers
+    (scripts, WebUI, the existing call paths) pass neither callable, so the
+    engine must not require them.
+    """
+    pipeline = "pipe_z"
+    monkeypatch.setattr(fe, "ProcessPoolExecutor", _SyncExecutor)
+    monkeypatch.setattr(fe, "_process_one_flowgroup", _counting_worker)
+
+    results = _run_flowgroup_pool_core(
+        flowgroups_by_pipeline={
+            pipeline: [_ctx(pipeline=pipeline, flowgroup="fg_only")]
+        },
+        worker_state=_worker_state_for([pipeline]),
+        validation_service=_BarrierSpy(),
+        max_workers=2,
+        mode="validate",
+    )
+
+    assert len(results) == 1
+    assert results[0].pipeline == pipeline

@@ -13,8 +13,8 @@ Centralized pipeline observability — event log injection and monitoring pipeli
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `enabled` | boolean | `true` | Enable/disable event log injection |
-| `catalog` | string | **(required)** | Unity Catalog name (supports `{token}` substitution) |
-| `schema` | string | **(required)** | Schema name (supports `{token}` substitution) |
+| `catalog` | string | **(required)** | Unity Catalog name (supports `${token}` substitution) |
+| `schema` | string | **(required)** | Schema name (supports `${token}` substitution) |
 | `name_prefix` | string | `""` | Prefix for generated event log table name |
 | `name_suffix` | string | `""` | Suffix for generated event log table name |
 
@@ -31,12 +31,12 @@ Centralized pipeline observability — event log injection and monitoring pipeli
 ```yaml
 # lhp.yaml
 event_log:
-  catalog: "{catalog}"
+  catalog: "${catalog}"
   schema: _meta
   name_suffix: "_event_log"
 ```
 
-All fields support LHP token substitution from `substitutions/{env}.yaml`.
+All fields support LHP token substitution from `substitutions/<env>.yaml`.
 
 ### Pipeline-Level Overrides (pipeline_config.yaml)
 
@@ -83,13 +83,17 @@ event_log:
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `enabled` | boolean | `true` | Enable/disable monitoring pipeline |
-| `pipeline_name` | string | `{project_name}_event_log_monitoring` | Custom monitoring pipeline name |
+| `pipeline_name` | string | `${project_name}_event_log_monitoring` | Custom monitoring pipeline name |
 | `catalog` | string | Inherits from `event_log.catalog` | Override catalog for monitoring tables |
 | `schema` | string | Inherits from `event_log.schema` | Override schema for monitoring tables |
-| `streaming_table` | string | `all_pipelines_event_log` | Name of centralized streaming table |
+| `streaming_table` | string | `all_pipelines_event_log` | Name of centralized Delta table populated by the union notebook |
+| `checkpoint_path` | string | **(required)** | Base path for per-pipeline streaming checkpoints (typically a UC volume) |
+| `job_config_path` | string | **(required)** | Path (relative to project root) to monitoring job YAML used for cluster, schedule, notifications |
+| `max_concurrent_streams` | int | `10` | `ThreadPoolExecutor` `max_workers` for the union notebook |
 | `materialized_views` | list | One default `events_summary` MV | Custom MV definitions (see below) |
+| `enable_job_monitoring` | boolean | `false` | Adds the `jobs_stats` MV that pulls Databricks Jobs run metadata via the SDK |
 
-**`monitoring: {}`** enables all defaults. Requires `event_log` to be enabled (LHP-CFG-008 if missing).
+Enabling monitoring requires both `checkpoint_path` and `job_config_path` (LHP-CFG-008 if missing). The `event_log` block must also be present and enabled (LHP-CFG-008 if missing).
 
 ### Materialized Views
 
@@ -177,21 +181,23 @@ name: my_project
 version: "1.0"
 
 event_log:
-  catalog: "{catalog}"
+  catalog: "${catalog}"
   schema: _meta
   name_suffix: "_event_log"
 
-monitoring: {}
+monitoring:
+  checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+  job_config_path: "config/monitoring_job_config.yaml"
 ```
 
-Creates: event log injection on all pipelines + monitoring pipeline with default `events_summary` MV.
+Creates: event log injection on all pipelines + monitoring pipeline with default `events_summary` MV + Workflow job chaining the union notebook and the MVs pipeline.
 
 ### Full Customization
 
 ```yaml
 # lhp.yaml
 event_log:
-  catalog: "{catalog}"
+  catalog: "${catalog}"
   schema: _meta
   name_suffix: "_event_log"
 
@@ -200,6 +206,9 @@ monitoring:
   catalog: "analytics_catalog"
   schema: "_monitoring"
   streaming_table: "unified_event_stream"
+  checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+  job_config_path: "config/monitoring_job_config.yaml"
+  max_concurrent_streams: 20
   materialized_views:
     - name: "error_events"
       sql: "SELECT * FROM unified_event_stream WHERE event_type = 'error'"
@@ -221,18 +230,20 @@ pipeline: experimental_pipeline
 event_log: false
 ```
 
-Opted-out pipelines are excluded from the monitoring pipeline's UNION ALL query.
+Opted-out pipelines are excluded from the union notebook's `SOURCES` list and contribute no rows to the union Delta table.
 
 ### Environment-Specific Configuration
 
 ```yaml
 # lhp.yaml
 event_log:
-  catalog: "{catalog}"
-  schema: "{monitoring_schema}"
+  catalog: "${catalog}"
+  schema: "${monitoring_schema}"
   name_suffix: "_event_log"
 
-monitoring: {}
+monitoring:
+  checkpoint_path: "/Volumes/${catalog}/${monitoring_schema}/checkpoints/event_logs"
+  job_config_path: "config/monitoring_job_config.yaml"
 ```
 
 ```yaml
@@ -250,7 +261,10 @@ dev:                              prod:
 |-------|-----------|---------|
 | `event_log` is not a YAML mapping | LHP-CFG-006 | Define as mapping with `catalog` and `schema` |
 | `event_log` missing `catalog` or `schema` | LHP-CFG-007 | Add both required fields, or set `enabled: false` |
-| `monitoring` is not a YAML mapping | LHP-CFG-008 | Use `monitoring: {}` for defaults |
+| `monitoring` is not a YAML mapping | LHP-CFG-008 | Define `monitoring:` as a mapping with `checkpoint_path` and `job_config_path` |
+| Monitoring missing `checkpoint_path` | LHP-CFG-008 | Add `checkpoint_path` (typically a UC volume) or disable monitoring |
+| Monitoring missing `job_config_path` | LHP-CFG-008 | Add `job_config_path` pointing to a job YAML, or disable monitoring |
+| Monitoring `job_config_path` file not found | LHP-CFG-008 / LHP-IO-001 | File at resolved path does not exist; create it or fix the path |
 | `materialized_views` is not a list | LHP-CFG-008 | Use YAML list: `materialized_views: [...]` |
 | Monitoring enabled without `event_log` | LHP-CFG-008 | Add `event_log` section, or disable monitoring |
 | Duplicate MV names | LHP-CFG-008 | Each MV must have unique `name` |

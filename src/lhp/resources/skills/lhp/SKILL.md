@@ -1,20 +1,33 @@
 ---
 name: lhp
-description: "Lakehouse Plumber (LHP) project configuration and development assistant. Converts declarative YAML into Databricks Lakeflow Declarative Pipelines (formerly DLT) Python code. Use when: (1) Setting up new LHP projects (lhp init, lhp.yaml, substitutions, presets, templates), (2) Writing or editing pipeline YAML flowgroup configurations, (3) Configuring load/transform/write/test actions, (4) Creating or modifying templates and presets, (5) Setting up Databricks Asset Bundle integration, (6) Running dependency analysis or orchestration job generation, (7) Troubleshooting LHP validation or generation errors, (8) Any task involving LHP pipeline YAML files, lhp.yaml, substitutions/, templates/, presets/, or the lhp CLI."
+description: "Lakehouse Plumber (LHP) project configuration and development assistant. Converts declarative YAML into Databricks Lakeflow Declarative Pipelines (formerly DLT) Python code. Use when: (1) Setting up new LHP projects (lhp init, lhp.yaml, substitutions, presets, templates), (2) Writing or editing pipeline YAML flowgroup configurations, (3) Configuring load/transform/write/test actions, (4) Creating or modifying templates, presets, or blueprints, (5) Setting up Databricks Asset Bundle integration, (6) Running dependency analysis or orchestration job generation, (7) Troubleshooting LHP validation or generation errors, (8) Any task involving LHP pipeline YAML files, lhp.yaml, substitutions/, templates/, presets/, blueprints/, or the lhp CLI."
 ---
 
 # Lakehouse Plumber (LHP)
 
 YAML-to-Python code generator for Databricks Lakeflow Declarative Pipelines.
 
+## Before You Start (read this first)
+
+- **Reuse before authoring.** On any "create a flowgroup / pipeline / ingestion" request, scan `templates/` and `blueprints/` **first**. If an existing template (one parameterised flowgroup) or blueprint (a whole-flowgroup pattern repeated per site/region/tenant) already fits, propose reusing it via `use_template:` / `use_blueprint:` and confirm with the user *before* hand-writing new actions. Only author fresh YAML when nothing fits.
+- **Write-target rule of thumb:** incremental/append/streaming ingest → `streaming_table`; full recompute, joins, aggregations, or dimensional rebuilds → `materialized_view`.
+- **New project from scratch?** Load [quickstart.md](references/quickstart.md) for the `init → lhp.yaml/substitutions/pipeline_config → validate → generate` path.
+- **Common mistakes to avoid:**
+  - Deprecated `{token}` braces — always `${token}` (only `%{local_var}` uses non-`$` braces).
+  - Missing `stream(view)` wrapper in a SQL transform that reads a streaming source.
+  - Secrets inline in YAML — always `${secret:scope/key}`.
+  - `operational_metadata` at the write level — apply it at the load/transform (action) level.
+  - Suggesting `lhp show` (removed) or `lhp deps` / `--force` (deprecated). Use `lhp dag`, `lhp diff`; every `generate` is a full regenerate.
+
 ### Read Project Context
 
 Read the user's existing project files before generating new configurations:
 1. `lhp.yaml` — project config, operational metadata definitions
 2. `substitutions/` — environment tokens and secret scopes
-3. `presets/` — reusable defaults
-4. `templates/` — reusable action patterns
-5. Existing `pipelines/` YAML files — match naming/structure conventions
+3. `presets/` — reusable defaults (action-type config)
+4. `templates/` — reusable action patterns (one parameterised flowgroup)
+5. `blueprints/` — reusable whole-flowgroup patterns, instantiated per site/region/tenant
+6. Existing `pipelines/` YAML files — match naming/structure conventions
 
 ## Core Architecture
 
@@ -44,7 +57,7 @@ actions:
     readMode: stream          # stream or batch
     source:
       type: cloudfiles        # cloudfiles|delta|sql|jdbc|python|kafka|custom_datasource
-      path: "{landing_volume}/folder/*.csv"
+      path: "${landing_volume}/folder/*.csv"
       format: csv
     target: v_raw_data
 
@@ -61,7 +74,7 @@ actions:
     source: v_cleaned
     write_target:
       type: streaming_table   # streaming_table|materialized_view
-      database: "{catalog}.{schema}"
+      database: "${catalog}.${schema}"
       table: "my_table"
 ```
 
@@ -71,7 +84,7 @@ actions:
 |-------|--------|------|
 | 1st | `%{var}` | Local variable (flowgroup-scoped) |
 | 2nd | `{{ param }}` | Template parameter (Jinja2) |
-| 3rd | `${token}` / `{token}` | Environment substitution |
+| 3rd | `${token}` | Environment substitution (bare `{token}` is **deprecated**, `LHP-DEPR-001`) |
 | 4th | `${secret:scope/key}` | Secret -> dbutils.secrets.get() |
 
 ## Template and Flowgroup Naming Conventions
@@ -146,6 +159,7 @@ Each sub-type has its own leaf reference file. Load only the one(s) you need.
 8. **Monitoring requires event_log** — `monitoring: {}` won't work without `event_log` section
 9. **`catalog` and `schema` are REQUIRED in `pipeline_config.yaml`** — set them per-pipeline or in a top-level `project_defaults` block. Missing either fails `lhp generate` with `BundleResourceError`. See [project-config.md](references/project-config.md) and `docs/how-to/configure-catalog-and-schema.rst`.
 10. **`resources/lhp/` is exclusively managed by LHP** — every `lhp generate` wipes it and rewrites it. Place custom resource YAMLs (hand-written jobs, dashboards, secret scopes) under `resources/` at the top level or any non-`lhp` subdirectory.
+11. **Every `lhp generate` is a full regenerate** — there is no incremental mode and no `--force` flag (it was removed and is a no-op). Never suggest `--force`.
 
 ## Best Practice Defaults (apply unless the user overrides)
 
@@ -169,11 +183,13 @@ These defaults reflect LHP's published enterprise best practices. Load [best-pra
 ## CLI Quick Reference
 
 ```bash
-lhp init <project> [--bundle]           # Scaffold project
+lhp init <project> [--no-bundle]        # Scaffold project (Asset Bundle ON by default)
 lhp validate --env <env>                # Validate configs
-lhp generate --env <env>                # Generate Python code for all flowgroups
+lhp generate --env <env>                # Generate Python code (always a FULL regenerate)
 lhp generate --env <env> --include-tests  # With test actions included
-lhp deps --format job --job-name <name> --bundle-output  # Orchestration job
+lhp diff --env <env>                    # Show what generate would change on disk
+lhp dag --format job --job-name <name> --bundle-output  # Orchestration job
+lhp list templates | presets | blueprints   # List reusable artifacts
 ```
 
 ## Reference Files
@@ -187,7 +203,9 @@ Action references are split per sub-type — one leaf file per action sub-type. 
 - **Write** — [streaming_table standard](references/actions-write-streaming-table-standard.md), [streaming_table cdc](references/actions-write-streaming-table-cdc.md), [streaming_table snapshot_cdc](references/actions-write-streaming-table-snapshot-cdc.md), [materialized_view](references/actions-write-materialized-view.md), [sink delta](references/actions-write-sink-delta.md), [sink kafka](references/actions-write-sink-kafka.md), [sink eventhubs](references/actions-write-sink-eventhubs.md), [sink custom](references/actions-write-sink-custom.md), [sink foreachbatch](references/actions-write-sink-foreachbatch.md).
 - **Test** — [row_count](references/actions-test-row-count.md), [uniqueness](references/actions-test-uniqueness.md), [referential_integrity](references/actions-test-referential-integrity.md), [completeness](references/actions-test-completeness.md), [range](references/actions-test-range.md), [schema_match](references/actions-test-schema-match.md), [all_lookups_found](references/actions-test-all-lookups-found.md), [custom_sql](references/actions-test-custom-sql.md), [custom_expectations](references/actions-test-custom-expectations.md). All 9 require the `--include-tests` flag.
 - **[cdc-patterns.md](references/cdc-patterns.md)** — CDC and SCD2 patterns for Delta CDF, PostgreSQL WAL, and snapshot CDC. Load when implementing any CDC/SCD2 pattern.
-- **[templates-presets.md](references/templates-presets.md)** — Template structure, naming conventions, parameter types, preset matching/merge behavior. Load when creating or editing templates or presets.
+- **[templates-presets.md](references/templates-presets.md)** — Template structure, naming conventions, parameter types (incl. inline SQL parametrized with Jinja), preset matching/merge behavior. Load when creating or editing templates or presets.
+- **[blueprints.md](references/blueprints.md)** — Blueprints: whole-flowgroup patterns expanded per instance (sites/regions/tenants), `use_blueprint:` syntax, `%{var}` resolution, `lhp list blueprints` / `lhp dag --expand-blueprints`. Load when the same flowgroup repeats across deployments, or to decide blueprint vs template vs preset.
+- **[quickstart.md](references/quickstart.md)** — First-project setup: `lhp init`, `lhp.yaml`, `databricks.yml`, `substitutions/`, `config/pipeline_config.yaml`, first flowgroup, validate + generate. Load when scaffolding a new project from scratch.
 - **[project-config.md](references/project-config.md)** — lhp.yaml, substitutions, local variables, operational metadata, CLI commands, multi-flowgroup syntax. Load for project setup or config questions.
 - **[advanced.md](references/advanced.md)** — Databricks bundles, pipeline/job configuration, dependency analysis, multi-job orchestration, CI/CD patterns. Load for deployment or orchestration tasks.
 - **[monitoring.md](references/monitoring.md)** — Event log injection, monitoring pipeline, materialized views, `__eventlog_monitoring` alias. Load when configuring event_log or monitoring in lhp.yaml.
@@ -197,39 +215,40 @@ Action references are split per sub-type — one leaf file per action sub-type. 
 ## Instructions
 
 1. **Read project files first** — match existing patterns and conventions. Do not introduce a best-practice default that conflicts with an established project convention without flagging the trade-off.
-2. **Apply best-practice defaults** (see section above). When the project is new or silent on a choice, pick the BP default. Load [best-practices.md](references/best-practices.md) when designing new structures or refactoring.
-3. **Validate substitution tokens** — ensure `${token}` has corresponding entry in substitution files
-4. **Use templates when available** — check if a template already exists for the pattern
+2. **Reuse before authoring** — for any flowgroup/pipeline creation request, scan `templates/` and `blueprints/` first. If an existing template or blueprint fits the pattern, propose reusing it (`use_template:` / `use_blueprint:`) and confirm with the user before hand-writing new actions. Author fresh YAML only when nothing fits.
+3. **Apply best-practice defaults** (see section above). When the project is new or silent on a choice, pick the BP default. Load [best-practices.md](references/best-practices.md) when designing new structures or refactoring.
+4. **Validate substitution tokens** — ensure `${token}` has corresponding entry in substitution files
 5. **Apply presets** — reference project presets where appropriate
 6. **Generate valid YAML** — proper indentation, correct field nesting
 7. **Explain behavior** — describe what the generated YAML will produce in Python/Spark Declarative Pipelines
 8. **Suggest validation** — recommend `lhp validate --env dev` after changes
-8. **For CDC/SCD2 patterns**:
+9. **For CDC/SCD2 patterns**:
    - Exclude CDC metadata columns (`__START_AT`, `__END_AT`) using `* except` in transforms
    - Use business timestamps (modified_at, created_at) for `sequence_by`
    - Add technical columns to `except_column_list` in cdc_config
    - Apply `operational_metadata` at action level, not write level
    - Use `* except` pattern for future-proof column selection and schema evolution
-9. **For Kafka sources** — remind that key/value are binary, need deserialization transform
-10. **For operational_metadata**:
+10. **For Kafka sources** — remind that key/value are binary, need deserialization transform
+11. **For operational_metadata**:
     - Apply at action level (load, transform), not write level
     - For file sources: include file metadata (`_source_file_path`, `_source_file_name`, `_processing_timestamp`)
     - For non-file sources: For example `_processing_timestamp`
-11. **For creating templates**:
+12. **For creating templates**:
     - Follow naming convention: `TMPL<number>_<source_type>_<function>.yaml`
     - Define clear, required parameters with descriptions
-    - Use Jinja2 syntax for parameter substitution: `{{ param_name }}`
+    - Use Jinja2 syntax for parameter substitution: `{{ param_name }}` — including inside inline `sql:` blocks
     - Quote array and string parameters in YAML: `keys: "{{ natural_keys }}"`
     - Provide defaults for optional parameters
     - Document the template purpose, parameters, and usage examples in templates/README.md
     - Test templates by creating example flowgroups before finalizing
-12. **For using templates in flowgroups**:
+13. **For using templates in flowgroups**:
     - Name flowgroup: `<domain>_<final_table>_TMPL<number>`
     - Reference template with `use_template: TMPL<number>_<source_type>_<function>`
     - Provide all required parameters under `template_parameters:`
     - Use natural YAML for objects and arrays (not JSON strings)
     - Keep optional parameters only if overriding defaults
     - If multiple flowgroups use the same template. use multi-flowgroup syntax.
-13. **For error troubleshooting**: Load errors.md, find the error code, follow resolution. Always suggest `lhp validate --env <env> --verbose`.
-14. **For monitoring/event log setup**: Load monitoring.md. Require `event_log` before `monitoring`. Use `__eventlog_monitoring` alias in pipeline_config.yaml.
-15. **Not all fields are required**: When showing YAML examples, annotate fields as required/optional. Only required fields must be present; optional fields have sensible defaults.
+14. **For blueprints** (same flowgroup repeated across sites/regions/tenants): define a blueprint under `blueprints/` and one instance file per variant (`use_blueprint:` + nested `parameters:`). Use `%{var}` for parameters; never `${...}` in `pipeline:`/`flowgroup:` fields. Load [blueprints.md](references/blueprints.md).
+15. **For error troubleshooting**: Load errors.md, find the error code, follow resolution. Always suggest `lhp validate --env <env> --verbose`.
+16. **For monitoring/event log setup**: Load monitoring.md. Require `event_log` before `monitoring`. Use `__eventlog_monitoring` alias in pipeline_config.yaml.
+17. **Not all fields are required**: When showing YAML examples, annotate fields as required/optional. Only required fields must be present; optional fields have sensible defaults.

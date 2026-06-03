@@ -14,7 +14,7 @@ The most common CDC pattern — read changes from a CDF-enabled Delta table:
   readMode: stream
   source:
     type: delta
-    database: "{catalog}.{bronze_schema}"
+    database: "${catalog}.${bronze_schema}"
     table: customer
     options:
       readChangeFeed: "true"
@@ -28,7 +28,7 @@ Then write as SCD Type 1 or 2:
   source: v_customer_changes
   write_target:
     type: streaming_table
-    database: "{catalog}.{silver_schema}"
+    database: "${catalog}.${silver_schema}"
     table: dim_customer
     mode: cdc
     cdc_config:
@@ -130,7 +130,7 @@ actions:
     source: v_invoice_with_sequence
     write_target:
       type: streaming_table
-      database: "{catalog}.{bronze_schema}"
+      database: "${catalog}.${bronze_schema}"
       table: "%{target_table}"
       mode: cdc
       cdc_config:

@@ -14,10 +14,9 @@ from lhp.cli.presenters.event_stream._model import (
 
 
 def test_run_header_construct_and_frozen():
-    header = RunHeader(command="generate", env="dev", pipeline_count=3)
+    header = RunHeader(command="generate", env="dev")
     assert header.command == "generate"
     assert header.env == "dev"
-    assert header.pipeline_count == 3
     with pytest.raises(dataclasses.FrozenInstanceError):
         header.command = "validate"  # type: ignore[misc]
 

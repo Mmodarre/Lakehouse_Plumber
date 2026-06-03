@@ -14,10 +14,10 @@ from typing import Dict, Optional
 import click
 from rich_click import RichCommand
 
-from lhp.api import GenerationPlan
+from lhp.api import GenerationPlan, ProgressSink
 
 from .. import console as _console_module
-from .._app_context import build_facade, derive_pipeline_fields, resolve_project_root
+from .._app_context import build_facade, resolve_project_root
 from ..error_boundary import cli_error_boundary
 from ..exit_codes import ExitCode
 from ..presenters import diff_presenter
@@ -69,20 +69,29 @@ def diff_command(
     on-disk ``generated/<ENV>`` tree, and prints one ``~`` / ``+`` / ``-`` line
     per changed path. With ``--exit-code`` a non-empty diff exits ``1``.
     """
+    # Group-level ``lhp --no-progress diff`` falls through here: OR the
+    # per-command flag with the group value stored in ``ctx.obj`` (main.py).
+    no_progress = no_progress or bool(
+        (click.get_current_context().obj or {}).get("no_progress")
+    )
     logger.debug(f"Diffing planned vs on-disk output for environment '{env}'")
     facade = build_facade(resolve_project_root())
-    fields = derive_pipeline_fields(facade, pipeline)
+    # One ProgressSink shared by the facade and the renderer. The plan/diff path
+    # may not drive the counter; the renderer's total>0 guard then shows just
+    # the animated spinner + phase rather than a misleading 0/0 bar.
+    progress = ProgressSink()
     events = facade.generation.plan_generation(
         env,
         pipeline_filter=pipeline,
-        pipeline_fields=fields,
         include_tests=include_tests,
+        progress=progress,
     )
     outcome = render(
         events,
-        RunHeader("diff", env, len(fields) or (1 if pipeline else 0)),
+        RunHeader("diff", env),
         options=RenderOptions(show_details=show_details),
         no_progress=no_progress,
+        progress=progress,
     )
     plan = outcome.response
     assert isinstance(plan, GenerationPlan)

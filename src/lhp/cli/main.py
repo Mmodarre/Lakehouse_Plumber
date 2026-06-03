@@ -2,9 +2,10 @@
 
 Thin assembly layer (constitution §2.7 / §9.11): defines the top-level ``lhp``
 group, wires verbosity/logging from the group options, and registers each
-command object built in ``cli/commands/``. No business logic and no domain
-imports live here — only the command objects, ``click``/``rich_click``, stdlib,
-and the CLI-internal logging/version helpers (§5).
+command lazily via ``LazyGroup`` (commands in ``cli/commands/`` import only on
+first use). No business logic and no domain imports live here — only
+``click``/``rich_click``, stdlib, and the CLI-internal logging/version helpers
+and the lazy command map (§5).
 """
 
 from __future__ import annotations
@@ -14,17 +15,9 @@ from pathlib import Path
 from typing import Optional
 
 import click
-from rich_click import RichGroup
 
+from ._lazy_group import COMMAND_IMPORTS, LazyGroup
 from ._version import get_version
-from .commands.dag_command import dag, deps
-from .commands.diff_command import diff_command
-from .commands.generate_command import generate
-from .commands.init_command import init
-from .commands.list_command import list_group
-from .commands.skill_command import skill
-from .commands.substitutions_command import substitutions_command
-from .commands.validate_command import validate_command
 from .logging_config import configure_logging
 
 logger = logging.getLogger(__name__)
@@ -58,7 +51,11 @@ def _print_version(ctx: click.Context, _param: click.Parameter, value: bool) -> 
     ctx.exit(0)
 
 
-@click.group(cls=RichGroup, context_settings={"help_option_names": ["-h", "--help"]})
+@click.group(
+    cls=LazyGroup,
+    lazy_commands=COMMAND_IMPORTS,
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
 @click.option(
     "--version",
     is_flag=True,
@@ -108,17 +105,8 @@ def cli(
         enable_perf_timing(project_root)
 
 
-# Register commands most-used-first so the help listing leads with them.
-cli.add_command(generate)
-cli.add_command(validate_command)
-cli.add_command(dag)
-cli.add_command(list_group)
-cli.add_command(substitutions_command)
-cli.add_command(diff_command)
-cli.add_command(init)
-cli.add_command(skill)
-# Hidden backward-compatibility alias for the renamed ``dag`` command.
-cli.add_command(deps)
+# Commands are registered lazily: ``COMMAND_IMPORTS`` (in ``_lazy_group``)
+# maps each name to its module, and ``LazyGroup`` imports it on first use.
 
 
 if __name__ == "__main__":

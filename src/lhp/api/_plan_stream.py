@@ -34,7 +34,10 @@ from typing import (
     Sequence,
 )
 
-from lhp.api._converters_common import _issue_view_to_lhp_error
+from lhp.api._converters_common import (
+    _derive_worklist_fields,
+    _issue_view_to_lhp_error,
+)
 from lhp.api._generation_converters import (
     _delta_to_generation_response,
     _generation_result_to_plan,
@@ -56,6 +59,7 @@ from lhp.errors import LHPError
 from lhp.utils.performance_timer import perf_timer
 
 if TYPE_CHECKING:
+    from lhp.api._progress import ProgressSink
     from lhp.models.processing import PipelineDelta
 
     # Internal orchestrator type, referenced only as a quoted annotation
@@ -98,6 +102,7 @@ def _stream_plan_generation(
     pipeline_filter: Optional[str] = None,
     pipeline_fields: Sequence[str] = (),
     include_tests: bool = False,
+    progress: ProgressSink | None = None,
 ) -> Iterator[LHPEvent]:
     """Yield the full §5.7 progress stream for plan-only generation.
 
@@ -112,20 +117,40 @@ def _stream_plan_generation(
     :func:`~lhp.core.codegen.build_generation_plan` mutually-exclusively (the
     same shape as the real generate path): a single ``pipeline_filter`` OR a
     ``pipeline_fields`` batch (forwarded only when ``pipeline_filter`` is
-    ``None``). Passing neither plans nothing.
+    ``None``). Passing NEITHER auto-derives the full project worklist from the
+    discover-phase set, so a plan over the whole project no longer requires
+    the caller to enumerate the pipeline names.
 
     A structured (:class:`LHPError`) failure — most importantly the
     all-or-nothing gate aggregate — RAISES after the per-pipeline failure
     events and a single :class:`ErrorEmitted` (§1.4), before any temp write.
     There is NO non-LHP infra-degradation path: a plan performs no commit-time
     disk write.
+
+    ``progress`` is driven exactly as on the real generate stream: its
+    :meth:`~lhp.api.ProgressSink.on_total` / :meth:`~lhp.api.ProgressSink.on_advance`
+    are forwarded as plain ``Callable``\\ s into
+    :func:`~lhp.core.codegen.build_generation_plan`, which threads them into the
+    same per-FLOWGROUP ``on_total`` / ``on_flowgroup_done`` hooks
+    ``generate_pipelines`` fires off the flat worklist (the flowgroup count, not
+    the pipeline count). The pipeline-grained ``on_pipeline_complete`` delta sink
+    is a separate concern (it feeds the §5.7 ``PipelineStarted`` / terminal
+    pairs), so the two hooks do not collide. ``progress=None`` forwards ``None``,
+    wiring no callbacks.
     """
     yield OperationStarted(operation_name="plan_generation", env=env)
 
-    # Phase: discover. No facade-owned discovery here (the plan primitive lazily
-    # discovers); emitted as a paired Start/Complete to satisfy the §5.7 invariant.
+    # Phase: discover. Resolve the project-wide flowgroup set here (the same
+    # memoized ``bootstrap.discover_all_flowgroups`` surface the generate /
+    # validate streams use) so the worklist can be auto-derived when the
+    # caller supplied no worklist. The resolved list is threaded into
+    # ``build_generation_plan`` so discovery runs exactly once (memoized).
     discover_start = time.perf_counter()
     yield PhaseStarted(phase="discover")
+    resolved_flowgroups = orchestrator.bootstrap.discover_all_flowgroups()
+    effective_pipeline_fields = _derive_worklist_fields(
+        pipeline_filter, pipeline_fields, resolved_flowgroups
+    )
     yield PhaseCompleted(
         phase="discover",
         duration_s=time.perf_counter() - discover_start,
@@ -174,10 +199,13 @@ def _stream_plan_generation(
                 env=env,
                 pipeline_filter=pipeline_filter,
                 pipeline_fields=(
-                    list(pipeline_fields) if pipeline_filter is None else None
+                    list(effective_pipeline_fields) if pipeline_filter is None else None
                 ),
                 include_tests=include_tests,
+                pre_discovered_all_flowgroups=resolved_flowgroups,
                 on_pipeline_complete=collected_deltas.append,
+                on_total=None if progress is None else progress.on_total,
+                on_flowgroup_done=None if progress is None else progress.on_advance,
             )
     except LHPError as exc:
         # §1.4 rendezvous: the gate raised after forwarding every failure delta

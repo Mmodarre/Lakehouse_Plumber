@@ -18,11 +18,10 @@ from time import perf_counter
 import click
 from rich_click import RichCommand
 
-from lhp.api import should_enable_bundle_support
+from lhp.api import ProgressSink, should_enable_bundle_support
 from lhp.cli import console as _console_module
 from lhp.cli._app_context import (
     build_facade,
-    derive_pipeline_fields,
     exit_for_outcome,
     resolve_project_root,
 )
@@ -67,6 +66,11 @@ def validate_command(
     max_workers: int | None,
 ) -> None:
     """Validate pipeline configurations for ENV."""
+    # Group-level ``lhp --no-progress validate`` falls through here: OR the
+    # per-command flag with the group value stored in ``ctx.obj`` (main.py).
+    no_progress = no_progress or bool(
+        (click.get_current_context().obj or {}).get("no_progress")
+    )
     logger.debug(f"Validate request: env={env}, pipeline={pipeline}")
     project_root = resolve_project_root()
     facade = build_facade(
@@ -74,19 +78,23 @@ def validate_command(
     )
     bundle_enabled = should_enable_bundle_support(project_root, cli_no_bundle=no_bundle)
 
-    fields = derive_pipeline_fields(facade, pipeline)
-    header = RunHeader("validate", env, 1 if pipeline else len(fields))
+    header = RunHeader("validate", env)
+    # One ProgressSink shared by the facade (which advances it per-flowgroup)
+    # and the renderer (which reads it to animate the flowgroup bar).
+    progress = ProgressSink()
     events = facade.validation.validate_pipelines(
         env=env,
         pipeline_filter=pipeline,
-        pipeline_fields=fields,
         include_tests=include_tests,
         bundle_enabled=bundle_enabled,
         max_workers=max_workers,
+        progress=progress,
     )
     options = RenderOptions(show_details=show_details, strict=strict)
     started = perf_counter()
-    outcome = render(events, header, options=options, no_progress=no_progress)
+    outcome = render(
+        events, header, options=options, no_progress=no_progress, progress=progress
+    )
     print_run_summary(
         outcome,
         header,

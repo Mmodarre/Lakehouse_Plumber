@@ -27,7 +27,7 @@ validate; hands to :class:`PipelineExecutionService`).
 import logging
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Generator, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Callable, Generator, List, Optional, Sequence, Tuple
 
 from lhp.models import FlowGroup
 
@@ -300,6 +300,8 @@ class ActionOrchestrator:
         apply_formatting: bool | None = None,
         pre_discovered_all_flowgroups: Optional[Sequence[FlowGroup]] = None,
         max_workers: Optional[int] = None,
+        on_total: Optional[Callable[[int], None]] = None,
+        on_flowgroup_done: Optional[Callable[[], None]] = None,
     ) -> Generator["PipelineDelta", None, Tuple["DeprecationWarningRecord", ...]]:
         """Build the flat worklist, hand to PipelineExecutionService.run_generate.
 
@@ -402,6 +404,8 @@ class ActionOrchestrator:
                 project_root=self.project_root,
                 max_workers=max_workers,
                 apply_formatting=effective_apply_formatting,
+                on_total=on_total,
+                on_flowgroup_done=on_flowgroup_done,
             )
         )
 
@@ -410,8 +414,11 @@ class ActionOrchestrator:
         env: str,
         include_tests: bool,
     ) -> _FlowgroupWorkerState:
-        """Build the unified worker state for the flat-engine generate path.
+        """Build the unified worker state for the flat engine (both modes).
 
+        The single canonical builder — :meth:`_build_validate_worker_state`
+        delegates here, since the ``_FlowgroupWorkerState`` shape is identical
+        for validate and generate (validate ignores the generate-only fields).
         ``substitution_managers`` / ``pipeline_output_dirs`` are placeholders;
         ``run_generate`` replaces them per batch from the worklist builder's maps.
         ``project_config`` / ``project_root`` are deliberately NOT on this carrier
@@ -438,6 +445,8 @@ class ActionOrchestrator:
         include_tests: bool = True,
         pre_discovered_all_flowgroups: Optional[Sequence[FlowGroup]] = None,
         max_workers: Optional[int] = None,
+        on_total: Optional[Callable[[int], None]] = None,
+        on_flowgroup_done: Optional[Callable[[], None]] = None,
     ) -> Generator[
         PipelineValidationOutcome, None, Tuple["DeprecationWarningRecord", ...]
     ]:
@@ -508,6 +517,8 @@ class ActionOrchestrator:
                 substitution_managers=substitution_managers,
                 output_dirs=output_dirs,
                 discovery_errors=discovery_errors,
+                on_total=on_total,
+                on_flowgroup_done=on_flowgroup_done,
             )
         )
 
@@ -516,20 +527,9 @@ class ActionOrchestrator:
     ) -> _FlowgroupWorkerState:
         """Build the unified worker state for the flat-engine validate path.
 
-        In validate mode the worker only reads ``processor`` /
-        ``substitution_managers`` / ``include_tests``; the generate-only
-        collaborators (``code_generator`` / ``pipeline_output_dirs`` /
-        ``environment``) are required by the dataclass but unused on this path.
-        They are populated with real values anyway — harmless for validate, and
-        the exact shape generate reuses. ``substitution_managers`` /
-        ``pipeline_output_dirs`` are placeholders; ``run_validate`` replaces
-        them per batch from the worklist builder's maps.
+        The ``_FlowgroupWorkerState`` shape is identical for both modes (one
+        state serves validate and generate); validate simply ignores the
+        generate-only collaborators. Delegates to the single canonical builder
+        rather than duplicate the constructor (constitution §4.1).
         """
-        return _FlowgroupWorkerState(
-            processor=self.processing,
-            substitution_managers={},
-            include_tests=include_tests,
-            code_generator=self.codegen,
-            pipeline_output_dirs={},
-            environment=env,
-        )
+        return self._build_generate_worker_state(env, include_tests)

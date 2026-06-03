@@ -91,7 +91,7 @@ Load this file when:
 - **BP-5.1** Design preset hierarchies with `extends`: `global_defaults` → `bronze_standard` → `orders_bronze`.
 - **BP-5.2** Encode organizational standards in presets — group related properties (schema evolution, rescue columns, metadata).
 - **BP-5.3** Cap total presets at **15–20 files** to avoid confusion and misuse.
-- **BP-5.4** Verify effective config with `lhp show <flowgroup> --env <env>` after preset merging/template expansion.
+- **BP-5.4** Verify effective config with `lhp validate --env <env> --verbose` (or `lhp diff --env <env>` to see the regenerated output) after preset merging/template expansion.
 - **BP-5.5** Treat preset changes as **high blast radius** — run full project validation before merging.
 
 ## 6. Substitutions & Environments
@@ -113,7 +113,7 @@ Load this file when:
 
 - **BP-8.1** Use array syntax (`flowgroups:`) with field inheritance when multiple flowgroups share `pipeline`, `use_template`, `presets`, `operational_metadata`, or `job_name`.
 - **BP-8.2** One pipeline per data domain. `orders_bronze` groups `raw_orders`, `raw_returns`, `raw_refunds`.
-- **BP-8.3** Use `job_name` to aggregate flowgroups into Databricks Workflow jobs; generate via `lhp deps --format job`.
+- **BP-8.3** Use `job_name` to aggregate flowgroups into Databricks Workflow jobs; generate via `lhp dag --format job`.
 - **BP-8.4** Order actions **Load → Transform → Write → Test**.
 
 ## 9. Load Actions
@@ -153,6 +153,7 @@ Load this file when:
 - **BP-12.2** Centralize expectations in external DQE files: `expectations/<domain>/<layer>/<description>.yaml`.
 - **BP-12.3** Name expectations descriptively: `valid_<column>_<constraint>` (e.g., `valid_order_id_not_null`, `valid_amount_positive`).
 - **BP-12.4** Use the 9 test action types for cross-table validation: `row_count`, `uniqueness`, `referential_integrity`, `completeness`, `range`, `schema_match`, `all_lookups_found`, `custom_sql`, `custom_expectations`. Generate with `--include-tests`.
+- **BP-12.5** To publish test results to an external system (via a `test_reporting` provider), set `test_id` on the test action — only `test_id`-tagged actions are published. The expectation must use `on_violation: warn`, **not** `fail`: a `fail` aborts the SDP flow before metrics are emitted, so the reporting hook never receives the result. Requires `--include-tests`.
 
 ## 13. Operational Metadata
 
@@ -181,7 +182,7 @@ Load this file when:
 
 ## 16. Bundle Integration
 
-- **BP-16.1** `lhp deps --format job` generates DAB job resource definitions from dependency analysis.
+- **BP-16.1** `lhp dag --format job` generates DAB job resource definitions from dependency analysis.
 - **BP-16.2** Bundle scaffolding is default in `lhp init`; use `--no-bundle` if managed separately.
 - **BP-16.3** Store generated bundle resources in a dedicated directory (e.g., `bundle/generated/`) separate from hand-written configs.
 - **BP-16.4** **`resources/lhp/` is exclusively LHP-managed.** Every `lhp generate` wipes it and regenerates one `<pipeline_name>.pipeline.yml` per pipeline. Never hand-edit anything under `resources/lhp/` — your changes will be overwritten on the next generate.
@@ -197,7 +198,7 @@ Load this file when:
 | **Gold** | `materialized_view` | `fail` on critical invariants | inherited |
 
 - Environment promotion: identical YAML, per-env substitution files.
-- Multi-pipeline orchestration: `job_name` + `lhp deps`.
+- Multi-pipeline orchestration: `job_name` + `lhp dag`.
 - Multi-source ingestion: multiple load/write actions to the same table → auto-consolidated `append_flow`s.
 
 ## 18. Documentation

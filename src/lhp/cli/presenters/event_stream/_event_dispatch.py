@@ -54,6 +54,18 @@ class EventSink(abc.ABC):
     """
 
     @abc.abstractmethod
+    def begin(self) -> None:
+        """Lifecycle hook fired once before the first event is pulled.
+
+        Not an event-kind callback, but abstract for the same fail-fast reason
+        (§4.12): the caller invokes it before :func:`drive` so an interactive
+        renderer can paint its first frame before the stream's first
+        ``next()`` — which may block on discovery — is awaited. The
+        non-interactive renderer implements it as a no-op (it paints nothing
+        before the stream opens).
+        """
+
+    @abc.abstractmethod
     def on_operation_started(self, operation_name: str, env: Optional[str]) -> None:
         """The single :class:`OperationStarted` opening the stream."""
 
@@ -153,5 +165,13 @@ def drive(events: Iterator[LHPEvent], sink: EventSink) -> object:
             sink.on_terminal(event.response)
             final_response = event.response
         else:
-            logger.debug(f"drive: ignoring unhandled event kind {type(event).__name__}")
+            # A new LHPEvent subtype that no branch above handles. Surface it
+            # at WARNING (§7.1) rather than dropping it silently, so an unwired
+            # event type is visible in logs and gets a dispatch branch instead
+            # of being invisibly lost. Production does not crash on it: the run
+            # continues and the event is simply skipped for rendering.
+            logger.warning(
+                f"drive: unhandled event kind {type(event).__name__} "
+                f"has no dispatch branch and was skipped"
+            )
     return final_response

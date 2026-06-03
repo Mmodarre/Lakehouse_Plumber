@@ -15,11 +15,10 @@ from typing import Optional
 import click
 from rich_click import RichCommand
 
-from lhp.api import should_enable_bundle_support
+from lhp.api import ProgressSink, should_enable_bundle_support
 from lhp.cli import console as _console_module
 from lhp.cli._app_context import (
     build_facade,
-    derive_pipeline_fields,
     exit_for_outcome,
     resolve_project_root,
 )
@@ -60,6 +59,11 @@ def generate(
     force: bool,
 ) -> None:
     """Generate Databricks pipeline code for ENV from the project's flowgroups."""
+    # Group-level ``lhp --no-progress generate`` falls through here: OR the
+    # per-command flag with the group value stored in ``ctx.obj`` (main.py).
+    no_progress = no_progress or bool(
+        (click.get_current_context().obj or {}).get("no_progress")
+    )
     if force:
         msg = "[dim]--force is deprecated and a no-op; every run regenerates.[/dim]"
         _console_module.err_console.print(msg)
@@ -72,9 +76,11 @@ def generate(
     bundle_enabled = should_enable_bundle_support(project_root, cli_no_bundle=no_bundle)
     output_dir = project_root / (output if output is not None else f"generated/{env}")
 
-    fields = derive_pipeline_fields(facade, pipeline)
-    header = RunHeader("generate", env, 1 if pipeline else len(fields))
+    header = RunHeader("generate", env)
 
+    # One ProgressSink shared by the facade (which advances it per-flowgroup)
+    # and the renderer (which reads it to animate the flowgroup bar).
+    progress = ProgressSink()
     events = facade.generation.generate_pipelines(
         env=env,
         output_dir=output_dir,
@@ -82,13 +88,15 @@ def generate(
         include_tests=include_tests,
         apply_formatting=(False if no_format else None),
         pipeline_filter=pipeline,
-        pipeline_fields=fields,
         max_workers=max_workers,
+        progress=progress,
     )
 
     options = RenderOptions(show_details=show_details, strict=strict)
     start = perf_counter()
-    outcome = render(events, header, options=options, no_progress=no_progress)
+    outcome = render(
+        events, header, options=options, no_progress=no_progress, progress=progress
+    )
     print_run_summary(
         outcome,
         header,

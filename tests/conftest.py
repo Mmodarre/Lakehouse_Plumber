@@ -233,6 +233,24 @@ def windows_safe_tempdir():
                             pass
 
 
+def pytest_configure(config):
+    """Wire the per-action generators into the core ``ActionRegistry``.
+
+    In production this is triggered lazily at the single composition point
+    (``LakehousePlumberApplicationFacade.for_project``); ``import lhp`` no
+    longer eagerly imports ``lhp.generators.registration``. Tests that
+    construct ``ActionRegistry()`` directly never go through the facade, and
+    some do so at module import time (e.g. ``tests/generators/test/``), which
+    happens during collection — before any fixture runs. ``pytest_configure``
+    runs *before* collection, so registration is in place when those
+    module-level registries are built. ``register_all`` is idempotent (later
+    calls update), so re-running it here is harmless.
+    """
+    from lhp.generators.registration import register_all
+
+    register_all()
+
+
 @pytest.fixture(autouse=True, scope="session")
 def configure_test_logging():
     """Configure logging for the entire test session."""

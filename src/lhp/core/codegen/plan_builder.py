@@ -236,6 +236,8 @@ def build_generation_plan(
     pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
     max_workers: Optional[int] = None,
     on_pipeline_complete: Optional[Callable[["PipelineDelta"], None]] = None,
+    on_total: Optional[Callable[[int], None]] = None,
+    on_flowgroup_done: Optional[Callable[[], None]] = None,
 ) -> GenerationPlanResult:
     """Generate to a temp dir, format, read back; return the in-memory plan.
 
@@ -278,6 +280,13 @@ def build_generation_plan(
         max_workers: Pool fan-out override.
         on_pipeline_complete: Optional per-pipeline ``PipelineDelta`` sink, fired
             in commit order during the drive.
+        on_total: Optional per-FLOWGROUP total hook, called once with the flat
+            worklist length before the pool runs. Forwarded verbatim to
+            ``generate_pipelines`` (plain ``Callable``; ``core`` owns no
+            ``lhp.api`` dependency) so a plan drives the same flowgroup-grained
+            progress the real generate does.
+        on_flowgroup_done: Optional per-FLOWGROUP completion hook, called once
+            per finished flowgroup. Forwarded verbatim to ``generate_pipelines``.
 
     Returns:
         A :class:`GenerationPlanResult` whose ``artifacts`` carry temp-relative
@@ -311,6 +320,8 @@ def build_generation_plan(
             apply_formatting=apply_formatting,
             pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
             max_workers=max_workers,
+            on_total=on_total,
+            on_flowgroup_done=on_flowgroup_done,
         ):
             # On the clean path every delta is a committed success carrying its
             # flowgroup filenames; a gate failure raises mid-stream (per §1.4 the

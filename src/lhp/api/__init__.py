@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from typing import Iterator, MutableSequence, Optional
 
+from lhp.api._progress import ProgressSink
 from lhp.api._serialization import to_dict
 from lhp.api.bootstrap import LakehousePlumberBootstrap
 from lhp.api.events import (
@@ -173,6 +174,7 @@ __all__: list[str] = [
     "PlannedFileView",
     "PresetView",
     "ProcessedFlowgroupView",
+    "ProgressSink",
     "ProjectConfigView",
     "SecretReferenceView",
     "StatsResult",

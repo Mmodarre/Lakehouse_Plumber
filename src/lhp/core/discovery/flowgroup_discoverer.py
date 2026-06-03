@@ -280,25 +280,47 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
 
         return flowgroups_with_paths
 
-    def scan_deprecation_warnings(self) -> Tuple[DeprecationWarningRecord, ...]:
-        """Scan every pipeline YAML for the bare-``{token}`` deprecation.
+    def scan_deprecation_warnings(
+        self, *, pipeline_filter: Optional[str] = None
+    ) -> Tuple[DeprecationWarningRecord, ...]:
+        """Scan pipeline YAML for the bare-``{token}`` deprecation.
 
         Delegates to :func:`deprecation_scanner.scan_bare_token_deprecations`,
         which is the single source of truth for the regex, the ``LHP-DEPR-001``
         message, and the per-file dedup.
+
+        When ``pipeline_filter`` is given, only the source YAML files that
+        contribute a flowgroup to that pipeline are scanned (mirrors the
+        ``--pipeline`` slice); when ``None``, every pipeline file is scanned.
         """
-        return scan_bare_token_deprecations(self._iter_pipeline_yaml_files())
+        return scan_bare_token_deprecations(
+            self._iter_pipeline_yaml_files(pipeline_filter=pipeline_filter)
+        )
 
-    def _iter_pipeline_yaml_files(self) -> List[Path]:
-        """List every ``pipelines/**/*.yaml`` file the project discovers.
+    def _iter_pipeline_yaml_files(
+        self, *, pipeline_filter: Optional[str] = None
+    ) -> List[Path]:
+        """List the ``pipelines/**/*.yaml`` files the project discovers.
 
-        Mirrors the glob in :meth:`discover_all_flowgroups_with_paths` (honors
-        include patterns when present, else the backwards-compatible
-        ``*.yaml`` / ``*.yml`` rglob).
+        With ``pipeline_filter`` ``None``, mirrors the glob in
+        :meth:`discover_all_flowgroups_with_paths` (honors include patterns when
+        present, else the backwards-compatible ``*.yaml`` / ``*.yml`` rglob) —
+        unchanged behaviour. When ``pipeline_filter`` is set, returns only the
+        distinct source files that contribute a flowgroup whose ``pipeline``
+        field matches, reusing the parsed ``(flowgroup, path)`` pairs from
+        :meth:`discover_all_flowgroups_with_paths` (the single discovery seam)
+        so include-pattern and multi-document semantics stay identical.
         """
         pipelines_dir = self.project_root / "pipelines"
         if not pipelines_dir.exists():
             return []
+
+        if pipeline_filter is not None:
+            scoped: Dict[Path, None] = {}
+            for flowgroup, path in self.discover_all_flowgroups_with_paths():
+                if flowgroup.pipeline == pipeline_filter:
+                    scoped[path] = None
+            return list(scoped)
 
         include_patterns = self.get_include_patterns()
         if include_patterns:

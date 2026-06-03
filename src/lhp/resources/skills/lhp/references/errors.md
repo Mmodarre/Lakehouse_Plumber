@@ -38,7 +38,7 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | **CFG-024** | Bundle template fetch error | Check network; verify template path/URL |
 | **CFG-025** | Bundle configuration structural error | Review `databricks.yml` against DAB docs |
 | **CFG-026** | Aggregated catalog/schema preflight failure (see below) | Add `catalog`/`schema` to `project_defaults` or per-pipeline; for empty-after-substitution failures, check `substitutions/<env>.yaml` |
-| **CFG-027** | Template not found | Check spelling; run `lhp list_templates` |
+| **CFG-027** | Template not found | Check spelling; run `lhp list templates` |
 | **CFG-031** | Generated Python source failed to parse (`ast.parse` SyntaxError) — in-worker syntax guard; names the offending flowgroup | Almost always an LHP generator/template bug — file a bug report with the failing flowgroup YAML; turn on DEBUG logging to inspect the generated source; if authoring a custom template or snapshot-CDC `source_function`, verify embedded Python with `python -m py_compile` |
 | **CFG-032** | Test-reporting provider/config file not found (preflight) | Create the file at `test_reporting.module_path` (and `config_file` if set) in `lhp.yaml`, or fix the path. Runs on both `lhp validate` and `lhp generate`, independent of `--include-tests` |
 | **CFG-033** | `ruff format` terminal pass exited non-zero — generated code written but not formatted; error carries ruff's exit code + stderr/stdout | Inspect ruff's output for the offending file; confirm ruff is installed and the generated tree is valid Python; re-run with `--no-format` to skip formatting and inspect the raw code |
@@ -76,7 +76,7 @@ Terminal output includes: error code, description, context, fix suggestions, and
 
 | Code | Trigger | Fix |
 |------|---------|-----|
-| **DEP-001** | Circular dependency (A → B → C → A) | Break the cycle; error shows full path. Use `lhp deps --format dot` to visualize |
+| **DEP-001** | Circular dependency (A → B → C → A) | Break the cycle; error shows full path. Use `lhp dag --format dot` to visualize |
 
 ## Deprecation Warnings (LHP-DEPR)
 
@@ -268,12 +268,12 @@ actions:
 ```yaml
 # BEFORE (error)
 source:
-  path: /data/{date}/events    # Braces need quoting
+  path: /data/${date}/events   # Value with ${...} / braces needs quoting
   comment: Load events: raw    # Colon needs quoting
 
 # AFTER (fixed)
 source:
-  path: "/data/{date}/events"
+  path: "/data/${date}/events"
   comment: "Load events: raw"
 ```
 
@@ -294,10 +294,10 @@ sql_file: sql/transform.sql    # Correct path
 ```bash
 lhp validate --env <env>                  # Validate all configurations
 lhp validate --env <env> --verbose        # Verbose — extra debug info
-lhp list_templates                        # List available templates
-lhp list_presets                          # List available presets
-lhp deps --format dot --env <env>         # Visualize dependencies (spot cycles)
-lhp show <flowgroup> --env <env>          # Show resolved config
+lhp list templates                        # List available templates
+lhp list presets                          # List available presets
+lhp dag --format dot                      # Visualize dependencies (spot cycles)
+lhp diff --env <env>                      # Show what `lhp generate` would change on disk
 lhp substitutions --env <env>             # List substitution tokens for env
 ```
 
@@ -324,8 +324,8 @@ Apply the numbered fix suggestions in the terminal output, then re-run.
 ### `lhp validate` lists multiple errors for one action
 
 Fix the **first** error first — later errors often cascade. For `LHP-VAL-002`,
-each `✗` marker is a separate issue. Use `lhp show <flowgroup> --env <env>` to
-see the resolved config (after preset merge + template expansion).
+each `✗` marker is a separate issue. Run `lhp validate --env <env> --verbose`
+to surface the merged/expanded view (after preset merge + template expansion).
 
 ### Pipeline deploys but does not run / runs stale code
 
@@ -348,13 +348,14 @@ Substitution order: `%{local_var}` → `{{ template_param }}` → `${env_token}`
 1. `lhp substitutions --env <env>` — list known tokens.
 2. Add missing token to `substitutions/<env>.yaml`.
 3. Token must appear inside a string value, not as a YAML key.
-4. `lhp show <flowgroup> --env <env>` — inspect resolved config; unresolved
-   tokens appear unchanged.
+4. `lhp diff --env <env>` — inspect the regenerated output; unresolved
+   tokens appear unchanged there.
 
 ### Preset/template/blueprint edits not picked up
 
 Every `lhp generate` regenerates all FlowGroups from current YAML. Confirm the
-preset/template is actually referenced via `lhp show <flowgroup>`.
+preset/template is actually referenced in the flowgroup YAML (`lhp diff --env <env>`
+shows the regenerated output).
 
 ### CLI flags reference
 

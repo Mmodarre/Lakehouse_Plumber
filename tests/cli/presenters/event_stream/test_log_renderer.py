@@ -71,6 +71,17 @@ def _nonempty_line_count(buf: io.StringIO) -> int:
     return len([line for line in buf.getvalue().splitlines() if line.strip()])
 
 
+def test_begin_is_a_noop_no_output_no_live():
+    # The log renderer paints nothing before the stream opens: begin() must
+    # emit no line and (like the rest of the log renderer) open no Live region.
+    renderer, buf = _make_renderer()
+
+    renderer.begin()
+
+    assert _nonempty_line_count(buf) == 0
+    assert not hasattr(renderer, "_live")
+
+
 def test_clean_stream_prints_one_line_per_distinct_event():
     events = clean_generate_stream()
     renderer, buf = _make_renderer()

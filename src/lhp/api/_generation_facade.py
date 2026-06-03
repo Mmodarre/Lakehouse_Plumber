@@ -32,6 +32,7 @@ from typing import (
 
 from lhp.api._generate_stream import _stream_pipeline_generation
 from lhp.api._plan_stream import _stream_plan_generation
+from lhp.api._progress import ProgressSink
 from lhp.api._stream_guard import _cap_event_stream
 from lhp.api.events import LHPEvent
 
@@ -67,6 +68,7 @@ class GenerationFacade:
         bundle_enabled: bool = False,
         pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
         max_workers: Optional[int] = None,
+        progress: ProgressSink | None = None,
     ) -> Iterator[LHPEvent]:
         """Stream-protocol wrapper around the FULL generate orchestration (§5.7).
 
@@ -79,7 +81,10 @@ class GenerationFacade:
            runs the orchestrator's full-flowgroup discovery when the caller did
            not supply ``pre_discovered_all_flowgroups``, threading the resolved
            list forward so discovery runs exactly once; a caller-supplied list
-           is honored as-is (no re-discovery).
+           is honored as-is (no re-discovery). When the caller also supplied
+           NEITHER ``pipeline_filter`` NOR ``pipeline_fields``, the all-pipelines
+           worklist is auto-derived from that discovered set, so generating
+           the whole project no longer requires a pre-computed worklist.
         3. :class:`PhaseStarted` / :class:`PhaseCompleted` for ``"preflight"``
            (wraps the §9.24-shared project preflight).
         4. :class:`PhaseStarted` for ``"generate"``, then — as the
@@ -135,6 +140,13 @@ class GenerationFacade:
         happens in the orchestrator (which holds the loaded project
         config); this layer only forwards the override.
 
+        ``progress`` is an optional :class:`~lhp.api.ProgressSink` advanced
+        as flowgroups complete (``on_total`` once with the total flowgroup
+        count, then ``on_advance`` per finished flowgroup), adapted to the
+        plain core callables the coordinator added; read its ``total`` /
+        ``done`` fields while iterating the stream to drive a progress bar.
+        ``None`` (the default) wires no progress callbacks.
+
         The §5.7 stream body lives in :func:`lhp.api._generate_stream
         ._stream_pipeline_generation` (split out per §3.3 to keep this module
         lean, mirroring :mod:`lhp.api._plan_stream`); this method restates the
@@ -164,6 +176,7 @@ class GenerationFacade:
                 bundle_enabled=bundle_enabled,
                 pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
                 max_workers=max_workers,
+                progress=progress,
             )
         )
 
@@ -174,6 +187,7 @@ class GenerationFacade:
         pipeline_filter: Optional[str] = None,
         pipeline_fields: Sequence[str] = (),
         include_tests: bool = False,
+        progress: ProgressSink | None = None,
     ) -> Iterator[LHPEvent]:
         """Stream-protocol wrapper around plan-only generation (§5.7).
 
@@ -190,11 +204,10 @@ class GenerationFacade:
         :meth:`generate_pipelines`: a single name via ``pipeline_filter``
         OR a batch via ``pipeline_fields`` (mutually exclusive — when
         ``pipeline_filter`` is set, ``pipeline_fields`` is ignored). Passing
-        NEITHER plans nothing (the
-        :func:`~lhp.core.codegen.build_generation_plan` primitive narrows by
-        the worklist and does not auto-derive the full set); a caller wanting
-        the whole project must enumerate the pipeline names and pass them as
-        ``pipeline_fields``.
+        NEITHER auto-derives the full project worklist from the discover-phase
+        flowgroup set: the stream resolves the project-wide set itself
+        and plans every pipeline, so a caller wanting the whole project no
+        longer has to enumerate the pipeline names.
 
         Yields the full §5.7 progress stream, in order:
 
@@ -221,6 +234,18 @@ class GenerationFacade:
         plan performs no commit-time disk write, so the ``:raises:`` list below
         OMITS the ``LHP-FILE-*`` disk-write codes.
 
+        ``progress`` is an optional :class:`~lhp.api.ProgressSink` driven
+        exactly as on :meth:`generate_pipelines`: its ``on_total`` fires once
+        with the total flowgroup count and ``on_advance`` fires per finished
+        flowgroup. The plan path threads those callables through
+        :func:`~lhp.core.codegen.build_generation_plan` into the same
+        per-FLOWGROUP hooks the real generate flow fires, so a supplied sink IS
+        advanced per-flowgroup here (read its ``total`` / ``done`` fields while
+        iterating the stream to drive a progress bar). The per-PIPELINE
+        ``PipelineDelta`` sink is a separate concern that feeds the §5.7
+        ``PipelineStarted`` / terminal pairs, so the two do not collide.
+        ``None`` (the default) wires no progress callbacks.
+
         The §5.7 stream body lives in :func:`lhp.api._plan_stream
         ._stream_plan_generation` (split out per §3.3 to keep this module
         lean, mirroring :mod:`lhp.api._generation_converters`); this method
@@ -242,5 +267,6 @@ class GenerationFacade:
                 pipeline_filter=pipeline_filter,
                 pipeline_fields=pipeline_fields,
                 include_tests=include_tests,
+                progress=progress,
             )
         )
