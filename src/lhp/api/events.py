@@ -149,10 +149,11 @@ class ErrorEmitted(LHPEvent):
 class PhaseStarted(LHPEvent):
     """A named phase of a long-running operation has begun.
 
-    Non-terminal progress event. ``phase`` is a human-facing label
-    (e.g. ``"discovery"``, ``"generation"``, ``"bundle-sync"``) the CLI
-    renders as a live progress marker. Paired with a later
-    :class:`PhaseCompleted` carrying the same ``phase``.
+    Non-terminal progress event. ``phase`` is a short stable label
+    (e.g. ``"discover"``, ``"preflight"``, ``"generate"``, ``"format"``,
+    ``"monitoring"``, ``"bundle_sync"``) the CLI renders as a live progress
+    marker. Paired with a later :class:`PhaseCompleted` carrying the same
+    ``phase``.
 
     :stability: provisional
     """

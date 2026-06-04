@@ -242,7 +242,6 @@ class BasePipelineExecutionService(ABC):
         project_config: Optional["ProjectConfig"],
         project_root: Path,
         max_workers: Optional[int] = None,
-        apply_formatting: bool = True,
         on_total: Optional[Callable[[int], None]] = None,
         on_flowgroup_done: Optional[Callable[[], None]] = None,
     ) -> Generator["PipelineDelta", None, Tuple[DeprecationWarningRecord, ...]]:
@@ -259,8 +258,10 @@ class BasePipelineExecutionService(ABC):
         This is a GENERATOR yielding one :class:`PipelineDelta` per pipeline in
         DETERMINISTIC INPUT PIPELINE ORDER: every failure delta first, then —
         after the gate raises on any failure (§1.4 closes the stream) — a
-        success delta per committed pipeline. Consumers MUST fully drain it:
-        the terminal whole-env format pass runs after the last success delta.
+        success delta per committed pipeline. Consumers MUST fully drain it.
+        Implementations write UNFORMATTED source and do NOT format — the single
+        terminal whole-env ruff pass is the orchestrator's job, run after this
+        stream drains cleanly.
 
         RETURNS (via ``StopIteration.value``, captured by a ``yield from``) the
         batch's worker-attached deprecation warnings, merged + deduped by

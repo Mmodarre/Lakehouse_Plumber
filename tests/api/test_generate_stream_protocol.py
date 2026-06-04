@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -41,6 +42,8 @@ from lhp.api import (
     GenerationCompleted,
     LakehousePlumberApplicationFacade,
     OperationStarted,
+    PhaseCompleted,
+    PhaseStarted,
     collect_response,
 )
 from lhp.errors import LHPError
@@ -360,3 +363,152 @@ class TestGenerateCommitFailureOptionB:
         assert isinstance(response, BatchGenerationResponse)
         assert response.success is False
         assert "No space left on device" in (response.error_message or "")
+
+
+class _FakeCompleted:
+    """Stand-in for ``subprocess.CompletedProcess`` returned by the patched
+    ``subprocess.run`` in the formatter — only the fields the formatter reads."""
+
+    def __init__(self, returncode: int, *, stdout: str = "", stderr: str = ""):
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+@pytest.mark.integration
+class TestGenerateFormatFailureStreamProtocol:
+    """§1.4 / §9.19: the ``format`` phase's structured failure rendezvous.
+
+    The new §5.7 ``format`` phase (between ``generate`` and ``monitoring``)
+    drives ``orchestrator.format_output_tree`` over the just-committed tree.
+    When that terminal ``ruff format`` pass fails structurally — ``LHP-CFG-033``
+    on a non-zero ruff exit, ``LHP-CFG-034`` if ruff is missing — the stream
+    must perform the SAME in-stream rendezvous as ``bundle_sync``:
+    ``PhaseStarted('format')`` → ``PhaseCompleted('format', success=False)`` →
+    exactly ONE ``ErrorEmitted`` (carrying the live raised instance, §9.21) →
+    re-raise. The raise closes the stream, so the ``monitoring`` phase and the
+    terminal ``GenerationCompleted`` are skipped, while the generated tree
+    already on disk persists (the format pass never rolls it back).
+
+    The failure is injected at the formatter's lowest seam — the
+    ``lhp.core.codegen.formatter.subprocess.run`` call returns a non-zero
+    ``CompletedProcess`` — so the REAL ``format_generated_tree`` raises through
+    the REAL ``orchestrator.format_output_tree`` delegate and the REAL §5.7
+    format-phase rendezvous body (no orchestrator method is mocked). ``_ruff_exe``
+    is pinned so the test does not depend on a ruff binary being discoverable.
+    """
+
+    def test_format_failure_emits_phase_failed_then_one_error_then_raises(
+        self, all_valid_project
+    ):
+        facade, _project_root, output_dir = all_valid_project
+
+        collected: list = []
+        with (
+            patch(
+                "lhp.core.codegen.formatter.subprocess.run",
+                return_value=_FakeCompleted(
+                    2, stdout="", stderr="error: Failed to parse generated.py"
+                ),
+            ),
+            patch(
+                "lhp.core.codegen.formatter._ruff_exe",
+                return_value="/fake/bin/ruff",
+            ),
+        ):
+            gen = facade.generation.generate_pipelines(
+                pipeline_fields=["p_ok"],
+                env="dev",
+                output_dir=output_dir,
+            )
+            with pytest.raises(LHPError) as exc_info:
+                for event in gen:
+                    collected.append(event)
+
+        # The structured formatter failure is LHP-CFG-033 (non-zero ruff exit).
+        assert exc_info.value.code == "LHP-CFG-033"
+
+        # Exactly one ErrorEmitted, and it is the final event before the raise,
+        # carrying the SAME live instance that is raised (§9.21 carve-out).
+        error_events = [e for e in collected if isinstance(e, ErrorEmitted)]
+        assert len(error_events) == 1, (
+            f"Expected exactly one ErrorEmitted; got {len(error_events)} in "
+            f"{[type(e).__name__ for e in collected]}"
+        )
+        assert isinstance(collected[-1], ErrorEmitted)
+        assert error_events[0].lhp_error is exc_info.value
+
+        # The format phase STARTED and then COMPLETED with success=False — the
+        # rendezvous ordering: PhaseStarted('format') → PhaseCompleted('format',
+        # success=False) → ErrorEmitted → raise.
+        format_started = [
+            e for e in collected if isinstance(e, PhaseStarted) and e.phase == "format"
+        ]
+        format_completed = [
+            e
+            for e in collected
+            if isinstance(e, PhaseCompleted) and e.phase == "format"
+        ]
+        assert len(format_started) == 1
+        assert len(format_completed) == 1
+        assert format_completed[0].success is False
+        # Ordering: Started precedes Completed(False) precedes the lone ErrorEmitted.
+        i_started = collected.index(format_started[0])
+        i_completed = collected.index(format_completed[0])
+        i_error = collected.index(error_events[0])
+        assert i_started < i_completed < i_error
+
+        # The generate phase completed successfully BEFORE the format failure —
+        # this is a post-generate failure, not a gate abort.
+        generate_completed = [
+            e
+            for e in collected
+            if isinstance(e, PhaseCompleted) and e.phase == "generate"
+        ]
+        assert len(generate_completed) == 1
+        assert generate_completed[0].success is True
+
+        # The raise closed the stream: no monitoring phase, no terminal
+        # GenerationCompleted.
+        assert not any(
+            isinstance(e, (PhaseStarted, PhaseCompleted)) and e.phase == "monitoring"
+            for e in collected
+        )
+        assert isinstance(collected[0], OperationStarted)
+        assert not any(isinstance(e, GenerationCompleted) for e in collected)
+
+        # The generated tree committed before the format pass PERSISTS (the
+        # format failure never rolls the written files back).
+        assert _py_files(output_dir) != [], (
+            "Files committed before the format pass must persist on a format "
+            "failure; found none"
+        )
+
+    def test_collect_response_reraises_format_failure(self, all_valid_project):
+        """``collect_response`` walking the same failing stream RE-RAISES the
+        structured formatter ``LHP-CFG-033`` (it is an ``LHPError``, so it travels
+        the raise channel — not the swallow-to-DTO channel reserved for non-LHP
+        commit failures).
+        """
+        facade, _project_root, output_dir = all_valid_project
+        with (
+            patch(
+                "lhp.core.codegen.formatter.subprocess.run",
+                return_value=_FakeCompleted(
+                    2, stdout="", stderr="error: Failed to parse generated.py"
+                ),
+            ),
+            patch(
+                "lhp.core.codegen.formatter._ruff_exe",
+                return_value="/fake/bin/ruff",
+            ),
+        ):
+            with pytest.raises(LHPError) as exc_info:
+                collect_response(
+                    facade.generation.generate_pipelines(
+                        pipeline_fields=["p_ok"],
+                        env="dev",
+                        output_dir=output_dir,
+                    )
+                )
+        assert exc_info.value.code == "LHP-CFG-033"

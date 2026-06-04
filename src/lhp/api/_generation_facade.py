@@ -7,7 +7,7 @@ via :mod:`lhp.api.facade`). This split exists purely to keep
 
 What remains here is the per-method delegation surface for generation.
 The full §5.7 generate-stream body (discover → preflight → generate →
-monitoring → bundle_sync → terminal) lives in
+format → monitoring → bundle_sync → terminal) lives in
 :mod:`lhp.api._generate_stream`; the plan-only stream body lives in
 :mod:`lhp.api._plan_stream`; the heavy DTO-conversion bodies live in
 :mod:`lhp.api._generation_converters` (with the shared error helpers in
@@ -72,8 +72,8 @@ class GenerationFacade:
     ) -> Iterator[LHPEvent]:
         """Stream-protocol wrapper around the FULL generate orchestration (§5.7).
 
-        Consolidates discover, preflight, generate, monitoring-finalize, and
-        (when bundle is enabled) bundle-sync into a SINGLE §5.7 event stream
+        Consolidates discover, preflight, generate, format, monitoring-finalize,
+        and (when bundle is enabled) bundle-sync into a SINGLE §5.7 event stream
         with ONE terminal. Yields, in order:
 
         1. :class:`OperationStarted` (the mandated first event).
@@ -92,16 +92,23 @@ class GenerationFacade:
            exactly ONE terminal (:class:`PipelineCompleted` on success or
            :class:`PipelineFailed` on failure) PER PIPELINE in input order, then
            :class:`PhaseCompleted` for ``"generate"``.
-        5. :class:`PhaseStarted` / :class:`PhaseCompleted` for ``"monitoring"``
+        5. :class:`PhaseStarted` / :class:`PhaseCompleted` for ``"format"`` —
+           the single terminal ``ruff format`` pass over the whole
+           ``generated/<env>`` tree (skipped on a dry-run, on a degraded
+           generate, or when the resolved ``apply_formatting`` is false; routed
+           through the orchestrator into the core formatter). A structured
+           formatter failure (``LHP-CFG-033`` / ``LHP-CFG-034``) RAISES via the
+           same in-stream rendezvous as ``"bundle_sync"``.
+        6. :class:`PhaseStarted` / :class:`PhaseCompleted` for ``"monitoring"``
            — the absorbed monitoring-finalize step (skipped on a dry-run or a
            degraded generate; routed through the orchestrator into the core
            ``MonitoringFinalizerService``).
-        6. :class:`PhaseStarted` / :class:`PhaseCompleted` for ``"bundle_sync"``
+        7. :class:`PhaseStarted` / :class:`PhaseCompleted` for ``"bundle_sync"``
            — ONLY when ``bundle_enabled`` and the generate succeeded and this is
            not a dry-run. Composed in THIS api layer by calling the ``bundle``
            layer directly (never through the orchestrator — that would be a
            forbidden ``core → bundle`` edge).
-        7. Terminal :class:`GenerationCompleted` carrying the
+        8. Terminal :class:`GenerationCompleted` carrying the
            :class:`BatchGenerationResponse`.
 
         Per-pipeline pairing has NO dangling Starts: a ``PipelineStarted`` is
@@ -157,7 +164,9 @@ class GenerationFacade:
             validation), ``LHP-CFG-*`` (project config + substitution),
             ``LHP-FILE-*`` (missing files), ``LHP-MULT-*`` (multi-document
             YAML), ``LHP-TPL-*`` (template expansion) propagated from the
-            per-pipeline workers, and ``LHP-CFG-020`` from the bundle-sync phase
+            per-pipeline workers, ``LHP-CFG-033`` / ``LHP-CFG-034`` from the
+            format phase (ruff exits non-zero / ruff executable not found), and
+            ``LHP-CFG-020`` from the bundle-sync phase
             (:class:`~lhp.bundle.exceptions.BundleResourceError`). An
             :class:`ErrorEmitted` event is yielded before the exception
             escapes (§1.4 stream protocol).

@@ -44,9 +44,7 @@ from ...models.processing import (
     DeprecationWarningRecord,
     PipelineDelta,
 )
-from ...utils.performance_timer import perf_timer
 from .._interfaces import BasePipelineExecutionService
-from ..codegen.formatter import format_generated_tree
 from ._commit import commit_generate_results
 from ._flowgroup_pool import (
     _FlowgroupWorkerState,
@@ -128,7 +126,6 @@ class PipelineExecutionService(BasePipelineExecutionService):
         project_config: Optional["ProjectConfig"],
         project_root: Path,
         max_workers: Optional[int] = None,
-        apply_formatting: bool = True,
         on_total: Optional[Callable[[int], None]] = None,
         on_flowgroup_done: Optional[Callable[[], None]] = None,
     ) -> Generator[PipelineDelta, None, Tuple[DeprecationWarningRecord, ...]]:
@@ -138,8 +135,12 @@ class PipelineExecutionService(BasePipelineExecutionService):
         runs (no writes) — generate is all-or-nothing; unlike validate it refuses
         to write a partial tree.
 
-        This is a generator: consumers MUST fully drain it (the terminal
-        whole-env format pass runs after the last success delta).
+        This is a generator: consumers MUST fully drain it. It writes
+        UNFORMATTED source and no longer formats — the single terminal ruff
+        pass is the orchestrator CALLER's job, via
+        :meth:`~lhp.core.coordination.orchestrator.ActionOrchestrator.format_output_tree`
+        (the generate event stream and the plan path each drive it after draining
+        this stream cleanly); ``generate_pipelines`` is a pure delta-generator.
 
         ``on_total`` / ``on_flowgroup_done`` are the optional plain-callable
         flowgroup-progress side channel (§13.5 — not events, no ``lhp.api``
@@ -188,7 +189,6 @@ class PipelineExecutionService(BasePipelineExecutionService):
                 project_config=project_config,
                 project_root=project_root,
                 max_workers=max_workers,
-                apply_formatting=apply_formatting,
                 on_total=on_total,
                 on_flowgroup_done=on_flowgroup_done,
             )
@@ -300,7 +300,6 @@ class PipelineExecutionService(BasePipelineExecutionService):
         project_config: Optional["ProjectConfig"] = None,
         project_root: Optional[Path] = None,
         max_workers: Optional[int] = None,
-        apply_formatting: bool = True,
         on_total: Optional[Callable[[int], None]] = None,
         on_flowgroup_done: Optional[Callable[[], None]] = None,
     ) -> Generator[PipelineDelta, None, Tuple[DeprecationWarningRecord, ...]]:
@@ -310,8 +309,12 @@ class PipelineExecutionService(BasePipelineExecutionService):
         stream closes with failures already observed and no writes. On a clean
         gate, the commit generator's lazy whole-env wipe runs before the first
         commit, so a gate failure leaves prior output untouched. Consumers MUST
-        fully drain this generator (the terminal format pass runs after the last
-        success delta).
+        fully drain this generator. It writes UNFORMATTED source and does NOT
+        format — the single terminal ruff pass is the orchestrator CALLER's job,
+        via
+        :meth:`~lhp.core.coordination.orchestrator.ActionOrchestrator.format_output_tree`
+        (the generate event stream and the plan path each drive it after draining
+        this stream cleanly); ``generate_pipelines`` is a pure delta-generator.
 
         RETURNS (via ``StopIteration.value``) the batch's worker deprecation
         warnings; on the gate-raise path they are simply not delivered.
@@ -349,13 +352,11 @@ class PipelineExecutionService(BasePipelineExecutionService):
             project_config=project_config,
             project_root=project_root or Path.cwd(),
         )
-        # Terminal ruff pass over the WHOLE env tree (main thread, timed as
-        # ``format_tree``): commit writes UNFORMATTED source verbatim, formatted
-        # ONCE here. The in-worker AST-parse guard runs regardless, so invalid
-        # Python still fails (LHP-CFG-031) when this is skipped.
-        if output_dir is not None and apply_formatting:
-            with perf_timer("format_tree", category="format_tree"):
-                format_generated_tree(output_dir)
+        # Commit writes UNFORMATTED source verbatim. The single terminal ruff
+        # pass over the whole env tree runs on the orchestrator AFTER this
+        # stream drains cleanly (see ActionOrchestrator.format_output_tree); the
+        # in-worker AST-parse guard runs regardless, so invalid Python still
+        # fails (LHP-CFG-031).
         return warnings
 
     def configure_generate(

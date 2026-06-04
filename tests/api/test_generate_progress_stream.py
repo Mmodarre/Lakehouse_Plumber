@@ -193,15 +193,19 @@ class TestGenerateProgressStreamSuccess:
         assert events[0].env == "dev"
 
         # Paired phases. The full generate orchestration consolidates
-        # discover → preflight → generate → monitoring into the one stream.
-        # The monitoring phase always runs on a successful non-dry-run generate
-        # (no-op when monitoring is not configured, as here); ``bundle_sync``
-        # is absent because this project is not bundle-enabled.
+        # discover → preflight → generate → format → monitoring into the one
+        # stream. This is a DEFAULT run (``apply_formatting`` unset → resolves to
+        # the project's ``lhp.yaml`` setting, ``True`` when absent), so the
+        # ``format`` phase runs between generate and monitoring. The monitoring
+        # phase always runs on a successful non-dry-run generate (no-op when
+        # monitoring is not configured, as here); ``bundle_sync`` is absent
+        # because this project is not bundle-enabled.
         _assert_phase_pairs(events)
         assert [e.phase for e in events if isinstance(e, PhaseStarted)] == [
             "discover",
             "preflight",
             "generate",
+            "format",
             "monitoring",
         ]
 
@@ -242,6 +246,82 @@ class TestGenerateProgressStreamSuccess:
         assert isinstance(per_pipeline[2], PipelineStarted)
         assert isinstance(per_pipeline[3], PipelineCompleted)
         assert per_pipeline[2].pipeline == per_pipeline[3].pipeline
+
+    def test_default_run_emits_format_phase(self, facade_in):
+        """A DEFAULT run — ``apply_formatting`` UNSET (the tri-state ``None``) —
+        EMITS a paired ``format`` phase, positioned AFTER ``generate`` and BEFORE
+        ``monitoring``.
+
+        This is the load-bearing tri-state regression: the format phase guards on
+        the RESOLVED ``apply_formatting`` bool, not the raw ``None`` the caller
+        threads. A project with no ``lhp.yaml`` ``apply_formatting`` key resolves
+        to ``True``, so omitting the override MUST still surface the phase — if the
+        guard ever regressed to truth-testing the raw ``None`` (falsy), the phase
+        would silently vanish on every default generate.
+        """
+        facade, output_dir = facade_in({"p_one": False, "p_two": False})
+
+        # No apply_formatting argument: the tri-state stays None all the way down.
+        events = list(
+            facade.generation.generate_pipelines(
+                pipeline_fields=["p_one", "p_two"],
+                env="dev",
+                output_dir=output_dir,
+            )
+        )
+
+        # Every PhaseStarted is still paired with its PhaseCompleted, and the
+        # format phase now sits between generate and monitoring.
+        _assert_phase_pairs(events)
+        assert [e.phase for e in events if isinstance(e, PhaseStarted)] == [
+            "discover",
+            "preflight",
+            "generate",
+            "format",
+            "monitoring",
+        ]
+
+        # The format phase completed successfully (a real ruff pass ran clean).
+        format_completed = [
+            e for e in events if isinstance(e, PhaseCompleted) and e.phase == "format"
+        ]
+        assert len(format_completed) == 1
+        assert format_completed[0].success is True
+
+        # Sanity: still a clean terminal and files on disk.
+        assert isinstance(events[-1], GenerationCompleted)
+        assert events[-1].response.success is True
+
+    def test_no_format_override_skips_format_phase(self, facade_in):
+        """``apply_formatting=False`` (the CLI ``--no-format`` path) SKIPS the
+        format phase entirely — no ``PhaseStarted('format')`` / ``PhaseCompleted(
+        'format')`` is emitted — while every other phase is unchanged. Pins the
+        other arm of the resolved-bool guard.
+        """
+        facade, output_dir = facade_in({"p_one": False, "p_two": False})
+
+        events = list(
+            facade.generation.generate_pipelines(
+                pipeline_fields=["p_one", "p_two"],
+                env="dev",
+                output_dir=output_dir,
+                apply_formatting=False,
+            )
+        )
+
+        _assert_phase_pairs(events)
+        assert [e.phase for e in events if isinstance(e, PhaseStarted)] == [
+            "discover",
+            "preflight",
+            "generate",
+            "monitoring",
+        ]
+        assert not any(
+            isinstance(e, (PhaseStarted, PhaseCompleted)) and e.phase == "format"
+            for e in events
+        )
+        assert isinstance(events[-1], GenerationCompleted)
+        assert events[-1].response.success is True
 
 
 @pytest.mark.integration

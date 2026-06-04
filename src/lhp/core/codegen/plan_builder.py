@@ -14,8 +14,11 @@ layering). It works by driving the *real* generate flow against a throwaway
       → the all-or-nothing gate raises on any failure (no writes)
       → :func:`~lhp.core.coordination._commit.commit_generate_results` writes
         every committed pipeline's files into ``<temp>/<pipeline>/``
-      → the single terminal :func:`~lhp.core.codegen.formatter
-        .format_generated_tree` ruff pass formats the whole ``<temp>`` tree
+    then, after the generator is fully drained, run the single terminal
+    :meth:`~lhp.core.coordination.orchestrator.ActionOrchestrator.format_output_tree`
+    pass over ``<temp>`` — the SAME primitive the generate event stream drives
+    after consuming the same generator (``generate_pipelines`` is a pure
+    delta-generator and no longer formats at its tail).
 
 then READ the formatted ``<temp>`` tree back into an ordered collection of
 :class:`PlannedArtifact`\\ s (path *relative to the temp root*, so it matches
@@ -23,8 +26,9 @@ the real ``generated/<env>`` layout) and DISCARD the temp dir.
 
 Why drive the real orchestrator rather than re-run the pool here: reusing the
 unmodified generate driver — same pool, same gate, same
-``commit_generate_results`` writer, same terminal ``format_generated_tree``
-pass — is exactly what guarantees the plan is byte-for-byte identical to a real
+``commit_generate_results`` writer, and the same terminal
+``format_output_tree`` pass run identically by the real generate's event stream
+— is exactly what guarantees the plan is byte-for-byte identical to a real
 generate. Re-implementing the commit/gate/pool drive in this module would both
 duplicate the coordination logic and reach the engine internals
 (``_run_flowgroup_pool_core`` / ``gate_or_raise``) the coordination package
@@ -243,22 +247,24 @@ def build_generation_plan(
 
     Drives the UNMODIFIED real generate flow
     (:meth:`~lhp.core.coordination.orchestrator.ActionOrchestrator.generate_pipelines`)
-    against a throwaway temp directory, so the resulting plan is byte-for-byte
-    identical to a real ``generate`` over the same inputs (same pool, gate,
-    ``commit_generate_results`` writer, and terminal ``format_generated_tree``
-    pass). The temp dir is discarded before returning; the real
-    ``generated/<env>`` tree is never touched. Monitoring *finalization*
-    (notebook + ``*.job.yml`` writes to the project root) is intentionally not
-    run — a plan is read-only with respect to the project — but the synthetic
-    monitoring *pipeline* file is produced like any flowgroup.
+    against a throwaway temp directory, then runs the same terminal
+    :meth:`~lhp.core.coordination.orchestrator.ActionOrchestrator.format_output_tree`
+    pass the real generate's event stream runs, so the resulting plan is
+    byte-for-byte identical to a real ``generate`` over the same inputs (same
+    pool, gate, ``commit_generate_results`` writer, and terminal format). The
+    temp dir is discarded before returning; the real ``generated/<env>`` tree is
+    never touched. Monitoring *finalization* (notebook + ``*.job.yml`` writes to
+    the project root) is intentionally not run — a plan is read-only with respect
+    to the project — but the synthetic monitoring *pipeline* file is produced like
+    any flowgroup.
 
     Streaming: ``generate_pipelines`` is a generator yielding one
     :class:`~lhp.models.processing.PipelineDelta` per pipeline; each delta is
     forwarded to ``on_pipeline_complete`` as it is yielded (the same per-pipeline
     stream the real generate exposes, which A2 renders as §5.7 progress events).
-    The plan files are read back only AFTER the generator is fully drained,
-    because the terminal ruff pass formats the entire tree in one shot —
-    formatted file content does not exist until then.
+    The plan files are read back only AFTER the generator is fully drained AND the
+    terminal ruff pass has formatted the entire tree in one shot — formatted file
+    content does not exist until then.
 
     Args:
         orchestrator: The constructed orchestrator for the project. Its
@@ -304,10 +310,11 @@ def build_generation_plan(
         # Drive the real generate flow at the temp dir. ``generate_pipelines``
         # is a GENERATOR yielding one ``PipelineDelta`` per pipeline (§5.7 / E3);
         # iterating it runs the pool, the all-or-nothing gate (raises on failure
-        # before any write), the ``commit_generate_results`` writer, and — once
-        # the generator is fully drained — the terminal ``format_generated_tree``
-        # ruff pass, all unmodified. The stream MUST be exhausted for the format
-        # pass to run, so this loop drains it completely.
+        # before any write), and the ``commit_generate_results`` writer — all
+        # unmodified. It is a PURE delta-generator and does NOT format; the
+        # terminal ``format_generated_tree`` ruff pass is driven HERE after the
+        # drain (see below), exactly as the generate event stream drives it after
+        # consuming the same generator. The stream is drained completely first.
         for delta in orchestrator.generate_pipelines(
             pipeline_filter=pipeline_filter,
             pipeline_fields=(
@@ -317,7 +324,6 @@ def build_generation_plan(
             output_dir=temp_root,
             specific_flowgroups=specific_flowgroups,
             include_tests=include_tests,
-            apply_formatting=apply_formatting,
             pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
             max_workers=max_workers,
             on_total=on_total,
@@ -338,6 +344,14 @@ def build_generation_plan(
         # would raise.
         if not temp_root.exists():
             return GenerationPlanResult(artifacts=(), pipeline_count=0)
+        # Terminal ruff pass over the temp tree — driven HERE (the generator no
+        # longer formats at its tail), resolving the same tri-state seam the
+        # generate event stream uses, so the plan's bytes match a real generate's
+        # exactly. ``apply_formatting`` False / ``lhp.yaml apply_formatting:
+        # false`` skips it on BOTH paths identically. The read-back below MUST
+        # see the formatted content, so this runs before ``_read_plan_tree``.
+        if orchestrator.resolve_apply_formatting(apply_formatting):
+            orchestrator.format_output_tree(temp_root)
         artifacts = _read_plan_tree(temp_root, flowgroup_filenames_by_pipeline)
 
     committed_pipelines = {a.pipeline for a in artifacts}

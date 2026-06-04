@@ -1,19 +1,24 @@
-"""TTY renderer for the event stream: an animated, self-refreshing status bar.
+"""TTY renderer for the event stream: an animated, self-refreshing status region.
 
 :class:`LiveRenderer` drives a single :class:`rich.live.Live` whose renderable
-is a :class:`._live_renderable._LiveStatus` — a one-line, self-animating status
-bar (a real :class:`rich.spinner.Spinner` plus a flowgroup progress bar,
-``done/total`` counter, elapsed clock, and the current phase label). Under
-``Live(auto_refresh=True)`` Rich's refresh thread re-renders that renderable on
-every tick, so the spinner animates and the bar tracks the
-:class:`~lhp.api.ProgressSink` *without* the renderer pushing a frame per tick.
-Each frame is hard-truncated to ``console.width`` inside the renderable, so it
-is always exactly one line (resize-safe — no multi-line cursor math).
+is a :class:`._live_renderable._LiveStatus` — a self-animating, FIXED two-line
+region: line 1 the status bar (a real :class:`rich.spinner.Spinner` plus a
+flowgroup progress bar, ``done/total`` counter, elapsed clock, and phase label);
+line 2 a dim, rotating flavor line. Under ``Live(auto_refresh=True)`` Rich's
+refresh thread re-renders it every tick, so the spinner animates, the bar tracks
+the :class:`~lhp.api.ProgressSink`, and the flavor word rotates *without* the
+renderer pushing a frame per tick. Each line is hard-truncated to
+``console.width`` INDEPENDENTLY, so neither can wrap and the transient region
+stays exactly two rows; ``Live``'s ``vertical_overflow="crop"`` then bounds the
+region to the viewport without scrolling even below two rows (see
+:meth:`__init__`).
 
 Everything durable — stage lines, deduped warnings, per-pipeline failures — is
-printed permanently *above* the status via ``live.console.print``. Successes
-flash only in the status line and leave no permanent trace (that is how they
-"wipe").
+printed permanently *above* the transient region via ``live.console.print``.
+Those permanent scrollback lines are SINGLE-line (e.g. ``✓ generate  3.1s``);
+only the live region is two lines. Successes flash only in the live region and
+leave no permanent trace — that is how they "wipe": teardown's transient clear
+erases BOTH live lines, leaving the permanent single-line scrollback untouched.
 
 **Progress is read, not counted here.** The bar's ``done`` / ``total`` come from
 the shared :class:`~lhp.api.ProgressSink` that the facade advances per-flowgroup
@@ -68,13 +73,13 @@ logger = logging.getLogger(__name__)
 
 
 class LiveRenderer(EventSink):
-    """Render an event stream as permanent lines plus one animated status bar.
+    """Render an event stream as permanent lines plus one animated status region.
 
     Single responsibility: drive a single :class:`rich.live.Live`, emitting
-    permanent stage / warning / failure lines and keeping a self-animating
-    one-line status bar refreshed off the shared :class:`~lhp.api.ProgressSink`.
-    The accumulated :class:`RunOutcome` is exposed via :attr:`outcome` once the
-    stream is drained.
+    permanent SINGLE-line stage / warning / failure lines and keeping a
+    self-animating, fixed TWO-line status region (line 1 the status bar, line 2
+    the dim flavor line) refreshed off the shared :class:`~lhp.api.ProgressSink`.
+    :class:`RunOutcome` is exposed via :attr:`outcome` once the stream is drained.
     """
 
     def __init__(
@@ -92,10 +97,18 @@ class LiveRenderer(EventSink):
         # one is created so the renderable always has scalars to read.
         self._progress = progress if progress is not None else ProgressSink()
         self._status = _LiveStatus(self._progress, console)
-        # Live knobs (§4.2): crop overflow keeps the frame to one line,
-        # transient wipes it on stop, screen=False keeps scrollback intact for
-        # the permanent lines. auto_refresh + ~12 fps animates the spinner on
-        # Rich's refresh thread between event-driven updates.
+        # Live knobs (§4.2): vertical_overflow="crop" bounds the fixed two-line
+        # region to the viewport WITHOUT scrolling — below two rows mid-tick,
+        # crop keeps the top rows verbatim (line 1, the status, survives a 1-row
+        # viewport) and drops the overflow, so the region never scrolls or wraps
+        # and the clear/redraw cursor math stays sound. (Rich's default
+        # "ellipsis" would replace the last visible row with a centered "...",
+        # erasing the status at one row; "visible" would let the region scroll —
+        # both break the fixed height, so crop is the only region-safe choice.)
+        # transient wipes BOTH live lines on stop; screen=False keeps scrollback
+        # intact for the permanent single-line output; auto_refresh + ~12 fps
+        # animates the spinner and rotates the flavor word on Rich's refresh
+        # thread between event-driven updates.
         self._live = Live(
             self._status,
             console=console,
@@ -114,8 +127,8 @@ class LiveRenderer(EventSink):
         self._seen_warning_keys: set[Tuple[str, Optional[str]]] = set()
         self._errored = False
 
-        # Every event-driven status frame and permanent line, recorded as plain
-        # strings for width assertions and content checks (see status_frames).
+        # Line 1 of each event-driven frame + every permanent line, as plain
+        # strings for width/content checks (see status_frames).
         self._status_frames: List[str] = []
         self.permanent_lines: List[str] = []
 
@@ -123,13 +136,11 @@ class LiveRenderer(EventSink):
     def begin(self) -> None:
         """Paint the first frame before the stream's first event is pulled.
 
-        Started by ``render`` ahead of :func:`drive`, so the animated spinner
-        and an initial ``starting`` phase label are on screen *before* the
-        first ``next()`` on the event iterator — which may block while the
-        facade discovers the worklist. ``total`` is still ``0`` here, so the
-        ``total > 0`` guard collapses the line to ``spinner + phase`` (no
-        misleading ``0/0`` bar). The first real :class:`PhaseStarted`
-        (``discover``) overwrites the label moments later.
+        Started by ``render`` ahead of :func:`drive`, so the spinner and a
+        ``starting`` label show *before* the first ``next()`` — which may block
+        while the facade discovers the worklist. ``total`` is still ``0``, so the
+        ``total > 0`` guard collapses line 1 to ``spinner + phase`` (no ``0/0``
+        bar); the first real :class:`PhaseStarted` overwrites it moments later.
         """
         if self._status.phase is None and not self._status.operation:
             self._status.phase = "starting"
@@ -144,7 +155,7 @@ class LiveRenderer(EventSink):
     def _teardown(self, *, surface_incomplete: bool = True) -> None:
         if self._started:
             # Surface any started-but-uncompleted phase (§5.7) while the Live
-            # is still up, so it does not vanish with the transient bar.
+            # is still up, so it does not vanish with the transient region.
             if surface_incomplete:
                 for phase in self._status.open_phases:
                     self._print_above(interrupted_phase_line(phase))
@@ -165,22 +176,20 @@ class LiveRenderer(EventSink):
     # -- status refresh ------------------------------------------------------
     @property
     def status_frames(self) -> List[str]:
-        """Plain text of every event-driven frame pushed to the Live.
+        """Plain text of line 1 for every event-driven frame pushed to the Live.
 
-        Recorded for width assertions and content checks. Transient status
-        frames are physically interleaved with erase sequences in a captured
-        buffer, so tests inspect this list rather than the buffer. Spinner
-        animation between events happens on Rich's refresh thread and is not
-        recorded here.
+        Recorded (via :meth:`_LiveStatus.current_frame`) for width/content checks.
+        Transient frames are interleaved with erase sequences in the capture
+        buffer, so tests inspect this list; refresh-thread animation is omitted.
         """
         return self._status_frames
 
     def _refresh_status(self) -> None:
-        """Push a fresh status frame to the Live and record its plain text.
+        """Push a fresh frame to the Live and record line 1's plain text.
 
-        Records the current frame (sampled from the renderable's clock) so a
-        synchronous drive can assert on the exact frames it produced; the Live
-        refresh thread reaches the same renderable for between-event animation.
+        Records line 1 via :meth:`_LiveStatus.current_frame` so a synchronous
+        drive can assert on the exact frames it produced; the Live refresh thread
+        reaches the same renderable for between-event animation of both lines.
         """
         frame = self._status.current_frame()
         self._status_frames.append(frame.plain)
@@ -188,7 +197,7 @@ class LiveRenderer(EventSink):
 
     # -- permanent lines -----------------------------------------------------
     def _print_above(self, renderable: Text) -> None:
-        """Print a permanent line above the transient status bar.
+        """Print a permanent SINGLE-line entry above the transient region.
 
         Records the plain text so callers/tests can inspect permanent output
         without parsing the erase-sequence-laden capture buffer.
@@ -207,9 +216,8 @@ class LiveRenderer(EventSink):
         self._refresh_status()
 
     def on_phase_completed(self, phase: str, duration_s: float, success: bool) -> None:
-        # Permanent stage line: glyph + phase, duration right-aligned. Stages
-        # that never started never reach here, so they are omitted (no
-        # "skipped"). A failed phase carries the cross glyph.
+        # Permanent SINGLE-line stage line: glyph + phase + duration. Unstarted
+        # stages never reach here (none read "skipped"); a failure crosses out.
         glyph, style = (
             (GLYPH_CROSS, "bold red") if not success else (GLYPH_CHECK, "bold green")
         )
@@ -228,9 +236,8 @@ class LiveRenderer(EventSink):
     def on_pipeline_completed(
         self, pipeline: str, duration_s: float, files_written: int
     ) -> None:
-        # Success flashes only in the status line — no permanent line. The bar's
-        # advance is driven by the facade through the ProgressSink, not counted
-        # here, so this only clears the current-pipeline label.
+        # Success flashes only in the live region (no permanent line); the bar
+        # advances off the facade-driven ProgressSink — this just clears the label.
         if self._status.pipeline == pipeline:
             self._status.pipeline = None
         self._refresh_status()
@@ -259,10 +266,8 @@ class LiveRenderer(EventSink):
         file: Optional[Path],
         flowgroup: Optional[str],
     ) -> None:
-        # Accumulate once per distinct (code, file) — the counts banner and the
-        # summary's per-code rollup both read self._warnings. The permanent
-        # line (and its status refresh) is emitted only with show_details, so
-        # the default run is not buried under one line per file.
+        # Accumulate once per distinct (code, file) for the counts banner and
+        # per-code summary; the permanent line is emitted only with show_details.
         file_str = str(file) if file is not None else None
         key = (code, file_str)
         if key in self._seen_warning_keys:
@@ -284,12 +289,10 @@ class LiveRenderer(EventSink):
 
     def on_error(self, code: str) -> None:
         # Duck-typed code only; never import lhp.errors (§9.5). Record that an
-        # ErrorEmitted was seen and tear the Live down cleanly. Print NO panel:
-        # the LHPError raises immediately after this, and error_boundary
-        # renders the panel on a clean stderr.
+        # ErrorEmitted was seen and tear the Live down cleanly, surfacing no
+        # incomplete-phase trace. Print NO panel: the LHPError raises right after
+        # this and error_boundary owns the panel on a clean stderr.
         self._errored = True
-        # No trace here: the LHPError raises right after and error_boundary
-        # owns the panel on a clean stderr (§9.5).
         self._teardown(surface_incomplete=False)
 
     def on_terminal(self, response: object) -> None:

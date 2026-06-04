@@ -8,7 +8,7 @@ External callers MUST NOT import from here; they use
 This split exists for the same reason as :mod:`lhp.api._plan_stream`: to keep
 :mod:`lhp.api._generation_facade` under the constitution §3.3 soft cap. The
 generate stream consolidates the FULL generate orchestration — discover,
-preflight, generate, monitoring-finalize, and (when bundle is enabled)
+preflight, generate, format, monitoring-finalize, and (when bundle is enabled)
 bundle-sync — into a single §5.7 event stream, which is too large to inline in
 the facade module alongside the per-method delegation surface. The facade
 method holds the public contract / ``:stability:`` annotation; the stream logic
@@ -26,6 +26,15 @@ monitoring-finalize, by contrast, ARE routed through the orchestrator (both are
 
 :stability: internal
 """
+
+# JUSTIFIED: This module deliberately consolidates the FULL generate
+# orchestration (discover, preflight, generate, format, monitoring,
+# bundle_sync) into ONE §5.7 event stream — see the module docstring for why
+# it is split out of `_generation_facade` rather than living inline. The six
+# phases plus their §1.4 error-rendezvous bodies exceed the §3.3 500-line soft
+# cap; each phase is a single linear segment of the one stream and cannot be
+# meaningfully decomposed without fragmenting the event ordering. Under §9.3's
+# 800-line hard cap.
 
 from __future__ import annotations
 
@@ -138,7 +147,6 @@ def _consume_generate_stream(
     output_dir: Optional[Path],
     specific_flowgroups: Optional[List[str]] = None,
     include_tests: bool = False,
-    apply_formatting: bool | None = None,
     pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
     max_workers: Optional[int] = None,
     progress: ProgressSink | None = None,
@@ -215,7 +223,6 @@ def _consume_generate_stream(
                 output_dir=output_dir,
                 specific_flowgroups=specific_flowgroups,
                 include_tests=include_tests,
-                apply_formatting=apply_formatting,
                 pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
                 max_workers=max_workers,
                 # Adapt the public counter to the plain core callables (§3.6:
@@ -315,13 +322,19 @@ def _stream_pipeline_generation(
        ``StopIteration.value``, are emitted as :class:`WarningEmitted` events —
        deduped against the discover-phase warnings via a shared ``(code, file)``
        set so the union surfaces once, in deterministic order.
-    5. ``monitoring`` phase pair (skipped on dry-run / on a degraded generate)
+    5. ``format`` phase pair (skipped on dry-run / on a degraded generate / when
+       the resolved ``apply_formatting`` is false) — the single terminal
+       ``ruff format`` pass over the whole ``generated/<env>`` tree, routed
+       through ``orchestrator.format_output_tree`` (a legal ``api → core`` edge).
+       A structured formatter failure (``LHP-CFG-033`` / ``LHP-CFG-034``) RAISES
+       via the same in-stream rendezvous as ``bundle_sync``.
+    6. ``monitoring`` phase pair (skipped on dry-run / on a degraded generate)
        — wraps ``orchestrator.finalize_monitoring_artifacts`` (a legal
        ``api → core`` edge).
-    6. ``bundle_sync`` phase pair, ONLY when ``bundle_enabled`` and the
+    7. ``bundle_sync`` phase pair, ONLY when ``bundle_enabled`` and the
        generate succeeded and this is not a dry-run — composes the ``bundle``
        layer directly (see :func:`_run_bundle_sync`).
-    7. Terminal :class:`GenerationCompleted` carrying the
+    8. Terminal :class:`GenerationCompleted` carrying the
        :class:`BatchGenerationResponse`.
 
     Failure surfacing (§1.4): a structured :class:`LHPError` — preflight,
@@ -438,7 +451,6 @@ def _stream_pipeline_generation(
         output_dir=output_dir,
         specific_flowgroups=specific_flowgroups,
         include_tests=include_tests,
-        apply_formatting=apply_formatting,
         pre_discovered_all_flowgroups=resolved_flowgroups,
         max_workers=max_workers,
         progress=progress,
@@ -450,6 +462,45 @@ def _stream_pipeline_generation(
     )
     # LHP-DEPR-002/003/004 worker warnings, deduped against the discover-phase set.
     yield from _emit_deprecation_warnings(worker_warnings, seen=warnings_seen)
+
+    # Phase: format. The single terminal ``ruff format`` pass over the whole
+    # ``generated/<env>`` tree, surfaced as a §5.7 phase HERE — the stream owns
+    # the invocation (``generate_pipelines`` is a pure delta-generator that no
+    # longer formats at its tail; the read-only plan path drives the same
+    # orchestrator primitive itself for byte parity). Guarded on the RESOLVED
+    # ``apply_formatting`` bool (the orchestrator owns the tri-state seam — ``None``
+    # → the project's ``lhp.yaml`` setting), so ``--no-format`` skips the phase
+    # outright (no PhaseStarted). ``response.success`` keeps a degraded generate
+    # (a non-LHP commit-time failure that left a partial tree) from formatting an
+    # incomplete tree; ``output_dir is None`` already excludes dry-runs. Routed
+    # through the orchestrator (a legal api → core edge).
+    effective_apply_formatting = orchestrator.resolve_apply_formatting(apply_formatting)
+    if output_dir is not None and effective_apply_formatting and response.success:
+        format_start = time.perf_counter()
+        yield PhaseStarted(phase="format")
+        try:
+            orchestrator.format_output_tree(output_dir)
+        except LHPError as exc:
+            # ``format_generated_tree`` RAISES a structured LHPError (LHP-CFG-033
+            # on a non-zero ruff exit, LHP-CFG-034 if ruff is missing). Perform
+            # the §1.4 / §9.19 in-stream rendezvous — PhaseCompleted(success=False)
+            # then exactly one ErrorEmitted then re-raise (bare ``raise`` keeps the
+            # cause chain, B904) — mirroring the bundle_sync phase. The generated
+            # tree already written to disk persists; the format pass never rolls
+            # it back. The raise closes the stream, so the monitoring / bundle_sync
+            # phases and the terminal GenerationCompleted below are skipped.
+            yield PhaseCompleted(
+                phase="format",
+                duration_s=time.perf_counter() - format_start,
+                success=False,
+            )
+            yield ErrorEmitted(lhp_error=exc)
+            raise
+        yield PhaseCompleted(
+            phase="format",
+            duration_s=time.perf_counter() - format_start,
+            success=True,
+        )
 
     # Phase: monitoring. Skipped on dry-run (no real tree to reconcile) and on a
     # degraded generate (mirrors CLI behavior). Routed through the orchestrator

@@ -748,8 +748,17 @@ class TestConsolidatedGenerateStream:
         # The consolidated stream includes the in-stream monitoring phase.
         assert "monitoring" in phase_starts
         assert ("monitoring", True) in phase_completes
-        # Discover/preflight/generate precede it, in order.
-        assert phase_starts[:4] == ["discover", "preflight", "generate", "monitoring"]
+        # Discover/preflight/generate/format precede it, in order. This is a
+        # DEFAULT run (``apply_formatting`` unset → ``True`` when the project's
+        # ``lhp.yaml`` omits the key), so the ``format`` phase sits between
+        # generate and monitoring.
+        assert phase_starts[:5] == [
+            "discover",
+            "preflight",
+            "generate",
+            "format",
+            "monitoring",
+        ]
         # Monitoring artifacts were actually written (the absorbed
         # finalize-monitoring behavior ran via the orchestrator).
         assert (
@@ -792,13 +801,17 @@ class TestConsolidatedGenerateStream:
         # generate stream per D2).
         assert generation_terminals == 1
         assert bundle_terminals == 0
-        # The stream includes the bundle_sync phase, after monitoring.
+        # The stream includes the bundle_sync phase, after monitoring. This is a
+        # DEFAULT run (``apply_formatting`` unset → ``True`` when the project's
+        # ``lhp.yaml`` omits the key), so the ``format`` phase sits between
+        # generate and monitoring.
         assert "bundle_sync" in phase_starts
         assert ("bundle_sync", True) in phase_completes
         assert phase_starts == [
             "discover",
             "preflight",
             "generate",
+            "format",
             "monitoring",
             "bundle_sync",
         ]

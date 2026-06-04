@@ -194,7 +194,6 @@ def test_iter_generate_deltas_success_in_input_pipeline_order(monkeypatch, tmp_p
             project_config=None,
             project_root=tmp_path,
             max_workers=4,
-            apply_formatting=False,
         )
     )
 
@@ -368,7 +367,6 @@ def test_run_generate_yields_success_deltas_in_input_order(monkeypatch, tmp_path
             project_config=None,
             project_root=tmp_path,
             max_workers=4,
-            apply_formatting=False,
         )
     )
 

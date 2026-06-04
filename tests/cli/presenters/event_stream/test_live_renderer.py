@@ -25,7 +25,7 @@ per pipeline completion, mirroring what the facade does in a real run.
 from __future__ import annotations
 
 import io
-from typing import Iterator, List
+from typing import Callable, Iterator, List
 
 import pytest
 from rich.console import Console
@@ -38,10 +38,19 @@ from lhp.api.events import (
     PipelineFailed,
 )
 from lhp.cli.presenters.event_stream._event_dispatch import drive
+from lhp.cli.presenters.event_stream._flavor_words import (
+    _DEFAULT_PERIOD_S,
+    _DEFAULT_SPINNER_PERIOD_S,
+    SPINNER_FRAMES,
+    flavor_spinner_frame_for,
+    flavor_word_count,
+    flavor_word_for,
+)
 from lhp.cli.presenters.event_stream._live_renderable import _LiveStatus
 from lhp.cli.presenters.event_stream._status_line import (
     GLYPH_CHECK,
     GLYPH_CROSS,
+    build_status_line,
 )
 from lhp.cli.presenters.event_stream.live_renderer import LiveRenderer
 
@@ -51,6 +60,8 @@ from lhp.cli.presenters.event_stream.live_renderer import LiveRenderer
 from lhp.errors import LHPError
 from tests.cli.presenters.event_stream._fixtures import (
     clean_generate_stream,
+    clean_plan_stream,
+    clean_validate_stream,
     error_raise_stream,
     one_failure_stream,
 )
@@ -88,6 +99,18 @@ def _drive_with_progress(
             sink.on_advance()
 
 
+def _has_flavor_lead(s: str) -> bool:
+    """True if ``s`` carries any line-2 spinner frame (a circle quadrant).
+
+    The flavor line's lead-in is the ONLY source of a circle quadrant in the
+    region — line 1 uses braille dots, the check/cross/warn glyphs, and the bar
+    blocks, none of which overlap :data:`SPINNER_FRAMES`. So "any quadrant
+    present" is a frame-agnostic marker that the flavor line was rendered,
+    regardless of which animation frame a given Live tick happened to sample.
+    """
+    return any(frame in s for frame in SPINNER_FRAMES)
+
+
 # ---------------------------------------------------------------------------
 # Animation: the spinner is not a frozen glyph
 # ---------------------------------------------------------------------------
@@ -112,6 +135,424 @@ def test_default_construction_uses_animated_spinner_not_static_glyph():
     base = status._start
     frames = [status.render_frame(base + i * 0.1).plain[:1] for i in range(12)]
     assert len(set(frames)) >= 2, f"spinner frozen at {set(frames)!r}"
+
+
+# ---------------------------------------------------------------------------
+# Fixed two-line region: line 1 status (unchanged), line 2 rotating flavor
+# ---------------------------------------------------------------------------
+def _region_lines(status: _LiveStatus, console: Console) -> list[str]:
+    """Render the renderable through the console and return its content lines.
+
+    This is what ``Live`` does each tick — invoke ``__rich_console__`` via the
+    console. The trailing empty line that ``console.print`` appends after the
+    final renderable is dropped, leaving only the region's own rows.
+    """
+    with console.capture() as cap:
+        console.print(status, end="")
+    lines = cap.get().split("\n")
+    while lines and lines[-1] == "":
+        lines.pop()
+    return lines
+
+
+def _fixed_clock(value: float) -> Callable[[], float]:
+    """A clock callable that always returns ``value`` (no time progression)."""
+    return lambda: value
+
+
+@pytest.mark.parametrize("width", [30, 40, 200])
+def test_region_is_exactly_two_lines_each_within_width(width):
+    # The renderable must yield a FIXED two-line region (line 1 status, line 2
+    # flavor), and each line must fit console.width independently so a mid-tick
+    # resize can never wrap the region taller than two rows.
+    console, _ = _terminal_console(width)
+    status = _LiveStatus(ProgressSink(), console, clock=_fixed_clock(1000.0))
+    status.phase = "generate"
+    status._progress.on_total(18)
+    for _ in range(12):
+        status._progress.on_advance()
+
+    lines = _region_lines(status, console)
+    assert len(lines) == 2, f"expected exactly two lines, got {len(lines)}: {lines!r}"
+    for i, line in enumerate(lines, start=1):
+        # Forced-terminal Console pads each row to full width; the load-bearing
+        # invariant is that nothing exceeds width (no wrap to a third row).
+        assert len(line) <= width, (
+            f"region line {i} exceeds width {width}: len={len(line)} {line!r}"
+        )
+
+
+@pytest.mark.parametrize("width", [30, 40, 200])
+def test_line_one_is_byte_identical_to_standalone_status_line(width):
+    # current_frame() (line 1) must be byte-identical to what build_status_line
+    # produces directly for the same state — the two-line change must not alter
+    # line 1 by a single character.
+    console, _ = _terminal_console(width)
+    clock_value = 1000.0
+    status = _LiveStatus(ProgressSink(), console, clock=_fixed_clock(clock_value))
+    status.phase = "generate"
+    status.pipeline = "silver_orders"
+    status._progress.on_total(18)
+    for _ in range(12):
+        status._progress.on_advance()
+
+    elapsed = clock_value - status._start
+    spinner_frame = status._spinner.render(elapsed)
+    spinner = (
+        spinner_frame.plain if hasattr(spinner_frame, "plain") else str(spinner_frame)
+    )
+    expected = build_status_line(
+        spinner=spinner,
+        phase="generate",
+        done=12,
+        total=18,
+        pipeline="silver_orders",
+        elapsed_s=elapsed,
+        width=width,
+    )
+    expected.truncate(width, overflow="crop")
+
+    assert status.current_frame().plain == expected.plain
+
+
+def test_line_two_is_indented_dim_flavor_with_spinner_lead_glyph():
+    # Line 2 is the flavor line: two-space indent, the animated circle-quadrant
+    # spinner lead-in (one of ◐◓◑◒), then a flavor word — and rendered dim
+    # (secondary motion, never primary data).
+    console, _ = _terminal_console(80)
+    status = _LiveStatus(ProgressSink(), console, clock=_fixed_clock(1000.0))
+
+    flavor = status.current_flavor()
+    plain = flavor.plain
+    assert plain.startswith("  "), f"flavor line missing two-space indent: {plain!r}"
+    assert plain[2] in SPINNER_FRAMES, (
+        f"flavor line lead-in is not a circle quadrant: {plain!r}"
+    )
+    assert plain[3] == " ", f"flavor line missing space after spinner: {plain!r}"
+    assert len(plain) > 4, "flavor line carries no word"
+    # The whole flavor line is dim.
+    assert flavor.style == "dim", f"flavor line not dim: style={flavor.style!r}"
+
+
+def test_line_two_rotates_as_clock_advances():
+    # The flavor word is a function of the elapsed clock: advancing the clock
+    # across flavor periods must change line 2 (it is alive, not frozen).
+    console, _ = _terminal_console(200)
+    now = {"t": 1000.0}
+    status = _LiveStatus(ProgressSink(), console, clock=lambda: now["t"])
+
+    words = []
+    for k in range(6):
+        now["t"] = 1000.0 + k * 2.0  # one default flavor period per step
+        words.append(status.current_flavor().plain)
+
+    assert len(set(words)) >= 2, f"flavor line did not rotate across time: {words!r}"
+
+
+def test_line_two_shows_specific_words_at_specific_clock_values():
+    # Deterministic rotation under the injected clock: at known elapsed offsets
+    # the flavor line carries SPECIFIC words (not merely "some rotation"). The
+    # clock base is the renderable's _start; offsetting it by whole default
+    # periods (2.0s) walks consecutive buckets through the fixed _ORDER
+    # permutation, so each step's word is pinned, not just distinct.
+    console, _ = _terminal_console(200)
+    now = {"t": 0.0}
+    # Pin BOTH per-run offsets to 0 so the rotation starts unshifted: this test
+    # asserts SPECIFIC words/frames at specific elapsed values, which is only
+    # well-defined at offset 0 (the production constructor draws a RANDOM start).
+    status = _LiveStatus(
+        ProgressSink(),
+        console,
+        clock=lambda: now["t"],
+        spinner_offset=0,
+        word_offset=0,
+    )
+    base = status._start  # captured from clock() at construction (== 0.0 here)
+
+    # elapsed = k * _DEFAULT_PERIOD_S selects bucket k -> _FLAVOR_WORDS[_ORDER[k]].
+    # These literals are the contract of _flavor_words._ORDER; a permutation edit
+    # that silently reorders the rotation must fail HERE, not just "still rotates".
+    expected_by_elapsed = {
+        0.0: "pouring the foundation",  # bucket 0 -> _ORDER[0] == 7
+        2.0: "tuning the manifolds",  # bucket 1 -> _ORDER[1] == 18
+        4.0: "connecting pipes",  # bucket 2 -> _ORDER[2] == 2
+        6.0: "unclogging the drains",  # bucket 3 -> _ORDER[3] == 25
+    }
+    for elapsed, word in expected_by_elapsed.items():
+        now["t"] = base + elapsed
+        flavor = status.current_flavor().plain
+        # The word sits after the "  <spinner> " indent + animated lead-in; the
+        # spinner frame is its own deterministic function of the same elapsed
+        # clock, so pin the WHOLE line (indent + exact frame + exact word).
+        spinner = flavor_spinner_frame_for(elapsed)
+        assert spinner in SPINNER_FRAMES
+        assert flavor == f"  {spinner} {word}", (
+            f"at elapsed {elapsed}s expected flavor {f'  {spinner} {word}'!r}, "
+            f"got {flavor!r}"
+        )
+
+    # The lead-in advances at its OWN (sub-second) spin period, distinctly from
+    # the 2.0s word rotation: sampling across one spinner period changes the
+    # leading glyph even while the word is unchanged.
+    spin_frames = set()
+    for i in range(len(SPINNER_FRAMES)):
+        now["t"] = base + i * _DEFAULT_SPINNER_PERIOD_S
+        spin_frames.add(status.current_flavor().plain[2])
+    assert len(spin_frames) >= 2, (
+        f"line-2 spinner did not advance at its spin period: {spin_frames!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Per-run random START offset for line 2 (the "looks the same every run" fix):
+# the renderable draws a per-RUN spinner/word phase ONCE at construction, so two
+# runs begin on different quadrants/words. The draw is injectable so tests stay
+# deterministic; production (offset=None) draws into [0, len) via random.
+# ---------------------------------------------------------------------------
+def test_injected_offsets_reproduce_a_known_line_two_sequence():
+    # With BOTH offsets pinned, line 2 is a pure function of the injected clock:
+    # at each whole-period step it must equal build_flavor_line's layout of the
+    # offset-shifted frame + word. A non-zero offset proves the shift is applied
+    # (the run does NOT start on quadrant 0 / word 0), yet stays deterministic.
+    console, _ = _terminal_console(200)
+    now = {"t": 0.0}
+    spinner_offset, word_offset = 2, 5
+    status = _LiveStatus(
+        ProgressSink(),
+        console,
+        clock=lambda: now["t"],
+        spinner_offset=spinner_offset,
+        word_offset=word_offset,
+    )
+    base = status._start
+
+    for k in range(6):
+        elapsed = k * _DEFAULT_PERIOD_S
+        now["t"] = base + elapsed
+        expected_spinner = flavor_spinner_frame_for(elapsed, offset=spinner_offset)
+        expected_word = flavor_word_for(elapsed, offset=word_offset)
+        assert status.current_flavor().plain == f"  {expected_spinner} {expected_word}"
+
+    # The very first frame is NOT the unshifted start (offset is really applied).
+    now["t"] = base
+    assert (
+        status.current_flavor().plain != f"  {SPINNER_FRAMES[0]} {flavor_word_for(0.0)}"
+    )
+
+
+def test_injected_offsets_are_honored_verbatim():
+    # An int offset is stored verbatim (not redrawn), so tests can pin a phase.
+    console, _ = _terminal_console(80)
+    status = _LiveStatus(
+        ProgressSink(),
+        console,
+        clock=_fixed_clock(1000.0),
+        spinner_offset=3,
+        word_offset=11,
+    )
+    assert status._spinner_offset == 3
+    assert status._word_offset == 11
+
+
+def test_default_offsets_are_drawn_into_range_not_a_fixed_zero():
+    # In production (offset=None) the renderable draws each offset ONCE into its
+    # valid band: [0, len(SPINNER_FRAMES)) and [0, flavor_word_count()). We do
+    # NOT assert two runs differ (that would be flaky); we assert the drawn
+    # attributes are in range, which is the deterministic, non-flaky contract.
+    console, _ = _terminal_console(80)
+    for _ in range(50):  # many draws: each must land in range every time
+        status = _LiveStatus(ProgressSink(), console, clock=_fixed_clock(1000.0))
+        assert 0 <= status._spinner_offset < len(SPINNER_FRAMES)
+        assert 0 <= status._word_offset < flavor_word_count()
+
+
+def test_offsets_are_drawn_once_and_frozen_for_the_run():
+    # The per-run offset is fixed at construction: re-reading across renders
+    # never changes it (a per-FRAME draw would jitter the spinner and break the
+    # clock-injected tests). Render at several clocks; the stored offsets hold.
+    console, _ = _terminal_console(80)
+    now = {"t": 0.0}
+    status = _LiveStatus(ProgressSink(), console, clock=lambda: now["t"])
+    first_spinner, first_word = status._spinner_offset, status._word_offset
+    for k in range(8):
+        now["t"] = k * _DEFAULT_SPINNER_PERIOD_S
+        status.current_flavor()
+        assert status._spinner_offset == first_spinner
+        assert status._word_offset == first_word
+
+
+def test_line_two_spinner_is_red_and_word_is_dim():
+    # The spinner lead-in is the one RED accent on an otherwise dim line: the
+    # span covering the spinner glyph (plain index 2) is styled "red", and the
+    # span covering a word character is styled "dim". Inspect the Text spans.
+    console, _ = _terminal_console(80)
+    status = _LiveStatus(
+        ProgressSink(),
+        console,
+        clock=_fixed_clock(1000.0),
+        spinner_offset=0,
+        word_offset=0,
+    )
+    flavor = status.current_flavor()
+    plain = flavor.plain
+    assert plain.startswith("  "), f"flavor line missing two-space indent: {plain!r}"
+    assert plain[2] in SPINNER_FRAMES, f"flavor lead-in not a quadrant: {plain!r}"
+    word_idx = 4  # first character of the word (after "  <spinner> ")
+
+    def styles_at(text, i):
+        return [str(span.style) for span in text.spans if span.start <= i < span.end]
+
+    assert "red" in styles_at(flavor, 2), (
+        f"spinner glyph not styled red; spans={flavor.spans!r}"
+    )
+    assert "dim" in styles_at(flavor, word_idx), (
+        f"flavor word not styled dim; spans={flavor.spans!r}"
+    )
+    # The spinner is NOT also dim, and the word is NOT also red (clean split).
+    assert "dim" not in styles_at(flavor, 2), f"spinner wrongly dim: {flavor.spans!r}"
+    assert "red" not in styles_at(flavor, word_idx), (
+        f"word wrongly red: {flavor.spans!r}"
+    )
+
+
+def test_line_one_unchanged_while_line_two_rotates():
+    # Independence: as the clock advances and line 2 rotates, line 1's content
+    # (phase + bar + counter) tracks only the sink, not the flavor rotation.
+    console, _ = _terminal_console(200)
+    now = {"t": 1000.0}
+    status = _LiveStatus(ProgressSink(), console, clock=lambda: now["t"])
+    status.phase = "generate"
+    status._progress.on_total(4)
+    status._progress.on_advance()  # 1/4, fixed for the whole test
+
+    flavors = set()
+    for k in range(6):
+        now["t"] = 1000.0 + k * 2.0
+        assert "1/4" in status.current_frame().plain, "line 1 counter drifted"
+        flavors.add(status.current_flavor().plain)
+    assert len(flavors) >= 2, f"line 2 did not rotate: {flavors!r}"
+
+
+# ---------------------------------------------------------------------------
+# Tiny-terminal resize safety: the fixed two-line region must degrade
+# gracefully at a sub-2-row viewport (vertical_overflow="crop"), never crash
+# and never scroll/clip the primary data off the top.
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("height", [1, 2])
+def test_region_crops_to_viewport_without_scroll_at_tiny_height(height):
+    # This is exactly what Live does each tick: LiveRender(crop) slices the
+    # region to options.size.height. At a 1-row viewport the two-line region
+    # must collapse to its TOP row (line 1, the status) verbatim — not scroll,
+    # not wrap to two rows, not get replaced by an ellipsis. So the bar/counter
+    # (primary data) survive a terminal too short to hold the whole region.
+    from rich.live_render import LiveRender
+
+    buf = io.StringIO()
+    console = Console(
+        file=buf, force_terminal=True, width=80, height=height, color_system=None
+    )
+    status = _LiveStatus(ProgressSink(), console, clock=_fixed_clock(1000.0))
+    status.phase = "generate"
+    status._progress.on_total(3)
+    status._progress.on_advance()
+
+    live_render = LiveRender(status, vertical_overflow="crop")
+    with console.capture() as cap:
+        console.print(live_render, end="")
+    rows = [r for r in cap.get().split("\n") if r.strip()]
+
+    # Cropped to the viewport: never taller than `height` (no scroll, no wrap).
+    assert len(rows) <= height, f"region exceeded {height}-row viewport: {rows!r}"
+    # The TOP row that survives is line 1 — its bar + counter are intact (crop
+    # keeps the most important row; it is not erased by an ellipsis or scrolled
+    # off the top).
+    assert "1/3" in rows[0], f"status line clipped at height={height}: {rows!r}"
+    assert any(g in rows[0] for g in ("█", "░")), f"bar clipped: {rows!r}"
+
+
+@pytest.mark.parametrize("height", [1, 2])
+def test_full_drive_does_not_crash_at_tiny_height(height):
+    # End-to-end through drive() at a 1-2 row terminal: starting the Live,
+    # refreshing the two-line region per event, and tearing it down (which clears
+    # BOTH live lines) must not raise even when the viewport cannot hold the
+    # whole region.
+    buf = io.StringIO()
+    console = Console(
+        file=buf, force_terminal=True, width=80, height=height, color_system=None
+    )
+    sink = ProgressSink()
+    renderer = LiveRenderer(console, progress=sink)
+
+    drive(_drive_with_progress(clean_generate_stream(), sink), renderer)
+
+    # The run still completes and the permanent stage line(s) are recorded.
+    assert renderer.outcome.errored is False
+    assert any(GLYPH_CHECK in line for line in renderer.permanent_lines), (
+        f"no permanent stage line survived a {height}-row terminal: "
+        f"{renderer.permanent_lines!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Clean teardown wipes BOTH live lines (transient region), permanent intact
+# ---------------------------------------------------------------------------
+# Rich's Live.stop() restores the cursor (CSI ?25h) once, then erases the
+# transient region by emitting one "cursor-up + erase-line" (CSI 1A, CSI 2K)
+# pair PER region row. So the teardown tail after the cursor-show sequence
+# carries exactly as many erase pairs as the region is tall — two for the fixed
+# two-line region. A one-line region would emit a single pair; counting them is
+# how we prove BOTH live lines are wiped, not just the bottom one.
+_CURSOR_SHOW = "\x1b[?25h"
+_ERASE_PAIR = "\x1b[1A\x1b[2K"
+
+
+def _teardown_erase_pairs(raw: str) -> int:
+    """Count cursor-up+erase pairs in the transient teardown tail of ``raw``.
+
+    The tail is everything after the LAST cursor-show sequence Live emits on
+    stop(); each ``CSI 1A CSI 2K`` there clears one region row. Returns 0 when
+    no teardown occurred (no cursor-show emitted).
+    """
+    idx = raw.rfind(_CURSOR_SHOW)
+    if idx == -1:
+        return 0
+    tail = raw[idx + len(_CURSOR_SHOW) :]
+    return tail.count(_ERASE_PAIR)
+
+
+def test_clean_teardown_wipes_both_live_lines_keeping_permanent_scrollback():
+    # On a successful full drive, teardown must wipe the WHOLE transient
+    # two-line region (line 1 status + line 2 flavor) so successes leave no
+    # transient residue, while the permanent single-line scrollback survives.
+    # We assert the teardown tail clears exactly two rows (both live lines) and
+    # that the permanent stage lines are untouched.
+    buf = io.StringIO()
+    console = Console(
+        file=buf, force_terminal=True, width=80, height=24, color_system=None
+    )
+    sink = ProgressSink()
+    renderer = LiveRenderer(console, progress=sink)
+
+    drive(_drive_with_progress(clean_generate_stream(), sink), renderer)
+
+    raw = buf.getvalue()
+    # The flavor line WAS rendered during the run (line 2 of the region)...
+    assert _has_flavor_lead(raw), "flavor line never rendered in the live region"
+    # ...and teardown clears BOTH region rows: exactly two erase pairs in the
+    # teardown tail (a single-line region would clear only one).
+    assert _teardown_erase_pairs(raw) == 2, (
+        "teardown did not wipe both live lines (expected 2 cursor-up+erase pairs "
+        f"in the teardown tail): {raw[-80:]!r}"
+    )
+    # The Live is fully torn down and the permanent scrollback survives the wipe.
+    assert renderer._started is False
+    assert renderer._live.is_started is False
+    assert renderer.permanent_lines, "permanent scrollback was wiped with the region"
+    assert any(GLYPH_CHECK in line for line in renderer.permanent_lines)
+    # No permanent line is itself a flavor line — the flavor line is transient.
+    assert not any(_has_flavor_lead(line) for line in renderer.permanent_lines), (
+        f"flavor line leaked into permanent scrollback: {renderer.permanent_lines!r}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -251,6 +692,72 @@ def test_success_path_prints_no_permanent_success_line():
     assert any(GLYPH_CHECK in line for line in renderer.permanent_lines), (
         "expected permanent stage lines to use the check glyph"
     )
+
+
+# ---------------------------------------------------------------------------
+# Validate & diff paths also drive LiveRenderer: flavor line present on BOTH,
+# and NEITHER surfaces a 'format' phase (format is generate-only).
+# ---------------------------------------------------------------------------
+def _drive_capturing(events, sink) -> tuple[LiveRenderer, str]:
+    """Drive ``events`` through a fresh LiveRenderer on a forced-terminal buffer.
+
+    Returns the renderer and the raw capture buffer, so a caller can both
+    inspect the surfaced permanent lines and confirm the transient flavor line
+    was rendered into the live region (its lead glyph appears in the raw stream).
+    """
+    buf = io.StringIO()
+    console = Console(
+        file=buf, force_terminal=True, width=120, height=24, color_system=None
+    )
+    renderer = LiveRenderer(console, progress=sink)
+    drive(_drive_with_progress(events, sink), renderer)
+    return renderer, buf.getvalue()
+
+
+def test_validate_path_renders_flavor_line_and_no_format_phase():
+    # The validate command drives the SAME LiveRenderer. Its phases are
+    # discover/preflight/validate — there is NO 'format' phase (format is
+    # generate-only). The two-line region (incl. the flavor line) must still be
+    # rendered, and no surfaced stage line may name 'format'.
+    sink = ProgressSink()
+    renderer, raw = _drive_capturing(clean_validate_stream(), sink)
+
+    # Flavor line (line 2) was rendered into the live region on the validate path.
+    assert _has_flavor_lead(raw), (
+        "flavor line absent on the validate path; the second region line did not render"
+    )
+    # The validate stage line is surfaced...
+    assert any(
+        "validate" in line and GLYPH_CHECK in line for line in renderer.permanent_lines
+    ), f"no 'validate' stage line surfaced; permanent={renderer.permanent_lines!r}"
+    # ...and NO 'format' phase is ever surfaced (validate has none).
+    assert not any("format" in line for line in renderer.permanent_lines), (
+        f"validate path surfaced a 'format' stage line: {renderer.permanent_lines!r}"
+    )
+    assert renderer.outcome.errored is False
+
+
+def test_diff_plan_path_renders_flavor_line_and_no_format_phase():
+    # The diff command drives the SAME LiveRenderer over the plan stream.
+    # The plan stream's phases are discover/preflight/generate with NO 'format'
+    # phase (the dry-run plan never writes/formats). The flavor line must still
+    # render, and no surfaced stage line may name 'format'.
+    sink = ProgressSink()
+    renderer, raw = _drive_capturing(clean_plan_stream(), sink)
+
+    # Flavor line (line 2) was rendered into the live region on the diff/plan path.
+    assert _has_flavor_lead(raw), (
+        "flavor line absent on the diff/plan path; the second region line did not render"
+    )
+    # The generate stage line is surfaced (plan runs a generate phase)...
+    assert any(
+        "generate" in line and GLYPH_CHECK in line for line in renderer.permanent_lines
+    ), f"no 'generate' stage line surfaced; permanent={renderer.permanent_lines!r}"
+    # ...and NO 'format' phase is ever surfaced on the plan/diff path.
+    assert not any("format" in line for line in renderer.permanent_lines), (
+        f"diff/plan path surfaced a 'format' stage line: {renderer.permanent_lines!r}"
+    )
+    assert renderer.outcome.errored is False
 
 
 # ---------------------------------------------------------------------------

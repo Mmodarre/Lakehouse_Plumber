@@ -1,11 +1,17 @@
-"""Status-bar glyphs and the priority-truncation budget for the live status line.
+"""Glyphs and width-budget layout for the live status region's two lines.
 
-The single-line status bar rendered by :class:`..live_renderer.LiveRenderer`
-must always fit ``console.width`` (resize-safe) while keeping the load-bearing
-pieces visible. :func:`build_status_line` packs the bar to a width budget with
-a fixed priority: the spinner, phase label, progress bar, and ``done/total``
-counter are never dropped; the trailing pipeline name truncates first, then the
-elapsed clock.
+The live status region rendered by :class:`..live_renderer.LiveRenderer` is a
+FIXED two-line region: line 1 is the status bar (:func:`build_status_line`),
+line 2 is the rotating dim flavor line (:func:`build_flavor_line`). Each line is
+laid out and hard-truncated to ``console.width`` INDEPENDENTLY here, so neither
+can ever wrap onto an extra row — the region's height stays exactly two,
+resize-safe, which is what lets the renderer's cursor math (clear/redraw) treat
+it as a fixed block.
+
+Line 1 keeps the load-bearing pieces visible under width pressure:
+:func:`build_status_line` packs the bar to a width budget with a fixed priority
+— the spinner, phase label, progress bar, and ``done/total`` counter are never
+dropped; the trailing pipeline name truncates first, then the elapsed clock.
 
 The ``spinner`` argument is the CURRENT animated spinner frame (a single-cell
 glyph sampled from a :class:`rich.spinner.Spinner` per refresh tick by the live
@@ -42,6 +48,15 @@ GLYPH_CROSS = "✗"
 GLYPH_WARN = "⚠"
 _BAR_FULL = "█"
 _BAR_EMPTY = "░"
+# The dim second (flavor) line's lead-in is no longer a static glyph: it is an
+# ANIMATED spinner sampled per tick from the four circle quadrants in
+# ._flavor_words.SPINNER_FRAMES (U+25D0..U+25D3, Geometric Shapes block, Unicode
+# category So). Each frame is single-cell and NOT an emoji, so constitution §7.6
+# is satisfied — the same Live-frame glyph family as the U+2713 check and line
+# 1's braille spinner. STYLE.md §4's "three glyphs, total" governs only the
+# static commands (STYLE.md §1 carves the Live frames out), so this surface is
+# free to use it. The current frame is passed in as build_flavor_line's
+# ``spinner`` arg; animation is the caller's concern (see the module docstring).
 
 # Two-space gutter between status segments, matching the spec example
 # `⠹ generate ███████░░░  12/18  silver_orders  3.1s`.
@@ -135,7 +150,7 @@ def build_status_line(
     elapsed_s: float,
     width: int,
 ) -> Text:
-    """Build the one-line status bar within a ``width`` character budget.
+    """Build line 1, the status bar, within a ``width`` character budget.
 
     Priority (high to low): ``spinner + phase``, then ``bar + counter``, then
     the elapsed clock, then the pipeline name. The bar flexes between
@@ -182,4 +197,35 @@ def build_status_line(
     text.append(_GUTTER)
     text.append(counter, style="bold")
     _append_optionals(text, pipeline=pipeline, elapsed=elapsed, slack=slack)
+    return text
+
+
+def build_flavor_line(spinner: str, word: str, width: int) -> Text:
+    """Build the second line: two-space indent, red ``spinner`` frame, dim ``word``.
+
+    The flavor line sits under the status line in the fixed two-line region. It
+    is hard-truncated (never wrapped) to ``width`` so a mid-tick resize can
+    never push it onto a second visual row — the same width contract the status
+    line above it obeys, applied independently here.
+
+    The line is styled in two segments: the leading indent and the trailing
+    ``word`` are ``dim`` (secondary motion, never primary data), while the
+    ``spinner`` frame itself is ``red`` so the spinning lead-in catches the eye
+    as the one moving accent on an otherwise dim line.
+
+    ``spinner`` is the CURRENT animated lead-in frame for this tick (a single
+    circle quadrant from :data:`._flavor_words.SPINNER_FRAMES`), not a fixed
+    glyph — animation is the caller's concern; this module only lays the frame
+    out, the same way :func:`build_status_line` treats line 1's spinner.
+
+    Every glyph is single-cell (the circle-quadrant ``spinner`` frame and the
+    ASCII ``word`` from :mod:`._flavor_words`), so the plain-string length
+    equals the cell width and truncating on character count is a faithful width
+    clamp.
+    """
+    width = max(0, width)
+    text = Text("  ", style="dim")
+    text.append(spinner, style="red")
+    text.append(f" {word}", style="dim")
+    text.truncate(width, overflow="crop")
     return text

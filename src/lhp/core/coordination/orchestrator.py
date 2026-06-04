@@ -3,19 +3,25 @@
 :class:`ActionOrchestrator` is the composition root wiring eight
 ABC-typed collaborator services (discovery, flowgroup resolution,
 validation, code generation, dependency analysis, monitoring,
-execution, bootstrap) and exposing four public methods to callers
+execution, bootstrap) and exposing six public methods to callers
 (CLI commands and :class:`LakehousePlumberApplicationFacade`).
 
 Per Target Architecture §4 (thin coordination layer), callers use the
 public services directly (``.bootstrap``, ``.discovery``,
-``.processing``, ``.codegen``); the orchestrator exposes only four
-methods, each the narrowest surface for its responsibility and none
-composing another:
+``.processing``, ``.codegen``); the orchestrator exposes only these six
+methods, each the narrowest surface for its responsibility:
 ``discover_flowgroups`` (single-pipeline directory read);
 ``finalize_monitoring_artifacts`` (end-of-run notebook/job write);
-``generate_pipelines`` (batch generate; hands to
-:class:`PipelineExecutionService`); ``validate_pipelines`` (batch
-validate; hands to :class:`PipelineExecutionService`).
+``generate_pipelines`` (pure delta-generator — builds the batch worklist,
+hands to :class:`PipelineExecutionService`, does NOT format);
+``resolve_apply_formatting`` (single seam resolving the
+``apply_formatting`` tri-state to a bool);
+``format_output_tree`` (single terminal ``ruff format`` pass over the
+output tree — perf-wrapped delegate to ``codegen.formatter``);
+``validate_pipelines`` (batch validate; hands to
+:class:`PipelineExecutionService`). The format primitive
+(``resolve_apply_formatting`` + ``format_output_tree``) lives here but is
+INVOKED by each caller AFTER it drains ``generate_pipelines``.
 """
 
 # JUSTIFIED: Constructor wires eight ABC-typed collaborator services
@@ -37,6 +43,7 @@ if TYPE_CHECKING:
 from ...parsers.blueprint_parser import BlueprintParser
 from ...parsers.yaml_parser import CachingYAMLParser, YAMLParser
 from ...presets.preset_manager import PresetManager
+from ...utils.performance_timer import perf_timer
 from ...utils.version import (
     get_version,
 )
@@ -51,6 +58,7 @@ from .._interfaces import (
     BaseValidationService,
 )
 from ..codegen.coordinator import CodeGenerationService
+from ..codegen.formatter import format_generated_tree
 from ..dependencies import DependencyAnalysisService, DependencyResolver
 from ..discovery.blueprint_discoverer import BlueprintDiscoverer
 from ..discovery.flowgroup_discoverer import FlowgroupDiscoveryService
@@ -297,7 +305,6 @@ class ActionOrchestrator:
         output_dir: Optional[Path] = None,
         specific_flowgroups: Optional[List[str]] = None,
         include_tests: bool = False,
-        apply_formatting: bool | None = None,
         pre_discovered_all_flowgroups: Optional[Sequence[FlowGroup]] = None,
         max_workers: Optional[int] = None,
         on_total: Optional[Callable[[int], None]] = None,
@@ -311,12 +318,13 @@ class ActionOrchestrator:
         empty (the caller is expected to discover the pipeline list first;
         see :class:`GenerationFacade`).
 
-        ``apply_formatting`` is a tri-state override for the terminal
-        ruff pass: ``None`` (the default) resolves to the loaded
-        project config's ``apply_formatting`` value (``True`` when there
-        is no project config); ``True`` / ``False`` override it. This
-        method resolves the override to a concrete bool and passes that
-        plain value into :meth:`PipelineExecutionService.run_generate`.
+        This is a PURE delta-generator: it does NOT format. There is no
+        ``apply_formatting`` parameter — formatting is the caller's
+        responsibility AFTER draining this generator. The two callers (the
+        generate event stream and the read-only plan path) each resolve the
+        ``apply_formatting`` tri-state via :meth:`resolve_apply_formatting` and
+        run the single terminal ruff pass themselves (:meth:`format_output_tree`);
+        the execution service never formats either.
 
         Routes through the consolidated flat per-flowgroup engine,
         mirroring :meth:`validate_pipelines`:
@@ -330,14 +338,15 @@ class ActionOrchestrator:
         :meth:`PipelineExecutionService.run_generate` drives the engine in
         ``mode="generate"``, applies the all-or-nothing GATE (RAISES on any
         failure, before any write — so this method no longer wraps the call in
-        an aggregate-and-raise step), then commits each clean pipeline. This is
-        a GENERATOR: it ``yield from`` ``run_generate``, surfacing the
-        per-pipeline :class:`PipelineDelta`s in input order (every failure delta
-        first, then the gate raise per §1.4, then a success delta per committed
-        pipeline). It RETURNS (via ``StopIteration.value``, captured by the
-        facade's ``yield from``) the batch's merged + deduped worker deprecation
-        warnings for the facade to re-emit as :class:`~lhp.api.WarningEmitted`
-        events.
+        an aggregate-and-raise step), then commits each clean pipeline (writing
+        UNFORMATTED source). This is a GENERATOR: it ``yield from``
+        ``run_generate``, surfacing the per-pipeline :class:`PipelineDelta`s in
+        input order (every failure delta first, then the gate raise per §1.4,
+        then a success delta per committed pipeline); once that stream drains
+        cleanly it runs the terminal format here. It RETURNS (via
+        ``StopIteration.value``, captured by the facade's ``yield from``) the
+        batch's merged + deduped worker deprecation warnings for the facade to
+        re-emit as :class:`~lhp.api.WarningEmitted` events.
         A per-pipeline discovery failure (carried in the worklist's
         ``discovery_errors`` map) aborts the whole batch inside ``run_generate``
         — generate is all-or-nothing.
@@ -380,19 +389,16 @@ class ActionOrchestrator:
             validation_service=self.validation,
             worker_state=self._build_generate_worker_state(env, include_tests),
         )
-        # Resolve the tri-state formatting override against the loaded project
-        # config: ``None`` means "use the project's ``lhp.yaml``
-        # ``apply_formatting`` setting" (default ``True`` when there is no
-        # project config); ``True`` / ``False`` override it. ``run_generate``
-        # and everything inward receive the already-resolved plain bool.
-        if apply_formatting is None:
-            effective_apply_formatting = (
-                self.project_config.apply_formatting
-                if self.project_config is not None
-                else True
-            )
-        else:
-            effective_apply_formatting = apply_formatting
+        # The execution service writes UNFORMATTED source and does not format:
+        # drain its delta-stream and RETURN. The single terminal ruff pass is NOT
+        # run here — this method is a pure delta-generator. Its two callers each
+        # drive the format primitive themselves AFTER draining: the generate
+        # event stream (:mod:`lhp.api._generate_stream`) surfaces it as a §5.7
+        # ``format`` phase, and the read-only plan path
+        # (:func:`lhp.core.codegen.plan_builder.build_generation_plan`) runs it
+        # over its temp tree for byte-for-byte plan/generate parity. Both resolve
+        # the tri-state via :meth:`resolve_apply_formatting` and call
+        # :meth:`format_output_tree`.
         return (
             yield from self.execution.run_generate(
                 flowgroups_by_pipeline=flowgroups_by_pipeline,
@@ -403,11 +409,56 @@ class ActionOrchestrator:
                 project_config=self.project_config,
                 project_root=self.project_root,
                 max_workers=max_workers,
-                apply_formatting=effective_apply_formatting,
                 on_total=on_total,
                 on_flowgroup_done=on_flowgroup_done,
             )
         )
+
+    def resolve_apply_formatting(self, apply_formatting: bool | None) -> bool:
+        """Resolve the tri-state terminal-format override to a plain bool.
+
+        The single seam for the ``apply_formatting`` tri-state (constitution
+        §4.1): ``None`` means "use the loaded project's ``lhp.yaml``
+        ``apply_formatting`` setting" — ``True`` when there is no project config
+        — while ``True`` / ``False`` override it. Held here, on the orchestrator
+        (which owns ``project_config``), so neither caller of the format
+        primitive duplicates the rule.
+
+        PUBLIC because the format invocation lives OUTSIDE this class — the
+        generate event stream (``lhp.api._generate_stream``) and the plan path
+        (``core.codegen.plan_builder``) both resolve the override here, then
+        guard their :meth:`format_output_tree` call on the result (§9.23 forbids
+        the ``api`` layer reaching a private orchestrator method).
+        """
+        if apply_formatting is None:
+            return (
+                self.project_config.apply_formatting
+                if self.project_config is not None
+                else True
+            )
+        return apply_formatting
+
+    def format_output_tree(self, output_dir: Path) -> None:
+        """Run the single terminal ``ruff format`` pass over ``output_dir``.
+
+        Thin delegate to :func:`lhp.core.codegen.formatter.format_generated_tree`,
+        wrapped in the ``format_tree`` perf span. Held on the orchestrator (the
+        composition root, permitted to call ``codegen`` functions directly per
+        §5) so callers ABOVE ``core`` invoke the format through a single legal
+        ``api → core`` seam rather than importing ``codegen`` directly. The
+        PRIMITIVE lives here; the INVOCATION lives with each caller AFTER it
+        drains :meth:`generate_pipelines`: the generate event stream
+        (:mod:`lhp.api._generate_stream`) surfaces it as a §5.7 ``format`` phase,
+        and the read-only plan path
+        (:func:`lhp.core.codegen.plan_builder.build_generation_plan`) runs it over
+        its temp tree for byte parity. The commit step writes UNFORMATTED source
+        verbatim; this formats it ONCE, over the whole tree.
+
+        :raises lhp.errors.LHPError: ``LHP-CFG-033`` if ruff exits non-zero, or
+            ``LHP-CFG-034`` if the ruff executable cannot be located.
+        """
+        with perf_timer("format_tree", category="format_tree"):
+            format_generated_tree(output_dir)
 
     def _build_generate_worker_state(
         self,
@@ -424,8 +475,9 @@ class ActionOrchestrator:
         ``project_config`` / ``project_root`` are deliberately NOT on this carrier
         (commit-step inputs passed to ``run_generate`` separately, never crossing
         the spawn boundary). No formatter on the worker: the worker only
-        ``ast.parse``-validates; the single terminal ruff pass runs on the
-        coordinator (:class:`PipelineExecutionService`).
+        ``ast.parse``-validates; the single terminal ruff pass
+        (:meth:`format_output_tree`) is driven by the caller — the generate event
+        stream or the plan path — after :meth:`generate_pipelines` drains.
         """
         return _FlowgroupWorkerState(
             processor=self.processing,

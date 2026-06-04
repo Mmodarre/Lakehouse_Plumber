@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### `format` generation phase + rotating flavor-word live line — terminal ruff-format relocated off the executor
+
+**Summary.** The terminal `ruff format` pass that finishes a `generate` run no
+longer lives on the executor; it is now a thin internal orchestrator delegate
+(`ActionOrchestrator.format_output_tree`) driven as its own generation phase. The
+generate event stream therefore surfaces a new `format` phase **between**
+`generate` and `monitoring` (rendered as a check plus `format  N.Ns`), and the
+plan path drives the same pass post-drain so plan/generate output stays
+byte-for-byte identical. Separately, every live-rendered op (`generate` /
+`validate` / `diff`) gains a second live line: a rotating flavor word — led by
+its own spinning circle-quadrant glyph (◐◓◑◒), distinct from line 1's
+braille-dots spinner — under the status line, in a fixed two-line transient
+region. A distinct "writing files"
+phase is **not** added — that decision is tracked below as
+`WRITING-PHASE-DEFER`.
+
+**Added.**
+
+- **A `format` generation phase (provisional phase-string contract addition).**
+  The generate stream emits a `PhaseStarted` / `PhaseCompleted` pair with
+  `phase="format"`, ordered **between** the existing `generate` and `monitoring`
+  phases, rendering as a check plus `format  N.Ns`. This is a *provisional*
+  addition to the generate phase-name contract: a consumer keying on the set of
+  generate phase strings now sees a new value, `"format"`, appear between
+  `"generate"` and `"monitoring"`. The phase is emitted only when there is an
+  output directory, formatting resolves on
+  (`ActionOrchestrator.resolve_apply_formatting`), and the generate response
+  succeeded; the formatter raises `LHP-CFG-033` / `LHP-CFG-034`, surfaced through
+  an in-stream `PhaseCompleted(success=False)` rendezvous (the `bundle_sync`
+  pattern) rather than escaping the stream.
+- **A rotating flavor-word second live line on every live-rendered op.** Beneath
+  the status line, `generate` / `validate` / `diff` now show a dim, rotating
+  flavor word (`flavor_word_for`, a pure deterministic function of elapsed time)
+  led by its own animated spinner — a spinning circle quadrant (◐◓◑◒,
+  `flavor_spinner_frame_for`), a deliberately different shape from line 1's
+  braille-dots spinner — that advances on Rich's refresh thread independently of
+  progress. The spinner glyph is rendered **red** (the one moving accent on an
+  otherwise dim line), and each run starts at a **random phase/word**: the
+  renderable draws a per-run starting `offset` for the spinner quadrant and the
+  word once at construction, so no two runs open on the same glyph/word. The
+  rotation stays a pure, deterministic function of elapsed time once that offset
+  is fixed (`offset=0` reproduces the unshifted sequence) — the offset is
+  injectable, so clock-driven renderer tests remain deterministic; the only RNG
+  lives in the renderable's constructor, never per frame.
+
+**Changed.**
+
+- **The terminal `ruff format` pass moved from the executor to a thin internal
+  orchestrator delegate.** `ActionOrchestrator.format_output_tree(output_dir)`
+  now wraps `lhp.core.codegen.formatter.format_generated_tree` in the
+  `perf_timer("format_tree", category="format_tree")` span. The generate stream
+  drives it as the `format` phase, and the plan path drives the identical pass
+  after draining generation, so plan and generate emit byte-for-byte identical
+  output. `executor.py` is fully stripped of formatting (no
+  `format_generated_tree`, no `apply_formatting` parameter, no format perf span),
+  and `orchestrator.generate_pipelines` is now a pure delta-generator (no
+  `apply_formatting` parameter, no tail format).
+- **The live status region is now a fixed two-line transient region.** Line 1 is
+  the status bar (unchanged); line 2 is the rotating flavor line. Each line is
+  hard-truncated to the console width **independently**, so neither can wrap, and
+  the whole region wipes cleanly on teardown.
+
+**Deferred (decided; tracked for follow-up).**
+
+- **`WRITING-PHASE-DEFER`** — a distinct "writing files" phase is intentionally
+  **not** implemented. The commit step is fused with per-pipeline progress —
+  `PipelineStarted` / `PipelineCompleted` are emitted as pipelines commit, inside
+  the `generate` phase — rather than split into its own phase. Splitting "writing"
+  out would require restructuring the executor's compute-vs-commit boundary and
+  would redefine what the progress bar measures.
+
 ### CLI smoothness and startup — animated progress, lazy startup, and a readable run summary
 
 **Summary.** A presentation/startup polish pass over the streaming commands.

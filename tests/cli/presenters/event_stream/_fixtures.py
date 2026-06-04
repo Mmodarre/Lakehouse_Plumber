@@ -28,6 +28,7 @@ from lhp.api import (
     BatchGenerationResponse,
     BatchValidationResponse,
     GenerationCompleted,
+    GenerationPlan,
     GenerationResponse,
     LHPEvent,
     OperationStarted,
@@ -40,7 +41,7 @@ from lhp.api import (
     ValidationResponse,
     WarningEmitted,
 )
-from lhp.api.events import ErrorEmitted
+from lhp.api.events import ErrorEmitted, GenerationPlanCompleted
 from lhp.errors import ErrorFactory
 from lhp.errors.codes import VAL_021
 
@@ -224,6 +225,37 @@ def clean_validate_stream() -> List[LHPEvent]:
         PipelineCompleted(pipeline="bronze", duration_s=0.05, files_written=0),
         PhaseCompleted(phase="validate", duration_s=0.05, success=True),
         ValidationCompleted(response=_batch_validation_response(success=True)),
+    ]
+
+
+def clean_plan_stream() -> List[LHPEvent]:
+    """A successful plan stream ending in a terminal ``GenerationPlanCompleted``.
+
+    Models the path the ``diff`` command drives the live renderer over
+    (``facade.generation.plan_generation``): ``OperationStarted`` -> three phase
+    pairs (``discover`` / ``preflight`` / ``generate``) -> a pipeline pair ->
+    terminal ``GenerationPlanCompleted`` carrying a (here empty) plan. Like the
+    real plan stream — and unlike the generate stream — it has NO ``format``
+    phase (the dry-run plan never writes or formats files), so a renderer driven
+    by it must never surface a ``format`` stage line.
+    """
+    plan = GenerationPlan(
+        files=(),
+        output_location=None,
+        pipeline_count=1,
+        file_count=0,
+    )
+    return [
+        OperationStarted(operation_name="diff", env="dev"),
+        PhaseStarted(phase="discover"),
+        PhaseCompleted(phase="discover", duration_s=0.01, success=True),
+        PhaseStarted(phase="preflight"),
+        PhaseCompleted(phase="preflight", duration_s=0.02, success=True),
+        PhaseStarted(phase="generate"),
+        PipelineStarted(pipeline="bronze"),
+        PipelineCompleted(pipeline="bronze", duration_s=0.10, files_written=0),
+        PhaseCompleted(phase="generate", duration_s=0.30, success=True),
+        GenerationPlanCompleted(response=plan),
     ]
 
 

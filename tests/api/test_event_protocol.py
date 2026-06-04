@@ -1100,14 +1100,23 @@ class TestProgressStreamFraming:
 
         # Phases pair up: the PhaseStarted sequence equals the PhaseCompleted
         # sequence. The full generate orchestration consolidates discover →
-        # preflight → generate → monitoring into the one stream; the monitoring
+        # preflight → generate → format → monitoring into the one stream. This
+        # is a DEFAULT run (``apply_formatting`` unset → resolves to the
+        # project's ``lhp.yaml`` setting, ``True`` when absent), so the
+        # ``format`` phase runs between generate and monitoring; the monitoring
         # phase always runs on a successful non-dry-run generate (the absorbed
         # finalize is a no-op when monitoring is not configured, as here).
         # ``bundle_sync`` is absent because this project is not bundle-enabled.
         started_phases = [e.phase for e in events if isinstance(e, PhaseStarted)]
         completed_phases = [e.phase for e in events if isinstance(e, PhaseCompleted)]
         assert started_phases == completed_phases
-        assert started_phases == ["discover", "preflight", "generate", "monitoring"]
+        assert started_phases == [
+            "discover",
+            "preflight",
+            "generate",
+            "format",
+            "monitoring",
+        ]
 
         # Exactly one terminal OperationCompleted subclass, and it is LAST.
         terminals = [e for e in events if isinstance(e, OperationCompleted)]
