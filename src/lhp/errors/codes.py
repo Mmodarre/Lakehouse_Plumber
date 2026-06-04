@@ -65,6 +65,7 @@ VAL_046 = ErrorCode(ErrorCategory.VALIDATION, "046")
 VAL_053 = ErrorCode(ErrorCategory.VALIDATION, "053")
 VAL_055 = ErrorCode(ErrorCategory.VALIDATION, "055")
 VAL_061 = ErrorCode(ErrorCategory.VALIDATION, "061")
+VAL_062 = ErrorCode(ErrorCategory.VALIDATION, "062")
 VAL_902 = ErrorCode(ErrorCategory.VALIDATION, "902")
 VAL_DUPFG = ErrorCode(ErrorCategory.VALIDATION, "DUPFG")
 
@@ -120,6 +121,12 @@ CFG_056 = ErrorCode(ErrorCategory.CONFIG, "056")
 CFG_057 = ErrorCode(ErrorCategory.CONFIG, "057")
 CFG_058 = ErrorCode(ErrorCategory.CONFIG, "058")
 CFG_059 = ErrorCode(ErrorCategory.CONFIG, "059")
+CFG_060 = ErrorCode(ErrorCategory.CONFIG, "060")
+# CFG_061: wheel packaging requires a valid ``/Volumes/...`` artifact volume —
+# raised by BundleManager._resolve_artifact_volume when wheel.artifact_volume is
+# absent/empty or does not start with ``/Volumes/`` (serverless installs custom
+# wheels only from a UC volume).
+CFG_061 = ErrorCode(ErrorCategory.CONFIG, "061")
 
 DEP_001 = ErrorCode(ErrorCategory.DEPENDENCY, "001")
 DEP_022 = ErrorCode(ErrorCategory.DEPENDENCY, "022")
@@ -182,6 +189,7 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     VAL_053,
     VAL_055,
     VAL_061,
+    VAL_062,
     VAL_902,
     VAL_DUPFG,
     IO_001,
@@ -235,6 +243,8 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     CFG_057,
     CFG_058,
     CFG_059,
+    CFG_060,
+    CFG_061,
     DEP_001,
     DEP_022,
     ACT_001,
@@ -295,6 +305,8 @@ __all__ = [
     "CFG_057",
     "CFG_058",
     "CFG_059",
+    "CFG_060",
+    "CFG_061",
     "DEPR_001",
     "DEPR_002",
     "DEPR_003",
@@ -347,6 +359,7 @@ __all__ = [
     "VAL_053",
     "VAL_055",
     "VAL_061",
+    "VAL_062",
     "VAL_902",
     "VAL_DUPFG",
     "ErrorCode",

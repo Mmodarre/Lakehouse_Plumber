@@ -142,6 +142,10 @@ class PipelineDelta:
     project this keeps the worker→main pickle to ~50 KB. Consumers that
     need the formatted code (none currently do) must read it from disk.
 
+    ``wheel_filename`` is INTERNAL telemetry: the packaged ``.whl`` filename
+    on the wheel-mode commit path, ``None`` for source / dry-run. It is
+    deliberately absent from every public response DTO.
+
     Why ``frozen=True, slots=True``:
       - Immutability across the spawn boundary: workers can't accidentally
         mutate a delta after it's been queued for the main thread.
@@ -155,6 +159,7 @@ class PipelineDelta:
     artifacts_count: int = 0
     generated_filenames: tuple[str, ...] = ()
     duration_s: float = 0.0
+    wheel_filename: Optional[str] = None
     lhp_error: Optional["LHPError"] = None
     error_type: Optional[str] = None
     error_message: Optional[str] = None
@@ -169,10 +174,16 @@ class PipelineDelta:
         artifacts_count: int = 0,
         generated_filenames: Sequence[str] = (),
         duration_s: float = 0.0,
+        wheel_filename: Optional[str] = None,
     ) -> "PipelineDelta":
         """Build a success delta. The trailing underscore on the name avoids
         shadowing the ``success`` field while still reading naturally at
         call sites (``PipelineDelta.success_(...)``).
+
+        ``wheel_filename`` is INTERNAL telemetry only — set to the packaged
+        ``.whl`` filename on the wheel-mode commit path and left ``None`` for
+        source / dry-run. It is deliberately NOT propagated to any public
+        ``GenerationResponse`` / ``BatchGenerationResponse`` DTO.
         """
         return cls(
             pipeline_name=pipeline_name,
@@ -181,6 +192,7 @@ class PipelineDelta:
             artifacts_count=artifacts_count,
             generated_filenames=tuple(generated_filenames),
             duration_s=duration_s,
+            wheel_filename=wheel_filename,
         )
 
     @classmethod

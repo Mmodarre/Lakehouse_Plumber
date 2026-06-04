@@ -125,6 +125,8 @@ class PipelineExecutionService(BasePipelineExecutionService):
         output_dir: Optional[Path],
         project_config: Optional["ProjectConfig"],
         project_root: Path,
+        env: str = "dev",
+        packaging_modes: Optional[Mapping[str, str]] = None,
         max_workers: Optional[int] = None,
         on_total: Optional[Callable[[int], None]] = None,
         on_flowgroup_done: Optional[Callable[[], None]] = None,
@@ -145,6 +147,11 @@ class PipelineExecutionService(BasePipelineExecutionService):
         ``on_total`` / ``on_flowgroup_done`` are the optional plain-callable
         flowgroup-progress side channel (§13.5 — not events, no ``lhp.api``
         import) threaded to the engine for a live ``done/total`` counter.
+
+        ``env`` / ``packaging_modes`` are threaded to the coordinator-side commit
+        step (NEVER onto ``worker_state`` / the spawn boundary) for the
+        per-pipeline wheel packaging branch (a later task); ``None`` modes means
+        every pipeline is ``"source"`` → byte-identical to today.
 
         :raises LHPError: the sole failure's error, or ``LHP-VAL-902`` (many);
             also raised for a non-empty ``discovery_errors``.
@@ -185,6 +192,8 @@ class PipelineExecutionService(BasePipelineExecutionService):
                 flowgroups_by_pipeline=flowgroups_by_pipeline,
                 worker_state=worker_state,
                 validation_service=self._validation_service,
+                env=env,
+                packaging_modes=packaging_modes,
                 output_dir=output_dir,
                 project_config=project_config,
                 project_root=project_root,
@@ -296,6 +305,8 @@ class PipelineExecutionService(BasePipelineExecutionService):
         flowgroups_by_pipeline: Mapping[str, Sequence[FlowGroupContext]],
         worker_state: _FlowgroupWorkerState,
         validation_service: "ValidationService",
+        env: str = "dev",
+        packaging_modes: Optional[Mapping[str, str]] = None,
         output_dir: Optional[Path] = None,
         project_config: Optional["ProjectConfig"] = None,
         project_root: Optional[Path] = None,
@@ -322,6 +333,11 @@ class PipelineExecutionService(BasePipelineExecutionService):
         ``on_total`` / ``on_flowgroup_done`` are the optional plain-callable
         flowgroup-progress side channel threaded straight to the engine
         (§13.5 — not events, no ``lhp.api`` import).
+
+        ``env`` / ``packaging_modes`` are threaded straight to the commit step
+        (coordinator-side, NEVER onto ``worker_state`` / the spawn boundary) for
+        the per-pipeline wheel packaging branch (a later task); ``None`` modes
+        means every pipeline is ``"source"`` → byte-identical to today.
 
         :raises LHPError: the sole failure's error, or ``LHP-VAL-902`` (many).
         """
@@ -351,6 +367,8 @@ class PipelineExecutionService(BasePipelineExecutionService):
             output_dir=output_dir,
             project_config=project_config,
             project_root=project_root or Path.cwd(),
+            env=env,
+            packaging_modes=packaging_modes,
         )
         # Commit writes UNFORMATTED source verbatim. The single terminal ruff
         # pass over the whole env tree runs on the orchestrator AFTER this

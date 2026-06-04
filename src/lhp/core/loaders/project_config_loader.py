@@ -26,6 +26,7 @@ from ._monitoring_config_parser import (
 )
 from ._operational_metadata_config_parser import parse_operational_metadata_config
 from ._test_reporting_config_parser import parse_test_reporting_config
+from ._wheel_config_parser import parse_wheel_config
 
 
 class ProjectConfigLoader:
@@ -132,6 +133,10 @@ class ProjectConfigLoader:
                 config_data["test_reporting"]
             )
 
+        wheel_config = None
+        if "wheel" in config_data:
+            wheel_config = parse_wheel_config(config_data["wheel"])
+
         return ProjectConfig(
             name=config_data.get("name", "unnamed_project"),
             version=config_data.get("version", "1.0"),
@@ -146,6 +151,7 @@ class ProjectConfigLoader:
             monitoring=monitoring_config,
             required_lhp_version=config_data.get("required_lhp_version"),
             test_reporting=test_reporting_config,
+            wheel=wheel_config,
             apply_formatting=config_data.get("apply_formatting", True),
         )
 

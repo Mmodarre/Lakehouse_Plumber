@@ -33,7 +33,16 @@ INVOKED by each caller AFTER it drains ``generate_pipelines``.
 import logging
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Generator, List, Optional, Sequence, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    Generator,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+)
 
 from lhp.models import FlowGroup
 
@@ -62,7 +71,7 @@ from ..codegen.formatter import format_generated_tree
 from ..dependencies import DependencyAnalysisService, DependencyResolver
 from ..discovery.blueprint_discoverer import BlueprintDiscoverer
 from ..discovery.flowgroup_discoverer import FlowgroupDiscoveryService
-from ..loaders import ProjectConfigLoader
+from ..loaders import PipelineConfigLoader, ProjectConfigLoader
 from ..loaders.version_enforcement import enforce_version_requirements
 from ..processing import TemplateEngine
 from ..processing.blueprint_expander import BlueprintExpander
@@ -307,6 +316,7 @@ class ActionOrchestrator:
         include_tests: bool = False,
         pre_discovered_all_flowgroups: Optional[Sequence[FlowGroup]] = None,
         max_workers: Optional[int] = None,
+        packaging_modes: Optional[Mapping[str, str]] = None,
         on_total: Optional[Callable[[int], None]] = None,
         on_flowgroup_done: Optional[Callable[[], None]] = None,
     ) -> Generator["PipelineDelta", None, Tuple["DeprecationWarningRecord", ...]]:
@@ -366,6 +376,8 @@ class ActionOrchestrator:
         self.logger.info(
             f"Starting batch pipeline generation: {len(effective_fields)} pipeline(s) for env: {env}"
         )
+        if packaging_modes is None:
+            packaging_modes = self._resolve_packaging_modes(list(effective_fields))
         (
             flowgroups_by_pipeline,
             substitution_managers,
@@ -408,11 +420,26 @@ class ActionOrchestrator:
                 output_dir=output_dir,
                 project_config=self.project_config,
                 project_root=self.project_root,
+                env=env,
+                packaging_modes=packaging_modes,
                 max_workers=max_workers,
                 on_total=on_total,
                 on_flowgroup_done=on_flowgroup_done,
             )
         )
+
+    def _resolve_packaging_modes(self, pipeline_names: List[str]) -> Mapping[str, str]:
+        """Resolve each pipeline's packaging mode from ``pipeline_config``.
+
+        Thin delegation to
+        :meth:`PipelineConfigLoader.resolve_packaging_modes`; with no
+        per-pipeline ``packaging`` set every entry is ``"source"`` (today's
+        behavior). The coordinator passes the map to ``run_generate`` for the
+        commit-step wheel branch — it never crosses the worker/spawn boundary.
+        """
+        return PipelineConfigLoader(
+            self.project_root, self.pipeline_config_path
+        ).resolve_packaging_modes(pipeline_names)
 
     def resolve_apply_formatting(self, apply_formatting: bool | None) -> bool:
         """Resolve the tri-state terminal-format override to a plain bool.

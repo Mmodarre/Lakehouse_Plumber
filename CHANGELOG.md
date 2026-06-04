@@ -7,6 +7,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Deterministic per-pipeline wheel packaging — content-addressed wheels alongside source-mode pipelines
+
+**Summary.** LHP-generated pipelines can now be packaged and deployed as a
+deterministic, content-addressed Python **wheel** instead of synced source
+files, selectable **per pipeline** via a new `packaging: source|wheel` toggle
+(default `source`). The generated pipeline logic is **byte-identical** to source
+mode — only the packaging/deploy mechanism differs — and the wheel build is
+**deterministic and content-addressed**, so a pipeline whose inputs are
+unchanged produces the same wheel and deploys as a no-op. The wheel METADATA
+`Version` is **coupled to the LHP tool version**, so upgrading LHP rebuilds the
+wheel. Source and wheel pipelines **mix freely** in one project and in a single
+`lhp generate` run. A new provisional `core/packaging/` sub-package holds the
+deterministic wheel builder and the runner renderer, and LHP owns a generated
+`resources/lhp/_wheels.bundle.yml` carrying the artifacts, per-env
+`artifact_path`, and `sync.exclude`. Several pieces are decided-but-deferred for
+v1 and tracked below — each to be **verified on a live workspace before
+release**.
+
+**Added.**
+
+- **A `wheel:` section in `lhp.yaml` (`wheel.artifact_volume: /Volumes/...`).**
+  Declares the Unity Catalog volume the built wheels are published to. The value
+  is **token-aware** — resolved through the substitution manager — so it may be
+  written with `${env_token}` / `${...}` tokens that resolve per environment.
+- **A per-pipeline `packaging: source|wheel` toggle (default `source`).** Selects
+  whether a pipeline is deployed as synced source files (`source`, the default)
+  or as a content-addressed wheel (`wheel`). It is also settable project-wide via
+  `project_defaults.packaging`, with the per-pipeline value taking precedence.
+- **A provisional `core/packaging/` sub-package.** Holds the deterministic,
+  content-addressed wheel **builder** and the **runner renderer** (the entry-point
+  module a wheel-mode pipeline imports). The sub-package is sanctioned by
+  `TARGET_ARCHITECTURE.md` §5bis.
+- **New error codes `LHP-VAL-062`, `LHP-CFG-060`, and `LHP-CFG-061`.**
+  `LHP-VAL-062` rejects an invalid `packaging` value (anything other than
+  `source` / `wheel`); `LHP-CFG-060` rejects an invalid `wheel` config shape; and
+  `LHP-CFG-061` is raised when `packaging: wheel` is selected but no resolved
+  `/Volumes/...` artifact volume is available.
+- **An LHP-owned `resources/lhp/_wheels.bundle.yml`.** A generated bundle fragment
+  carrying the wheel `artifacts`, the per-env
+  `targets.<env>.workspace.artifact_path`, and a `sync.exclude` so the wheeled
+  sources are not also synced as plain files.
+
+**Key properties.**
+
+- **Generated pipeline logic is byte-identical to source mode** — only the
+  packaging/deploy mechanism differs between `source` and `wheel`.
+- **Wheels are deterministic and content-addressed** — a pipeline whose inputs
+  are unchanged builds the same wheel, so its deploy is a no-op.
+- **The wheel METADATA `Version` is coupled to the LHP tool version** — upgrading
+  LHP changes the version and rebuilds the wheel.
+- **Source and wheel pipelines mix freely** in one project and within a single
+  `lhp generate` run.
+
+**Deferred (decided; tracked for follow-up).**
+
+- **`WHEEL-MONITORING-DEFER`** — the separate monitoring pipeline is **not**
+  wheeled in v1; it stays source mode. Documented limitation. *Verify on a live
+  workspace before release.*
+- **`WHEEL-RUNTIME-O2`** — classic (non-serverless) compute support for wheel-mode
+  pipelines. *Verify on a live workspace before release.*
+- **`WHEEL-RUNTIME-O3`** — `sync.exclude` honoring by the bundle deploy. *Verify
+  on a live workspace before release.*
+- **`WHEEL-RUNTIME-O4`** — deploy upload-without-rebuild of the prebuilt wheel.
+  *Verify on a live workspace before release.*
+- **`WHEEL-RUNTIME-O5`** — serverless environment-reuse caching. *Verify on a live
+  workspace before release.*
+
 ### `format` generation phase + rotating flavor-word live line — terminal ruff-format relocated off the executor
 
 **Summary.** The terminal `ruff format` pass that finishes a `generate` run no

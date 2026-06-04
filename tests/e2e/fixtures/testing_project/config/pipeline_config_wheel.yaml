@@ -1,0 +1,135 @@
+# Pipeline configuration for the wheel-packaging E2E scenario.
+#
+# Byte-for-byte identical to config/pipeline_config.yaml EXCEPT for the final
+# document, which flips `sample_python_func_pipeline` into wheel packaging mode
+# (`packaging: wheel`). Used ONLY by the wheel-mode E2E test so that the shared
+# pipeline_config.yaml — and therefore every other E2E baseline — stays in
+# source mode and completely unchanged.
+
+project_defaults:
+  catalog: "${catalog}"
+  schema: "${raw_schema}"
+  serverless: true
+  #environment:
+  #  dependencies:
+  #    - "msal=={msal_version}"
+  #configuration:
+  #  "pipelines.incompatibleViewCheck.enabled": "false"
+
+
+---
+pipeline: acmi_edw_raw
+catalog: "${catalog}"
+schema: "${raw_schema}"
+serverless: false
+clusters:
+  - label: default
+    node_type_id: "{cluster_node_type_id}"
+    driver_node_type_id: "{cluster_driver_node_type_id}"
+    autoscale:
+      min_workers: "{cluster_autoscale_min_workers}"
+      max_workers: "{cluster_autoscale_max_workers}"
+      mode: "{cluster_autoscale_mode}"
+photon: "{photon}"
+edition: ADVANCED
+channel: PREVIEW
+continuous: "{continuous}"
+
+---
+pipeline: acmi_edw_bronze
+catalog: "${catalog}"
+schema: "{bronze_schema}"
+serverless: false
+clusters:
+  - label: default
+    node_type_id: Standard_D8ds_v5
+    autoscale:
+      min_workers: "{cluster_autoscale_min_workers}"
+      max_workers: "{cluster_autoscale_max_workers}"
+      mode: ENHANCED
+permissions:
+  - level: CAN_MANAGE
+    user_name: "admin@example.com"
+  - level: CAN_VIEW
+    group_name: "data-engineers"
+  - level: CAN_MANAGE_RUN
+    service_principal_name: "2aa4ed8e-0a18-4072-97c6-9c074c8be40d"
+run_as:
+  service_principal_name: "2aa4ed8e-0a18-4072-97c6-9c074c8be40d"
+
+---
+# Environment dependencies E2E test pipelines
+pipeline: env_deps_basic
+catalog: "${catalog}"
+schema: "${raw_schema}"
+#environment:
+#  dependencies:
+#    - "msal==1.31.0"
+#    - "requests>=2.28.0"
+
+---
+pipeline: env_deps_substitution
+catalog: "${catalog}"
+schema: "${raw_schema}"
+#environment:
+#  dependencies:
+#    - "msal=={msal_version}"
+
+---
+# Pipeline with no environment — inherits from project_defaults when uncommented there
+pipeline: env_deps_inherited
+catalog: "${catalog}"
+schema: "${raw_schema}"
+
+---
+# Configuration block E2E test pipelines
+pipeline: config_basic
+catalog: "${catalog}"
+schema: "${raw_schema}"
+#configuration:
+#  "pipelines.incompatibleViewCheck.enabled": "false"
+#  "spark.databricks.delta.minFileSize": "134217728"
+
+---
+pipeline: config_substitution
+catalog: "${catalog}"
+schema: "${raw_schema}"
+#configuration:
+#  "spark.databricks.delta.minFileSize": "{min_file_size}"
+
+---
+# Pipeline with no configuration — inherits from project_defaults when uncommented there
+pipeline: config_inherited
+catalog: "${catalog}"
+schema: "${raw_schema}"
+
+---
+# Event log E2E test pipelines
+pipeline: event_log_basic
+catalog: "${catalog}"
+schema: "${raw_schema}"
+
+---
+pipeline: event_log_override
+catalog: "${catalog}"
+schema: "${raw_schema}"
+#event_log:
+#  name: custom_event_log
+#  catalog: override_catalog
+#  schema: override_schema
+
+---
+pipeline: event_log_disabled
+catalog: "${catalog}"
+schema: "${raw_schema}"
+#event_log: false
+
+---
+# Wheel-packaging scenario: this pipeline opts into per-pipeline wheel mode.
+# Its custom_python_functions usage exercises the wheel's top-level
+# custom_python_functions/ package (WHEEL_PACKAGING_SPEC R6).
+pipeline: sample_python_func_pipeline
+catalog: "${catalog}"
+schema: "${raw_schema}"
+serverless: true
+packaging: wheel

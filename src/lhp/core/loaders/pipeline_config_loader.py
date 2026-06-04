@@ -5,7 +5,7 @@
 import logging
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from lhp.errors import ErrorFactory, codes
 
@@ -24,6 +24,7 @@ class PipelineConfigLoader:
 
     ALLOWED_EDITIONS = {"CORE", "PRO", "ADVANCED"}
     ALLOWED_CHANNELS = {"CURRENT", "PREVIEW"}
+    ALLOWED_PACKAGING_MODES = {"wheel", "source"}
     MONITORING_ALIAS = "__eventlog_monitoring"
 
     def __init__(
@@ -58,6 +59,27 @@ class PipelineConfigLoader:
             config = self._deep_merge(config, self.pipeline_configs[pipeline_name])
 
         return config
+
+    def resolve_packaging_modes(
+        self, pipeline_names: List[str]
+    ) -> Dict[str, Literal["wheel", "source"]]:
+        """Resolve each pipeline's packaging mode.
+
+        Precedence (lowest to highest): hard default ``"source"`` ->
+        ``project_defaults.packaging`` -> per-pipeline ``packaging``.
+
+        The project_defaults -> per-pipeline layering is delegated to
+        ``get_pipeline_config`` (the same deep-merge every consumer uses); the
+        hard ``"source"`` default is applied here when neither layer sets the
+        key. Any present value is guaranteed by ``_validate_config`` to be in
+        ``ALLOWED_PACKAGING_MODES``.
+        """
+        modes: Dict[str, Literal["wheel", "source"]] = {}
+        for name in pipeline_names:
+            merged = self.get_pipeline_config(name)
+            mode = merged.get("packaging", "source")
+            modes[name] = "wheel" if mode == "wheel" else "source"
+        return modes
 
     def _load_config(self, config_file_path: Optional[str]) -> Tuple[Dict, Dict]:
         """
@@ -306,6 +328,22 @@ class PipelineConfigLoader:
                         "Check spelling and case sensitivity",
                     ],
                     context={"Provided": config["channel"]},
+                )
+
+        if "packaging" in config:
+            if config["packaging"] not in self.ALLOWED_PACKAGING_MODES:
+                raise ErrorFactory.validation_error(
+                    codes.VAL_062,
+                    title="Invalid pipeline packaging mode",
+                    details=(
+                        f"Invalid packaging '{config['packaging']}'. "
+                        f"Allowed values: {', '.join(sorted(self.ALLOWED_PACKAGING_MODES))}"
+                    ),
+                    suggestions=[
+                        f"Use one of: {', '.join(sorted(self.ALLOWED_PACKAGING_MODES))}",
+                        "Check spelling and case sensitivity",
+                    ],
+                    context={"Provided": config["packaging"]},
                 )
 
         if "environment" in config:

@@ -10,13 +10,27 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Iterator, List, Mapping, Optional, Sequence
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+)
 
 from ...models.processing import FlowgroupOutcome, PipelineDelta
 from ...utils.file_header import write_normalized
 from ...utils.performance_timer import perf_timer
+from ...utils.version import get_version
 from ..codegen.python_file_copier import PythonFileCopier
-from ..codegen.test_reporting import generate_test_reporting_hook
+from ..codegen.test_reporting import (
+    build_test_reporting_hook_files,
+    generate_test_reporting_hook,
+)
+from ..packaging import PipelinePackager
 
 if TYPE_CHECKING:
     from lhp.models import FlowGroup, ProjectConfig
@@ -159,6 +173,99 @@ def _generate_test_hook(
     )
 
 
+def _split_hook_files(
+    hook_files: Optional[Dict[str, str]],
+) -> tuple[Dict[str, str], Dict[str, str]]:
+    """Split the in-memory test-reporting hook files into packager buckets.
+
+    The hook module (``_test_reporting_hook.py``) ships UNDER the flowgroup
+    package (``extra_package_modules``); every ``test_reporting_providers/...``
+    file ships at the wheel TOP-LEVEL (``extra_toplevel_files``) because the
+    hook imports the providers package by its absolute top-level name. ``None``
+    (hook not configured / no ``test_id``) yields two empty maps.
+    """
+    package_modules: Dict[str, str] = {}
+    toplevel_files: Dict[str, str] = {}
+    for relpath, content in (hook_files or {}).items():
+        if relpath.startswith("test_reporting_providers/"):
+            toplevel_files[relpath] = content
+        else:
+            package_modules[relpath] = content
+    return package_modules, toplevel_files
+
+
+def _commit_wheel_pipeline(
+    pipeline: str,
+    outcomes: Sequence[FlowgroupOutcome],
+    *,
+    output_dir: Path,
+    project_config: Optional["ProjectConfig"],
+    project_root: Path,
+    include_tests: bool,
+    env: str,
+    substitution_mgr: Optional["EnhancedSubstitutionManager"],
+) -> PipelineDelta:
+    """Package ONE pipeline as a deterministic wheel; synthesize its delta.
+
+    The wheel-mode counterpart to the source-mode body of
+    :func:`commit_pipeline`. Reached only when ``packaging_mode == "wheel"``
+    AND ``output_dir`` is not ``None``. The wheel carries the flowgroup
+    modules, the copied ``custom_python_functions``, and the test-reporting
+    hook, so the source-mode disk steps (``_write_python_files``,
+    ``_apply_copy_records``, the disk ``_generate_test_hook``) are ALL skipped
+    here — only the runner is written under the pipeline dir, and the ``.whl``
+    under the env-root ``_wheels/<pipeline>/dist/`` staging tree.
+
+    The test-reporting hook is built IN MEMORY (mirroring the exact arguments
+    :func:`_generate_test_hook` passes to ``generate_test_reporting_hook``) and
+    split into the packager's two member buckets.
+    """
+    resolved_flowgroups: List["FlowGroup"] = [
+        o.resolved_flowgroup
+        for o in outcomes
+        if o.success and o.resolved_flowgroup is not None
+    ]
+    hook_files = build_test_reporting_hook_files(
+        pipeline_name=pipeline,
+        flowgroups=resolved_flowgroups,
+        project_config=project_config,
+        project_root=project_root,
+        include_tests=include_tests,
+        substitution_mgr=substitution_mgr,
+    )
+    extra_package_modules, extra_toplevel_files = _split_hook_files(hook_files)
+
+    result = PipelinePackager().package(
+        outcomes,
+        output_dir=output_dir,
+        pipeline=pipeline,
+        env=env,
+        version=get_version(),
+        extra_package_modules=extra_package_modules,
+        extra_toplevel_files=extra_toplevel_files,
+    )
+
+    wheel_path = (
+        output_dir.parent / "_wheels" / pipeline / "dist" / result.wheel_filename
+    )
+    wheel_path.parent.mkdir(parents=True, exist_ok=True)
+    wheel_path.write_bytes(result.wheel_bytes)
+
+    write_normalized(output_dir / result.runner_filename, result.runner_code)
+
+    logger.debug(
+        f"Packaged wheel {result.wheel_filename} (hash {result.content_hash}) "
+        f"for pipeline {pipeline}"
+    )
+
+    return PipelineDelta.success_(
+        pipeline,
+        files_written=1,
+        generated_filenames=(result.runner_filename,),
+        wheel_filename=result.wheel_filename,
+    )
+
+
 def commit_pipeline(
     pipeline: str,
     outcomes: Sequence[FlowgroupOutcome],
@@ -167,6 +274,8 @@ def commit_pipeline(
     project_config: Optional["ProjectConfig"],
     project_root: Path,
     include_tests: bool,
+    env: str,
+    packaging_mode: str = "source",
     substitution_mgr: Optional["EnhancedSubstitutionManager"] = None,
     copier_factory: Callable[[], PythonFileCopier] = PythonFileCopier,
 ) -> PipelineDelta:
@@ -176,10 +285,28 @@ def commit_pipeline(
     whole-env output wipe is the driver's responsibility and has already run
     once before this loop; this function re-creates the per-pipeline directory.
     ``copier_factory`` is injectable for tests; defaults to the real class.
+
+    ``packaging_mode == "wheel"`` (with a real ``output_dir``) routes to
+    :func:`_commit_wheel_pipeline`: the pipeline is packaged into a single
+    deterministic ``.whl`` plus its runner instead of loose flowgroup files.
+    ``packaging_mode == "source"`` (the default) and dry-run
+    (``output_dir is None``) reproduce today's byte-identical source-mode output.
     """
     with perf_timer(f"commit_pipeline [{pipeline}]"):
         if output_dir is not None:
             output_dir.mkdir(parents=True, exist_ok=True)
+
+        if packaging_mode == "wheel" and output_dir is not None:
+            return _commit_wheel_pipeline(
+                pipeline,
+                outcomes,
+                output_dir=output_dir,
+                project_config=project_config,
+                project_root=project_root,
+                include_tests=include_tests,
+                env=env,
+                substitution_mgr=substitution_mgr,
+            )
 
         copier = copier_factory()
         _apply_copy_records(outcomes, copier)
@@ -237,6 +364,8 @@ def commit_generate_results(
     output_dir: Optional[Path],
     project_config: Optional["ProjectConfig"],
     project_root: Path,
+    env: str,
+    packaging_modes: Optional[Mapping[str, str]] = None,
 ) -> Iterator[PipelineDelta]:
     """Commit every gate-approved pipeline to disk, YIELDING deltas in order.
 
@@ -246,7 +375,13 @@ def commit_generate_results(
     order. MUST be fully drained — the terminal ``ruff`` pass is the driver's
     responsibility and runs after this generator is exhausted. Runs ONLY after
     :func:`._generate_gate.gate_or_raise` confirmed every pipeline is clean.
+
+    ``packaging_modes`` maps pipeline name -> ``"wheel"`` / ``"source"`` for
+    the per-pipeline wheel packaging branch (a later task); ``None`` is
+    normalized to an empty map so every pipeline resolves to ``"source"`` and
+    output is byte-identical to today.
     """
+    modes = packaging_modes or {}
     _wipe_env_output_dir(output_dir)
     for result in pool_results:
         pipeline = result.pipeline
@@ -257,5 +392,7 @@ def commit_generate_results(
             project_config=project_config,
             project_root=project_root,
             include_tests=include_tests,
+            env=env,
+            packaging_mode=modes.get(pipeline, "source"),
             substitution_mgr=substitution_managers.get(pipeline),
         )

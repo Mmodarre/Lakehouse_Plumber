@@ -17,6 +17,10 @@ src/lakehouse_plumber.egg-info/
 __pycache__/
 build/
 dist/
+# Per-pipeline wheel-packaging staging dir + built wheels (content-addressed
+# binaries; rebuilt deterministically by `lhp generate`, never committed).
+_wheels/
+*.whl
 Sample_Projects/
 .readthedocs.yml
 publish.sh

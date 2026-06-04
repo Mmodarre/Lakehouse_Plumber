@@ -195,7 +195,10 @@ def _parse_category_counts(perf_log_text: str) -> dict:
             counts[m.group(1)] = int(m.group(2))
     return counts
 
-@pytest.mark.xfail(reason="KNOWN BUG: worker PerfSummary.merge is not called in the single-stream generate path, so worker-side categories never reach perf.log. See module docstring.")
+
+@pytest.mark.xfail(
+    reason="KNOWN BUG: worker PerfSummary.merge is not called in the single-stream generate path, so worker-side categories never reach perf.log. See module docstring."
+)
 class TestGeneratePerfPropagation:
     PIPELINES = ["p_alpha", "p_beta"]
 

@@ -56,6 +56,12 @@ class BundleManager:
     via the top-level ``project_defaults`` block).
     """
 
+    # Subdirectories under ``generated/<env>/`` that LHP reserves for its own
+    # use and that must NOT be treated as pipeline directories. Currently just
+    # the wheel-packaging staging dir (``generated/<env>/_wheels/<pipeline>/``).
+    # A set so future reserved names are trivial to add.
+    _RESERVED_GENERATED_SUBDIRS = {"_wheels"}
+
     def __init__(
         self,
         project_root: Union[Path, str],
@@ -158,6 +164,11 @@ class BundleManager:
             # Sort directories to ensure deterministic processing order across platforms
             for item in sorted(output_dir.iterdir()):
                 if item.is_dir():
+                    if item.name in self._RESERVED_GENERATED_SUBDIRS:
+                        self.logger.debug(
+                            "Skipping reserved generated subdirectory: %s", item.name
+                        )
+                        continue
                     pipeline_dirs.append(item)
                     self.logger.debug("Found pipeline directory: %s", item.name)
 
@@ -279,6 +290,21 @@ class BundleManager:
         else:
             pipeline_config_resolved = pipeline_config_raw
 
+        # R8: ``packaging`` is an LHP-internal toggle consumed by the generator,
+        # never by Databricks. Strip it in BOTH modes BEFORE render — the
+        # template's pass-through loop would otherwise leak it into the resource
+        # YAML (it is not in EXPLICITLY_RENDERED_PIPELINE_CONFIG_KEYS).
+        pipeline_config_resolved.pop("packaging", None)
+
+        # Wheel mode: inject this pipeline's wheel artifact as the last
+        # ``environment.dependencies`` entry, preserving any user-declared deps
+        # (R11). Source mode is unchanged apart from the strip above.
+        packaging_mode = self.config_loader.resolve_packaging_modes([pipeline_name])[
+            pipeline_name
+        ]
+        if packaging_mode == "wheel":
+            self._inject_wheel_dependency(pipeline_config_resolved, pipeline_name, env)
+
         catalog = pipeline_config_resolved.get("catalog")
         schema = pipeline_config_resolved.get("schema")
         if (
@@ -321,6 +347,209 @@ class BundleManager:
 
         return self.template_renderer.render_template(
             "bundle/pipeline_resource.yml.j2", context
+        )
+
+    def _resolve_artifact_volume(self, env: str) -> str:
+        """Resolve and validate the project's ``wheel.artifact_volume`` for ``env``.
+
+        The raw value (``lhp.yaml`` ``wheel.artifact_volume``) is run through the
+        same per-env substitution manager that resolves ``event_log`` and every
+        other per-env value, so ``${catalog}``/``${...}`` tokens expand against
+        ``substitutions/<env>.yaml``.
+
+        This is the single ``/Volumes/...`` validation point shared by every
+        wheel-packaging consumer (the per-pipeline wheel-reference injector and
+        the bundle-level ``artifact_path`` writer): serverless installs custom
+        wheels only from a UC volume, so the *resolved* value MUST start with
+        ``/Volumes/``.
+
+        Raises:
+            LHPError: ``LHP-CFG-061`` if the project declares no
+                ``wheel.artifact_volume`` (absent/empty) OR if the resolved value
+                does not start with ``/Volumes/`` — a wheel-mode pipeline cannot
+                resolve a valid install path in either case.
+        """
+        wheel_cfg = getattr(self.project_config, "wheel", None)
+        artifact_volume_raw = getattr(wheel_cfg, "artifact_volume", None)
+        if not artifact_volume_raw or not str(artifact_volume_raw).strip():
+            raise ErrorFactory.config_error(
+                codes.CFG_061,
+                title="Wheel packaging requires a /Volumes/... artifact volume",
+                details=(
+                    "A pipeline is configured for wheel packaging but the project "
+                    "defines no 'wheel.artifact_volume' in lhp.yaml, so the wheel's "
+                    "install path cannot be resolved."
+                ),
+                suggestions=[
+                    "Add a 'wheel.artifact_volume' (a /Volumes/... path) to lhp.yaml",
+                    "Or set the pipeline's 'packaging' back to 'source'",
+                ],
+                context={"env": env},
+            )
+
+        sub_mgr = self._get_substitution_manager(env)
+        if sub_mgr is None:
+            resolved = str(artifact_volume_raw)
+        else:
+            # substitute_yaml resolves tokens recursively; wrap the scalar so it
+            # rides the exact same path as event_log (no separate string API).
+            resolved = str(sub_mgr.substitute_yaml({"v": artifact_volume_raw})["v"])
+
+        if not resolved.startswith("/Volumes/"):
+            raise ErrorFactory.config_error(
+                codes.CFG_061,
+                title="Wheel packaging requires a /Volumes/... artifact volume",
+                details=(
+                    f"The resolved 'wheel.artifact_volume' for environment "
+                    f"'{env}' is {resolved!r}, which is not a Unity Catalog volume "
+                    f"path. Serverless compute installs custom wheels only from a "
+                    f"/Volumes/... path, so wheel packaging cannot proceed."
+                ),
+                suggestions=[
+                    "Set 'wheel.artifact_volume' in lhp.yaml to a /Volumes/... path",
+                    "Verify any ${tokens} resolve to a /Volumes/... path for this env",
+                    "Or set the pipeline's 'packaging' back to 'source'",
+                ],
+                context={"env": env, "resolved_artifact_volume": resolved},
+            )
+        return resolved
+
+    def _inject_wheel_dependency(
+        self, pipeline_config: Dict[str, Any], pipeline_name: str, env: str
+    ) -> None:
+        """Append this pipeline's wheel artifact to ``environment.dependencies``.
+
+        Mutates ``pipeline_config`` in place. Handles the three shapes of
+        ``environment``: absent (create), present without ``dependencies`` (add),
+        present with a user ``dependencies`` list (append, wheel_ref last so user
+        deps are preserved — R11).
+
+        ``wheel_ref`` is the resolved absolute path
+        ``<resolved_artifact_volume>/<wheel_filename>``. The filename is read from
+        disk (``generated/<env>/_wheels/<pipeline>/dist/*.whl``): in wheel mode the
+        on-disk name IS the content-addressed identity, so it is taken as-is rather
+        than recomputed.
+
+        Raises:
+            LHPError: ``LHP-GEN-001`` if the built wheel is not found on disk
+                (generation should have produced exactly one ``.whl``).
+        """
+        resolved_volume = self._resolve_artifact_volume(env)
+        wheel_filename = self._find_wheel_filename(pipeline_name, env)
+        wheel_ref = f"{resolved_volume.rstrip('/')}/{wheel_filename}"
+
+        environment = pipeline_config.get("environment")
+        if not isinstance(environment, dict):
+            environment = {}
+            pipeline_config["environment"] = environment
+
+        dependencies = environment.get("dependencies")
+        if not isinstance(dependencies, list):
+            dependencies = []
+        else:
+            dependencies = list(dependencies)
+        dependencies.append(wheel_ref)
+        environment["dependencies"] = dependencies
+
+        self.logger.debug(
+            f"Injected wheel dependency for pipeline '{pipeline_name}': {wheel_ref}"
+        )
+
+    def _find_wheel_filename(self, pipeline_name: str, env: str) -> str:
+        """Return the single ``.whl`` filename built for this pipeline under env.
+
+        Globs ``generated/<env>/_wheels/<pipeline>/dist/*.whl`` and requires
+        exactly one match.
+
+        Raises:
+            LHPError: ``LHP-GEN-001`` if zero or more than one wheel is found.
+        """
+        dist_dir = (
+            self.project_root / "generated" / env / "_wheels" / pipeline_name / "dist"
+        )
+        matches = sorted(dist_dir.glob("*.whl"))
+        if len(matches) != 1:
+            raise ErrorFactory.general_error(
+                codes.GEN_001,
+                title="Wheel artifact not found for wheel-mode pipeline",
+                details=(
+                    f"Pipeline '{pipeline_name}' is configured for wheel packaging "
+                    f"but {len(matches)} wheel file(s) were found under "
+                    f"{dist_dir} (expected exactly one). Generation should have "
+                    f"built the wheel before the bundle-write phase."
+                ),
+                suggestions=[
+                    "Run 'lhp generate' so the wheel is built before bundle sync",
+                    "Verify the pipeline's wheel build did not fail",
+                ],
+                context={
+                    "pipeline": pipeline_name,
+                    "env": env,
+                    "dist_dir": str(dist_dir),
+                    "matches": [m.name for m in matches],
+                },
+            )
+        return matches[0].name
+
+    def emit_wheels_bundle_file(self, output_dir: Path, env: str) -> None:
+        """Write the LHP-owned ``resources/lhp/_wheels.bundle.yml`` for ``env``.
+
+        Self-derives the wheel-mode pipeline list from ``output_dir`` (symmetric
+        with ``_inject_wheel_dependency`` — the API layer passes nothing extra):
+        every generated pipeline directory whose resolved packaging mode is
+        ``"wheel"``. The emitted fragment declares, for each such pipeline, a
+        ``<pipeline>_whl`` artifact, sets ``targets.<env>.workspace.artifact_path``
+        to the resolved UC volume, and excludes the ``_wheels/`` staging dir from
+        the bundle file sync (the wheels travel as uploaded artifacts, R2).
+
+        No-op when there are zero wheel pipelines: nothing is written and the
+        method returns early, so source-only projects gain no bundle file.
+
+        ``${bundle.target}`` in the sync-exclude is a Databricks bundle runtime
+        variable, emitted literally — it is NOT an LHP token and is never
+        substituted here.
+
+        Raises:
+            LHPError: ``LHP-CFG-061`` (via ``_resolve_artifact_volume``) if a
+                wheel pipeline exists but the resolved ``wheel.artifact_volume``
+                is absent/empty or not a ``/Volumes/...`` path.
+        """
+        pipeline_dirs = self.get_pipeline_directories(output_dir)
+        modes = self.config_loader.resolve_packaging_modes(
+            [p.name for p in pipeline_dirs]
+        )
+        wheel_pipelines = [p.name for p in pipeline_dirs if modes[p.name] == "wheel"]
+
+        if not wheel_pipelines:
+            self.logger.debug(
+                "No wheel-mode pipelines under %s; skipping _wheels.bundle.yml",
+                output_dir,
+            )
+            return
+
+        artifact_path = self._resolve_artifact_volume(env)
+
+        context = {
+            "env": env,
+            "wheel_pipelines": wheel_pipelines,
+            "artifact_path": artifact_path,
+        }
+        content = self.template_renderer.render_template(
+            "bundle/wheels_bundle.yml.j2", context
+        )
+
+        self.ensure_resources_directory()
+        wheels_file = self.resources_dir / "_wheels.bundle.yml"
+        try:
+            wheels_file.write_text(content, encoding="utf-8")
+        except (OSError, PermissionError) as e:
+            raise BundleResourceError(
+                f"Failed to write wheels bundle file {wheels_file}: {e}", e
+            ) from e
+
+        self.logger.info(
+            f"Wrote wheel packaging bundle file for {len(wheel_pipelines)} "
+            f"pipeline(s): {wheels_file}"
         )
 
     def _safe_directory_create(

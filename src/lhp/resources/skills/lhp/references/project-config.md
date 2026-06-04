@@ -36,7 +36,8 @@ my_project/
 ```
 
 **`resources/lhp/` rule:** This directory is wholly owned by LHP. Every `lhp generate`
-deletes its contents and writes one `<pipeline_name>.pipeline.yml` per pipeline. Never
+deletes its contents and writes one `<pipeline_name>.pipeline.yml` per pipeline (plus
+`_wheels.bundle.yml` when any pipeline uses `packaging: wheel`). Never
 hand-edit files under `resources/lhp/` — changes are lost on the next generate. Place
 custom resource YAMLs elsewhere under `resources/`. The single exception is the
 monitoring job YAML at `resources/<name>.job.yml`, which LHP detects by the sentinel
@@ -64,7 +65,23 @@ operational_metadata:
       expression: "F.xxhash64(*[F.col(c) for c in df.columns])"
       description: "Hash for change detection"
       applies_to: ["streaming_table", "materialized_view", "view"]
+
+wheel:
+  artifact_volume: "/Volumes/${catalog}/${artifact_schema}/bundle_artifacts"  # required when any pipeline uses packaging: wheel
 ```
+
+### `wheel` block (wheel packaging)
+
+Top-level `wheel:` block in `lhp.yaml`. Optional; only consumed when a pipeline
+opts into `packaging: wheel` (see the pipeline-config section).
+
+| key | type | default | notes |
+|-----|------|---------|-------|
+| `artifact_volume` | str (token-aware) | None | UC volume built wheels upload to. `${token}`-aware, resolved per env via `substitutions/<env>.yaml` (like `event_log`). The **resolved** value MUST start with `/Volumes/` (serverless installs custom wheels only from a UC volume or PyPI). |
+
+- Invalid `wheel` shape (not a mapping, or `artifact_volume` not a string) → `LHP-CFG-060`.
+- A pipeline set to `packaging: wheel` but `artifact_volume` missing/empty or resolving to a non-`/Volumes/` path → `LHP-CFG-061`.
+- Source: `src/lhp/models/_project.py:WheelConfig` / `ProjectConfig.wheel`; parser `src/lhp/core/loaders/_wheel_config_parser.py:parse_wheel_config` (CFG-060); resolver `src/lhp/bundle/manager.py:BundleManager._resolve_artifact_volume` (CFG-061).
 
 ## pipeline_config.yaml — catalog and schema
 
@@ -128,6 +145,48 @@ environment.
 
 Substitution tokens (`${token}`, `%{local_var}`) work inside any layer; LHP resolves
 them after the deep merge.
+
+### Packaging mode (`packaging`: `source` | `wheel`)
+
+Per-pipeline toggle in `pipeline_config-<env>.yaml` selecting whether a pipeline
+emits loose `.py` (`source`) or a single deterministic wheel (`wheel`).
+
+- **Allowed values:** `source` | `wheel` (anything else → `LHP-VAL-062`).
+- **Default:** `source`.
+- **Precedence (low→high):** hard default `source` → `project_defaults.packaging` → per-pipeline `packaging` (per-pipeline wins).
+- **Per-environment:** lives in the per-env config, so a pipeline can be `source` in one env and `wheel` in another. Mixed source/wheel pipelines coexist in one project and one `lhp generate` run.
+- **Internal key:** `packaging` is consumed by LHP only and is stripped before render — it NEVER appears in any generated `.pipeline.yml`.
+- Requires `lhp.yaml` `wheel.artifact_volume` resolving to `/Volumes/...` (else `LHP-CFG-061`).
+- Source: `src/lhp/core/loaders/pipeline_config_loader.py:resolve_packaging_modes` (default/precedence), `ALLOWED_PACKAGING_MODES` + VAL-062 raise (same module); strip at `src/lhp/bundle/manager.py` (pre-render).
+
+```yaml
+project_defaults:
+  packaging: wheel              # env-wide default
+---
+pipeline: interactive_debug_pipeline
+packaging: source               # opt one pipeline back out
+---
+pipeline: [large_ingest_a, large_ingest_b]   # inherit wheel
+```
+
+### Wheel-mode output contract
+
+Generated pipeline logic is **byte-identical** to source mode; only packaging
+differs. The packaged `.py` inside the wheel is never run through the formatter
+(members are normalized, not formatted); the synced runner `.py` is a normal
+generated file subject to the usual format phase. What `lhp generate` writes for a
+wheel pipeline:
+
+| path | synced? | notes |
+|------|---------|-------|
+| `generated/<env>/<pipeline>/<import_pkg>_runner.py` | **yes — only synced file** | Runner; publishes ambient `spark`/`dbutils` into `builtins`, then imports the wheel's flowgroup modules. Content references only the import-package name → stable across content changes. |
+| `generated/<env>/_wheels/<pipeline>/dist/<pipeline>_<env>_<hash>-<lhp_version>-py3-none-any.whl` | no — gitignored + sync-excluded | The wheel; reaches Databricks only as an uploaded artifact. Contains the flowgroup package + top-level `custom_python_functions` + any generated test/quality/reporting modules. |
+| `resources/lhp/<pipeline>.pipeline.yml` | (resource) | Wheel ref appended as the LAST `environment.dependencies` entry (user deps preserved); NO `packaging:` key. |
+| `resources/lhp/_wheels.bundle.yml` | (resource) | LHP-owned, regenerated every run: `artifacts.<pipeline>_whl`, `targets.<env>.workspace.artifact_path` (= resolved volume), `sync.exclude` for `_wheels/`. LHP does NOT edit `databricks.yml`. Skipped when no wheel pipelines. |
+
+- **Identity:** distribution name = PEP503-canonical `<pipeline>_<env>_<hash>`; `<hash>` = first 12 hex of SHA-256 over sorted `(relpath, bytes)` of packaged `.py`; **Version = LHP tool version** (`get_version()`). Unchanged pipeline → identical filename → deploy no-op. An LHP version bump re-stamps every wheel → one-time redeploy of all wheel pipelines.
+- **Limitations:** monitoring pipelines are NOT wheeled (source-mode always); `__file__`/sidecar-data reads behave differently inside a wheel (only `.py` packaged); classic-compute install, `sync.exclude` honoring, deploy-upload-without-rebuild, and serverless env-reuse caching are pending live-workspace verification.
+- Source: `src/lhp/core/packaging/identity.py` (hash/dist/filename), `src/lhp/core/packaging/packager.py:PipelinePackager.package` (version via caller), `src/lhp/core/packaging/runner.py:build_runner_code` (builtins `("spark","dbutils")`), `src/lhp/bundle/manager.py:_inject_wheel_dependency` + `emit_wheels_bundle_file`, `src/lhp/templates/bundle/wheels_bundle.yml.j2`, `src/lhp/core/coordination/_commit.py` (`version=get_version()`).
 
 ## Substitutions & Secrets
 

@@ -241,6 +241,8 @@ class BasePipelineExecutionService(ABC):
         output_dir: Optional[Path],
         project_config: Optional["ProjectConfig"],
         project_root: Path,
+        env: str = "dev",
+        packaging_modes: Optional[Mapping[str, str]] = None,
         max_workers: Optional[int] = None,
         on_total: Optional[Callable[[int], None]] = None,
         on_flowgroup_done: Optional[Callable[[], None]] = None,
@@ -254,6 +256,11 @@ class BasePipelineExecutionService(ABC):
         pipeline-input order; ``discovery_errors`` maps a pipeline to its
         discovery-failure message (a non-empty map aborts the whole batch —
         generate is all-or-nothing).
+
+        ``env`` and ``packaging_modes`` (pipeline name -> ``"wheel"`` /
+        ``"source"``, ``None`` ≡ empty ≡ all ``"source"``) are threaded to the
+        coordinator-side commit step for the per-pipeline wheel packaging branch
+        — they never cross the worker/spawn boundary.
 
         This is a GENERATOR yielding one :class:`PipelineDelta` per pipeline in
         DETERMINISTIC INPUT PIPELINE ORDER: every failure delta first, then —

@@ -9,6 +9,12 @@ from ._operational_metadata import ProjectOperationalMetadataConfig
 from ._test_reporting import TestReportingConfig
 
 
+class WheelConfig(BaseModel):
+    """Per-project wheel packaging configuration."""
+
+    artifact_volume: Optional[str] = None
+
+
 class ProjectConfig(BaseModel):
     """Project-level configuration loaded from lhp.yaml."""
 
@@ -25,6 +31,7 @@ class ProjectConfig(BaseModel):
     monitoring: Optional[MonitoringConfig] = None
     required_lhp_version: Optional[str] = None
     test_reporting: Optional[TestReportingConfig] = None
+    wheel: Optional[WheelConfig] = None
     apply_formatting: bool = Field(
         True,
         description=(

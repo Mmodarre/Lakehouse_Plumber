@@ -134,6 +134,7 @@ def _run_bundle_sync(
         synced_count = bundle_manager.sync_resources_with_generated_files(
             output_dir, env
         )
+        bundle_manager.emit_wheels_bundle_file(output_dir, env)
     return synced_count, deleted_count
 
 

@@ -42,7 +42,7 @@ from ._operational_metadata import (  # noqa: E402
     OperationalMetadataSelection,
     ProjectOperationalMetadataConfig,
 )
-from ._project import ProjectConfig  # noqa: E402
+from ._project import ProjectConfig, WheelConfig  # noqa: E402
 from ._quarantine import QuarantineConfig  # noqa: E402
 from ._template import Preset, Template  # noqa: E402
 from ._test_reporting import TestReportingConfig  # noqa: E402
@@ -73,6 +73,7 @@ __all__ = [
     "TestReportingConfig",
     "TransformType",
     "ViolationAction",
+    "WheelConfig",
     "WriteTarget",
     "WriteTargetType",
 ]

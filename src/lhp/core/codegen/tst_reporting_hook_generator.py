@@ -45,14 +45,35 @@ class TestReportingHookGenerator:
     def test_reporting_config(self):
         return self.project_config.test_reporting
 
-    def generate(
+    def build_hook_files(
         self,
         processed_flowgroups: List[FlowGroup],
         pipeline_name: str,
-        output_dir: Path,
         substitution_mgr: Optional[EnhancedSubstitutionManager] = None,
-    ) -> Optional[str]:
-        """Return rendered hook content, or None if no test_id was found."""
+    ) -> Optional[Dict[str, str]]:
+        """Render the hook's three files in memory, keyed by source-relative path.
+
+        Pure (NO disk I/O): returns the PRE-normalization content for each of
+        the three files :meth:`generate` writes, mapped by the relative path it
+        writes them to::
+
+            {
+                "_test_reporting_hook.py": <hook content>,
+                "test_reporting_providers/__init__.py": "",
+                "test_reporting_providers/<provider_stem>.py": <provider content>,
+            }
+
+        The provider entry carries the LHP-SOURCE header and has had the same
+        optional ``substitution_mgr`` substitution applied as in source mode, so
+        writing each entry through :func:`write_normalized` reproduces source
+        mode's on-disk bytes byte-for-byte.
+
+        Returns ``None`` when there is no provider config or no flowgroup carries
+        a ``test_id`` (the same guard as :meth:`generate`). Raising matches
+        :meth:`generate`: a duplicate ``test_id`` target raises ``LHPError`` from
+        :meth:`_build_test_id_map`; a missing provider module / config file
+        raises from :meth:`_render_provider_module` / :meth:`_load_provider_config`.
+        """
         if self.test_reporting_config is None:
             return None
 
@@ -66,12 +87,11 @@ class TestReportingHookGenerator:
             return None
 
         provider_config = self._load_provider_config()
-        self._copy_provider_module(output_dir, substitution_mgr)
+        provider_stem, provider_content = self._render_provider_module(substitution_mgr)
 
         config = self.test_reporting_config
-        provider_stem = Path(config.module_path).stem
         template = self._jinja_env.get_template("test_reporting/hook.py.j2")
-        content = template.render(
+        hook_content = template.render(
             pipeline_name=pipeline_name,
             test_id_map_repr=repr(test_id_map),
             provider_config_repr=repr(provider_config),
@@ -79,15 +99,50 @@ class TestReportingHookGenerator:
             function_name=config.function_name,
         )
 
-        # NOT formatted here: the coordinator's single terminal ``ruff
-        # format`` pass (formatter.format_generated_tree) formats the whole
-        # output tree — including this hook — once, after commit. Writing the
-        # rendered (unformatted) source verbatim keeps formatting in one place.
+        return {
+            HOOK_FILENAME: hook_content,
+            "test_reporting_providers/__init__.py": "",
+            f"test_reporting_providers/{provider_stem}.py": provider_content,
+        }
+
+    def generate(
+        self,
+        processed_flowgroups: List[FlowGroup],
+        pipeline_name: str,
+        output_dir: Path,
+        substitution_mgr: Optional[EnhancedSubstitutionManager] = None,
+    ) -> Optional[str]:
+        """Write the hook's three files to ``output_dir``; return hook content.
+
+        Thin disk wrapper over :meth:`build_hook_files`: builds the three files
+        in memory, then writes each through :func:`write_normalized` at
+        ``output_dir / relpath`` (creating ``test_reporting_providers/`` as
+        needed). Returns the rendered ``_test_reporting_hook.py`` content, or
+        ``None`` when no ``test_id`` was found — the unchanged contract its
+        callers (and :func:`generate_test_reporting_hook`) depend on.
+
+        Files are NOT formatted here: the coordinator's single terminal ``ruff
+        format`` pass (``formatter.format_generated_tree``) formats the whole
+        output tree — including this hook — once, after commit. Writing the
+        rendered (unformatted) source verbatim keeps formatting in one place.
+        """
+        files = self.build_hook_files(
+            processed_flowgroups=processed_flowgroups,
+            pipeline_name=pipeline_name,
+            substitution_mgr=substitution_mgr,
+        )
+        if files is None:
+            return None
+
+        for relpath, content in files.items():
+            dest = output_dir / relpath
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            write_normalized(dest, content)
+
         hook_path = output_dir / HOOK_FILENAME
-        write_normalized(hook_path, content)
         logger.info(f"Generated test reporting hook: {hook_path}")
 
-        return content
+        return files[HOOK_FILENAME]
 
     def validate(
         self,
@@ -183,11 +238,18 @@ class TestReportingHookGenerator:
         )
         return data if isinstance(data, dict) else {}
 
-    def _copy_provider_module(
+    def _render_provider_module(
         self,
-        output_dir: Path,
         substitution_mgr: Optional[EnhancedSubstitutionManager] = None,
-    ) -> None:
+    ) -> tuple[str, str]:
+        """Render the provider module in memory; return ``(stem, content)``.
+
+        Pure (NO disk I/O): reads the source provider module, applies the
+        optional ``substitution_mgr`` substitution, and prepends the LHP-SOURCE
+        header — exactly the PRE-normalization content :meth:`generate`
+        previously wrote to ``test_reporting_providers/<stem>.py``. Raises
+        ``LHPError`` if the source module is missing.
+        """
         config = self.test_reporting_config
         source_file = self.project_root / config.module_path
 
@@ -203,21 +265,14 @@ class TestReportingHookGenerator:
                 ],
             )
 
-        providers_dir = output_dir / "test_reporting_providers"
-        providers_dir.mkdir(parents=True, exist_ok=True)
-
         module_stem = Path(config.module_path).stem
-        dest_file = providers_dir / f"{module_stem}.py"
-
         original_content = source_file.read_text()
 
         if substitution_mgr:
             original_content = substitution_mgr._process_string(original_content)
 
         full_content = build_lhp_source_header(config.module_path) + original_content
-        write_normalized(dest_file, full_content)
-
-        init_file = providers_dir / "__init__.py"
-        write_normalized(init_file, "")
-
-        logger.debug(f"Copied provider module: {config.module_path} → {dest_file}")
+        logger.debug(
+            f"Rendered provider module: {config.module_path} (stem={module_stem})"
+        )
+        return module_stem, full_content
