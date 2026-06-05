@@ -11,8 +11,9 @@ Three distinct name spaces are produced and MUST NOT be conflated:
   runner imports).
 * ``distribution_name`` — the PEP 503-canonical distribution *Name* written
   into the wheel METADATA.
-* ``wheel_filename`` — the PEP 427-escaped on-disk ``.whl`` filename, whose
-  distribution/version components collapse ``[-_.]+`` runs to a single ``_``.
+* ``wheel_filename`` — the on-disk ``.whl`` filename. Its name component
+  collapses ``[-_.]+`` runs to a single ``_`` (PEP 427), while its version
+  component is PEP 440-normalized (NOT collapsed) — ``0.9.0`` stays ``0.9.0``.
 """
 
 from __future__ import annotations
@@ -22,16 +23,38 @@ import re
 from collections.abc import Iterable, Mapping
 
 from packaging.utils import canonicalize_name
+from packaging.version import Version
 
 # A separate reserved top-level package that travels in every wheel; an
 # import-package name may never collide with it (WHEEL_PACKAGING_SPEC §6.3, R6).
 _RESERVED_PACKAGE = "custom_python_functions"
 
 # PEP 427 escaping: runs of ``-``/``_``/``.`` collapse to a single underscore.
+# Applies to the NAME component only — never to the version (PEP 440).
 _PEP427_RUN = re.compile(r"[-_.]+")
 
 # Anything outside the lowercase identifier alphabet is replaced with ``_``.
 _NON_IDENTIFIER = re.compile(r"[^0-9a-z_]")
+
+
+def escape_name_component(name: str) -> str:
+    """Collapse runs of ``-``/``_``/``.`` in a NAME component to a single ``_``.
+
+    The PEP 427 filename escaping for the distribution-name part of a wheel
+    filename (and of the ``.dist-info`` directory). MUST NOT be applied to a
+    version — versions are PEP 440-normalized via :func:`escape_version`.
+    """
+    return _PEP427_RUN.sub("_", name)
+
+
+def escape_version(version: str) -> str:
+    """Return the PEP 440 public version (normalized, local segment stripped).
+
+    ``0.9.0`` stays ``0.9.0`` (dots preserved); ``0.9.1.dev5+g1`` normalizes to
+    ``0.9.1.dev5``. This is the version component of the wheel filename and of
+    the ``.dist-info`` directory — it is NEVER run through the name collapse.
+    """
+    return str(Version(version).public)
 
 
 def content_hash(payload: Mapping[str, bytes] | Iterable[tuple[str, bytes]]) -> str:
@@ -74,21 +97,22 @@ def import_package_name(pipeline: str) -> str:
 def distribution_name(*, pipeline: str, env: str, content_hash: str) -> str:
     """Return the PEP 503-canonical distribution name (the METADATA ``Name``).
 
-    The underlying name is ``<pipeline>_<env>_<hash>`` (WHEEL_PACKAGING_SPEC
-    §6.3, D6), normalized via ``packaging.utils.canonicalize_name``. This is
-    DISTINCT from ``import_package_name`` and from the PEP 427 filename escaping.
+    The underlying name is ``lhp_<pipeline>_<env>_<hash>`` (the ``lhp_`` brand
+    prefix marks LHP-generated wheels; WHEEL_PACKAGING_SPEC §6.3, D6), normalized
+    via ``packaging.utils.canonicalize_name``. This is DISTINCT from
+    ``import_package_name`` and from the PEP 427 filename escaping.
     """
-    return str(canonicalize_name(f"{pipeline}_{env}_{content_hash}"))
+    return str(canonicalize_name(f"lhp_{pipeline}_{env}_{content_hash}"))
 
 
 def wheel_filename(*, dist_name: str, version: str) -> str:
     """Return the on-disk ``.whl`` filename for ``dist_name`` at ``version``.
 
-    Matches ``<dist>-<version>-py3-none-any.whl`` where the distribution and
-    version components are PEP 427-escaped (runs of ``[-_.]+`` collapse to a
-    single ``_``); the compatibility tag is fixed at ``py3-none-any``
-    (WHEEL_PACKAGING_SPEC §6.3).
+    Matches ``<dist>-<version>-py3-none-any.whl``. The distribution component is
+    PEP 427-escaped (``[-_.]+`` runs collapse to a single ``_``) while the
+    version is PEP 440-normalized (dots preserved); the compatibility tag is
+    fixed at ``py3-none-any`` (WHEEL_PACKAGING_SPEC §6.3).
     """
-    dist = _PEP427_RUN.sub("_", dist_name)
-    ver = _PEP427_RUN.sub("_", version)
+    dist = escape_name_component(dist_name)
+    ver = escape_version(version)
     return f"{dist}-{ver}-py3-none-any.whl"

@@ -113,8 +113,10 @@ pipelines mix freely in one run; LHP builds each wheel once, in process.
    databricks bundle validate --target prod
    databricks bundle deploy --target prod
 
-Deploy uploads each pre-built wheel to the artifact volume and references it from
-the pipeline's environment; it does not trigger a second Python build.
+On deploy, Declarative Automation Bundles uploads each pre-built wheel to
+``<artifact_path>/.internal/`` under the artifact volume and rewrites the
+pipeline's environment dependency to that uploaded location; it does not trigger a
+second Python build.
 
 What LHP generates
 ------------------
@@ -128,23 +130,37 @@ the bundle:
    ``builtins`` and then imports the wheel's flowgroup modules. Its content
    references only the import-package name, so it is stable across content changes.
 
-``generated/<env>/_wheels/<pipeline>/dist/<pipeline>_<env>_<hash>-<lhp-version>-py3-none-any.whl``
-   The built wheel. It is gitignored and excluded from the bundle file sync, and
-   reaches the workspace only as an uploaded artifact. It contains the pipeline's
-   flowgroup package, the ``custom_python_functions`` package as a top-level import
-   root, and any generated test or quality and reporting modules.
+``generated/<env>/_wheels/<pipeline>/dist/lhp_<pipeline>_<env>_<hash>-<lhp-version>-py3-none-any.whl``
+   The built wheel. Its distribution name carries an ``lhp_`` brand prefix that
+   marks it as LHP-generated, and its version is a normalized tool version (for
+   example ``0.9.0``). It is gitignored and excluded from the bundle file sync, and
+   reaches the workspace only when Declarative Automation Bundles uploads it on
+   deploy. It contains the pipeline's flowgroup package, the
+   ``custom_python_functions`` package as a top-level import root, and any generated
+   test or quality and reporting modules.
 
 ``resources/lhp/<pipeline>.pipeline.yml``
-   The pipeline resource. LHP appends the wheel reference as the last entry under
-   ``environment.dependencies``, preserving any dependencies you declared. This
-   file never contains the ``packaging`` key — the toggle is consumed by LHP, not
-   by Databricks.
+   The pipeline resource. LHP appends a **file-relative local path** to the
+   prebuilt wheel as the last entry under ``environment.dependencies``, preserving
+   any dependencies you declared. The reference is local
+   (``../../generated/<env>/_wheels/<pipeline>/dist/...whl``), not a
+   ``/Volumes/...`` path: Declarative Automation Bundles classifies it as a
+   prebuilt wheel, uploads it to ``<artifact_path>/.internal/`` on deploy, and
+   rewrites the reference to the uploaded location itself. LHP does not compose the
+   remote path. This file never contains the ``packaging`` key — the toggle is
+   consumed by LHP, not by Databricks.
 
 ``resources/lhp/_wheels.bundle.yml``
-   An LHP-owned bundle file, regenerated on every run. It declares the wheel
-   ``artifacts`` to build and upload, sets ``targets.<env>.workspace.artifact_path``
-   to the resolved artifact volume, and adds a ``sync.exclude`` for the
-   ``_wheels/`` staging directory. LHP does not edit your ``databricks.yml``.
+   An LHP-owned bundle file, regenerated on every run. It sets
+   ``targets.<env>.workspace.artifact_path`` to the resolved artifact volume and
+   adds a ``sync.exclude`` for the ``_wheels/`` staging directory. It deliberately
+   carries **no** ``artifacts`` block: because each wheel is a prebuilt local
+   dependency reference that Declarative Automation Bundles uploads and rewrites,
+   declaring a wheel artifact with no source files would make the deploy try to
+   rebuild the already-built wheel. LHP does not edit your ``databricks.yml``.
+   Because Declarative Automation Bundles resolves ``artifact_path`` itself at
+   upload time, per-user development-mode isolation works without any further
+   configuration.
 
 The wheel is deterministic and content-addressed: its filename is a function of
 the packaged ``.py`` bytes and the environment, so an unchanged pipeline produces
@@ -174,13 +190,18 @@ Wheel packaging in this release has the following boundaries.
   (internal tracking: WHEEL-MONITORING-DEFER). See :doc:`enable_monitoring`.
 
 .. note::
-   Several runtime behaviors are confirmed against the design but pending
-   verification on a live workspace (internal tracking: WHEEL-RUNTIME-O2 through
-   WHEEL-RUNTIME-O5): wheel install on classic compute, the bundle honoring the
-   ``sync.exclude`` for the wheels directory, deploy uploading the pre-built wheel
-   without rebuilding, and serverless reusing a cached environment when a
-   pipeline's dependencies are unchanged. Verify these against your own workspace
-   before relying on them in production.
+   The mechanisms behind two of these behaviors are now implemented, with only
+   live-workspace verification still pending: the bundle honoring the
+   ``sync.exclude`` for the wheels directory (internal tracking:
+   WHEEL-RUNTIME-O3 — LHP emits the ``sync.exclude``), and deploy uploading the
+   pre-built wheel without rebuilding (WHEEL-RUNTIME-O4 — the wheel ships as a
+   prebuilt local dependency reference with no ``artifacts`` block, so the deploy
+   uploads it rather than rebuilding it). Two further behaviors are confirmed
+   against the design but not yet exercised on a live workspace
+   (WHEEL-RUNTIME-O2 and WHEEL-RUNTIME-O5): wheel install on classic compute, and
+   serverless reusing a cached environment when a pipeline's dependencies are
+   unchanged. Verify all of these against your own workspace before relying on them
+   in production.
 
 Related articles
 ----------------

@@ -12,9 +12,10 @@ Reproducibility is achieved by pinning every source of nondeterminism:
 * a pinned POSIX ``create_system`` and a fixed ``external_attr``,
 * members written in ascending ``arcname`` order with no directory entries.
 
-The ``.dist-info`` directory name is PEP 427-escaped identically to
-``identity.wheel_filename`` (runs of ``[-_.]+`` collapse to a single ``_``),
-so the in-wheel metadata agrees with the on-disk ``.whl`` filename.
+The ``.dist-info`` directory name is built identically to
+``identity.wheel_filename`` — the name component collapses ``[-_.]+`` runs to a
+single ``_`` (PEP 427) while the version is PEP 440-normalized — so the in-wheel
+metadata agrees with the on-disk ``.whl`` filename.
 """
 
 from __future__ import annotations
@@ -22,14 +23,10 @@ from __future__ import annotations
 import base64
 import hashlib
 import io
-import re
 import zipfile
 from collections.abc import Iterable, Mapping
 
-# PEP 427 escaping: runs of ``-``/``_``/``.`` collapse to a single underscore.
-# MUST stay in lockstep with ``identity._PEP427_RUN`` so the in-wheel
-# ``.dist-info`` directory matches the on-disk wheel filename stem.
-_PEP427_RUN = re.compile(r"[-_.]+")
+from .identity import escape_name_component, escape_version
 
 # Pinned epoch for every member — DOS epoch start. Any wall-clock here would
 # void byte-reproducibility (R3).
@@ -43,15 +40,6 @@ _EXTERNAL_ATTR = 0o644 << 16
 # stable value instead of inheriting the host platform's default (0 on Windows,
 # 3 on Unix), which would otherwise make the archive host-dependent.
 _CREATE_SYSTEM_POSIX = 3
-
-
-def _pep427_escape(s: str) -> str:
-    """Collapse runs of ``-``/``_``/``.`` to a single ``_`` (PEP 427).
-
-    Applied independently to the distribution name and version to form the
-    ``.dist-info`` directory name, matching ``identity.wheel_filename``.
-    """
-    return _PEP427_RUN.sub("_", s)
 
 
 def _urlsafe_b64_nopad(digest: bytes) -> str:
@@ -91,7 +79,9 @@ class WheelBuilder:
         items = payload.items() if isinstance(payload, Mapping) else payload
         members: dict[str, bytes] = dict(items)
 
-        dist_info = f"{_pep427_escape(dist_name)}-{_pep427_escape(version)}.dist-info"
+        dist_info = (
+            f"{escape_name_component(dist_name)}-{escape_version(version)}.dist-info"
+        )
         metadata_arc = f"{dist_info}/METADATA"
         wheel_arc = f"{dist_info}/WHEEL"
         record_arc = f"{dist_info}/RECORD"
@@ -117,7 +107,7 @@ class WheelBuilder:
         lines = [
             "Metadata-Version: 2.1",
             f"Name: {dist_name}",
-            f"Version: {version}",
+            f"Version: {escape_version(version)}",
         ]
         return ("\n".join(lines) + "\n").encode("utf-8")
 
@@ -126,7 +116,7 @@ class WheelBuilder:
         """Render the ``WHEEL`` member (pure-Python, universal py3 tag)."""
         lines = [
             "Wheel-Version: 1.0",
-            f"Generator: lhp {version}",
+            f"Generator: lhp {escape_version(version)}",
             "Root-Is-Purelib: true",
             "Tag: py3-none-any",
         ]

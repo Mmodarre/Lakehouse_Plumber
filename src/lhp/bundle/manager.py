@@ -424,9 +424,14 @@ class BundleManager:
         present with a user ``dependencies`` list (append, wheel_ref last so user
         deps are preserved — R11).
 
-        ``wheel_ref`` is the resolved absolute path
-        ``<resolved_artifact_volume>/<wheel_filename>``. The filename is read from
-        disk (``generated/<env>/_wheels/<pipeline>/dist/*.whl``): in wheel mode the
+        ``wheel_ref`` is a FILE-RELATIVE LOCAL path (relative to ``resources/lhp/``,
+        where ``environment.dependencies`` paths are resolved):
+        ``../../generated/<env>/_wheels/<pipeline>/dist/<wheel_filename>``. DAB
+        classifies this local reference as a prebuilt wheel, uploads it to
+        ``<artifact_path>/.internal/<wheel>``, and rewrites the dependency to the
+        uploaded location itself — so LHP emits no ``artifacts:`` block and no
+        absolute volume path. The filename is read from disk
+        (``generated/<env>/_wheels/<pipeline>/dist/*.whl``): in wheel mode the
         on-disk name IS the content-addressed identity, so it is taken as-is rather
         than recomputed.
 
@@ -434,9 +439,10 @@ class BundleManager:
             LHPError: ``LHP-GEN-001`` if the built wheel is not found on disk
                 (generation should have produced exactly one ``.whl``).
         """
-        resolved_volume = self._resolve_artifact_volume(env)
         wheel_filename = self._find_wheel_filename(pipeline_name, env)
-        wheel_ref = f"{resolved_volume.rstrip('/')}/{wheel_filename}"
+        wheel_ref = (
+            f"../../generated/{env}/_wheels/{pipeline_name}/dist/{wheel_filename}"
+        )
 
         environment = pipeline_config.get("environment")
         if not isinstance(environment, dict):
@@ -497,10 +503,12 @@ class BundleManager:
         Self-derives the wheel-mode pipeline list from ``output_dir`` (symmetric
         with ``_inject_wheel_dependency`` — the API layer passes nothing extra):
         every generated pipeline directory whose resolved packaging mode is
-        ``"wheel"``. The emitted fragment declares, for each such pipeline, a
-        ``<pipeline>_whl`` artifact, sets ``targets.<env>.workspace.artifact_path``
-        to the resolved UC volume, and excludes the ``_wheels/`` staging dir from
-        the bundle file sync (the wheels travel as uploaded artifacts, R2).
+        ``"wheel"``. The emitted fragment sets
+        ``targets.<env>.workspace.artifact_path`` to the resolved UC volume (so DAB
+        uploads the wheels referenced by ``environment.dependencies`` there) and
+        excludes the ``_wheels/`` staging dir from the bundle file sync. It declares
+        NO ``artifacts:`` block: each wheel reaches Databricks as a prebuilt local
+        library reference that DAB uploads and rewrites itself (R2).
 
         No-op when there are zero wheel pipelines: nothing is written and the
         method returns early, so source-only projects gain no bundle file.
@@ -531,7 +539,6 @@ class BundleManager:
 
         context = {
             "env": env,
-            "wheel_pipelines": wheel_pipelines,
             "artifact_path": artifact_path,
         }
         content = self.template_renderer.render_template(

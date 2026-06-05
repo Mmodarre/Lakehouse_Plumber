@@ -25,10 +25,10 @@ _PAYLOAD = {
     "custom_python_functions/__init__.py": b"# vendored helpers\n",
     "custom_python_functions/helpers.py": b"def f():\n    return 1\n",
 }
-_DIST_NAME = "pre-brz-bp-1524-preprod-a1b2c3d4e5f6"
+_DIST_NAME = "lhp-pre-brz-bp-1524-preprod-a1b2c3d4e5f6"
 _VERSION = "0.9.0"
-# PEP 427-escaped dist-info dir for the fixture above.
-_DIST_INFO = "pre_brz_bp_1524_preprod_a1b2c3d4e5f6-0_9_0.dist-info"
+# dist-info dir: name component PEP 427-escaped, version PEP 440-normalized.
+_DIST_INFO = "lhp_pre_brz_bp_1524_preprod_a1b2c3d4e5f6-0.9.0.dist-info"
 
 
 def _urlsafe_b64_nopad(digest: bytes) -> str:

@@ -121,7 +121,9 @@ packaging: wheel
     pipeline = _pipeline_block(parsed, pipeline_name)
 
     deps = pipeline["environment"]["dependencies"]
-    assert deps == [f"{ARTIFACT_VOLUME}/{wheel_filename}"]
+    assert deps == [
+        f"../../generated/{ENV}/_wheels/{pipeline_name}/dist/{wheel_filename}"
+    ]
 
     # R8: packaging is an LHP-internal toggle and must never reach the resource YAML.
     assert "packaging" not in pipeline
@@ -158,7 +160,7 @@ environment:
     # Pre-existing environment content is preserved alongside the new deps list.
     assert pipeline["environment"]["environment_version"] == "2"
     assert pipeline["environment"]["dependencies"] == [
-        f"{ARTIFACT_VOLUME}/{wheel_filename}"
+        f"../../generated/{ENV}/_wheels/{pipeline_name}/dist/{wheel_filename}"
     ]
     assert "packaging" not in pipeline
 
@@ -193,14 +195,15 @@ environment:
     parsed = _render(temp_project, config_path, pipeline_name)
     pipeline = _pipeline_block(parsed, pipeline_name)
 
+    wheel_ref = f"../../generated/{ENV}/_wheels/{pipeline_name}/dist/{wheel_filename}"
     deps = pipeline["environment"]["dependencies"]
     assert deps == [
         "requests==2.31.0",
         "pandas>=2.0",
-        f"{ARTIFACT_VOLUME}/{wheel_filename}",
+        wheel_ref,
     ]
     # Wheel reference is strictly last.
-    assert deps[-1] == f"{ARTIFACT_VOLUME}/{wheel_filename}"
+    assert deps[-1] == wheel_ref
     assert "packaging" not in pipeline
 
 

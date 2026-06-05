@@ -15,15 +15,23 @@ files, selectable **per pipeline** via a new `packaging: source|wheel` toggle
 (default `source`). The generated pipeline logic is **byte-identical** to source
 mode — only the packaging/deploy mechanism differs — and the wheel build is
 **deterministic and content-addressed**, so a pipeline whose inputs are
-unchanged produces the same wheel and deploys as a no-op. The wheel METADATA
-`Version` is **coupled to the LHP tool version**, so upgrading LHP rebuilds the
-wheel. Source and wheel pipelines **mix freely** in one project and in a single
-`lhp generate` run. A new provisional `core/packaging/` sub-package holds the
-deterministic wheel builder and the runner renderer, and LHP owns a generated
-`resources/lhp/_wheels.bundle.yml` carrying the artifacts, per-env
-`artifact_path`, and `sync.exclude`. Several pieces are decided-but-deferred for
-v1 and tracked below — each to be **verified on a live workspace before
-release**.
+unchanged produces the same wheel and deploys as a no-op. The wheel's
+distribution name carries an **`lhp_` brand prefix** (`lhp_<pipeline>_<env>_<hash>`)
+and its METADATA `Version` is **coupled to the LHP tool version**, rendered as a
+**valid, normalized PEP 440 version** (dots preserved — `0.9.0`, never `0_9_0` —
+local segment stripped), so upgrading LHP rebuilds the wheel. Source and wheel
+pipelines **mix freely** in one project and in a single `lhp generate` run. A new
+provisional `core/packaging/` sub-package holds the deterministic wheel builder and
+the runner renderer. The wheel is wired in as a **prebuilt local dependency**: LHP
+appends a file-relative local `.whl` path to the pipeline's
+`environment.dependencies`, and the Databricks CLI uploads that wheel to
+`<artifact_path>/.internal/` on deploy and rewrites the reference itself — so LHP
+emits **no `artifacts:` block** (declaring a fileless `whl` artifact would force a
+rebuild) and never composes the remote path. The LHP-owned generated
+`resources/lhp/_wheels.bundle.yml` therefore carries only the per-env
+`artifact_path` and a `sync.exclude` for the `_wheels/` staging dir. Several pieces
+are decided-but-deferred for v1 and tracked below — each to be **verified on a live
+workspace before release**.
 
 **Added.**
 
@@ -45,9 +53,12 @@ release**.
   `LHP-CFG-061` is raised when `packaging: wheel` is selected but no resolved
   `/Volumes/...` artifact volume is available.
 - **An LHP-owned `resources/lhp/_wheels.bundle.yml`.** A generated bundle fragment
-  carrying the wheel `artifacts`, the per-env
-  `targets.<env>.workspace.artifact_path`, and a `sync.exclude` so the wheeled
-  sources are not also synced as plain files.
+  carrying the per-env `targets.<env>.workspace.artifact_path` and a `sync.exclude`
+  so the wheeled sources are not also synced as plain files. It deliberately omits
+  any `artifacts:` block: each wheel reaches Databricks as a prebuilt local
+  `environment.dependencies` reference that the Databricks CLI uploads to
+  `<artifact_path>/.internal/` and rewrites, so an `artifacts:` entry would only
+  cause a needless rebuild.
 
 **Key properties.**
 
@@ -55,8 +66,15 @@ release**.
   packaging/deploy mechanism differs between `source` and `wheel`.
 - **Wheels are deterministic and content-addressed** — a pipeline whose inputs
   are unchanged builds the same wheel, so its deploy is a no-op.
-- **The wheel METADATA `Version` is coupled to the LHP tool version** — upgrading
-  LHP changes the version and rebuilds the wheel.
+- **The wheel METADATA `Version` is coupled to the LHP tool version** — rendered
+  as a valid, normalized PEP 440 version (dots preserved, local segment stripped)
+  and used identically in the filename, the `.dist-info` directory, and METADATA;
+  upgrading LHP changes the version and rebuilds the wheel.
+- **The wheel is a prebuilt local dependency the Databricks CLI uploads and
+  rewrites** — LHP emits a file-relative local `.whl` path in
+  `environment.dependencies`; the CLI uploads it to `<artifact_path>/.internal/` on
+  deploy and rewrites the reference, so LHP composes no remote path and emits no
+  `artifacts:` block.
 - **Source and wheel pipelines mix freely** in one project and within a single
   `lhp generate` run.
 
@@ -67,10 +85,14 @@ release**.
   workspace before release.*
 - **`WHEEL-RUNTIME-O2`** — classic (non-serverless) compute support for wheel-mode
   pipelines. *Verify on a live workspace before release.*
-- **`WHEEL-RUNTIME-O3`** — `sync.exclude` honoring by the bundle deploy. *Verify
-  on a live workspace before release.*
+- **`WHEEL-RUNTIME-O3`** — `sync.exclude` honoring by the bundle deploy.
+  *Mechanism implemented* (LHP emits the `sync.exclude`); *verify on a live
+  workspace before release.*
 - **`WHEEL-RUNTIME-O4`** — deploy upload-without-rebuild of the prebuilt wheel.
-  *Verify on a live workspace before release.*
+  *Mechanism implemented*: the wheel ships as a prebuilt local
+  `environment.dependencies` reference with no `artifacts:` block, so the Databricks
+  CLI uploads it to `<artifact_path>/.internal/` and rewrites the reference rather
+  than rebuilding. *Verify on a live workspace before release.*
 - **`WHEEL-RUNTIME-O5`** — serverless environment-reuse caching. *Verify on a live
   workspace before release.*
 

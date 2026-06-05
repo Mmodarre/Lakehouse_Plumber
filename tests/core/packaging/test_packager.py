@@ -108,6 +108,8 @@ class TestArcnameMapping:
         assert result.wheel_filename.endswith("-py3-none-any.whl")
         assert result.content_hash in result.wheel_filename
         assert _ENV in result.wheel_filename
+        # The wheel carries the ``lhp_`` brand prefix (escaped dist name).
+        assert result.wheel_filename.startswith("lhp_")
 
 
 @pytest.mark.unit

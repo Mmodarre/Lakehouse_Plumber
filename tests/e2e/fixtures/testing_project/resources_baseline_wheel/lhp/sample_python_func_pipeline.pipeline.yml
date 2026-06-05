@@ -22,7 +22,7 @@ resources:
       channel: CURRENT
       environment:
         dependencies:
-        - /Volumes/acme_edw_dev/edw_raw/artifacts/sample_python_func_pipeline_dev_e134df09ea58-0_9_0-py3-none-any.whl
+        - ../../generated/dev/_wheels/sample_python_func_pipeline/dist/lhp_sample_python_func_pipeline_dev_e134df09ea58-0.9.0-py3-none-any.whl
       # Additional pipeline configuration options 
       # Add to your pipeline_config-<env>.yaml as needed and pass the file path through the --pipeline-config flag:
       # You can use substitutions file to define the values for the pipeline configuration using the following syntax:

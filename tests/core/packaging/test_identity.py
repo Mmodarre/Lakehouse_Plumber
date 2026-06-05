@@ -105,7 +105,7 @@ class TestDistributionName:
         result = distribution_name(
             pipeline="pre_brz_bp_1524", env="preprod", content_hash="a1b2c3d4e5f6"
         )
-        assert result == "pre-brz-bp-1524-preprod-a1b2c3d4e5f6"
+        assert result == "lhp-pre-brz-bp-1524-preprod-a1b2c3d4e5f6"
 
     def test_distinct_from_import_package_name(self) -> None:
         dist = distribution_name(
@@ -130,12 +130,17 @@ class TestWheelFilename:
         )
         fname = wheel_filename(dist_name=dist, version="0.9.0")
         # the canonical (dashed) dist part collapses to underscores
-        assert fname.startswith("pre_brz_bp_1524_preprod_a1b2c3d4e5f6-")
+        assert fname.startswith("lhp_pre_brz_bp_1524_preprod_a1b2c3d4e5f6-")
         # the dist component itself carries no '-' or '.'
         dist_component = fname.split("-", 1)[0]
         assert "-" not in dist_component
         assert "." not in dist_component
 
-    def test_version_dots_collapsed(self) -> None:
+    def test_version_dots_preserved(self) -> None:
         fname = wheel_filename(dist_name="pkg", version="0.9.0")
-        assert fname == "pkg-0_9_0-py3-none-any.whl"
+        assert fname == "pkg-0.9.0-py3-none-any.whl"
+
+    def test_version_local_segment_stripped(self) -> None:
+        """PEP 440 local segments (``+...``) are stripped from the filename."""
+        fname = wheel_filename(dist_name="pkg", version="0.9.1.dev5+g1")
+        assert fname == "pkg-0.9.1.dev5-py3-none-any.whl"

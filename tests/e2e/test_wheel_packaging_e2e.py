@@ -17,8 +17,9 @@ Wheel-mode output contract verified here (WHEEL_PACKAGING_SPEC R2/R6/R8/R9):
     a content-addressed binary that is gitignored and NOT part of the baseline;
   * ``resources/lhp/<pipeline>.pipeline.yml`` gains the wheel reference under
     ``environment.dependencies`` and carries NO ``packaging:`` key;
-  * ``resources/lhp/_wheels.bundle.yml`` is emitted (artifacts + resolved
-    ``targets.dev.workspace.artifact_path`` + ``sync.exclude``).
+  * ``resources/lhp/_wheels.bundle.yml`` is emitted with NO ``artifacts:`` block —
+    only the resolved ``targets.dev.workspace.artifact_path`` + ``sync.exclude``
+    (each wheel is a prebuilt local library reference DAB uploads + rewrites itself).
 
 Baselines were authored manually and verified against the feature contract —
 never formatted. The runner and ``_wheels.bundle.yml`` are byte-stable and
@@ -34,7 +35,9 @@ import shutil
 from pathlib import Path
 
 import pytest
+import yaml
 from click.testing import CliRunner
+from packaging.version import Version
 
 from lhp.cli.main import cli
 from lhp.utils.version import get_version
@@ -124,11 +127,12 @@ class TestWheelPackagingE2E:
         placeholder, so the version token (the only environment-coupled part of
         the wheel reference) does not make a byte-identical baseline false-fail.
 
-        The PEP 427-escaped version (``.`` -> ``_``) appears as the
-        ``-<version>-py3-none-any.whl`` segment; the content hash and the rest of
-        the reference stay untouched and are still compared exactly.
+        The version component is PEP 440-normalized (dots preserved, e.g.
+        ``0.9.0``), so it appears verbatim as the ``-<version>-py3-none-any.whl``
+        segment; the content hash and the rest of the reference stay untouched and
+        are still compared exactly.
         """
-        live = get_version().replace(".", "_").replace("-", "_")
+        live = str(Version(get_version()).public)
         return text.replace(f"-{live}-py3-none-any.whl", "-VERSION-py3-none-any.whl")
 
     # ------------------------------------------------------------------ #
@@ -193,9 +197,10 @@ class TestWheelPackagingE2E:
             f"Exactly one wheel should be built under {dist_dir}; found: {wheels}"
         )
         whl = wheels[0]
-        # Deterministic identity components in the filename.
-        assert whl.name.startswith(f"{WHEEL_PIPELINE}_dev_"), (
-            f"Wheel filename should carry <pipeline>_<env>_<hash>: {whl.name}"
+        # Deterministic identity components in the filename, with the ``lhp_`` brand
+        # prefix that marks LHP-generated wheels.
+        assert whl.name.startswith(f"lhp_{WHEEL_PIPELINE}_dev_"), (
+            f"Wheel filename should carry lhp_<pipeline>_<env>_<hash>: {whl.name}"
         )
         assert whl.name.endswith("-py3-none-any.whl")
 
@@ -229,12 +234,20 @@ class TestWheelPackagingE2E:
 
         gen_text = generated.read_text()
 
-        # Structural facts: the wheel ref is present, points at the artifact
-        # volume, and no 'packaging:' key leaked into the rendered YAML.
+        # Structural facts: the wheel ref is present as a FILE-RELATIVE LOCAL path
+        # (DAB classifies it as a prebuilt wheel, uploads + rewrites it itself — so
+        # NO absolute /Volumes/ path leaks into the resource YAML), and no
+        # 'packaging:' key leaked into the rendered YAML.
         assert "environment:" in gen_text
         assert "dependencies:" in gen_text
-        assert "/Volumes/acme_edw_dev/edw_raw/artifacts/" in gen_text
-        assert f"/{WHEEL_PIPELINE}_dev_" in gen_text
+        assert "/Volumes/" not in gen_text, (
+            "The wheel ref must be a local ../../generated/... path, not an "
+            "absolute /Volumes/ path (DAB uploads + rewrites the prebuilt wheel)"
+        )
+        assert (
+            f"../../generated/dev/_wheels/{WHEEL_PIPELINE}/dist/lhp_{WHEEL_PIPELINE}_dev_"
+            in gen_text
+        )
         assert gen_text.rstrip().count("py3-none-any.whl") == 1
         assert "packaging:" not in gen_text, (
             "The LHP-internal 'packaging' toggle must be stripped from the resource YAML"
@@ -261,10 +274,18 @@ class TestWheelPackagingE2E:
         diff = self._compare_file_hashes(generated, baseline)
         assert diff == "", f"_wheels.bundle.yml baseline mismatch: {diff}"
 
-        # Spot-check the load-bearing wiring (artifact, resolved volume, exclude).
+        # Spot-check the load-bearing wiring (resolved volume + sync-exclude) and
+        # the absence of any 'artifacts:' block. The header comment now documents
+        # why there is no artifacts block (the word "artifacts" appears in prose),
+        # so the no-artifacts check must parse the YAML and assert no top-level
+        # 'artifacts' KEY — a naive substring check would false-positive on the
+        # comment.
         content = generated.read_text()
-        assert f"{WHEEL_PIPELINE}_whl:" in content
-        assert f"path: generated/dev/_wheels/{WHEEL_PIPELINE}" in content
+        doc = yaml.safe_load(content)
+        assert "artifacts" not in doc, (
+            "No top-level 'artifacts:' block: each wheel is a prebuilt local "
+            "library reference that DAB uploads + rewrites itself"
+        )
         assert "artifact_path: /Volumes/acme_edw_dev/edw_raw/artifacts" in content
         assert "generated/${bundle.target}/_wheels/**" in content
 

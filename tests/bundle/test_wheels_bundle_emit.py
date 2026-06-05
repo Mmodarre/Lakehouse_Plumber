@@ -142,8 +142,9 @@ def _setup_wheel_pipelines(temp_project: Path, names) -> Path:
 
 @pytest.mark.unit
 def test_emit_writes_wheels_bundle_file_with_resolved_artifact_path(temp_project):
-    """>=1 wheel pipeline -> resources/lhp/_wheels.bundle.yml is written with
-    per-pipeline artifacts, a RESOLVED artifact_path (no leftover LHP ${} tokens),
+    """>=1 wheel pipeline -> resources/lhp/_wheels.bundle.yml is written with NO
+    artifacts block (each wheel is a prebuilt local library ref that DAB uploads +
+    rewrites itself), a RESOLVED artifact_path (no leftover LHP ${} tokens),
     ${bundle.target} preserved literally in sync.exclude, parseable into the spec
     structure."""
     output_dir = _setup_wheel_pipelines(temp_project, ["alpha_pipe", "beta_pipe"])
@@ -159,12 +160,15 @@ def test_emit_writes_wheels_bundle_file_with_resolved_artifact_path(temp_project
     raw = wheels_file.read_text(encoding="utf-8")
     parsed = yaml.safe_load(raw)
 
-    # artifacts.<pipeline>_whl with type: whl + path: generated/<env>/_wheels/<pipeline>
-    artifacts = parsed["artifacts"]
-    for name in ("alpha_pipe", "beta_pipe"):
-        entry = artifacts[f"{name}_whl"]
-        assert entry["type"] == "whl"
-        assert entry["path"] == f"generated/{ENV}/_wheels/{name}"
+    # No artifacts block: a whl artifact with no files makes DAB try to REBUILD the
+    # prebuilt wheel, so LHP emits none — DAB owns upload + dependency rewrite.
+    # (Check non-comment lines so the design note in the header comment, which
+    # mentions "artifacts:" in prose, doesn't false-positive.)
+    yaml_lines = [
+        line for line in raw.splitlines() if not line.lstrip().startswith("#")
+    ]
+    assert "artifacts:" not in "\n".join(yaml_lines)
+    assert "artifacts" not in parsed
 
     # targets.<env>.workspace.artifact_path == resolved /Volumes path
     artifact_path = parsed["targets"][ENV]["workspace"]["artifact_path"]

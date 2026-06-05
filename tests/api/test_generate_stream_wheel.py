@@ -298,9 +298,16 @@ class TestGenerateStreamWheelMixedMode:
             "_wheels.bundle.yml must be emitted when the project has a wheel pipeline"
         )
         content = wheels_bundle.read_text()
-        # Load-bearing wiring: the wheel pipeline's artifact + the resolved volume.
-        assert f"{WHEEL_PIPELINE}_whl:" in content
-        assert f"path: generated/dev/_wheels/{WHEEL_PIPELINE}" in content
+        # Load-bearing wiring: the resolved artifact volume, and NO 'artifacts:'
+        # block. The header comment documents why there is no artifacts block (the
+        # word "artifacts" appears in prose), so the no-artifacts check parses the
+        # YAML and asserts no top-level 'artifacts' KEY — a naive substring check
+        # would false-positive on the comment.
+        doc = yaml.safe_load(content)
+        assert "artifacts" not in doc, (
+            "No top-level 'artifacts:' block: each wheel is a prebuilt local "
+            "library reference that DAB uploads + rewrites itself"
+        )
         assert ARTIFACT_VOLUME in content
 
     def test_wheeled_dir_runner_only_source_dir_loose_py(self, mixed_mode_project):
@@ -377,6 +384,7 @@ class TestGenerateStreamWheelMixedMode:
             "Wheel filename (and thus its embedded content hash) must be "
             f"formatter-independent: ON={whl_format_on!r} OFF={whl_format_off!r}"
         )
-        # And it carries the deterministic <pipeline>_<env>_<hash> identity.
-        assert whl_format_on.startswith(f"{WHEEL_PIPELINE}_dev_")
+        # And it carries the deterministic lhp_<pipeline>_<env>_<hash> identity
+        # (the ``lhp_`` brand prefix marks LHP-generated wheels).
+        assert whl_format_on.startswith(f"lhp_{WHEEL_PIPELINE}_dev_")
         assert whl_format_on.endswith("-py3-none-any.whl")
