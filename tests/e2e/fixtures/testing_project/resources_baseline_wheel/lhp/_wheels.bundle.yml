@@ -13,4 +13,4 @@ targets:
 
 sync:
   exclude:
-    - "generated/${bundle.target}/_wheels/**"
+    - "../../generated/${bundle.target}/_wheels/**"

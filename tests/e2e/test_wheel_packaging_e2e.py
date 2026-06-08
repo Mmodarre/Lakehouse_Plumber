@@ -287,7 +287,7 @@ class TestWheelPackagingE2E:
             "library reference that DAB uploads + rewrites itself"
         )
         assert "artifact_path: /Volumes/acme_edw_dev/edw_raw/artifacts" in content
-        assert "generated/${bundle.target}/_wheels/**" in content
+        assert "../../generated/${bundle.target}/_wheels/**" in content
 
     # ------------------------------------------------------------------ #
     # No contamination of source-mode pipelines                           #

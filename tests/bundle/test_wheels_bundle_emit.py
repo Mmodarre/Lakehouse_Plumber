@@ -179,7 +179,7 @@ def test_emit_writes_wheels_bundle_file_with_resolved_artifact_path(temp_project
     # sync.exclude preserves the Databricks runtime variable ${bundle.target}
     # LITERALLY (it is not an LHP token and must not be substituted).
     excludes = parsed["sync"]["exclude"]
-    assert "generated/${bundle.target}/_wheels/**" in excludes
+    assert "../../generated/${bundle.target}/_wheels/**" in excludes
     assert "${bundle.target}" in raw
 
 
