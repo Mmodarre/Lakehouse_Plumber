@@ -27,5 +27,6 @@
 ## Key rules
 
 - Arrow syntax: `old_col -> new_col: BIGINT` (rename + cast), `old_col -> new_col` (rename), `col: DECIMAL(18,2)` (cast), `col` (pass-through / explicit keep in strict mode).
+- `$` is allowed in any name that references a source column — the rename source (left of `->`), a cast-only `col: TYPE`, and a pass-through `col` — leading, internal, or trailing. Example: `"$revenue -> revenue: DECIMAL(18,2)"`. A rename target (right of `->`) must be a clean identifier (letters/digits/underscores only); a `$` there (e.g. `a -> $b`) is a syntax error → `LHP-VAL-011`.
 - `strict` — only defined columns kept, unmapped columns dropped. `permissive` (default) — defined columns transformed, all others pass through unchanged.
 - `source` must be a simple string; the old nested `source.view` format is no longer supported.

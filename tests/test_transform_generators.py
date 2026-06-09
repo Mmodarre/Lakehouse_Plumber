@@ -1489,6 +1489,46 @@ _source_file: int
         assert 'F.col("_ingestion_timestamp").cast(' not in code
         assert 'F.col("_source_file").cast(' not in code
 
+    def test_schema_transform_dollar_source_column(self):
+        """Drives generation through the action path so the ``_schema_transform`` validator runs (issue #142)."""
+        from lhp.core.registry import ActionRegistry
+        from lhp.core.validators import (
+            ConfigFieldValidator,
+            TransformActionValidator,
+        )
+
+        action = Action(
+            name="transform_dollar_source",
+            type=ActionType.TRANSFORM,
+            transform_type=TransformType.SCHEMA,
+            source="v_raw_data",
+            target="v_transformed_data",
+            schema_inline="""
+$source_col -> target_col
+$keep_col
+            """,
+            enforcement="strict",
+            readMode="batch",
+        )
+
+        # Action path: the schema-transform validator must accept '$' sources.
+        validator = TransformActionValidator(
+            ActionRegistry(),
+            ConfigFieldValidator(),
+            project_root=Path.cwd(),
+            project_config=None,
+        )
+        errors = validator.validate(action, "transform_dollar_source")
+        assert errors == []
+
+        generator = SchemaTransformGenerator()
+        code = generator.generate(action, {})
+
+        # Rename: '$' source flows verbatim into the double-quoted PySpark call.
+        assert 'df.withColumnRenamed("$source_col", "target_col")' in code
+        # Pass-through (strict mode): retained verbatim in columns_to_select.
+        assert '"$keep_col"' in code
+
 
 def test_transform_generator_imports():
     """Test that transform generators manage imports correctly."""

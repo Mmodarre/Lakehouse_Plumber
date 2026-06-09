@@ -11,6 +11,12 @@ from ..parsers.yaml_parser import YAMLParser
 
 logger = logging.getLogger(__name__)
 
+# `$` is legal wherever a name *references* an existing source column, but a
+# freshly *minted* target name must stay a plain identifier (reference-vs-mint
+# invariant — see issue #142).
+_SOURCE_COLUMN_CHARS = r"[a-zA-Z_$][a-zA-Z0-9_$]*"
+_TARGET_COLUMN_CHARS = r"[a-zA-Z_][a-zA-Z0-9_]*"
+
 
 class SchemaTransformParser:
     """Parse schema transform files supporting arrow and legacy formats.
@@ -33,12 +39,12 @@ class SchemaTransformParser:
         self.yaml_parser = YAMLParser()
         # Regex pattern for arrow syntax: "old -> new: TYPE" or variations
         self.arrow_pattern = re.compile(
-            r"^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*->\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*(?::\s*(.+?))?\s*$"
+            rf"^\s*({_SOURCE_COLUMN_CHARS})\s*->\s*({_TARGET_COLUMN_CHARS})\s*(?::\s*(.+?))?\s*$"
         )
         # Regex pattern for type cast only: "col: TYPE"
-        self.cast_pattern = re.compile(r"^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*(.+?)\s*$")
+        self.cast_pattern = re.compile(rf"^\s*({_SOURCE_COLUMN_CHARS})\s*:\s*(.+?)\s*$")
         # Regex pattern for pass-through: "col"
-        self.passthrough_pattern = re.compile(r"^\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*$")
+        self.passthrough_pattern = re.compile(rf"^\s*({_SOURCE_COLUMN_CHARS})\s*$")
 
     def parse_file(self, file_path: Path) -> Dict[str, Any]:
         if not file_path.exists():
@@ -268,7 +274,12 @@ class SchemaTransformParser:
             raise ErrorFactory.schema_syntax_error(
                 file_path="<schema>",
                 line_content=col_def,
-                expected_format="'old -> new: TYPE', 'old -> new', 'col: TYPE', or 'col' (pass-through)",
+                expected_format=(
+                    "'old -> new: TYPE', 'old -> new', 'col: TYPE', or 'col' (pass-through). "
+                    "A rename target (the name after '->') must be a plain identifier "
+                    "— letters, digits, and underscores only, no '$'. "
+                    "'$' is allowed only in source/reference column names."
+                ),
                 example='columns:\n  - "c_custkey -> customer_id: BIGINT"\n  - "c_name -> customer_name"\n  - "account_balance: DECIMAL(18,2)"\n  - "address"',
             )
 

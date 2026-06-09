@@ -223,6 +223,85 @@ class TestSchemaTransformParserArrowFormat:
         assert result["pass_through_columns"] == ["address"]
 
 
+class TestSchemaTransformParserDollarColumns:
+    """`$` is allowed in source/reference column names but forbidden in rename targets (issue #142)."""
+
+    def test_parse_arrow_dollar_rename_source(self):
+        parser = SchemaTransformParser()
+
+        data = {"columns": ["$a -> b"]}
+
+        result = parser.parse_arrow_format(data)
+
+        assert result["column_mapping"] == {"$a": "b"}
+        assert result["type_casting"] == {}
+
+    def test_parse_arrow_dollar_rename_source_with_cast(self):
+        parser = SchemaTransformParser()
+
+        data = {"columns": ["$a -> b: BIGINT"]}
+
+        result = parser.parse_arrow_format(data)
+
+        assert result["column_mapping"] == {"$a": "b"}
+        assert result["type_casting"] == {"b": "BIGINT"}
+
+    def test_parse_arrow_dollar_cast_only(self):
+        parser = SchemaTransformParser()
+
+        data = {"columns": ["$a: BIGINT"]}
+
+        result = parser.parse_arrow_format(data)
+
+        assert result["column_mapping"] == {}
+        assert result["type_casting"] == {"$a": "BIGINT"}
+
+    def test_parse_arrow_dollar_pass_through(self):
+        parser = SchemaTransformParser()
+
+        data = {"columns": ["$keep"]}
+
+        result = parser.parse_arrow_format(data)
+
+        assert result["pass_through_columns"] == ["$keep"]
+
+    def test_parse_arrow_dollar_internal_and_trailing_positions(self):
+        parser = SchemaTransformParser()
+
+        data = {
+            "columns": [
+                "a$1 -> b",  # internal `$` in rename source
+                "a$",  # trailing `$` as pass-through
+            ]
+        }
+
+        result = parser.parse_arrow_format(data)
+
+        assert result["column_mapping"] == {"a$1": "b"}
+        assert result["pass_through_columns"] == ["a$"]
+
+    def test_parse_arrow_dollar_rename_target_error(self):
+        parser = SchemaTransformParser()
+
+        data = {"columns": ["a -> $b"]}  # `$` forbidden in rename target
+
+        with pytest.raises(ValueError, match="Schema syntax error"):
+            parser.parse_arrow_format(data)
+
+    def test_parse_arrow_dollar_duplicate_source_error(self):
+        parser = SchemaTransformParser()
+
+        data = {
+            "columns": [
+                "$a -> b",
+                "$a -> c",  # Duplicate `$` source
+            ]
+        }
+
+        with pytest.raises(ValueError, match="Schema syntax error"):
+            parser.parse_arrow_format(data)
+
+
 class TestSchemaTransformParserLegacyFormat:
     """Test legacy format parsing."""
 

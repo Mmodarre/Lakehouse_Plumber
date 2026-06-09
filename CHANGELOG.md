@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### `$` in schema-transform source column names
+
+**Summary.** The schema-transform arrow DSL now accepts `$` in any column name
+that *references* an existing source column — the rename source (left of `->`),
+a cast-only entry (`col: TYPE`), and pass-through columns. Resolves issue #142:
+`$`-prefixed columns from SAP / Salesforce / some CDC feeds previously failed at
+parse time with `LHP-VAL-011`.
+
+**Added.**
+
+- **`$` accepted in source/reference column positions of the arrow format.** A
+  leading, internal, or trailing `$` is now valid in the rename source (left of
+  `->`), in cast-only entries (`col: TYPE`), and in pass-through columns.
+
+**Deferred (decided; tracked for follow-up).**
+
+- **A general escape grammar for other special characters is deferred.** `-`,
+  `.`, `:`, and space collide with the DSL's `->` / `:` / whitespace tokens and
+  need a dedicated escaping design before they can be supported. Until then,
+  rename **target** names must remain plain identifiers (no `$`), and the legacy
+  `column_mapping` dict form continues to accept arbitrary column names as the
+  fallback for names the arrow DSL cannot express. See issue #142.
+
 ### `cluster_by_auto` and `refresh_policy` write-target fields
 
 **Summary.** Two new write-target fields let pipelines opt into Databricks

@@ -721,6 +721,22 @@ External schema files contain only column definitions (no enforcement):
 - ``"col: TYPE"`` - Cast only (no rename)
 - ``"col"`` - Pass-through (strict mode only, explicitly keep column)
 
+**Column Names and the ``$`` Character:**
+
+Any column name that *references an existing source column* may contain a
+``$`` — leading, internal, or trailing. This covers the rename source (left of
+``->``), a cast-only entry (``col: TYPE``), and a pass-through (``col``). This
+lets you map source columns whose names already carry ``$``:
+
+.. code-block:: yaml
+
+  columns:
+    - "$revenue -> revenue: DECIMAL(18,2)"   # source has a $, target is clean
+
+A rename **target** (right of ``->``), by contrast, must be a clean identifier —
+letters, digits, and underscores only. A ``$`` in the target (for example
+``a -> $b``) is rejected as a schema syntax error (``LHP-VAL-011``).
+
 **Schema File Paths:**
 
 Schema files can be organized in subdirectories relative to your project root:
