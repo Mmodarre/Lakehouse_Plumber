@@ -131,6 +131,7 @@ ACTION_FIELDS = {
     "quarantine",
     "once",
     "module_path",
+    "depends_on",
     "function_name",
     "parameters",
     "custom_datasource_class",

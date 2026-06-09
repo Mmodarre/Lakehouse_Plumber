@@ -2,6 +2,7 @@
 # Compares record counts between two sources with optional tolerance.
 pipeline: 12_test_actions
 flowgroup: ta_row_count
+#job_name: j_test_actions
 
 actions:
   - name: ta_row_count_raw_to_bronze

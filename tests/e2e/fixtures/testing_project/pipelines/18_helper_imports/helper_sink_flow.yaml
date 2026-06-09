@@ -6,6 +6,7 @@
 # closure travels with the class to the executor.
 pipeline: helper_imports
 flowgroup: helper_sink_flow
+#job_name: j_helpers
 
 actions:
   - name: load_helper_sink_seed

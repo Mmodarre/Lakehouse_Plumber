@@ -2,6 +2,7 @@
 # Validates that dimension lookups succeed (e.g., surrogate keys are present after joins).
 pipeline: 12_test_actions
 flowgroup: ta_all_lookups_found
+#job_name: j_test_actions
 
 actions:
   - name: ta_orders_date_lookup

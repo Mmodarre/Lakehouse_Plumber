@@ -2,6 +2,7 @@
 # Writes to a Unity Catalog external Delta table via tableName.
 pipeline: 13_sinks
 flowgroup: sk_delta
+#job_name: j_sinks
 
 actions:
   - name: load_metrics_for_delta_sink

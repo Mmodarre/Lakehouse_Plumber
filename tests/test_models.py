@@ -53,6 +53,18 @@ class TestModels:
         assert action.type == ActionType.LOAD
         assert action.target == "test_view"
 
+    def test_action_depends_on_defaults_to_none(self):
+        action = Action(name="test_action", type=ActionType.TRANSFORM)
+        assert action.depends_on is None
+
+    def test_action_depends_on_accepts_list(self):
+        action = Action(
+            name="test_action",
+            type=ActionType.TRANSFORM,
+            depends_on=["cat.sch.tbl"],
+        )
+        assert action.depends_on == ["cat.sch.tbl"]
+
     def test_flowgroup_model(self):
         flowgroup = FlowGroup(
             pipeline="test_pipeline",

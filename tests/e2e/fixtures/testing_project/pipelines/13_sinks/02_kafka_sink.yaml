@@ -2,6 +2,7 @@
 # Streams pre-formatted key/value rows to a Kafka topic.
 pipeline: 13_sinks
 flowgroup: sk_kafka
+#job_name: j_sinks
 
 actions:
   - name: load_orders_for_kafka

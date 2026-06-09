@@ -63,12 +63,23 @@ class TestJobOrchestrationE2E:
             return f"Error comparing files: {e}"
 
     def uncomment_job_names(self):
-        """Uncomment all #job_name: lines in flowgroup YAML files."""
-        pipelines_dir = self.project_root / "pipelines"
+        """Uncomment all #job_name: lines in flowgroup YAML files.
 
-        yaml_files = list(pipelines_dir.rglob("*.yaml")) + list(
-            pipelines_dir.rglob("*.yml")
-        )
+        Covers both ``pipelines/`` (on-disk flowgroups) and ``blueprints/``
+        (the per-spec ``#job_name:`` lines whose values propagate to the
+        flowgroups expanded from each blueprint instance). Both must be
+        uncommented for the project to be a consistent multi-job project,
+        since blueprint-expanded flowgroups are validated alongside on-disk
+        ones by ``validate_job_names`` (all-or-nothing).
+        """
+        scan_dirs = [self.project_root / "pipelines", self.project_root / "blueprints"]
+
+        yaml_files = []
+        for scan_dir in scan_dirs:
+            if scan_dir.exists():
+                yaml_files += list(scan_dir.rglob("*.yaml")) + list(
+                    scan_dir.rglob("*.yml")
+                )
 
         for yaml_file in yaml_files:
             content = yaml_file.read_text()
@@ -159,6 +170,17 @@ class TestJobOrchestrationE2E:
             "j_six.job.yml",
             "j_seven.job.yml",
             "j_nine.job.yml",
+            # Feature-demo jobs, grouped by feature directory so the whole
+            # fixture is a valid multi-job project.
+            "j_blueprint.job.yml",
+            "j_cdc.job.yml",
+            "j_helpers.job.yml",
+            "j_jdbc.job.yml",
+            "j_namespace.job.yml",
+            "j_python_load.job.yml",
+            "j_sinks.job.yml",
+            "j_temp_table.job.yml",
+            "j_test_actions.job.yml",
             "acme_edw_master.job.yml",  # Default master job name
         ]
 
@@ -208,6 +230,16 @@ class TestJobOrchestrationE2E:
             "j_six.job.yml",
             "j_seven.job.yml",
             "j_nine.job.yml",
+            # Feature-demo jobs (see test_multi_job_with_default_master).
+            "j_blueprint.job.yml",
+            "j_cdc.job.yml",
+            "j_helpers.job.yml",
+            "j_jdbc.job.yml",
+            "j_namespace.job.yml",
+            "j_python_load.job.yml",
+            "j_sinks.job.yml",
+            "j_temp_table.job.yml",
+            "j_test_actions.job.yml",
             "mehdi_master_job.job.yml",  # Custom master job name
         ]
 
@@ -255,6 +287,16 @@ class TestJobOrchestrationE2E:
             "j_six.job.yml",
             "j_seven.job.yml",
             "j_nine.job.yml",
+            # Feature-demo jobs (see test_multi_job_with_default_master).
+            "j_blueprint.job.yml",
+            "j_cdc.job.yml",
+            "j_helpers.job.yml",
+            "j_jdbc.job.yml",
+            "j_namespace.job.yml",
+            "j_python_load.job.yml",
+            "j_sinks.job.yml",
+            "j_temp_table.job.yml",
+            "j_test_actions.job.yml",
         ]
 
         for filename in expected_files:

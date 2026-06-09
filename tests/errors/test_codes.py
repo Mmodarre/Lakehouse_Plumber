@@ -58,7 +58,7 @@ After the ErrorFactory migration the ONLY legitimate literal
   (b) helper call-args — a literal forwarded into a helper whose construction
       uses ``code_number=<that variable>`` (``_build_family_error`` in
       ``core/coordination/_cross_flowgroup_issues.py`` and
-      ``_resolve_and_parse_file`` in ``core/dependencies/builder.py``); and
+      ``_resolve_and_parse_file`` in ``core/dependencies/source_parsing.py``); and
   (c) custom-subclass / type-definition constructions in ``errors/types.py``
       whose bespoke ``__init__``/dispatch call
       ``super().__init__(..., code_number="NNN", ...)`` directly.
@@ -138,7 +138,7 @@ _CATEGORY_RE = re.compile(r"ErrorCategory\.(?P<member>[A-Z_]+)")
 #         * ``_build_family_error(code_number=...)`` in
 #           ``core/coordination/_cross_flowgroup_issues.py`` (VAL-009 / VAL-010)
 #         * ``_resolve_and_parse_file(code_number=...)`` in
-#           ``core/dependencies/builder.py`` (IO-002 / IO-003)
+#           ``core/dependencies/source_parsing.py`` (IO-002 / IO-003)
 #
 #   (c) CUSTOM-SUBCLASS / TYPE-DEFINITION CONSTRUCTIONS — ``errors/types.py``
 #       hosts the closed set of LHP exception classes. A handful of them have
@@ -162,8 +162,8 @@ _LITERAL_CODE_NUMBER_ALLOWLIST: set[tuple[str, str]] = {
     # (b) helper call-args forwarded into a dynamic-``code_number`` helper
     ("src/lhp/core/coordination/_cross_flowgroup_issues.py", "009"),
     ("src/lhp/core/coordination/_cross_flowgroup_issues.py", "010"),
-    ("src/lhp/core/dependencies/builder.py", "002"),
-    ("src/lhp/core/dependencies/builder.py", "003"),
+    ("src/lhp/core/dependencies/source_parsing.py", "002"),
+    ("src/lhp/core/dependencies/source_parsing.py", "003"),
     # (c) custom-subclass / type-definition constructions in errors/types.py
     ("src/lhp/errors/types.py", "902"),  # LHPError.from_unexpected_exception
     ("src/lhp/errors/types.py", "019"),  # PythonFunctionConflictError.__init__

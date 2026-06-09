@@ -6,6 +6,7 @@
 # relative import inside helpers/transforms.py verbatim.
 pipeline: helper_imports
 flowgroup: helper_transform_flow
+#job_name: j_helpers
 
 actions:
   - name: load_helper_seed

@@ -3,6 +3,7 @@
 import logging
 from typing import Any, Dict
 
+from ....errors import ErrorFactory, codes
 from ._field_catalog import ACTION_FIELDS, LOAD_SOURCE_FIELDS, WRITE_TARGET_FIELDS
 from ._field_suggestions import raise_unknown_fields_error
 
@@ -121,3 +122,70 @@ class ConfigFieldValidator:
                 expected_fields=self.action_fields,
                 config_section="action",
             )
+
+        self._validate_depends_on(action_dict.get("depends_on"), action_name)
+
+    def _validate_depends_on(self, depends_on: Any, action_name: str) -> None:
+        """Validate the optional ``depends_on`` escape-hatch field's shape.
+
+        Runs for every action type. ``None`` / ``[]`` are valid (no edges).
+        Each declared entry must be a well-formed table reference: a non-empty
+        string of at most three dot-separated parts
+        (``catalog.schema.table`` / ``schema.table`` / ``table``) with no blank
+        parts. Malformed entries raise ``LHP-VAL-063`` via the field-validator
+        path, matching :func:`raise_unknown_fields_error`'s convention.
+        """
+        if not depends_on:
+            return
+
+        if not isinstance(depends_on, list):
+            self._raise_depends_on_error(
+                action_name,
+                f"'depends_on' must be a list of table references, got {type(depends_on).__name__}",
+                depends_on,
+            )
+
+        for entry in depends_on:
+            if not isinstance(entry, str) or not entry.strip():
+                self._raise_depends_on_error(
+                    action_name,
+                    "each 'depends_on' entry must be a non-empty string",
+                    entry,
+                )
+
+            parts = entry.split(".")
+            if len(parts) > 3 or any(not part.strip() for part in parts):
+                self._raise_depends_on_error(
+                    action_name,
+                    (
+                        "each 'depends_on' entry must be a table reference of at "
+                        "most three dot-separated parts "
+                        "(catalog.schema.table, schema.table, or table) with no "
+                        "blank parts"
+                    ),
+                    entry,
+                )
+
+    def _raise_depends_on_error(
+        self, action_name: str, reason: str, entry: Any
+    ) -> None:
+        """Raise a config error for a malformed ``depends_on`` entry (LHP-VAL-063)."""
+        logger.debug(
+            f"Invalid depends_on entry in action '{action_name}': {entry!r} ({reason})"
+        )
+        raise ErrorFactory.config_error(
+            codes.VAL_063,
+            title=f"Invalid 'depends_on' in action '{action_name}'",
+            details=f"Action '{action_name}' has an invalid 'depends_on' entry: {reason}.",
+            suggestions=[
+                "Use a fully-qualified table reference: catalog.schema.table",
+                "Or a two-part schema.table / single-part table name",
+                "Remove empty strings and entries with blank dotted parts",
+            ],
+            example="depends_on:\n  - my_catalog.my_schema.my_table\n  - my_schema.my_table",
+            context={
+                "Action": action_name,
+                "Field": "depends_on",
+                "Invalid Entry": repr(entry),
+            },
+        )

@@ -1065,14 +1065,14 @@ class TestGenerateMasterJobEdgeCases:
         assert "depends_on" not in tasks[0]
 
 
-class TestDependencyOutputManagerIntegration:
-    """Test dependency_output_manager integration with new changes."""
+class TestDependencyOutputWriterIntegration:
+    """Test dependency output writer integration."""
 
     def test_master_job_skipped_when_disabled(self, tmp_path):
         """Test that master job is not generated when disabled in config."""
         from unittest.mock import Mock, patch
 
-        from lhp.core.dependencies.output import DependencyOutputManager
+        from lhp.core.dependencies import DependencyOutputWriter
         from lhp.core.dependencies.service import DependencyAnalysisService
         from lhp.core.jobs.job_generator import JobGenerator
 

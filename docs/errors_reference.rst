@@ -89,7 +89,7 @@ Configuration Errors (LHP-CFG)
 ------------------------------
 
 Configuration errors indicate problems with your YAML files, presets, templates,
-or Databricks Asset Bundle setup. They are the most common error category.
+or Declarative Automation Bundles setup. They are the most common error category.
 
 LHP-CFG-001: Configuration Conflict
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -423,7 +423,7 @@ the ``template_parameters`` section of the flowgroup.
 LHP-CFG-020: Bundle Resource Error
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**When it occurs:** An error occurred while generating or syncing Databricks Asset Bundle
+**When it occurs:** An error occurred while generating or syncing Declarative Automation Bundles
 resource files during ``lhp generate``.
 
 **Common causes:**
@@ -492,7 +492,7 @@ problems that prevent LHP from processing it.
 
 **Resolution:**
 
-1. Review your ``databricks.yml`` against the Databricks Asset Bundles documentation
+1. Review your ``databricks.yml`` against the Declarative Automation Bundles documentation
 2. Run ``lhp validate`` for detailed diagnostics
 3. Compare with a working project's ``databricks.yml``
 
@@ -1004,6 +1004,56 @@ expected format for its type.
 
    :doc:`actions/index` for the correct source configuration format for each
    action type.
+
+.. _lhp-val-063:
+
+LHP-VAL-063: Invalid ``depends_on`` Entry
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** An action's optional ``depends_on`` field contains a
+malformed entry. ``depends_on`` is a list of upstream table references used to
+declare dependency-graph edges explicitly; each entry must be a non-empty
+string of at most three dot-separated parts
+(``catalog.schema.table``, ``schema.table``, or ``table``) with no blank parts.
+
+**Common causes:**
+
+- An entry that is not a string, or an empty / whitespace-only string
+- A reference with more than three dot-separated parts
+- A reference with a blank part (for example ``catalog..table`` or a trailing dot)
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-VAL-063)
+
+   actions:
+     - name: build_summary
+       type: transform
+       transform_type: python
+       source: v_orders
+       module_path: "transforms/build_summary.py"
+       function_name: run
+       depends_on:
+         - "a.b.c.d"   # four parts — too many
+         - ""          # empty string
+
+.. code-block:: yaml
+   :caption: After (fixed)
+
+   actions:
+     - name: build_summary
+       type: transform
+       transform_type: python
+       source: v_orders
+       module_path: "transforms/build_summary.py"
+       function_name: run
+       depends_on:
+         - my_catalog.my_schema.my_table
+         - my_schema.my_table
+
+.. seealso::
+
+   :doc:`dependency_analysis` for when and how to use ``depends_on`` to declare
+   edges the analyzer cannot parse from your sources.
 
 I/O Errors (LHP-IO)
 --------------------

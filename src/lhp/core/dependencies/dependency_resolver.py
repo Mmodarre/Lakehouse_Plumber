@@ -1,8 +1,10 @@
 """Dependency resolution for LakehousePlumber actions."""
 
 import logging
-from collections import defaultdict, deque
-from typing import Dict, List, Optional, Tuple
+from collections import defaultdict
+from typing import Dict, List, Tuple
+
+import networkx as nx
 
 from lhp.models import Action, ActionType
 
@@ -10,7 +12,8 @@ from ...errors import (
     ErrorFactory,
     codes,
 )
-from ...utils.source_extractor import extract_action_sources, is_cdc_write_action
+from ._graph_ops import find_cycle, topological_generations
+from .source_extractor import extract_action_sources, is_cdc_write_action
 
 
 class DependencyResolver:
@@ -62,7 +65,7 @@ class DependencyResolver:
                             f"Action '{action.name}' depends on '{source}' which is not produced by any action"
                         )
 
-        cycle = self._detect_cycle(graph)
+        cycle = find_cycle(self._to_digraph(actions, graph))
         if cycle:
             errors.append(f"Circular dependency detected: {' -> '.join(cycle)}")
 
@@ -162,77 +165,68 @@ class DependencyResolver:
         graph: Dict[str, List[str]],
         targets: Dict[str, Action],
     ) -> List[Action]:
-        """Kahn's algorithm topological sort."""
+        """Topological sort via the shared nx.DiGraph contract."""
         action_map = {action.name: action for action in actions}
-        in_degree = {action.name: 0 for action in actions}
 
-        for action_name in graph:
-            for dependent in graph[action_name]:
-                if dependent in in_degree:
-                    in_degree[dependent] += 1
+        digraph = self._to_digraph(actions, graph)
 
-        queue = deque([name for name, degree in in_degree.items() if degree == 0])
-        result = []
+        cycle = find_cycle(digraph)
+        if cycle is not None:
+            self._raise_circular_dependency(actions, digraph)
 
-        while queue:
-            current = queue.popleft()
-            result.append(action_map[current])
-
-            for dependent in graph.get(current, []):
-                if dependent in in_degree:
-                    in_degree[dependent] -= 1
-                    if in_degree[dependent] == 0:
-                        queue.append(dependent)
-
-        if len(result) != len(actions):
-            unprocessed = [name for name, degree in in_degree.items() if degree > 0]
-            cycle_visual = " -> ".join([*unprocessed, unprocessed[0]])
-            raise ErrorFactory.dependency_error(
-                codes.DEP_001,
-                title="Circular dependency detected",
-                details=f"Circular dependency detected involving: {unprocessed}\n\n{cycle_visual}",
-                suggestions=[
-                    "Review the dependency chain and remove one of the dependencies",
-                    "Consider splitting complex transformations into separate stages",
-                    "Use materialized views to break dependency cycles",
-                ],
-                context={"Cycle": cycle_visual, "Components": ", ".join(unprocessed)},
-            )
+        result = [
+            action_map[name]
+            for generation in topological_generations(digraph)
+            for name in generation
+        ]
 
         self.logger.debug(f"Topological sort complete: {[a.name for a in result]}")
         return result
 
-    def _detect_cycle(self, graph: Dict[str, List[str]]) -> Optional[List[str]]:
-        """Detect cycles in dependency graph using DFS."""
-        visited = set()
-        rec_stack = set()
-        path = []
+    def _to_digraph(
+        self, actions: List[Action], graph: Dict[str, List[str]]
+    ) -> "nx.DiGraph":
+        """Build an nx.DiGraph (producer -> dependent) from the resolver adjacency.
 
-        def dfs(node: str) -> Optional[List[str]]:
-            visited.add(node)
-            rec_stack.add(node)
-            path.append(node)
+        Every action is added as a node so isolated actions survive the sort.
+        """
+        digraph = nx.DiGraph()
+        digraph.add_nodes_from(action.name for action in actions)
+        for producer, dependents in graph.items():
+            for dependent in dependents:
+                digraph.add_edge(producer, dependent)
+        return digraph
 
-            for neighbor in graph.get(node, []):
-                if neighbor not in visited:
-                    cycle = dfs(neighbor)
-                    if cycle:
-                        return cycle
-                elif neighbor in rec_stack:
-                    cycle_start = path.index(neighbor)
-                    return [*path[cycle_start:], neighbor]
+    def _raise_circular_dependency(
+        self, actions: List[Action], digraph: "nx.DiGraph"
+    ) -> None:
+        """Raise DEP_001 with the residual cyclic node set (in input order)."""
+        cyclic: set[str] = set()
+        for component in nx.strongly_connected_components(digraph):
+            if len(component) > 1:
+                cyclic |= component
+            else:
+                (node,) = tuple(component)
+                if digraph.has_edge(node, node):
+                    cyclic.add(node)
 
-            rec_stack.remove(node)
-            path.pop()
-            return None
+        residual = set(cyclic)
+        for node in cyclic:
+            residual |= nx.descendants(digraph, node)
 
-        for node in graph:
-            if node not in visited:
-                cycle = dfs(node)
-                if cycle:
-                    return cycle
-
-        return None
+        unprocessed = [action.name for action in actions if action.name in residual]
+        cycle_visual = " -> ".join([*unprocessed, unprocessed[0]])
+        raise ErrorFactory.dependency_error(
+            codes.DEP_001,
+            title="Circular dependency detected",
+            details=f"Circular dependency detected involving: {unprocessed}\n\n{cycle_visual}",
+            suggestions=[
+                "Review the dependency chain and remove one of the dependencies",
+                "Consider splitting complex transformations into separate stages",
+                "Use materialized views to break dependency cycles",
+            ],
+            context={"Cycle": cycle_visual, "Components": ", ".join(unprocessed)},
+        )
 
     def _is_external_source(self, source: str, targets: Dict[str, Action]) -> bool:
         return source not in targets
@@ -260,44 +254,3 @@ class DependencyResolver:
                 orphaned.append(action)
 
         return orphaned
-
-    def get_execution_stages(self, actions: List[Action]) -> List[List[Action]]:
-        """Group actions into execution stages based on dependencies.
-
-        Actions in the same stage can be executed in parallel.
-
-        Returns:
-            List of stages, where each stage is a list of actions
-        """
-        ordered_actions = self.resolve_dependencies(actions)
-
-        graph, targets = self._build_dependency_graph(actions)
-        reverse_graph = defaultdict(list)
-
-        for action_name, dependents in graph.items():
-            for dependent in dependents:
-                reverse_graph[dependent].append(action_name)
-
-        stages = []
-        processed = set()
-
-        for action in ordered_actions:
-            if action.name in processed:
-                continue
-
-            current_stage = []
-
-            for candidate in ordered_actions:
-                if candidate.name in processed:
-                    continue
-
-                dependencies = reverse_graph.get(candidate.name, [])
-                if all(dep in processed for dep in dependencies):
-                    current_stage.append(candidate)
-
-            if current_stage:
-                stages.append(current_stage)
-                for action in current_stage:
-                    processed.add(action.name)
-
-        return stages

@@ -6,7 +6,7 @@ from unittest.mock import Mock, mock_open, patch
 import networkx as nx
 import pytest
 
-from lhp.core.dependencies.output import DependencyOutputManager
+from lhp.core.dependencies.output_writer import DependencyOutputWriter
 from lhp.models.dependencies import (
     DependencyAnalysisResult,
     DependencyGraphs,
@@ -14,10 +14,10 @@ from lhp.models.dependencies import (
 )
 
 
-class TestDependencyOutputManager:
+class TestDependencyOutputWriter:
     def setup_method(self):
         self.temp_dir = Path(tempfile.mkdtemp())
-        self.output_manager = DependencyOutputManager()
+        self.output_manager = DependencyOutputWriter()
 
     def teardown_method(self):
         import shutil
@@ -91,6 +91,9 @@ class TestDependencyOutputManager:
         mock_analyzer.project_root = self.temp_dir
 
         result = self.create_mock_analysis_result()
+        # The writer drives the single validated path via the service; configure
+        # it to return the single-job (no-job-name) tuple shape.
+        mock_analyzer.analyze_dependencies_by_job.return_value = ({}, result)
         output_formats = ["all"]
 
         generated_files = self.output_manager.save_outputs(
@@ -267,9 +270,10 @@ class TestDependencyOutputManager:
         )
 
         result = self.create_mock_analysis_result()
+        mock_analyzer.analyze_dependencies_by_job.return_value = ({}, result)
 
         with patch(
-            "lhp.core.dependencies.output.JobGenerator",
+            "lhp.core.dependencies.output_writer.JobGenerator",
             return_value=mock_job_generator,
         ):
             self.output_manager._save_job_format(mock_analyzer, result, self.temp_dir)
@@ -284,10 +288,11 @@ class TestDependencyOutputManager:
         )
 
         result = self.create_mock_analysis_result()
+        mock_analyzer.analyze_dependencies_by_job.return_value = ({}, result)
         custom_name = "custom_orchestration_job"
 
         with patch(
-            "lhp.core.dependencies.output.JobGenerator",
+            "lhp.core.dependencies.output_writer.JobGenerator",
             return_value=mock_job_generator,
         ):
             self.output_manager._save_job_format(
@@ -415,10 +420,10 @@ class TestDependencyOutputManager:
 
     def test_base_output_dir_initialization(self):
         custom_base_dir = Path("/custom/base")
-        manager = DependencyOutputManager(custom_base_dir)
+        manager = DependencyOutputWriter(custom_base_dir)
         assert manager.base_output_dir == custom_base_dir
 
-        default_manager = DependencyOutputManager()
+        default_manager = DependencyOutputWriter()
         assert default_manager.base_output_dir is None
 
     def test_concurrent_file_operations(self):
@@ -460,7 +465,7 @@ class TestDependencyOutputManager:
 
 def test_save_job_to_default_location(tmp_path):
     """Job saves to .lhp/dependencies/ by default."""
-    output_manager = DependencyOutputManager()
+    output_manager = DependencyOutputWriter()
 
     analyzer = Mock()
     analyzer.project_root = tmp_path / "project"
@@ -468,6 +473,7 @@ def test_save_job_to_default_location(tmp_path):
     analyzer.export_to_json = Mock(return_value={})
 
     result = create_test_dependency_result()
+    analyzer.analyze_dependencies_by_job.return_value = ({}, result)
 
     output_dir = tmp_path / ".lhp" / "dependencies"
     generated_files = output_manager.save_outputs(analyzer, result, ["job"], output_dir)
@@ -479,7 +485,7 @@ def test_save_job_to_default_location(tmp_path):
 
 def test_save_job_to_resources_with_bundle_flag(tmp_path):
     """Job saves to resources/ when bundle_output=True."""
-    output_manager = DependencyOutputManager()
+    output_manager = DependencyOutputWriter()
 
     analyzer = Mock()
     analyzer.project_root = tmp_path / "project"
@@ -488,6 +494,7 @@ def test_save_job_to_resources_with_bundle_flag(tmp_path):
     analyzer.export_to_json = Mock(return_value={})
 
     result = create_test_dependency_result()
+    analyzer.analyze_dependencies_by_job.return_value = ({}, result)
 
     output_dir = tmp_path / ".lhp" / "dependencies"
     generated_files = output_manager.save_outputs(
@@ -501,7 +508,7 @@ def test_save_job_to_resources_with_bundle_flag(tmp_path):
 
 def test_save_job_passes_config_path_to_generator(tmp_path):
     """Config file path is passed to JobGenerator."""
-    output_manager = DependencyOutputManager()
+    output_manager = DependencyOutputWriter()
 
     project_root = tmp_path / "project"
     project_root.mkdir()
@@ -514,6 +521,7 @@ def test_save_job_passes_config_path_to_generator(tmp_path):
     analyzer.export_to_json = Mock(return_value={})
 
     result = create_test_dependency_result()
+    analyzer.analyze_dependencies_by_job.return_value = ({}, result)
 
     output_dir = tmp_path / ".lhp" / "dependencies"
     output_manager.save_outputs(
@@ -530,7 +538,7 @@ def test_save_job_passes_config_path_to_generator(tmp_path):
 
 def test_save_job_creates_resources_directory_if_not_exists(tmp_path):
     """Resources directory is created if it doesn't exist."""
-    output_manager = DependencyOutputManager()
+    output_manager = DependencyOutputWriter()
 
     project_root = tmp_path / "project"
     project_root.mkdir()
@@ -541,6 +549,7 @@ def test_save_job_creates_resources_directory_if_not_exists(tmp_path):
     analyzer.export_to_json = Mock(return_value={})
 
     result = create_test_dependency_result()
+    analyzer.analyze_dependencies_by_job.return_value = ({}, result)
 
     resources_dir = project_root / "resources"
     assert not resources_dir.exists()
@@ -589,7 +598,7 @@ def create_test_dependency_result():
 class TestCircularDependencyGuard:
     def setup_method(self):
         self.temp_dir = Path(tempfile.mkdtemp())
-        self.output_manager = DependencyOutputManager()
+        self.output_manager = DependencyOutputWriter()
 
     def teardown_method(self):
         import shutil
@@ -650,6 +659,7 @@ class TestCircularDependencyGuard:
 
         result = self.create_mock_analysis_result()
         result.circular_dependencies = []
+        mock_analyzer.analyze_dependencies_by_job.return_value = ({}, result)
 
         generated_files = self.output_manager.save_outputs(
             mock_analyzer, result, ["job"], self.temp_dir
@@ -684,7 +694,7 @@ class TestCircularDependencyGuard:
 class TestAllFormatExpansion:
     def setup_method(self):
         self.temp_dir = Path(tempfile.mkdtemp())
-        self.output_manager = DependencyOutputManager()
+        self.output_manager = DependencyOutputWriter()
 
     def teardown_method(self):
         import shutil
@@ -698,7 +708,7 @@ class TestAllFormatExpansion:
         mock_analyzer.export_to_json.return_value = {}
         mock_analyzer.project_root = self.temp_dir
 
-        original_save_outputs = DependencyOutputManager.save_outputs
+        original_save_outputs = DependencyOutputWriter.save_outputs
 
         captured_formats = {}
 
@@ -740,10 +750,9 @@ class TestAllFormatExpansion:
             circular_dependencies=[],
             external_sources=[],
         )
+        mock_analyzer.analyze_dependencies_by_job.return_value = ({}, result)
 
-        with patch.object(
-            DependencyOutputManager, "save_outputs", patched_save_outputs
-        ):
+        with patch.object(DependencyOutputWriter, "save_outputs", patched_save_outputs):
             self.output_manager.save_outputs(
                 mock_analyzer, result, ["all"], self.temp_dir
             )

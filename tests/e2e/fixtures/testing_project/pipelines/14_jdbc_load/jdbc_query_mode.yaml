@@ -2,6 +2,7 @@
 # Reads via a custom SQL query using JDBC option("query", ...).
 pipeline: 14_jdbc_load
 flowgroup: jdbc_query_mode
+#job_name: j_jdbc
 
 actions:
   - name: load_external_customers

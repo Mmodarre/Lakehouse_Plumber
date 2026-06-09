@@ -57,6 +57,7 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | **VAL-010** | Both `__eventlog_monitoring` alias and real pipeline name in config | Use only one — alias or real name |
 | **VAL-011** | Multiple validation causes; commonly: eventlog alias misuse OR schema column-type syntax. See source for the specific site. | Check the error context for the specific cause |
 | **VAL-012** | Invalid source format (string where dict needed) | Provide full source config with `type`, `path`, etc. |
+| **VAL-063** | Malformed `depends_on` entry on an action — not a non-empty string, more than three dot-separated parts, or a blank dotted part | Each entry must be a well-formed table ref: `catalog.schema.table`, `schema.table`, or `table` (no blank parts) |
 | **VAL-902** | All-or-nothing aggregator — one or more flowgroups failed anywhere in a parallel `lhp generate` run (per-flowgroup validation, codegen, generated-source parse failure `LHP-CFG-031`, cross-flowgroup conflict, or copy conflict `LHP-VAL-019`); raised by the coordinator gate after all worker results are joined, before any files are written | Re-run with `--verbose` for full stack; re-run with `--log-file` to capture a debug log at `<project>/.lhp/logs/lhp.log` and attach it to the bug report; every listed failure must be fixed — the run wrote zero files |
 
 ## I/O Errors (LHP-IO)

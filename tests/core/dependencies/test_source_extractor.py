@@ -1,15 +1,15 @@
-"""Tests for shared source extraction functions in lhp.utils.source_extractor."""
+"""Tests for shared source extraction functions in lhp.core.dependencies.source_extractor."""
 
 from unittest.mock import Mock
 
 import pytest
 
-from lhp.models import Action
-from lhp.utils.source_extractor import (
+from lhp.core.dependencies.source_extractor import (
     extract_action_sources,
     extract_cdc_sources,
     is_cdc_write_action,
 )
+from lhp.models import Action
 
 
 class TestExtractActionSources:

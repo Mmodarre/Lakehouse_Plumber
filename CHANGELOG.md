@@ -7,6 +7,91 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Dependency analysis — more accurate edges, an explicit `depends_on` escape hatch, and a shared graph contract
+
+**Summary.** Dependency analysis now classifies far more reads as **internal**
+edges instead of misclassifying them as external sources: tables written through
+a `sink` write are registered as producers, table-reference matching is
+canonicalized and reconciles 2-part vs 3-part names, and the Python source-parser
+recognizes a much wider set of read APIs. A new optional `depends_on` action
+field provides an explicit escape hatch for edges that cannot be parsed from
+SQL/Python. Internally, the package was reconciled onto a single shared NetworkX
+graph contract.
+
+**Added.**
+
+- **New optional `depends_on` action field — an explicit dependency escape
+  hatch.** A list of upstream table references (e.g. `catalog.schema.table`) that
+  declares dependency edges which cannot be parsed from the action's SQL or Python
+  source. Entries are validated for shape (the list must be non-empty and each
+  reference must be a non-empty string of at most three dotted parts); malformed
+  entries now raise the new error code **`LHP-VAL-063`**.
+
+**Fixed.**
+
+- **Sink-written tables now register a sink producer in dependency analysis.** A
+  `type: sink` write with `sink_type: delta` now registers its
+  `options.tableName` as a producer, so downstream reads of that table form
+  **internal** edges instead of being misclassified as external sources. Sinks
+  that do not write a resolvable internal table — `kafka`, `custom`,
+  `foreachBatch`, and delta-to-path sinks — correctly register **no** producer.
+- **Table-reference matching is now canonicalized and reconciles 2-part vs 3-part
+  names.** References are normalized case-insensitively with backticks and
+  surrounding whitespace stripped, and a 2-part `schema.table` reference is now
+  reconciled against a 3-part `catalog.schema.table` producer (and vice versa),
+  matching only when the catalog is unambiguous. Reads that previously failed to
+  match a producer purely due to casing, backticks, or part-count differences now
+  resolve to internal edges.
+- **The Python source-parser recognizes a broader set of read APIs.**
+  `readStream.table`, `spark.read.format(delta|iceberg|hive|unity_catalog).table`
+  / `.load`, and static `.format()` / string-concatenation table-name resolution
+  are now detected, so internal-table reads expressed through more Python idioms
+  are picked up. `cloudFiles` and `custom_datasource` reads remain external.
+
+**Changed (internal/architecture).**
+
+- **The dependency-analysis package was reconciled onto a single shared NetworkX
+  `DiGraph` contract.** Topological sort and cycle detection are now provided by
+  one shared graph helper, replacing the dependency resolver's hand-rolled
+  Kahn/DFS implementation.
+- **The dependency output module was split and renamed.**
+  `DependencyOutputManager` became `DependencyOutputFormatter` (pure formatting),
+  and a new `DependencyOutputWriter` now owns disk I/O.
+
+**Removed.**
+
+- **Dead dependency-analysis code removed.** The unused `ActionDependencyInfo`
+  and `FlowgroupDependencyInfo` models, the
+  `DependencyAnalysisResult.get_pipeline_execution_order` method, and the
+  resolver's `get_execution_stages` method plus its hand-rolled cycle/topo code
+  were deleted.
+
+### `dag --format job` validates `job_name` consistency on the live path
+
+**Behavior change.**
+
+- **`lhp dag --format job` now rejects job-name-inconsistent configs (mixed/invalid
+  `job_name`) previously silently accepted (`validate_job_names` now runs on the
+  live path).** Job orchestration was consolidated onto a single validated service
+  entry point (`DependencyAnalysisService.analyze_dependencies_by_job`), which the
+  `DependencyOutputWriter` now drives. The writer previously did its own
+  single-vs-multi detection without validating, so configs that mix `job_name`
+  usage (some flowgroups set it, others don't) or use an invalid `job_name`
+  format slipped through and produced job YAML. These now raise `LHP-VAL-002`
+  (inconsistent usage) / `LHP-VAL-001` (bad format) before any job file is
+  written. For valid configs the generated `*.job.yml` output is byte-identical.
+
+### Dependency-analysis package: `metrics.py` deferred (`DEPS-METRICS-DEFER`)
+
+**Deferred (decided; tracked for follow-up).**
+
+- **`core/dependencies/metrics.py` is not built (`DEPS-METRICS-DEFER`).** No
+  consumer needs it today — jobs use `execution_stages` from the analyzer — so
+  building it now would be dead code. The package reaches its four-component
+  target as graph_builder + analyzer + output + service; `metrics.py` is the
+  deferred 5th, to be added when a real consumer arrives. The phantom "metrics
+  service" clause in the `DependencyAnalyzer` docstring was removed.
+
 ### `$` in schema-transform source column names
 
 **Summary.** The schema-transform arrow DSL now accepts `$` in any column name

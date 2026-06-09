@@ -20,6 +20,7 @@ from ...models.dependencies import (
     DependencyGraphs,
     PipelineDependency,
 )
+from ._graph_ops import enumerate_cycles, topological_generations
 
 
 class DependencyAnalyzer:
@@ -27,8 +28,8 @@ class DependencyAnalyzer:
 
     Stateless apart from the logger. All inputs come in via method
     arguments; outputs are returned. Composition root (``service.py``)
-    is responsible for wiring this together with a builder, a metrics
-    service, and the output module.
+    is responsible for wiring this together with a builder and the
+    output module.
 
     :stability: provisional
     """
@@ -239,22 +240,16 @@ class DependencyAnalyzer:
 
     def _get_execution_order(self, pipeline_graph: nx.DiGraph) -> List[List[str]]:
         """Get pipeline execution order using topological sorting."""
-        if not pipeline_graph.nodes():
-            return []
-
-        try:
-            return list(nx.topological_generations(pipeline_graph))
-        except nx.NetworkXError:
-            self.logger.exception("Error in topological sorting")
-            return []
+        return topological_generations(pipeline_graph)
 
     def _detect_circular_dependencies(
         self, graphs: DependencyGraphs
     ) -> List[List[str]]:
         """Detect all circular dependencies at all graph levels.
 
-        Uses nx.simple_cycles() to find ALL cycles (not just the first one),
-        capped at 20 cycles to avoid overwhelming output.
+        Enumerates ALL cycles (not just the first one) via
+        ``_graph_ops.enumerate_cycles``, capped at 20 cycles total across all
+        levels to avoid overwhelming output.
         """
         MAX_CYCLES = 20
         circular_dependencies: List[List[str]] = []
@@ -268,15 +263,14 @@ class DependencyAnalyzer:
                 f"Checking {level_name} graph for cycles ({graph.number_of_nodes()} nodes, {graph.number_of_edges()} edges)"
             )
 
-            cycles_found = 0
-            for cycle_nodes in nx.simple_cycles(graph):
-                if len(circular_dependencies) >= MAX_CYCLES:
-                    self.logger.warning(
-                        f"Reached maximum cycle reporting limit ({MAX_CYCLES}). "
-                        "Additional cycles may exist."
-                    )
-                    return circular_dependencies
+            # Fetch one more than the remaining budget so we can tell whether
+            # the cap was hit mid-level (i.e. more cycles exist than we report).
+            remaining = MAX_CYCLES - len(circular_dependencies)
+            level_cycles = enumerate_cycles(graph, limit=remaining + 1)
+            cap_hit = len(level_cycles) > remaining
 
+            cycles_found = 0
+            for cycle_nodes in level_cycles[:remaining]:
                 # Format cycle: [A, B, C] -> "A -> B -> C -> A"
                 cycle_path = [*list(cycle_nodes), cycle_nodes[0]]
                 cycle_description = f"{level_name} level: {' -> '.join(cycle_path)}"
@@ -288,6 +282,13 @@ class DependencyAnalyzer:
 
             if cycles_found:
                 self.logger.info(f"Found {cycles_found} cycle(s) at {level_name} level")
+
+            if cap_hit:
+                self.logger.warning(
+                    f"Reached maximum cycle reporting limit ({MAX_CYCLES}). "
+                    "Additional cycles may exist."
+                )
+                return circular_dependencies
 
         return circular_dependencies
 

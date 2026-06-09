@@ -4,6 +4,7 @@
 # embedded helper closure travels with the class to the executor.
 pipeline: helper_imports
 flowgroup: helper_source_flow
+#job_name: j_helpers
 
 actions:
   - name: load_from_helper_source

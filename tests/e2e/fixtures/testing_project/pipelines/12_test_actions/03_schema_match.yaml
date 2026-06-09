@@ -2,6 +2,7 @@
 # Compares schemas between two tables via information_schema.
 pipeline: 12_test_actions
 flowgroup: ta_schema_match
+#job_name: j_test_actions
 
 actions:
   - name: ta_orders_schema_match

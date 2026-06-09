@@ -32,7 +32,7 @@ class TestMultiJobWorkflow:
 
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    @patch("lhp.core.dependencies.builder.DependencyGraphBuilder.get_flowgroups")
+    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
     def test_validation_failure_stops_workflow(
         self, mockget_flowgroups, sample_flowgroups_mixed_job_name
     ):
@@ -45,3 +45,34 @@ class TestMultiJobWorkflow:
 
         assert exc_info.value.code == "LHP-VAL-002"
         assert "Inconsistent job_name usage" in exc_info.value.title
+
+    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    def test_live_job_write_path_rejects_inconsistent_job_names(
+        self, mockget_flowgroups, sample_flowgroups_mixed_job_name
+    ):
+        """The live ``dag --format job`` write path runs ``validate_job_names``
+        via the consolidated service method.
+
+        A job-name-inconsistent config (mixed usage) must raise
+        ``LHP-VAL-002`` before any job file is written.
+        """
+        from lhp.core.dependencies.output_writer import DependencyOutputWriter
+
+        mockget_flowgroups.return_value = sample_flowgroups_mixed_job_name
+
+        analyzer = _make_service(self.temp_dir)
+        # Build the global analysis the writer is handed; the writer re-validates
+        # and partitions via analyze_dependencies_by_job(), which is where the
+        # inconsistent config is now rejected.
+        graphs = analyzer.build_graphs(sample_flowgroups_mixed_job_name)
+        result = analyzer.analyze(graphs)
+
+        output_dir = self.temp_dir / ".lhp" / "dependencies"
+        writer = DependencyOutputWriter()
+
+        with pytest.raises(LHPError) as exc_info:
+            writer.save_outputs(analyzer, result, ["job"], output_dir)
+
+        assert exc_info.value.code == "LHP-VAL-002"
+        # No job file should have been written before the validation fired.
+        assert not list(output_dir.glob("*.job.yml"))

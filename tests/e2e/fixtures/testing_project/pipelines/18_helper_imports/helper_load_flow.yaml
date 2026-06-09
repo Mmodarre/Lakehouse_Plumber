@@ -6,6 +6,7 @@
 #     preserved. Both entry imports are prefix-rewritten to custom_python_functions.*.
 pipeline: helper_imports
 flowgroup: helper_load_flow
+#job_name: j_helpers
 
 actions:
   - name: load_with_helper

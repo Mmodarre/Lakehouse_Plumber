@@ -5,7 +5,18 @@ import logging
 from dataclasses import dataclass, field
 from typing import Callable, FrozenSet, List, Literal, Optional, Set
 
-from .sql_parser import extract_tables_from_sql
+from ...utils.sql_parser import extract_tables_from_sql
+from ._static_resolution import resolve_static_string_values
+
+# Spark DataFrameReader ``.format(...)`` values that denote a relational table
+# read (``spark.read.format(fmt).table/load("cat.sch.t")``). Anything outside
+# this allowlist — most importantly ``cloudFiles`` (Auto Loader) and the short
+# name a custom Python DataSource registers — is a genuine external root and
+# must NOT be surfaced as an internal table reference. The set is matched
+# case-insensitively.
+_INTERNAL_TABLE_FORMATS: FrozenSet[str] = frozenset(
+    {"delta", "iceberg", "hive", "unity_catalog"}
+)
 
 
 @dataclass(frozen=True)
@@ -121,20 +132,20 @@ class _TableExtractor(ast.NodeVisitor):
     def _evaluate_rhs(self, node: ast.expr) -> FrozenSet[str]:
         """Return the set of literal string values ``node`` could be.
 
-        Handles only forms the parser can reason about statically:
+        Delegates to :func:`resolve_static_string_values`, which handles the
+        forms the parser can reason about statically:
           - ``"literal"`` (ast.Constant with str value)
-          - ``f"..."`` (ast.JoinedStr — rendered via _process_f_string)
+          - ``f"..."`` (ast.JoinedStr — rendered via render_f_string)
+          - ``"a" + "b"`` (ast.BinOp string concatenation, all operands static)
+          - ``"{}.{}".format(a, b)`` (.format() chains, all operands static)
+          - a previously bound ``ast.Name`` (resolved through the scope stack)
 
-        Returns an empty set for anything else (BinOp concatenation, function
-        calls, subscripts). The extractor never speculates past what's
-        literally visible in the source.
+        Returns an empty set for anything else (function calls returning
+        unknowns, subscripts). The extractor never speculates past what's
+        literally visible in the source: if any operand is dynamic, the whole
+        expression is left unresolved.
         """
-        if isinstance(node, ast.Constant) and isinstance(node.value, str):
-            return frozenset({node.value})
-        if isinstance(node, ast.JoinedStr):
-            rendered = self._parser._process_f_string(node)
-            return frozenset({rendered}) if rendered else frozenset()
-        return frozenset()
+        return resolve_static_string_values(node, name_resolver=self._resolve_name)
 
     def visit_Call(self, node: ast.Call) -> None:
         values = self._parser._extract_table_from_call(
@@ -228,12 +239,6 @@ class PythonParser:
         ):
             return self._get_string_argument(node, 0)
 
-        if isinstance(node.func, ast.Attribute) and node.func.attr in [
-            "createOrReplaceTempView",
-            "createGlobalTempView",
-        ]:
-            pass
-
         return None
 
     def _extract_table_from_call(
@@ -249,6 +254,7 @@ class PythonParser:
         multiple possible values when the user reassigns or conditionally
         branches.
         """
+        # ``spark.table(...)`` — bare table accessor on the spark session.
         if (
             isinstance(node.func, ast.Attribute)
             and node.func.attr == "table"
@@ -256,26 +262,89 @@ class PythonParser:
         ):
             return self._get_string_argument_values(node, 0, name_resolver)
 
+        # ``spark.read.table(...)`` and ``spark.readStream.table(...)`` — the
+        # ``.table`` accessor on a DataFrameReader / DataStreamReader. Also
+        # accepts an aliased reader receiver (``self.spark.read.table``) via
+        # ``_is_spark_object`` on the innermost node.
         if (
             isinstance(node.func, ast.Attribute)
             and node.func.attr == "table"
             and isinstance(node.func.value, ast.Attribute)
-            and node.func.value.attr == "read"
+            and node.func.value.attr in ("read", "readStream")
             and self._is_spark_object(node.func.value.value)
         ):
             return self._get_string_argument_values(node, 0, name_resolver)
+
+        # ``spark.read.format(fmt).table/load(...)`` and the ``readStream``
+        # variant. Only matches when ``fmt`` is a recognized relational-table
+        # format (see ``_INTERNAL_TABLE_FORMATS``); ``cloudFiles`` and custom
+        # DataSource names fall through and stay external.
+        format_chain_values = self._extract_table_from_format_chain(node, name_resolver)
+        if format_chain_values:
+            return format_chain_values
 
         if (
             isinstance(node.func, ast.Attribute)
             and isinstance(node.func.value, ast.Attribute)
             and node.func.value.attr == "catalog"
             and self._is_spark_object(node.func.value.value)
-            and node.func.attr in ["tableExists", "dropTempView", "listTables"]
+            and node.func.attr in ["tableExists", "dropTempView"]
         ):
-            if node.func.attr in ["tableExists", "dropTempView"]:
-                return self._get_string_argument_values(node, 0, name_resolver)
+            return self._get_string_argument_values(node, 0, name_resolver)
 
         return frozenset()
+
+    def _extract_table_from_format_chain(
+        self,
+        node: ast.Call,
+        name_resolver: Optional[Callable[[str], FrozenSet[str]]] = None,
+    ) -> FrozenSet[str]:
+        """Recognize ``spark.read.format(fmt).table/load("c.s.t")`` chains.
+
+        Handles both ``read`` and ``readStream`` receivers. Returns the
+        resolved table reference(s) only when ``fmt`` statically resolves to a
+        single value in :data:`_INTERNAL_TABLE_FORMATS` (case-insensitive) and
+        the terminal ``.table()`` / ``.load()`` argument is itself statically
+        resolvable. ``cloudFiles`` (Auto Loader) and custom DataSource names
+        are not in the allowlist, so those reads return ``frozenset()`` and
+        remain external — preserving the prior behavior.
+        """
+        # Terminal accessor: ``.table(arg)`` or ``.load(arg)``.
+        if not (
+            isinstance(node.func, ast.Attribute) and node.func.attr in ("table", "load")
+        ):
+            return frozenset()
+
+        # Receiver must be a ``.format(fmt)`` call.
+        format_call = node.func.value
+        if not (
+            isinstance(format_call, ast.Call)
+            and isinstance(format_call.func, ast.Attribute)
+            and format_call.func.attr == "format"
+        ):
+            return frozenset()
+
+        # The ``.format`` receiver must be ``spark.read`` or ``spark.readStream``.
+        reader = format_call.func.value
+        if not (
+            isinstance(reader, ast.Attribute)
+            and reader.attr in ("read", "readStream")
+            and self._is_spark_object(reader.value)
+        ):
+            return frozenset()
+
+        # The format string must statically resolve to a single allowlisted
+        # relational-table format. Anything else (cloudFiles, custom DataSource
+        # names, file formats) is external — never speculate.
+        format_values = self._get_string_argument_values(format_call, 0, name_resolver)
+        if not (
+            len(format_values) == 1
+            and next(iter(format_values)).lower() in _INTERNAL_TABLE_FORMATS
+        ):
+            return frozenset()
+
+        # ``.load()`` with no argument (custom DataSource style) yields nothing.
+        return self._get_string_argument_values(node, 0, name_resolver)
 
     def _is_spark_object(self, node: ast.AST) -> bool:
         """Check if an AST node represents a spark object."""
@@ -329,54 +398,21 @@ class PythonParser:
 
         arg = node.args[arg_index]
 
-        if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-            return frozenset({arg.value})
-
-        if isinstance(arg, ast.JoinedStr):
-            rendered = self._process_f_string(arg)
-            return frozenset({rendered}) if rendered else frozenset()
-
-        # Name reference — defer to the resolver, if provided.
-        if isinstance(arg, ast.Name):
-            if name_resolver is not None:
-                resolved = name_resolver(arg.id)
-                if not resolved:
-                    self.logger.debug(
-                        f"Variable reference '{arg.id}' in spark call — "
-                        "unresolved in current scope"
-                    )
-                return resolved
+        # Name reference with no resolver (the SQL-extraction path): keep the
+        # historical debug message rather than silently returning empty.
+        if isinstance(arg, ast.Name) and name_resolver is None:
             self.logger.debug(
                 f"Found variable reference '{arg.id}' in SQL call - cannot resolve"
             )
             return frozenset()
 
-        return frozenset()
-
-    def _process_f_string(self, node: ast.JoinedStr) -> str:
-        """Render an f-string as a template, substituting known schema/catalog variable names
-        with ``{name}`` and collapsing unknown interpolations to ``{var}``."""
-        parts = []
-
-        for value in node.values:
-            if isinstance(value, ast.Constant) and isinstance(value.value, str):
-                parts.append(value.value)
-            elif isinstance(value, ast.FormattedValue):
-                if isinstance(value.value, ast.Name) and value.value.id in [
-                    "catalog",
-                    "schema",
-                    "table",
-                    "bronze_schema",
-                    "silver_schema",
-                    "gold_schema",
-                    "migration_schema",
-                    "old_schema",
-                ]:
-                    parts.append(f"{{{value.value.id}}}")
-                else:
-                    parts.append("{var}")
-
-        return "".join(parts)
+        resolved = resolve_static_string_values(arg, name_resolver)
+        if not resolved and isinstance(arg, ast.Name):
+            self.logger.debug(
+                f"Variable reference '{arg.id}' in spark call — "
+                "unresolved in current scope"
+            )
+        return resolved
 
     def _normalize_python_code(self, python_code: str) -> str:
         """Remove common indentation so indented code blocks (e.g. in test strings) parse cleanly."""

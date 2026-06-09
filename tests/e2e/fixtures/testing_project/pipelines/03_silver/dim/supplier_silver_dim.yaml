@@ -2,6 +2,7 @@
 # Demonstrates the parameters feature: keyword args bound via functools.partial
 pipeline: acmi_edw_silver
 flowgroup: supplier_silver_dim
+#job_name: j_three
 preset: default_delta_properties
 actions:
   - name: write_supplier_silver_snapshot

@@ -25,3 +25,4 @@
 
 - Use `stream(view_name)` in SQL for streaming sources; without it the query runs in batch mode.
 - Substitution variables work in inline SQL and external files (`${token}`, `${secret:scope/key}`); files are processed for substitutions before execution.
+- **Dependency analysis** parses table refs out of the SQL body. It does NOT resolve `${tokens}` — a source written with a token cannot match a producer written as a literal (and vice versa). Use literals on both sides, or declare the edge with the additive `depends_on` action field (list of `catalog.schema.table` / `schema.table` refs; malformed → `LHP-VAL-063`).

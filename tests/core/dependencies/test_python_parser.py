@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lhp.utils.python_parser import (
+from lhp.core.dependencies.python_parser import (
     PythonParser,
     extract_sql_from_python,
     extract_tables_from_python,
@@ -301,7 +301,7 @@ class TestPythonParser:
         # F-string processing should preserve known substitution tokens
         assert result == ["{catalog}.{bronze_schema}.raw_data"]
 
-    @patch("lhp.utils.python_parser.extract_tables_from_sql")
+    @patch("lhp.core.dependencies.python_parser.extract_tables_from_sql")
     def test_sql_extraction_integration(self, mock_extract):
         """Test integration with SQL parser."""
         mock_extract.return_value = ["bronze.customers", "silver.orders"]
@@ -589,9 +589,19 @@ spark.table(tbl)
 """
         assert self.parser.extract_tables_from_python(code) == []
 
-    def test_string_concatenation_binop_not_resolved(self):
+    def test_string_concatenation_binop_resolves(self):
+        # BinOp concatenation of literals is statically visible, so it
+        # resolves to the concrete table.
         code = """
 tbl = "cat." + "sch." + "t"
+spark.table(tbl)
+"""
+        assert self.parser.extract_tables_from_python(code) == ["cat.sch.t"]
+
+    def test_string_concatenation_with_dynamic_operand_not_resolved(self):
+        # Any non-static operand collapses the whole expression — no speculation.
+        code = """
+tbl = "cat." + get_schema() + ".t"
 spark.table(tbl)
 """
         assert self.parser.extract_tables_from_python(code) == []
@@ -646,4 +656,135 @@ spark.sql(q)
 """
         # spark.sql(var) still yields nothing — scope-aware resolution is
         # deliberately limited to direct table-reference calls.
+        assert self.parser.extract_tables_from_python(code) == []
+
+
+class TestBroadenedReadAPIRecognition:
+    """Tests for the broadened read-API allowlist and RHS resolution.
+
+    Covers the additional internal-table read idioms: ``readStream.table``,
+    ``spark.read.format(fmt).table/load(...)`` (and the ``readStream`` variant),
+    plus the new static-string resolution forms (``BinOp`` concatenation and
+    ``str.format`` calls). Crucially, ``cloudFiles`` (Auto Loader) and custom
+    DataSource reads must remain external — they yield NO internal table.
+    """
+
+    def setup_method(self):
+        self.parser = PythonParser()
+
+    # ---- readStream.table ----
+
+    def test_readstream_table_via_reader_attr(self):
+        code = 'df = spark.readStream.table("c.s.t")'
+        assert self.parser.extract_tables_from_python(code) == ["c.s.t"]
+
+    def test_spark_readstream_table_with_variable(self):
+        code = """
+tbl = "c.s.t"
+df = spark.readStream.table(tbl)
+"""
+        assert self.parser.extract_tables_from_python(code) == ["c.s.t"]
+
+    def test_aliased_self_spark_readstream_table(self):
+        code = """
+class P:
+    def m(self):
+        return self.spark.readStream.table("c.s.t")
+"""
+        assert self.parser.extract_tables_from_python(code) == ["c.s.t"]
+
+    # ---- format(...).table / .load chains ----
+
+    def test_read_format_delta_table(self):
+        code = 'df = spark.read.format("delta").table("c.s.t")'
+        assert self.parser.extract_tables_from_python(code) == ["c.s.t"]
+
+    def test_read_format_delta_load(self):
+        code = 'df = spark.read.format("delta").load("c.s.t")'
+        assert self.parser.extract_tables_from_python(code) == ["c.s.t"]
+
+    def test_readstream_format_load(self):
+        code = 'df = spark.readStream.format("delta").load("c.s.t")'
+        assert self.parser.extract_tables_from_python(code) == ["c.s.t"]
+
+    def test_read_format_iceberg_table(self):
+        code = 'df = spark.read.format("iceberg").table("c.s.t")'
+        assert self.parser.extract_tables_from_python(code) == ["c.s.t"]
+
+    def test_format_case_insensitive(self):
+        code = 'df = spark.read.format("Delta").table("c.s.t")'
+        assert self.parser.extract_tables_from_python(code) == ["c.s.t"]
+
+    def test_format_chain_with_variable_table_name(self):
+        code = """
+tbl = "c.s.t"
+df = spark.read.format("delta").table(tbl)
+"""
+        assert self.parser.extract_tables_from_python(code) == ["c.s.t"]
+
+    # ---- BinOp / .format resolvable table names ----
+
+    def test_binop_table_name_in_read_table(self):
+        code = 'df = spark.read.table("cat." + "sch.t")'
+        assert self.parser.extract_tables_from_python(code) == ["cat.sch.t"]
+
+    def test_str_format_table_name(self):
+        code = """
+tbl = "{}.{}.{}".format("cat", "sch", "t")
+spark.table(tbl)
+"""
+        assert self.parser.extract_tables_from_python(code) == ["cat.sch.t"]
+
+    def test_str_format_inline_in_call(self):
+        code = 'spark.table("{}.s.t".format("cat"))'
+        assert self.parser.extract_tables_from_python(code) == ["cat.s.t"]
+
+    def test_str_format_with_dynamic_arg_not_resolved(self):
+        code = """
+tbl = "{}.{}.t".format("cat", get_schema())
+spark.table(tbl)
+"""
+        assert self.parser.extract_tables_from_python(code) == []
+
+    # ---- cloudFiles / custom datasource stay EXTERNAL ----
+
+    def test_cloudfiles_readstream_load_yields_no_internal_table(self):
+        code = """
+df = spark.readStream \\
+    .format("cloudFiles") \\
+    .option("cloudFiles.format", "json") \\
+    .load("/mnt/landing/events")
+"""
+        # Auto Loader is a genuine external root — must not surface a table.
+        assert self.parser.extract_tables_from_python(code) == []
+
+    def test_cloudfiles_read_load_yields_no_internal_table(self):
+        code = 'df = spark.read.format("cloudFiles").load("/mnt/x")'
+        assert self.parser.extract_tables_from_python(code) == []
+
+    def test_custom_datasource_format_read_yields_no_internal_table(self):
+        # Mirrors the custom_datasource template: an arbitrary registered name
+        # with a bare .load() (or with an arg) — never an internal table.
+        code = """
+df = spark.readStream \\
+    .format("my_api_datasource") \\
+    .option("endpoint", "https://x") \\
+    .load()
+"""
+        assert self.parser.extract_tables_from_python(code) == []
+
+    def test_custom_datasource_with_load_arg_yields_no_internal_table(self):
+        code = 'df = spark.read.format("APIDataSource").load("some_resource")'
+        assert self.parser.extract_tables_from_python(code) == []
+
+    def test_non_allowlisted_file_format_load_yields_no_internal_table(self):
+        # parquet/csv/etc. .load() reads a path, not a UC table — external.
+        code = 'df = spark.read.format("parquet").load("/mnt/p")'
+        assert self.parser.extract_tables_from_python(code) == []
+
+    def test_dynamic_format_not_resolved(self):
+        code = """
+fmt = get_format()
+df = spark.read.format(fmt).table("c.s.t")
+"""
         assert self.parser.extract_tables_from_python(code) == []

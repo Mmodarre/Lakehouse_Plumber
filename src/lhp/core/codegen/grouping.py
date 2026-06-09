@@ -4,11 +4,47 @@
 """
 
 from collections import defaultdict
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 
 from lhp.models import Action
 
-from ...utils.source_extractor import extract_source_views_from_action
+
+def extract_source_views_from_action(source: Union[str, List, Dict]) -> List[str]:
+    """Extract all source views from an action source configuration.
+
+    For sources without explicit table names (e.g., Kafka topics), returns
+    ``["source"]`` as a placeholder to maintain consistency in code generation.
+    """
+    if isinstance(source, str):
+        return [source]
+    if isinstance(source, list):
+        result = []
+        for item in source:
+            if isinstance(item, str):
+                result.append(item)
+            elif isinstance(item, dict):
+                catalog = item.get("catalog")
+                schema = item.get("schema")
+                table = item.get("table") or item.get("view") or item.get("name", "")
+                if catalog and schema and table:
+                    result.append(f"{catalog}.{schema}.{table}")
+                elif table:
+                    result.append(table)
+            else:
+                result.append(str(item))
+        return result
+    if isinstance(source, dict):
+        catalog = source.get("catalog")
+        schema = source.get("schema")
+        table = source.get("table") or source.get("view") or source.get("name", "")
+        if catalog and schema and table:
+            return [f"{catalog}.{schema}.{table}"]
+        if table:
+            return [table]
+        # Return generic "source" for non-table sources (e.g., Kafka, custom sources)
+        # This prevents empty lists that could cause issues in code generation
+        return ["source"]
+    return ["source"]  # Fallback for unknown types
 
 
 class WriteActionGrouper:

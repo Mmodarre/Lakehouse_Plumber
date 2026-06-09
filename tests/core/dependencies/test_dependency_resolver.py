@@ -123,6 +123,59 @@ class TestDependencyResolver:
         with pytest.raises(LHPError, match="Circular dependency detected"):
             resolver.resolve_dependencies(actions)
 
+    def test_circular_dependency_dep001_payload_preserved(self):
+        """DEP_001 payload (code/title/details/context) must stay byte-identical.
+
+        Two consumers (config_validator, codegen.coordinator) propagate this
+        LHPError unchanged; the Kahn -> NetworkX reconciliation must not alter
+        the residual-node ordering, the cycle-visual rendering, or the context
+        keys they relay.
+        """
+        resolver = DependencyResolver()
+
+        actions = [
+            Action(
+                name="action1",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source="v_view2",
+                target="v_view1",
+                sql="SELECT * FROM v_view2",
+            ),
+            Action(
+                name="action2",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source="v_view3",
+                target="v_view2",
+                sql="SELECT * FROM v_view3",
+            ),
+            Action(
+                name="action3",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source="v_view1",
+                target="v_view3",
+                sql="SELECT * FROM v_view1",
+            ),
+        ]
+
+        with pytest.raises(LHPError) as exc_info:
+            resolver.resolve_dependencies(actions)
+
+        err = exc_info.value
+        assert err.code == "LHP-DEP-001"
+        assert err.title == "Circular dependency detected"
+        assert err.details == (
+            "Circular dependency detected involving: "
+            "['action1', 'action2', 'action3']\n\n"
+            "action1 -> action2 -> action3 -> action1"
+        )
+        assert err.context == {
+            "Cycle": "action1 -> action2 -> action3 -> action1",
+            "Components": "action1, action2, action3",
+        }
+
     def test_validate_relationships(self):
         """Test relationship validation."""
         resolver = DependencyResolver()
@@ -329,78 +382,6 @@ class TestDependencyResolver:
         assert action_positions["join_bc"] < action_positions["final_join"]
 
         assert action_positions["final_join"] < action_positions["write_final"]
-
-    def test_execution_stages(self):
-        """Test grouping actions into execution stages."""
-        resolver = DependencyResolver()
-
-        actions = [
-            Action(
-                name="load_a",
-                type=ActionType.LOAD,
-                target="v_a",
-                source={"type": "delta", "table": "a"},
-            ),
-            Action(
-                name="load_b",
-                type=ActionType.LOAD,
-                target="v_b",
-                source={"type": "delta", "table": "b"},
-            ),
-            Action(
-                name="transform_a",
-                type=ActionType.TRANSFORM,
-                transform_type=TransformType.SQL,
-                source="v_a",
-                target="v_a_clean",
-                sql="SELECT * FROM v_a",
-            ),
-            Action(
-                name="transform_b",
-                type=ActionType.TRANSFORM,
-                transform_type=TransformType.SQL,
-                source="v_b",
-                target="v_b_clean",
-                sql="SELECT * FROM v_b",
-            ),
-            Action(
-                name="join_ab",
-                type=ActionType.TRANSFORM,
-                transform_type=TransformType.SQL,
-                source=["v_a_clean", "v_b_clean"],
-                target="v_final",
-                sql="SELECT * FROM v_a_clean JOIN v_b_clean",
-            ),
-            Action(
-                name="write_result",
-                type=ActionType.WRITE,
-                source="v_final",
-                write_target={
-                    "type": "streaming_table",
-                    "catalog": "silver_cat",
-                    "schema": "silver_sch",
-                    "table": "result",
-                },
-            ),
-        ]
-
-        stages = resolver.get_execution_stages(actions)
-
-        assert len(stages) == 4
-
-        assert len(stages[0]) == 2
-        stage0_names = {action.name for action in stages[0]}
-        assert stage0_names == {"load_a", "load_b"}
-
-        assert len(stages[1]) == 2
-        stage1_names = {action.name for action in stages[1]}
-        assert stage1_names == {"transform_a", "transform_b"}
-
-        assert len(stages[2]) == 1
-        assert stages[2][0].name == "join_ab"
-
-        assert len(stages[3]) == 1
-        assert stages[3][0].name == "write_result"
 
     def test_external_source_handling(self):
         """Test handling of external sources (not produced by any action)."""

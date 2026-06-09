@@ -132,7 +132,7 @@ def discover_files_with_patterns(base_dir: Path, patterns: List[str]) -> List[Pa
 
     # No patterns: return all files (backwards compatibility)
     if not patterns:
-        return all_files
+        return sorted(all_files)
 
     relative_files = []
     for file_path in all_files:
@@ -150,4 +150,4 @@ def discover_files_with_patterns(base_dir: Path, patterns: List[str]) -> List[Pa
         f"Discovered {len(matched_absolute)} file(s) in {base_dir} matching {len(patterns)} pattern(s)"
     )
 
-    return matched_absolute
+    return sorted(matched_absolute)

@@ -94,6 +94,10 @@ class Action(BaseModel):
     module_path: Optional[str] = (
         None  # Path to Python module (relative to project root)
     )
+    depends_on: Optional[List[str]] = Field(
+        None,
+        description="Explicit upstream table references (catalog.schema.table or schema.table) this action depends on, for dependency-graph edges that cannot be parsed from SQL/Python sources.",
+    )
     function_name: Optional[str] = None
     parameters: Optional[Dict[str, Any]] = None
     # Custom data source specific fields

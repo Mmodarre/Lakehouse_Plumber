@@ -4,6 +4,7 @@
 # .option("startingVersion", "0") on a spark.readStream chain.
 pipeline: 17_delta_cdc
 flowgroup: cdc_read_change_feed
+#job_name: j_cdc
 
 actions:
   - name: read_orders_cdf

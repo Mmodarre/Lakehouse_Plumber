@@ -66,6 +66,12 @@ VAL_053 = ErrorCode(ErrorCategory.VALIDATION, "053")
 VAL_055 = ErrorCode(ErrorCategory.VALIDATION, "055")
 VAL_061 = ErrorCode(ErrorCategory.VALIDATION, "061")
 VAL_062 = ErrorCode(ErrorCategory.VALIDATION, "062")
+# VAL_063: an action's optional ``depends_on`` escape-hatch entry is malformed —
+# raised by ConfigFieldValidator._validate_depends_on when an entry is not a
+# non-empty string, has >3 dot-separated parts, or has a blank dotted part
+# (a well-formed catalog.schema.table / schema.table / table reference is
+# required).
+VAL_063 = ErrorCode(ErrorCategory.VALIDATION, "063")
 VAL_902 = ErrorCode(ErrorCategory.VALIDATION, "902")
 VAL_DUPFG = ErrorCode(ErrorCategory.VALIDATION, "DUPFG")
 
@@ -190,6 +196,7 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     VAL_055,
     VAL_061,
     VAL_062,
+    VAL_063,
     VAL_902,
     VAL_DUPFG,
     IO_001,

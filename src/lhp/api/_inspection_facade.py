@@ -361,7 +361,7 @@ class InspectionFacade:
             and analysis, plus ``LHP-IO-*`` / :class:`OSError` for
             filesystem failures while writing the requested formats.
         """
-        from lhp.core.dependencies.output import DependencyOutputManager
+        from lhp.core.dependencies import DependencyOutputWriter
 
         dep_service = self._orchestrator.dependencies
         dep_service.set_blueprint_view_mode(
@@ -371,7 +371,7 @@ class InspectionFacade:
         graphs = dep_service.build_graphs(flowgroups)
         internal = dep_service.analyze(graphs)
 
-        output_manager = DependencyOutputManager()
+        output_manager = DependencyOutputWriter()
         # ``save_outputs`` is typed ``Dict[str, Path]`` but the multi-job
         # branch returns a nested ``Dict[str, Path]`` value per format —
         # the cast lets mypy see both legs of the isinstance below.

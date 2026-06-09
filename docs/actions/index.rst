@@ -87,6 +87,27 @@ Actions come in four top-level types:
 ||               || temporary tables (uniqueness, referential integrity…).  |
 +----------------+----------------------------------------------------------+
 
+Cross-cutting fields
+--------------------
+
+A few fields are valid on **any** action type, regardless of its sub-type:
+
++--------------------------+--------------------------------------------------+
+| Field                    | Purpose                                          |
++==========================+==================================================+
+|| ``name``                || Unique action name within the FlowGroup.        |
++--------------------------+--------------------------------------------------+
+|| ``description``         || Optional documentation for the action.          |
++--------------------------+--------------------------------------------------+
+|| ``depends_on``          || Optional list of upstream table references      |
+||                         || (``catalog.schema.table`` or ``schema.table``)  |
+||                         || that explicitly declare dependency-graph edges  |
+||                         || the analyzer cannot parse from the action's     |
+||                         || source. Entries are **additive** — they add     |
+||                         || edges on top of whatever is parsed. See         |
+||                         || :doc:`/dependency_analysis`.                     |
++--------------------------+--------------------------------------------------+
+
 Where to start
 --------------
 
