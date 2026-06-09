@@ -21,27 +21,34 @@ until a second real implementor exists.
 
 from __future__ import annotations
 
+from typing import Optional
+
 
 class ProgressSink:
     """Mutable counter the generate / validate streams advance.
 
-    Holds two INDEPENDENT scalar counters and nothing else:
+    Holds two INDEPENDENT scalar counters plus one optional label, and
+    nothing else:
 
     - ``total`` — the total flowgroup count for the run, set once via
       :meth:`on_total`.
     - ``done`` — flowgroups completed so far, bumped via
       :meth:`on_advance`.
+    - ``current`` — name of the most-recently-completed flowgroup's
+      pipeline, set via :meth:`on_advance`; ``None`` until the first
+      advance. A live "current item" label, NOT a counter.
 
     Construct one, hand it to a facade long-running operation via its
-    ``progress=`` parameter, and read ``total`` / ``done`` to observe
-    live progress (e.g. to drive a progress bar) while iterating the
-    event stream.
+    ``progress=`` parameter, and read ``total`` / ``done`` / ``current``
+    to observe live progress (e.g. to drive a progress bar) while
+    iterating the event stream.
 
-    The two scalars carry NO cross-field invariant: a reader may observe
-    them at any interleaving (a future presentation-thread refresh reads
-    them while the coordinator writes them, one scalar per tick). Keeping
-    them independent is what makes that lock-free read safe — do NOT add
-    a derived field that must agree with both.
+    The fields carry NO cross-field invariant: a reader may observe them
+    at any interleaving (a future presentation-thread refresh reads them
+    while the coordinator writes them, one field per tick). Keeping them
+    independent is what makes that lock-free read safe — ``current`` is a
+    standalone label, not derived from ``done`` / ``total``; do NOT add a
+    derived field that must agree with the others.
 
     :meth:`on_total` and :meth:`on_advance` are deliberately trivial (a
     bare assignment / increment) and MUST NOT raise: they run inside the
@@ -53,6 +60,11 @@ class ProgressSink:
     def __init__(self) -> None:
         self.total: int = 0
         self.done: int = 0
+        #: Name of the most-recently-completed flowgroup's pipeline, set by
+        #: :meth:`on_advance`. ``None`` until the first advance.
+        #:
+        #: :stability: provisional
+        self.current: Optional[str] = None
 
     def on_total(self, n: int) -> None:
         """Record the total flowgroup count for the run.
@@ -64,12 +76,20 @@ class ProgressSink:
         """
         self.total = n
 
-    def on_advance(self) -> None:
+    def on_advance(self, current: Optional[str] = None) -> None:
         """Mark one more flowgroup complete.
 
         Called once per finished flowgroup. A plain increment — it never
         raises (see the class docstring).
 
+        ``current`` is the OPTIONAL name of the just-completed flowgroup's
+        pipeline, threaded through the plain-callable progress side channel
+        so a renderer can show a live "current item" label. When supplied it
+        is stored on :attr:`current`; the no-arg call path (older wiring) is
+        preserved exactly — it only increments :attr:`done`.
+
         :stability: provisional
         """
+        if current is not None:
+            self.current = current
         self.done += 1

@@ -15,6 +15,7 @@ into the renderer, mirroring ``tests.conftest.capture_lhp_console``.
 from __future__ import annotations
 
 import io
+import re
 from typing import Iterator, List
 
 from rich.console import Console
@@ -205,3 +206,56 @@ def test_on_error_records_without_printing_a_panel():
     outcome = renderer.outcome
     assert outcome.errored is True
     assert any(f.code == "LHP-IO-001" for f in outcome.failures)
+
+
+# A `(N.NNs)`-style seconds segment, e.g. ` (3.10s)`.
+_SECONDS_RE = re.compile(r"\(\d+\.\d+s\)")
+
+
+def test_pipeline_line_drops_seconds_phase_line_keeps_them():
+    """The completion line for a PIPELINE carries no seconds; PHASE lines do.
+
+    ``clean_generate_stream`` ends each pipeline with a ``PipelineCompleted``
+    and each stage with a ``PhaseCompleted``. The pipeline lines (named after
+    ``bronze`` / ``silver``) must not carry a ``(N.NNs)`` segment, while the
+    phase lines (``discover`` / ``preflight`` / ``generate``) must keep theirs.
+    """
+    events = clean_generate_stream()
+    renderer, buf = _make_renderer()
+
+    drive(iter(events), renderer)
+
+    lines = [line for line in buf.getvalue().splitlines() if line.strip()]
+    pipeline_lines = [line for line in lines if "bronze" in line or "silver" in line]
+    phase_lines = [
+        line
+        for line in lines
+        if any(p in line for p in ("discover", "preflight", "generate"))
+    ]
+
+    assert pipeline_lines, f"no per-pipeline lines rendered: {lines!r}"
+    for line in pipeline_lines:
+        assert not _SECONDS_RE.search(line), (
+            f"per-pipeline line carried a seconds segment: {line!r}"
+        )
+
+    assert phase_lines, f"no per-phase lines rendered: {lines!r}"
+    assert any(_SECONDS_RE.search(line) for line in phase_lines), (
+        f"phase lines lost their seconds segment: {phase_lines!r}"
+    )
+
+
+def test_pipeline_line_pluralizes_file_count():
+    """The per-pipeline line names the file count: ``N file`` / ``N files``."""
+    from lhp.api.events import PipelineCompleted
+
+    def _stream() -> Iterator[LHPEvent]:
+        yield PipelineCompleted(pipeline="solo", duration_s=0.5, files_written=1)
+        yield PipelineCompleted(pipeline="many", duration_s=0.5, files_written=3)
+
+    renderer, buf = _make_renderer()
+    drive(_stream(), renderer)
+
+    rendered = buf.getvalue()
+    assert "1 file" in rendered and "1 files" not in rendered
+    assert "3 files" in rendered

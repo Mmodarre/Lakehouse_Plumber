@@ -13,7 +13,8 @@ and asserts the width-safety, animation, and progress invariants of the spec
 - the rendered count never exceeds ``total`` across interleaved advances
   (lock-free read-after-advance consistency);
 - a failed phase carries the cross glyph on its permanent stage line;
-- a fully successful run prints NO permanent success line;
+- a fully successful run prints a DURABLE, seconds-free per-pipeline
+  completion line (`✓ <pipeline>  N file(s)`);
 - an ``ErrorEmitted`` tears the Live down and lets the exception propagate.
 
 The renderer reads progress off the SAME :class:`~lhp.api.ProgressSink` the
@@ -25,6 +26,7 @@ per pipeline completion, mirroring what the facade does in a real run.
 from __future__ import annotations
 
 import io
+import re
 from typing import Callable, Iterator, List
 
 import pytest
@@ -191,10 +193,12 @@ def test_line_one_is_byte_identical_to_standalone_status_line(width):
     clock_value = 1000.0
     status = _LiveStatus(ProgressSink(), console, clock=_fixed_clock(clock_value))
     status.phase = "generate"
-    status.pipeline = "silver_orders"
     status._progress.on_total(18)
+    # The current-item label lives on the sink's `current` (the real-time side
+    # channel), not on a renderer-set attribute — so drive it through
+    # on_advance(<pipeline>): twelve advances leave done=12 and current set.
     for _ in range(12):
-        status._progress.on_advance()
+        status._progress.on_advance("silver_orders")
 
     elapsed = clock_value - status._start
     spinner_frame = status._spinner.render(elapsed)
@@ -675,23 +679,29 @@ def test_failed_phase_renders_cross_on_stage_line():
     assert any(f.pipeline == "silver" for f in renderer.outcome.failures)
 
 
-def test_success_path_prints_no_permanent_success_line():
+def test_success_path_prints_durable_seconds_free_line():
     console, _ = _terminal_console(120)
     sink = ProgressSink()
-    renderer = LiveRenderer(console, progress=sink)
+    renderer = LiveRenderer(console, progress=sink, show_details=True)
 
     drive(_drive_with_progress(clean_generate_stream(), sink), renderer)
 
-    # Successful pipelines flash only in the (transient) status line, so their
-    # names must never appear on any PERMANENT line.
-    for line in renderer.permanent_lines:
-        assert "bronze" not in line, f"permanent success line for bronze: {line!r}"
-        assert "silver" not in line, f"permanent success line for silver: {line!r}"
-    # No permanent line is a check-marked per-pipeline success line. (Stage
-    # lines may carry the check glyph, but they name a phase, not a pipeline.)
-    assert any(GLYPH_CHECK in line for line in renderer.permanent_lines), (
-        "expected permanent stage lines to use the check glyph"
+    # With --show-details, each successful pipeline leaves a DURABLE
+    # per-pipeline completion line in scrollback (the uv-like trail):
+    # `✓ <pipeline>  N file(s)`.
+    completion_lines = _pipeline_completion_lines(renderer)
+    assert any("bronze" in line for line in completion_lines), (
+        f"no durable success line for bronze; permanent={renderer.permanent_lines!r}"
     )
+    assert any("silver" in line for line in completion_lines), (
+        f"no durable success line for silver; permanent={renderer.permanent_lines!r}"
+    )
+    # The per-PIPELINE completion line carries no `(N.NNs)` seconds segment —
+    # only per-PHASE lines keep their duration.
+    for line in completion_lines:
+        assert not _SECONDS_RE.search(line), (
+            f"durable success line carried a seconds segment: {line!r}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -881,3 +891,136 @@ def test_error_emitted_tears_down_live_and_propagates():
     # Rich's Live.is_started.
     assert renderer._started is False
     assert renderer._live.is_started is False
+
+
+# ---------------------------------------------------------------------------
+# Durable per-pipeline completion lines (NO seconds) + live current-item
+# label driven off ProgressSink.current.
+# ---------------------------------------------------------------------------
+# A decimal-seconds reading, e.g. `0.3s` (the live renderer's permanent stage
+# lines use `_status_line.duration_suffix`, which renders `  N.Ns` WITHOUT
+# parens — distinct from LogRenderer's `(N.NNs)` parenthesised form). This
+# matches either form, so it catches any per-pipeline seconds leak.
+_SECONDS_RE = re.compile(r"\d+\.\d+s")
+
+
+def _pipeline_completion_lines(renderer: LiveRenderer) -> List[str]:
+    """Permanent lines that name a pipeline from ``clean_generate_stream``.
+
+    The generate stream's pipelines are ``bronze`` / ``silver``; its phases are
+    ``discover`` / ``preflight`` / ``generate``. A permanent check line that
+    mentions a pipeline name is the durable per-pipeline completion line.
+    """
+    return [
+        line
+        for line in renderer.permanent_lines
+        if GLYPH_CHECK in line and ("bronze" in line or "silver" in line)
+    ]
+
+
+def test_pipeline_completion_emits_durable_line():
+    # (a) With --show-details, on_pipeline_completed leaves a PERMANENT
+    # (printed-above) trace per finished pipeline — the uv-like trail — naming
+    # the pipeline and its file count. The durable trail is opt-in: without
+    # show_details the TTY display stays clean (see
+    # test_pipeline_completion_prints_no_durable_line_without_show_details).
+    console, _ = _terminal_console(120)
+    sink = ProgressSink()
+    renderer = LiveRenderer(console, progress=sink, show_details=True)
+
+    drive(_drive_with_progress(clean_generate_stream(), sink), renderer)
+
+    completion_lines = _pipeline_completion_lines(renderer)
+    # Both pipelines from clean_generate_stream surface a durable completion line.
+    assert any("bronze" in line for line in completion_lines), (
+        f"no durable completion line for bronze; permanent={renderer.permanent_lines!r}"
+    )
+    assert any("silver" in line for line in completion_lines), (
+        f"no durable completion line for silver; permanent={renderer.permanent_lines!r}"
+    )
+    # The fixture writes one file per pipeline -> singular "file".
+    assert any("1 file" in line for line in completion_lines)
+
+
+def test_pipeline_completion_line_has_no_seconds():
+    # (b) The per-PIPELINE line (opt-in via show_details) carries no `(N.NNs)`
+    # seconds segment.
+    console, _ = _terminal_console(120)
+    sink = ProgressSink()
+    renderer = LiveRenderer(console, progress=sink, show_details=True)
+
+    drive(_drive_with_progress(clean_generate_stream(), sink), renderer)
+
+    for line in _pipeline_completion_lines(renderer):
+        assert not _SECONDS_RE.search(line), (
+            f"per-pipeline line carried a seconds segment: {line!r}"
+        )
+
+
+def test_pipeline_completion_prints_no_durable_line_without_show_details():
+    # Default (no --show-details): the durable per-pipeline trail is suppressed
+    # so a project with dozens of pipelines doesn't flood scrollback. The bar
+    # and the PHASE lines are unaffected — only the per-pipeline `✓ <pipeline>`
+    # scrollback line is gated.
+    console, _ = _terminal_console(120)
+    sink = ProgressSink()
+    renderer = LiveRenderer(console, progress=sink)  # show_details defaults False
+
+    drive(_drive_with_progress(clean_generate_stream(), sink), renderer)
+
+    # No durable per-pipeline completion line for either pipeline.
+    assert _pipeline_completion_lines(renderer) == [], (
+        f"durable per-pipeline trail leaked without --show-details; "
+        f"permanent={renderer.permanent_lines!r}"
+    )
+    # Phase lines remain unconditional: the 'generate' phase line still lands in
+    # scrollback regardless of show_details.
+    phase_lines = [
+        line
+        for line in renderer.permanent_lines
+        if GLYPH_CHECK in line and "generate" in line
+    ]
+    assert phase_lines, (
+        f"phase line wrongly suppressed without --show-details; "
+        f"permanent={renderer.permanent_lines!r}"
+    )
+
+
+def test_phase_completion_line_still_shows_seconds():
+    # (c) A PHASE-completed line MUST keep its real seconds. The 'generate' phase
+    # in clean_generate_stream completes with duration_s=0.30 -> "(0.30s)".
+    console, _ = _terminal_console(120)
+    sink = ProgressSink()
+    renderer = LiveRenderer(console, progress=sink)
+
+    drive(_drive_with_progress(clean_generate_stream(), sink), renderer)
+
+    phase_lines = [
+        line
+        for line in renderer.permanent_lines
+        if GLYPH_CHECK in line and "generate" in line
+    ]
+    assert phase_lines, (
+        f"no 'generate' phase line; permanent={renderer.permanent_lines!r}"
+    )
+    assert any(_SECONDS_RE.search(line) for line in phase_lines), (
+        f"phase line lost its seconds segment: {phase_lines!r}"
+    )
+
+
+def test_live_current_item_reflects_progress_current():
+    # (d) The live trailer/current-item slot on line 1 is read off
+    # ProgressSink.current (the real-time side channel), NOT a renderer-set
+    # attribute. Set it directly and assert it appears in the rendered frame.
+    console, _ = _terminal_console(120)
+    sink = ProgressSink()
+    sink.on_total(4)
+    sink.on_advance("silver_orders")  # sets sink.current
+    status = _LiveStatus(sink, console, clock=_fixed_clock(1000.0))
+    status.phase = "generate"
+
+    frame = status.current_frame().plain
+
+    assert "silver_orders" in frame, (
+        f"live current-item label not driven off ProgressSink.current: {frame!r}"
+    )

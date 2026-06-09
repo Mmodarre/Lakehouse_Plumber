@@ -318,7 +318,7 @@ class ActionOrchestrator:
         max_workers: Optional[int] = None,
         packaging_modes: Optional[Mapping[str, str]] = None,
         on_total: Optional[Callable[[int], None]] = None,
-        on_flowgroup_done: Optional[Callable[[], None]] = None,
+        on_flowgroup_done: Optional[Callable[[str], None]] = None,
     ) -> Generator["PipelineDelta", None, Tuple["DeprecationWarningRecord", ...]]:
         """Build the flat worklist, hand to PipelineExecutionService.run_generate.
 
@@ -525,7 +525,7 @@ class ActionOrchestrator:
         pre_discovered_all_flowgroups: Optional[Sequence[FlowGroup]] = None,
         max_workers: Optional[int] = None,
         on_total: Optional[Callable[[int], None]] = None,
-        on_flowgroup_done: Optional[Callable[[], None]] = None,
+        on_flowgroup_done: Optional[Callable[[str], None]] = None,
     ) -> Generator[
         PipelineValidationOutcome, None, Tuple["DeprecationWarningRecord", ...]
     ]:

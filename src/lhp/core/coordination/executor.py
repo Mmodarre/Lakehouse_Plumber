@@ -129,7 +129,7 @@ class PipelineExecutionService(BasePipelineExecutionService):
         packaging_modes: Optional[Mapping[str, str]] = None,
         max_workers: Optional[int] = None,
         on_total: Optional[Callable[[int], None]] = None,
-        on_flowgroup_done: Optional[Callable[[], None]] = None,
+        on_flowgroup_done: Optional[Callable[[str], None]] = None,
     ) -> Generator[PipelineDelta, None, Tuple[DeprecationWarningRecord, ...]]:
         """Run generate through the unified flat engine and YIELD deltas.
 
@@ -211,7 +211,7 @@ class PipelineExecutionService(BasePipelineExecutionService):
         output_dirs: Mapping[str, Optional[Path]],
         discovery_errors: Mapping[str, str],
         on_total: Optional[Callable[[int], None]] = None,
-        on_flowgroup_done: Optional[Callable[[], None]] = None,
+        on_flowgroup_done: Optional[Callable[[str], None]] = None,
     ) -> Generator[
         PipelineValidationOutcome, None, Tuple[DeprecationWarningRecord, ...]
     ]:
@@ -267,7 +267,7 @@ class PipelineExecutionService(BasePipelineExecutionService):
         discovery_errors: Mapping[str, str],
         source_paths: Optional[Mapping[Tuple[str, str], Path]] = None,
         on_total: Optional[Callable[[int], None]] = None,
-        on_flowgroup_done: Optional[Callable[[], None]] = None,
+        on_flowgroup_done: Optional[Callable[[str], None]] = None,
     ) -> Generator[
         PipelineValidationOutcome, None, Tuple[DeprecationWarningRecord, ...]
     ]:
@@ -312,7 +312,7 @@ class PipelineExecutionService(BasePipelineExecutionService):
         project_root: Optional[Path] = None,
         max_workers: Optional[int] = None,
         on_total: Optional[Callable[[int], None]] = None,
-        on_flowgroup_done: Optional[Callable[[], None]] = None,
+        on_flowgroup_done: Optional[Callable[[str], None]] = None,
     ) -> Generator[PipelineDelta, None, Tuple[DeprecationWarningRecord, ...]]:
         """Run the flat engine in generate mode and YIELD per-pipeline deltas.
 

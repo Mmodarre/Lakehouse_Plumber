@@ -87,7 +87,11 @@ def _bar(done: int, total: int, span: int) -> str:
     if total <= 0:
         filled = 0
     else:
-        filled = round(span * min(done, total) / total)
+        # Floor (not round): the filled-cell count is then a monotonic
+        # non-decreasing step function of `done` that never overshoots `span`
+        # and never loses a cell between adjacent `done` values — round() can
+        # jump by two or briefly regress at narrow `span`, which reads as jitter.
+        filled = span * min(done, total) // total
         filled = max(0, min(span, filled))
     return _BAR_FULL * filled + _BAR_EMPTY * (span - filled)
 
@@ -177,11 +181,22 @@ def build_status_line(
 
     counter = _counter(done, total)
 
-    # Mandatory minimum = head + smallest bar + gutter + counter.
-    mandatory = len(head) + _MIN_BAR + len(_GUTTER) + len(counter)
+    # Reserve the counter at its TERMINAL width (`total/total`) rather than its
+    # current width. `done` widens the counter as it crosses powers of ten
+    # (`9/18` -> `10/18`), and that would otherwise shrink the bar by a cell
+    # mid-run. Reserving the widest it will ever be keeps `bar_span` — and the
+    # bar's left edge — fixed for the whole run, so the fill is the only thing
+    # that moves frame-to-frame.
+    counter_reserve = len(_counter(total, total))
 
-    # Budget left for the bar to grow and for the optional trailing segments.
-    # Grow the bar first (up to _MAX_BAR), then add elapsed, then pipeline.
+    # Mandatory minimum = head + smallest bar + gutter + reserved counter.
+    mandatory = len(head) + _MIN_BAR + len(_GUTTER) + counter_reserve
+
+    # `bar_span` is computed from this fixed budget (width minus the mandatory
+    # reserve), so it does NOT flex as the trailers appear/disappear or as the
+    # counter widens — those only ever consume the slack LEFT OVER after the bar
+    # has grown to _MAX_BAR. Grow the bar first (up to _MAX_BAR), then the slack
+    # feeds elapsed, then pipeline, in _append_optionals.
     slack = width - mandatory
     bar_span = _MIN_BAR
     if slack > 0:

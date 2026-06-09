@@ -25,6 +25,7 @@ from __future__ import annotations
 import os
 import shutil
 from pathlib import Path
+from typing import Optional
 
 import pytest
 import yaml
@@ -149,7 +150,7 @@ class _NoOpSink(ProgressSink):
     def on_total(self, n: int) -> None:  # intentional no-op
         pass
 
-    def on_advance(self) -> None:
+    def on_advance(self, current: Optional[str] = None) -> None:
         pass
 
 
@@ -161,6 +162,7 @@ class TestProgressSinkUnit:
         sink = ProgressSink()
         assert sink.total == 0
         assert sink.done == 0
+        assert sink.current is None
 
     def test_on_total_sets_and_on_advance_increments(self) -> None:
         sink = ProgressSink()
@@ -169,6 +171,28 @@ class TestProgressSinkUnit:
         sink.on_advance()
         assert sink.total == 3
         assert sink.done == 2
+
+    def test_on_advance_stores_current_and_keeps_last(self) -> None:
+        """The optional ``current`` name is stored; the LAST one wins."""
+        sink = ProgressSink()
+        sink.on_advance("pipe_a")
+        assert sink.current == "pipe_a"
+        assert sink.done == 1
+        sink.on_advance("pipe_b")
+        assert sink.current == "pipe_b"
+        assert sink.done == 2
+
+    def test_on_advance_noarg_preserves_done_and_does_not_clear_current(
+        self,
+    ) -> None:
+        """The no-arg path (older wiring) still increments and leaves current."""
+        sink = ProgressSink()
+        sink.on_advance("pipe_a")
+        sink.on_advance()  # no name supplied
+        assert sink.done == 2
+        # current is only assigned when a name is supplied — a None arg must not
+        # overwrite a previously-recorded name.
+        assert sink.current == "pipe_a"
 
     def test_hooks_never_raise_on_edge_inputs(self) -> None:
         """The hooks run inside the coordinator loop and MUST NOT raise."""

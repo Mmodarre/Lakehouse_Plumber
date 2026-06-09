@@ -54,7 +54,6 @@ from lhp.api.events import (
     PipelineFailed,
     PipelineStarted,
 )
-from lhp.core.codegen import build_generation_plan
 from lhp.errors import LHPError
 from lhp.utils.performance_timer import perf_timer
 
@@ -192,6 +191,10 @@ def _stream_plan_generation(
     generate_start = time.perf_counter()
     yield PhaseStarted(phase="generate")
     collected_deltas: List["PipelineDelta"] = []
+    # Deferred so ``import lhp.api`` does not eagerly pull the codegen stack
+    # (and jinja2 via it); consume the package via its public surface (§5.4).
+    from lhp.core.codegen import build_generation_plan
+
     try:
         with perf_timer("facade.plan_generation"):
             result = build_generation_plan(

@@ -32,7 +32,12 @@ logger = logging.getLogger(__name__)
 
 @click.command(cls=RichCommand, name="generate")
 @click.option("-e", "--env", required=True, help="Target environment.")
-@click.option("-s", "--show-details", is_flag=True, help="Expand failures to panels.")
+@click.option(
+    "-s",
+    "--show-details",
+    is_flag=True,
+    help="Show the per-pipeline completion trail and expand failures to panels.",
+)
 @click.option("--strict", is_flag=True, help="Treat warnings as failures.")
 @click.option("--no-progress", is_flag=True, help="Disable the live display.")
 @click.option("--no-bundle", is_flag=True, help="Skip Asset Bundle sync.")

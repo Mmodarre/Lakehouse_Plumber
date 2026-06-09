@@ -39,7 +39,12 @@ _WORKERS_HELP = "Max worker processes (default ~80%% of CPUs; 1 = sequential)."
 @click.option(
     "-e", "--env", default="dev", show_default=True, help="Target environment."
 )
-@click.option("-s", "--show-details", is_flag=True, help="Expand failures into panels.")
+@click.option(
+    "-s",
+    "--show-details",
+    is_flag=True,
+    help="Show the per-pipeline completion trail and expand failures into panels.",
+)
 @click.option("--strict", is_flag=True, help="Treat warnings as failures.")
 @click.option("--no-progress", is_flag=True, help="Disable the live progress display.")
 @click.option("--no-bundle", is_flag=True, help="Disable bundle support.")

@@ -93,8 +93,13 @@ class LogRenderer(EventSink):
     def on_pipeline_completed(
         self, pipeline: str, duration_s: float, files_written: int
     ) -> None:
-        """Print one success stage line for a finished pipeline."""
-        line = self._stage_line(pipeline, duration_s, success=True)
+        """Print one success line for a finished pipeline: ``✓ <name>  N file(s)``.
+
+        NO per-pipeline seconds (``show_duration=False``) — only phase lines
+        carry a duration. ``duration_s`` is kept for EventSink ABC / ``drive()``
+        parity.
+        """
+        line = self._stage_line(pipeline, duration_s, success=True, show_duration=False)
         noun = "file" if files_written == 1 else "files"
         line.append(f"  {files_written} {noun}", style="dim")
         self._err_console.print(line)
@@ -180,12 +185,27 @@ class LogRenderer(EventSink):
         )
 
     # -- helpers ------------------------------------------------------------
-    def _stage_line(self, label: str, duration_s: float, success: bool) -> Text:
-        """A ``<glyph> <label> (<duration>s)`` stage line."""
+    def _stage_line(
+        self,
+        label: str,
+        duration_s: float,
+        success: bool,
+        *,
+        show_duration: bool = True,
+    ) -> Text:
+        """A ``<glyph> <label>`` stage line, optionally with a ``(<duration>s)``.
+
+        PHASE lines keep their real seconds (``show_duration=True``, the
+        default); the per-PIPELINE completion line drops them
+        (``show_duration=False``) — only phases carry a duration in the trail.
+        ``duration_s`` stays in the signature on the no-duration path for
+        EventSink ABC / ``drive()`` parity.
+        """
         glyph = _OK_GLYPH if success else _FAIL_GLYPH
         style = _OK_STYLE if success else _FAIL_STYLE
         text = Text()
         text.append(f"{glyph} ", style=style)
         text.append(label)
-        text.append(f" ({duration_s:.2f}s)", style="dim")
+        if show_duration:
+            text.append(f" ({duration_s:.2f}s)", style="dim")
         return text

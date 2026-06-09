@@ -9,6 +9,9 @@ regress them:
   flow does not import any command module (e.g.
   ``lhp.cli.commands.generate_command``).
 * **U3** — ``import lhp.api`` no longer transitively pulls ``networkx``.
+* ``import lhp.api`` no longer eagerly pulls the codegen stack
+  (``lhp.core.codegen``) or ``jinja2`` via it; the generation stream bodies
+  import them function-locally, so the public-API surface stays light.
 
 The hard assertions are *import-absence* checks: each is run in a clean
 subprocess (a fresh interpreter is required so the test runner's own already-
@@ -129,7 +132,12 @@ import json
 import lhp.api  # noqa: F401
 import sys
 
-print(json.dumps({"networkx": "networkx" in sys.modules}))
+mods = sys.modules
+print(json.dumps({
+    "networkx": "networkx" in mods,
+    "codegen": "lhp.core.codegen" in mods,
+    "jinja2": "jinja2" in mods,
+}))
 """
 
 
@@ -198,6 +206,29 @@ def test_import_lhp_api_does_not_import_networkx() -> None:
         "`import lhp.api` transitively pulled `networkx` — the public API "
         "surface is dragging in the dependency-analysis stack. Defer that "
         "import to the operation that needs it."
+    )
+
+
+def test_import_lhp_api_does_not_import_codegen_or_jinja2() -> None:
+    """``import lhp.api`` must not pull the codegen stack or ``jinja2``.
+
+    The public facade re-exports the generation surface, but the heavy stream
+    bodies (``lhp.core.codegen`` and the ``jinja2`` it pulls for template
+    rendering) are needed only when a generate/plan stream is actually
+    consumed — they must be imported function-locally, not at module load.
+    Either name in ``sys.modules`` after a bare ``import lhp.api`` is the
+    canonical signal that an eager codegen import regressed.
+    """
+    probed = _run_probe(_IMPORT_LHP_API_PROBE)
+    assert probed["codegen"] is False, (
+        "`import lhp.api` transitively pulled `lhp.core.codegen` — the public "
+        "API surface is dragging in the codegen stack eagerly. Defer that "
+        "import into the generation stream body that needs it."
+    )
+    assert probed["jinja2"] is False, (
+        "`import lhp.api` transitively pulled `jinja2` (via the codegen "
+        "stack) — the public API surface is importing the template engine "
+        "eagerly. Defer the codegen import into the stream body that needs it."
     )
 
 

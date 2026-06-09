@@ -165,7 +165,7 @@ def _run_flowgroup_pool_core(
     max_workers: int,
     mode: WorkerMode,
     on_total: Optional[Callable[[int], None]] = None,
-    on_flowgroup_done: Optional[Callable[[], None]] = None,
+    on_flowgroup_done: Optional[Callable[[str], None]] = None,
 ) -> List[_PipelinePoolResult]:
     """The single flat fan-out engine — one future per flowgroup, both modes.
 
@@ -214,8 +214,11 @@ def _run_flowgroup_pool_core(
     ONCE per flowgroup-future resolution — in BOTH the ``as_completed`` branch
     (incl. the worker-death guard) AND the ``executor.submit``-failure branch —
     so the count is per-flowgroup, never per-pipeline (``_finalize`` is the
-    per-pipeline seam and is deliberately NOT hooked). Both default to ``None``
-    (no-op) for the non-CLI consumers (scripts, WebUI, tests).
+    per-pipeline seam and is deliberately NOT hooked). It is called with the
+    just-completed flowgroup's worklist-key PIPELINE name as a single plain
+    ``str`` positional (no ``lhp.api`` type crosses in), so a renderer can show
+    a live "current item" label. Both default to ``None`` (no-op) for the
+    non-CLI consumers (scripts, WebUI, tests).
     """
     pipelines: List[str] = list(flowgroups_by_pipeline.keys())
     progress: Dict[str, _PipelineProgress] = {
@@ -327,8 +330,10 @@ def _run_flowgroup_pool_core(
                     # Per-flowgroup tick: this flowgroup produced no future, so
                     # ``as_completed`` will NEVER see it — fire here so the
                     # done/total counter stays exact on the submit-failure path.
+                    # Pass the worklist-key PIPELINE name (a plain ``str``, no
+                    # ``lhp.api`` type) so a renderer can show a live label.
                     if on_flowgroup_done is not None:
-                        on_flowgroup_done()
+                        on_flowgroup_done(pipeline)
                     bucket = progress[pipeline]
                     bucket.results.append(outcome)
                     if bucket.is_complete():
@@ -354,8 +359,10 @@ def _run_flowgroup_pool_core(
                 # Per-flowgroup tick on EVERY future resolution — success or
                 # the worker-death guard above — fired before the per-pipeline
                 # ``_finalize`` so the count is per-flowgroup, never per-pipeline.
+                # Pass the worklist-key PIPELINE name (a plain ``str``, no
+                # ``lhp.api`` type) so a renderer can show a live label.
                 if on_flowgroup_done is not None:
-                    on_flowgroup_done()
+                    on_flowgroup_done(pipeline)
 
                 # Merge the worker's perf payload into the coordinator
                 # singleton (no-op when --perf is off / payload is None).

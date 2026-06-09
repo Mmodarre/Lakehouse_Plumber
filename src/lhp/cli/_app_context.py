@@ -18,13 +18,13 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn, Optional
 
-from lhp.api.facade import LakehousePlumberApplicationFacade
 from lhp.cli.exit_codes import ExitCode
 from lhp.errors import ErrorFactory, codes
 
 if TYPE_CHECKING:
     # TYPE_CHECKING guard keeps the runtime decoupled from the
     # event-stream presenter package.
+    from lhp.api.facade import LakehousePlumberApplicationFacade
     from lhp.cli.presenters.event_stream._model import RunOutcome
 
 logger = logging.getLogger(__name__)
@@ -64,6 +64,11 @@ def build_facade(
     parameter and ``max_workers`` into its worker-pool size. All other
     composition is delegated to the facade's own ``for_project`` factory.
     """
+    # Deferred so importing this CLI-wiring module (reached early in startup)
+    # does not eagerly pull the facade's codegen/jinja2 transitive stack; the
+    # facade is needed only when a command actually constructs a project.
+    from lhp.api.facade import LakehousePlumberApplicationFacade
+
     return LakehousePlumberApplicationFacade.for_project(
         project_root,
         pipeline_config_path=pipeline_config,

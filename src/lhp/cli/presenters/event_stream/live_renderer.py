@@ -13,20 +13,22 @@ stays exactly two rows; ``Live``'s ``vertical_overflow="crop"`` then bounds the
 region to the viewport without scrolling even below two rows (see
 :meth:`__init__`).
 
-Everything durable — stage lines, deduped warnings, per-pipeline failures — is
-printed permanently *above* the transient region via ``live.console.print``.
-Those permanent scrollback lines are SINGLE-line (e.g. ``✓ generate  3.1s``);
-only the live region is two lines. Successes flash only in the live region and
-leave no permanent trace — that is how they "wipe": teardown's transient clear
-erases BOTH live lines, leaving the permanent single-line scrollback untouched.
+Everything durable — stage lines, per-pipeline completions, deduped warnings,
+per-pipeline failures — is printed permanently *above* the transient region via
+``live.console.print``. Those permanent scrollback lines are SINGLE-line (e.g.
+``✓ generate  3.1s`` for a phase, ``✓ bronze  2 files`` for a pipeline — NO
+per-pipeline seconds); only the live region is two lines. The transient region
+itself flashes and "wipes": teardown's transient clear erases BOTH live lines,
+leaving the permanent single-line scrollback untouched.
 
-**Progress is read, not counted here.** The bar's ``done`` / ``total`` come from
-the shared :class:`~lhp.api.ProgressSink` that the facade advances per-flowgroup
-(the renderer is handed the SAME instance the facade drives). The renderer does
-not maintain its own flowgroup counter; the per-pipeline ``on_pipeline_*``
-callbacks only clear the current-pipeline label and record failures. The
-renderable reads ``done`` / ``total`` as independent scalars, once each per
-tick — never a torn composite (see :mod:`._live_renderable`).
+**Progress is read, not counted here.** The bar's ``done`` / ``total`` / live
+current-item label all come from the shared :class:`~lhp.api.ProgressSink` that
+the facade advances per-flowgroup (the renderer is handed the SAME instance the
+facade drives). The renderer does not maintain its own flowgroup counter; the
+per-pipeline ``on_pipeline_*`` callbacks record failures and print the durable
+completion line, but do not hold the current-item label. The renderable reads
+``done`` / ``total`` / ``current`` as independent scalars, once each per tick —
+never a torn composite (see :mod:`._live_renderable`).
 
 Per the sole-bridge invariant (constitution §9.5) this module imports ``rich``
 but never ``lhp.errors``: :meth:`on_error` records ``code`` (a duck-typed
@@ -230,16 +232,30 @@ class LiveRenderer(EventSink):
         self._refresh_status()
 
     def on_pipeline_started(self, pipeline: str) -> None:
-        self._status.pipeline = pipeline
+        # Begin-marker only: the live current-item label is read off the
+        # facade-driven ProgressSink.current (set per completed flowgroup), so
+        # this no longer sets a renderer-held label — it just paints a frame so
+        # the spinner/elapsed advance at the pipeline boundary.
         self._refresh_status()
 
     def on_pipeline_completed(
         self, pipeline: str, duration_s: float, files_written: int
     ) -> None:
-        # Success flashes only in the live region (no permanent line); the bar
-        # advances off the facade-driven ProgressSink — this just clears the label.
-        if self._status.pipeline == pipeline:
-            self._status.pipeline = None
+        # A finished pipeline can leave a DURABLE single-line trace above the
+        # transient region (a uv-like trail): `✓ <pipeline>  <N> file(s)`. This
+        # per-pipeline trail is OPT-IN via `--show-details`; by default the TTY
+        # display stays clean (phase lines + bar + summary only) so a project
+        # with dozens of pipelines doesn't flood scrollback. No per-pipeline
+        # seconds — only per-PHASE lines carry a duration; the `duration_s`
+        # parameter is kept solely for EventSink ABC / drive() parity. The bar
+        # always refreshes regardless of the flag.
+        if self._show_details:
+            noun = "file" if files_written == 1 else "files"
+            line = Text()
+            line.append(f"{GLYPH_CHECK} ", style="bold green")
+            line.append(pipeline)
+            line.append(f"  {files_written} {noun}", style="dim")
+            self._print_above(line)
         self._refresh_status()
 
     def on_pipeline_failed(self, pipeline: str, code: str, message: str) -> None:
@@ -254,8 +270,6 @@ class LiveRenderer(EventSink):
         line.append("  ")
         line.append(message)
         self._print_above(line)
-        if self._status.pipeline == pipeline:
-            self._status.pipeline = None
         self._refresh_status()
 
     def on_warning(

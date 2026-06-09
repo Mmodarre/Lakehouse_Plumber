@@ -199,10 +199,34 @@ commands; the remaining "other commands" polish is deferred below with the
 
 **Changed.**
 
+- **`ProgressSink` gains an optional `current` field/param (`:stability:
+  provisional`).** `on_advance` now accepts an optional positional pipeline
+  name (`on_advance(current=None)`) and stores it on a new `current` field —
+  the just-completed flowgroup's pipeline name, threaded in real time through
+  the existing plain-callable progress side channel so a renderer can show a
+  live "current item" label. The core side channel stays a plain
+  `Callable[[str], None]` (no `lhp.api` import crosses into `core/`, §5), and
+  the no-arg call path is preserved exactly (`current` is `None` until the
+  first advance). `current` is a standalone label, not a counter, and carries
+  no cross-field invariant with `total` / `done`.
 - **`generate` / `validate` / `diff` show an animated spinner and a live
   `N/M flowgroups` progress bar.** The status bar is a real
   `rich.spinner.Spinner` plus a flowgroup bar on Rich's refresh thread, fed by
   the shared `ProgressSink`; the spinner glyph is no longer a static constant.
+- **Progress display refined: jitter-free bar, a durable completion trail, and
+  no fabricated per-pipeline timings.** The flowgroup bar now fills as a pure
+  monotonic function of `done` / `total` (floored cell count plus a fixed
+  counter-width reservation, so it no longer wobbles as the count widens past a
+  power of ten or as the trailer toggles); the live bar shows the real-time
+  current pipeline (read from `ProgressSink.current`); in the **live (TTY)**
+  display the durable per-pipeline `✓ <pipeline>  N file(s)` trail is now
+  **opt-in via `-s`/`--show-details`** — clean by default (phase lines, bar, and
+  summary only) so a project with dozens of pipelines no longer floods
+  scrollback — while the **non-TTY / `--no-progress`** log still prints one
+  `✓ <name>  N file(s)` line per finished pipeline as before; and the
+  per-**pipeline** completion line no longer prints a
+  `(N.NNs)` segment in either renderer. Per-**phase** lines keep their real,
+  `perf_counter`-measured seconds.
 - **Faster startup via lazy loading.** Command modules import on first use
   (`LazyGroup` / `COMMAND_IMPORTS` in `cli/_lazy_group.py`), generator
   registration moved to the single facade composition point as a lazy
@@ -212,6 +236,12 @@ commands; the remaining "other commands" polish is deferred below with the
   `networkx`; a `tests/cli/test_startup_imports.py` regression locks the
   import-absence contract, with `lhp --version` cold start recorded under ~100 ms
   (best-of-3, soft floor — not a hard latency assertion).
+- **`import lhp.api` (and thus `lhp --help` / CLI startup) no longer eagerly
+  imports `lhp.core.codegen` / `jinja2`.** `lhp.bundle.BundleManager` is now
+  resolved lazily via PEP 562 module-level `__getattr__`, so importing the
+  public API surface no longer drags the codegen + Jinja2 stack onto the import
+  path; the same `tests/cli/test_startup_imports.py` regression locks the
+  codegen/jinja2 import-absence contract.
 - **No eager up-front discovery pass before rendering.** The CLI no longer runs
   a pre-render pipeline-discovery pass; the facade auto-derives the whole-project
   worklist from its own discover phase when neither `--pipeline` nor a field
@@ -254,6 +284,20 @@ commands; the remaining "other commands" polish is deferred below with the
     per-command size advisory.
   - **`skill_presenter` no-TTY branch** — `skill_presenter` has no non-TTY
     rendering branch.
+- **`CLI-LIVE-STDOUT-DEFER`** — the open §7.5 stdout/stderr question is not
+  resolved here. The Live progress region renders to **stdout** but is torn down
+  with `transient=True`, so it wipes itself on completion, and the non-TTY path
+  falls back to the stderr `LogRenderer`; stdout is therefore empty at rest.
+  Whether the durable completion trail should persist on stdout is a behavior
+  change deferred to a follow-up.
+- **`EVENTS-PROGRESS-DEFER`** — the per-pipeline `duration_s` field on the
+  pipeline-completed event stays in the event contract but is intentionally left
+  unpopulated (`0.0`). Per-pipeline duration is **not measured** and is **no
+  longer displayed**: the `(N.NNs)` segment was dropped rather than backed by a
+  fabricated number, and the renderers keep the `duration_s` parameter only for
+  `EventSink` ABC / `drive()` dispatch parity. Removing the field outright is an
+  event-contract change deferred here. (Per-**phase** `duration_s` is real and
+  unaffected.)
 
 ### CLI rebuilt as a pure presentation layer over the event-stream facade
 

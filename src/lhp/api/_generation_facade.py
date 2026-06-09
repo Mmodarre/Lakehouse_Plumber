@@ -30,8 +30,6 @@ from typing import (
     Sequence,
 )
 
-from lhp.api._generate_stream import _stream_pipeline_generation
-from lhp.api._plan_stream import _stream_plan_generation
 from lhp.api._progress import ProgressSink
 from lhp.api._stream_guard import _cap_event_stream
 from lhp.api.events import LHPEvent
@@ -171,6 +169,10 @@ class GenerationFacade:
             :class:`ErrorEmitted` event is yielded before the exception
             escapes (§1.4 stream protocol).
         """
+        # Deferred to keep ``import lhp.api`` from eagerly pulling the codegen
+        # stack (and jinja2 via it); the stream body is needed only at call time.
+        from lhp.api._generate_stream import _stream_pipeline_generation
+
         yield from _cap_event_stream(
             _stream_pipeline_generation(
                 self._orchestrator,
@@ -269,6 +271,10 @@ class GenerationFacade:
             all-or-nothing gate. An :class:`ErrorEmitted` event is yielded
             before the exception escapes (§1.4 stream protocol).
         """
+        # Deferred to keep ``import lhp.api`` from eagerly pulling the codegen
+        # stack (and jinja2 via it); the stream body is needed only at call time.
+        from lhp.api._plan_stream import _stream_plan_generation
+
         yield from _cap_event_stream(
             _stream_plan_generation(
                 self._orchestrator,

@@ -241,7 +241,7 @@ def build_generation_plan(
     max_workers: Optional[int] = None,
     on_pipeline_complete: Optional[Callable[["PipelineDelta"], None]] = None,
     on_total: Optional[Callable[[int], None]] = None,
-    on_flowgroup_done: Optional[Callable[[], None]] = None,
+    on_flowgroup_done: Optional[Callable[[str], None]] = None,
 ) -> GenerationPlanResult:
     """Generate to a temp dir, format, read back; return the in-memory plan.
 
@@ -292,7 +292,8 @@ def build_generation_plan(
             ``lhp.api`` dependency) so a plan drives the same flowgroup-grained
             progress the real generate does.
         on_flowgroup_done: Optional per-FLOWGROUP completion hook, called once
-            per finished flowgroup. Forwarded verbatim to ``generate_pipelines``.
+            per finished flowgroup with the completed flowgroup's PIPELINE name
+            (a plain ``str``). Forwarded verbatim to ``generate_pipelines``.
 
     Returns:
         A :class:`GenerationPlanResult` whose ``artifacts`` carry temp-relative

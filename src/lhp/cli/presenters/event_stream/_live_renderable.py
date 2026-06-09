@@ -98,10 +98,10 @@ class _LiveStatus:
 
     Owns a :class:`rich.spinner.Spinner` and a reference to the run's
     :class:`~lhp.api.ProgressSink`; the live renderer mutates the plain
-    :attr:`phase` / :attr:`pipeline` / :attr:`operation` attributes as events
-    arrive. Each render recomputes both lines from the current state, so the
-    bar advances when the sink advances and the spinner/flavor advance with the
-    clock.
+    :attr:`phase` / :attr:`operation` attributes as events arrive, while the
+    trailing current-item label is read live off ``ProgressSink.current``. Each
+    render recomputes both lines from the current state, so the bar advances
+    when the sink advances and the spinner/flavor advance with the clock.
 
     The single responsibility is "produce the current status region"; recording,
     permanent lines, and ``Live`` lifecycle stay in the renderer.
@@ -144,10 +144,12 @@ class _LiveStatus:
             else word_offset
         )
 
-        # Mutated by the renderer as events arrive; read on every frame.
+        # Mutated by the renderer as events arrive; read on every frame. The
+        # current-item label is NOT held here: line 1 reads it live from the
+        # sink's `current` (set by the coordinator per completed flowgroup), so
+        # there is no renderer-set pipeline attribute to keep in sync.
         self.operation: str = ""
         self.phase: Optional[str] = None
-        self.pipeline: Optional[str] = None
         # PhaseStarted names with no matching PhaseCompleted yet, in arrival
         # order. Co-located with `phase` (this object owns phase state); the
         # renderer reads it on teardown to surface interrupted phases (§5.7).
@@ -174,9 +176,16 @@ class _LiveStatus:
         from it, so two distinct ``now`` values yield two distinct frames. The
         :class:`~lhp.api.ProgressSink` scalars are snapshotted ONCE each into
         locals before use (lock-free read contract — see the module docstring).
+
+        The trailing current-item label comes from the sink's ``current`` — the
+        REAL-TIME side channel the coordinator writes per completed flowgroup —
+        not a renderer-set attribute, so the bar names the live item without an
+        event-callback round-trip. It is read once into a local alongside the
+        two counters (no cross-field invariant; ``None`` collapses the slot).
         """
         done = self._progress.done
         total = self._progress.total
+        current = self._progress.current
         elapsed = now - self._start
         # Spinner.render is a pure function of its time argument: the frame
         # index is derived from elapsed / frame-interval, so distinct elapsed
@@ -191,7 +200,7 @@ class _LiveStatus:
             phase=self.phase or self.operation,
             done=done,
             total=total,
-            pipeline=self.pipeline,
+            pipeline=current,
             elapsed_s=elapsed,
             width=self._console.width,
         )

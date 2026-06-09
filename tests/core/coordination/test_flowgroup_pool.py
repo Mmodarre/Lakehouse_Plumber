@@ -20,12 +20,14 @@ spawned worker reads state populated by ``_init_flowgroup_worker``.
 
 from __future__ import annotations
 
+from collections import Counter
 from concurrent.futures import Future
 from pathlib import Path
 from typing import Dict, List, Mapping, Optional, Sequence
 
 import pytest
 
+from lhp.api import ProgressSink
 from lhp.core._interfaces import CrossFlowgroupCheckResult
 from lhp.core.coordination import _flowgroup_pool as fp
 from lhp.core.coordination import _pool as fe
@@ -1228,10 +1230,12 @@ def test_progress_callbacks_total_once_and_done_per_flowgroup(monkeypatch):
 
     totals: List[int] = []
     done = 0
+    seen_pipelines: List[str] = []
 
-    def _on_done() -> None:
+    def _on_done(current: str) -> None:
         nonlocal done
         done += 1
+        seen_pipelines.append(current)
 
     results = _run_flowgroup_pool_core(
         flowgroups_by_pipeline=flowgroups_by_pipeline,
@@ -1250,6 +1254,11 @@ def test_progress_callbacks_total_once_and_done_per_flowgroup(monkeypatch):
     # on_flowgroup_done: exactly once per flowgroup (per-flowgroup granularity,
     # NOT the 2 it would be if it were hooked in the per-pipeline _finalize).
     assert done == 4
+    # Each tick carries the just-completed flowgroup's PIPELINE name (a plain
+    # str, no lhp.api type): multi contributes 3 ticks, single 1. Asserted
+    # order-independently — ``as_completed`` order over pre-completed futures
+    # is unspecified, so only the multiset of names is a stable contract.
+    assert Counter(seen_pipelines) == Counter({multi: 3, single: 1})
 
 
 @pytest.mark.unit
@@ -1282,10 +1291,12 @@ def test_progress_done_fires_on_submit_failure_path(monkeypatch, mode):
 
     totals: List[int] = []
     done = 0
+    seen_pipelines: List[str] = []
 
-    def _on_done() -> None:
+    def _on_done(current: str) -> None:
         nonlocal done
         done += 1
+        seen_pipelines.append(current)
 
     results = _run_flowgroup_pool_core(
         flowgroups_by_pipeline=flowgroups_by_pipeline,
@@ -1298,6 +1309,9 @@ def test_progress_done_fires_on_submit_failure_path(monkeypatch, mode):
     )
 
     assert totals == [3]
+    # Every tick — including the submit-failure path's — carries the pipeline
+    # name, so the single pipeline's name is seen on all three ticks.
+    assert seen_pipelines == [pipeline, pipeline, pipeline]
     # The submit-failure flowgroup ticks too: done == total even though one
     # flowgroup never produced a future. (2 here would mean the submit-failure
     # branch was missing the tick — the per-pipeline-miswiring failure mode.)
@@ -1310,6 +1324,99 @@ def test_progress_done_fires_on_submit_failure_path(monkeypatch, mode):
     assert fg_names == {"fg_a", "fg_boom", "fg_c"}
     boom = next(o for o in result.outcomes_in_order if o.flowgroup_name == "fg_boom")
     assert boom.success is False
+
+
+@pytest.mark.unit
+def test_progress_sink_current_holds_last_pipeline_name(monkeypatch):
+    """The REAL ProgressSink, wired as on_flowgroup_done, tracks current + done.
+
+    Drives the actual ``ProgressSink.on_advance`` (not a spy) as the engine's
+    ``on_flowgroup_done`` — the same plain-callable hand-off the facade uses —
+    over a SINGLE pipeline of three flowgroups. A single pipeline makes the
+    LAST name fired deterministic (``as_completed`` order over pre-completed
+    futures is otherwise unspecified): every tick carries the same pipeline
+    name, so whichever flowgroup resolves last still lands that name on
+    ``current``. After the run:
+      - ``sink.done`` was incremented once per flowgroup (3), proving the name
+        threading did not break the count.
+      - ``sink.total`` was recorded once.
+      - ``sink.current`` holds the pipeline name fired on the LAST advance.
+
+    The pool sees only a plain ``Callable[[str], None]``; no ``lhp.api`` symbol
+    crosses into ``core/`` (the sink is passed in by the test, exactly as the
+    facade passes ``progress.on_advance``).
+    """
+    pipeline = "pipe_one"
+    flowgroups_by_pipeline: Dict[str, List[FlowGroupContext]] = {
+        pipeline: [
+            _ctx(pipeline=pipeline, flowgroup="fg_a"),
+            _ctx(pipeline=pipeline, flowgroup="fg_b"),
+            _ctx(pipeline=pipeline, flowgroup="fg_c"),
+        ],
+    }
+
+    monkeypatch.setattr(fe, "ProcessPoolExecutor", _SyncExecutor)
+    monkeypatch.setattr(fe, "_process_one_flowgroup", _counting_worker)
+
+    sink = ProgressSink()
+    assert sink.current is None  # None until the first advance.
+
+    _run_flowgroup_pool_core(
+        flowgroups_by_pipeline=flowgroups_by_pipeline,
+        worker_state=_worker_state_for([pipeline]),
+        validation_service=_BarrierSpy(),
+        max_workers=4,
+        mode="validate",
+        on_total=sink.on_total,
+        on_flowgroup_done=sink.on_advance,
+    )
+
+    assert sink.done == 3
+    assert sink.total == 3
+    assert sink.current == pipeline
+
+
+@pytest.mark.unit
+def test_progress_sink_current_is_a_completed_pipeline_name(monkeypatch):
+    """Across pipelines, current is always one of the names actually fired.
+
+    ``as_completed`` order over pre-completed futures is unspecified, so WHICH
+    pipeline finishes last is non-deterministic. This test asserts the
+    order-independent contract: every tick carries a real worklist-key pipeline
+    name (a plain ``str``), ``done`` equals the flat flowgroup count, and
+    ``current`` ends as one of the two pipeline names — never ``None`` and never
+    a flowgroup name.
+    """
+    multi = "pipe_multi"
+    single = "pipe_single"
+    flowgroups_by_pipeline: Dict[str, List[FlowGroupContext]] = {
+        multi: [
+            _ctx(pipeline=multi, flowgroup="fg_a"),
+            _ctx(pipeline=multi, flowgroup="fg_b"),
+            _ctx(pipeline=multi, flowgroup="fg_c"),
+        ],
+        single: [_ctx(pipeline=single, flowgroup="fg_solo")],
+    }
+
+    monkeypatch.setattr(fe, "ProcessPoolExecutor", _SyncExecutor)
+    monkeypatch.setattr(fe, "_process_one_flowgroup", _counting_worker)
+
+    sink = ProgressSink()
+    _run_flowgroup_pool_core(
+        flowgroups_by_pipeline=flowgroups_by_pipeline,
+        worker_state=_worker_state_for([multi, single]),
+        validation_service=_BarrierSpy(),
+        max_workers=4,
+        mode="validate",
+        on_total=sink.on_total,
+        on_flowgroup_done=sink.on_advance,
+    )
+
+    assert sink.done == 4
+    assert sink.total == 4
+    # current is a PIPELINE name (one of the worklist keys), never None / a
+    # flowgroup name — proving the pipeline (not flowgroup) name is threaded.
+    assert sink.current in {multi, single}
 
 
 @pytest.mark.unit

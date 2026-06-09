@@ -245,7 +245,7 @@ class BasePipelineExecutionService(ABC):
         packaging_modes: Optional[Mapping[str, str]] = None,
         max_workers: Optional[int] = None,
         on_total: Optional[Callable[[int], None]] = None,
-        on_flowgroup_done: Optional[Callable[[], None]] = None,
+        on_flowgroup_done: Optional[Callable[[str], None]] = None,
     ) -> Generator["PipelineDelta", None, Tuple[DeprecationWarningRecord, ...]]:
         """The flat four-map shape — produced by
         ``flowgroup_worklist_builder.build_flowgroup_worklist`` with a REAL
@@ -290,7 +290,7 @@ class BasePipelineExecutionService(ABC):
         output_dirs: Mapping[str, Optional[Path]],
         discovery_errors: Mapping[str, str],
         on_total: Optional[Callable[[int], None]] = None,
-        on_flowgroup_done: Optional[Callable[[], None]] = None,
+        on_flowgroup_done: Optional[Callable[[str], None]] = None,
     ) -> Generator[
         "PipelineValidationOutcome", None, Tuple[DeprecationWarningRecord, ...]
     ]:
