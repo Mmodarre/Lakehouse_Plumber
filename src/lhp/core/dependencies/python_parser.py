@@ -239,6 +239,12 @@ class PythonParser:
         ):
             return self._get_string_argument(node, 0)
 
+        if isinstance(node.func, ast.Attribute) and node.func.attr in [
+            "createOrReplaceTempView",
+            "createGlobalTempView",
+        ]:
+            pass
+
         return None
 
     def _extract_table_from_call(
