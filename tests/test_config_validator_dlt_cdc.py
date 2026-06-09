@@ -153,6 +153,143 @@ class TestConfigValidatorDltCdc:
         errors = validator.validate_action(action, 0)
         assert any("cluster_columns[0] must be a string" in error for error in errors)
 
+    def test_invalid_cluster_by_auto_type(self):
+        validator = ConfigValidator()
+
+        action = Action(
+            name="test_invalid_cluster_by_auto_type",
+            type=ActionType.WRITE,
+            source="v_test",
+            write_target={
+                "type": "streaming_table",
+                "catalog": "test_cat",
+                "schema": "test",
+                "table": "test",
+                "cluster_by_auto": "yes",  # Should be boolean
+            },
+        )
+        errors = validator.validate_action(action, 0)
+        assert any("'cluster_by_auto' must be a boolean" in error for error in errors)
+
+    def test_invalid_refresh_policy_type(self):
+        validator = ConfigValidator()
+
+        action = Action(
+            name="test_invalid_refresh_policy_type",
+            type=ActionType.WRITE,
+            source="v_test",
+            write_target={
+                "type": "materialized_view",
+                "catalog": "test_cat",
+                "schema": "test",
+                "table": "test",
+                "sql": "SELECT 1",
+                "refresh_policy": 123,  # Should be string
+            },
+        )
+        errors = validator.validate_action(action, 0)
+        assert any("'refresh_policy' must be a string" in error for error in errors)
+
+    def test_invalid_refresh_policy_value(self):
+        validator = ConfigValidator()
+
+        action = Action(
+            name="test_invalid_refresh_policy_value",
+            type=ActionType.WRITE,
+            source="v_test",
+            write_target={
+                "type": "materialized_view",
+                "catalog": "test_cat",
+                "schema": "test",
+                "table": "test",
+                "sql": "SELECT 1",
+                "refresh_policy": "bogus",  # Not one of the valid values
+            },
+        )
+        errors = validator.validate_action(action, 0)
+        assert any("Invalid refresh_policy 'bogus'" in error for error in errors)
+        assert any("Valid values are:" in error for error in errors)
+
+    @pytest.mark.parametrize(
+        "refresh_policy",
+        ["auto", "incremental", "incremental_strict", "full"],
+    )
+    def test_valid_refresh_policy_values(self, refresh_policy):
+        validator = ConfigValidator()
+
+        action = Action(
+            name="test_valid_refresh_policy_values",
+            type=ActionType.WRITE,
+            source="v_test",
+            write_target={
+                "type": "materialized_view",
+                "catalog": "test_cat",
+                "schema": "test",
+                "table": "test",
+                "sql": "SELECT 1",
+                "refresh_policy": refresh_policy,
+            },
+        )
+        errors = validator.validate_action(action, 0)
+        assert not any("refresh_policy" in error for error in errors)
+
+    def test_cluster_columns_and_cluster_by_auto_mutually_exclusive(self):
+        validator = ConfigValidator()
+
+        action = Action(
+            name="test_cluster_mutual_exclusion",
+            type=ActionType.WRITE,
+            source="v_test",
+            write_target={
+                "type": "streaming_table",
+                "catalog": "test_cat",
+                "schema": "test",
+                "table": "test",
+                "cluster_columns": ["column1"],
+                "cluster_by_auto": True,
+            },
+        )
+        errors = validator.validate_action(action, 0)
+        assert any(
+            "'cluster_columns' and 'cluster_by_auto' are mutually exclusive" in error
+            for error in errors
+        )
+
+    def test_cluster_columns_or_cluster_by_auto_alone_ok(self):
+        validator = ConfigValidator()
+
+        # cluster_columns alone: no mutual-exclusivity error
+        action = Action(
+            name="test_cluster_columns_alone",
+            type=ActionType.WRITE,
+            source="v_test",
+            write_target={
+                "type": "streaming_table",
+                "catalog": "test_cat",
+                "schema": "test",
+                "table": "test",
+                "cluster_columns": ["column1"],
+            },
+        )
+        errors = validator.validate_action(action, 0)
+        assert not any("mutually exclusive" in error for error in errors)
+
+        # cluster_by_auto alone: no mutual-exclusivity error
+        action = Action(
+            name="test_cluster_by_auto_alone",
+            type=ActionType.WRITE,
+            source="v_test",
+            write_target={
+                "type": "streaming_table",
+                "catalog": "test_cat",
+                "schema": "test",
+                "table": "test",
+                "cluster_by_auto": True,
+            },
+        )
+        errors = validator.validate_action(action, 0)
+        assert not any("mutually exclusive" in error for error in errors)
+
     def test_cdc_config_validation_comprehensive(self):
         validator = ConfigValidator()
 

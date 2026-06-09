@@ -17,6 +17,8 @@
 | `temporary` | bool | `false` | — |
 | `partition_columns` | list | — | — |
 | `cluster_columns` | list | — | — |
+| `cluster_by_auto` | bool | — | Auto liquid clustering; renders `cluster_by_auto=True`. Mutually exclusive with `cluster_columns`. Omitted when false/unset. |
+| `refresh_policy` | string | — | One of `auto`, `incremental`, `incremental_strict`, `full`; any other value fails validation. Renders `refresh_policy="incremental"`. MV-only. |
 | `path` | string | — | — |
 | `comment` | string | `Materialized view: {table}` | — |
 
@@ -37,3 +39,4 @@
 
 - Exactly one query source: action `source` field, `sql`, or `sql_path`.
 - No action-level `source` needed when `sql`/`sql_path` is provided.
+- `cluster_columns` and `cluster_by_auto` are mutually exclusive (XOR) — setting both fails validation with `'cluster_columns' and 'cluster_by_auto' are mutually exclusive`.

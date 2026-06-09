@@ -22,6 +22,9 @@ dp.create_streaming_table(
     {%- if cluster_by %},
     cluster_by={{ cluster_by | tojson }}
     {%- endif %}
+    {%- if cluster_by_auto %},
+    cluster_by_auto={{ cluster_by_auto | string | title }}
+    {%- endif %}
     {%- if table_path %},
     path="{{ table_path }}"
     {%- endif %}
@@ -90,6 +93,9 @@ dp.create_streaming_table(
     {%- if cluster_by %},
     cluster_by={{ cluster_by | tojson }}
     {%- endif %}
+    {%- if cluster_by_auto %},
+    cluster_by_auto={{ cluster_by_auto | string | title }}
+    {%- endif %}
     {%- if table_path %},
     path="{{ table_path }}"
     {%- endif %}
@@ -139,6 +145,9 @@ dp.create_streaming_table(
     {%- endif %}
     {%- if cluster_by %},
     cluster_by={{ cluster_by | tojson }}
+    {%- endif %}
+    {%- if cluster_by_auto %},
+    cluster_by_auto={{ cluster_by_auto | string | title }}
     {%- endif %}
     {%- if table_path %},
     path="{{ table_path }}"

@@ -27,6 +27,7 @@ class WriteTarget(BaseModel):
     table_properties: Optional[Dict[str, Any]] = None
     partition_columns: Optional[List[str]] = None
     cluster_columns: Optional[List[str]] = None
+    cluster_by_auto: Optional[bool] = None
     spark_conf: Optional[Dict[str, Any]] = None
     table_schema: Optional[str] = None
     row_filter: Optional[str] = None
@@ -34,6 +35,7 @@ class WriteTarget(BaseModel):
     path: Optional[str] = None
     # Materialized view specific
     refresh_schedule: Optional[str] = None
+    refresh_policy: Optional[str] = None
     sql: Optional[str] = None
     sql_path: Optional[str] = None
 

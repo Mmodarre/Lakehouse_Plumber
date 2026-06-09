@@ -43,6 +43,7 @@ _SHARED_CDC_CONFIG_FIELDS: Tuple[str, ...] = (
 _SHARED_TARGET_FIELDS: Tuple[str, ...] = (
     "partition_columns",
     "cluster_columns",
+    "cluster_by_auto",
     "table_properties",
     "spark_conf",
     "table_schema",

@@ -90,6 +90,7 @@ class TestWriteGenerators:
                 "partition_columns": ["region"],
                 "cluster_columns": ["id"],
                 "path": "/mnt/data/gold/advanced_table",
+                "refresh_policy": "incremental",
                 "sql": "SELECT * FROM silver.base_table",
             },
         )
@@ -106,6 +107,43 @@ class TestWriteGenerators:
         assert 'partition_cols=["region"]' in code
         assert 'cluster_by=["id"]' in code
         assert 'path="/mnt/data/gold/advanced_table"' in code
+        assert 'refresh_policy="incremental"' in code
+
+    def test_materialized_view_cluster_by_auto(self):
+        """Test materialized view emits cluster_by_auto when set, omits when not."""
+        generator = MaterializedViewWriteGenerator()
+
+        # cluster_by_auto is mutually exclusive with cluster_columns, so omit them.
+        action_enabled = Action(
+            name="write_auto_cluster",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "materialized_view",
+                "catalog": "gold_cat",
+                "schema": "gold_sch",
+                "table": "auto_clustered",
+                "cluster_by_auto": True,
+                "sql": "SELECT * FROM silver.base_table",
+            },
+        )
+        code_enabled = generator.generate(action_enabled, {})
+        assert "@dp.materialized_view(" in code_enabled
+        assert "cluster_by_auto=True" in code_enabled
+
+        # Negative case: unset cluster_by_auto must emit nothing.
+        action_unset = Action(
+            name="write_no_auto_cluster",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "materialized_view",
+                "catalog": "gold_cat",
+                "schema": "gold_sch",
+                "table": "plain_table",
+                "sql": "SELECT * FROM silver.base_table",
+            },
+        )
+        code_unset = generator.generate(action_unset, {})
+        assert "cluster_by_auto" not in code_unset
 
     def test_streaming_table_with_all_options(self):
         """Test streaming table with all new options."""
@@ -192,6 +230,137 @@ class TestWriteGenerators:
 
         assert "import sys" not in code
         assert "sys.path.append" not in code
+
+    def test_streaming_table_cluster_by_auto_standard(self):
+        """Standard mode emits cluster_by_auto=True without cluster_columns."""
+        generator = StreamingTableWriteGenerator()
+        action = Action(
+            name="write_cluster_auto",
+            type=ActionType.WRITE,
+            source="v_customers_final",
+            write_target={
+                "type": "streaming_table",
+                "catalog": "silver_cat",
+                "schema": "silver_sch",
+                "table": "customers",
+                "create_table": True,
+                "cluster_by_auto": True,
+            },
+        )
+
+        code = generator.generate(action, {})
+
+        assert "dp.create_streaming_table(" in code
+        assert "cluster_by_auto=True" in code
+        # cluster_by_auto is independent of explicit cluster columns
+        assert "cluster_by=" not in code
+
+    def test_streaming_table_cluster_by_auto_standard_unset(self):
+        """Standard mode omits cluster_by_auto when False/unset."""
+        generator = StreamingTableWriteGenerator()
+        action_false = Action(
+            name="write_cluster_auto_false",
+            type=ActionType.WRITE,
+            source="v_customers_final",
+            write_target={
+                "type": "streaming_table",
+                "catalog": "silver_cat",
+                "schema": "silver_sch",
+                "table": "customers",
+                "create_table": True,
+                "cluster_by_auto": False,
+            },
+        )
+        action_unset = Action(
+            name="write_cluster_auto_unset",
+            type=ActionType.WRITE,
+            source="v_customers_final",
+            write_target={
+                "type": "streaming_table",
+                "catalog": "silver_cat",
+                "schema": "silver_sch",
+                "table": "customers",
+                "create_table": True,
+            },
+        )
+
+        assert "cluster_by_auto" not in generator.generate(action_false, {})
+        assert "cluster_by_auto" not in generator.generate(action_unset, {})
+
+    def test_streaming_table_cluster_by_auto_cdc(self):
+        """CDC mode emits cluster_by_auto=True on the created table; omits when unset."""
+        generator = StreamingTableWriteGenerator()
+
+        def _cdc_action(cluster_by_auto):
+            write_target = {
+                "type": "streaming_table",
+                "mode": "cdc",
+                "catalog": "silver_cat",
+                "schema": "silver_sch",
+                "table": "dim_customer",
+                "create_table": True,
+                "cdc_config": {
+                    "keys": ["customer_id"],
+                    "sequence_by": "_commit_timestamp",
+                    "scd_type": 2,
+                },
+            }
+            if cluster_by_auto is not None:
+                write_target["cluster_by_auto"] = cluster_by_auto
+            return Action(
+                name="write_customer_dim",
+                type=ActionType.WRITE,
+                source="v_customer_changes",
+                write_target=write_target,
+            )
+
+        code = generator.generate(_cdc_action(True), {"expectations": []})
+        assert "dp.create_streaming_table(" in code
+        assert "dp.create_auto_cdc_flow(" in code
+        assert "cluster_by_auto=True" in code
+
+        code_false = generator.generate(_cdc_action(False), {"expectations": []})
+        assert "cluster_by_auto" not in code_false
+
+        code_unset = generator.generate(_cdc_action(None), {"expectations": []})
+        assert "cluster_by_auto" not in code_unset
+
+    def test_streaming_table_cluster_by_auto_snapshot_cdc(self):
+        """Snapshot CDC mode emits cluster_by_auto=True; omits when unset."""
+        generator = StreamingTableWriteGenerator()
+
+        def _snapshot_action(cluster_by_auto):
+            write_target = {
+                "type": "streaming_table",
+                "mode": "snapshot_cdc",
+                "catalog": "silver_cat",
+                "schema": "silver_sch",
+                "table": "customers",
+                "create_table": True,
+                "snapshot_cdc_config": {
+                    "source": "raw.customer_snapshots",
+                    "keys": ["customer_id"],
+                    "stored_as_scd_type": 1,
+                },
+            }
+            if cluster_by_auto is not None:
+                write_target["cluster_by_auto"] = cluster_by_auto
+            return Action(
+                name="write_customer_snapshot_cdc",
+                type=ActionType.WRITE,
+                write_target=write_target,
+            )
+
+        code = generator.generate(_snapshot_action(True), {})
+        assert "dp.create_streaming_table(" in code
+        assert "dp.create_auto_cdc_from_snapshot_flow(" in code
+        assert "cluster_by_auto=True" in code
+
+        code_false = generator.generate(_snapshot_action(False), {})
+        assert "cluster_by_auto" not in code_false
+
+        code_unset = generator.generate(_snapshot_action(None), {})
+        assert "cluster_by_auto" not in code_unset
 
     def _make_snapshot_function_file(self, body: str) -> str:
         """Write a temp snapshot source-function file, return its path.

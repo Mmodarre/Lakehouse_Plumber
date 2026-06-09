@@ -133,6 +133,7 @@ Standard mode appends rows from one or more source views via
       - **table_properties**: Delta table properties for optimization and metadata
       - **partition_columns**: Columns to partition the table by
       - **cluster_columns**: Columns to cluster/z-order the table by
+      - **cluster_by_auto**: Boolean — enable automatic liquid clustering (Databricks selects and evolves the clustering keys). Renders ``cluster_by_auto=True``; omitted when ``false`` or unset. Mutually exclusive with ``cluster_columns``.
       - **spark_conf**: Streaming-specific Spark configuration
       - **table_schema**: DDL schema definition for the table (supports inline DDL or external file - see below)
       - **row_filter**: Row-level security filter using SQL UDF (format: "ROW FILTER function_name ON (column_names)")
@@ -287,7 +288,7 @@ Requirements:
 - All contributors must agree on the following shared fields (table-level and CDC-key semantics):
 
   - ``cdc_config``: ``keys``, ``sequence_by``, ``stored_as_scd_type`` / ``scd_type``, ``track_history_column_list``, ``track_history_except_column_list``
-  - ``write_target``: ``partition_columns``, ``cluster_columns``, ``table_properties``, ``spark_conf``, ``table_schema``, ``comment``, ``path``, ``row_filter``, ``temporary``
+  - ``write_target``: ``partition_columns``, ``cluster_columns``, ``cluster_by_auto``, ``table_properties``, ``spark_conf``, ``table_schema``, ``comment``, ``path``, ``row_filter``, ``temporary``
 
 - The following fields are **per-flow** and may differ across contributors:
 
@@ -848,6 +849,8 @@ Minimum example:
       - **table_properties**: Delta table properties for optimization
       - **partition_columns**: Columns to partition the view by
       - **cluster_columns**: Columns to cluster/z-order the view by
+      - **cluster_by_auto**: Boolean — enable automatic liquid clustering (Databricks selects and evolves the clustering keys). Renders ``cluster_by_auto=True``; omitted when ``false`` or unset. Mutually exclusive with ``cluster_columns``.
+      - **refresh_policy**: String — refresh strategy for the materialized view. One of ``"auto"``, ``"incremental"``, ``"incremental_strict"``, or ``"full"`` (e.g. ``"incremental"``); any other value is rejected at validation. Renders ``refresh_policy="incremental"``. Materialized-view only.
       - **table_schema**: DDL schema definition for the view (supports inline DDL or external file - see below)
       - **row_filter**: Row-level security filter using SQL UDF (format: "ROW FILTER function_name ON (column_names)")
       - **comment**: Table comment for documentation
@@ -950,6 +953,58 @@ can either read from source views or execute custom SQL queries.
 The ``refresh_schedule`` parameter is no longer supported by ``@dp.materialized_view``. If
 present in YAML configurations, it is accepted for backward compatibility but ignored during
 code generation.
+
+Automatic clustering and refresh policy
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Set ``cluster_by_auto: true`` on a write target to enable automatic liquid clustering —
+Databricks selects and evolves the clustering keys for you. It applies to both
+``materialized_view`` and ``streaming_table`` targets (all three streaming modes:
+``standard``, ``cdc``, ``snapshot_cdc``) and renders ``cluster_by_auto=True`` in the generated
+code. When ``false`` or unset, the argument is omitted entirely.
+
+On a materialized view you can also set ``refresh_policy`` to control the refresh strategy.
+It must be one of ``"auto"``, ``"incremental"``, ``"incremental_strict"``, or ``"full"`` — any
+other value is rejected at validation. It renders ``refresh_policy="incremental"`` (for example)
+and is materialized-view only.
+
+.. important::
+  ``cluster_columns`` and ``cluster_by_auto`` are mutually exclusive — setting both fails
+  validation with ``'cluster_columns' and 'cluster_by_auto' are mutually exclusive``. Databricks
+  rejects ``CLUSTER BY (cols)`` combined with ``CLUSTER BY AUTO``. Choose explicit named columns
+  (``cluster_columns``) or automatic clustering (``cluster_by_auto``), never both.
+
+.. code-block:: yaml
+  :caption: Materialized view with automatic clustering and an incremental refresh policy
+
+  actions:
+    - name: create_customer_summary_mv
+      type: write
+      write_target:
+        type: materialized_view
+        catalog: "${catalog}"
+        schema: "${gold_schema}"
+        table: customer_summary
+        sql: "SELECT customer_id, COUNT(*) AS orders FROM v_orders GROUP BY customer_id"
+        cluster_by_auto: true
+        refresh_policy: "incremental"
+      description: "Customer order summary with auto liquid clustering"
+
+.. code-block:: yaml
+  :caption: Streaming table with automatic clustering
+
+  actions:
+    - name: write_customer_bronze
+      type: write
+      source: v_customer_cleansed
+      write_target:
+        type: streaming_table
+        mode: standard
+        catalog: "${catalog}"
+        schema: "${bronze_schema}"
+        table: customer
+        cluster_by_auto: true
+      description: "Bronze customer stream with auto liquid clustering"
 
 Row-level security with row_filter
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

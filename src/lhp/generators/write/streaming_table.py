@@ -243,6 +243,7 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
             "temporary": temporary,
             "partitions": target_config.get("partition_columns"),
             "cluster_by": target_config.get("cluster_columns"),
+            "cluster_by_auto": target_config.get("cluster_by_auto"),
             "comment": target_config.get("comment", f"Streaming table: {table}"),
             "table_path": target_config.get("path"),
             "cdc_config": cdc_config,

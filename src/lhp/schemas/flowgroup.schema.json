@@ -484,6 +484,10 @@
                     },
                     "description": "Cluster columns"
                 },
+                "cluster_by_auto": {
+                    "type": "boolean",
+                    "description": "Enable automatic liquid clustering (streaming tables and materialized views)"
+                },
                 "spark_conf": {
                     "type": "object",
                     "additionalProperties": true,
@@ -509,6 +513,11 @@
                 "refresh_schedule": {
                     "type": "string",
                     "description": "Refresh schedule for materialized views"
+                },
+                "refresh_policy": {
+                    "type": "string",
+                    "enum": ["auto", "incremental", "incremental_strict", "full"],
+                    "description": "Refresh policy for materialized views. One of: auto, incremental, incremental_strict, full"
                 },
                 "sql": {
                     "type": "string",

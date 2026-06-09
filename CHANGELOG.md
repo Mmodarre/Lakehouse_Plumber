@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### `cluster_by_auto` and `refresh_policy` write-target fields
+
+**Summary.** Two new write-target fields let pipelines opt into Databricks
+**automatic liquid clustering** and control materialized-view refresh behaviour.
+`cluster_by_auto` enables `CLUSTER BY AUTO` on both `materialized_view` and
+`streaming_table` targets (across all three streaming modes — standard, cdc, and
+snapshot_cdc), and `refresh_policy` sets the refresh policy on
+`materialized_view` targets. The new fields are validated against existing
+clustering configuration and, for CDC fan-in, are enforced as a shared target
+field. One related Databricks restriction — clustering being mutually exclusive
+with partitioning — is **not** validated yet and is tracked below as `D3`.
+
+**Added.**
+
+- **A `cluster_by_auto` (boolean) write-target field.** Enables automatic liquid
+  clustering. Applies to both `materialized_view` and `streaming_table` targets
+  (all three streaming modes: standard, cdc, snapshot_cdc). When set, the
+  generated code renders `cluster_by_auto=True`; when false or unset the argument
+  is omitted entirely.
+- **A `refresh_policy` (string) write-target field.** `materialized_view` only.
+  Accepts one of `auto`, `incremental`, `incremental_strict`, or `full`; any other
+  value fails validation. Renders into the generated code as e.g.
+  `refresh_policy="incremental"`.
+- **Validation for the new fields.** `cluster_columns` and `cluster_by_auto` are
+  **mutually exclusive** — setting both fails validation, matching the Databricks
+  restriction that `CLUSTER BY (cols)` and `CLUSTER BY AUTO` cannot be combined.
+  Both new fields are also type-validated, and `refresh_policy` is further
+  enforced as an enum (one of `auto`, `incremental`, `incremental_strict`, `full`).
+
+**Changed.**
+
+- **The CDC fan-in shared-target-fields set now includes `cluster_by_auto`.** All
+  fan-in contributors writing to the same target must agree on `cluster_by_auto`,
+  consistent with the other shared target fields.
+
+**Deferred (decided; tracked for follow-up).**
+
+- **`D3`** — clustering is **not** yet validated as mutually exclusive with
+  `partition_columns`. LHP currently allows `partition_columns` and
+  `cluster_columns` together; this matches existing behaviour and is intentionally
+  unchanged in this task set. The broader Databricks rule that clustering is
+  mutually exclusive with partitioning is a deferred validation gap, recorded here
+  for a future change.
+
 ### Deterministic per-pipeline wheel packaging — content-addressed wheels alongside source-mode pipelines
 
 **Summary.** LHP-generated pipelines can now be packaged and deployed as a

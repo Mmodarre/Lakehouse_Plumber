@@ -18,6 +18,7 @@ class DltTableOptionsValidator:
         errors.extend(self._validate_table_properties(action, prefix))
         errors.extend(self._validate_schema_options(action, prefix))
         errors.extend(self._validate_column_options(action, prefix))
+        errors.extend(self._validate_refresh_options(action, prefix))
 
         return errors
 
@@ -99,5 +100,31 @@ class DltTableOptionsValidator:
                         errors.append(
                             f"{prefix}: cluster_columns[{i}] must be a string"
                         )
+
+        cluster_by_auto = action.write_target.get("cluster_by_auto")
+        if cluster_by_auto is not None:
+            if not isinstance(cluster_by_auto, bool):
+                errors.append(f"{prefix}: 'cluster_by_auto' must be a boolean")
+
+        if cluster_columns and cluster_by_auto is True:
+            errors.append(
+                f"{prefix}: 'cluster_columns' and 'cluster_by_auto' are mutually exclusive"
+            )
+
+        return errors
+
+    def _validate_refresh_options(self, action: Action, prefix: str) -> List[str]:
+        errors = []
+
+        valid_policies = ["auto", "incremental", "incremental_strict", "full"]
+        refresh_policy = action.write_target.get("refresh_policy")
+        if refresh_policy is not None:
+            if not isinstance(refresh_policy, str):
+                errors.append(f"{prefix}: 'refresh_policy' must be a string")
+            elif refresh_policy not in valid_policies:
+                errors.append(
+                    f"{prefix}: Invalid refresh_policy '{refresh_policy}'. "
+                    f"Valid values are: {', '.join(valid_policies)}"
+                )
 
         return errors

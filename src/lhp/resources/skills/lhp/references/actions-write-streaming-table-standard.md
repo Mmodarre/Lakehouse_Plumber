@@ -20,6 +20,7 @@
 | `row_filter` | string | — | — |
 | `partition_columns` | list | — | — |
 | `cluster_columns` | list | — | — |
+| `cluster_by_auto` | bool | — | Auto liquid clustering; renders `cluster_by_auto=True`. Mutually exclusive with `cluster_columns`. Omitted when false/unset. |
 | `path` | string | — | — |
 
 ## Minimal YAML

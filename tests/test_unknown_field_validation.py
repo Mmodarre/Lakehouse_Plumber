@@ -118,6 +118,50 @@ class TestUnknownFieldValidation:
 
         self.validator.validate_write_target(write_target, "test_action")
 
+    def test_materialized_view_with_cluster_by_auto_and_refresh_policy(self):
+        """MV write target with cluster_by_auto and refresh_policy passes validation."""
+        write_target = {
+            "type": "materialized_view",
+            "catalog": "catalog",
+            "schema": "schema",
+            "table": "my_view",
+            "cluster_by_auto": True,
+            "refresh_policy": "@daily",
+            "sql": "SELECT * FROM source_table",
+        }
+
+        self.validator.validate_write_target(write_target, "test_action")
+
+    def test_streaming_table_with_cluster_by_auto(self):
+        """Streaming table write target with cluster_by_auto passes validation."""
+        write_target = {
+            "type": "streaming_table",
+            "catalog": "catalog",
+            "schema": "schema",
+            "table": "my_table",
+            "cluster_by_auto": True,
+        }
+
+        self.validator.validate_write_target(write_target, "test_action")
+
+    def test_streaming_table_rejects_refresh_policy(self):
+        """refresh_policy is unknown for streaming tables and must be rejected."""
+        write_target = {
+            "type": "streaming_table",
+            "catalog": "catalog",
+            "schema": "schema",
+            "table": "my_table",
+            "refresh_policy": "@daily",
+        }
+
+        with pytest.raises(LHPError) as exc_info:
+            self.validator.validate_write_target(write_target, "test_action")
+
+        assert (
+            "Unknown field 'refresh_policy' in write target (streaming_table)"
+            in str(exc_info.value)
+        )
+
     def test_valid_action_fields(self):
         """Test valid action fields pass validation."""
         action_dict = {

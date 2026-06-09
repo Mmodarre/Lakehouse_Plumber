@@ -129,9 +129,11 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
             "temporary": temporary,
             "partitions": target_config.get("partition_columns"),
             "cluster_by": target_config.get("cluster_columns"),
+            "cluster_by_auto": target_config.get("cluster_by_auto"),
             "table_path": target_config.get("path"),
             "comment": target_config.get("comment", f"Materialized view: {table}"),
             "refresh_schedule": refresh_schedule,
+            "refresh_policy": target_config.get("refresh_policy"),
             "description": action.description
             or f"Write to {full_table_name} from multiple sources",
             "add_operational_metadata": bool(metadata_columns),
