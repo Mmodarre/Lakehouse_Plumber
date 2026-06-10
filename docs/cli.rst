@@ -185,7 +185,8 @@ Subcommands
 
 .. code-block:: bash
 
-   # Install the skill into <cwd>/.claude/skills/lhp/
+   # Install the skill into <cwd>/.claude/skills/lhp/ and write the
+   # routing block into <cwd>/CLAUDE.md
    lhp skill install
 
    # Install for the current user (~/.claude/skills/lhp/)
@@ -219,6 +220,12 @@ Behavior
 - An ``.lhp_skill_version`` marker file inside the install directory tracks which
   LHP version produced the content; this file is the source of truth for
   ``status`` and ``update``.
+- A project install also writes an LHP routing block into ``<cwd>/CLAUDE.md``
+  (creating the file if absent, refreshing it on ``update``). The block tells
+  Claude Code that the directory is an LHP project, so requests phrased without
+  LHP-specific vocabulary still route to the skill. ``uninstall`` strips the
+  block again, preserving any other content you added to ``CLAUDE.md``. A
+  ``--user`` install is global and never touches a project ``CLAUDE.md``.
 
 When to use ``--user``
 ~~~~~~~~~~~~~~~~~~~~~~

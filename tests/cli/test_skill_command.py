@@ -96,3 +96,70 @@ def test_uninstall_when_absent_is_noop_success(runner: CliRunner) -> None:
         result = runner.invoke(uninstall, ["--force"])
         assert result.exit_code == 0, result.output
         assert "Nothing to remove" in result.output
+
+
+CLAUDE_MD = Path("CLAUDE.md")
+
+
+def test_install_writes_routing_block_to_claude_md(runner: CliRunner) -> None:
+    with runner.isolated_filesystem():
+        result = runner.invoke(install, [])
+        assert result.exit_code == 0, result.output
+        assert CLAUDE_MD.is_file()
+        assert "lhp:routing:start" in CLAUDE_MD.read_text()
+
+
+def test_install_preserves_existing_claude_md(runner: CliRunner) -> None:
+    with runner.isolated_filesystem():
+        CLAUDE_MD.write_text("# My rules\n\nDo the thing.\n", encoding="utf-8")
+        assert runner.invoke(install, []).exit_code == 0
+        text = CLAUDE_MD.read_text()
+        # The user's content survives and the block is appended.
+        assert "Do the thing." in text
+        assert "lhp:routing:start" in text
+
+
+def test_user_install_does_not_write_project_claude_md(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    # --user targets ~/.claude; HOME is redirected so the test stays hermetic.
+    with runner.isolated_filesystem():
+        result = runner.invoke(install, ["--user"], env={"HOME": str(tmp_path)})
+        assert result.exit_code == 0, result.output
+        # No project-level CLAUDE.md is written for a global install.
+        assert not CLAUDE_MD.exists()
+
+
+def test_update_refreshes_routing_block(runner: CliRunner) -> None:
+    with runner.isolated_filesystem():
+        assert runner.invoke(install, []).exit_code == 0
+        # Corrupt the block; update should restore it.
+        CLAUDE_MD.write_text(
+            "<!-- lhp:routing:start -->\nstale\n<!-- lhp:routing:end -->\n",
+            encoding="utf-8",
+        )
+        assert runner.invoke(update, []).exit_code == 0
+        text = CLAUDE_MD.read_text()
+        assert "stale" not in text
+        assert "Lakehouse Plumber project" in text
+
+
+def test_uninstall_removes_routing_block(runner: CliRunner) -> None:
+    with runner.isolated_filesystem():
+        assert runner.invoke(install, []).exit_code == 0
+        assert CLAUDE_MD.is_file()
+        assert runner.invoke(uninstall, ["--force"]).exit_code == 0
+        # LHP created the block-only file, so it is removed entirely.
+        assert not CLAUDE_MD.exists()
+
+
+def test_uninstall_keeps_user_content_in_claude_md(runner: CliRunner) -> None:
+    with runner.isolated_filesystem():
+        CLAUDE_MD.write_text("# My rules\n\nKeep me.\n", encoding="utf-8")
+        assert runner.invoke(install, []).exit_code == 0
+        assert runner.invoke(uninstall, ["--force"]).exit_code == 0
+        # The file persists with the user's content; only the block is stripped.
+        assert CLAUDE_MD.is_file()
+        text = CLAUDE_MD.read_text()
+        assert "Keep me." in text
+        assert "lhp:routing:start" not in text

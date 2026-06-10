@@ -1,16 +1,19 @@
 """``lhp skill`` command group: install/update/status/uninstall.
 
-Thin Click wiring (§9.11): file I/O in ``cli/_skill_files``, Rich output in
-``cli/presenters/skill_presenter``; domain failures raise ``LHPError``.
+Thin Click wiring (§9.11): file I/O in ``cli/_skill_files`` and
+``cli/_claude_setup``, Rich output in ``cli/presenters/skill_presenter``;
+domain failures raise ``LHPError``.
 """
 
 import logging
+from pathlib import Path
 
 import click
 from rich_click import RichGroup
 
 from lhp.errors import ErrorFactory, codes
 
+from .. import _claude_setup as cs
 from .. import _skill_files as sf
 from ..error_boundary import cli_error_boundary
 from ..presenters import skill_presenter as view
@@ -18,6 +21,18 @@ from ..presenters import skill_presenter as view
 logger = logging.getLogger(__name__)
 
 _user_option = click.option("--user", is_flag=True, help="Target ~/.claude/ not cwd.")
+
+
+def _sync_routing_block(user: bool) -> "cs.WriteStatus | None":
+    """Write the project ``CLAUDE.md`` routing block for a project install.
+
+    A ``--user`` install is global and has no single project ``CLAUDE.md`` to
+    own, so it is skipped (returns ``None``). Project installs target the cwd —
+    the same root ``resolve_install_dir(user=False)`` uses for the skill files.
+    """
+    if user:
+        return None
+    return cs.write_routing_block(Path.cwd())
 
 
 @click.group(cls=RichGroup, name="skill")
@@ -43,7 +58,8 @@ def install(user: bool, force: bool) -> None:
     logger.info(f"Installing LHP skill v{version_str} to {install_dir}")
     sf.copy_skill_files(install_dir)
     sf.write_marker(install_dir, version_str)
-    view.render_installed(install_dir, version_str)
+    routing = _sync_routing_block(user)
+    view.render_installed(install_dir, version_str, routing=routing)
 
 
 @skill.command(name="update")
@@ -72,7 +88,8 @@ def update(user: bool, yes: bool) -> None:
     sf.clear_install_dir(install_dir)
     sf.copy_skill_files(install_dir)
     sf.write_marker(install_dir, current)
-    view.render_updated(install_dir, installed, current, comparison)
+    routing = _sync_routing_block(user)
+    view.render_updated(install_dir, installed, current, comparison, routing=routing)
 
 
 @skill.command(name="status")
@@ -110,4 +127,5 @@ def uninstall(user: bool, force: bool) -> None:
         view.render_aborted()
         return
     sf.remove_install_dir(install_dir)
-    view.render_uninstalled(install_dir)
+    routing = None if user else cs.remove_routing_block(Path.cwd())
+    view.render_uninstalled(install_dir, routing=routing)

@@ -170,7 +170,9 @@ Each entry is the canonical wording; other pages link here with ``:term:`` roles
        The LHP Claude Code skill installed by ``lhp skill install``. The skill
        package ships inside LHP and is copied to ``.claude/skills/lhp/`` (or
        ``~/.claude/skills/lhp/`` with ``--user``); it provides agent-targeted
-       context for authoring LHP configurations.
+       context for authoring LHP configurations. A project install also writes
+       a routing block into the project's ``CLAUDE.md`` so in-project requests
+       reach the skill even when phrased without LHP-specific terms.
 
    Lakeflow Declarative Pipeline
        The current canonical name for the Databricks framework that LHP

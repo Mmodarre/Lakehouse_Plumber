@@ -17,17 +17,42 @@ from rich.text import Text
 from .. import console as _console_module
 
 
-def render_installed(install_dir: Path, version_str: str) -> None:
-    """Confirm a fresh install of the skill at ``install_dir``."""
+def render_installed(
+    install_dir: Path, version_str: str, *, routing: "str | None" = None
+) -> None:
+    """Confirm a fresh install of the skill at ``install_dir``.
+
+    ``routing`` is the :func:`lhp.cli._claude_setup.write_routing_block` status
+    for a project install (``None`` for a ``--user`` install, which writes no
+    project ``CLAUDE.md``).
+    """
     _console_module.console.print(
         Text.assemble(
             ("✓ ", "bold green"),
             f"Installed LHP skill v{version_str} to {install_dir}",
         )
     )
+    _render_routing(routing)
     _console_module.console.print(
         "Reload your Claude Code session to pick up the skill."
     )
+
+
+def _render_routing(routing: "str | None") -> None:
+    """Echo what happened to the project ``CLAUDE.md`` routing block.
+
+    ``None`` means the command never touched a project ``CLAUDE.md`` (a
+    ``--user`` install), so nothing is printed. ``"unchanged"`` / ``"absent"``
+    are silent — there is nothing for the user to act on.
+    """
+    messages = {
+        "created": "Wrote LHP routing block to CLAUDE.md.",
+        "updated": "Updated the LHP routing block in CLAUDE.md.",
+        "removed": "Removed the LHP routing block from CLAUDE.md.",
+    }
+    message = messages.get(routing or "")
+    if message:
+        _console_module.console.print(Text.assemble(("✓ ", "bold green"), message))
 
 
 def render_downgrade_warning(installed: str, current: str) -> None:
@@ -51,12 +76,15 @@ def render_updated(
     installed: str,
     current: str,
     comparison: str,
+    *,
+    routing: "str | None" = None,
 ) -> None:
     """Confirm the result of an update, phrased by ``comparison``.
 
     ``comparison`` is one of ``"same"`` (refresh), ``"older"`` (upgrade) or
     ``"newer"`` (downgrade); any other value falls back to the downgrade
-    wording.
+    wording. ``routing`` is the project ``CLAUDE.md`` write status (``None``
+    for a ``--user`` update).
     """
     if comparison == "same":
         message = (
@@ -68,6 +96,7 @@ def render_updated(
         message = f"Replaced LHP skill v{installed} with v{current} at {install_dir}"
 
     _console_module.console.print(Text.assemble(("✓ ", "bold green"), message))
+    _render_routing(routing)
 
 
 def render_status(
@@ -148,8 +177,13 @@ def render_nothing_to_uninstall(install_dir: Path) -> None:
     _console_module.console.print(f"Nothing to remove: {install_dir} does not exist.")
 
 
-def render_uninstalled(install_dir: Path) -> None:
-    """Confirm removal of the skill install at ``install_dir``."""
+def render_uninstalled(install_dir: Path, *, routing: "str | None" = None) -> None:
+    """Confirm removal of the skill install at ``install_dir``.
+
+    ``routing`` is the :func:`lhp.cli._claude_setup.remove_routing_block`
+    status (``None`` for a ``--user`` uninstall).
+    """
     _console_module.console.print(
         Text.assemble(("✓ ", "bold green"), f"Removed LHP skill from {install_dir}")
     )
+    _render_routing(routing)
