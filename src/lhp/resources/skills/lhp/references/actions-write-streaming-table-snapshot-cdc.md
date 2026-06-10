@@ -44,7 +44,7 @@ snapshot_cdc_config:
   stored_as_scd_type: 2
 ```
 
-The function is emitted as the `source` argument of `create_auto_cdc_from_snapshot_flow(...)`. With `parameters`, it is bound via `functools.partial(next_snapshot, parameters)`. A common signature returns a snapshot for a given version: `def next_snapshot(latest_version, parameters) -> tuple[DataFrame, int] | None` (return `None` to stop).
+The function is emitted as the `source` argument of `create_auto_cdc_from_snapshot_flow(...)`. With `parameters`, each entry is bound as a **keyword argument** via `functools.partial` — e.g. `source=partial(next_snapshot, catalog="prod", schema="bronze")` — so the function must declare them as keyword-only args (after `*`). Substitution tokens in parameter values are resolved at generate time, before binding. A common signature returns a snapshot for a given version: `def next_snapshot(latest_version, *, catalog, schema) -> tuple[DataFrame, int] | None` (return `None` to stop).
 
 ## Key rules
 
@@ -53,3 +53,4 @@ The function is emitted as the `source` argument of `create_auto_cdc_from_snapsh
 - **The snapshot function runs OUTSIDE SDP's decorated context** (it is handed to `create_auto_cdc_from_snapshot_flow` as a plain callable). It therefore **cannot reference an SDP dataset** — a temp view or streaming table built by another action in the same pipeline. SDP only allows referencing SDP objects from inside decorated functions. The function must read its source **directly** (e.g. a Delta table or path via `spark.read...`). Consequently **no Load action is needed — or even possible — to feed it**; do not add a Load/transform view as its input.
 - Same applies to a plain `source:` string — it points at an external table/path, not an in-pipeline view.
 - Local helper imports (snapshot `source_function`) follow the standard rules: `LHP-VAL-023/024/025`, `LHP-IO-003`. The whole file is copied, so helper functions defined alongside `function` are preserved and callable.
+- **Dependency analysis** (`lhp dag`): `source_function.parameters` are statically resolved — bound to the function's keyword-only args exactly as codegen applies them (function looked up at module top level by `function` name; `${token}` bytes preserved, never resolved at dag time) — so reads like `spark.read.table(f"{catalog}.{schema}.t")` over bound parameters resolve to edges. Helper-routed / runtime-only reads are opaque by design → advisory `LHP-DEP-002` (warning-only, never an error); declare those edges with the additive `depends_on` action field (malformed entries → `LHP-VAL-063`).

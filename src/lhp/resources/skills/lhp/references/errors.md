@@ -16,7 +16,7 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | Validation | `VAL` | Missing required fields, invalid values, structural problems in actions |
 | I/O | `IO` | Files not found, read/write failures, format issues |
 | Action | `ACT` | Unknown action types, subtypes, or preset names |
-| Dependency | `DEP` | Circular dependencies between views or preset inheritance |
+| Dependency | `DEP` | Circular dependencies (error) plus advisory extraction warnings from `lhp dag` |
 | Deprecation | `DEPR` | Soft-deprecation warnings for fields/syntax slated for removal; surfaced as warnings, not failures |
 | General | `GEN` | Worker exceptions, unexpected errors, internal-error guards (mostly post-0.8.7 parallel-generation failures) |
 
@@ -84,6 +84,10 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | Code | Trigger | Fix |
 |------|---------|-----|
 | **DEP-001** | Circular dependency (A → B → C → A) | Break the cycle; error shows full path. Use `lhp dag --format dot` to visualize |
+| **DEP-002** | *Advisory warning, never fails a run* — recognized Python table-read (e.g. `spark.read.table(...)`, `spark.sql(...)`) whose table argument is not statically resolvable (helper-call result, unbound function arg, runtime-only value) | Declare the upstream with `depends_on` on the action (additive; entries validated by `VAL-063`) |
+| **DEP-003** | *Advisory warning, never fails a run* — a SQL body could not be parsed for table extraction (one warning per unparseable body; it contributes zero edges) | Fix the SQL (Databricks dialect), or declare upstreams with `depends_on` |
+
+DEP-002/003 surface on `lhp dag` (default-on): stderr summary (count header, up to 10 lines `LHP-DEP-00x fg.action (file:line): message`, overflow `... and N more (see JSON output)`, one `depends_on` hint), JSON output (top-level `warnings` array always present + `metadata.total_warnings`), and the text report — NOT in DOT output or job YAML. Public API: `lhp.api.DependencyWarningView` (provisional) on `DependencyAnalysisResult.warnings`.
 
 ## Deprecation Warnings (LHP-DEPR)
 
@@ -323,7 +327,7 @@ Read the error code prefix:
 - `LHP-VAL-*` — fix missing/invalid fields in actions
 - `LHP-IO-*` — fix file path (paths are relative to FlowGroup YAML)
 - `LHP-ACT-*` — fix typo in action type/sub_type/preset name
-- `LHP-DEP-*` — break the dependency cycle shown in the message
+- `LHP-DEP-*` — break the dependency cycle shown in the message (`DEP-002`/`DEP-003` are `lhp dag` advisories, never generate failures)
 - `LHP-GEN-*` — worker / unexpected exception (re-run with `--verbose`; re-run with `--log-file` to capture `<project>/.lhp/logs/lhp.log`)
 
 Apply the numbered fix suggestions in the terminal output, then re-run.

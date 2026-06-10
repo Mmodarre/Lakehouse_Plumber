@@ -5,6 +5,71 @@ All notable changes to Lakehouse Plumber are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] — 2026-06-10
+
+Dependency-extraction overhaul. SQL table extraction is now parser-based and
+byte-faithful to substitution tokens, Python reads declared through YAML
+parameters form real dependency edges, and unresolvable reads surface as
+actionable advisory warnings instead of silently missing edges.
+
+### Added
+
+- **Parameter-bound Python dependency resolution.** Table reads built from
+  YAML-declared parameters now form dependency edges, mirroring the generated
+  code exactly: snapshot_cdc `source_function.parameters` (keyword-only
+  binding), Python transform `parameters` (positional dict), and Python load
+  `source.parameters` (positional dict, applied to `get_df` by default). The
+  analyzer also unrolls for-loops over statically-known string lists and
+  resolves string methods (`.replace`, `.upper`, `.lower`, `.strip`,
+  `.lstrip`, `.rstrip`, `.join`), subscripts, `.get()`, and binding-aware
+  f-strings. Calls routed through helper functions are deliberately not
+  followed.
+- **Dependency-extraction warnings, on by default.** `LHP-DEP-002` flags a
+  recognized Python table-read whose argument cannot be statically resolved;
+  `LHP-DEP-003` flags an unparseable SQL body. Both are advisory-only — they
+  never fail a run — and each carries flowgroup/action/file/line context and
+  recommends an explicit `depends_on`. Warnings surface on `lhp dag` stderr
+  and in the JSON (`warnings` + `metadata.total_warnings`) and text outputs,
+  but never in DOT or job/orchestration YAML. New provisional public DTO
+  `DependencyWarningView` (`api/responses.py`), exposed as
+  `DependencyAnalysisResult.warnings`.
+- **E2E coverage for dependency extraction** — a new fixture pipeline
+  `19_dependency_bindings` exercises parameter-bound snapshot/transform reads,
+  loop unrolling, and `LHP-DEP-002`; orchestration, master-job, and monitoring
+  baselines were regenerated to include it, and mid-segment-token SQL
+  extraction gained dedicated e2e coverage.
+
+### Changed
+
+- **SQL table extraction is now parser-based.** Dependency analysis parses SQL
+  with `sqlglot` (Spark/Databricks dialect) instead of regexes, replacing the
+  legacy regex SQL parser.
+- **Unresolvable f-string reads no longer emit a `"{var}"` marker.** F-strings
+  containing names that cannot be statically resolved previously produced a
+  junk `"{var}"` placeholder table in external sources; such reads are now
+  reported as unresolved via `LHP-DEP-002`, and the junk `{var}` entries
+  disappear from `lhp dag` outputs.
+
+### Fixed
+
+- **Substitution tokens survive SQL extraction byte-for-byte.** The regex
+  parser silently truncated mid-segment tokens (`FROM cat.sch.tbl${suffix}`
+  was extracted as `cat.sch.tbl`), so suffix-carrying producers could never
+  match suffixed readers in `lhp dag`. The parser-based extraction also
+  correctly excludes MERGE/INSERT/CTAS write targets and handles CTEs, quoted
+  identifiers, multi-statement SQL, and string literals containing `FROM`;
+  the `$source` placeholder no longer leaks into external sources.
+
+### Removed
+
+- **Legacy regex SQL parser** (`lhp/utils/sql_parser.py`) — superseded by the
+  sqlglot-based extraction in `core/dependencies/`.
+
+### Dependencies
+
+- Add `sqlglot>=26.0,<28` as a runtime dep (parser-based SQL table extraction
+  for dependency analysis).
+
 ## [0.9.0] — 2026-06-10
 
 Architecture refactor release. The internals were reorganized into a layered,

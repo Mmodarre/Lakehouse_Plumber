@@ -80,7 +80,8 @@ Error Categories
      - Unknown action types, subtypes, or presets
    * - Dependency
      - ``DEP``
-     - Circular dependencies between views or preset inheritance cycles
+     - Circular dependencies between views or preset inheritance cycles, plus
+       advisory dependency-extraction warnings from ``lhp dag``
    * - Deprecation
      - ``DEPR``
      - Soft-deprecation warnings for fields/syntax scheduled for removal; surfaced as warnings, not failures
@@ -1390,8 +1391,11 @@ to a valid option. It also lists all valid values.
 Dependency Errors (LHP-DEP)
 ----------------------------
 
-Dependency errors indicate circular references in your pipeline's view graph
-or preset inheritance chain.
+``LHP-DEP-001`` is a hard error: circular references in your pipeline's view
+graph or preset inheritance chain. ``LHP-DEP-002`` and ``LHP-DEP-003`` are
+**advisory warnings** emitted by ``lhp dag`` dependency extraction — they
+never fail a run; they flag reads the analyzer recognized but could not turn
+into dependency edges.
 
 LHP-DEP-001: Circular Dependency Detected
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1451,9 +1455,86 @@ you identify which dependency to remove or redirect.
 
 .. tip::
 
-   Run ``lhp deps --format dot --env <env>`` to generate a visual dependency
+   Run ``lhp dag --format dot`` to generate a visual dependency
    graph that makes cycles easier to spot. See :doc:`dependency_analysis`
    for details.
+
+.. _lhp-dep-002:
+
+LHP-DEP-002: Unresolved Python Table Read
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Advisory warning — never fails a run.** Emitted by ``lhp dag`` dependency
+extraction; it is never raised as an error and does not stop analysis or
+generation.
+
+**When it occurs:** A Python body contains a recognized Spark table-read call
+(for example ``spark.read.table(...)`` or ``spark.sql(...)``) whose table
+argument cannot be statically resolved — its value is only known at runtime.
+The read contributes no dependency edge, so the graph may be missing an
+upstream relationship.
+
+**Common causes:**
+
+- The table name comes from a helper or function call
+  (``spark.read.table(helper(x))`` — the parser never follows calls)
+- The name is built from a function argument that is not bound from the
+  action's YAML ``parameters``
+- A class attribute or other runtime-only value supplies the name
+
+**Where it appears:** the ``lhp dag`` terminal summary (stderr), the JSON
+output's top-level ``warnings`` array, and the text report — never in the
+DOT output or generated job YAML.
+
+.. code-block:: yaml
+   :caption: Fix — declare the edge explicitly
+
+   actions:
+     - name: build_summary
+       type: transform
+       transform_type: python
+       source: v_orders
+       module_path: "transforms/build_summary.py"
+       function_name: run
+       depends_on:
+         - acme_prod.reference.exchange_rates
+
+``depends_on`` is additive — its entries contribute edges on top of whatever
+the parser extracts. Each entry is validated by
+:ref:`LHP-VAL-063 <lhp-val-063>`.
+
+.. _lhp-dep-003:
+
+LHP-DEP-003: SQL Body Could Not Be Parsed
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Advisory warning — never fails a run.** Emitted by ``lhp dag`` dependency
+extraction; it is never raised as an error and does not stop analysis or
+generation.
+
+**When it occurs:** A SQL body (inline ``sql`` or an ``sql_path`` file) could
+not be parsed for table extraction. The body contributes zero table
+references — exactly one warning per unparseable body — so any edges it
+implies are missing from the graph.
+
+**Common causes:**
+
+- Invalid SQL syntax in the body
+- Vendor-specific SQL that the Databricks dialect does not accept
+- ``%{local_var}`` syntax inside a ``.sql`` file — local variables are a
+  flowgroup-YAML feature and are not valid in SQL files
+
+**Where it appears:** the same surfaces as ``LHP-DEP-002`` — terminal
+summary, JSON ``warnings`` array, and text report.
+
+**Fix:** Correct the SQL so it parses as Databricks SQL, or declare the
+upstream tables explicitly with ``depends_on`` on the action (each entry is
+validated by :ref:`LHP-VAL-063 <lhp-val-063>`).
+
+.. seealso::
+
+   :doc:`dependency_analysis` for what extraction resolves automatically and
+   where these warnings surface.
 
 Deprecation Warnings (LHP-DEPR)
 -------------------------------

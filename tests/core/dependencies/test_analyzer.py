@@ -8,12 +8,18 @@ import networkx as nx
 import pytest
 
 from lhp.core.coordination.validation_service import ValidationService
+from lhp.core.dependencies.analyzer import DependencyAnalyzer
 from lhp.core.dependencies.output import export_to_dot, export_to_json
 from lhp.core.dependencies.service import DependencyAnalysisService
 from lhp.core.dependencies.source_parsing import SourceParser
+from lhp.core.dependencies.sql_extraction import SqlExtractionResult
 from lhp.errors import ErrorCategory, LHPError
 from lhp.models import Action, ActionType, FlowGroup, ProjectConfig
-from lhp.models.dependencies import DependencyAnalysisResult, DependencyGraphs
+from lhp.models.dependencies import (
+    DependencyAnalysisResult,
+    DependencyGraphs,
+    DependencyWarning,
+)
 
 
 def _make_service(project_root):
@@ -441,9 +447,11 @@ class TestDependencyAnalysisService:
         assert result.execution_stages[2] == ["pipeline_d"]  # D runs last
 
     @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
-    @patch("lhp.utils.sql_parser.extract_tables_from_sql")
+    @patch("lhp.core.dependencies.source_parsing.extract_tables_from_sql")
     def test_sql_source_extraction(self, mock_extract_sql, mockget_flowgroups):
-        mock_extract_sql.return_value = ["bronze.customers", "bronze.orders"]
+        mock_extract_sql.return_value = SqlExtractionResult(
+            tables=["bronze.customers", "bronze.orders"], warnings=[]
+        )
 
         # Action with inline SQL
         actions = [
@@ -473,7 +481,11 @@ class TestDependencyAnalysisService:
     @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
     @patch("lhp.core.dependencies.python_parser.extract_tables_from_python")
     def test_python_source_extraction(self, mock_extract_python, mockget_flowgroups):
-        mock_extract_python.return_value = ["silver.processed_data"]
+        from lhp.core.dependencies.python_parser import PythonExtractionResult
+
+        mock_extract_python.return_value = PythonExtractionResult(
+            tables=["silver.processed_data"], warnings=[]
+        )
 
         # Action with Python module
         actions = [
@@ -530,8 +542,8 @@ class TestDependencyAnalysisService:
         sql_file.write_text("SELECT * FROM bronze.test_table")
 
         with patch(
-            "lhp.utils.sql_parser.extract_tables_from_sql",
-            return_value=["bronze.test_table"],
+            "lhp.core.dependencies.source_parsing.extract_tables_from_sql",
+            return_value=SqlExtractionResult(tables=["bronze.test_table"], warnings=[]),
         ):
             graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
 
@@ -1153,7 +1165,7 @@ class TestWriteTargetExtraction:
                 self.analyzer._flowgroup_file_paths, self.analyzer.project_root
             )._iter_python_bodies(action)
         )
-        assert (None, "sinks/custom.py") in results
+        assert (None, "sinks/custom.py", None) in results
 
     def test_iter_python_bodies_yields_batch_handler_inline(self):
         action = self._make_action(
@@ -1167,7 +1179,7 @@ class TestWriteTargetExtraction:
                 self.analyzer._flowgroup_file_paths, self.analyzer.project_root
             )._iter_python_bodies(action)
         )
-        assert any(inline and "spark.table" in inline for inline, _ in results)
+        assert any(inline and "spark.table" in inline for inline, _, _ in results)
 
     def test_iter_python_bodies_yields_snapshot_cdc_source_function(self):
         action = self._make_action(
@@ -1181,7 +1193,8 @@ class TestWriteTargetExtraction:
                 self.analyzer._flowgroup_file_paths, self.analyzer.project_root
             )._iter_python_bodies(action)
         )
-        assert (None, "cdc/source.py") in results
+        # No `function` key in source_function -> no bindings (never speculate).
+        assert (None, "cdc/source.py", None) in results
 
     def test_iter_python_bodies_preserves_top_level_module_path(self):
         action = self._make_action(
@@ -1192,7 +1205,7 @@ class TestWriteTargetExtraction:
                 self.analyzer._flowgroup_file_paths, self.analyzer.project_root
             )._iter_python_bodies(action)
         )
-        assert (None, "transforms/t.py") in results
+        assert (None, "transforms/t.py", None) in results
 
     @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
     def test_extract_sql_sources_reads_write_target_sql_path_e2e(
@@ -1217,8 +1230,8 @@ class TestWriteTargetExtraction:
         self.analyzer._flowgroup_file_paths["gold_fg"] = yaml_path
 
         with patch(
-            "lhp.utils.sql_parser.extract_tables_from_sql",
-            return_value=["silver.customers"],
+            "lhp.core.dependencies.source_parsing.extract_tables_from_sql",
+            return_value=SqlExtractionResult(tables=["silver.customers"], warnings=[]),
         ):
             graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
 
@@ -1442,8 +1455,8 @@ class TestWriteTargetExtraction:
         self.analyzer._flowgroup_file_paths["fg"] = yaml_path
 
         with patch(
-            "lhp.utils.sql_parser.extract_tables_from_sql",
-            return_value=["parser.src"],
+            "lhp.core.dependencies.source_parsing.extract_tables_from_sql",
+            return_value=SqlExtractionResult(tables=["parser.src"], warnings=[]),
         ):
             graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
         external_sources = set(
@@ -1505,3 +1518,66 @@ class TestWriteTargetExtraction:
         # The file-body source resolved to a producer, so it must NOT be external.
         external = graphs.action_graph.nodes[downstream_id].get("external_sources", [])
         assert "silver.customers" not in external
+
+
+class TestExtractionWarningPlumbing:
+    """Extraction warnings flow from graphs onto the global analyze() result.
+
+    Job-scoped results from partition_result_by_job must never carry
+    warnings — they surface once on the global result only.
+    """
+
+    @staticmethod
+    def _make_warning(code: str = "LHP-DEP-002") -> DependencyWarning:
+        return DependencyWarning(
+            code=code,
+            message="test warning",
+            flowgroup="fg1",
+            action="load_data",
+            suggestion="add an explicit depends_on entry",
+        )
+
+    @staticmethod
+    def _make_graphs(extraction_warnings=None) -> DependencyGraphs:
+        return DependencyGraphs(
+            action_graph=nx.DiGraph(),
+            flowgroup_graph=nx.DiGraph(),
+            pipeline_graph=nx.DiGraph(),
+            metadata={},
+            extraction_warnings=extraction_warnings or [],
+        )
+
+    def test_analyze_copies_extraction_warnings_onto_result(self):
+        warnings = [self._make_warning(), self._make_warning("LHP-DEP-003")]
+        graphs = self._make_graphs(extraction_warnings=warnings)
+
+        result = DependencyAnalyzer().analyze(graphs)
+
+        assert result.warnings == warnings
+        # A copy, not the same list — mutating one must not affect the other.
+        assert result.warnings is not graphs.extraction_warnings
+
+    def test_analyze_without_extraction_warnings_yields_empty_list(self):
+        result = DependencyAnalyzer().analyze(self._make_graphs())
+
+        assert result.warnings == []
+
+    def test_partition_result_by_job_results_never_carry_warnings(self):
+        graphs = self._make_graphs(extraction_warnings=[self._make_warning()])
+        analyzer = DependencyAnalyzer()
+        global_result = analyzer.analyze(graphs)
+        assert global_result.warnings, "precondition: global result has warnings"
+
+        flowgroups = [
+            FlowGroup(pipeline="p1", flowgroup="fg1", job_name="job_a"),
+            FlowGroup(pipeline="p2", flowgroup="fg2", job_name="job_b"),
+            FlowGroup(pipeline="p3", flowgroup="fg3"),  # falls into "_default"
+        ]
+
+        job_results = analyzer.partition_result_by_job(global_result, flowgroups)
+
+        assert set(job_results.keys()) == {"_default", "job_a", "job_b"}
+        for job_name, job_result in job_results.items():
+            assert job_result.warnings == [], (
+                f"job '{job_name}' must not carry extraction warnings"
+            )

@@ -37,6 +37,7 @@ from lhp.api import (
     DependencyAnalysisResult,
     DependencyOutputEntry,
     DependencyOutputsResult,
+    DependencyWarningView,
     FlowgroupView,
     GeneratedCodeView,
     GenerationCompleted,
@@ -78,6 +79,7 @@ _TYPE_NS: dict[str, Any] = {
     "DependencyOutputEntry": DependencyOutputEntry,
     "BatchGenerationResponse": BatchGenerationResponse,
     "BatchValidationResponse": BatchValidationResponse,
+    "DependencyWarningView": DependencyWarningView,
     "BundleSyncResult": BundleSyncResult,
     "GenerationPlan": GenerationPlan,
     "PlannedFileView": PlannedFileView,
@@ -161,6 +163,15 @@ _val_resp = ValidationResponse(
     success=False, issues=(_issue,), validated_pipelines=("pipe1",)
 )
 _dep_entry = DependencyOutputEntry(format_name="dot", label="", path=Path("out.dot"))
+_dep_warning = DependencyWarningView(
+    code="LHP-DEP-002",
+    message="Source 'raw.customer' is not produced by any flowgroup in scope",
+    flowgroup="customer_ingest",
+    action="load_customer",
+    suggestion="Declare an explicit depends_on for 'raw.customer'",
+    file_path="pipelines/bronze/customer.yaml",
+    line=12,
+)
 
 _INSTANCES = [
     pytest.param(
@@ -258,9 +269,11 @@ _INSTANCES = [
             external_sources=("src.tbl",),
             total_pipelines=2,
             total_external_sources=1,
+            warnings=(_dep_warning,),
         ),
         id="DependencyAnalysisResult",
     ),
+    pytest.param(_dep_warning, id="DependencyWarningView"),
     pytest.param(_dep_entry, id="DependencyOutputEntry"),
     pytest.param(
         DependencyOutputsResult(
