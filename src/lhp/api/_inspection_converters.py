@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Sequence
 
 from lhp.api.responses import (
     DependencyAnalysisResult,
+    DependencyWarningView,
     StatsResult,
     ValidationResponse,
 )
@@ -264,6 +265,18 @@ def _dependency_result_to_view(
     }
     execution_stages = tuple(tuple(stage) for stage in internal.execution_stages)
     circular = tuple(tuple(cycle) for cycle in internal.circular_dependencies)
+    warnings = tuple(
+        DependencyWarningView(
+            code=warning.code,
+            message=warning.message,
+            flowgroup=warning.flowgroup,
+            action=warning.action,
+            suggestion=warning.suggestion,
+            file_path=warning.file_path,
+            line=warning.line,
+        )
+        for warning in internal.warnings
+    )
     return DependencyAnalysisResult(
         pipeline_dependencies=pipeline_deps,
         execution_stages=execution_stages,
@@ -271,6 +284,7 @@ def _dependency_result_to_view(
         external_sources=tuple(internal.external_sources),
         total_pipelines=internal.total_pipelines,
         total_external_sources=internal.total_external_sources,
+        warnings=warnings,
     )
 
 

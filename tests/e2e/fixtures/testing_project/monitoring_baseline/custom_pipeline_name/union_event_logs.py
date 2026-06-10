@@ -31,6 +31,7 @@ SOURCES = [
     ("acmi_edw_raw", "acme_edw_dev._meta.acmi_edw_raw_event_log"),
     ("acmi_edw_silver", "acme_edw_dev._meta.acmi_edw_silver_event_log"),
     ("custom_datasource", "acme_edw_dev._meta.custom_datasource_event_log"),
+    ("dep_bindings", "acme_edw_dev._meta.dep_bindings_event_log"),
     ("gold_load", "acme_edw_dev._meta.gold_load_event_log"),
     ("helper_imports", "acme_edw_dev._meta.helper_imports_event_log"),
     ("kafka_sample_pipeline", "acme_edw_dev._meta.kafka_sample_pipeline_event_log"),

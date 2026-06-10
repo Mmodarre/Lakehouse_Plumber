@@ -1,0 +1,37 @@
+# Loop-unrolled parameter reads: the python transform iterates over the
+# YAML-declared parameters["tables"] list and reads each table. Static loop
+# unrolling yields one dependency edge per element.
+pipeline: dep_bindings
+flowgroup: configured_union_flow
+#job_name: j_dep_bindings
+
+actions:
+  - name: load_union_seed
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      database: "${catalog}.${raw_schema}"
+      table: dep_bindings_seed
+    target: v_union_seed
+
+  - name: union_configured_tables
+    type: transform
+    transform_type: python
+    source: v_union_seed
+    module_path: "py_functions/dep_bindings_union_transform.py"
+    function_name: "union_configured_tables"
+    readMode: stream
+    parameters:
+      tables:
+        - "${catalog}.${bronze_schema}.dep_loop_alpha"
+        - "${catalog}.${bronze_schema}.dep_loop_beta"
+    target: v_union_out
+
+  - name: write_union_out
+    type: write
+    source: v_union_out
+    write_target:
+      type: streaming_table
+      database: "${catalog}.${silver_schema}"
+      table: "configured_union"

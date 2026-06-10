@@ -42,6 +42,9 @@ dependencies = [
     # regenerate baselines with the new version.
     "ruff==0.13.3",
     "networkx>=3.6.0",
+    # Bounded ceiling: extracted SQL dependency edges feed hash-pinned e2e
+    # baselines; bumps must be deliberate (characterization diff + baseline regen).
+    "sqlglot>=26.0,<28",
 ]
 
 [project.optional-dependencies]

@@ -1,0 +1,36 @@
+# Opaque read: the python transform routes its table name through a helper
+# call, which static dependency extraction does not follow (no helper-call
+# following). The read surfaces as an LHP-DEP-002 warning recommending an
+# explicit depends_on declaration instead of a silent missing edge.
+pipeline: dep_bindings
+flowgroup: opaque_read_flow
+#job_name: j_dep_bindings
+
+actions:
+  - name: load_opaque_seed
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      database: "${catalog}.${raw_schema}"
+      table: dep_bindings_seed
+    target: v_opaque_seed
+
+  - name: opaque_union_lookup
+    type: transform
+    transform_type: python
+    source: v_opaque_seed
+    module_path: "py_functions/dep_bindings_opaque_transform.py"
+    function_name: "opaque_helper_read"
+    readMode: stream
+    parameters:
+      suffix: "region_lookup"
+    target: v_opaque_out
+
+  - name: write_opaque_out
+    type: write
+    source: v_opaque_out
+    write_target:
+      type: streaming_table
+      database: "${catalog}.${silver_schema}"
+      table: "opaque_read_out"

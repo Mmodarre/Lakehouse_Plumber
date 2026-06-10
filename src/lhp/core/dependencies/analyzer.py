@@ -70,6 +70,7 @@ class DependencyAnalyzer:
             execution_stages=execution_stages,
             circular_dependencies=circular_dependencies,
             external_sources=external_sources,
+            warnings=list(graphs.extraction_warnings),
         )
 
         self.logger.info(
@@ -171,12 +172,15 @@ class DependencyAnalyzer:
                     f"from other jobs: {', '.join(sorted(list(cross_job_sources)[:5]))}"
                 )
 
+            # Job-scoped results never carry extraction warnings — warnings are
+            # surfaced once on the global result; job YAML stays byte-identical.
             job_results[job_name] = DependencyAnalysisResult(
                 graphs=job_graphs,
                 pipeline_dependencies=job_pipeline_deps,
                 execution_stages=job_execution_stages,
                 circular_dependencies=job_circular_deps,
                 external_sources=job_external,
+                warnings=[],
             )
 
             self.logger.debug(

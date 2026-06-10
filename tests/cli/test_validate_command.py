@@ -15,6 +15,7 @@ Validate REPORTS findings — every validation issue is folded into the terminal
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -94,8 +95,11 @@ def test_clean_project_exits_zero_and_validates_pipelines(monkeypatch):
 
     assert result.exit_code == 0, result.stderr
     # The counts banner proves a non-empty worklist ran (not "0 validated").
-    assert "validated" in result.stderr
-    assert "0 validated" not in result.stderr
+    # Word-boundary match: a bare substring check would false-positive on
+    # multiples of ten ("20 validated" contains "0 validated").
+    counts = re.search(r"(\d+) validated", result.stderr)
+    assert counts is not None, result.stderr
+    assert int(counts.group(1)) > 0, result.stderr
 
 
 def test_known_validation_error_exits_one_with_attribution():

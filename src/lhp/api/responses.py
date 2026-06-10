@@ -211,6 +211,28 @@ class StatsResult:
 
 
 @dataclass(frozen=True)
+class DependencyWarningView:
+    """Advisory warning surfaced by dependency extraction.
+
+    Public projection of the internal
+    :class:`lhp.models.dependencies.DependencyWarning`. Carries the
+    advisory extraction warnings (codes ``LHP-DEP-002`` /
+    ``LHP-DEP-003``) that recommend an explicit ``depends_on``
+    declaration — warning-only, never raised as errors.
+
+    :stability: provisional
+    """
+
+    code: str
+    message: str
+    flowgroup: str
+    action: str
+    suggestion: str
+    file_path: Optional[str] = None
+    line: Optional[int] = None
+
+
+@dataclass(frozen=True)
 class DependencyAnalysisResult:
     """Outcome of pipeline-level dependency analysis.
 
@@ -219,7 +241,9 @@ class DependencyAnalysisResult:
     public view flattens the networkx-backed graph state into plain
     tuples / mappings so the API surface remains free of internal
     types. Public consumers receive the cycle / order / external-source
-    summary but not the live graph objects.
+    summary but not the live graph objects. ``warnings`` carries the
+    advisory extraction warnings (:class:`DependencyWarningView`,
+    codes ``LHP-DEP-002`` / ``LHP-DEP-003``) — never raised as errors.
 
     :stability: provisional
     """
@@ -230,6 +254,7 @@ class DependencyAnalysisResult:
     external_sources: Tuple[str, ...] = ()
     total_pipelines: int = 0
     total_external_sources: int = 0
+    warnings: Tuple[DependencyWarningView, ...] = ()
 
     @property
     def has_cycles(self) -> bool:

@@ -147,12 +147,19 @@ register **no** producer; they are terminal/external by design, and reads of
 those destinations stay external.
 
 .. note::
-   Dependency analysis does **not** resolve substitution tokens. A source
-   written with a token (for example ``${catalog}.sales.orders``) does not match
-   a producer written as a concrete literal (``acme_prod.sales.orders``), and
-   vice versa — they are compared as the literal strings authored in the YAML.
-   To declare an edge across a token boundary, author both sides as literals or
-   use :ref:`depends-on` below.
+   Dependency analysis does **not** resolve substitution tokens. Matching is
+   byte-level after canonicalization, and canonicalization only lowercases
+   and strips backticks and surrounding whitespace — nothing else. A source
+   written with a token (for example ``${catalog}.sales.orders``) does not
+   match a producer written as a concrete literal
+   (``acme_prod.sales.orders``), and vice versa — they are compared as the
+   literal strings authored in the YAML. The same applies between token
+   spellings: a producer whose table name carries a token is matched only by
+   readers that use the **same token bytes**, so ``${catalog}.sales.orders``
+   does not match ``{catalog}.sales.orders`` (``${token}`` is the
+   recommended syntax; ``{token}`` is deprecated). To declare an edge across
+   a token boundary, author both sides as literals or use :ref:`depends-on`
+   below.
 
 .. _depends-on:
 
@@ -189,13 +196,93 @@ three dot-separated parts (``catalog.schema.table``, ``schema.table``, or
 ``table``) with no blank parts. A malformed entry raises
 :ref:`LHP-VAL-063 <lhp-val-063>`.
 
-How ``lhp deps`` Extracts Dependencies from Python Code
---------------------------------------------------------
+What Extraction Resolves Automatically
+--------------------------------------
 
-When an action carries Python code — either at the top level
-(``action.module_path``) or inside a ``write_target`` (custom sinks,
-ForEachBatch handlers, or CDC snapshot functions) — ``lhp deps`` statically
-analyzes the Python source to extract table references from Spark calls.
+``lhp dag`` derives edges by statically parsing the SQL and Python bodies
+your actions reference. The matrix below summarizes what each parser resolves
+on its own and which reads need an explicit :ref:`depends_on <depends-on>`
+declaration instead. The two sections that follow give the full rules.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 10 50 40
+
+   * - Body
+     - Resolved automatically
+     - Needs ``depends_on``
+   * - SQL
+     - Table reads anywhere in a multi-statement body, parsed with sqlglot's
+       Databricks dialect: ``FROM`` / ``JOIN`` references, the reads inside
+       ``MERGE`` / ``INSERT`` / CTAS statements, ``stream()`` / ``live()`` /
+       ``snapshot()``-wrapped names, quoted identifiers, and names carrying
+       substitution tokens (``${token}``, ``${secret:scope/key}``, deprecated
+       ``{token}``) — including mid-segment tokens such as
+       ``cat.sch.tbl${suffix}``.
+     - Any body sqlglot cannot parse. It contributes zero edges and emits one
+       :ref:`LHP-DEP-003 <lhp-dep-003>` advisory.
+   * - Python
+     - Recognized Spark read calls whose table argument is statically known:
+       string literals, module constants, conditional reassignment (union of
+       candidates), f-strings over bound values, ``+`` concatenation,
+       ``"{}.{}".format(...)``, the string methods ``.replace`` / ``.upper``
+       / ``.lower`` / ``.strip`` / ``.lstrip`` / ``.rstrip`` /
+       ``sep.join(...)``, values bound from the action's YAML ``parameters``
+       (all three shapes), and ``for``-loops over statically-known string
+       lists (unrolled — one read per element).
+     - Runtime-only values: function arguments not bound from YAML, helper
+       call results (``spark.read.table(helper(x))`` is opaque by design),
+       and class attributes. Each recognized-but-unresolvable read emits one
+       :ref:`LHP-DEP-002 <lhp-dep-002>` advisory.
+
+How ``lhp dag`` Extracts Dependencies from SQL
+----------------------------------------------
+
+.. versionchanged:: 0.9.0
+   SQL extraction is parsed with sqlglot (Databricks dialect), replacing the
+   earlier regex-based parser. Substitution tokens now survive extraction
+   byte-for-byte even mid-segment: ``FROM cat.sch.tbl${suffix}`` extracts
+   ``cat.sch.tbl${suffix}``, where the old parser silently truncated it to
+   ``cat.sch.tbl``.
+
+Every SQL body an action references — inline ``sql`` or an on-disk
+``sql_path`` file — is parsed as Databricks SQL, multi-statement bodies
+included. Extraction returns **reads only**:
+
+- ``FROM`` / ``JOIN`` table references in any statement, including the reads
+  inside ``MERGE``, ``INSERT``, and CTAS statements. The **write target** of
+  ``MERGE`` / ``INSERT`` / ``CREATE`` / ``UPDATE`` / ``DELETE`` / ``DROP``
+  statements is excluded — writing to a table does not make it an upstream
+  dependency.
+- Common table expression (CTE) names are excluded; only the real tables the
+  CTEs read from are extracted.
+- ``stream(...)``, ``live(...)``, and ``snapshot(...)`` wrappers are
+  unwrapped (case-insensitively) to the table they name.
+- Backtick-quoted identifiers are extracted unquoted.
+- String literals are never mistaken for table references, even when they
+  contain ``FROM``.
+- The ``$source`` placeholder of SQL transforms is excluded: it refers to the
+  action's own declared ``source`` view, which already carries that edge.
+
+**Substitution tokens survive byte-for-byte.** Tokens are not valid SQL, so
+``${token}``, ``${secret:scope/key}``, and the deprecated ``{token}`` form
+are masked before parsing and restored afterwards, preserving the exact bytes
+you authored — including mid-segment forms like ``cat.sch.tbl${suffix}``.
+Tokens are never resolved at analysis time; see
+`How Table References Are Matched`_.
+
+**Parse failures never fail the run.** A body sqlglot cannot parse yields
+zero table references and exactly one :ref:`LHP-DEP-003 <lhp-dep-003>`
+advisory suggesting an explicit ``depends_on`` declaration — never an error.
+
+How ``lhp dag`` Extracts Dependencies from Python Code
+------------------------------------------------------
+
+When an action carries Python code — a transform's ``module_path``, a python
+load's ``source.module_path``, or code inside a ``write_target`` (custom
+sinks, ForEachBatch handlers, or CDC snapshot functions) — ``lhp dag``
+statically analyzes the Python source to extract table references from Spark
+calls.
 
 **Calls the parser recognizes:**
 
@@ -206,8 +293,11 @@ analyzes the Python source to extract table references from Spark calls.
   the table name is statically resolvable.
 - ``spark.catalog.tableExists("cat.sch.t")``
 - ``spark.catalog.dropTempView("cat.sch.t")``
-- ``spark.sql("...")`` — the SQL string is parsed, and any table references
-  inside are extracted.
+- ``spark.sql("...")`` — the SQL string is resolved through the same static
+  machinery, then parsed with the sqlglot-based SQL extraction above. An
+  argument that cannot be resolved emits one
+  :ref:`LHP-DEP-002 <lhp-dep-002>` advisory; a resolved string that does not
+  parse emits one :ref:`LHP-DEP-003 <lhp-dep-003>` advisory.
 
 Only the relational-table formats ``delta``, ``iceberg``, ``hive``, and
 ``unity_catalog`` register a dependency. ``cloudFiles`` (Auto Loader) reads and
@@ -218,6 +308,60 @@ The parser also follows local variable bindings inside direct table calls::
 
     tbl = "cat.sch.orders"
     spark.read.table(tbl)        # resolves to "cat.sch.orders"
+
+**YAML parameters resolve the way generated code applies them.**
+
+.. versionadded:: 0.9.0
+
+The values an action declares in YAML flow into the entry function's scope
+exactly as the generated code passes them at runtime. The entry function is
+looked up at the top level of the module by name; a signature mismatch binds
+nothing — the parser never guesses.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 30 42
+
+   * - Action shape
+     - YAML parameters
+     - How generated code passes them
+   * - Python transform (``transform_type: python``)
+     - ``parameters:`` (flat on the action)
+     - The dict is one positional argument: third with at least one source
+       view (``fn(df, spark, parameters)``), second with none
+       (``fn(spark, parameters)``).
+   * - Python load (``source.type: python``)
+     - ``source.parameters``
+     - The dict is the second positional argument
+       (``fn(spark, parameters)``); ``function_name`` defaults to
+       ``get_df``.
+   * - Snapshot CDC ``source_function``
+     - ``source_function.parameters``
+     - Each entry is bound as a keyword argument via ``functools.partial``;
+       the function receives them as keyword-only arguments.
+
+Inside the entry function, ``parameters["key"]`` lookups and
+``parameters.get("key", default)`` calls resolve to the declared values, so a
+read like this needs no ``depends_on``:
+
+.. code-block:: yaml
+   :caption: Declared parameter feeding a table read
+
+   - name: load_external
+     type: load
+     source:
+       type: python
+       module_path: "loaders/external.py"
+       parameters:
+         table: "${catalog}.bronze.orders"
+     target: v_external
+
+.. code-block:: python
+   :caption: loaders/external.py
+
+   def get_df(spark, parameters):
+       # Resolves to "${catalog}.bronze.orders" — token bytes preserved.
+       return spark.read.table(parameters["table"])
 
 **What the parser can resolve:**
 
@@ -234,10 +378,24 @@ The parser also follows local variable bindings inside direct table calls::
       spark.table(tbl)         # emits both "cat.sch.a" and "cat.sch.b"
 
 - Module-level constants referenced inside functions.
-- f-strings with well-known placeholder names (``catalog``, ``schema``,
+- Values bound from YAML ``parameters`` (see the table above), including
+  ``parameters["key"]`` and ``parameters.get("key", default)`` lookups.
+- ``for``-loops over statically-known string lists — the loop unrolls,
+  emitting one read per element::
+
+      for t in ["cat.sch.a", "cat.sch.b"]:
+          spark.read.table(t)  # emits both "cat.sch.a" and "cat.sch.b"
+
+- f-strings whose interpolations resolve to bound values, for example
+  ``f"{parameters['catalog']}.sales.orders"``. An unresolved interpolation
+  whose name matches a well-known token name (``catalog``, ``schema``,
   ``table``, ``bronze_schema``, ``silver_schema``, ``gold_schema``,
-  ``migration_schema``, ``old_schema``). The placeholder is preserved in the
-  extracted source name.
+  ``migration_schema``, ``old_schema``) is preserved literally as
+  ``{name}``; any other unresolved interpolation leaves the whole f-string
+  unresolved.
+- String methods on statically-resolved values: ``.replace(a, b)``,
+  ``.upper()`` / ``.lower()``, ``.strip()`` / ``.lstrip()`` / ``.rstrip()``,
+  and ``sep.join(items)``.
 - String concatenation via ``+`` and ``"{}.{}".format(...)`` chains, **when
   every operand is itself statically resolvable**. Each side is resolved
   recursively and combined; if any operand is unresolvable, the whole
@@ -245,31 +403,35 @@ The parser also follows local variable bindings inside direct table calls::
 
 **What the parser cannot resolve:**
 
-- Function parameters (the value depends on the caller).
-- Function return values (``tbl = get_name()``).
+- Function arguments that are not bound from YAML ``parameters`` (the value
+  depends on the caller).
+- Function return values (``tbl = get_name()``). A read routed through a
+  helper — ``spark.read.table(helper(x))`` — is opaque by design: the parser
+  never follows calls.
 - String concatenation or ``.format()`` where any operand is non-static.
 - Class attributes (``self.tbl``, class-body bindings seen from methods).
-- Loop variables.
+- ``for``-loops over iterables that are not statically-known string lists.
 - ``nonlocal`` / ``global`` declarations.
 
-For any of these unresolvable cases, declare the source explicitly on the
-action::
+A recognized read call whose argument cannot be resolved emits one
+:ref:`LHP-DEP-002 <lhp-dep-002>` advisory. For these cases, declare the edge
+explicitly with :ref:`depends_on <depends-on>`::
 
     - name: my_transform
       type: transform
       transform_type: python
-      source:
-        - "acme_edw_dev.edw_silver.parameterized_table"
+      source: v_orders
       module_path: transforms/my_transform.py
       function_name: run
+      depends_on:
+        - acme_edw_dev.edw_silver.parameterized_table
 
 **Precedence between parser output and explicit source:**
 
 The analyzer treats SQL parsing as authoritative — if a SQL body produces any
 extracted sources, the explicit ``source:`` declaration is not additionally
 consulted. For Python, the analyzer takes the **union** of parser output and
-explicit ``source:``, because Python parsing is best-effort and the escape
-hatch above is the canonical way to patch unresolvable cases:
+explicit ``source:``, because Python parsing is best-effort:
 
 +--------+---------------------------------------------+
 | Body   | Behavior                                    |
@@ -282,9 +444,8 @@ hatch above is the canonical way to patch unresolvable cases:
 | None   | Falls back to explicit ``source:`` only.    |
 +--------+---------------------------------------------+
 
-This matches the expected workflows: SQL parsing is reliable, so the parser
-is trusted outright. Python parsing has known limits, so users keep an
-escape hatch while still benefiting from automatic detection.
+``depends_on`` entries sit outside this precedence: they are unioned on top
+of the result in every case (see :ref:`depends-on`).
 
 **Locations the parser inspects:**
 
@@ -292,49 +453,115 @@ escape hatch while still benefiting from automatic detection.
 - ``action.source["sql"]``, ``action.source["sql_path"]``
 - ``action.write_target["sql"]``, ``action.write_target["sql_path"]``
   (materialized views)
-- ``action.module_path`` (Python transforms, custom sources)
+- ``action.module_path`` (Python transforms)
+- ``action.source["module_path"]`` (python loads)
 - ``action.write_target["module_path"]`` (custom sinks)
 - ``action.write_target["batch_handler"]`` (inline ForEachBatch code)
 - ``action.write_target["snapshot_cdc_config"]["source_function"]["file"]``
   (CDC snapshot functions)
 
-Using the deps Command
-----------------------
+Custom-sink modules and ForEachBatch handlers have no YAML parameters
+mechanism in generated code, so those bodies parse without parameter
+bindings.
 
-The ``lhp deps`` command provides comprehensive dependency analysis with multiple output formats.
+.. _extraction-warnings:
+
+Dependency Extraction Warnings
+------------------------------
+
+.. versionadded:: 0.9.0
+
+Extraction emits two **advisory** warning codes. They never fail a run and
+are never raised as errors — they tell you which reads the analyzer saw but
+could not turn into dependency edges.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 18 50 32
+
+   * - Code
+     - Meaning
+     - Remediation
+   * - :ref:`LHP-DEP-002 <lhp-dep-002>`
+     - A recognized Python table-read call whose table argument cannot be
+       statically resolved — its value is only known at runtime.
+     - Declare the upstream table with :ref:`depends_on <depends-on>` on the
+       action.
+   * - :ref:`LHP-DEP-003 <lhp-dep-003>`
+     - A SQL body could not be parsed for table extraction. One warning per
+       unparseable body; the body contributes zero edges.
+     - Fix the SQL, or declare the upstream tables with ``depends_on``.
+
+``depends_on`` entries are themselves validated:
+a malformed entry raises :ref:`LHP-VAL-063 <lhp-val-063>`.
+
+**Where warnings appear:**
+
+- **Terminal (stderr).** ``lhp dag`` prints a count header, up to 10 detail
+  lines in the form ``LHP-DEP-00x flowgroup.action (file:line): message``,
+  an overflow line (``... and N more (see JSON output)``), and one
+  ``depends_on`` hint.
+- **JSON output.** The top-level ``warnings`` array is always present (empty
+  when there are none), and ``metadata.total_warnings`` carries the count.
+  Each entry has ``code``, ``message``, ``flowgroup``, ``action``,
+  ``suggestion``, ``file_path``, and ``line``. For file-based bodies,
+  ``file_path`` is the resolved ``.sql`` / ``.py`` file; for inline bodies
+  it is the flowgroup YAML file.
+- **Text report.** A ``DEPENDENCY EXTRACTION WARNINGS`` section lists every
+  warning with its message and suggestion.
+
+Warnings do **not** appear in the DOT output or in generated orchestration
+job YAML.
+
+In the Python API, ``lhp.api`` exposes the same records as
+``DependencyWarningView`` entries on ``DependencyAnalysisResult.warnings``
+(provisional stability).
+
+For the per-code reference, see :doc:`errors_reference`.
+
+Using the dag Command
+---------------------
+
+The ``lhp dag`` command runs dependency analysis and writes one or more
+output formats.
+
+.. versionchanged:: 0.9.0
+   The command was renamed from ``lhp deps`` to ``lhp dag``. ``lhp deps``
+   still works as a hidden alias but is deprecated and prints a deprecation
+   notice.
 
 **Basic Usage**
 
 .. code-block:: bash
 
    # Full analysis with all formats
-   lhp deps
+   lhp dag
 
    # Generate only orchestration job
-   lhp deps --format job --job-name my_etl_job
+   lhp dag --format job --job-name my_etl_job
 
-   # Analyze specific pipeline
-   lhp deps --pipeline bronze_layer --format json
+   # Structured dependency graph only
+   lhp dag --format json
 
    # Custom output directory
-   lhp deps --output /path/to/analysis --verbose
+   lhp dag --output /path/to/analysis
 
 Command Options
 ~~~~~~~~~~~~~~~
 
 .. code-block:: text
 
-   lhp deps [OPTIONS]
+   lhp dag [OPTIONS]
 
 **Options:**
 
-``--format, -f``
-    Output format(s): ``dot``, ``json``, ``text``, ``mermaid``, ``job``, ``all`` (default: ``all``)
+``--format``
+    Output format(s), comma-separated: ``dot``, ``json``, ``text``, ``job``,
+    ``all`` (default: ``all``)
 
     - ``dot``: GraphViz diagram for visualization
     - ``json``: Structured data for programmatic use
     - ``text``: Human-readable analysis report
-    - ``mermaid``: Mermaid diagram for documentation
     - ``job``: Databricks orchestration job YAML
     - ``all``: Generate all formats
 
@@ -347,14 +574,14 @@ Command Options
 ``--output, -o``
     Output directory (defaults to ``.lhp/dependencies/``)
 
-``--pipeline, -p``
-    Analyze specific pipeline only
-
-``--bundle-output``
+``--bundle-output, -b``
     Save job file directly to ``resources/`` directory
 
-``--verbose, -v``
-    Enable verbose output with detailed logging
+``--expand-blueprints``
+    One graph node per blueprint instance (see :doc:`blueprints`)
+
+``--blueprint``
+    Restrict the analysis to one blueprint
 
 Output Formats
 --------------
@@ -397,7 +624,8 @@ Structured data perfect for integration with other tools:
        "total_pipelines": 7,
        "total_external_sources": 7,
        "total_stages": 6,
-       "has_circular_dependencies": false
+       "has_circular_dependencies": false,
+       "total_warnings": 0
      },
      "pipelines": {
        "acmi_edw_bronze": {
@@ -414,8 +642,13 @@ Structured data perfect for integration with other tools:
        ["unirate_api_ingestion", "acmi_edw_raw"],
        ["acmi_edw_bronze"],
        ["acmi_edw_silver"]
-     ]
+     ],
+     "warnings": []
    }
+
+The top-level ``warnings`` array carries the
+:ref:`extraction advisories <extraction-warnings>` and is always present,
+even when empty.
 
 GraphViz Diagram
 ~~~~~~~~~~~~~~~~
@@ -435,21 +668,6 @@ DOT format for creating visual dependency diagrams:
 .. tip::
    Use tools like Graphviz or online DOT viewers to visualize your pipeline dependencies as diagrams.
 
-Mermaid Diagram
-~~~~~~~~~~~~~~~
-
-Mermaid format for embedding in documentation:
-
-.. code-block:: text
-
-   flowchart TD
-       raw_ingestion[raw_ingestion]
-       bronze_layer[bronze_layer]
-       silver_layer[silver_layer]
-       
-       raw_ingestion --> bronze_layer
-       bronze_layer --> silver_layer
-
 Orchestration Job Generation
 ----------------------------
 
@@ -462,13 +680,13 @@ Generating Jobs
 .. code-block:: bash
 
    # Generate job with custom name
-   lhp deps --format job --job-name data_warehouse_etl
+   lhp dag --format job --job-name data_warehouse_etl
 
    # Generate job and save directly to resources/
-   lhp deps --format job --job-name data_warehouse_etl --bundle-output
+   lhp dag --format job --job-name data_warehouse_etl --bundle-output
 
    # Generate with custom configuration
-   lhp deps --format job --job-config config/job_config.yaml --bundle-output
+   lhp dag --format job --job-config config/job_config.yaml --bundle-output
 
 Generated Job Structure
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -562,7 +780,7 @@ Create a ``job_config.yaml`` file to customize job settings:
 .. code-block:: bash
 
    # Use custom config file
-   lhp deps --format job --job-config config/job_config.yaml --bundle-output
+   lhp dag --format job --job-config config/job_config.yaml --bundle-output
 
 .. seealso::
    For complete job configuration options, see :doc:`bundle_config_reference`.
@@ -575,7 +793,7 @@ The generated job integrates seamlessly with Declarative Automation Bundles:
 .. code-block:: bash
 
    # Generate job directly to resources/
-   lhp deps --format job --job-name my_etl --bundle-output
+   lhp dag --format job --job-name my_etl --bundle-output
    
    # Deploy with bundle commands
    databricks bundle deploy --target dev
@@ -593,7 +811,7 @@ For a basic three-tier architecture:
 
 .. code-block:: bash
 
-   lhp deps --format job --job-name etl_pipeline --bundle-output
+   lhp dag --format job --job-name etl_pipeline --bundle-output
 
 **Result**: Creates tasks for Raw → Bronze → Silver → Gold with proper dependencies.
 
@@ -614,7 +832,7 @@ For pipelines with multiple data sources and parallel processing:
 
 .. code-block:: bash
 
-   lhp deps --format all --job-name multi_source_etl
+   lhp dag --format all --job-name multi_source_etl
 
 **Analysis shows:**
 
@@ -658,9 +876,17 @@ If expected dependencies aren't detected:
 
 **Check:**
 
+- The :ref:`extraction warnings <extraction-warnings>` on the ``lhp dag``
+  output — ``LHP-DEP-002`` / ``LHP-DEP-003`` name the exact action and
+  ``file:line`` the analyzer could not resolve
 - SQL table references use correct naming patterns
 - Python functions properly reference source tables
 - CDC snapshot configurations are correctly structured
+- Producer and reader spell substitution tokens with the same bytes
+  (``${catalog}.x`` does not match ``{catalog}.x``)
+
+For any read the analyzer cannot resolve, declare the edge with
+:ref:`depends_on <depends-on>`.
 
 External Source Issues
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -677,9 +903,11 @@ If too many external sources are detected:
 - Internal pipeline references are properly formatted
 - Template variables are correctly structured
 
-.. important::
-   The dependency analyzer only considers table references in SQL queries and Python functions. 
-   Complex dynamic table references may not be detected automatically.
+The dependency analyzer only considers table references in SQL queries and
+Python functions. A table reference it recognizes but cannot resolve
+statically surfaces as an ``LHP-DEP-002`` / ``LHP-DEP-003``
+:ref:`advisory <extraction-warnings>` — declare those edges with
+:ref:`depends_on <depends-on>`.
 
 CLI Quick Reference
 -------------------
@@ -687,25 +915,22 @@ CLI Quick Reference
 .. code-block:: bash
 
    # Full analysis with all output formats
-   lhp deps
-   
+   lhp dag
+
    # Generate orchestration job
-   lhp deps --format job --job-name my_etl
-   
+   lhp dag --format job --job-name my_etl
+
    # Save job directly to bundle resources
-   lhp deps --format job --job-name my_etl --bundle-output
-   
+   lhp dag --format job --job-name my_etl --bundle-output
+
    # Use custom job configuration
-   lhp deps -jc config/job_config.yaml --bundle-output
-   
-   # Analyze specific pipeline
-   lhp deps --pipeline bronze_layer --format json
-   
-   # Generate Mermaid diagram
-   lhp deps --format mermaid
-   
+   lhp dag -jc config/job_config.yaml --bundle-output
+
+   # Structured dependency graph as JSON
+   lhp dag --format json
+
    # Custom output directory
-   lhp deps --output ./analysis --verbose
+   lhp dag --output ./analysis
 
 Related Documentation
 ---------------------
@@ -714,3 +939,4 @@ Related Documentation
 * :doc:`architecture` - Understanding pipelines and flowgroups
 * :doc:`cicd` - CI/CD patterns and deployment workflows
 * :doc:`cli` - Complete CLI command reference
+* :doc:`errors_reference` - Error and warning code reference (including ``LHP-DEP-002`` / ``LHP-DEP-003``)

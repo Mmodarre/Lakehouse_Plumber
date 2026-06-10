@@ -88,6 +88,8 @@ import pytest
 from lhp.errors.categories import ErrorCategory
 from lhp.errors.codes import (
     ALL_CODES,
+    DEP_002,
+    DEP_003,
     DEPR_001,
     DEPR_002,
     DEPR_003,
@@ -397,6 +399,25 @@ def test_deprecation_category_and_codes():
     }
     for code, rendered in expected.items():
         assert code.category is ErrorCategory.DEPRECATION
+        assert code.code == rendered
+        assert code in ALL_CODES
+
+
+@pytest.mark.unit
+def test_dependency_extraction_warning_codes():
+    """Freeze the DEP extraction-warning slots: category, rendered codes, registry.
+
+    ``LHP-DEP-002`` (opaque Python table read) and ``LHP-DEP-003``
+    (unparseable SQL source) are warning-only advisories carried on
+    :class:`DependencyWarning` records — they are registered here but
+    never raised as errors, which the superset scan permits.
+    """
+    expected = {
+        DEP_002: "LHP-DEP-002",
+        DEP_003: "LHP-DEP-003",
+    }
+    for code, rendered in expected.items():
+        assert code.category is ErrorCategory.DEPENDENCY
         assert code.code == rendered
         assert code in ALL_CODES
 

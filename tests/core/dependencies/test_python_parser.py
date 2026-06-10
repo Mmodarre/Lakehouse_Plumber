@@ -9,6 +9,7 @@ from lhp.core.dependencies.python_parser import (
     extract_sql_from_python,
     extract_tables_from_python,
 )
+from lhp.core.dependencies.sql_extraction import SqlExtractionResult
 
 
 class TestPythonParser:
@@ -22,7 +23,7 @@ class TestPythonParser:
         python_code = """
         spark.sql("SELECT * FROM bronze.customers")
         """
-        result = self.parser.extract_tables_from_python(python_code)
+        result = self.parser.extract_tables_from_python(python_code).tables
         assert result == ["bronze.customers"]
 
     def test_multiple_spark_sql_calls(self):
@@ -32,7 +33,7 @@ class TestPythonParser:
         df2 = spark.sql("SELECT * FROM silver.orders")
         result = spark.sql("SELECT c.*, o.* FROM gold.customer_summary c JOIN silver.products p")
         """
-        result = self.parser.extract_tables_from_python(python_code)
+        result = self.parser.extract_tables_from_python(python_code).tables
         assert sorted(result) == [
             "bronze.customers",
             "gold.customer_summary",
@@ -44,14 +45,14 @@ class TestPythonParser:
         python_code = """
         df = spark.table("bronze.customers")
         """
-        result = self.parser.extract_tables_from_python(python_code)
+        result = self.parser.extract_tables_from_python(python_code).tables
         assert result == ["bronze.customers"]
 
     def test_spark_read_table_method(self):
         python_code = """
         df = spark.read.table("silver.processed_orders")
         """
-        result = self.parser.extract_tables_from_python(python_code)
+        result = self.parser.extract_tables_from_python(python_code).tables
         assert result == ["silver.processed_orders"]
 
     def test_catalog_methods(self):
@@ -60,11 +61,17 @@ class TestPythonParser:
         if spark.catalog.tableExists("bronze.temp_data"):
             spark.catalog.dropTempView("bronze.temp_data")
         """
-        result = self.parser.extract_tables_from_python(python_code)
+        result = self.parser.extract_tables_from_python(python_code).tables
         assert sorted(result) == ["bronze.temp_data"]
 
     def test_f_string_sql_with_substitution_tokens(self):
-        """Test f-string SQL with substitution tokens."""
+        """An f-string SQL with any unknown interpolation is wholly unresolved.
+
+        ``{start_date}`` is neither a known substitution-token name nor bound
+        in scope, so the WHOLE f-string is unresolved — no tables, and the
+        unresolvable ``spark.sql`` argument emits exactly one LHP-DEP-002
+        advisory.
+        """
         python_code = '''
         df = spark.sql(f"""
         SELECT * FROM {catalog}.{schema}.customers
@@ -72,9 +79,18 @@ class TestPythonParser:
         """)
         '''
         result = self.parser.extract_tables_from_python(python_code)
-        assert result == ["{catalog}.{schema}.customers"]
+        assert result.tables == []
+        assert len(result.warnings) == 1
+        assert result.warnings[0].code == "LHP-DEP-002"
 
     def test_f_string_with_variables(self):
+        """An f-string SQL resolves bound interpolations via the scope resolver.
+
+        ``{table_name}`` is bound in scope (``table_name = "customers"``) so it
+        resolves to its value; ``{bronze_schema}`` / ``{silver_schema}`` are
+        known substitution-token names and are preserved byte-for-byte. No
+        fabricated ``{var}`` marker junk is ever emitted into the results.
+        """
         python_code = '''
         table_name = "customers"
         df = spark.sql(f"""
@@ -82,8 +98,9 @@ class TestPythonParser:
         JOIN {silver_schema}.orders ON customers.id = orders.customer_id
         """)
         '''
-        result = self.parser.extract_tables_from_python(python_code)
-        assert sorted(result) == ["{bronze_schema}.{var}", "{silver_schema}.orders"]
+        result = self.parser.extract_tables_from_python(python_code).tables
+        assert result == ["{bronze_schema}.customers", "{silver_schema}.orders"]
+        assert not any("{var}" in table for table in result)
 
     def test_complex_sql_in_python(self):
         """Test complex SQL queries embedded in Python."""
@@ -110,7 +127,7 @@ class TestPythonParser:
 
             return enriched_df
         '''
-        result = self.parser.extract_tables_from_python(python_code)
+        result = self.parser.extract_tables_from_python(python_code).tables
         assert sorted(result) == [
             "bronze.raw_customers",
             "gold.order_summary",
@@ -134,7 +151,7 @@ class TestPythonParser:
         ORDER BY total_orders DESC
         """)
         '''
-        result = self.parser.extract_tables_from_python(python_code)
+        result = self.parser.extract_tables_from_python(python_code).tables
         assert sorted(result) == ["bronze.customers", "silver.orders"]
 
     def test_mixed_string_types(self):
@@ -144,11 +161,11 @@ class TestPythonParser:
         df2 = spark.sql("SELECT * FROM silver.table2")
         df3 = spark.sql("""SELECT * FROM gold.table3""")
         '''
-        result = self.parser.extract_tables_from_python(python_code)
+        result = self.parser.extract_tables_from_python(python_code).tables
         assert sorted(result) == ["bronze.table1", "gold.table3", "silver.table2"]
 
     def test_variable_sql_strings(self):
-        """Test SQL strings stored in variables."""
+        """SQL strings stored in variables resolve through the scope-aware visitor."""
         python_code = """
         base_query = "SELECT * FROM bronze.events"
         enriched_query = "SELECT e.*, u.name FROM temp_events e JOIN silver.users u ON e.user_id = u.id"
@@ -156,9 +173,9 @@ class TestPythonParser:
         df1 = spark.sql(base_query)
         df2 = spark.sql(enriched_query)
         """
-        # Variable resolution is not supported, so these won't be extracted
-        result = self.parser.extract_tables_from_python(python_code)
-        assert result == []
+        # spark.sql(var) resolves the bound SQL string, so tables are extracted
+        result = self.parser.extract_tables_from_python(python_code).tables
+        assert result == ["bronze.events", "silver.users", "temp_events"]
 
     def test_function_parameter_sql(self):
         """Test SQL passed as function parameters."""
@@ -168,7 +185,7 @@ class TestPythonParser:
 
         result = execute_query()
         """
-        result = self.parser.extract_tables_from_python(python_code)
+        result = self.parser.extract_tables_from_python(python_code).tables
         assert result == ["bronze.test_data"]
 
     def test_nested_function_calls(self):
@@ -177,7 +194,7 @@ class TestPythonParser:
         df = spark.sql("SELECT * FROM bronze.raw_data").cache()
         processed = spark.table("silver.processed_data").select("*")
         """
-        result = self.parser.extract_tables_from_python(python_code)
+        result = self.parser.extract_tables_from_python(python_code).tables
         assert sorted(result) == ["bronze.raw_data", "silver.processed_data"]
 
     def test_comments_in_python_code(self):
@@ -193,7 +210,7 @@ class TestPythonParser:
 
         orders = spark.sql("SELECT * FROM silver.orders")  # Order data
         '''
-        result = self.parser.extract_tables_from_python(python_code)
+        result = self.parser.extract_tables_from_python(python_code).tables
         assert sorted(result) == ["bronze.customers", "silver.orders"]
 
     def test_class_methods(self):
@@ -209,7 +226,7 @@ class TestPythonParser:
             def load_orders(self):
                 return self.spark.table("silver.orders")
         """
-        result = self.parser.extract_tables_from_python(python_code)
+        result = self.parser.extract_tables_from_python(python_code).tables
         assert sorted(result) == ["bronze.customers", "silver.orders"]
 
     def test_invalid_python_syntax(self):
@@ -219,14 +236,14 @@ class TestPythonParser:
         spark.sql("SELECT * FROM bronze.customers"
         """
         # Should handle syntax errors gracefully
-        result = self.parser.extract_tables_from_python(python_code)
+        result = self.parser.extract_tables_from_python(python_code).tables
         assert result == []
 
     def test_empty_and_none_input(self):
         """Test handling of empty and None input."""
-        assert self.parser.extract_tables_from_python("") == []
-        assert self.parser.extract_tables_from_python(None) == []
-        assert self.parser.extract_tables_from_python("   ") == []
+        assert self.parser.extract_tables_from_python("").tables == []
+        assert self.parser.extract_tables_from_python(None).tables == []
+        assert self.parser.extract_tables_from_python("   ").tables == []
 
     def test_no_spark_references(self):
         """Test Python code without Spark references."""
@@ -237,7 +254,7 @@ class TestPythonParser:
             df = pd.read_csv("data.csv")
             return df.groupby("category").sum()
         """
-        result = self.parser.extract_tables_from_python(python_code)
+        result = self.parser.extract_tables_from_python(python_code).tables
         assert result == []
 
     def test_spark_object_variations(self):
@@ -250,11 +267,16 @@ class TestPythonParser:
         df2 = my_spark.sql("SELECT * FROM bronze.table2")
         df3 = spark_session.sql("SELECT * FROM bronze.table3")
         """
-        result = self.parser.extract_tables_from_python(python_code)
+        result = self.parser.extract_tables_from_python(python_code).tables
         assert result == ["bronze.table1"]
 
     def test_complex_f_string_scenarios(self):
-        """Test complex f-string scenarios."""
+        """Complex f-string SQL passed via variables resolves where it can.
+
+        Known substitution tokens are preserved byte-for-byte; an f-string
+        with an unknown, unbound interpolation stays unresolved and emits a
+        DEP-002 warning instead of junk.
+        """
         python_code = """
         # Standard substitution tokens should be preserved
         query1 = f"SELECT * FROM {catalog}.{schema}.table1"
@@ -264,12 +286,17 @@ class TestPythonParser:
         query2 = f"SELECT * FROM {catalog}.bronze.{table}"
         df2 = spark.sql(query2)
 
-        # Other variables should become generic placeholders
+        # Unknown, unbound variables leave the f-string unresolved (DEP-002)
         query3 = f"SELECT * FROM {database_name}.{table_suffix}_data"
         df3 = spark.sql(query3)
         """
         result = self.parser.extract_tables_from_python(python_code)
-        assert result == []
+        assert result.tables == [
+            "{catalog}.bronze.{table}",
+            "{catalog}.{schema}.table1",
+        ]
+        # query3 is unresolvable — exactly one DEP-002 warning, no junk tables
+        assert [w.code for w in result.warnings] == ["LHP-DEP-002"]
 
     def test_extract_sql_from_python_separately(self):
         """Test SQL extraction without table parsing."""
@@ -297,20 +324,22 @@ class TestPythonParser:
         python_code = """
         df = spark.sql(f"SELECT * FROM {catalog}.{bronze_schema}.raw_data")
         """
-        result = self.parser.extract_tables_from_python(python_code)
+        result = self.parser.extract_tables_from_python(python_code).tables
         # F-string processing should preserve known substitution tokens
         assert result == ["{catalog}.{bronze_schema}.raw_data"]
 
-    @patch("lhp.core.dependencies.python_parser.extract_tables_from_sql")
+    @patch("lhp.core.dependencies._extraction_visitor.extract_tables_from_sql")
     def test_sql_extraction_integration(self, mock_extract):
         """Test integration with SQL parser."""
-        mock_extract.return_value = ["bronze.customers", "silver.orders"]
+        mock_extract.return_value = SqlExtractionResult(
+            tables=["bronze.customers", "silver.orders"], warnings=[]
+        )
 
         python_code = """
         df = spark.sql("SELECT c.*, o.* FROM bronze.customers c JOIN silver.orders o")
         """
 
-        result = self.parser.extract_tables_from_python(python_code)
+        result = self.parser.extract_tables_from_python(python_code).tables
 
         # Verify that SQL parser was called
         mock_extract.assert_called()
@@ -325,7 +354,7 @@ class TestConvenienceFunctions:
         python_code = """
         df = spark.sql("SELECT * FROM bronze.customers")
         """
-        result = extract_tables_from_python(python_code)
+        result = extract_tables_from_python(python_code).tables
         assert result == ["bronze.customers"]
 
     def test_extract_sql_from_python_function(self):
@@ -339,7 +368,7 @@ class TestConvenienceFunctions:
 
     def test_convenience_functions_with_none(self):
         """Test convenience functions with None input."""
-        assert extract_tables_from_python(None) == []
+        assert extract_tables_from_python(None).tables == []
         assert extract_sql_from_python(None) == []
 
 
@@ -364,7 +393,7 @@ class TestConvenienceFunctions:
 def test_python_parser_parametrized(python_code, expected_tables):
     """Parametrized tests for various Python code patterns."""
     parser = PythonParser()
-    result = parser.extract_tables_from_python(python_code)
+    result = parser.extract_tables_from_python(python_code).tables
     assert sorted(result) == sorted(expected_tables)
 
 
@@ -379,7 +408,7 @@ class TestASTHandling:
         result = spark.sql("SELECT * FROM bronze.test_table")
         """
 
-        result = parser.extract_tables_from_python(python_code)
+        result = parser.extract_tables_from_python(python_code).tables
         assert result == ["bronze.test_table"]
 
     def test_ast_constant_vs_str_nodes(self):
@@ -390,30 +419,31 @@ class TestASTHandling:
         df = spark.sql("SELECT * FROM bronze.modern_table")
         """
 
-        result = parser.extract_tables_from_python(python_code)
+        result = parser.extract_tables_from_python(python_code).tables
         assert result == ["bronze.modern_table"]
 
     def test_f_string_ast_processing(self):
-        """Test f-string AST processing."""
+        """F-string AST processing resolves interpolations bound in scope."""
         parser = PythonParser()
 
-        # F-strings create JoinedStr AST nodes
+        # F-strings create JoinedStr AST nodes; the bound ``table`` variable
+        # resolves to its value (binding wins over token-name preservation)
         python_code = """
         table = "customers"
         df = spark.sql(f"SELECT * FROM bronze.{table}")
         """
 
-        result = parser.extract_tables_from_python(python_code)
-        assert result == ["bronze.{table}"]
+        result = parser.extract_tables_from_python(python_code).tables
+        assert result == ["bronze.customers"]
 
 
 class TestScopeAwareResolution:
     """Tests for Level-2 scope-aware constant propagation in PythonParser.
 
     These cover variable bindings resolved through the module and function
-    scope stack. Only direct-table-reference calls (``spark.table``,
-    ``spark.read.table``, ``spark.catalog.*``) participate in resolution —
-    ``spark.sql(var)`` intentionally stays unresolved.
+    scope stack. Direct-table-reference calls (``spark.table``,
+    ``spark.read.table``, ``spark.catalog.*``) and ``spark.sql(...)``
+    arguments all participate in resolution.
     """
 
     def setup_method(self):
@@ -423,15 +453,24 @@ class TestScopeAwareResolution:
 
     def test_literal_string_table_ref(self):
         code = 'spark.table("cat.sch.t")'
-        assert self.parser.extract_tables_from_python(code) == ["cat.sch.t"]
+        assert self.parser.extract_tables_from_python(code).tables == ["cat.sch.t"]
 
     def test_f_string_with_known_placeholder(self):
         code = 'spark.table(f"{catalog}.silver.t")'
-        assert self.parser.extract_tables_from_python(code) == ["{catalog}.silver.t"]
+        assert self.parser.extract_tables_from_python(code).tables == [
+            "{catalog}.silver.t"
+        ]
 
-    def test_f_string_with_unknown_placeholder_returns_var_placeholder(self):
+    def test_f_string_with_unknown_placeholder_is_unresolved(self):
+        """An f-string with an unbound, non-placeholder name yields no table.
+
+        The fabricated ``{var}`` marker is gone: junk like ``{var}.silver.t``
+        could never match a real table, so the whole f-string is unresolved.
+        """
         code = 'spark.table(f"{unknown}.silver.t")'
-        assert self.parser.extract_tables_from_python(code) == ["{var}.silver.t"]
+        result = self.parser.extract_tables_from_python(code).tables
+        assert result == []
+        assert not any("{var}" in table for table in result)
 
     # ---- L2 capability tests ----
 
@@ -440,7 +479,7 @@ class TestScopeAwareResolution:
 tbl = "cat.sch.t"
 spark.read.table(tbl)
 """
-        assert self.parser.extract_tables_from_python(code) == ["cat.sch.t"]
+        assert self.parser.extract_tables_from_python(code).tables == ["cat.sch.t"]
 
     def test_reassignment_unions_values(self):
         code = """
@@ -448,7 +487,7 @@ tbl = "cat.sch.a"
 tbl = "cat.sch.b"
 spark.table(tbl)
 """
-        assert self.parser.extract_tables_from_python(code) == [
+        assert self.parser.extract_tables_from_python(code).tables == [
             "cat.sch.a",
             "cat.sch.b",
         ]
@@ -460,7 +499,7 @@ if cond:
     tbl = "cat.sch.b"
 spark.table(tbl)
 """
-        assert self.parser.extract_tables_from_python(code) == [
+        assert self.parser.extract_tables_from_python(code).tables == [
             "cat.sch.a",
             "cat.sch.b",
         ]
@@ -470,7 +509,7 @@ spark.table(tbl)
 tbl: str = "cat.sch.t"
 spark.table(tbl)
 """
-        assert self.parser.extract_tables_from_python(code) == ["cat.sch.t"]
+        assert self.parser.extract_tables_from_python(code).tables == ["cat.sch.t"]
 
     def test_annotation_only_declaration_is_ignored(self):
         code = """
@@ -478,7 +517,7 @@ tbl: str
 spark.table(tbl)
 """
         # Annotation without value must not bind.
-        assert self.parser.extract_tables_from_python(code) == []
+        assert self.parser.extract_tables_from_python(code).tables == []
 
     def test_chained_assignment_all_targets_bound(self):
         code = """
@@ -486,7 +525,7 @@ a = b = "cat.sch.t"
 spark.table(a)
 spark.read.table(b)
 """
-        assert self.parser.extract_tables_from_python(code) == ["cat.sch.t"]
+        assert self.parser.extract_tables_from_python(code).tables == ["cat.sch.t"]
 
     def test_tuple_unpacking_parallel_literals(self):
         code = """
@@ -494,7 +533,7 @@ a, b = "cat.sch.x", "cat.sch.y"
 spark.table(a)
 spark.read.table(b)
 """
-        assert self.parser.extract_tables_from_python(code) == [
+        assert self.parser.extract_tables_from_python(code).tables == [
             "cat.sch.x",
             "cat.sch.y",
         ]
@@ -505,7 +544,7 @@ spark.read.table(b)
 a, b = get_pair()
 spark.table(a)
 """
-        assert self.parser.extract_tables_from_python(code) == []
+        assert self.parser.extract_tables_from_python(code).tables == []
 
     def test_list_unpacking_parallel_literals(self):
         code = """
@@ -513,7 +552,7 @@ spark.table(a)
 spark.table(a)
 spark.read.table(b)
 """
-        assert self.parser.extract_tables_from_python(code) == [
+        assert self.parser.extract_tables_from_python(code).tables == [
             "cat.sch.x",
             "cat.sch.y",
         ]
@@ -530,7 +569,7 @@ def two():
     spark.table(tbl)  # 'tbl' not visible here
 """
         # only cat.sch.inner resolves; the second call's tbl is unresolvable
-        assert self.parser.extract_tables_from_python(code) == ["cat.sch.inner"]
+        assert self.parser.extract_tables_from_python(code).tables == ["cat.sch.inner"]
 
     def test_nested_function_sees_enclosing_scope_bindings(self):
         code = """
@@ -540,7 +579,7 @@ def outer():
         spark.table(tbl)
     inner()
 """
-        assert self.parser.extract_tables_from_python(code) == ["cat.sch.t"]
+        assert self.parser.extract_tables_from_python(code).tables == ["cat.sch.t"]
 
     def test_class_body_binding_not_visible_inside_methods(self):
         """Matches Python's real lexical scoping: class-body locals are not
@@ -551,7 +590,7 @@ class X:
     def m(self):
         spark.table(tbl)  # unresolved — class-body scope is skipped
 """
-        assert self.parser.extract_tables_from_python(code) == []
+        assert self.parser.extract_tables_from_python(code).tables == []
 
     def test_module_level_constant_resolves_inside_function(self):
         code = """
@@ -559,7 +598,7 @@ GLOBAL_TBL = "cat.sch.t"
 def f():
     spark.table(GLOBAL_TBL)
 """
-        assert self.parser.extract_tables_from_python(code) == ["cat.sch.t"]
+        assert self.parser.extract_tables_from_python(code).tables == ["cat.sch.t"]
 
     def test_shadowing_inner_overrides_outer(self):
         code = """
@@ -570,7 +609,7 @@ def f():
 """
         # Inner resolution uses the nearest scope first — module-scope value
         # is shadowed by the function-local binding.
-        assert self.parser.extract_tables_from_python(code) == ["cat.sch.inner"]
+        assert self.parser.extract_tables_from_python(code).tables == ["cat.sch.inner"]
 
     # ---- Negative cases (parser limits) ----
 
@@ -579,15 +618,20 @@ def f():
 def f(tbl):
     spark.table(tbl)
 """
-        # Function parameters are not bound by _TableExtractor.
-        assert self.parser.extract_tables_from_python(code) == []
+        # Without YAML parameter bindings the function parameter stays
+        # unbound: no table, and the recognized-but-opaque read emits an
+        # LHP-DEP-002 advisory.
+        result = self.parser.extract_tables_from_python(code)
+        assert result.tables == []
+        assert len(result.warnings) == 1
+        assert result.warnings[0].code == "LHP-DEP-002"
 
     def test_function_return_value_not_resolved(self):
         code = """
 tbl = get_name()
 spark.table(tbl)
 """
-        assert self.parser.extract_tables_from_python(code) == []
+        assert self.parser.extract_tables_from_python(code).tables == []
 
     def test_string_concatenation_binop_resolves(self):
         # BinOp concatenation of literals is statically visible, so it
@@ -596,7 +640,7 @@ spark.table(tbl)
 tbl = "cat." + "sch." + "t"
 spark.table(tbl)
 """
-        assert self.parser.extract_tables_from_python(code) == ["cat.sch.t"]
+        assert self.parser.extract_tables_from_python(code).tables == ["cat.sch.t"]
 
     def test_string_concatenation_with_dynamic_operand_not_resolved(self):
         # Any non-static operand collapses the whole expression — no speculation.
@@ -604,15 +648,19 @@ spark.table(tbl)
 tbl = "cat." + get_schema() + ".t"
 spark.table(tbl)
 """
-        assert self.parser.extract_tables_from_python(code) == []
+        assert self.parser.extract_tables_from_python(code).tables == []
 
-    def test_loop_variable_not_resolved(self):
+    def test_loop_over_static_list_unrolls(self):
         code = """
 for tbl in ["cat.sch.a", "cat.sch.b"]:
     spark.table(tbl)
 """
-        # Loop-iter target is not tracked — visit_Assign doesn't fire for for-loops.
-        assert self.parser.extract_tables_from_python(code) == []
+        # Static loop unrolling binds the loop target to the union of all
+        # iterations, so each element surfaces as a table.
+        assert self.parser.extract_tables_from_python(code).tables == [
+            "cat.sch.a",
+            "cat.sch.b",
+        ]
 
     def test_augmented_assignment_not_tracked(self):
         code = """
@@ -621,7 +669,7 @@ tbl += "_suffix"
 spark.table(tbl)
 """
         # AugAssign is not handled; the value tracked remains the original literal.
-        assert self.parser.extract_tables_from_python(code) == ["cat.sch.t"]
+        assert self.parser.extract_tables_from_python(code).tables == ["cat.sch.t"]
 
     # ---- Integration with existing f-string support ----
 
@@ -630,7 +678,7 @@ spark.table(tbl)
 tbl = f"{catalog}.silver.orders"
 spark.table(tbl)
 """
-        assert self.parser.extract_tables_from_python(code) == [
+        assert self.parser.extract_tables_from_python(code).tables == [
             "{catalog}.silver.orders"
         ]
 
@@ -640,23 +688,23 @@ tbl = f"{catalog}.a"
 tbl = f"{schema}.b"
 spark.table(tbl)
 """
-        result = self.parser.extract_tables_from_python(code)
+        result = self.parser.extract_tables_from_python(code).tables
         assert "{catalog}.a" in result
         assert "{schema}.b" in result
 
     # ---- SQL-path unchanged (regression guard) ----
 
-    def test_spark_sql_with_local_variable_not_resolved(self):
-        """Verifies the variable-resolution boundary: ``spark.sql(var)`` is NOT
-        extended by the scope-aware visitor. SQL extraction path is unchanged.
+    def test_spark_sql_with_local_variable_resolves(self):
+        """``spark.sql(var)`` resolves through the scope-aware visitor: the
+        bound SQL string is found and its tables are extracted.
         """
         code = """
 q = "SELECT * FROM silver.users"
 spark.sql(q)
 """
-        # spark.sql(var) still yields nothing — scope-aware resolution is
-        # deliberately limited to direct table-reference calls.
-        assert self.parser.extract_tables_from_python(code) == []
+        # spark.sql(var) resolves the bound SQL string via scope-aware
+        # resolution, just like direct table-reference calls.
+        assert self.parser.extract_tables_from_python(code).tables == ["silver.users"]
 
 
 class TestBroadenedReadAPIRecognition:
@@ -676,14 +724,14 @@ class TestBroadenedReadAPIRecognition:
 
     def test_readstream_table_via_reader_attr(self):
         code = 'df = spark.readStream.table("c.s.t")'
-        assert self.parser.extract_tables_from_python(code) == ["c.s.t"]
+        assert self.parser.extract_tables_from_python(code).tables == ["c.s.t"]
 
     def test_spark_readstream_table_with_variable(self):
         code = """
 tbl = "c.s.t"
 df = spark.readStream.table(tbl)
 """
-        assert self.parser.extract_tables_from_python(code) == ["c.s.t"]
+        assert self.parser.extract_tables_from_python(code).tables == ["c.s.t"]
 
     def test_aliased_self_spark_readstream_table(self):
         code = """
@@ -691,60 +739,60 @@ class P:
     def m(self):
         return self.spark.readStream.table("c.s.t")
 """
-        assert self.parser.extract_tables_from_python(code) == ["c.s.t"]
+        assert self.parser.extract_tables_from_python(code).tables == ["c.s.t"]
 
     # ---- format(...).table / .load chains ----
 
     def test_read_format_delta_table(self):
         code = 'df = spark.read.format("delta").table("c.s.t")'
-        assert self.parser.extract_tables_from_python(code) == ["c.s.t"]
+        assert self.parser.extract_tables_from_python(code).tables == ["c.s.t"]
 
     def test_read_format_delta_load(self):
         code = 'df = spark.read.format("delta").load("c.s.t")'
-        assert self.parser.extract_tables_from_python(code) == ["c.s.t"]
+        assert self.parser.extract_tables_from_python(code).tables == ["c.s.t"]
 
     def test_readstream_format_load(self):
         code = 'df = spark.readStream.format("delta").load("c.s.t")'
-        assert self.parser.extract_tables_from_python(code) == ["c.s.t"]
+        assert self.parser.extract_tables_from_python(code).tables == ["c.s.t"]
 
     def test_read_format_iceberg_table(self):
         code = 'df = spark.read.format("iceberg").table("c.s.t")'
-        assert self.parser.extract_tables_from_python(code) == ["c.s.t"]
+        assert self.parser.extract_tables_from_python(code).tables == ["c.s.t"]
 
     def test_format_case_insensitive(self):
         code = 'df = spark.read.format("Delta").table("c.s.t")'
-        assert self.parser.extract_tables_from_python(code) == ["c.s.t"]
+        assert self.parser.extract_tables_from_python(code).tables == ["c.s.t"]
 
     def test_format_chain_with_variable_table_name(self):
         code = """
 tbl = "c.s.t"
 df = spark.read.format("delta").table(tbl)
 """
-        assert self.parser.extract_tables_from_python(code) == ["c.s.t"]
+        assert self.parser.extract_tables_from_python(code).tables == ["c.s.t"]
 
     # ---- BinOp / .format resolvable table names ----
 
     def test_binop_table_name_in_read_table(self):
         code = 'df = spark.read.table("cat." + "sch.t")'
-        assert self.parser.extract_tables_from_python(code) == ["cat.sch.t"]
+        assert self.parser.extract_tables_from_python(code).tables == ["cat.sch.t"]
 
     def test_str_format_table_name(self):
         code = """
 tbl = "{}.{}.{}".format("cat", "sch", "t")
 spark.table(tbl)
 """
-        assert self.parser.extract_tables_from_python(code) == ["cat.sch.t"]
+        assert self.parser.extract_tables_from_python(code).tables == ["cat.sch.t"]
 
     def test_str_format_inline_in_call(self):
         code = 'spark.table("{}.s.t".format("cat"))'
-        assert self.parser.extract_tables_from_python(code) == ["cat.s.t"]
+        assert self.parser.extract_tables_from_python(code).tables == ["cat.s.t"]
 
     def test_str_format_with_dynamic_arg_not_resolved(self):
         code = """
 tbl = "{}.{}.t".format("cat", get_schema())
 spark.table(tbl)
 """
-        assert self.parser.extract_tables_from_python(code) == []
+        assert self.parser.extract_tables_from_python(code).tables == []
 
     # ---- cloudFiles / custom datasource stay EXTERNAL ----
 
@@ -756,11 +804,11 @@ df = spark.readStream \\
     .load("/mnt/landing/events")
 """
         # Auto Loader is a genuine external root — must not surface a table.
-        assert self.parser.extract_tables_from_python(code) == []
+        assert self.parser.extract_tables_from_python(code).tables == []
 
     def test_cloudfiles_read_load_yields_no_internal_table(self):
         code = 'df = spark.read.format("cloudFiles").load("/mnt/x")'
-        assert self.parser.extract_tables_from_python(code) == []
+        assert self.parser.extract_tables_from_python(code).tables == []
 
     def test_custom_datasource_format_read_yields_no_internal_table(self):
         # Mirrors the custom_datasource template: an arbitrary registered name
@@ -771,20 +819,20 @@ df = spark.readStream \\
     .option("endpoint", "https://x") \\
     .load()
 """
-        assert self.parser.extract_tables_from_python(code) == []
+        assert self.parser.extract_tables_from_python(code).tables == []
 
     def test_custom_datasource_with_load_arg_yields_no_internal_table(self):
         code = 'df = spark.read.format("APIDataSource").load("some_resource")'
-        assert self.parser.extract_tables_from_python(code) == []
+        assert self.parser.extract_tables_from_python(code).tables == []
 
     def test_non_allowlisted_file_format_load_yields_no_internal_table(self):
         # parquet/csv/etc. .load() reads a path, not a UC table — external.
         code = 'df = spark.read.format("parquet").load("/mnt/p")'
-        assert self.parser.extract_tables_from_python(code) == []
+        assert self.parser.extract_tables_from_python(code).tables == []
 
     def test_dynamic_format_not_resolved(self):
         code = """
 fmt = get_format()
 df = spark.read.format(fmt).table("c.s.t")
 """
-        assert self.parser.extract_tables_from_python(code) == []
+        assert self.parser.extract_tables_from_python(code).tables == []

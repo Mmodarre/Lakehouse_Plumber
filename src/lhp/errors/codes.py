@@ -138,6 +138,13 @@ CFG_060 = ErrorCode(ErrorCategory.CONFIG, "060")
 CFG_061 = ErrorCode(ErrorCategory.CONFIG, "061")
 
 DEP_001 = ErrorCode(ErrorCategory.DEPENDENCY, "001")
+# DEP_002: dependency extraction found a recognized table-read in Python code
+# whose argument could not be statically resolved (opaque read) — warning-only
+# advisory carried on ``DependencyWarning`` records, never raised as an error.
+DEP_002 = ErrorCode(ErrorCategory.DEPENDENCY, "002")
+# DEP_003: a SQL source could not be parsed for table extraction — warning-only
+# advisory carried on ``DependencyWarning`` records, never raised as an error.
+DEP_003 = ErrorCode(ErrorCategory.DEPENDENCY, "003")
 DEP_022 = ErrorCode(ErrorCategory.DEPENDENCY, "022")
 
 ACT_001 = ErrorCode(ErrorCategory.ACTION, "001")
@@ -259,6 +266,8 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     CFG_060,
     CFG_061,
     DEP_001,
+    DEP_002,
+    DEP_003,
     DEP_022,
     ACT_001,
     ACT_002,
@@ -325,6 +334,8 @@ __all__ = [
     "DEPR_003",
     "DEPR_004",
     "DEP_001",
+    "DEP_002",
+    "DEP_003",
     "DEP_022",
     "GEN_001",
     "GEN_901",
