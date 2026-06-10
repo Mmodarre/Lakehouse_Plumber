@@ -15,6 +15,12 @@ output/
 docs_old/
 src/lakehouse_plumber.egg-info/
 __pycache__/
+build/
+dist/
+# Per-pipeline wheel-packaging staging dir + built wheels (content-addressed
+# binaries; rebuilt deterministically by `lhp generate`, never committed).
+_wheels/
+*.whl
 Sample_Projects/
 .readthedocs.yml
 publish.sh
@@ -38,6 +44,8 @@ Example_Projects/acmi/Data_Prep/__builtins__.pyi
 BYTEROVER*
 tests/e2e/test_bundle_manager_e2e.py
 coverage.xml
+.coverage
+.docs_revamp_state.yaml
 CLAUDE.md
 wip.md
 src/lhp/utils/substitution.py.bkup
@@ -86,9 +94,6 @@ web_app/*.sw?
 .claude/commands/drawio-databricks.md
 .claude/skills/databricks-unity-catalog/5-system-tables.md
 .claude/skills/databricks-unity-catalog/SKILL.md
-.claude/skills/lhp/drawio-databricks/references/databricks-icon-catalog.txt
-.claude/skills/lhp/drawio-databricks/references/layout-patterns.md
-.claude/skills/lhp/drawio-databricks/references/REFERENCE.md
 .claude/settings.json
 Example_Projects/Bupa/
 Example_Projects/performance_testing/.lhp/
@@ -100,4 +105,15 @@ Example_Projects/performance_testing/resources
 Example_Projects/performance_testing/
 
 Example_Projects/performance_testing/monitoring/
-.claude/
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/lhp/
+!.claude/skills/lhp/**
+HOW_TO_CREATE_BLUEPRINTS.md
+
+# Raw perf.log archives from `python -m tests.performance.benchmark capture`.
+# Ignored by default (large); commit a specific release's archives with
+# `git add -f .perf_runs/v0.X.Y/` if desired.
+.perf_runs/
+
