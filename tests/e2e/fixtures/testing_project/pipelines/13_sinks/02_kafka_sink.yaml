@@ -1,0 +1,50 @@
+# B2 fixture — Kafka sink (dp.create_sink + @dp.append_flow)
+# Streams pre-formatted key/value rows to a Kafka topic.
+pipeline: 13_sinks
+flowgroup: sk_kafka
+#job_name: j_sinks
+
+actions:
+  - name: load_orders_for_kafka
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      database: "${catalog}.${silver_schema}"
+      table: "fact_orders"
+    target: v_orders_for_kafka_raw
+    description: "Load fact_orders for streaming to Kafka"
+
+  # Kafka requires explicit key/value columns (per docs/actions/write_actions.rst:1009-1011)
+  - name: prepare_kafka_message
+    type: transform
+    transform_type: sql
+    source: v_orders_for_kafka_raw
+    target: v_orders_for_kafka
+    sql: |
+      SELECT
+        CAST(order_id AS STRING) AS key,
+        to_json(struct(
+          order_id,
+          customer_id,
+          order_status,
+          total_price,
+          current_timestamp() AS event_timestamp
+        )) AS value
+      FROM v_orders_for_kafka_raw
+
+  - name: write_orders_to_kafka_sink
+    type: write
+    source: v_orders_for_kafka
+    write_target:
+      type: sink
+      sink_type: kafka
+      sink_name: order_events_kafka
+      bootstrap_servers: "${kafka_bootstrap_cluster}"
+      topic: "acme.orders.fulfillment"
+      comment: "Stream order events to Kafka topic"
+      options:
+        kafka.security.protocol: "SASL_SSL"
+        kafka.sasl.mechanism: "PLAIN"
+        kafka.sasl.jaas.config: 'kafkashaded.org.apache.kafka.common.security.plain.PlainLoginModule required username="${secret:kafka_secrets/kafka_api_key}" password="${secret:kafka_secrets/kafka_api_secret}";'
+        checkpointLocation: "/Volumes/${catalog}/_meta/checkpoints/sk_kafka_export"

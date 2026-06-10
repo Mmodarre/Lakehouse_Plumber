@@ -2,8 +2,8 @@
 # Pipeline: kafka_sample_pipeline
 # FlowGroup: event_hubs_oauth_ingestion
 
-from pyspark import pipelines as dp
 from pyspark.sql import functions as F
+from pyspark import pipelines as dp
 
 # Pipeline Configuration
 PIPELINE_ID = "kafka_sample_pipeline"
@@ -26,7 +26,7 @@ def v_event_hubs_telemetry_raw():
         .option("kafka.sasl.mechanism", "OAUTHBEARER")
         .option(
             "kafka.sasl.jaas.config",
-            f"kafkashaded.org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required clientId=\"{dbutils.secrets.get(scope='azure_secrets', key='client_id')}\" clientSecret=\"{dbutils.secrets.get(scope='azure_secrets', key='client_secret')}\" scope=\"https://my-namespace.servicebus.windows.net/.default\" ssl.protocol=\"SSL\";",
+            f'kafkashaded.org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required clientId="{dbutils.secrets.get(scope="azure_secrets", key="client_id")}" clientSecret="{dbutils.secrets.get(scope="azure_secrets", key="client_secret")}" scope="https://my-namespace.servicebus.windows.net/.default" ssl.protocol="SSL";',
         )
         .option(
             "kafka.sasl.oauthbearer.token.endpoint.url",

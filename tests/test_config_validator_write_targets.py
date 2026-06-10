@@ -1,24 +1,15 @@
-"""
-Write target validation tests for ConfigValidator.
-"""
+"""Write target validation tests for ConfigValidator."""
 
 import pytest
-from lhp.core.validator import ConfigValidator
-from lhp.models.config import Action, ActionType
+
+from lhp.core.validators import ConfigValidator
+from lhp.models import Action, ActionType
 
 
 class TestConfigValidatorWriteTargets:
-    """Write target validation tests for ConfigValidator."""
-
     def test_streaming_table_source_validation_edge_cases(self):
-        """Test streaming table source validation edge cases.
-
-        Target lines: 285->327, 298, 302->311, 305, 308
-        Tests snapshot_cdc mode vs standard mode source validation.
-        """
         validator = ConfigValidator()
 
-        # Test 1: Standard streaming table without source (lines 285->327, 298)
         action = Action(
             name="test_streaming_no_source",
             type=ActionType.WRITE,
@@ -37,7 +28,6 @@ class TestConfigValidatorWriteTargets:
             for error in errors
         )
 
-        # Test 2: Standard streaming table with invalid source type (lines 302->311, 305, 308)
         action = Action(
             name="test_streaming_invalid_source",
             type=ActionType.WRITE,
@@ -55,7 +45,6 @@ class TestConfigValidatorWriteTargets:
             "source must be a string or list of view names" in error for error in errors
         )
 
-        # Test 3: Snapshot CDC mode without source - should NOT fail (different validation path)
         action = Action(
             name="test_snapshot_cdc_no_source",
             type=ActionType.WRITE,
@@ -73,13 +62,11 @@ class TestConfigValidatorWriteTargets:
             },
         )
         errors = validator.validate_action(action, 0)
-        # Should NOT have source-related errors for snapshot_cdc mode
         source_errors = [
             e for e in errors if "source" in e and "Streaming table must have" in e
         ]
         assert len(source_errors) == 0
 
-        # Test 4: Standard streaming table with valid string source
         action = Action(
             name="test_streaming_valid_string_source",
             type=ActionType.WRITE,
@@ -93,13 +80,11 @@ class TestConfigValidatorWriteTargets:
             },
         )
         errors = validator.validate_action(action, 0)
-        # Should NOT have source-related errors
         source_errors = [
             e for e in errors if "source" in e and "must be a string or list" in e
         ]
         assert len(source_errors) == 0
 
-        # Test 5: Standard streaming table with valid list source
         action = Action(
             name="test_streaming_valid_list_source",
             type=ActionType.WRITE,
@@ -113,21 +98,14 @@ class TestConfigValidatorWriteTargets:
             },
         )
         errors = validator.validate_action(action, 0)
-        # Should NOT have source-related errors
         source_errors = [
             e for e in errors if "source" in e and "must be a string or list" in e
         ]
         assert len(source_errors) == 0
 
     def test_materialized_view_source_validation_edge_cases(self):
-        """Test materialized view source validation edge cases.
-
-        Target lines: 324-325, 332, 343, 354
-        Tests materialized view source vs SQL validation and invalid source types.
-        """
         validator = ConfigValidator()
 
-        # Test 1: Materialized view without source and without SQL (lines 324-325)
         action = Action(
             name="test_mv_no_source_no_sql",
             type=ActionType.WRITE,
@@ -146,7 +124,6 @@ class TestConfigValidatorWriteTargets:
             for error in errors
         )
 
-        # Test 2: Materialized view with invalid source type (lines 332, 343, 354)
         action = Action(
             name="test_mv_invalid_source",
             type=ActionType.WRITE,
@@ -163,7 +140,6 @@ class TestConfigValidatorWriteTargets:
             "source must be a string or list of view names" in error for error in errors
         )
 
-        # Test 3: Materialized view with valid string source (should NOT error)
         action = Action(
             name="test_mv_valid_string_source",
             type=ActionType.WRITE,
@@ -176,11 +152,9 @@ class TestConfigValidatorWriteTargets:
             },
         )
         errors = validator.validate_action(action, 0)
-        # Should NOT have source-related errors
         source_errors = [e for e in errors if "source must be a string or list" in e]
         assert len(source_errors) == 0
 
-        # Test 4: Materialized view with valid list source (should NOT error)
         action = Action(
             name="test_mv_valid_list_source",
             type=ActionType.WRITE,
@@ -193,11 +167,9 @@ class TestConfigValidatorWriteTargets:
             },
         )
         errors = validator.validate_action(action, 0)
-        # Should NOT have source-related errors
         source_errors = [e for e in errors if "source must be a string or list" in e]
         assert len(source_errors) == 0
 
-        # Test 5: Materialized view with SQL and no source (should NOT error)
         action = Action(
             name="test_mv_sql_no_source",
             type=ActionType.WRITE,
@@ -211,14 +183,12 @@ class TestConfigValidatorWriteTargets:
             },
         )
         errors = validator.validate_action(action, 0)
-        # Should NOT have source-related errors
         source_errors = [
             e for e in errors if "must have either 'source', 'sql', or 'sql_path'" in e
         ]
         assert len(source_errors) == 0
 
     def test_materialized_view_sql_path_passes(self):
-        """Test materialized view with sql_path passes validation."""
         validator = ConfigValidator()
 
         action = Action(
@@ -239,7 +209,6 @@ class TestConfigValidatorWriteTargets:
         assert len(source_errors) == 0
 
     def test_materialized_view_no_source_sql_or_sql_path_fails(self):
-        """Test MV with none of source/sql/sql_path fails."""
         validator = ConfigValidator()
 
         action = Action(

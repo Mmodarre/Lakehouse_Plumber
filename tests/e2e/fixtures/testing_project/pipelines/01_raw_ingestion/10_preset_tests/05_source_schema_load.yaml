@@ -1,5 +1,6 @@
 pipeline: acmi_edw_raw
 flowgroup: source_schema_load
+#job_name: j_one
 
 actions:
   - name: load_customer_with_schema

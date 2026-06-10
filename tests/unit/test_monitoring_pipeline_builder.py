@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from lhp.core.services.monitoring_pipeline_builder import (
+from lhp.core.coordination.monitoring_pipeline_builder import (
     DEFAULT_MV_SQL,
     JOBS_STATS_FUNCTION_NAME,
     JOBS_STATS_MODULE_PATH,
@@ -14,7 +14,7 @@ from lhp.core.services.monitoring_pipeline_builder import (
     MonitoringBuildResult,
     MonitoringPipelineBuilder,
 )
-from lhp.models.config import (
+from lhp.models import (
     ActionType,
     EventLogConfig,
     FlowGroup,
@@ -41,7 +41,6 @@ def _make_project_config(
     monitoring_mvs=None,
     monitoring_enable_job_monitoring=False,
 ):
-    """Helper to build a ProjectConfig with event_log and monitoring."""
     event_log = EventLogConfig(
         enabled=event_log_enabled,
         catalog=event_log_catalog,
@@ -236,7 +235,7 @@ class TestBuild:
         loader = _make_pipeline_config_loader()
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
         result = builder.build(["bronze", "silver"])
-        assert result.flowgroup._synthetic is True
+        assert result.context.synthetic is True
 
     def test_pipeline_and_flowgroup_names(self):
         config = _make_project_config(name="acme")
@@ -291,7 +290,6 @@ class TestBuild:
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
         result = builder.build(["bronze"])
 
-        # 2 custom MVs only
         assert len(result.flowgroup.actions) == 2
         assert result.flowgroup.actions[0].write_target["table"] == "summary"
         assert result.flowgroup.actions[0].write_target["sql"] == "SELECT 1"
@@ -318,7 +316,6 @@ class TestBuild:
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
         result = builder.build(["bronze"])
 
-        # MV action should use overridden catalog/schema
         mv = result.flowgroup.actions[0]
         assert mv.write_target["catalog"] == "override_cat"
         assert mv.write_target["schema"] == "_analytics"
@@ -363,7 +360,10 @@ class TestBuildFlowgroupCompat:
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
         fg = builder.build_flowgroup(["bronze"])
         assert isinstance(fg, FlowGroup)
-        assert fg._synthetic is True
+        # Synthetic-ness now lives on FlowGroupContext, accessible via
+        # build() rather than the backward-compat build_flowgroup() wrapper.
+        result = builder.build(["bronze"])
+        assert result.context.synthetic is True
 
     def test_returns_none_when_disabled(self):
         config = _make_project_config(monitoring_enabled=False)
@@ -425,7 +425,12 @@ class TestTemplateContext:
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
         result = builder.build(["bronze"])
 
-        expected_keys = {"sources", "target_fqn", "checkpoint_path", "max_concurrent_streams"}
+        expected_keys = {
+            "sources",
+            "target_fqn",
+            "checkpoint_path",
+            "max_concurrent_streams",
+        }
         assert set(result.template_context.keys()) == expected_keys
 
     def test_context_single_pipeline(self):
@@ -438,6 +443,36 @@ class TestTemplateContext:
         assert len(sources) == 1
         assert sources[0][0] == "bronze"
         assert sources[0][1] == "my_catalog._meta.bronze_event_log"
+
+
+class TestNotebookRendering:
+    """Rendered-notebook assertions (beyond context dict checks)."""
+
+    def test_rendered_notebook_contains_ensure_target_exists_prologue(self):
+        """The rendered notebook must pre-create the target table before the
+        executor pool starts — this guards against a parallel-CREATE race on
+        the first run (TABLE_OR_VIEW_ALREADY_EXISTS)."""
+        from lhp.core.codegen.template_renderer import TemplateRenderer
+
+        config = _make_project_config()
+        loader = _make_pipeline_config_loader()
+        builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
+        result = builder.build(["bronze", "silver"])
+
+        rendered = TemplateRenderer.from_package().render_template(
+            "monitoring/union_event_logs.py.j2", result.template_context
+        )
+
+        assert "def _ensure_target_exists()" in rendered
+        assert "_ensure_target_exists()" in rendered
+        assert "from pyspark.sql.utils import AnalysisException" in rendered
+
+        ensure_call_idx = rendered.index("\n    _ensure_target_exists()\n")
+        executor_idx = rendered.index("with ThreadPoolExecutor")
+        assert ensure_call_idx < executor_idx, (
+            "_ensure_target_exists() must be invoked before the "
+            "ThreadPoolExecutor block"
+        )
 
 
 @pytest.mark.unit
@@ -518,7 +553,6 @@ class TestJobMonitoring:
         result = builder.build(["bronze"])
         fg = result.flowgroup
 
-        # Jobs stats write action (index 1)
         jobs_stats_write = fg.actions[1]
         assert jobs_stats_write.type == ActionType.WRITE
         assert jobs_stats_write.write_target["type"] == "materialized_view"
@@ -531,18 +565,17 @@ class TestJobMonitoring:
         assert jobs_stats_write.write_target["schema"] == "_analytics"
 
     def test_job_monitoring_populates_auxiliary_files(self):
-        """_auxiliary_files contains package resource content when enable_job_monitoring enabled."""
+        """auxiliary_files contains package resource content when enable_job_monitoring enabled."""
         config = _make_project_config(monitoring_enable_job_monitoring=True)
         loader = _make_pipeline_config_loader()
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
         result = builder.build(["bronze"])
-        fg = result.flowgroup
+        aux = result.context.auxiliary_files
 
-        assert JOBS_STATS_MODULE_PATH in fg._auxiliary_files
-        content = fg._auxiliary_files[JOBS_STATS_MODULE_PATH]
+        assert JOBS_STATS_MODULE_PATH in aux
+        content = aux[JOBS_STATS_MODULE_PATH]
         assert "def get_jobs_stats" in content
         assert "WorkspaceClient" in content
-        # Verify it matches the package resource file
         from importlib.resources import files
 
         expected = (
@@ -551,14 +584,13 @@ class TestJobMonitoring:
         assert content == expected
 
     def test_job_monitoring_disabled_no_auxiliary_files(self):
-        """_auxiliary_files empty when enable_job_monitoring disabled."""
+        """auxiliary_files empty when enable_job_monitoring disabled."""
         config = _make_project_config(monitoring_enable_job_monitoring=False)
         loader = _make_pipeline_config_loader()
         builder = MonitoringPipelineBuilder(config, pipeline_config_loader=loader)
         result = builder.build(["bronze"])
-        fg = result.flowgroup
 
-        assert len(fg._auxiliary_files) == 0
+        assert len(result.context.auxiliary_files) == 0
 
 
 @pytest.mark.unit

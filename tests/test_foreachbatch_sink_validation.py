@@ -1,23 +1,20 @@
 """Test ForEachBatch sink action validation."""
 
 import pytest
-from lhp.models.config import Action, ActionType
-from lhp.core.validators import WriteActionValidator
-from lhp.core.action_registry import ActionRegistry
-from lhp.core.config_field_validator import ConfigFieldValidator
-import logging
+
+from lhp.core.registry import ActionRegistry
+from lhp.core.validators import ConfigFieldValidator, WriteActionValidator
+from lhp.models import Action, ActionType
 
 
 class TestForEachBatchSinkValidation:
     """Test ForEachBatch sink write action validation."""
 
     def setup_method(self):
-        """Set up test fixtures."""
-        self.logger = logging.getLogger(__name__)
         self.action_registry = ActionRegistry()
         self.field_validator = ConfigFieldValidator()
         self.validator = WriteActionValidator(
-            self.action_registry, self.field_validator, self.logger
+            self.action_registry, self.field_validator
         )
 
     def test_valid_foreachbatch_with_module_path(self):
@@ -30,13 +27,12 @@ class TestForEachBatchSinkValidation:
                 "type": "sink",
                 "sink_type": "foreachbatch",
                 "sink_name": "my_batch_sink",
-                "module_path": "batch_handlers/my_handler.py"
-            }
+                "module_path": "batch_handlers/my_handler.py",
+            },
         )
-        
+
         errors = self.validator.validate(action, "test_foreachbatch_sink")
-        
-        # Should have no errors
+
         assert len(errors) == 0
 
     def test_valid_foreachbatch_with_batch_handler(self):
@@ -49,13 +45,12 @@ class TestForEachBatchSinkValidation:
                 "type": "sink",
                 "sink_type": "foreachbatch",
                 "sink_name": "my_batch_sink",
-                "batch_handler": "df.write.format('delta').mode('append').saveAsTable('target')"
-            }
+                "batch_handler": "df.write.format('delta').mode('append').saveAsTable('target')",
+            },
         )
-        
+
         errors = self.validator.validate(action, "test_foreachbatch_sink")
-        
-        # Should have no errors
+
         assert len(errors) == 0
 
     def test_foreachbatch_missing_sink_name(self):
@@ -67,13 +62,12 @@ class TestForEachBatchSinkValidation:
             write_target={
                 "type": "sink",
                 "sink_type": "foreachbatch",
-                "module_path": "batch_handlers/my_handler.py"
-            }
+                "module_path": "batch_handlers/my_handler.py",
+            },
         )
-        
+
         errors = self.validator.validate(action, "test_foreachbatch_sink")
-        
-        # Should error about missing sink_name
+
         assert len(errors) > 0
         assert any("sink_name" in err.lower() for err in errors)
 
@@ -86,13 +80,12 @@ class TestForEachBatchSinkValidation:
                 "type": "sink",
                 "sink_type": "foreachbatch",
                 "sink_name": "my_batch_sink",
-                "module_path": "batch_handlers/my_handler.py"
-            }
+                "module_path": "batch_handlers/my_handler.py",
+            },
         )
-        
+
         errors = self.validator.validate(action, "test_foreachbatch_sink")
-        
-        # Should error about missing source
+
         assert len(errors) > 0
         assert any("source" in err.lower() for err in errors)
 
@@ -107,13 +100,12 @@ class TestForEachBatchSinkValidation:
                 "sink_type": "foreachbatch",
                 "sink_name": "my_batch_sink",
                 "module_path": "batch_handlers/my_handler.py",
-                "batch_handler": "df.write.format('delta').saveAsTable('target')"
-            }
+                "batch_handler": "df.write.format('delta').saveAsTable('target')",
+            },
         )
-        
+
         errors = self.validator.validate(action, "test_foreachbatch_sink")
-        
-        # Should error about having both
+
         assert len(errors) > 0
         assert any(("one" in err.lower() or "both" in err.lower()) for err in errors)
 
@@ -126,15 +118,17 @@ class TestForEachBatchSinkValidation:
             write_target={
                 "type": "sink",
                 "sink_type": "foreachbatch",
-                "sink_name": "my_batch_sink"
-            }
+                "sink_name": "my_batch_sink",
+            },
         )
-        
+
         errors = self.validator.validate(action, "test_foreachbatch_sink")
-        
-        # Should error about missing both
+
         assert len(errors) > 0
-        assert any(("module_path" in err.lower() or "batch_handler" in err.lower()) for err in errors)
+        assert any(
+            ("module_path" in err.lower() or "batch_handler" in err.lower())
+            for err in errors
+        )
 
     def test_foreachbatch_list_source_rejected(self):
         """Test ForEachBatch sink with list source (should be rejected)."""
@@ -146,13 +140,12 @@ class TestForEachBatchSinkValidation:
                 "type": "sink",
                 "sink_type": "foreachbatch",
                 "sink_name": "my_batch_sink",
-                "module_path": "batch_handlers/my_handler.py"
-            }
+                "module_path": "batch_handlers/my_handler.py",
+            },
         )
-        
+
         errors = self.validator.validate(action, "test_foreachbatch_sink")
-        
-        # Should error about list source
+
         assert len(errors) > 0
         assert any("single" in err.lower() or "string" in err.lower() for err in errors)
 
@@ -166,15 +159,16 @@ class TestForEachBatchSinkValidation:
                 "type": "sink",
                 "sink_type": "foreachbatch",
                 "sink_name": "my_batch_sink",
-                "batch_handler": ""
-            }
+                "batch_handler": "",
+            },
         )
-        
+
         errors = self.validator.validate(action, "test_foreachbatch_sink")
-        
-        # Should error about empty batch_handler
+
         assert len(errors) > 0
-        assert any("empty" in err.lower() or "batch_handler" in err.lower() for err in errors)
+        assert any(
+            "empty" in err.lower() or "batch_handler" in err.lower() for err in errors
+        )
 
     def test_foreachbatch_dict_source_rejected(self):
         """Test ForEachBatch sink with dict source (should be rejected)."""
@@ -186,13 +180,11 @@ class TestForEachBatchSinkValidation:
                 "type": "sink",
                 "sink_type": "foreachbatch",
                 "sink_name": "my_batch_sink",
-                "module_path": "batch_handlers/my_handler.py"
-            }
+                "module_path": "batch_handlers/my_handler.py",
+            },
         )
-        
+
         errors = self.validator.validate(action, "test_foreachbatch_sink")
-        
-        # Should error about dict source
+
         assert len(errors) > 0
         assert any("single" in err.lower() or "string" in err.lower() for err in errors)
-

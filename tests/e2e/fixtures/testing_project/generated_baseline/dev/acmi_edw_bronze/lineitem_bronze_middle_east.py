@@ -2,9 +2,9 @@
 # Pipeline: acmi_edw_bronze
 # FlowGroup: lineitem_bronze_middle_east
 
-from pyspark import pipelines as dp
 from pyspark.sql import functions as F
 from pyspark.sql.types import StructType
+from pyspark import pipelines as dp
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_bronze"

@@ -1,97 +1,111 @@
 """Tests for sink write generators of LakehousePlumber."""
 
-import pytest
-import tempfile
 import shutil
+import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from lhp.models.config import Action, ActionType, FlowGroup, ProjectConfig, ProjectOperationalMetadataConfig, MetadataColumnConfig
+import pytest
+
+from lhp.core.processing.substitution import EnhancedSubstitutionManager
+from lhp.generators.write.sink import SinkWriteGenerator
 from lhp.generators.write.sinks import (
     BaseSinkWriteGenerator,
+    CustomSinkWriteGenerator,
     DeltaSinkWriteGenerator,
     KafkaSinkWriteGenerator,
-    CustomSinkWriteGenerator
 )
-from lhp.generators.write.sink import SinkWriteGenerator
-from lhp.utils.substitution import EnhancedSubstitutionManager
+from lhp.models import (
+    Action,
+    ActionType,
+    FlowGroup,
+    MetadataColumnConfig,
+    ProjectConfig,
+    ProjectOperationalMetadataConfig,
+)
 
 
 class TestBaseSinkWriteGenerator:
     """Test base sink write generator."""
-    
+
     def setup_method(self):
         """Set up test fixtures."""
-        # Create a concrete implementation for testing abstract base class
+
         class ConcreteSinkGenerator(BaseSinkWriteGenerator):
             def generate(self, action, context):
                 return "generated_code"
-        
+
         self.generator = ConcreteSinkGenerator()
-    
+
     def test_initialization(self):
         """Test that base sink generator initializes correctly."""
         assert self.generator is not None
         imports = self.generator.get_import_manager().get_consolidated_imports()
         assert "from pyspark import pipelines as dp" in imports
         assert "from pyspark.sql import functions as F" in imports
-    
+
     def test_extract_source_views_string(self):
         """Test extracting source views from string."""
         views = self.generator._extract_source_views("v_customers")
         assert views == ["v_customers"]
-    
+
     def test_extract_source_views_list_strings(self):
         """Test extracting source views from list of strings."""
         views = self.generator._extract_source_views(["v_customers", "v_orders"])
         assert views == ["v_customers", "v_orders"]
-    
+
     def test_extract_source_views_list_dicts(self):
         """Test extracting source views from list of dicts with view keys."""
-        views = self.generator._extract_source_views([
-            {"view": "v_customers"},
-            {"view": "v_orders"}
-        ])
+        views = self.generator._extract_source_views(
+            [{"view": "v_customers"}, {"view": "v_orders"}]
+        )
         assert views == ["v_customers", "v_orders"]
-    
+
     def test_extract_source_views_list_mixed(self):
         """Test extracting source views from mixed list."""
-        views = self.generator._extract_source_views([
-            "v_customers",
-            {"view": "v_orders"}
-        ])
+        views = self.generator._extract_source_views(
+            ["v_customers", {"view": "v_orders"}]
+        )
         assert views == ["v_customers", "v_orders"]
-    
+
     def test_extract_source_views_dict_with_view(self):
         """Test extracting source views from dict with view key."""
         views = self.generator._extract_source_views({"view": "v_customers"})
         assert views == ["v_customers"]
-    
+
     def test_extract_source_views_dict_without_view(self):
         """Test extracting source views from dict without view key."""
-        views = self.generator._extract_source_views({"database": "test", "table": "customers"})
+        views = self.generator._extract_source_views(
+            {"database": "test", "table": "customers"}
+        )
         assert views == []
-    
+
     def test_extract_source_views_empty_list(self):
         """Test extracting source views from empty list."""
         views = self.generator._extract_source_views([])
         assert views == []
-    
+
     def test_extract_source_views_none(self):
         """Test extracting source views from None."""
         views = self.generator._extract_source_views(None)
         assert views == []
-    
+
     def test_get_operational_metadata_no_config(self):
         """Test operational metadata with no project config."""
-        action = Action(name="test", type=ActionType.WRITE, write_target={"type": "sink", "sink_type": "delta"})
+        action = Action(
+            name="test",
+            type=ActionType.WRITE,
+            write_target={"type": "sink", "sink_type": "delta"},
+        )
         context = {}
-        
-        add_metadata, metadata_columns = self.generator._get_operational_metadata(action, context)
-        
+
+        add_metadata, metadata_columns = self.generator._get_operational_metadata(
+            action, context
+        )
+
         assert add_metadata is False
         assert metadata_columns == {}
-    
+
     def test_get_operational_metadata_with_config(self):
         """Test operational metadata with project config."""
         project_config = ProjectConfig(
@@ -99,36 +113,37 @@ class TestBaseSinkWriteGenerator:
             operational_metadata=ProjectOperationalMetadataConfig(
                 columns={
                     "_ingestion_timestamp": MetadataColumnConfig(
-                        expression="F.current_timestamp()",
-                        applies_to=["view"]
+                        expression="F.current_timestamp()", applies_to=["view"]
                     )
                 }
-            )
+            ),
         )
-        
+
         flowgroup = FlowGroup(
             pipeline="test_pipeline",
             flowgroup="test_flowgroup",
-            operational_metadata=["_ingestion_timestamp"]
+            operational_metadata=["_ingestion_timestamp"],
         )
-        
+
         action = Action(
             name="test",
             type=ActionType.WRITE,
-            write_target={"type": "sink", "sink_type": "delta"}
+            write_target={"type": "sink", "sink_type": "delta"},
         )
-        
+
         context = {
             "flowgroup": flowgroup,
             "project_config": project_config,
-            "preset_config": {}
+            "preset_config": {},
         }
-        
-        add_metadata, metadata_columns = self.generator._get_operational_metadata(action, context)
-        
+
+        add_metadata, metadata_columns = self.generator._get_operational_metadata(
+            action, context
+        )
+
         assert add_metadata is True
         assert "_ingestion_timestamp" in metadata_columns
-    
+
     def test_get_operational_metadata_with_preset(self):
         """Test operational metadata with preset config."""
         project_config = ProjectConfig(
@@ -136,50 +151,45 @@ class TestBaseSinkWriteGenerator:
             operational_metadata=ProjectOperationalMetadataConfig(
                 columns={
                     "_ingestion_timestamp": MetadataColumnConfig(
-                        expression="F.current_timestamp()",
-                        applies_to=["view"]
+                        expression="F.current_timestamp()", applies_to=["view"]
                     )
                 },
-                presets={
-                    "standard": {
-                        "columns": ["_ingestion_timestamp"]
-                    }
-                }
-            )
+                presets={"standard": {"columns": ["_ingestion_timestamp"]}},
+            ),
         )
-        
+
         flowgroup = FlowGroup(
-            pipeline="test_pipeline",
-            flowgroup="test_flowgroup",
-            presets=["standard"]
+            pipeline="test_pipeline", flowgroup="test_flowgroup", presets=["standard"]
         )
-        
+
         action = Action(
             name="test",
             type=ActionType.WRITE,
             write_target={"type": "sink", "sink_type": "delta"},
-            operational_metadata=["_ingestion_timestamp"]
+            operational_metadata=["_ingestion_timestamp"],
         )
-        
+
         context = {
             "flowgroup": flowgroup,
             "project_config": project_config,
-            "preset_config": {}
+            "preset_config": {},
         }
-        
-        add_metadata, metadata_columns = self.generator._get_operational_metadata(action, context)
-        
+
+        add_metadata, metadata_columns = self.generator._get_operational_metadata(
+            action, context
+        )
+
         assert add_metadata is True
         assert "_ingestion_timestamp" in metadata_columns
 
 
 class TestDeltaSinkWriteGenerator:
     """Test Delta sink write generator."""
-    
+
     def setup_method(self):
         """Set up test fixtures."""
         self.generator = DeltaSinkWriteGenerator()
-    
+
     def test_generate_with_tablename(self):
         """Test Delta sink generation with tableName option."""
         action = Action(
@@ -190,21 +200,19 @@ class TestDeltaSinkWriteGenerator:
                 "type": "sink",
                 "sink_type": "delta",
                 "sink_name": "delta_sink",
-                "options": {
-                    "tableName": "catalog.schema.table"
-                }
-            }
+                "options": {"tableName": "catalog.schema.table"},
+            },
         )
-        
+
         code = self.generator.generate(action, {})
-        
+
         assert "dp.create_sink" in code
         assert 'name="delta_sink"' in code
         assert 'format="delta"' in code
         assert "tableName" in code or '"tableName"' in code
         assert "f_delta_sink_1" in code
         assert "v_customers" in code
-    
+
     def test_generate_with_path(self):
         """Test Delta sink generation with path option."""
         action = Action(
@@ -215,20 +223,18 @@ class TestDeltaSinkWriteGenerator:
                 "type": "sink",
                 "sink_type": "delta",
                 "sink_name": "delta_sink",
-                "options": {
-                    "path": "/path/to/delta/table"
-                }
-            }
+                "options": {"path": "/path/to/delta/table"},
+            },
         )
-        
+
         code = self.generator.generate(action, {})
-        
+
         assert "dp.create_sink" in code
         assert 'name="delta_sink"' in code
         assert 'format="delta"' in code
         assert "path" in code or '"path"' in code
         assert "f_delta_sink_1" in code
-    
+
     def test_generate_with_multiple_sources(self):
         """Test Delta sink generation with multiple source views."""
         action = Action(
@@ -239,20 +245,18 @@ class TestDeltaSinkWriteGenerator:
                 "type": "sink",
                 "sink_type": "delta",
                 "sink_name": "delta_sink",
-                "options": {
-                    "tableName": "catalog.schema.table"
-                }
-            }
+                "options": {"tableName": "catalog.schema.table"},
+            },
         )
-        
+
         code = self.generator.generate(action, {})
-        
+
         assert "dp.create_sink" in code
         assert "f_delta_sink_1" in code
         assert "f_delta_sink_2" in code
         assert "v_customers" in code
         assert "v_orders" in code
-    
+
     def test_generate_with_comment(self):
         """Test Delta sink generation with comment."""
         action = Action(
@@ -265,16 +269,14 @@ class TestDeltaSinkWriteGenerator:
                 "sink_type": "delta",
                 "sink_name": "delta_sink",
                 "comment": "Custom comment",
-                "options": {
-                    "tableName": "catalog.schema.table"
-                }
-            }
+                "options": {"tableName": "catalog.schema.table"},
+            },
         )
-        
+
         code = self.generator.generate(action, {})
-        
+
         assert "Custom comment" in code
-    
+
     def test_generate_with_description_fallback(self):
         """Test Delta sink generation using description as comment fallback."""
         action = Action(
@@ -286,16 +288,14 @@ class TestDeltaSinkWriteGenerator:
                 "type": "sink",
                 "sink_type": "delta",
                 "sink_name": "delta_sink",
-                "options": {
-                    "tableName": "catalog.schema.table"
-                }
-            }
+                "options": {"tableName": "catalog.schema.table"},
+            },
         )
-        
+
         code = self.generator.generate(action, {})
-        
+
         assert "Test description" in code
-    
+
     def test_generate_with_operational_metadata(self):
         """Test Delta sink generation with operational metadata."""
         project_config = ProjectConfig(
@@ -303,19 +303,18 @@ class TestDeltaSinkWriteGenerator:
             operational_metadata=ProjectOperationalMetadataConfig(
                 columns={
                     "_ingestion_timestamp": MetadataColumnConfig(
-                        expression="F.current_timestamp()",
-                        applies_to=["view"]
+                        expression="F.current_timestamp()", applies_to=["view"]
                     )
                 }
-            )
+            ),
         )
-        
+
         flowgroup = FlowGroup(
             pipeline="test_pipeline",
             flowgroup="test_flowgroup",
-            operational_metadata=["_ingestion_timestamp"]
+            operational_metadata=["_ingestion_timestamp"],
         )
-        
+
         action = Action(
             name="write_delta_sink",
             type=ActionType.WRITE,
@@ -324,31 +323,29 @@ class TestDeltaSinkWriteGenerator:
                 "type": "sink",
                 "sink_type": "delta",
                 "sink_name": "delta_sink",
-                "options": {
-                    "tableName": "catalog.schema.table"
-                }
-            }
+                "options": {"tableName": "catalog.schema.table"},
+            },
         )
-        
+
         context = {
             "flowgroup": flowgroup,
             "project_config": project_config,
-            "preset_config": {}
+            "preset_config": {},
         }
-        
+
         code = self.generator.generate(action, context)
-        
+
         assert "Add operational metadata columns" in code
         assert "_ingestion_timestamp" in code
 
 
 class TestKafkaSinkWriteGenerator:
     """Test Kafka sink write generator."""
-    
+
     def setup_method(self):
         """Set up test fixtures."""
         self.generator = KafkaSinkWriteGenerator()
-    
+
     def test_generate_basic_kafka(self):
         """Test basic Kafka sink generation."""
         action = Action(
@@ -360,12 +357,12 @@ class TestKafkaSinkWriteGenerator:
                 "sink_type": "kafka",
                 "sink_name": "kafka_sink",
                 "bootstrap_servers": "localhost:9092",
-                "topic": "test_topic"
-            }
+                "topic": "test_topic",
+            },
         )
-        
+
         code = self.generator.generate(action, {})
-        
+
         assert "dp.create_sink" in code
         assert 'name="kafka_sink"' in code
         assert 'format="kafka"' in code
@@ -374,7 +371,7 @@ class TestKafkaSinkWriteGenerator:
         assert "test_topic" in code
         assert "f_kafka_sink_1" in code
         assert "v_data" in code
-    
+
     def test_generate_event_hubs_detection(self):
         """Test Event Hubs detection via OAUTHBEARER mechanism."""
         action = Action(
@@ -392,16 +389,16 @@ class TestKafkaSinkWriteGenerator:
                     "kafka.sasl.jaas.config": "test_config",
                     "kafka.sasl.oauthbearer.token.endpoint.url": "https://token.endpoint",
                     "kafka.security.protocol": "SASL_SSL",
-                    "kafka.sasl.login.callback.handler.class": "test_handler"
-                }
-            }
+                    "kafka.sasl.login.callback.handler.class": "test_handler",
+                },
+            },
         )
-        
+
         code = self.generator.generate(action, {})
-        
+
         assert "Event Hubs sink" in code
         assert "Event Hubs" in code
-    
+
     def test_generate_with_options(self):
         """Test Kafka sink generation with additional options."""
         action = Action(
@@ -416,16 +413,16 @@ class TestKafkaSinkWriteGenerator:
                 "topic": "test_topic",
                 "options": {
                     "kafka.security.protocol": "SASL_SSL",
-                    "kafka.sasl.mechanism": "PLAIN"
-                }
-            }
+                    "kafka.sasl.mechanism": "PLAIN",
+                },
+            },
         )
-        
+
         code = self.generator.generate(action, {})
-        
+
         assert "dp.create_sink" in code
         assert "kafka.security.protocol" in code or '"kafka.security.protocol"' in code
-    
+
     def test_generate_with_multiple_sources(self):
         """Test Kafka sink generation with multiple source views."""
         action = Action(
@@ -437,17 +434,17 @@ class TestKafkaSinkWriteGenerator:
                 "sink_type": "kafka",
                 "sink_name": "kafka_sink",
                 "bootstrap_servers": "localhost:9092",
-                "topic": "test_topic"
-            }
+                "topic": "test_topic",
+            },
         )
-        
+
         code = self.generator.generate(action, {})
-        
+
         assert "f_kafka_sink_1" in code
         assert "f_kafka_sink_2" in code
         assert "v_data1" in code
         assert "v_data2" in code
-    
+
     def test_generate_with_comment(self):
         """Test Kafka sink generation with comment."""
         action = Action(
@@ -461,14 +458,14 @@ class TestKafkaSinkWriteGenerator:
                 "sink_name": "kafka_sink",
                 "bootstrap_servers": "localhost:9092",
                 "topic": "test_topic",
-                "comment": "Custom Kafka comment"
-            }
+                "comment": "Custom Kafka comment",
+            },
         )
-        
+
         code = self.generator.generate(action, {})
-        
+
         assert "Custom Kafka comment" in code
-    
+
     def test_generate_with_operational_metadata(self):
         """Test Kafka sink generation with operational metadata."""
         project_config = ProjectConfig(
@@ -476,19 +473,18 @@ class TestKafkaSinkWriteGenerator:
             operational_metadata=ProjectOperationalMetadataConfig(
                 columns={
                     "_ingestion_timestamp": MetadataColumnConfig(
-                        expression="F.current_timestamp()",
-                        applies_to=["view"]
+                        expression="F.current_timestamp()", applies_to=["view"]
                     )
                 }
-            )
+            ),
         )
-        
+
         flowgroup = FlowGroup(
             pipeline="test_pipeline",
             flowgroup="test_flowgroup",
-            operational_metadata=["_ingestion_timestamp"]
+            operational_metadata=["_ingestion_timestamp"],
         )
-        
+
         action = Action(
             name="write_kafka_sink",
             type=ActionType.WRITE,
@@ -498,36 +494,36 @@ class TestKafkaSinkWriteGenerator:
                 "sink_type": "kafka",
                 "sink_name": "kafka_sink",
                 "bootstrap_servers": "localhost:9092",
-                "topic": "test_topic"
-            }
+                "topic": "test_topic",
+            },
         )
-        
+
         context = {
             "flowgroup": flowgroup,
             "project_config": project_config,
-            "preset_config": {}
+            "preset_config": {},
         }
-        
+
         code = self.generator.generate(action, context)
-        
+
         assert "Add operational metadata columns FIRST" in code
         assert "_ingestion_timestamp" in code
 
 
 class TestCustomSinkWriteGenerator:
     """Test custom sink write generator."""
-    
+
     def setup_method(self):
         """Set up test fixtures."""
         self.generator = CustomSinkWriteGenerator()
         self.temp_dir = Path(tempfile.mkdtemp())
         self.project_root = self.temp_dir / "test_project"
         self.project_root.mkdir()
-    
+
     def teardown_method(self):
         """Clean up test environment."""
         shutil.rmtree(self.temp_dir)
-    
+
     def test_extract_datasink_format_name_success(self):
         """Test successful extraction of format name from class."""
         source_code = """
@@ -536,9 +532,11 @@ class MyCustomDataSink(DataSink):
     def name(cls):
         return "my_custom_format"
 """
-        format_name = self.generator._extract_datasink_format_name(source_code, "MyCustomDataSink")
+        format_name = self.generator._extract_datasink_format_name(
+            source_code, "MyCustomDataSink"
+        )
         assert format_name == "my_custom_format"
-    
+
     def test_extract_datasink_format_name_with_inheritance(self):
         """Test extraction with class inheritance."""
         source_code = """
@@ -547,9 +545,11 @@ class MyCustomDataSink(DataSink, SomeMixin):
     def name(cls):
         return "custom_format"
 """
-        format_name = self.generator._extract_datasink_format_name(source_code, "MyCustomDataSink")
+        format_name = self.generator._extract_datasink_format_name(
+            source_code, "MyCustomDataSink"
+        )
         assert format_name == "custom_format"
-    
+
     def test_extract_datasink_format_name_without_inheritance(self):
         """Test extraction without class inheritance."""
         source_code = """
@@ -558,18 +558,22 @@ class MyCustomDataSink:
     def name(cls):
         return "simple_format"
 """
-        format_name = self.generator._extract_datasink_format_name(source_code, "MyCustomDataSink")
+        format_name = self.generator._extract_datasink_format_name(
+            source_code, "MyCustomDataSink"
+        )
         assert format_name == "simple_format"
-    
+
     def test_extract_datasink_format_name_missing_class(self):
         """Test extraction when class is not found."""
         source_code = """
 class OtherClass:
     pass
 """
-        format_name = self.generator._extract_datasink_format_name(source_code, "MyCustomDataSink")
+        format_name = self.generator._extract_datasink_format_name(
+            source_code, "MyCustomDataSink"
+        )
         assert format_name == "MyCustomDataSink"  # Falls back to class name
-    
+
     def test_extract_datasink_format_name_missing_name_method(self):
         """Test extraction when name() method is missing."""
         source_code = """
@@ -577,15 +581,19 @@ class MyCustomDataSink:
     def other_method(self):
         pass
 """
-        format_name = self.generator._extract_datasink_format_name(source_code, "MyCustomDataSink")
+        format_name = self.generator._extract_datasink_format_name(
+            source_code, "MyCustomDataSink"
+        )
         assert format_name == "MyCustomDataSink"  # Falls back to class name
-    
+
     def test_extract_datasink_format_name_regex_failure(self):
         """Test extraction when regex fails."""
         source_code = "invalid python code {"
-        format_name = self.generator._extract_datasink_format_name(source_code, "MyCustomDataSink")
+        format_name = self.generator._extract_datasink_format_name(
+            source_code, "MyCustomDataSink"
+        )
         assert format_name == "MyCustomDataSink"  # Falls back to class name
-    
+
     def test_generate_with_valid_sink_file(self):
         """Test generation with valid custom sink file."""
         # Create sink file
@@ -598,7 +606,7 @@ class MyCustomDataSink:
     def name(cls):
         return "my_custom_format"
 """)
-        
+
         action = Action(
             name="write_custom_sink",
             type=ActionType.WRITE,
@@ -608,24 +616,31 @@ class MyCustomDataSink:
                 "sink_type": "custom",
                 "sink_name": "custom_sink",
                 "module_path": "sinks/my_sink.py",
-                "custom_sink_class": "MyCustomDataSink"
-            }
+                "custom_sink_class": "MyCustomDataSink",
+            },
         )
-        
+
         context = {
-            "spec_dir": self.project_root
+            "spec_dir": self.project_root,
+            "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
         }
-        
+
         code = self.generator.generate(action, context)
-        
+
         assert "dp.create_sink" in code
         assert 'name="custom_sink"' in code
         assert 'format="my_custom_format"' in code
         assert "MyCustomDataSink" in code
         assert "spark.dataSource.register" in code
-        assert self.generator.custom_sink_code is not None
-        assert self.generator.sink_file_path == "sinks/my_sink.py"
-    
+
+        imports = self.generator.imports
+        assert "import custom_python_functions" in imports
+        assert "from pyspark import cloudpickle as _lhp_cloudpickle" in imports
+        assert "from custom_python_functions.my_sink import MyCustomDataSink" in imports
+        assert self.generator.get_pre_pipeline_statements() == [
+            "_lhp_cloudpickle.register_pickle_by_value(custom_python_functions)"
+        ]
+
     def test_generate_missing_module_path(self):
         """Test generation with missing module_path raises error."""
         action = Action(
@@ -636,15 +651,15 @@ class MyCustomDataSink:
                 "type": "sink",
                 "sink_type": "custom",
                 "sink_name": "custom_sink",
-                "custom_sink_class": "MyCustomDataSink"
-            }
+                "custom_sink_class": "MyCustomDataSink",
+            },
         )
-        
+
         with pytest.raises(Exception) as exc_info:
             self.generator.generate(action, {"spec_dir": self.project_root})
-        
+
         assert "module_path" in str(exc_info.value).lower()
-    
+
     def test_generate_missing_custom_sink_class(self):
         """Test generation with missing custom_sink_class raises error."""
         action = Action(
@@ -655,15 +670,15 @@ class MyCustomDataSink:
                 "type": "sink",
                 "sink_type": "custom",
                 "sink_name": "custom_sink",
-                "module_path": "sinks/my_sink.py"
-            }
+                "module_path": "sinks/my_sink.py",
+            },
         )
-        
+
         with pytest.raises(Exception) as exc_info:
             self.generator.generate(action, {"spec_dir": self.project_root})
-        
+
         assert "custom_sink_class" in str(exc_info.value).lower()
-    
+
     def test_generate_file_not_found(self):
         """Test generation when sink file doesn't exist."""
         action = Action(
@@ -675,15 +690,15 @@ class MyCustomDataSink:
                 "sink_type": "custom",
                 "sink_name": "custom_sink",
                 "module_path": "sinks/nonexistent.py",
-                "custom_sink_class": "MyCustomDataSink"
-            }
+                "custom_sink_class": "MyCustomDataSink",
+            },
         )
-        
+
         with pytest.raises(FileNotFoundError):
             self.generator.generate(action, {"spec_dir": self.project_root})
-    
-    def test_generate_with_substitution_manager(self):
-        """Test generation with substitution manager."""
+
+    def test_generate_with_substitution_manager(self, tmp_path):
+        """Substitution applied to user file is preserved in the copied module."""
         sink_dir = self.project_root / "sinks"
         sink_dir.mkdir()
         sink_file = sink_dir / "my_sink.py"
@@ -693,11 +708,13 @@ class MyCustomDataSink:
     def name(cls):
         return "${sink_format}"
 """)
-        
+
         # Create substitution manager without file (it can work without one)
-        substitution_mgr = EnhancedSubstitutionManager(substitution_file=None, env="dev")
+        substitution_mgr = EnhancedSubstitutionManager(
+            substitution_file=None, env="dev"
+        )
         substitution_mgr.mappings["sink_format"] = "substituted_format"
-        
+
         action = Action(
             name="write_custom_sink",
             type=ActionType.WRITE,
@@ -707,19 +724,31 @@ class MyCustomDataSink:
                 "sink_type": "custom",
                 "sink_name": "custom_sink",
                 "module_path": "sinks/my_sink.py",
-                "custom_sink_class": "MyCustomDataSink"
-            }
+                "custom_sink_class": "MyCustomDataSink",
+            },
         )
-        
+
+        from lhp.models import FlowGroup
+
+        flowgroup = FlowGroup(pipeline="p_test", flowgroup="fg_test")
+        output_dir = tmp_path / "generated"
+        output_dir.mkdir()
+
         context = {
             "spec_dir": self.project_root,
-            "substitution_manager": substitution_mgr
+            "output_dir": output_dir,
+            "flowgroup": flowgroup,
+            "substitution_manager": substitution_mgr,
         }
-        
-        code = self.generator.generate(action, context)
-        
-        assert "substituted_format" in self.generator.custom_sink_code
-    
+
+        self.generator.generate(action, context)
+
+        # The substituted format name shows up as the format value in the
+        # template (extracted from the source pre-substitution; substitution
+        # happens during file copy).
+        copied = (output_dir / "custom_python_functions" / "my_sink.py").read_text()
+        assert "substituted_format" in copied
+
     def test_generate_with_options(self):
         """Test generation with custom options."""
         sink_dir = self.project_root / "sinks"
@@ -731,7 +760,7 @@ class MyCustomDataSink:
     def name(cls):
         return "my_format"
 """)
-        
+
         action = Action(
             name="write_custom_sink",
             type=ActionType.WRITE,
@@ -742,22 +771,20 @@ class MyCustomDataSink:
                 "sink_name": "custom_sink",
                 "module_path": "sinks/my_sink.py",
                 "custom_sink_class": "MyCustomDataSink",
-                "options": {
-                    "endpoint": "https://api.example.com",
-                    "api_key": "secret"
-                }
-            }
+                "options": {"endpoint": "https://api.example.com", "api_key": "secret"},
+            },
         )
-        
+
         context = {
-            "spec_dir": self.project_root
+            "spec_dir": self.project_root,
+            "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
         }
-        
+
         code = self.generator.generate(action, context)
-        
+
         assert "endpoint" in code or '"endpoint"' in code
         assert "api_key" in code or '"api_key"' in code
-    
+
     def test_generate_with_multiple_sources(self):
         """Test generation with multiple source views."""
         sink_dir = self.project_root / "sinks"
@@ -769,7 +796,7 @@ class MyCustomDataSink:
     def name(cls):
         return "my_format"
 """)
-        
+
         action = Action(
             name="write_custom_sink",
             type=ActionType.WRITE,
@@ -779,21 +806,22 @@ class MyCustomDataSink:
                 "sink_type": "custom",
                 "sink_name": "custom_sink",
                 "module_path": "sinks/my_sink.py",
-                "custom_sink_class": "MyCustomDataSink"
-            }
+                "custom_sink_class": "MyCustomDataSink",
+            },
         )
-        
+
         context = {
-            "spec_dir": self.project_root
+            "spec_dir": self.project_root,
+            "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
         }
-        
+
         code = self.generator.generate(action, context)
-        
+
         assert "f_custom_sink_1" in code
         assert "f_custom_sink_2" in code
         assert "v_data1" in code
         assert "v_data2" in code
-    
+
     def test_generate_with_operational_metadata(self):
         """Test generation with operational metadata."""
         sink_dir = self.project_root / "sinks"
@@ -805,25 +833,24 @@ class MyCustomDataSink:
     def name(cls):
         return "my_format"
 """)
-        
+
         project_config = ProjectConfig(
             name="test_project",
             operational_metadata=ProjectOperationalMetadataConfig(
                 columns={
                     "_ingestion_timestamp": MetadataColumnConfig(
-                        expression="F.current_timestamp()",
-                        applies_to=["view"]
+                        expression="F.current_timestamp()", applies_to=["view"]
                     )
                 }
-            )
+            ),
         )
-        
+
         flowgroup = FlowGroup(
             pipeline="test_pipeline",
             flowgroup="test_flowgroup",
-            operational_metadata=["_ingestion_timestamp"]
+            operational_metadata=["_ingestion_timestamp"],
         )
-        
+
         action = Action(
             name="write_custom_sink",
             type=ActionType.WRITE,
@@ -833,30 +860,122 @@ class MyCustomDataSink:
                 "sink_type": "custom",
                 "sink_name": "custom_sink",
                 "module_path": "sinks/my_sink.py",
-                "custom_sink_class": "MyCustomDataSink"
-            }
+                "custom_sink_class": "MyCustomDataSink",
+            },
         )
-        
+
         context = {
             "spec_dir": self.project_root,
             "flowgroup": flowgroup,
             "project_config": project_config,
-            "preset_config": {}
+            "preset_config": {},
         }
-        
+
         code = self.generator.generate(action, context)
-        
+
         assert "Add operational metadata columns" in code
         assert "_ingestion_timestamp" in code
 
 
+class TestCustomSinkPEP236:
+    """``from __future__`` lives in the user's file, not the assembled module.
+
+    Mirror of :class:`TestCustomDataSourcePEP236` for the custom sink path:
+    under the new copy-and-import pattern, the user's PySpark ``DataSink``
+    file is copied verbatim into a sibling ``custom_python_functions/``
+    directory, and the pipeline file imports the class by name. The user's
+    ``from __future__`` lines stay in the user's own file (the natural PEP
+    236 location) and never need cross-file hoisting.
+    """
+
+    def setup_method(self):
+        self.generator = CustomSinkWriteGenerator()
+        self.temp_dir = Path(tempfile.mkdtemp())
+        self.project_root = self.temp_dir / "test_project"
+        self.project_root.mkdir()
+
+    def teardown_method(self):
+        shutil.rmtree(self.temp_dir)
+
+    def _generate_with_output_dir(self, sink_text):
+        from lhp.models import FlowGroup
+
+        sink_dir = self.project_root / "sinks"
+        sink_dir.mkdir(exist_ok=True)
+        sink_file = sink_dir / "future_sink.py"
+        sink_file.write_text(sink_text)
+
+        output_dir = self.project_root / "generated"
+        output_dir.mkdir()
+
+        action = Action(
+            name="write_future_sink",
+            type=ActionType.WRITE,
+            source="v_data",
+            write_target={
+                "type": "sink",
+                "sink_type": "custom",
+                "sink_name": "future_sink",
+                "module_path": "sinks/future_sink.py",
+                "custom_sink_class": "FutureSink",
+            },
+        )
+
+        flowgroup = FlowGroup(pipeline="p_test", flowgroup="fg_test")
+        context = {
+            "spec_dir": self.project_root,
+            "output_dir": output_dir,
+            "flowgroup": flowgroup,
+        }
+        generated = self.generator.generate(action, context)
+        return generated, output_dir
+
+    def test_future_import_lives_in_copied_user_file(self):
+        """``from __future__ import annotations`` is preserved in the copy."""
+        sink_text = """from __future__ import annotations
+
+class FutureSink:
+    @classmethod
+    def name(cls) -> str:
+        return "future_sink_format"
+"""
+        generated, output_dir = self._generate_with_output_dir(sink_text)
+
+        # The generated pipeline file does NOT contain the user's class body.
+        assert "class FutureSink" not in generated
+        # The user's __future__ import lives in the copied file.
+        copied = (output_dir / "custom_python_functions" / "future_sink.py").read_text()
+        assert "from __future__ import annotations" in copied
+
+    def test_imports_routed_to_header_not_body(self):
+        """Generated body has no inlined user imports; cloudpickle is in pre-pipeline slot."""
+        sink_text = """from pyspark.sql.types import StructType
+
+class FutureSink:
+    @classmethod
+    def name(cls):
+        return "future_sink_format"
+"""
+        generated, _ = self._generate_with_output_dir(sink_text)
+
+        # User imports do not appear inlined in the generated body.
+        assert "from pyspark.sql.types import StructType" not in generated
+        # The class itself is not inlined.
+        assert "class FutureSink" not in generated
+
+        imports = self.generator.imports
+        assert "import custom_python_functions" in imports
+        assert "from pyspark import cloudpickle as _lhp_cloudpickle" in imports
+        assert "from custom_python_functions.future_sink import FutureSink" in imports
+
+
 class TestSinkWriteGenerator:
     """Test sink write generator dispatcher."""
-    
+
     def setup_method(self):
         """Set up test fixtures."""
         self.generator = SinkWriteGenerator()
-    
+
     def test_dispatch_to_delta(self):
         """Test dispatching to delta generator."""
         action = Action(
@@ -867,17 +986,15 @@ class TestSinkWriteGenerator:
                 "type": "sink",
                 "sink_type": "delta",
                 "sink_name": "delta_sink",
-                "options": {
-                    "tableName": "catalog.schema.table"
-                }
-            }
+                "options": {"tableName": "catalog.schema.table"},
+            },
         )
-        
+
         code = self.generator.generate(action, {})
-        
+
         assert "dp.create_sink" in code
         assert 'format="delta"' in code
-    
+
     def test_dispatch_to_kafka(self):
         """Test dispatching to kafka generator."""
         action = Action(
@@ -889,21 +1006,21 @@ class TestSinkWriteGenerator:
                 "sink_type": "kafka",
                 "sink_name": "kafka_sink",
                 "bootstrap_servers": "localhost:9092",
-                "topic": "test_topic"
-            }
+                "topic": "test_topic",
+            },
         )
-        
+
         code = self.generator.generate(action, {})
-        
+
         assert "dp.create_sink" in code
         assert 'format="kafka"' in code
-    
+
     def test_dispatch_to_custom(self):
         """Test dispatching to custom generator."""
         temp_dir = Path(tempfile.mkdtemp())
         project_root = temp_dir / "test_project"
         project_root.mkdir()
-        
+
         try:
             sink_dir = project_root / "sinks"
             sink_dir.mkdir()
@@ -914,7 +1031,7 @@ class MyCustomDataSink:
     def name(cls):
         return "my_format"
 """)
-            
+
             action = Action(
                 name="write_custom_sink",
                 type=ActionType.WRITE,
@@ -924,24 +1041,27 @@ class MyCustomDataSink:
                     "sink_type": "custom",
                     "sink_name": "custom_sink",
                     "module_path": "sinks/my_sink.py",
-                    "custom_sink_class": "MyCustomDataSink"
-                }
+                    "custom_sink_class": "MyCustomDataSink",
+                },
             )
-            
+
             context = {
-                "spec_dir": project_root
+                "spec_dir": project_root,
+                "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
             }
-            
+
             code = self.generator.generate(action, context)
-            
+
             assert "dp.create_sink" in code
             assert "MyCustomDataSink" in code
-            assert hasattr(self.generator, "custom_sink_code")
-            assert self.generator.custom_sink_code is not None
-        
+
+            assert self.generator.get_pre_pipeline_statements() == [
+                "_lhp_cloudpickle.register_pickle_by_value(custom_python_functions)"
+            ]
+
         finally:
             shutil.rmtree(temp_dir)
-    
+
     def test_unsupported_sink_type(self):
         """Test error when sink_type is unsupported."""
         action = Action(
@@ -951,16 +1071,18 @@ class MyCustomDataSink:
             write_target={
                 "type": "sink",
                 "sink_type": "unknown",
-                "sink_name": "unknown_sink"
-            }
+                "sink_name": "unknown_sink",
+            },
         )
-        
+
         with pytest.raises(ValueError) as exc_info:
             self.generator.generate(action, {})
-        
-        assert "unknown" in str(exc_info.value).lower() or "sink_type" in str(exc_info.value)
+
+        assert "unknown" in str(exc_info.value).lower() or "sink_type" in str(
+            exc_info.value
+        )
         assert "unknown" in str(exc_info.value)
-    
+
     def test_import_merging(self):
         """Test that imports are merged from sub-generators."""
         action = Action(
@@ -971,10 +1093,8 @@ class MyCustomDataSink:
                 "type": "sink",
                 "sink_type": "delta",
                 "sink_name": "delta_sink",
-                "options": {
-                    "tableName": "catalog.schema.table"
-                }
-            }
+                "options": {"tableName": "catalog.schema.table"},
+            },
         )
 
         self.generator.generate(action, {})
@@ -983,12 +1103,12 @@ class MyCustomDataSink:
         assert "from pyspark import pipelines as dp" in imports
         assert "from pyspark.sql import functions as F" in imports
 
-    def test_custom_sink_code_forwarding(self):
-        """Test that custom sink code is forwarded from sub-generator."""
+    def test_dispatcher_forwards_imports_and_pre_pipeline_statements(self):
+        """Dispatcher forwards inner generator's imports + pre-pipeline statements."""
         temp_dir = Path(tempfile.mkdtemp())
         project_root = temp_dir / "test_project"
         project_root.mkdir()
-        
+
         try:
             sink_dir = project_root / "sinks"
             sink_dir.mkdir()
@@ -999,7 +1119,7 @@ class MyCustomDataSink:
     def name(cls):
         return "my_format"
 """)
-            
+
             action = Action(
                 name="write_custom_sink",
                 type=ActionType.WRITE,
@@ -1009,29 +1129,30 @@ class MyCustomDataSink:
                     "sink_type": "custom",
                     "sink_name": "custom_sink",
                     "module_path": "sinks/my_sink.py",
-                    "custom_sink_class": "MyCustomDataSink"
-                }
+                    "custom_sink_class": "MyCustomDataSink",
+                },
             )
-            
+
             context = {
-                "spec_dir": project_root
+                "spec_dir": project_root,
+                "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
             }
-            
+
             self.generator.generate(action, context)
-            
-            assert hasattr(self.generator, "custom_sink_code")
-            assert self.generator.custom_sink_code is not None
-            assert "MyCustomDataSink" in self.generator.custom_sink_code
-            assert hasattr(self.generator, "sink_file_path")
-            assert self.generator.sink_file_path == "sinks/my_sink.py"
+
+            dispatcher_imports = self.generator.imports
+            assert "import custom_python_functions" in dispatcher_imports
+            assert (
+                "from custom_python_functions.my_sink import MyCustomDataSink"
+                in dispatcher_imports
+            )
+
+            assert self.generator.get_pre_pipeline_statements() == [
+                "_lhp_cloudpickle.register_pickle_by_value(custom_python_functions)"
+            ]
 
         finally:
             shutil.rmtree(temp_dir)
-
-
-# ============================================================================
-# Golden Output Tests
-# ============================================================================
 
 
 @pytest.mark.unit
@@ -1128,6 +1249,9 @@ class TestCustomSinkGoldenOutput:
                 "custom_sink_class": "MyCustomDataSink",
             },
         )
-        context = {"spec_dir": tmp_path}
+        context = {
+            "spec_dir": tmp_path,
+            "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
+        }
         code = generator.generate(action, context)
         golden(code, "sink_custom")

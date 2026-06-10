@@ -1,0 +1,890 @@
+{
+  "lhp_version": "v0.8.7",
+  "captured_at": "2026-05-11T12:39:05+00:00",
+  "machine_fingerprint": "Darwin-arm64-py3.12",
+  "fixture": "performance_testing",
+  "runs": 5,
+  "project_shape": {
+    "blueprints": 0,
+    "pipelines_synced": 100,
+    "resource_files_scanned": 0
+  },
+  "metrics": {
+    "category.blueprint_discovery.avg": {
+      "median": 0.168907,
+      "p25": 0.163647,
+      "p75": 0.182352,
+      "unit": "seconds"
+    },
+    "category.blueprint_discovery.cnt": {
+      "median": 1.0,
+      "p25": 1.0,
+      "p75": 1.0,
+      "unit": "count"
+    },
+    "category.blueprint_discovery.total": {
+      "median": 0.168907,
+      "p25": 0.163647,
+      "p75": 0.182352,
+      "unit": "seconds"
+    },
+    "category.bundle_cleanup_orphans.avg": {
+      "median": 0.000302,
+      "p25": 0.000301,
+      "p75": 0.000325,
+      "unit": "seconds"
+    },
+    "category.bundle_cleanup_orphans.cnt": {
+      "median": 1.0,
+      "p25": 1.0,
+      "p75": 1.0,
+      "unit": "count"
+    },
+    "category.bundle_cleanup_orphans.total": {
+      "median": 0.000302,
+      "p25": 0.000301,
+      "p75": 0.000325,
+      "unit": "seconds"
+    },
+    "category.bundle_create_resource.avg": {
+      "median": 0.000995,
+      "p25": 0.000943,
+      "p75": 0.001051,
+      "unit": "seconds"
+    },
+    "category.bundle_create_resource.cnt": {
+      "median": 100.0,
+      "p25": 100.0,
+      "p75": 100.0,
+      "unit": "count"
+    },
+    "category.bundle_create_resource.total": {
+      "median": 0.099455,
+      "p25": 0.094332,
+      "p75": 0.105079,
+      "unit": "seconds"
+    },
+    "category.bundle_existing_files.avg": {
+      "median": 0.00012,
+      "p25": 0.0001,
+      "p75": 0.000165,
+      "unit": "seconds"
+    },
+    "category.bundle_existing_files.cnt": {
+      "median": 1.0,
+      "p25": 1.0,
+      "p75": 1.0,
+      "unit": "count"
+    },
+    "category.bundle_existing_files.total": {
+      "median": 0.00012,
+      "p25": 0.0001,
+      "p75": 0.000165,
+      "unit": "seconds"
+    },
+    "category.bundle_extract_catalog.avg": {
+      "median": 0.001175,
+      "p25": 0.001142,
+      "p75": 0.001541,
+      "unit": "seconds"
+    },
+    "category.bundle_extract_catalog.cnt": {
+      "median": 1.0,
+      "p25": 1.0,
+      "p75": 1.0,
+      "unit": "count"
+    },
+    "category.bundle_extract_catalog.total": {
+      "median": 0.001175,
+      "p25": 0.001142,
+      "p75": 0.001541,
+      "unit": "seconds"
+    },
+    "category.bundle_extract_keys.avg": {
+      "median": 0.00125,
+      "p25": 0.001226,
+      "p75": 0.001285,
+      "unit": "seconds"
+    },
+    "category.bundle_extract_keys.cnt": {
+      "median": 99.0,
+      "p25": 99.0,
+      "p75": 99.0,
+      "unit": "count"
+    },
+    "category.bundle_extract_keys.total": {
+      "median": 0.123776,
+      "p25": 0.121369,
+      "p75": 0.127258,
+      "unit": "seconds"
+    },
+    "category.bundle_find_resource_files.avg": {
+      "median": 0.001614,
+      "p25": 0.00159,
+      "p75": 0.001672,
+      "unit": "seconds"
+    },
+    "category.bundle_find_resource_files.cnt": {
+      "median": 100.0,
+      "p25": 100.0,
+      "p75": 100.0,
+      "unit": "count"
+    },
+    "category.bundle_find_resource_files.total": {
+      "median": 0.161374,
+      "p25": 0.159037,
+      "p75": 0.16722,
+      "unit": "seconds"
+    },
+    "category.bundle_update_databricks_yaml.avg": {
+      "median": 0.014951,
+      "p25": 0.014051,
+      "p75": 0.026043,
+      "unit": "seconds"
+    },
+    "category.bundle_update_databricks_yaml.cnt": {
+      "median": 1.0,
+      "p25": 1.0,
+      "p75": 1.0,
+      "unit": "count"
+    },
+    "category.bundle_update_databricks_yaml.total": {
+      "median": 0.014951,
+      "p25": 0.014051,
+      "p75": 0.026043,
+      "unit": "seconds"
+    },
+    "category.find_source_yaml.avg": {
+      "median": 2e-06,
+      "p25": 2e-06,
+      "p75": 2e-06,
+      "unit": "seconds"
+    },
+    "category.find_source_yaml.cnt": {
+      "median": 4001.0,
+      "p25": 4001.0,
+      "p75": 4001.0,
+      "unit": "count"
+    },
+    "category.find_source_yaml.total": {
+      "median": 0.007497,
+      "p25": 0.006691,
+      "p75": 0.009115,
+      "unit": "seconds"
+    },
+    "category.format_code.avg": {
+      "median": 0.006804,
+      "p25": 0.006545,
+      "p75": 0.007559,
+      "unit": "seconds"
+    },
+    "category.format_code.cnt": {
+      "median": 4001.0,
+      "p25": 4001.0,
+      "p75": 4001.0,
+      "unit": "count"
+    },
+    "category.format_code.total": {
+      "median": 27.222486,
+      "p25": 26.184563,
+      "p75": 30.244034,
+      "unit": "seconds"
+    },
+    "category.generate_code.avg": {
+      "median": 0.08906,
+      "p25": 0.088524,
+      "p75": 0.094779,
+      "unit": "seconds"
+    },
+    "category.generate_code.cnt": {
+      "median": 4001.0,
+      "p25": 4001.0,
+      "p75": 4001.0,
+      "unit": "count"
+    },
+    "category.generate_code.total": {
+      "median": 356.328239,
+      "p25": 354.186337,
+      "p75": 379.209852,
+      "unit": "seconds"
+    },
+    "category.process_flowgroup.avg": {
+      "median": 0.034342,
+      "p25": 0.032985,
+      "p75": 0.03742,
+      "unit": "seconds"
+    },
+    "category.process_flowgroup.cnt": {
+      "median": 4001.0,
+      "p25": 4001.0,
+      "p75": 4001.0,
+      "unit": "count"
+    },
+    "category.process_flowgroup.total": {
+      "median": 137.403075,
+      "p25": 131.971495,
+      "p75": 149.715516,
+      "unit": "seconds"
+    },
+    "count.blueprints": {
+      "median": 0.0,
+      "p25": 0.0,
+      "p75": 0.0,
+      "unit": "count"
+    },
+    "count.pipelines_synced": {
+      "median": 100.0,
+      "p25": 100.0,
+      "p75": 100.0,
+      "unit": "count"
+    },
+    "count.resource_files_scanned": {
+      "median": 0.0,
+      "p25": 0.0,
+      "p75": 0.0,
+      "unit": "count"
+    },
+    "phase.Bundle sync": {
+      "median": 0.283736,
+      "p25": 0.275096,
+      "p75": 0.307249,
+      "unit": "seconds"
+    },
+    "phase.Cleanup operations": {
+      "median": 6e-05,
+      "p25": 4.4e-05,
+      "p75": 7.1e-05,
+      "unit": "seconds"
+    },
+    "phase.Monitoring artifacts": {
+      "median": 0.001994,
+      "p25": 0.001951,
+      "p75": 0.002281,
+      "unit": "seconds"
+    },
+    "phase.Orchestrator init": {
+      "median": 0.017094,
+      "p25": 0.0145,
+      "p75": 0.018989,
+      "unit": "seconds"
+    },
+    "phase.Pipeline discovery": {
+      "median": 5.842102,
+      "p25": 5.796389,
+      "p75": 6.102635,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_a_bronze]": {
+      "median": 1.687454,
+      "p25": 1.647031,
+      "p75": 1.780532,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_a_gold]": {
+      "median": 0.545473,
+      "p25": 0.452019,
+      "p75": 0.578818,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_a_modelled]": {
+      "median": 1.84993,
+      "p25": 1.793091,
+      "p75": 1.939428,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_a_raw]": {
+      "median": 1.467996,
+      "p25": 1.334431,
+      "p75": 1.612256,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_a_silver]": {
+      "median": 2.384081,
+      "p25": 2.267367,
+      "p75": 2.517529,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_b_bronze]": {
+      "median": 1.677683,
+      "p25": 1.648014,
+      "p75": 1.853695,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_b_gold]": {
+      "median": 0.476405,
+      "p25": 0.440791,
+      "p75": 0.502517,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_b_modelled]": {
+      "median": 1.867495,
+      "p25": 1.752107,
+      "p75": 2.038247,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_b_raw]": {
+      "median": 1.460795,
+      "p25": 1.364346,
+      "p75": 1.734138,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_b_silver]": {
+      "median": 2.246637,
+      "p25": 2.235394,
+      "p75": 2.355943,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_c_bronze]": {
+      "median": 1.716872,
+      "p25": 1.602561,
+      "p75": 2.345742,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_c_gold]": {
+      "median": 0.480089,
+      "p25": 0.467527,
+      "p75": 0.581034,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_c_modelled]": {
+      "median": 1.800874,
+      "p25": 1.746084,
+      "p75": 1.88879,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_c_raw]": {
+      "median": 1.466472,
+      "p25": 1.369768,
+      "p75": 1.554401,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_c_silver]": {
+      "median": 2.294536,
+      "p25": 2.136824,
+      "p75": 2.352885,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_d_bronze]": {
+      "median": 1.615369,
+      "p25": 1.591594,
+      "p75": 1.729352,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_d_gold]": {
+      "median": 0.457151,
+      "p25": 0.419322,
+      "p75": 0.587021,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_d_modelled]": {
+      "median": 1.822335,
+      "p25": 1.740091,
+      "p75": 1.861605,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_d_raw]": {
+      "median": 1.358293,
+      "p25": 1.347252,
+      "p75": 1.438999,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_d_silver]": {
+      "median": 2.176452,
+      "p25": 2.134267,
+      "p75": 2.446363,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_e_bronze]": {
+      "median": 1.658664,
+      "p25": 1.595109,
+      "p75": 1.709763,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_e_gold]": {
+      "median": 0.459917,
+      "p25": 0.456395,
+      "p75": 0.497509,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_e_modelled]": {
+      "median": 1.942025,
+      "p25": 1.866334,
+      "p75": 1.974061,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_e_raw]": {
+      "median": 1.425574,
+      "p25": 1.382388,
+      "p75": 1.44006,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_e_silver]": {
+      "median": 2.348452,
+      "p25": 2.264362,
+      "p75": 2.585461,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_f_bronze]": {
+      "median": 1.699028,
+      "p25": 1.558941,
+      "p75": 1.750161,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_f_gold]": {
+      "median": 0.499517,
+      "p25": 0.44952,
+      "p75": 0.570275,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_f_modelled]": {
+      "median": 1.848719,
+      "p25": 1.702236,
+      "p75": 1.906981,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_f_raw]": {
+      "median": 1.446514,
+      "p25": 1.393216,
+      "p75": 1.484896,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_f_silver]": {
+      "median": 2.16433,
+      "p25": 2.107086,
+      "p75": 2.237772,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_g_bronze]": {
+      "median": 1.874192,
+      "p25": 1.72436,
+      "p75": 2.082446,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_g_gold]": {
+      "median": 0.497744,
+      "p25": 0.451995,
+      "p75": 0.53036,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_g_modelled]": {
+      "median": 1.844468,
+      "p25": 1.733982,
+      "p75": 2.006834,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_g_raw]": {
+      "median": 1.387051,
+      "p25": 1.308345,
+      "p75": 1.719357,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_g_silver]": {
+      "median": 2.359733,
+      "p25": 2.296311,
+      "p75": 2.426499,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_h_bronze]": {
+      "median": 1.724598,
+      "p25": 1.639047,
+      "p75": 1.893006,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_h_gold]": {
+      "median": 0.440081,
+      "p25": 0.429953,
+      "p75": 0.503187,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_h_modelled]": {
+      "median": 1.793909,
+      "p25": 1.696409,
+      "p75": 2.028094,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_h_raw]": {
+      "median": 1.438502,
+      "p25": 1.334907,
+      "p75": 1.478141,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_h_silver]": {
+      "median": 2.286125,
+      "p25": 2.161361,
+      "p75": 2.350015,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_i_bronze]": {
+      "median": 1.538287,
+      "p25": 1.495108,
+      "p75": 1.683382,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_i_gold]": {
+      "median": 0.40556,
+      "p25": 0.36479,
+      "p75": 0.453388,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_i_modelled]": {
+      "median": 1.825062,
+      "p25": 1.814649,
+      "p75": 2.020534,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_i_raw]": {
+      "median": 1.286227,
+      "p25": 1.190921,
+      "p75": 1.446322,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_i_silver]": {
+      "median": 2.302152,
+      "p25": 2.274544,
+      "p75": 2.413409,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_j_bronze]": {
+      "median": 1.504535,
+      "p25": 1.45754,
+      "p75": 1.593389,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_j_gold]": {
+      "median": 0.516151,
+      "p25": 0.484172,
+      "p75": 0.529452,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_j_modelled]": {
+      "median": 1.816386,
+      "p25": 1.722367,
+      "p75": 1.92573,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_j_raw]": {
+      "median": 1.223381,
+      "p25": 1.154768,
+      "p75": 1.39349,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_j_silver]": {
+      "median": 2.258832,
+      "p25": 2.194455,
+      "p75": 2.404425,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_k_bronze]": {
+      "median": 1.479827,
+      "p25": 1.444264,
+      "p75": 1.683825,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_k_gold]": {
+      "median": 0.490525,
+      "p25": 0.464534,
+      "p75": 0.514419,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_k_modelled]": {
+      "median": 1.729215,
+      "p25": 1.654561,
+      "p75": 1.835941,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_k_raw]": {
+      "median": 1.243839,
+      "p25": 1.201733,
+      "p75": 1.473744,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_k_silver]": {
+      "median": 2.431865,
+      "p25": 2.284514,
+      "p75": 2.510909,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_l_bronze]": {
+      "median": 1.504942,
+      "p25": 1.426329,
+      "p75": 1.742556,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_l_gold]": {
+      "median": 0.493294,
+      "p25": 0.397678,
+      "p75": 0.538268,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_l_modelled]": {
+      "median": 1.853958,
+      "p25": 1.77121,
+      "p75": 1.909131,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_l_raw]": {
+      "median": 1.202494,
+      "p25": 1.178702,
+      "p75": 1.318786,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_l_silver]": {
+      "median": 2.45482,
+      "p25": 2.317938,
+      "p75": 2.66704,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_m_bronze]": {
+      "median": 1.495213,
+      "p25": 1.47653,
+      "p75": 1.616979,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_m_gold]": {
+      "median": 0.463692,
+      "p25": 0.451969,
+      "p75": 0.568943,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_m_modelled]": {
+      "median": 0.709599,
+      "p25": 0.612594,
+      "p75": 0.749106,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_m_raw]": {
+      "median": 1.301175,
+      "p25": 1.259282,
+      "p75": 1.435578,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_m_silver]": {
+      "median": 1.297268,
+      "p25": 1.148711,
+      "p75": 1.334116,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_n_bronze]": {
+      "median": 1.462082,
+      "p25": 1.407088,
+      "p75": 1.536101,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_n_gold]": {
+      "median": 0.444788,
+      "p25": 0.427824,
+      "p75": 0.51607,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_n_modelled]": {
+      "median": 0.779103,
+      "p25": 0.677947,
+      "p75": 0.869812,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_n_raw]": {
+      "median": 1.380084,
+      "p25": 1.250011,
+      "p75": 1.539495,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_n_silver]": {
+      "median": 1.227566,
+      "p25": 1.165698,
+      "p75": 1.395183,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_o_bronze]": {
+      "median": 1.460412,
+      "p25": 1.420023,
+      "p75": 1.682051,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_o_gold]": {
+      "median": 0.537041,
+      "p25": 0.476549,
+      "p75": 0.551946,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_o_modelled]": {
+      "median": 0.681173,
+      "p25": 0.657956,
+      "p75": 0.761803,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_o_raw]": {
+      "median": 1.284573,
+      "p25": 1.227169,
+      "p75": 1.568752,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_o_silver]": {
+      "median": 1.149571,
+      "p25": 1.122234,
+      "p75": 1.191867,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_p_bronze]": {
+      "median": 1.495357,
+      "p25": 1.483131,
+      "p75": 1.572791,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_p_gold]": {
+      "median": 0.419316,
+      "p25": 0.380947,
+      "p75": 0.451356,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_p_modelled]": {
+      "median": 0.774872,
+      "p25": 0.691825,
+      "p75": 0.836028,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_p_raw]": {
+      "median": 1.318188,
+      "p25": 1.278763,
+      "p75": 1.34001,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_p_silver]": {
+      "median": 1.111958,
+      "p25": 0.960365,
+      "p75": 1.145184,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_q_bronze]": {
+      "median": 1.430002,
+      "p25": 1.363044,
+      "p75": 1.550151,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_q_gold]": {
+      "median": 0.454846,
+      "p25": 0.443083,
+      "p75": 0.51234,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_q_modelled]": {
+      "median": 0.691247,
+      "p25": 0.650273,
+      "p75": 0.805769,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_q_raw]": {
+      "median": 1.285829,
+      "p25": 1.260514,
+      "p75": 1.37925,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_q_silver]": {
+      "median": 1.119324,
+      "p25": 1.100882,
+      "p75": 1.21617,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_r_bronze]": {
+      "median": 1.433586,
+      "p25": 1.335482,
+      "p75": 1.601247,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_r_gold]": {
+      "median": 0.437707,
+      "p25": 0.403181,
+      "p75": 0.462701,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_r_modelled]": {
+      "median": 0.73501,
+      "p25": 0.693452,
+      "p75": 0.764589,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_r_raw]": {
+      "median": 1.305682,
+      "p25": 1.220587,
+      "p75": 1.403267,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_r_silver]": {
+      "median": 1.08957,
+      "p25": 1.02141,
+      "p75": 1.155656,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_s_bronze]": {
+      "median": 1.567302,
+      "p25": 1.42883,
+      "p75": 1.708083,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_s_gold]": {
+      "median": 0.542869,
+      "p25": 0.502813,
+      "p75": 0.614461,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_s_modelled]": {
+      "median": 0.722172,
+      "p25": 0.707661,
+      "p75": 0.732118,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_s_raw]": {
+      "median": 1.286774,
+      "p25": 1.200107,
+      "p75": 1.400594,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_s_silver]": {
+      "median": 1.191578,
+      "p25": 1.149481,
+      "p75": 1.222086,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_t_bronze]": {
+      "median": 1.470703,
+      "p25": 1.34189,
+      "p75": 1.577877,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_t_gold]": {
+      "median": 0.530109,
+      "p25": 0.433636,
+      "p75": 0.612753,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_t_modelled]": {
+      "median": 0.669466,
+      "p25": 0.635125,
+      "p75": 0.726502,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_t_raw]": {
+      "median": 1.306878,
+      "p25": 1.303579,
+      "p75": 1.484518,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [domain_t_silver]": {
+      "median": 1.203033,
+      "p25": 1.100256,
+      "p75": 1.290632,
+      "unit": "seconds"
+    },
+    "phase.Staleness analysis": {
+      "median": 0.000201,
+      "p25": 0.000173,
+      "p75": 0.000205,
+      "unit": "seconds"
+    },
+    "wall_clock": {
+      "median": 138.196521,
+      "p25": 135.584109,
+      "p75": 147.754059,
+      "unit": "seconds"
+    }
+  }
+}

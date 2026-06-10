@@ -13,4 +13,6 @@ actions:
       table: "order_summary_mv"
       sql_path: "sql/gold/order_summary.sql"
       comment: "Gold materialized view: order summary aggregations"
+      cluster_by_auto: true
+      refresh_policy: "incremental"
     description: "Write order summary materialized view to gold schema"

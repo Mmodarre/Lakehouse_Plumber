@@ -2,8 +2,8 @@
 # Pipeline: acmi_edw_silver
 # FlowGroup: nation_silver_dim
 
-from pyspark import pipelines as dp
 from pyspark.sql import functions as F
+from pyspark import pipelines as dp
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_silver"
@@ -35,6 +35,7 @@ dp.create_streaming_table(
     name="acme_edw_dev.edw_silver.nation_dim",
     comment="Streaming table: nation_dim",
     table_properties={"delta.enableRowTracking": "true"},
+    cluster_by_auto=True,
 )
 
 

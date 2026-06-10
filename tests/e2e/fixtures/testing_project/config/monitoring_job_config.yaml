@@ -1,0 +1,9 @@
+# Monitoring job config used by E2E monitoring-variant tests.
+# Flat single-document YAML — no project_defaults wrapper, no job_name key.
+max_concurrent_runs: 1
+performance_target: STANDARD
+queue:
+  enabled: true
+tags:
+  managed_by: lakehouse_plumber
+  environment: ${bundle_target}

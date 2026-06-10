@@ -29,7 +29,7 @@ def v_kafka_orders_raw():
         .option("kafka.sasl.mechanism", "PLAIN")
         .option(
             "kafka.sasl.jaas.config",
-            f"kafkashaded.org.apache.kafka.common.security.plain.PlainLoginModule required username=\"{dbutils.secrets.get(scope='kafka_secrets', key='kafka_api_key')}\" password=\"{dbutils.secrets.get(scope='kafka_secrets', key='kafka_api_secret')}\";",
+            f'kafkashaded.org.apache.kafka.common.security.plain.PlainLoginModule required username="{dbutils.secrets.get(scope="kafka_secrets", key="kafka_api_key")}" password="{dbutils.secrets.get(scope="kafka_secrets", key="kafka_api_secret")}";',
         )
         .option("kafka.ssl.endpoint.identification.algorithm", "https")
         .option("kafka.client.id", "acme-supermarkets-kafka-orders-ingestion")

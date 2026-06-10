@@ -1,0 +1,97 @@
+name: medallion_demo
+version: "1.0"
+description: "Medallion blueprint reusing existing fixture assets (templates, py_functions, presets, expectations) across 3 layers."
+
+parameters:
+  - name: site_name
+    required: true
+    description: "Site identifier; pipeline-name prefix and table-name infix."
+  - name: domain_id
+    required: true
+    description: "Free-form domain identifier; recorded in flowgroup metadata only."
+
+flowgroups:
+
+  # ---- RAW (template) ----
+  - pipeline: acme_edw_bp_raw
+    flowgroup: "%{site_name}_customer_ingestion"
+    #job_name: j_blueprint
+    presets:
+      - default_delta_properties
+    use_template: parquet_ingestion_template
+    template_parameters:
+      table_name: "%{site_name}_customer_raw"
+      landing_folder: "customer/%{site_name}"
+
+  # ---- BRONZE (direct: python transform + DQ + write) ----
+  - pipeline: acme_edw_bp_bronze
+    flowgroup: "%{site_name}_customer_bronze"
+    #job_name: j_blueprint
+    presets:
+      - default_delta_properties
+    actions:
+      - name: load_%{site_name}_customer_raw
+        type: load
+        operational_metadata: ["_processing_timestamp"]
+        readMode: stream
+        source:
+          type: delta
+          database: "{catalog}.{raw_schema}"
+          table: "%{site_name}_customer_raw"
+        target: "v_%{site_name}_customer_raw"
+        description: "Load %{site_name} customer raw stream"
+
+      - name: cleanse_%{site_name}_customer_python
+        type: transform
+        transform_type: python
+        source: "v_%{site_name}_customer_raw"
+        module_path: "py_functions/sample_func.py"
+        function_name: "transform_lrc_data_streaming"
+        readMode: stream
+        parameters:
+          spark: spark
+          parameters: {}
+        target: "v_%{site_name}_customer_cleansed"
+        operational_metadata: ["_processing_timestamp"]
+
+      - name: dq_%{site_name}_customer
+        type: transform
+        transform_type: data_quality
+        source: "v_%{site_name}_customer_cleansed"
+        target: "v_%{site_name}_customer_dqe"
+        readMode: stream
+        expectations_file: "expectations/customer_quality.json"
+        description: "Apply customer DQ checks for %{site_name}"
+
+      - name: write_%{site_name}_customer_bronze
+        type: write
+        source: "v_%{site_name}_customer_dqe"
+        write_target:
+          type: streaming_table
+          database: "{catalog}.{bronze_schema}"
+          table: "%{site_name}_customer"
+          description: "%{site_name} customer bronze (domain %{domain_id})"
+
+  # ---- SILVER (direct: snapshot CDC via py_function) ----
+  - pipeline: acme_edw_bp_silver
+    flowgroup: "%{site_name}_customer_silver"
+    #job_name: j_blueprint
+    presets:
+      - default_delta_properties
+    actions:
+      - name: write_%{site_name}_customer_silver
+        type: write
+        source: "v_%{site_name}_customer_bronze_snapshot"
+        write_target:
+          type: streaming_table
+          database: "{catalog}.{silver_schema}"
+          table: "%{site_name}_customer_dim"
+          mode: "snapshot_cdc"
+          snapshot_cdc_config:
+            source_function:
+              file: "py_functions/partsupp_snapshot_func.py"
+              function: "next_snapshot_and_version"
+            keys: ["customer_id"]
+            stored_as_scd_type: 2
+            track_history_except_column_list:
+              - "_processing_timestamp"

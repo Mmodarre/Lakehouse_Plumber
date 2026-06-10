@@ -2,8 +2,8 @@
 # Pipeline: gold_load
 # FlowGroup: order_summary_mv
 
-from pyspark import pipelines as dp
 from pyspark.sql import DataFrame
+from pyspark import pipelines as dp
 
 # Pipeline Configuration
 PIPELINE_ID = "gold_load"
@@ -19,6 +19,8 @@ FLOWGROUP_ID = "order_summary_mv"
     name="acme_edw_dev.edw_gold.order_summary_mv",
     comment="Gold materialized view: order summary aggregations",
     table_properties={},
+    cluster_by_auto=True,
+    refresh_policy="incremental",
 )
 def order_summary_mv():
     """Write order summary materialized view to gold schema"""

@@ -1,0 +1,20 @@
+# Rich monitoring-job config — used by the monitoring_custom_job_config E2E
+# variant to verify every supported key flows from this file into the generated
+# resources/<pipeline>.job.yml.
+max_concurrent_runs: 2
+performance_target: PERFORMANCE_OPTIMIZED
+queue:
+  enabled: true
+timeout_seconds: 3600
+tags:
+  managed_by: lakehouse_plumber
+  environment: ${bundle_target}
+  purpose: event_log_monitoring
+  team: data-platform
+email_notifications:
+  on_failure:
+    - monitoring-alerts@example.com
+schedule:
+  quartz_cron_expression: "0 0 * * * ?"
+  timezone_id: UTC
+  pause_status: UNPAUSED

@@ -2,7 +2,6 @@
 # Pipeline: acmi_edw_raw
 # FlowGroup: source_schema_load
 
-from pyspark import pipelines as dp
 from pyspark.sql.types import (
     StructType,
     StructField,
@@ -19,6 +18,7 @@ from pyspark.sql.types import (
     ByteType,
     ShortType,
 )
+from pyspark import pipelines as dp
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_raw"
