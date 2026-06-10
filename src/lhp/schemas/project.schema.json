@@ -39,6 +39,30 @@
                 ["*.yaml"]
             ]
         },
+        "blueprint_include": {
+            "type": "array",
+            "description": "List of glob patterns to include when discovering blueprint files (default: ['blueprints/**/*.yaml'])",
+            "items": {
+                "type": "string",
+                "description": "Glob pattern for blueprint files to include"
+            },
+            "examples": [
+                ["blueprints/**/*.yaml"],
+                ["blueprints/erp/*.yaml", "blueprints/cdc/*.yaml"]
+            ]
+        },
+        "instance_include": {
+            "type": "array",
+            "description": "List of glob patterns to include when discovering blueprint instance files (default: ['pipelines/**/*.yaml']). Instance files normally live alongside hand-written flowgroups under pipelines/<system>/<layer>/; the BlueprintDiscoverer routes by content shape, so overlapping patterns with 'include' are safe.",
+            "items": {
+                "type": "string",
+                "description": "Glob pattern for instance files to include"
+            },
+            "examples": [
+                ["pipelines/**/*.yaml"],
+                ["pipelines/halo/**/*.yaml", "pipelines/sap/**/*.yaml"]
+            ]
+        },
         "required_lhp_version": {
             "type": "string",
             "description": "Required LakehousePlumber version range (e.g., '>=0.4.1,<0.5.0')",
@@ -177,6 +201,11 @@
                 "checkpoint_path": {
                     "type": "string",
                     "description": "Base path for streaming checkpoints. Each pipeline gets a subdirectory: {checkpoint_path}/{pipeline_name}/"
+                },
+                "job_config_path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Relative path (from project root) to the dedicated monitoring job config YAML. Required when monitoring.enabled is true (enforced at validation time)."
                 },
                 "max_concurrent_streams": {
                     "type": "integer",

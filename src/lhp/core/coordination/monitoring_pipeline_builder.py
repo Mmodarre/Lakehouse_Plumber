@@ -1,0 +1,452 @@
+"""Builder for synthetic event log monitoring pipeline.
+
+Constructs two artifacts:
+1. A standalone notebook with N independent streaming queries (one per pipeline
+   event log) that append into a user-created Delta table.
+2. A DLT FlowGroup with materialized views only, reading from that Delta table.
+
+A Databricks Workflow job chains: notebook_task (union) → pipeline_task (MVs).
+"""
+
+# JUSTIFIED: this builder is a single cohesive responsibility — assembling
+# monitoring pipelines (DLT event-log + custom monitoring tables) from a
+# project configuration and a set of standalone source pipelines. Its 528
+# lines cover the full multi-step build pipeline (validation → SQL emission →
+# action wiring → flowgroup emission) and splitting along any axis would
+# scatter the build invariants across files. Re-evaluate when the bundle
+# manifest assembler reaches feature parity.
+# TODO(Phase 9.1): decompose into MonitoringSqlEmitter + MonitoringFlowgroupBuilder + MonitoringJobWriter as part of the orchestrator bootstrap-service extraction; see LOCAL/REMAINING_WORK.md §9.
+
+import logging
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from lhp.models import (
+    Action,
+    ActionType,
+    FlowGroup,
+    FlowGroupContext,
+    MonitoringConfig,
+    ProjectConfig,
+)
+
+from ...errors import ErrorFactory, codes
+from ..loaders.external_file_loader import load_external_file_text
+
+logger = logging.getLogger(__name__)
+
+
+def resolve_monitoring_pipeline_name(
+    project_config: Optional[ProjectConfig],
+) -> Optional[str]:
+    """Return the synthetic monitoring pipeline name if monitoring is enabled.
+
+    Returns ``None`` when ``project_config`` is missing, when monitoring is
+    absent or disabled, or when monitoring is enabled without an explicit
+    ``pipeline_name`` and ``project_config.name`` is unavailable. Otherwise
+    returns the configured ``monitoring.pipeline_name`` or the default
+    ``{project_config.name}_event_log_monitoring``.
+    """
+    if not project_config:
+        return None
+    monitoring = getattr(project_config, "monitoring", None)
+    if not monitoring or not monitoring.enabled:
+        return None
+    if monitoring.pipeline_name:
+        return str(monitoring.pipeline_name)
+    return f"{project_config.name}_event_log_monitoring"
+
+
+# Default MV SQL: pipeline run summary with status, duration, and row metrics
+DEFAULT_MV_SQL = """\
+WITH run_info AS (
+    SELECT
+        origin.pipeline_name,
+        origin.pipeline_id,
+        origin.update_id,
+        MIN(`timestamp`) AS run_start_time,
+        MAX(`timestamp`) AS run_end_time,
+        MAX_BY(
+            CASE WHEN event_type = 'update_progress'
+                THEN details:update_progress:state::STRING END,
+            CASE WHEN event_type = 'update_progress'
+                THEN `timestamp` END
+        ) AS run_status
+    FROM {streaming_table}
+    GROUP BY origin.pipeline_name, origin.pipeline_id, origin.update_id
+),
+run_metrics AS (
+    SELECT
+        origin.pipeline_name,
+        origin.update_id,
+        SUM(COALESCE(details:flow_progress:metrics:num_upserted_rows::BIGINT, 0))
+          AS total_upserted_rows,
+        SUM(COALESCE(details:flow_progress:metrics:num_deleted_rows::BIGINT, 0))
+          AS total_deleted_rows,
+        SUM(COALESCE(details:flow_progress:data_quality:dropped_records::BIGINT, 0))
+          AS total_dropped_records,
+        COUNT(DISTINCT origin.flow_name) AS tables_processed
+    FROM {streaming_table}
+    WHERE event_type = 'flow_progress'
+      AND details:flow_progress:metrics IS NOT NULL
+    GROUP BY origin.pipeline_name, origin.update_id
+),
+run_config AS (
+    SELECT
+        origin.pipeline_name,
+        origin.update_id,
+        MAX(details:create_update:runtime_version:dbr_version::STRING) AS dbr_version,
+        MAX(CASE WHEN details:create_update:config:serverless::BOOLEAN
+            THEN 'Serverless' ELSE 'Classic' END) AS compute_type,
+        MAX(details:create_update:cause::STRING) AS trigger_cause,
+        MAX(details:create_update:full_refresh::BOOLEAN) AS is_full_refresh
+    FROM {streaming_table}
+    WHERE event_type = 'create_update'
+    GROUP BY origin.pipeline_name, origin.update_id
+)
+SELECT
+    ri.pipeline_name,
+    ri.pipeline_id,
+    ri.update_id,
+    ri.run_status,
+    rc.trigger_cause,
+    rc.is_full_refresh,
+    rc.dbr_version,
+    rc.compute_type,
+    ri.run_start_time,
+    ri.run_end_time,
+    ROUND((unix_timestamp(ri.run_end_time) - unix_timestamp(ri.run_start_time)) / 60, 2)
+      AS duration_minutes,
+    COALESCE(rm.tables_processed, 0) AS tables_processed,
+    COALESCE(rm.total_upserted_rows, 0) AS total_upserted_rows,
+    COALESCE(rm.total_deleted_rows, 0) AS total_deleted_rows,
+    COALESCE(rm.total_upserted_rows, 0) + COALESCE(rm.total_deleted_rows, 0)
+      AS total_rows_affected,
+    COALESCE(rm.total_dropped_records, 0) AS total_dropped_records
+FROM run_info ri
+LEFT JOIN run_metrics rm
+  ON ri.pipeline_name = rm.pipeline_name AND ri.update_id = rm.update_id
+LEFT JOIN run_config rc
+  ON ri.pipeline_name = rc.pipeline_name AND ri.update_id = rc.update_id
+ORDER BY ri.run_start_time DESC\
+"""
+
+JOBS_STATS_MODULE_PATH = "jobs_stats_loader.py"
+JOBS_STATS_FUNCTION_NAME = "get_jobs_stats"
+JOBS_STATS_VIEW_NAME = "v_jobs_stats"
+JOBS_STATS_TABLE_NAME = "jobs_stats"
+
+try:
+    from importlib.resources import files
+except ImportError:
+    import importlib_resources
+
+    files = importlib_resources.files
+
+
+def _load_jobs_stats_source() -> str:
+    resource = files("lhp.templates.monitoring") / "jobs_stats_loader.py"
+    return resource.read_text(encoding="utf-8")
+
+
+@dataclass
+class MonitoringBuildResult:
+    """Result of building the monitoring pipeline artifacts.
+
+    Attributes:
+        context: FlowGroupContext envelope wrapping the MVs-only DLT pipeline
+            FlowGroup, or None when no MVs.
+        template_context: Raw context dict for the notebook template
+            (rendered after substitution tokens are resolved).
+        eligible_pipelines: Pipeline names included in the monitoring notebook.
+        pipeline_name: Monitoring pipeline name (needed even when context is None).
+    """
+
+    context: Optional[FlowGroupContext]
+    template_context: Dict[str, Any]
+    eligible_pipelines: List[str] = field(default_factory=list)
+    pipeline_name: str = ""
+
+    @property
+    def flowgroup(self) -> Optional[FlowGroup]:
+        """Backward-compatible accessor for the wrapped FlowGroup."""
+        return self.context.flowgroup if self.context is not None else None
+
+
+class MonitoringPipelineBuilder:
+    """Builds monitoring pipeline artifacts: a notebook + an MVs-only DLT FlowGroup.
+
+    The monitoring pipeline produces two artifacts:
+    1. A standalone notebook with N independent streaming queries (one per event log
+       source), each with its own checkpoint, using trigger(availableNow=True).
+    2. A DLT FlowGroup containing only materialized views that read from the
+       user-created Delta table populated by the notebook.
+    """
+
+    def __init__(
+        self,
+        project_config: ProjectConfig,
+        pipeline_config_loader: Optional[Any] = None,
+        project_root: Optional[Path] = None,
+    ) -> None:
+        self.project_config = project_config
+        self.pipeline_config_loader = pipeline_config_loader
+        self.project_root = project_root
+
+    @property
+    def monitoring_config(self) -> Optional[MonitoringConfig]:
+        return self.project_config.monitoring
+
+    @property
+    def pipeline_name(self) -> str:
+        if self.monitoring_config and self.monitoring_config.pipeline_name:
+            return self.monitoring_config.pipeline_name
+        return f"{self.project_config.name}_event_log_monitoring"
+
+    def should_build(self) -> bool:
+        """True if monitoring is present, enabled, and event_log is enabled."""
+        if not self.monitoring_config:
+            return False
+        if not self.monitoring_config.enabled:
+            return False
+        event_log = self.project_config.event_log
+        if not event_log or not event_log.enabled:
+            return False
+        return True
+
+    def get_event_log_pipeline_names(self, all_pipeline_names: List[str]) -> List[str]:
+        """Filter pipelines to those that actually have event_log enabled.
+
+        Replicates BundleManager._inject_project_event_log logic:
+        - Exclude pipelines with event_log: false in pipeline_config
+        - Exclude the monitoring pipeline itself
+        - Include all others (project-level injection applies)
+
+        For pipelines with custom event_log dicts: include but use project-level
+        naming convention + emit warning (V1 simplification).
+        """
+        monitoring_name = self.pipeline_name
+        eligible: List[str] = []
+
+        for name in all_pipeline_names:
+            if name == monitoring_name:
+                continue
+
+            # Check pipeline-level config for opt-outs
+            if self.pipeline_config_loader:
+                pipeline_cfg = self.pipeline_config_loader.get_pipeline_config(name)
+                pipeline_event_log = pipeline_cfg.get("event_log")
+
+                if pipeline_event_log is False:
+                    logger.debug(
+                        f"Pipeline '{name}' opted out of event_log, "
+                        f"excluding from monitoring"
+                    )
+                    continue
+
+                if isinstance(pipeline_event_log, dict):
+                    logger.warning(
+                        f"Pipeline '{name}' has custom event_log config. "
+                        f"V1 monitoring uses project-level naming convention."
+                    )
+
+            eligible.append(name)
+
+        return eligible
+
+    def _get_event_log_table_ref(self, pipeline_name: str) -> str:
+        """Build the fully-qualified event log table reference for a pipeline.
+
+        Uses project-level event_log config for catalog, schema, prefix, suffix.
+        """
+        event_log = self.project_config.event_log
+        assert event_log is not None  # Caller ensures this
+
+        catalog = event_log.catalog or ""
+        schema = event_log.schema_ or ""
+        name = f"{event_log.name_prefix}{pipeline_name}{event_log.name_suffix}"
+
+        return f"{catalog}.{schema}.{name}"
+
+    def _resolve_catalog_schema(self) -> tuple:
+        """Resolve catalog and schema; monitoring config overrides event_log defaults."""
+        event_log = self.project_config.event_log
+        assert event_log is not None
+
+        catalog = event_log.catalog or ""
+        schema = event_log.schema_ or ""
+
+        if self.monitoring_config:
+            if self.monitoring_config.catalog:
+                catalog = self.monitoring_config.catalog
+            if self.monitoring_config.schema_:
+                schema = self.monitoring_config.schema_
+
+        return catalog, schema
+
+    def _build_python_load_action(self) -> Action:
+        return Action(
+            name="load_jobs_stats",
+            type=ActionType.LOAD,
+            source={
+                "type": "python",
+                "module_path": JOBS_STATS_MODULE_PATH,
+                "function_name": JOBS_STATS_FUNCTION_NAME,
+            },
+            target=JOBS_STATS_VIEW_NAME,
+            description="Python source: load_jobs_stats",
+        )
+
+    def _build_jobs_stats_write_action(self, catalog: str, schema: str) -> Action:
+        """Materialized view (not streaming table) — Python SDK source returns batch data."""
+        return Action(
+            name="write_jobs_stats",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "materialized_view",
+                "catalog": catalog or "",
+                "schema": schema or "",
+                "table": JOBS_STATS_TABLE_NAME,
+                "sql": f"SELECT * FROM {JOBS_STATS_VIEW_NAME}",
+            },
+        )
+
+    def _build_mv_action(
+        self, mv_name: str, sql: str, catalog: str, schema: str
+    ) -> Action:
+        return Action(
+            name=f"mv_{mv_name}",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "materialized_view",
+                "catalog": catalog or "",
+                "schema": schema or "",
+                "table": mv_name,
+                "sql": sql,
+            },
+        )
+
+    def _resolve_mv_sql(
+        self, mv_name: str, sql: Optional[str], sql_path: Optional[str]
+    ) -> str:
+        """Resolve SQL for a materialized view from inline string or external file."""
+        if sql:
+            return sql
+
+        if sql_path:
+            if not self.project_root:
+                raise ErrorFactory.config_error(
+                    codes.CFG_008,
+                    title="Cannot resolve sql_path without project root",
+                    details=(
+                        f"Materialized view '{mv_name}' uses sql_path but "
+                        f"project_root was not provided to the builder."
+                    ),
+                    suggestions=["This is an internal error; please report it."],
+                )
+            return load_external_file_text(
+                sql_path, self.project_root, f"monitoring MV '{mv_name}' SQL file"
+            )
+
+        # Neither sql nor sql_path — should not happen after validation
+        return ""
+
+    def _get_default_mv_sql(self, target_table_fqn: str) -> str:
+        return DEFAULT_MV_SQL.format(streaming_table=target_table_fqn)
+
+    def build(self, all_pipeline_names: List[str]) -> Optional[MonitoringBuildResult]:
+        """Build complete monitoring artifacts; returns ``None`` if not applicable."""
+        if not self.should_build():
+            return None
+
+        assert self.monitoring_config is not None
+
+        eligible_pipelines = sorted(
+            self.get_event_log_pipeline_names(all_pipeline_names)
+        )
+
+        if not eligible_pipelines:
+            logger.warning(
+                "Monitoring enabled but no pipelines have event_log. "
+                "Skipping monitoring pipeline generation."
+            )
+            return None
+
+        logger.info(
+            f"Building monitoring pipeline '{self.pipeline_name}' "
+            f"for {len(eligible_pipelines)} pipeline(s): {eligible_pipelines}"
+        )
+
+        catalog, schema = self._resolve_catalog_schema()
+        target_fqn = f"{catalog}.{schema}.{self.monitoring_config.streaming_table}"
+
+        # Build actions (MVs only — no SQL load, no streaming table write)
+        actions: List[Action] = []
+
+        if self.monitoring_config.enable_job_monitoring:
+            actions.append(self._build_python_load_action())
+            actions.append(self._build_jobs_stats_write_action(catalog, schema))
+
+        if self.monitoring_config.materialized_views is not None:
+            # User-specified MVs (can be empty list = no MVs)
+            for mv_config in self.monitoring_config.materialized_views:
+                mv_sql = self._resolve_mv_sql(
+                    mv_config.name, mv_config.sql, mv_config.sql_path
+                )
+                actions.append(
+                    self._build_mv_action(mv_config.name, mv_sql, catalog, schema)
+                )
+        else:
+            default_sql = self._get_default_mv_sql(target_fqn)
+            actions.append(
+                self._build_mv_action("events_summary", default_sql, catalog, schema)
+            )
+
+        # Build FlowGroup + envelope (None when no actions — e.g. materialized_views: [])
+        ctx: Optional[FlowGroupContext] = None
+        if actions:
+            fg = FlowGroup(
+                pipeline=self.pipeline_name,
+                flowgroup="monitoring",
+                actions=actions,
+            )
+            auxiliary_files: Dict[str, str] = {}
+            if self.monitoring_config.enable_job_monitoring:
+                auxiliary_files[JOBS_STATS_MODULE_PATH] = _load_jobs_stats_source()
+            ctx = FlowGroupContext(
+                flowgroup=fg,
+                source_yaml=None,
+                synthetic=True,
+                auxiliary_files=auxiliary_files,
+            )
+
+        # Build template context (rendering deferred until substitutions resolved)
+        # Use lists (not tuples) so SubstitutionManager._substitute_recursive handles them
+        sources = [
+            [name, self._get_event_log_table_ref(name)] for name in eligible_pipelines
+        ]
+        template_context: Dict[str, Any] = {
+            "sources": sources,
+            "target_fqn": target_fqn,
+            "checkpoint_path": self.monitoring_config.checkpoint_path,
+            "max_concurrent_streams": self.monitoring_config.max_concurrent_streams,
+        }
+
+        return MonitoringBuildResult(
+            context=ctx,
+            template_context=template_context,
+            eligible_pipelines=eligible_pipelines,
+            pipeline_name=self.pipeline_name,
+        )
+
+    def build_flowgroup(self, all_pipeline_names: List[str]) -> Optional[FlowGroup]:
+        """Backward-compatible wrapper: returns just the FlowGroup.
+
+        Prefer build() for new code — it also returns the notebook content
+        and eligible pipeline list.
+        """
+        result = self.build(all_pipeline_names)
+        if result is None:
+            return None
+        return result.flowgroup
