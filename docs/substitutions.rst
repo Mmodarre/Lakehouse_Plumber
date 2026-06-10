@@ -140,10 +140,9 @@ reviews and approvals easier.
 - ``${secret:scope_alias/key}`` - Uses specific scope alias (resolved to actual Databricks scope)
 - ``${secret:key}`` - Uses default_scope if configured
 
-.. note::
-   Scope aliases (like ``database_secrets``) are mapped to actual Databricks secret scope
-   names (like ``dev_db_secrets``) in the substitution file. This provides flexibility
-   to use different scope names across environments while keeping pipeline definitions portable.
+Scope aliases (like ``database_secrets``) are mapped to actual Databricks secret scope
+names (like ``dev_db_secrets``) in the substitution file. This provides flexibility to
+use different scope names across environments while keeping pipeline definitions portable.
 
 
 File Substitution Support
@@ -305,13 +304,22 @@ LakehousePlumber supports multiple substitution syntaxes for different purposes:
      table_name: customer
    # In template: table: "{{ table_name }}"
 
-.. note::
-   **Syntax Distinction:**
+**Syntax Distinction:**
 
-   - ``%{var}`` = Local variable (flowgroup-scoped)
-   - ``${token}`` = Environment substitution
-   - ``${secret:scope/key}`` = Secret reference
-   - ``{{ parameter }}`` = Template parameter (Jinja2)
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Syntax
+     - Meaning
+   * - ``%{var}``
+     - Local variable (flowgroup-scoped)
+   * - ``${token}``
+     - Environment substitution
+   * - ``${secret:scope/key}``
+     - Secret reference
+   * - ``{{ parameter }}``
+     - Template parameter (Jinja2)
 
 .. warning::
    **Legacy syntax:** The bare ``{token}`` form (without ``$``) is still supported for
@@ -323,13 +331,12 @@ LakehousePlumber supports multiple substitution syntaxes for different purposes:
    breaking your code. The ``${token}`` syntax avoids this entirely because ``${}`` is
    not valid Python f-string syntax. Use ``${token}`` in all new configurations.
 
-.. note::
-   **Processing Order:**
+**Processing Order:**
 
-   1. **Local variables** (``%{var}``) are resolved first within the flowgroup
-   2. **Template parameters** (``{{ }}``) are resolved when templates are applied
-   3. **Environment substitutions** (``${ }``) are resolved at generation time
-   4. **Secret references** (``${secret:}``) are converted to ``dbutils.secrets.get()`` calls
+1. **Local variables** (``%{var}``) are resolved first within the flowgroup
+2. **Template parameters** (``{{ }}``) are resolved when templates are applied
+3. **Environment substitutions** (``${ }``) are resolved at generation time
+4. **Secret references** (``${secret:}``) are converted to ``dbutils.secrets.get()`` calls
 
 .. warning::
    **Python Code Context:** When using LHP substitution tokens inside external Python

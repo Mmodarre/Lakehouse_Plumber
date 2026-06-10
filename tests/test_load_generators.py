@@ -2,6 +2,7 @@
 
 import pytest
 
+from lhp.core.processing.substitution import EnhancedSubstitutionManager
 from lhp.generators.load import (
     CloudFilesLoadGenerator,
     DeltaLoadGenerator,
@@ -9,15 +10,11 @@ from lhp.generators.load import (
     PythonLoadGenerator,
     SQLLoadGenerator,
 )
-from lhp.models.config import Action, ActionType, FlowGroup
-from lhp.utils.substitution import EnhancedSubstitutionManager
+from lhp.models import Action, ActionType, FlowGroup
 
 
 class TestLoadGenerators:
-    """Test load action generators."""
-
     def test_cloudfiles_generator(self):
-        """Test CloudFiles load generator."""
         generator = CloudFilesLoadGenerator()
         action = Action(
             name="load_raw_files",
@@ -36,7 +33,6 @@ class TestLoadGenerators:
 
         code = generator.generate(action, {})
 
-        # Verify generated code
         assert "@dp.temporary_view()" in code
         assert "v_raw_files" in code
         assert "spark.readStream" in code
@@ -44,7 +40,6 @@ class TestLoadGenerators:
         assert 'multiLine", "true"' in code
 
     def test_delta_generator(self):
-        """Test Delta load generator with basic options."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_customers",
@@ -64,7 +59,6 @@ class TestLoadGenerators:
 
         code = generator.generate(action, {})
 
-        # Verify generated code
         assert "@dp.temporary_view()" in code
         assert "v_customers" in code
         assert "spark.readStream" in code
@@ -74,7 +68,6 @@ class TestLoadGenerators:
         assert "select([" in code
 
     def test_sql_generator(self):
-        """Test SQL load generator."""
         generator = SQLLoadGenerator()
         action = Action(
             name="load_metrics",
@@ -85,14 +78,16 @@ class TestLoadGenerators:
 
         code = generator.generate(action, {})
 
-        # Verify generated code
         assert "@dp.temporary_view()" in code
         assert "v_metrics" in code
         assert "spark.sql" in code
         assert "SELECT * FROM metrics" in code
 
     def test_jdbc_generator_with_secrets(self):
-        """Test JDBC load generator with secret substitution generates valid Python code."""
+        """JDBC load generator emits ``__SECRET_scope_key__`` placeholders, not bare
+        ``dbutils.secrets.get(...)`` calls — conversion happens later in the post-pass
+        (``CodeGenerationService._apply_secret_substitutions``).
+        """
         generator = JDBCLoadGenerator()
         substitution_mgr = EnhancedSubstitutionManager()
         substitution_mgr.default_secret_scope = "db_secrets"
@@ -113,26 +108,23 @@ class TestLoadGenerators:
 
         code = generator.generate(action, {"substitution_manager": substitution_mgr})
 
-        # The generator should produce placeholders, not f-strings (conversion happens in orchestrator)
-        # Check for placeholder patterns
-        assert (
-            "__SECRET_db_host__" in code or "__SECRET_database_secrets_host__" in code
-        )
-        assert (
-            "__SECRET_db_username__" in code
-            or "__SECRET_database_secrets_username__" in code
-        )
-        assert (
-            "__SECRET_db_password__" in code
-            or "__SECRET_database_secrets_password__" in code
-        )
+        assert "__SECRET_db_host__" in code
+        assert "__SECRET_db_username__" in code
+        assert "__SECRET_db_password__" in code
 
-        # Verify placeholder patterns are in the expected format
+        # No ${secret:...} tokens leak through — substitution did run.
+        assert "${secret:" not in code
+
+        # Bare dbutils calls are NOT emitted at the generator layer; post-pass runs later.
+        assert "dbutils.secrets.get" not in code
+
         assert "jdbc:postgresql://" in code
-        assert '"__SECRET_' in code or "'__SECRET_" in code
 
-        # Most importantly, verify the generated code is syntactically valid
-        compile(code, "<string>", "exec")
+        # References were captured on the manager for the post-pass to consume.
+        scopes_keys = {(r.scope, r.key) for r in substitution_mgr.secret_references}
+        assert ("db", "host") in scopes_keys
+        assert ("db", "username") in scopes_keys
+        assert ("db", "password") in scopes_keys
 
     def test_jdbc_url_with_quotes_escaped(self):
         """Test JDBC generator with URLs containing quotes."""
@@ -155,10 +147,7 @@ class TestLoadGenerators:
 
         code = generator.generate(action, {})
 
-        # Check that quotes in URL are escaped
         assert '\\"true\\"' in code or 'encrypt=\\"true\\"' in code
-
-        # Verify generated code is syntactically valid
         compile(code, "<string>", "exec")
 
     def test_jdbc_values_with_backslashes_escaped(self):
@@ -181,7 +170,6 @@ class TestLoadGenerators:
 
         code = generator.generate(action, {})
 
-        # Check that backslashes are escaped
         assert "\\\\data\\\\database" in code or r"C:\\data\\database" in code
 
         # Verify no SyntaxWarning
@@ -212,7 +200,6 @@ class TestLoadGenerators:
 
         code = generator.generate(action, {})
 
-        # Verify valid Python syntax
         compile(code, "<string>", "exec")
 
     def test_jdbc_table_name_with_special_chars(self):
@@ -236,10 +223,7 @@ class TestLoadGenerators:
 
         code = generator.generate(action, {})
 
-        # Check that quotes in table name are escaped
         assert '\\"schema\\"' in code and '\\"table_name\\"' in code
-
-        # Verify valid Python
         compile(code, "<string>", "exec")
 
     def test_python_generator(self, tmp_path):
@@ -269,7 +253,6 @@ class TestLoadGenerators:
 
         code = generator.generate(action, context)
 
-        # Verify generated code
         assert "@dp.temporary_view()" in code
         assert "v_custom_data" in code
         assert "load_custom_data(spark, parameters)" in code
@@ -281,10 +264,7 @@ class TestLoadGenerators:
 
 
 class TestDeltaLoadOptions:
-    """Comprehensive tests for Delta load options feature."""
-
     def test_delta_stream_with_multiple_options(self):
-        """Test Delta streaming load with multiple options."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_orders",
@@ -306,7 +286,6 @@ class TestDeltaLoadOptions:
 
         code = generator.generate(action, {})
 
-        # Verify all options are rendered
         assert '.option("readChangeFeed", "true")' in code
         assert '.option("startingTimestamp", "2018-10-18")' in code
         assert '.option("ignoreDeletes", True)' in code
@@ -314,7 +293,6 @@ class TestDeltaLoadOptions:
         assert "catalog.bronze.orders" in code
 
     def test_delta_batch_with_options(self):
-        """Test Delta batch load with options."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_snapshot",
@@ -332,13 +310,11 @@ class TestDeltaLoadOptions:
 
         code = generator.generate(action, {})
 
-        # Verify batch mode and options
         assert "spark.read" in code
         assert "spark.readStream" not in code
         assert '.option("versionAsOf", "10")' in code
 
     def test_delta_option_value_types(self):
-        """Test different option value types: boolean, number, string."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_test",
@@ -358,13 +334,11 @@ class TestDeltaLoadOptions:
 
         code = generator.generate(action, {})
 
-        # Verify proper rendering of different types
         assert '.option("ignoreDeletes", True)' in code
         assert '.option("maxFilesPerTrigger", 100)' in code
         assert '.option("startingVersion", "0")' in code
 
     def test_delta_options_with_where_and_select(self):
-        """Test options combined with where_clause and select_columns."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_filtered",
@@ -384,7 +358,6 @@ class TestDeltaLoadOptions:
 
         code = generator.generate(action, {})
 
-        # Verify options work with other features
         assert '.option("readChangeFeed", "true")' in code
         assert "where(\"status = 'active'\")" in code
         assert "select([" in code
@@ -407,13 +380,11 @@ class TestDeltaLoadOptions:
 
         code = generator.generate(action, {})
 
-        # Verify basic load works without options
         assert "spark.readStream" in code
         assert ".table(" in code
         assert ".option(" not in code
 
     def test_delta_removed_cdf_enabled_raises_error(self):
-        """Test that using removed cdf_enabled field raises error."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_error",
@@ -429,7 +400,6 @@ class TestDeltaLoadOptions:
         assert "readChangeFeed" in str(exc_info.value)
 
     def test_delta_removed_read_change_feed_raises_error(self):
-        """Test that using removed read_change_feed field raises error."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_error",
@@ -445,7 +415,6 @@ class TestDeltaLoadOptions:
         assert "removed" in str(exc_info.value)
 
     def test_delta_removed_reader_options_raises_error(self):
-        """Test that using removed reader_options field raises error."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_error",
@@ -465,7 +434,6 @@ class TestDeltaLoadOptions:
         assert "removed" in str(exc_info.value)
 
     def test_delta_removed_cdc_options_raises_error(self):
-        """Test that using removed cdc_options field raises error."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_error",
@@ -485,7 +453,6 @@ class TestDeltaLoadOptions:
         assert "removed" in str(exc_info.value)
 
     def test_delta_option_none_value_raises_error(self):
-        """Test that None option value raises error."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_error",
@@ -505,7 +472,6 @@ class TestDeltaLoadOptions:
         assert "invalid value" in str(exc_info.value)
 
     def test_delta_option_empty_string_raises_error(self):
-        """Test that empty string option value raises error."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_error",
@@ -547,7 +513,6 @@ class TestDeltaLoadOptions:
         assert "str" in str(exc_info.value)
 
     def test_delta_batch_cdf_without_starting_bound_raises(self):
-        """Test that batch CDF without starting bound raises error."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_error",
@@ -593,7 +558,6 @@ class TestDeltaLoadOptions:
         )
 
     def test_delta_batch_cdf_with_starting_version(self):
-        """Test batch CDF with startingVersion works."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_batch_cdf",
@@ -617,7 +581,6 @@ class TestDeltaLoadOptions:
         assert '.option("startingVersion", "5")' in code
 
     def test_delta_batch_cdf_with_starting_timestamp(self):
-        """Test batch CDF with startingTimestamp works."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_batch_cdf_ts",
@@ -643,7 +606,6 @@ class TestDeltaLoadOptions:
         assert '.option("startingTimestamp", "2024-01-01")' in code
 
     def test_delta_batch_cdf_with_ending_bounds(self):
-        """Test batch CDF with starting and ending version bounds works."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_batch_range",
@@ -670,7 +632,6 @@ class TestDeltaLoadOptions:
         assert '.option("endingVersion", "20")' in code
 
     def test_delta_cdf_plus_skip_raises(self):
-        """Test that readChangeFeed + skipChangeCommits raises error."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_conflict",
@@ -691,7 +652,6 @@ class TestDeltaLoadOptions:
         assert "skipChangeCommits" in str(exc_info.value)
 
     def test_delta_cdf_plus_version_as_of_raises(self):
-        """Test that readChangeFeed + versionAsOf raises error."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_conflict",
@@ -712,7 +672,6 @@ class TestDeltaLoadOptions:
         assert "versionAsOf" in str(exc_info.value)
 
     def test_delta_cdf_plus_timestamp_as_of_raises(self):
-        """Test that readChangeFeed + timestampAsOf raises error."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_conflict",
@@ -733,7 +692,6 @@ class TestDeltaLoadOptions:
         assert "timestampAsOf" in str(exc_info.value)
 
     def test_delta_starting_version_plus_timestamp_raises(self):
-        """Test that startingVersion + startingTimestamp raises error."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_conflict",
@@ -754,7 +712,6 @@ class TestDeltaLoadOptions:
         assert "startingTimestamp" in str(exc_info.value)
 
     def test_delta_version_as_of_plus_timestamp_as_of_raises(self):
-        """Test that versionAsOf + timestampAsOf raises error."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_conflict",
@@ -775,7 +732,6 @@ class TestDeltaLoadOptions:
         assert "timestampAsOf" in str(exc_info.value)
 
     def test_delta_ending_version_with_stream_raises(self):
-        """Test that endingVersion + stream mode raises error."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_conflict",
@@ -796,7 +752,6 @@ class TestDeltaLoadOptions:
         assert "stream" in str(exc_info.value)
 
     def test_delta_ending_timestamp_with_stream_raises(self):
-        """Test that endingTimestamp + stream mode raises error."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_conflict",
@@ -817,7 +772,6 @@ class TestDeltaLoadOptions:
         assert "stream" in str(exc_info.value)
 
     def test_delta_skip_change_commits_alone_works(self):
-        """Test that skipChangeCommits without readChangeFeed works in stream mode."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_skip",
@@ -839,7 +793,6 @@ class TestDeltaLoadOptions:
         assert '.option("skipChangeCommits", "true")' in code
 
     def test_delta_options_combined_features(self):
-        """Test options work combined with where clause and select."""
         generator = DeltaLoadGenerator()
         action = Action(
             name="load_combined",
@@ -859,7 +812,6 @@ class TestDeltaLoadOptions:
 
         code = generator.generate(action, {})
 
-        # Verify options work with other features
         assert '.option("readChangeFeed", "true")' in code
         assert '.option("ignoreDeletes", True)' in code
         assert "where(\"date > '2024-01-01'\")" in code
@@ -867,21 +819,12 @@ class TestDeltaLoadOptions:
 
 
 def test_generator_imports():
-    """Test that generators manage imports correctly."""
-    # Load generator
     load_gen = CloudFilesLoadGenerator()
     assert "from pyspark import pipelines as dp" in load_gen.imports
 
 
-# ============================================================================
-# Golden Output Tests
-# ============================================================================
-
-
 @pytest.mark.unit
 class TestCloudFilesGoldenOutput:
-    """Golden output test for CloudFiles load generator."""
-
     def test_cloudfiles_golden(self, golden):
         generator = CloudFilesLoadGenerator()
         action = Action(
@@ -901,8 +844,6 @@ class TestCloudFilesGoldenOutput:
 
 @pytest.mark.unit
 class TestDeltaGoldenOutput:
-    """Golden output test for Delta load generator."""
-
     def test_delta_golden(self, golden):
         generator = DeltaLoadGenerator()
         action = Action(
@@ -923,8 +864,6 @@ class TestDeltaGoldenOutput:
 
 @pytest.mark.unit
 class TestSQLGoldenOutput:
-    """Golden output test for SQL load generator."""
-
     def test_sql_golden(self, golden):
         generator = SQLLoadGenerator()
         action = Action(
@@ -939,8 +878,6 @@ class TestSQLGoldenOutput:
 
 @pytest.mark.unit
 class TestJDBCGoldenOutput:
-    """Golden output test for JDBC load generator."""
-
     def test_jdbc_golden(self, golden):
         generator = JDBCLoadGenerator()
         action = Action(
@@ -962,8 +899,6 @@ class TestJDBCGoldenOutput:
 
 @pytest.mark.unit
 class TestPythonGoldenOutput:
-    """Golden output test for Python load generator."""
-
     def test_python_golden(self, golden, tmp_path):
         # Provide a real .py file — generator now hard-requires this.
         (tmp_path / "custom_loaders.py").write_text(

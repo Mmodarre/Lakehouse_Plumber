@@ -3,33 +3,30 @@ repos:
     rev: v5.0.0
     hooks:
       - id: trailing-whitespace
+        files: ^(src|tests)/
+        exclude: ^(tests/e2e/fixtures/|tests/fixtures/import_manager/|tests/baselines/|tests/performance/baselines/)
       - id: end-of-file-fixer
+        files: ^(src|tests)/
+        exclude: ^(tests/e2e/fixtures/|tests/fixtures/import_manager/|tests/baselines/|tests/performance/baselines/)
       - id: check-yaml
       - id: check-added-large-files
         args: ['--maxkb=500']
       - id: check-merge-conflict
-
-  - repo: https://github.com/psf/black
-    rev: 26.3.1
-    hooks:
-      - id: black
-
-  - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
-    hooks:
-      - id: isort
-
-  - repo: https://github.com/pycqa/flake8
-    rev: 7.1.1
-    hooks:
-      - id: flake8
-        args: ['--config=.flake8']
 
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0
     hooks:
       - id: detect-secrets
         args: ['--baseline', '.secrets.baseline']
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.13.3
+    hooks:
+      - id: ruff
+        args: ['--fix', '--exit-non-zero-on-fix']
+        files: ^(src|tests)/.*\.py$
+      - id: ruff-format
+        files: ^(src|tests)/.*\.py$
 
   - repo: local
     hooks:
@@ -39,3 +36,40 @@ repos:
         language: system
         pass_filenames: false
         files: ^(src/lhp/resources/skills/lhp/|\.claude/skills/lhp/)
+
+      - id: check-file-sizes
+        name: Constitution §3.3/§9.3 — file size limits
+        entry: python scripts/check_file_sizes.py
+        language: system
+        files: \.py$
+        exclude: ^(tests/e2e/fixtures/|src/lhp/resources/|.*\.jinja2$)
+
+      - id: check-placement
+        name: Constitution §2/§9 — placement rules (validators, utils, CLI imports, facade reach-through, _by_field)
+        entry: python scripts/check_placement.py
+        language: system
+        files: \.py$
+        exclude: ^(tests/e2e/fixtures/|src/lhp/resources/)
+
+      - id: check-codegen-inline
+        name: Constitution §9.14 — no inline f-string codegen >20 lines in generators/
+        entry: python scripts/check_codegen_inline.py
+        language: system
+        files: ^src/lhp/generators/.*\.py$
+
+      - id: check-stability-drift
+        name: "Constitution §1.13/§4.11 — stability annotations on lhp.api"
+        entry: python scripts/check_stability_drift.py
+        language: system
+        files: ^src/lhp/api/.*\.py$
+
+      - id: check-docs
+        name: "Docs Constitution — admonition palette / terminology / meta (changed RST)"
+        entry: python scripts/check_docs.py
+        language: system
+        files: ^docs/.*\.rst$
+
+  - repo: https://github.com/seddonym/import-linter
+    rev: v2.11
+    hooks:
+      - id: import-linter

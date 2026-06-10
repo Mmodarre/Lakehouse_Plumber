@@ -1,0 +1,70 @@
+import pytest
+
+from lhp.generators.test import UniquenessTestGenerator
+from lhp.models import Action, ActionType
+
+
+class TestUniquenessFilter:
+    def test_action_model_accepts_filter(self):
+        action = Action(
+            name="test_active_unique",
+            type=ActionType.TEST,
+            test_type="uniqueness",
+            source="customer_dim",
+            columns=["customer_id"],
+            filter="__END_AT IS NULL",  # Optional filter field
+        )
+
+        assert action.filter == "__END_AT IS NULL"
+        assert action.name == "test_active_unique"
+        assert action.columns == ["customer_id"]
+
+    def test_action_model_filter_is_optional(self):
+        # backward compatibility: filter defaults to None
+        action = Action(
+            name="test_unique",
+            type=ActionType.TEST,
+            test_type="uniqueness",
+            source="customer_table",
+            columns=["id"],
+        )
+
+        assert action.filter is None
+        assert action.name == "test_unique"
+        assert action.columns == ["id"]
+
+    def test_filter_with_complex_conditions(self):
+        action = Action(
+            name="test_complex_filter",
+            type=ActionType.TEST,
+            test_type="uniqueness",
+            source="products",
+            columns=["product_code", "region"],
+            filter="status = 'ACTIVE' AND effective_date <= current_date() AND region IN ('US', 'EU')",
+        )
+
+        assert (
+            action.filter
+            == "status = 'ACTIVE' AND effective_date <= current_date() AND region IN ('US', 'EU')"
+        )
+
+    def test_end_to_end_with_filter(self):
+        action = Action(
+            name="test_customer_active",
+            type=ActionType.TEST,
+            test_type="uniqueness",
+            source="silver.customer_dim",
+            columns=["customer_id"],
+            filter="is_current = true",
+            on_violation="fail",
+        )
+
+        generator = UniquenessTestGenerator()
+        code = generator.generate(action=action, context={})
+
+        assert "from pyspark import pipelines as dp" in code
+        assert "@dp.expect_all_or_fail" in code
+        assert "WHERE is_current = true" in code
+        assert "GROUP BY customer_id" in code
+        assert "no_duplicates" in code
+        assert "duplicate_count == 0" in code

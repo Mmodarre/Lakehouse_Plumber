@@ -1,0 +1,15 @@
+# Intentionally missing catalog/schema for fail-fast tests.
+#
+# - No `project_defaults` block (or one that omits catalog/schema).
+# - No per-pipeline catalog/schema for `simple_pipeline`.
+#
+# Under post-refactor behavior, `lhp generate --env dev` must raise
+# BundleResourceError and the CLI must exit non-zero with stderr
+# referencing docs/configure_catalog_schema.rst.
+
+project_defaults:
+  serverless: true
+
+---
+pipeline: simple_pipeline
+serverless: true

@@ -1,0 +1,142 @@
+import logging
+from typing import List
+
+from lhp.models import Action, ActionType, LoadSourceType
+
+from ....errors import LHPError
+from .._base import BaseActionValidator, ValidationError
+
+logger = logging.getLogger(__name__)
+
+
+class LoadActionValidator(BaseActionValidator):
+    def validate(self, action: Action, prefix: str) -> List[ValidationError]:
+        logger.debug(f"Validating load action '{action.name}'")
+        errors = []
+
+        if not action.target:
+            errors.append(f"{prefix}: Load actions must have a 'target' view name")
+
+        if not action.source:
+            errors.append(f"{prefix}: Load actions must have a 'source' configuration")
+            return errors
+
+        if not isinstance(action.source, dict):
+            errors.append(
+                f"{prefix}: Load action source must be a configuration object"
+            )
+            return errors
+
+        source_type = action.source.get("type")
+        if not source_type:
+            errors.append(f"{prefix}: Load action source must have a 'type' field")
+            return errors
+
+        if not self.action_registry.is_generator_available(
+            ActionType.LOAD, source_type
+        ):
+            errors.append(f"{prefix}: Unknown load source type '{source_type}'")
+            return errors
+
+        try:
+            self.field_validator.validate_load_source(action.source, action.name)
+        except LHPError as e:
+            errors.append(e)
+            return errors
+        except Exception as e:
+            errors.append(str(e))
+            return errors
+
+        errors.extend(self._validate_source_type(action, prefix, source_type))
+
+        return errors
+
+    def _validate_source_type(
+        self, action: Action, prefix: str, source_type: str
+    ) -> List[str]:
+        logger.debug(
+            f"Validating source type '{source_type}' for action '{action.name}'"
+        )
+        errors = []
+
+        try:
+            load_type = LoadSourceType(source_type)
+
+            if load_type == LoadSourceType.CLOUDFILES:
+                errors.extend(self._validate_cloudfiles_source(action, prefix))
+            elif load_type == LoadSourceType.DELTA:
+                errors.extend(self._validate_delta_source(action, prefix))
+            elif load_type == LoadSourceType.JDBC:
+                errors.extend(self._validate_jdbc_source(action, prefix))
+            elif load_type == LoadSourceType.PYTHON:
+                errors.extend(self._validate_python_source(action, prefix))
+            elif load_type == LoadSourceType.KAFKA:
+                errors.extend(self._validate_kafka_source(action, prefix))
+
+        except ValueError as e:
+            logger.debug(f"Unrecognized load source type for '{action.name}': {e}")
+            # Already handled above
+
+        return errors
+
+    def _validate_cloudfiles_source(self, action: Action, prefix: str) -> List[str]:
+        errors = []
+        if not action.source.get("path"):
+            errors.append(f"{prefix}: CloudFiles source must have 'path'")
+        if not action.source.get("format"):
+            errors.append(f"{prefix}: CloudFiles source must have 'format'")
+        return errors
+
+    def _validate_delta_source(self, action: Action, prefix: str) -> List[str]:
+        errors = []
+        if not action.source.get("catalog"):
+            errors.append(f"{prefix}: Delta source must have 'catalog'")
+        if not action.source.get("schema"):
+            errors.append(f"{prefix}: Delta source must have 'schema'")
+        if not action.source.get("table"):
+            errors.append(f"{prefix}: Delta source must have 'table'")
+        return errors
+
+    def _validate_jdbc_source(self, action: Action, prefix: str) -> List[str]:
+        errors = []
+        required_fields = ["url", "user", "password", "driver"]
+        for field in required_fields:
+            if not action.source.get(field):
+                errors.append(f"{prefix}: JDBC source must have '{field}'")
+
+        if not action.source.get("query") and not action.source.get("table"):
+            errors.append(f"{prefix}: JDBC source must have either 'query' or 'table'")
+
+        return errors
+
+    def _validate_python_source(self, action: Action, prefix: str) -> List[str]:
+        errors = []
+        if not action.source.get("module_path"):
+            errors.append(f"{prefix}: Python source must have 'module_path'")
+        return errors
+
+    def _validate_kafka_source(self, action: Action, prefix: str) -> List[str]:
+        errors = []
+
+        if not action.source.get("bootstrap_servers"):
+            errors.append(f"{prefix}: Kafka source must have 'bootstrap_servers'")
+
+        # Exactly one of subscribe/subscribePattern/assign must be provided.
+        subscription_methods = [
+            action.source.get("subscribe"),
+            action.source.get("subscribePattern"),
+            action.source.get("assign"),
+        ]
+
+        provided_methods = [m for m in subscription_methods if m is not None]
+
+        if len(provided_methods) == 0:
+            errors.append(
+                f"{prefix}: Kafka source must have one of: 'subscribe', 'subscribePattern', or 'assign'"
+            )
+        elif len(provided_methods) > 1:
+            errors.append(
+                f"{prefix}: Kafka source can only have ONE of: 'subscribe', 'subscribePattern', or 'assign'"
+            )
+
+        return errors

@@ -6,7 +6,7 @@ Presets Reference
    :description: Define and apply presets to standardize table properties, data quality, and operational metadata across pipelines.
 
 Overview
-========
+--------
 
 Presets provide reusable configuration defaults that are automatically merged with
 explicit configurations in your FlowGroups and Templates. They enable consistent
@@ -27,10 +27,10 @@ where ``source.type == "cloudfiles"``. No conditional logic or explicit matching
 is required.
 
 Preset Structure
-================
+----------------
 
 Basic Structure
----------------
+~~~~~~~~~~~~~~~
 
 .. code-block:: yaml
    :caption: Basic preset structure
@@ -62,13 +62,13 @@ Basic Structure
 - **extends**: Parent preset name for inheritance
 
 Configuration Defaults
-=======================
+-----------------------
 
 Load Actions
-------------
+~~~~~~~~~~~~
 
 CloudFiles Defaults
-~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: yaml
    :caption: presets/cloudfiles_defaults.yaml
@@ -112,10 +112,10 @@ the generated code contains ALL options:
    )
 
 Write Actions
--------------
+~~~~~~~~~~~~~
 
 Streaming Table Defaults
-~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: yaml
    :caption: presets/bronze_layer.yaml
@@ -154,10 +154,10 @@ Streaming Table Defaults
    )
 
 Preset Application
-==================
+------------------
 
 How Presets Match Actions
---------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Presets use **implicit type-based matching**:
 
@@ -176,7 +176,7 @@ No ``when`` conditions or explicit selectors are needed. The system automaticall
 applies the appropriate defaults based on action types.
 
 Precedence Rules
-----------------
+~~~~~~~~~~~~~~~~
 
 When the same configuration is defined at multiple levels:
 
@@ -186,7 +186,7 @@ When the same configuration is defined at multiple levels:
 4. **Template preset** (lowest precedence)
 
 Merge Behavior
---------------
+~~~~~~~~~~~~~~
 
 **Deep Merge for Nested Objects:**
 
@@ -221,10 +221,10 @@ Options and properties are deep-merged, not replaced:
    .option("ignoreCorruptFiles", "true")
 
 Usage Examples
-==============
+--------------
 
 Template with Preset
----------------------
+~~~~~~~~~~~~~~~~~~~~~
 
 Templates can include presets that apply to all generated actions:
 
@@ -252,7 +252,7 @@ Templates can include presets that apply to all generated actions:
        target: "v_{{ table_name }}_raw"
 
 Flowgroup with Multiple Presets
---------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 FlowGroups can apply multiple presets in order:
 
@@ -285,7 +285,7 @@ FlowGroups can apply multiple presets in order:
          table: "customers"
 
 Preset Inheritance
-------------------
+~~~~~~~~~~~~~~~~~~
 
 Presets can extend other presets:
 
@@ -316,7 +316,7 @@ Presets can extend other presets:
            ignoreCorruptFiles: "true"
 
 Best Practices
-==============
+--------------
 
 1. **Structure Correctly**
 
@@ -353,10 +353,10 @@ Best Practices
    Verify preset + explicit configs merge correctly by inspecting generated code
 
 Common Patterns
-===============
+---------------
 
 Error Handling Preset
----------------------
+~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: yaml
    :caption: presets/error_handling.yaml
@@ -374,7 +374,7 @@ Error Handling Preset
            cloudFiles.rescuedDataColumn: "_rescued_data"
 
 Bronze Layer Preset
--------------------
+~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: yaml
    :caption: presets/bronze_layer.yaml
@@ -393,7 +393,7 @@ Bronze Layer Preset
            quality: "bronze"
 
 Performance Tuning Preset
---------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: yaml
    :caption: presets/performance_tuning.yaml
@@ -410,10 +410,10 @@ Performance Tuning Preset
            cloudFiles.useStrictGlobber: "false"
 
 Troubleshooting
-===============
+---------------
 
 Preset Options Not Appearing
------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Problem:** Preset options don't appear in generated code
 
@@ -443,7 +443,7 @@ Preset Options Not Appearing
    Look at the ``.option()`` calls in generated Python files to confirm merge
 
 Property Conflicts
-------------------
+~~~~~~~~~~~~~~~~~~
 
 **Problem:** Explicit config value being ignored
 
@@ -453,7 +453,7 @@ Property Conflicts
 remove the explicit configuration.
 
 Preset Not Found Error
------------------------
+~~~~~~~~~~~~~~~~~~~~~~~
 
 **Problem:** ``ValueError: Preset 'my_preset' not found``
 
@@ -464,7 +464,7 @@ Preset Not Found Error
 3. Ensure preset file has ``.yaml`` extension
 
 Limitations
-===========
+-----------
 
 **No Conditional Logic:**
 
@@ -485,7 +485,7 @@ Preset merge is deep for nested dictionaries, but not for:
 - Scalar values (explicit value wins on conflict)
 
 Summary
-=======
+-------
 
 **Key Takeaways:**
 
@@ -498,7 +498,7 @@ Summary
 
 **Related Documentation:**
 
-- :doc:`concepts` - Presets overview and basic examples
+- :doc:`architecture` - Presets overview and basic examples
 - :doc:`templates_reference` - Template documentation
 - :doc:`actions/index` - Action configuration reference
 

@@ -3,10 +3,11 @@
 import logging
 from pathlib import Path
 
-from ...core.base_generator import BaseActionGenerator
-from ...models.config import Action
-from ...utils.error_formatter import ErrorFormatter
-from ...utils.external_file_loader import load_external_file_text
+from lhp.errors import ErrorFactory
+from lhp.models import Action
+
+from ...core.loaders.external_file_loader import load_external_file_text
+from ...core.registry import BaseActionGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -19,10 +20,8 @@ class SQLLoadGenerator(BaseActionGenerator):
         self.add_import("from pyspark import pipelines as dp")
 
     def generate(self, action: Action, context: dict) -> str:
-        """Generate SQL load code."""
         source_config = action.source
 
-        # Get SQL query
         if isinstance(source_config, str):
             sql_query = source_config
             logger.debug(
@@ -39,7 +38,7 @@ class SQLLoadGenerator(BaseActionGenerator):
                 source_config, context.get("spec_dir"), context
             )
         else:
-            raise ErrorFormatter.invalid_source_format(
+            raise ErrorFactory.invalid_source_format(
                 action_name=action.name,
                 action_type="sql load",
                 expected_formats=[
@@ -49,7 +48,6 @@ class SQLLoadGenerator(BaseActionGenerator):
                 ],
             )
 
-        # Handle operational metadata
         add_operational_metadata, metadata_columns = self._get_operational_metadata(
             action, context
         )
@@ -67,15 +65,16 @@ class SQLLoadGenerator(BaseActionGenerator):
         return self.render_template("load/sql.py.j2", template_context)
 
     def _get_sql_query(
-        self, source_config: dict, spec_dir: Path = None, context: dict = None
+        self,
+        source_config: dict,
+        spec_dir: Path | None = None,
+        context: dict | None = None,
     ) -> str:
-        """Extract SQL query from configuration."""
         sql_content = None
 
         if "sql" in source_config:
             sql_content = source_config["sql"]
         elif "sql_path" in source_config:
-            # Use common utility for file loading
             project_root = (
                 context.get("project_root", Path.cwd())
                 if context
@@ -85,7 +84,7 @@ class SQLLoadGenerator(BaseActionGenerator):
                 source_config["sql_path"], project_root, file_type="SQL file"
             ).strip()
         else:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="sql/sql_path",
                 component_type="SQL load action",
                 component_name="sql source config",
@@ -96,13 +95,11 @@ class SQLLoadGenerator(BaseActionGenerator):
   sql_path: "queries/my_query.sql" """,
             )
 
-        # Apply substitutions to the SQL content if substitution_manager is available
         if context and "substitution_manager" in context:
             substitution_mgr = context["substitution_manager"]
             sql_content = substitution_mgr._process_string(sql_content)
 
-            # Track secret references if they exist
-            secret_refs = substitution_mgr.get_secret_references()
+            secret_refs = substitution_mgr.secret_references
             if (
                 "secret_references" in context
                 and context["secret_references"] is not None

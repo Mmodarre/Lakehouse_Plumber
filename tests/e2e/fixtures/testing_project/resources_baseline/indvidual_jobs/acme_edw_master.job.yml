@@ -7,29 +7,53 @@ resources:
       name: acme_edw_master
       max_concurrent_runs: 1
       tasks:
-        - task_key: _default_task
-          depends_on:
-            - task_key: j_three_task
-            - task_key: j_two_task
+        - task_key: j_blueprint_task
           job_task:
-            job_id: ${resources.jobs._default.id}
+            job_id: ${resources.jobs.j_blueprint.id}
+        - task_key: j_cdc_task
+          job_task:
+            job_id: ${resources.jobs.j_cdc.id}
         - task_key: j_four_task
           depends_on:
             - task_key: j_three_task
           job_task:
             job_id: ${resources.jobs.j_four.id}
+        - task_key: j_helpers_task
+          job_task:
+            job_id: ${resources.jobs.j_helpers.id}
+        - task_key: j_jdbc_task
+          job_task:
+            job_id: ${resources.jobs.j_jdbc.id}
+        - task_key: j_namespace_task
+          depends_on:
+            - task_key: j_three_task
+            - task_key: j_two_task
+          job_task:
+            job_id: ${resources.jobs.j_namespace.id}
         - task_key: j_nine_task
           job_task:
             job_id: ${resources.jobs.j_nine.id}
         - task_key: j_one_task
           job_task:
             job_id: ${resources.jobs.j_one.id}
+        - task_key: j_python_load_task
+          job_task:
+            job_id: ${resources.jobs.j_python_load.id}
         - task_key: j_seven_task
           job_task:
             job_id: ${resources.jobs.j_seven.id}
+        - task_key: j_sinks_task
+          job_task:
+            job_id: ${resources.jobs.j_sinks.id}
         - task_key: j_six_task
           job_task:
             job_id: ${resources.jobs.j_six.id}
+        - task_key: j_temp_table_task
+          job_task:
+            job_id: ${resources.jobs.j_temp_table.id}
+        - task_key: j_test_actions_task
+          job_task:
+            job_id: ${resources.jobs.j_test_actions.id}
         - task_key: j_three_task
           depends_on:
             - task_key: j_two_task

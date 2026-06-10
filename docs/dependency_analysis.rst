@@ -12,7 +12,7 @@ orchestration job generation for Databricks.
 Overview
 --------
 
-Lakehouse Plumber analyzes your FlowGroup YAML files to build a comprehensive dependency graph that shows:
+Lakehouse Plumber analyzes your :term:`FlowGroup` YAML files to build a comprehensive dependency graph that shows:
 
 - **Pipeline Dependencies**: Which pipelines depend on others
 - **Execution Stages**: The optimal order for running pipelines
@@ -43,7 +43,11 @@ Dependencies are automatically detected by analyzing:
 
 - **Table References**: SQL queries that reference tables from other pipelines
 - **Python Functions**: Custom transformations that read from pipeline outputs
-- **CDC Snapshots**: Slowly Changing Dimension patterns with source functions
+  (including ``spark.read``/``readStream`` table and relational-format reads)
+- **CDC Snapshots**: :term:`Slowly Changing Dimension <SCD>` patterns with source functions
+- **Delta Sinks**: a ``sink_type: delta`` write registers its target table, so
+  downstream reads of it form internal edges
+- **Explicit Declarations**: edges declared with the ``depends_on`` action field
 
 External Sources
 ~~~~~~~~~~~~~~~~
@@ -81,8 +85,7 @@ How Dependencies Are Resolved
 ------------------------------
 
 Transforms may reference earlier views (or tables) via the ``source`` field.
-LHP's resolver builds a DAG, checks for cycles, and ensures downstream
-FlowGroups regenerate when upstream definitions change.
+LHP's resolver builds a DAG and checks for cycles.
 
 **Dependency resolution process:**
 
@@ -90,7 +93,6 @@ FlowGroups regenerate when upstream definitions change.
 2. **Build dependency graph** — Create directed acyclic graph (DAG) of dependencies
 3. **Cycle detection** — Prevent circular dependencies that would cause runtime errors
 4. **Topological ordering** — Generate actions in correct execution order
-5. **Change propagation** — Mark downstream FlowGroups for regeneration when dependencies change
 
 **Example dependency chain:**
 
@@ -118,6 +120,75 @@ FlowGroups regenerate when upstream definitions change.
        source: v_clean_data  # ← Dependency
        target: v_aggregated
 
+How Table References Are Matched
+--------------------------------
+
+The analyzer matches a read ``source`` against the table that another action
+produces by **canonical value**, not by surface syntax. Before comparison, each
+table reference is normalized: lowercased, with backticks and surrounding
+whitespace stripped from every dotted part. So ``` `MyCat`.`MySchema`.`Orders` ```,
+``MYCAT.MYSCHEMA.ORDERS``, and ``mycat.myschema.orders`` all match the same
+producer.
+
+**Two-part and three-part references.** A two-part ``schema.table`` source
+matches a three-part ``catalog.schema.table`` producer only when the producing
+catalog is **unambiguous**. If two or more catalogs each register a producer for
+the same ``schema.table``, the reference is ambiguous and is treated as an
+external source rather than forming a phantom cross-catalog edge. (Tables are
+global; pipeline-scoped views are matched separately.)
+
+**What registers as a producer.** A ``streaming_table`` or
+``materialized_view`` write registers its ``write_target`` catalog / schema /
+table as a producer. A ``type: sink`` write with ``sink_type: delta`` registers
+its ``options.tableName``, so a downstream action that reads that table forms an
+**internal** dependency edge. Sinks without a Delta table target —
+``kafka``, ``custom`` (ForEachBatch), and Delta sinks writing to a ``path`` —
+register **no** producer; they are terminal/external by design, and reads of
+those destinations stay external.
+
+.. note::
+   Dependency analysis does **not** resolve substitution tokens. A source
+   written with a token (for example ``${catalog}.sales.orders``) does not match
+   a producer written as a concrete literal (``acme_prod.sales.orders``), and
+   vice versa — they are compared as the literal strings authored in the YAML.
+   To declare an edge across a token boundary, author both sides as literals or
+   use :ref:`depends-on` below.
+
+.. _depends-on:
+
+Declaring Dependencies Explicitly with ``depends_on``
+-----------------------------------------------------
+
+Some edges cannot be parsed from SQL or Python sources — for example a table
+referenced only through a token, built dynamically at runtime, or read by an
+idiom the parser does not recognize. The optional ``depends_on`` field is the
+escape hatch for these cases. It is available on **any** action and takes a list
+of upstream table references:
+
+.. code-block:: yaml
+   :caption: Declaring an unparseable upstream edge
+
+   actions:
+     - name: build_summary
+       type: transform
+       transform_type: python
+       source: v_orders
+       module_path: "transforms/build_summary.py"
+       function_name: run
+       depends_on:
+         - acme_prod.reference.exchange_rates   # catalog.schema.table
+         - staging.late_arriving_dim            # schema.table
+       target: v_summary
+
+``depends_on`` is **additive**: its entries always contribute edges *on top of*
+whatever the parser already extracts from the action's SQL or Python source — it
+never replaces parsed dependencies.
+
+Each entry must be a well-formed table reference: a non-empty string of at most
+three dot-separated parts (``catalog.schema.table``, ``schema.table``, or
+``table``) with no blank parts. A malformed entry raises
+:ref:`LHP-VAL-063 <lhp-val-063>`.
+
 How ``lhp deps`` Extracts Dependencies from Python Code
 --------------------------------------------------------
 
@@ -129,11 +200,19 @@ analyzes the Python source to extract table references from Spark calls.
 **Calls the parser recognizes:**
 
 - ``spark.table("cat.sch.t")``
-- ``spark.read.table("cat.sch.t")``
+- ``spark.read.table("cat.sch.t")`` and ``spark.readStream.table("cat.sch.t")``
+- ``spark.read.format("delta"|"iceberg"|"hive"|"unity_catalog").table("cat.sch.t")``
+  and ``.load("cat.sch.t")`` — including the ``readStream`` variants — whenever
+  the table name is statically resolvable.
 - ``spark.catalog.tableExists("cat.sch.t")``
 - ``spark.catalog.dropTempView("cat.sch.t")``
 - ``spark.sql("...")`` — the SQL string is parsed, and any table references
   inside are extracted.
+
+Only the relational-table formats ``delta``, ``iceberg``, ``hive``, and
+``unity_catalog`` register a dependency. ``cloudFiles`` (Auto Loader) reads and
+``custom_datasource`` reads remain external roots — they are entry points into
+the project, not edges within it.
 
 The parser also follows local variable bindings inside direct table calls::
 
@@ -159,12 +238,16 @@ The parser also follows local variable bindings inside direct table calls::
   ``table``, ``bronze_schema``, ``silver_schema``, ``gold_schema``,
   ``migration_schema``, ``old_schema``). The placeholder is preserved in the
   extracted source name.
+- String concatenation via ``+`` and ``"{}.{}".format(...)`` chains, **when
+  every operand is itself statically resolvable**. Each side is resolved
+  recursively and combined; if any operand is unresolvable, the whole
+  expression is dropped.
 
 **What the parser cannot resolve:**
 
 - Function parameters (the value depends on the caller).
 - Function return values (``tbl = get_name()``).
-- String concatenation via ``+`` or ``.format()``.
+- String concatenation or ``.format()`` where any operand is non-static.
 - Class attributes (``self.tbl``, class-body bindings seen from methods).
 - Loop variables.
 - ``nonlocal`` / ``global`` declarations.
@@ -390,7 +473,7 @@ Generating Jobs
 Generated Job Structure
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-The generated job YAML follows Databricks Asset Bundle format:
+The generated job YAML follows Declarative Automation Bundles format:
 
 .. code-block:: yaml
    :caption: resources/data_warehouse_etl.job.yml
@@ -482,12 +565,12 @@ Create a ``job_config.yaml`` file to customize job settings:
    lhp deps --format job --job-config config/job_config.yaml --bundle-output
 
 .. seealso::
-   For complete job configuration options, see :doc:`databricks_bundles`.
+   For complete job configuration options, see :doc:`bundle_config_reference`.
 
 Integration with Databricks Bundles
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The generated job integrates seamlessly with Databricks Asset Bundles:
+The generated job integrates seamlessly with Declarative Automation Bundles:
 
 .. code-block:: bash
 
@@ -627,7 +710,7 @@ CLI Quick Reference
 Related Documentation
 ---------------------
 
-* :doc:`databricks_bundles` - Bundle integration and configuration
-* :doc:`concepts` - Understanding pipelines and flowgroups
-* :doc:`cicd_reference` - CI/CD patterns and deployment workflows
+* :doc:`bundle_config_reference` - Bundle integration and configuration
+* :doc:`architecture` - Understanding pipelines and flowgroups
+* :doc:`cicd` - CI/CD patterns and deployment workflows
 * :doc:`cli` - Complete CLI command reference

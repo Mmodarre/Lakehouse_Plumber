@@ -1,0 +1,22 @@
+# Minimal flowgroup for fail-fast fixture variant.
+# A single load action with a hardcoded path so that any failure observed
+# during generation comes from the missing catalog/schema in
+# pipeline_config.yaml, not from upstream YAML or substitution issues.
+pipeline: simple_pipeline
+flowgroup: simple_flow
+
+actions:
+  - name: load_static
+    type: load
+    source:
+      type: sql
+      sql: "SELECT 1 AS dummy"
+    target: v_simple_raw
+
+  - name: write_static
+    type: write
+    source: v_simple_raw
+    write_target:
+      type: streaming_table
+      database: "main.default"
+      table: "simple_target"

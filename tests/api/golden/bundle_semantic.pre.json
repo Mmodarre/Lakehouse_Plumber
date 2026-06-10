@@ -1,0 +1,59 @@
+{
+  "BundleConfigurationError": {
+    "category": "CFG",
+    "code": "LHP-CFG-025",
+    "context": {},
+    "details": "missing bundle name",
+    "suggestions": [
+      "Check your databricks.yml structure",
+      "Verify all required fields are present",
+      "Run 'lhp validate' for detailed diagnostics"
+    ],
+    "title": "Bundle configuration error"
+  },
+  "BundleResourceError": {
+    "category": "CFG",
+    "code": "LHP-CFG-020",
+    "context": {
+      "Operation": "test_op",
+      "Original Error": "RuntimeError"
+    },
+    "details": "test message\nOriginal error: orig error",
+    "suggestions": [
+      "Check your databricks.yml configuration",
+      "Verify bundle resource files are valid YAML",
+      "Run 'lhp validate' to check configuration"
+    ],
+    "title": "Bundle resource error during test_op"
+  },
+  "TemplateError": {
+    "category": "CFG",
+    "code": "LHP-CFG-024",
+    "context": {
+      "Operation": "test_op",
+      "Original Error": "RuntimeError"
+    },
+    "details": "template fetch failed\nOriginal error: network error",
+    "suggestions": [
+      "Check your internet connection if downloading templates",
+      "Verify the template path or URL is correct",
+      "Try running the command again"
+    ],
+    "title": "Bundle template error during test_op"
+  },
+  "YAMLProcessingError": {
+    "category": "CFG",
+    "code": "LHP-CFG-021",
+    "context": {
+      "File": "resources/lhp/x.yml",
+      "Line": "10"
+    },
+    "details": "Failed to process YAML in 'resources/lhp/x.yml': YAML processing error in resources/lhp/x.yml: bad yaml (line 10)\nContext: line context\nOriginal error: parse error\nContext: line context",
+    "suggestions": [
+      "Check YAML syntax (indentation, colons, dashes)",
+      "Validate the file with a YAML linter",
+      "Ensure the file is not corrupted or truncated"
+    ],
+    "title": "Bundle YAML processing error"
+  }
+}
