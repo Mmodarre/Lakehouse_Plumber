@@ -87,10 +87,6 @@ class TestBlueprintE2E:
         self.generated_dir.mkdir(parents=True, exist_ok=True)
         self.resources_dir.mkdir(parents=True, exist_ok=True)
 
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
     def run_bundle_sync(self) -> tuple:
         """Run lhp generate --env dev --pipeline-config ... --force."""
         runner = CliRunner()
@@ -202,10 +198,6 @@ class TestBlueprintE2E:
             or any(f"generated/dev/{p}/" in path for p in self.BP_PIPELINES)
         }
 
-    # ------------------------------------------------------------------
-    # BP-1: Golden path baseline match (subsumes the original BP-2 + BP-5)
-    # ------------------------------------------------------------------
-
     def test_BP1_blueprint_expansion_matches_baseline(self):
         """Blueprint with 2 instances expands to 6 synthetic flowgroups whose
         generated .py and .pipeline.yml output matches baselines byte-for-byte;
@@ -226,9 +218,9 @@ class TestBlueprintE2E:
             )
             assert generated.exists(), f"Missing generated resource: {generated}"
             assert baseline.exists(), f"Missing baseline resource: {baseline}"
-            assert self._file_hash(generated) == self._file_hash(
-                baseline
-            ), f"Resource baseline mismatch for {pipeline}"
+            assert self._file_hash(generated) == self._file_hash(baseline), (
+                f"Resource baseline mismatch for {pipeline}"
+            )
 
         for pipeline in self.BP_PIPELINES:
             for py_file in (self.generated_dir / pipeline).rglob("*.py"):
@@ -237,10 +229,6 @@ class TestBlueprintE2E:
                     f"Unresolved local-var token in {py_file.relative_to(self.project_root)}:\n"
                     f"{[ln for ln in content.splitlines() if '%{' in ln]}"
                 )
-
-    # ------------------------------------------------------------------
-    # BP-3: Duplicate (pipeline, flowgroup) after expansion
-    # ------------------------------------------------------------------
 
     def test_BP3_duplicate_identity_after_expansion_raises(self):
         """Two instances binding the same site_name produce identical
@@ -256,35 +244,25 @@ class TestBlueprintE2E:
 
         exit_code, output = self.run_bundle_sync()
         assert exit_code != 0, "Generation should fail on duplicate identity"
-        assert (
-            "045" in output or "Duplicate" in output
-        ), f"Expected LHP-VAL-045 / 'Duplicate' in output, got:\n{output[-2000:]}"
-        assert (
-            "site_alpha.yaml" in output and "site_alpha_dup.yaml" in output
-        ), "Both conflicting instance paths should be reported"
-
-    # ------------------------------------------------------------------
-    # BP-4: Missing required parameter
-    # ------------------------------------------------------------------
+        assert "045" in output or "Duplicate" in output, (
+            f"Expected LHP-VAL-045 / 'Duplicate' in output, got:\n{output[-2000:]}"
+        )
+        assert "site_alpha.yaml" in output and "site_alpha_dup.yaml" in output, (
+            "Both conflicting instance paths should be reported"
+        )
 
     def test_BP4_missing_required_parameter_raises(self):
         """Removing the required `domain_id` from an instance must surface
         a parse-time error that names the missing parameter."""
         self.site_alpha_path.write_text(
-            "use_blueprint: medallion_demo\n"
-            "parameters:\n"
-            "  site_name: site_alpha\n"
+            "use_blueprint: medallion_demo\nparameters:\n  site_name: site_alpha\n"
         )
 
         exit_code, output = self.run_bundle_sync()
         assert exit_code != 0, "Generation should fail on missing required param"
-        assert (
-            "domain_id" in output
-        ), f"Error must mention missing parameter 'domain_id'. Got:\n{output[-2000:]}"
-
-    # ------------------------------------------------------------------
-    # BP-6: Editing the blueprint regenerates only synthetic flowgroups
-    # ------------------------------------------------------------------
+        assert "domain_id" in output, (
+            f"Error must mention missing parameter 'domain_id'. Got:\n{output[-2000:]}"
+        )
 
     def test_BP8_env_token_in_identity_rejected(self):
         """`${catalog}` in a blueprint pipeline: field must be rejected by
@@ -308,16 +286,12 @@ class TestBlueprintE2E:
             f"Got:\n{output[-2000:]}"
         )
 
-    # ------------------------------------------------------------------
-    # BP-9: lhp deps includes synthetic flowgroups
-    # ------------------------------------------------------------------
-
-    def test_BP9_lhp_deps_includes_synthetic_flowgroups(self):
-        """`lhp deps` must surface the 3 acme_edw_bp_* pipelines and all 6
+    def test_BP9_lhp_dag_includes_synthetic_flowgroups(self):
+        """`lhp dag` must surface the 3 acme_edw_bp_* pipelines and all 6
         synthetic flowgroups in its dependency analysis output."""
         runner = CliRunner()
-        result = runner.invoke(cli, ["deps", "-b"])
-        assert result.exit_code == 0, f"deps failed: {result.output}"
+        result = runner.invoke(cli, ["dag", "-b"])
+        assert result.exit_code == 0, f"dag failed: {result.output}"
 
         deps_json = (
             self.project_root / ".lhp" / "dependencies" / "pipeline_dependencies.json"
@@ -327,21 +301,17 @@ class TestBlueprintE2E:
 
         seen_pipelines = set(data.get("pipelines", {}).keys())
         for p in self.BP_PIPELINES:
-            assert (
-                p in seen_pipelines
-            ), f"Pipeline {p} missing from deps JSON; saw: {sorted(seen_pipelines)}"
+            assert p in seen_pipelines, (
+                f"Pipeline {p} missing from deps JSON; saw: {sorted(seen_pipelines)}"
+            )
 
         job_yml = self.project_root / "resources" / "acme_edw_orchestration.job.yml"
         assert job_yml.exists(), "Orchestration job YAML not generated"
         job_text = job_yml.read_text()
         for p in self.BP_PIPELINES:
-            assert (
-                f"{p}_pipeline" in job_text
-            ), f"Pipeline {p} missing from orchestration job YAML"
-
-    # ------------------------------------------------------------------
-    # BP-10: Explicit-vs-synthetic flowgroup collision
-    # ------------------------------------------------------------------
+            assert f"{p}_pipeline" in job_text, (
+                f"Pipeline {p} missing from orchestration job YAML"
+            )
 
     def test_BP10_explicit_vs_synthetic_collision_raises(self):
         """A hand-written flowgroup with the same (pipeline, flowgroup) as an

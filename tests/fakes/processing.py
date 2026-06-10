@@ -13,19 +13,14 @@ from typing import Any
 
 @dataclass
 class CallRecord:
-    """A single captured call to a fake collaborator method.
-
-    ``args`` and ``kwargs`` are stored by reference. The caller must therefore
-    pass picklable arguments if the fake will itself cross a process boundary
-    with the recorded call still attached.
-    """
+    """``args`` and ``kwargs`` stored by reference — caller must pass picklable arguments if the fake crosses a process boundary with the call still attached."""
 
     args: tuple[Any, ...]
     kwargs: dict[str, Any]
 
 
-class FakeFlowgroupProcessor:
-    """Stand-in for :class:`lhp.core.services.flowgroup_processor.FlowgroupProcessor`.
+class FakeFlowgroupResolutionService:
+    """Stand-in for :class:`lhp.core.processing.flowgroup_resolver.FlowgroupResolutionService`.
 
     Records each ``process_flowgroup`` invocation in :attr:`calls` and returns
     the flowgroup it received unchanged. Concrete (non-``Mock``) class so
@@ -44,7 +39,7 @@ class FakeFlowgroupProcessor:
 
 
 class FakeSubstitutionManager:
-    """Stand-in for :class:`lhp.utils.substitution.EnhancedSubstitutionManager`.
+    """Stand-in for :class:`lhp.core.processing.substitution.EnhancedSubstitutionManager`.
 
     Exposes the attributes the production code reads on workers:
 
@@ -83,7 +78,7 @@ class FakeSubstitutionManager:
 class FakeTemplate:
     """Stand-in for :class:`lhp.models.config.Template`.
 
-    Only the attributes consumed by :class:`FlowgroupProcessor.process_flowgroup`
+    Only the attributes consumed by :class:`FlowgroupResolutionService.process_flowgroup`
     (``presets`` and ``actions``) are modelled. Concrete ``@dataclass`` so
     instances pickle.
     """
@@ -96,7 +91,7 @@ class FakeTemplate:
 
 
 class FakeTemplateEngine:
-    """Stand-in for :class:`lhp.core.template_engine.TemplateEngine`.
+    """Stand-in for :class:`lhp.core.processing.template_engine.TemplateEngine`.
 
     Constructor seeds ``get_template`` and ``render_template`` return values.
     Pickle-safe because every attribute is a concrete picklable type.
@@ -123,7 +118,7 @@ class FakeTemplateEngine:
 
 
 class FakeCodeGenerator:
-    """Stand-in for :class:`lhp.core.code_generator.CodeGenerator`.
+    """Stand-in for :class:`lhp.core.codegen.coordinator.CodeGenerationService`.
 
     Worker boundary tests in this package only need a typed,
     constructor-accepting slot. No methods are exercised by the in-scope
@@ -132,20 +127,12 @@ class FakeCodeGenerator:
     """
 
 
-class FakeCodeFormatter:
-    """Stand-in for :class:`lhp.utils.formatter.CodeFormatter`.
-
-    See :class:`FakeCodeGenerator` for the deliberate empty-surface rationale.
-    """
-
-
 class FakeProjectConfig:
     """Stand-in for :class:`lhp.models.config.ProjectConfig`.
 
-    Only fields read inside :class:`lhp.core.pipeline_processor.PipelineProcessor`
-    init / dispatch paths are exposed. ``test_reporting`` is the single field
-    the processor reads opaquely; default ``None`` matches projects without a
-    ``test_reporting`` block.
+    Only the fields read on the generate commit path are exposed.
+    ``test_reporting`` is the single field consumed opaquely; default
+    ``None`` matches projects without a ``test_reporting`` block.
     """
 
     def __init__(

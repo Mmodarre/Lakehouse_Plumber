@@ -17,6 +17,10 @@ src/lakehouse_plumber.egg-info/
 __pycache__/
 build/
 dist/
+# Per-pipeline wheel-packaging staging dir + built wheels (content-addressed
+# binaries; rebuilt deterministically by `lhp generate`, never committed).
+_wheels/
+*.whl
 Sample_Projects/
 .readthedocs.yml
 publish.sh
@@ -40,6 +44,8 @@ Example_Projects/acmi/Data_Prep/__builtins__.pyi
 BYTEROVER*
 tests/e2e/test_bundle_manager_e2e.py
 coverage.xml
+.coverage
+.docs_revamp_state.yaml
 CLAUDE.md
 wip.md
 src/lhp/utils/substitution.py.bkup

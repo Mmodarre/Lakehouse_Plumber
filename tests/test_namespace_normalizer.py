@@ -3,17 +3,16 @@
 # REMOVE_AT_V1.0.0: Delete this entire file when database field support is removed.
 """
 
-import logging
+from pathlib import Path
 
 import pytest
 
-from lhp.core.services.namespace_normalizer import normalize_namespace_fields
-from lhp.utils.error_formatter import LHPConfigError
+from lhp.core.processing.namespace_normalizer import normalize_namespace_fields
+from lhp.errors import LHPConfigError, codes
+from lhp.models.deprecations import collect_deprecations, drain_deprecations
 
 
 class TestNormalizeWriteTarget:
-    """Tests for write target normalization."""
-
     def test_database_split_into_catalog_schema(self):
         """database: 'cat.sch' → catalog: 'cat', schema: 'sch', no database."""
         fg = {
@@ -222,8 +221,6 @@ class TestNormalizeWriteTarget:
 
 
 class TestNormalizeDeltaSource:
-    """Tests for delta load source normalization."""
-
     def test_database_split_into_catalog_schema(self):
         """Delta source database: 'cat.sch' → catalog + schema."""
         fg = {
@@ -329,8 +326,6 @@ class TestNormalizeDeltaSource:
 
 
 class TestNonWriteNonLoadActions:
-    """Tests that non-write/non-delta-load actions are untouched."""
-
     def test_transform_action_untouched(self):
         """Transform actions pass through unchanged."""
         fg = {
@@ -365,10 +360,18 @@ class TestNonWriteNonLoadActions:
 
 
 class TestDeprecationWarning:
-    """Tests that deprecation warnings are emitted."""
+    """Tests that the `database` field emits a structured DEPR-002 warning.
 
-    def test_write_target_deprecation_warning(self, caplog):
-        """Deprecation warning emitted for write target database conversion."""
+    The deprecation no longer travels on the logging channel (workers run
+    under a NullHandler so it would be swallowed) — it is recorded onto the
+    active worker scope as a DeprecationWarningRecord (LHP-DEPR-002) via
+    ``lhp.models.deprecations.record_deprecation``. These tests open a
+    ``collect_deprecations`` scope (the worker wrapper does this around each
+    flowgroup) and assert on the drained records.
+    """
+
+    def test_write_target_deprecation_warning(self):
+        """write_target database conversion records a DEPR-002 warning."""
         fg = {
             "actions": [
                 {
@@ -382,12 +385,21 @@ class TestDeprecationWarning:
                 }
             ]
         }
-        with caplog.at_level(logging.WARNING):
+        with collect_deprecations(
+            file=Path("flowgroups/fg.yaml"), flowgroup="fg_w"
+        ) as collector:
             normalize_namespace_fields(fg)
-        assert any("DEPRECATION" in record.message for record in caplog.records)
+        records = drain_deprecations(collector)
+        assert len(records) == 1
+        (record,) = records
+        assert record.code == codes.DEPR_002.code
+        assert record.file == Path("flowgroups/fg.yaml")
+        assert record.flowgroup == "fg_w"
+        assert "database" in record.message
+        assert "write_test" in record.message
 
-    def test_delta_source_deprecation_warning(self, caplog):
-        """Deprecation warning emitted for delta source database conversion."""
+    def test_delta_source_deprecation_warning(self):
+        """Delta source database conversion records a DEPR-002 warning."""
         fg = {
             "actions": [
                 {
@@ -401,11 +413,18 @@ class TestDeprecationWarning:
                 }
             ]
         }
-        with caplog.at_level(logging.WARNING):
+        with collect_deprecations(
+            file=Path("flowgroups/fg.yaml"), flowgroup="fg_l"
+        ) as collector:
             normalize_namespace_fields(fg)
-        assert any("DEPRECATION" in record.message for record in caplog.records)
+        records = drain_deprecations(collector)
+        assert len(records) == 1
+        (record,) = records
+        assert record.code == codes.DEPR_002.code
+        assert record.flowgroup == "fg_l"
+        assert "load_test" in record.message
 
-    def test_new_format_no_warning(self, caplog):
+    def test_new_format_no_warning(self):
         """No deprecation warning when using new catalog/schema format."""
         fg = {
             "actions": [
@@ -421,14 +440,12 @@ class TestDeprecationWarning:
                 }
             ]
         }
-        with caplog.at_level(logging.WARNING):
+        with collect_deprecations(file=None, flowgroup="fg_w") as collector:
             normalize_namespace_fields(fg)
-        assert not any("DEPRECATION" in record.message for record in caplog.records)
+        assert drain_deprecations(collector) == ()
 
 
 class TestEdgeCases:
-    """Edge case tests."""
-
     def test_empty_actions_list(self):
         """Empty actions list → no error."""
         fg = {"actions": []}

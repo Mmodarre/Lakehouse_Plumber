@@ -265,13 +265,18 @@ actions and pipeline tables are ignored.
 Validation
 --------------------------------------------
 
-``lhp validate`` performs test reporting checks when the ``test_reporting`` section
-exists in ``lhp.yaml``:
+Both ``lhp validate`` and ``lhp generate`` perform test reporting checks when the
+``test_reporting`` section exists in ``lhp.yaml``:
 
-**Always checked:**
+**Always checked (file-existence preflight, error** ``LHP-CFG-032`` **):**
 
 * ``module_path`` — the provider module file must exist at the specified path.
 * ``config_file`` — if specified, the file must exist.
+
+This file-existence check runs **independent of** ``--include-tests``. A project
+whose provider file is missing fails ``lhp generate`` even without the flag, and
+fails ``lhp validate`` the same way. See :doc:`/errors_reference` for
+``LHP-CFG-032``.
 
 **With** ``--include-tests``:
 
@@ -280,7 +285,7 @@ exists in ``lhp.yaml``:
 
 .. code-block:: bash
 
-   # Basic validation (checks file existence)
+   # Basic validation (still checks provider file existence — LHP-CFG-032)
    lhp validate --env dev
 
    # Extended validation (also checks test_id presence)

@@ -1,4 +1,4 @@
-"""Spec-driven unit tests for `lhp validate` blueprint integration (Phase 13/A).
+"""Unit tests for `lhp validate` and `lhp generate` blueprint integration.
 
 Covers:
   (a) silent pass when no blueprints/instances present
@@ -48,7 +48,7 @@ def test_validate_silent_pass_when_no_blueprints(tmp_path):
         "LHP-VAL-045",
         "LHP-VAL-046",
     ):
-        assert blueprint_code not in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 2
+        assert blueprint_code not in result.output
 
 
 def test_validate_malformed_blueprint_fails(tmp_path):
@@ -71,7 +71,7 @@ flowgroups: 42
     assert result.exit_code != 0
     # The blueprint error must surface; spec table documents 050 for Pydantic
     # failure, 049 for non-blueprint shape. Either is acceptable.
-    assert ("LHP-CFG-050" in result.output) or ("LHP-CFG-049" in result.output)  # SNAPSHOT-TODO: re-target to new Rich output in Phase 2
+    assert ("LHP-CFG-050" in result.output) or ("LHP-CFG-049" in result.output)
 
 
 def test_validate_instance_unknown_blueprint_raises_041(tmp_path):
@@ -79,14 +79,59 @@ def test_validate_instance_unknown_blueprint_raises_041(tmp_path):
     with runner.isolated_filesystem(temp_dir=tmp_path) as fs:
         root = Path(fs)
         _bootstrap(root)
-        # No blueprint files; instance references a nonexistent blueprint.
         _write(
             root / "pipelines" / "erp" / "bronze" / "sg.yaml",
             "blueprint: nonexistent_blueprint\nsite_name: apac_sg\n",
         )
         result = runner.invoke(cli, ["validate", "--env", "dev"])
     assert result.exit_code != 0
-    assert "LHP-VAL-041" in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 2
+    assert "LHP-VAL-041" in result.output
+
+
+def test_generate_instance_unknown_blueprint_raises_041(tmp_path):
+    """`lhp generate` must surface LHP-VAL-041 for an instance referencing an
+    unknown blueprint, symmetrically with `lhp validate` (constitution §9.24:
+    no duplicated validation logic — generate now runs the same shared
+    blueprint/instance discovery). Mirrors
+    ``test_validate_instance_unknown_blueprint_raises_041`` with ``generate``."""
+    runner = CliRunner()
+    with runner.isolated_filesystem(temp_dir=tmp_path) as fs:
+        root = Path(fs)
+        _bootstrap(root)
+        _write(
+            root / "pipelines" / "erp" / "bronze" / "sg.yaml",
+            "blueprint: nonexistent_blueprint\nsite_name: apac_sg\n",
+        )
+        result = runner.invoke(cli, ["generate", "--env", "dev"])
+    assert result.exit_code != 0
+    assert "LHP-VAL-041" in result.output
+
+
+def test_generate_silent_pass_when_no_blueprints(tmp_path):
+    """No blueprints AND no instances → `lhp generate` must NOT raise a
+    blueprint-range error code.
+
+    Bootstrap discovery early-returns on ``if not instances`` before any
+    instance file is parsed, so there is no spurious LHP-VAL-041. Generate
+    itself still fails downstream with LHP-CFG-014 ("No flowgroups found")
+    on a truly empty project — exactly as ``lhp validate`` does — so this
+    asserts on the absence of blueprint codes rather than exit 0, mirroring
+    ``test_validate_silent_pass_when_no_blueprints``."""
+    runner = CliRunner()
+    with runner.isolated_filesystem(temp_dir=tmp_path) as fs:
+        _bootstrap(Path(fs))
+        result = runner.invoke(cli, ["generate", "--env", "dev"])
+    # The kept empty-instances branch must not surface any blueprint-range code.
+    for blueprint_code in (
+        "LHP-CFG-040",
+        "LHP-VAL-041",
+        "LHP-VAL-042",
+        "LHP-VAL-043",
+        "LHP-VAL-044",
+        "LHP-VAL-045",
+        "LHP-VAL-046",
+    ):
+        assert blueprint_code not in result.output
 
 
 def test_validate_duplicate_tuple_raises_045(tmp_path):
@@ -119,9 +164,9 @@ flowgroups:
         )
         result = runner.invoke(cli, ["validate", "--env", "dev"])
     assert result.exit_code != 0
-    assert "LHP-VAL-045" in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 2
-    assert "sg_a.yaml" in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 2
-    assert "sg_b.yaml" in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 2
+    assert "LHP-VAL-045" in result.output
+    assert "sg_a.yaml" in result.output
+    assert "sg_b.yaml" in result.output
 
 
 def test_validate_env_token_in_pipeline_raises_044(tmp_path):
@@ -148,13 +193,14 @@ flowgroups:
         )
         result = runner.invoke(cli, ["validate", "--env", "dev"])
     assert result.exit_code != 0
-    assert "LHP-VAL-044" in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 2
+    assert "LHP-VAL-044" in result.output
 
 
 def test_validate_with_valid_blueprint_passes(tmp_path):
     """A well-formed blueprint + instance project must complete validate without
-    raising any blueprint error code. Exercises the success path of
-    _validate_blueprints_and_instances + downstream pipeline discovery."""
+    raising any blueprint error code. Exercises the success path of the shared
+    blueprint/instance discovery (discover_blueprints -> discover_instances) +
+    downstream pipeline discovery."""
     runner = CliRunner()
     with runner.isolated_filesystem(temp_dir=tmp_path) as fs:
         root = Path(fs)
@@ -190,7 +236,6 @@ flowgroups:
             "blueprint: erp\nsite_name: apac_sg\n",
         )
         result = runner.invoke(cli, ["validate", "--env", "dev"])
-    # A well-formed blueprint project must validate cleanly (exit 0).
     assert result.exit_code == 0, f"validate failed: {result.output}"
 
 
@@ -224,34 +269,41 @@ actions:
         result = runner.invoke(
             cli, ["validate", "--env", "dev", "--pipeline", "bronze_pipe"]
         )
-    # A valid project with a matching --pipeline filter validates cleanly.
     assert result.exit_code == 0, f"validate failed: {result.output}"
 
 
-def test_validate_verbose_flag_emits_extra_output(tmp_path):
-    """Exercises the verbose-flag branch."""
+def test_validate_show_details_flag_emits_extra_output(tmp_path):
+    """Exercises the --show-details flag branch (renamed from --verbose)."""
     runner = CliRunner()
     with runner.isolated_filesystem(temp_dir=tmp_path) as fs:
         _bootstrap(Path(fs))
-        result = runner.invoke(cli, ["validate", "--env", "dev", "--verbose"])
-    # The --verbose flag must be recognized by Click (no usage error).
-    assert result.exit_code != 2, f"--verbose was not recognized: {result.output}"
+        result = runner.invoke(cli, ["validate", "--env", "dev", "--show-details"])
+    # The --show-details flag must be recognized by Click (no usage error).
+    assert result.exit_code != 2, f"--show-details was not recognized: {result.output}"
 
 
-def test_validate_no_flowgroups_raises_014(tmp_path):
-    """Empty project (no pipelines, no blueprints) → code 014 'No flowgroups
-    found' on the pipeline-discovery path."""
+def test_validate_no_flowgroups_exits_zero(tmp_path):
+    """Empty project (no pipelines, no blueprints) → validate completes cleanly
+    and exits 0 (ratified spec §6.6; was code 014)."""
     runner = CliRunner()
     with runner.isolated_filesystem(temp_dir=tmp_path) as fs:
         _bootstrap(Path(fs))
         result = runner.invoke(cli, ["validate", "--env", "dev"])
-    assert result.exit_code != 0
-    # Code 014 is the existing "no flowgroups" config error.
-    assert "LHP-CFG-014" in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 2
+    assert result.exit_code == 0, f"validate did not exit 0: {result.output}"
+    # The empty-project no-flowgroups config error is no longer raised.
+    assert "LHP-CFG-014" not in result.output
 
 
-def test_validate_pipeline_filter_not_found_raises_015(tmp_path):
-    """An unknown --pipeline filter must surface code 015."""
+def test_validate_pipeline_filter_not_found_raises_901(tmp_path):
+    """An unknown --pipeline filter must surface code LHP-VAL-901 at exit 1.
+
+    Filter validation moved into the facade (§9.11: no business logic in
+    cli/). ``lhp validate`` no longer raises the old fatal LHP-CFG-015 for an
+    unmatched ``--pipeline`` filter; per §9.24 it folds the unmatched-filter
+    failure into a clean validation terminal as a finding (LHP-VAL-901, "No
+    flowgroups found for pipeline field: <name>") and exits 1. Failure
+    behavior (exit non-zero) is preserved; only the surface changed.
+    """
     runner = CliRunner()
     with runner.isolated_filesystem(temp_dir=tmp_path) as fs:
         root = Path(fs)
@@ -280,8 +332,8 @@ actions:
         result = runner.invoke(
             cli, ["validate", "--env", "dev", "--pipeline", "missing_pipeline"]
         )
-    assert result.exit_code != 0
-    assert "LHP-CFG-015" in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 2
+    assert result.exit_code == 1
+    assert "LHP-VAL-901" in result.output
 
 
 def test_validate_include_tests_runs_test_reporting(tmp_path):

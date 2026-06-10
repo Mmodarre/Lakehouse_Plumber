@@ -60,7 +60,7 @@ dp.create_sink(
         "topic": "acme.orders.fulfillment",
         "kafka.security.protocol": "SASL_SSL",
         "kafka.sasl.mechanism": "PLAIN",
-        "kafka.sasl.jaas.config": f"kafkashaded.org.apache.kafka.common.security.plain.PlainLoginModule required username=\"{dbutils.secrets.get(scope='kafka_secrets', key='kafka_api_key')}\" password=\"{dbutils.secrets.get(scope='kafka_secrets', key='kafka_api_secret')}\";",
+        "kafka.sasl.jaas.config": f'kafkashaded.org.apache.kafka.common.security.plain.PlainLoginModule required username="{dbutils.secrets.get(scope="kafka_secrets", key="kafka_api_key")}" password="{dbutils.secrets.get(scope="kafka_secrets", key="kafka_api_secret")}";',
         "checkpointLocation": "/Volumes/acme_edw_dev/_meta/checkpoints/sk_kafka_export",
     },
 )

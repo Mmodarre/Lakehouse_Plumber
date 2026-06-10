@@ -11,16 +11,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from lhp.bundle.preflight import (
-    require_pipeline_config_flag,
-    validate_catalog_schema,
-)
-from lhp.utils.error_formatter import ErrorCategory, LHPConfigError
-
-
-# ---------------------------------------------------------------------------
-# Fixture helpers — same idiom as test_bundle_manager_simplified.py
-# ---------------------------------------------------------------------------
+from lhp.bundle.preflight import validate_catalog_schema
+from lhp.errors import LHPConfigError
 
 
 def _write_pipeline_config(
@@ -50,43 +42,6 @@ def _write_substitutions(
     subs_dir.mkdir(parents=True, exist_ok=True)
     body: dict = {env: mappings or {"placeholder": "value"}}
     (subs_dir / f"{env}.yaml").write_text(yaml.safe_dump(body), encoding="utf-8")
-
-
-# ---------------------------------------------------------------------------
-# B gate: require_pipeline_config_flag
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.unit
-def test_require_pipeline_config_flag_raises_when_bundle_enabled_and_no_pc():
-    with pytest.raises(LHPConfigError) as exc_info:
-        require_pipeline_config_flag(
-            bundle_enabled=True, pipeline_config_path=None
-        )
-    assert exc_info.value.code == "LHP-CFG-023"
-    assert exc_info.value.code_number == "023"
-    assert exc_info.value.category == ErrorCategory.CONFIG
-
-
-@pytest.mark.unit
-def test_require_pipeline_config_flag_passes_when_bundle_disabled():
-    # No exception
-    require_pipeline_config_flag(
-        bundle_enabled=False, pipeline_config_path=None
-    )
-
-
-@pytest.mark.unit
-def test_require_pipeline_config_flag_passes_when_pc_provided():
-    # No exception
-    require_pipeline_config_flag(
-        bundle_enabled=True, pipeline_config_path="config/pipeline_config.yaml"
-    )
-
-
-# ---------------------------------------------------------------------------
-# A+ validator: happy paths
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
@@ -147,18 +102,16 @@ def test_validate_pipeline_overrides_project_defaults(tmp_path: Path):
     )
 
 
-# ---------------------------------------------------------------------------
-# A+ validator: aggregation
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.unit
 def test_validate_aggregates_both_missing(tmp_path: Path):
     """All three pipelines miss both catalog and schema."""
     config = _write_pipeline_config(
         tmp_path,
-        # No project_defaults → DEFAULT_PIPELINE_CONFIG has no catalog/schema.
-        pipelines={"p1": {}, "p2": {}, "p3": {}},
+        pipelines={
+            "p1": {},
+            "p2": {},
+            "p3": {},
+        },  # no project_defaults → no catalog/schema
     )
     _write_substitutions(tmp_path, "dev")
 
@@ -263,18 +216,11 @@ def test_validate_groups_all_three_categories(tmp_path: Path):
 
     failures = exc_info.value.context["failures"]
     assert failures["both_missing"] == ["missing_both"]
-    assert [d["pipeline_name"] for d in failures["incomplete"]] == [
-        "missing_catalog"
-    ]
+    assert [d["pipeline_name"] for d in failures["incomplete"]] == ["missing_catalog"]
     assert [d["pipeline_name"] for d in failures["empty_after_substitution"]] == [
         "empty_sub"
     ]
     assert exc_info.value.context["total_failures"] == 3
-
-
-# ---------------------------------------------------------------------------
-# A+ validator: monitoring inclusion
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
@@ -283,8 +229,10 @@ def test_validate_includes_monitoring_pipeline_when_enabled(tmp_path: Path):
     config = _write_pipeline_config(
         tmp_path,
         project_defaults={"catalog": "cat", "schema": "sch"},
-        # Override the monitoring pipeline to be missing catalog/schema.
-        pipelines={"m1": {"catalog": None, "schema": None}, "p1": {}},
+        pipelines={
+            "m1": {"catalog": None, "schema": None},
+            "p1": {},
+        },  # m1 intentionally misconfigured
     )
     _write_substitutions(tmp_path, "dev")
 

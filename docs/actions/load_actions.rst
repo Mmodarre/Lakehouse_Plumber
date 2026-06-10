@@ -849,8 +849,8 @@ actions call custom Python functions that return DataFrames.
 Python functions must accept two parameters: ``spark`` (SparkSession) and ``parameters`` (dict).
 The function must return a PySpark DataFrame that will be used as the view source.
 
-**File Organization**: When using ``module_path``, the path is relative to your YAML file location.
-Common practice is to create an ``extractors/`` or ``functions/`` folder alongside your pipeline YAML files.
+**File Organization**: When using ``module_path``, the path is relative to the project root.
+Common practice is to create an ``extractors/`` or ``functions/`` folder at the project root.
 
 **Parameter Substitution**: The ``parameters`` dictionary supports ``${token}``
 substitution for environment-specific values:
@@ -891,6 +891,40 @@ Secret references (``${secret:scope/key}``) are converted to ``dbutils.secrets.g
       df = df.withColumn('_api_call_timestamp', current_timestamp())
 
       return df
+
+**Importing local helper modules**
+
+A Python load function (or a custom data source) may import local helper modules that
+live alongside it. LHP follows those imports and copies the whole transitive closure of
+local helpers into ``custom_python_functions/``, preserving sub-package structure, so the
+entry module imports cleanly at runtime.
+
+The directory that holds your entry file is the **import root** against which "local" is
+decided:
+
+- **Rule A — the import root must not itself be a package.** It may not contain an
+  ``__init__.py`` at its top level. If it does, generation fails with
+  ``LHP-VAL-023`` (put helpers in a sub-directory instead and keep the entry file flat).
+- **Rule B — referenced helper packages are copied in full.** If your entry imports from
+  a local sub-package, the *entire* sub-package (every ``.py`` under it) is copied with its
+  structure preserved, so ``__init__.py`` side effects and intra-package imports keep working.
+
+Imports inside copied files are reconciled as follows:
+
+- **Absolute local imports are prefix-rewritten.** ``from helpers.dates import to_date``
+  becomes ``from custom_python_functions.helpers.dates import to_date`` (aliases preserved).
+- **Relative imports are preserved unchanged.** ``from .sibling import x`` inside a helper
+  package is first-class and copied verbatim — structure preservation keeps it resolvable.
+- **External and standard-library imports are left untouched** (``import os``,
+  ``from pyspark.sql import functions``).
+- **Plain dotted imports of a local module are rejected** with ``LHP-VAL-024``:
+  ``import helpers.dates`` cannot be rewritten safely — use ``from helpers.dates import ...``
+  (or ``from helpers import dates``) instead.
+- A local import that points at a file or package member that does not exist on disk fails
+  with ``LHP-VAL-025``.
+
+Because a referenced helper package is copied whole, a syntactically broken sibling module
+inside that package surfaces ``LHP-IO-003`` at generate time.
 
 kafka
 ~~~~~
@@ -1310,8 +1344,8 @@ Substitutions are applied to the file's contents as it is copied to ``custom_pyt
 - PySpark's *vendored* cloudpickle is registered (``register_pickle_by_value``) so the class survives
   serialization to executors
 
-**File Organization**: The ``module_path`` is relative to your YAML file location.
-Common practice is to create a ``data_sources/`` folder alongside your pipeline YAML files.
+**File Organization**: The ``module_path`` is relative to the project root.
+Common practice is to create a ``data_sources/`` folder at the project root.
 
 **Schema Definition**: Define your schema in the ``schema()`` method using DDL string format as shown in the example.
 This schema should match the data structure returned by your ``read()`` method.

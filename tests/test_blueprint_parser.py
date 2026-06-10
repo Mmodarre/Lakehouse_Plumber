@@ -1,4 +1,4 @@
-"""Spec-driven unit tests for BlueprintParser (Phase 3, Phase 5 step 2).
+"""Unit tests for BlueprintParser.
 
 Covers error codes 041, 042, 043, 047-050 (blueprint), 051-054 (instance),
 plus the public ``looks_like_blueprint`` helper.
@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from lhp.errors import ErrorCategory, LHPError
 from lhp.parsers.blueprint_parser import BlueprintParser
-from lhp.utils.error_formatter import ErrorCategory, LHPError
 
 pytestmark = pytest.mark.unit
 
@@ -18,11 +18,6 @@ def _write(path: Path, content: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content)
     return path
-
-
-# ---------------------------------------------------------------------------
-# parse_blueprint_file
-# ---------------------------------------------------------------------------
 
 
 def test_parse_blueprint_file_valid(tmp_path):
@@ -110,11 +105,6 @@ flowgroups: not_a_list
     assert exc.value.code == "LHP-CFG-050"
 
 
-# ---------------------------------------------------------------------------
-# parse_instance_file
-# ---------------------------------------------------------------------------
-
-
 def _make_blueprint(parser: BlueprintParser, tmp_path: Path):
     bp_file = _write(
         tmp_path / "blueprints" / "erp.yaml",
@@ -193,7 +183,7 @@ site_id: SG001
 """,
     )
     # Reset dedupe state so this test is independent of others.
-    from lhp.models.config import BlueprintInstance
+    from lhp.models import BlueprintInstance
 
     BlueprintInstance._legacy_warned_paths.clear()
     caplog.set_level(logging.WARNING, logger="lhp.models.config")
@@ -323,15 +313,6 @@ site_id: SG001
     assert exc.value.code.endswith("-053")
 
 
-@pytest.mark.skip(
-    reason=(
-        "Spec ambiguity: 054 is documented for 'Invalid instance definition "
-        "(Pydantic validation failed)' but the parser performs a dict-membership "
-        "lookup on `blueprint` before Pydantic re-validation, so non-hashable "
-        "shapes raise TypeError instead of LHP-VAL-054. Filed as likely product "
-        "bug; this test is preserved to record the contract."
-    )
-)
 def test_instance_invalid_definition_raises_054(tmp_path):
     parser = BlueprintParser()
     blueprints = _make_blueprint(parser, tmp_path)
@@ -347,11 +328,6 @@ blueprint:
     with pytest.raises(LHPError) as exc:
         parser.parse_instance_file(inst_file, blueprints)
     assert exc.value.code.endswith("-054")
-
-
-# ---------------------------------------------------------------------------
-# looks_like_blueprint static helper
-# ---------------------------------------------------------------------------
 
 
 def test_looks_like_blueprint_true_for_blueprint_shape():

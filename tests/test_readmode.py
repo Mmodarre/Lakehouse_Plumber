@@ -1,94 +1,80 @@
 """Test readMode functionality across all components."""
 
-import pytest
-from pathlib import Path
 import tempfile
+from pathlib import Path
+
+import pytest
 import yaml
 
-from lhp.models.config import Action, ActionType, TransformType, LoadSourceType, FlowGroup
-from lhp.core.orchestrator import ActionOrchestrator
+from lhp.core.coordination.layers import build_facade_orchestrator
 from lhp.generators.load.cloudfiles import CloudFilesLoadGenerator
 from lhp.generators.load.delta import DeltaLoadGenerator
 from lhp.generators.transform.data_quality import DataQualityTransformGenerator
-from lhp.generators.transform.schema import SchemaTransformGenerator
 from lhp.generators.transform.python import PythonTransformGenerator
+from lhp.generators.transform.schema import SchemaTransformGenerator
 from lhp.generators.write.streaming_table import StreamingTableWriteGenerator
+from lhp.models import Action, ActionType, FlowGroup, LoadSourceType, TransformType
 
 
 class TestReadMode:
     """Test readMode implementation across the system."""
-    
+
     def test_action_model_readmode(self):
         """Test that Action model accepts readMode field."""
         action = Action(
-            name="test_action",
-            type=ActionType.LOAD,
-            target="v_test",
-            readMode="stream"
+            name="test_action", type=ActionType.LOAD, target="v_test", readMode="stream"
         )
         assert action.readMode == "stream"
-        
+
         # Test with batch mode
         action2 = Action(
             name="test_action2",
             type=ActionType.LOAD,
             target="v_test2",
-            readMode="batch"
+            readMode="batch",
         )
         assert action2.readMode == "batch"
-    
+
     def test_cloudfiles_requires_stream(self):
         """Test that CloudFiles enforces stream readMode."""
         generator = CloudFilesLoadGenerator()
-        
+
         # Should work with stream mode
         action = Action(
             name="cf_load",
             type=ActionType.LOAD,
             target="v_data",
             readMode="stream",
-            source={
-                "type": "cloudfiles",
-                "path": "/path/to/files",
-                "format": "json"
-            }
+            source={"type": "cloudfiles", "path": "/path/to/files", "format": "json"},
         )
-        
+
         code = generator.generate(action, {})
         assert "spark.readStream" in code
-        
-        # Should fail with batch mode
+
         action_batch = Action(
             name="cf_load_batch",
             type=ActionType.LOAD,
             target="v_data",
             readMode="batch",
-            source={
-                "type": "cloudfiles",
-                "path": "/path/to/files",
-                "format": "json"
-            }
+            source={"type": "cloudfiles", "path": "/path/to/files", "format": "json"},
         )
-        
+
         with pytest.raises(ValueError) as exc:
             generator.generate(action_batch, {})
         assert "Invalid readMode" in str(exc.value)
-    
+
     def test_data_quality_requires_stream(self):
         """Test that data quality transforms enforce stream readMode."""
         generator = DataQualityTransformGenerator()
-        
+
         # Create expectations file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             expectations = {
-                "col1 IS NOT NULL": {
-                    "action": "fail",
-                    "name": "not_null_col1"
-                }
+                "col1 IS NOT NULL": {"action": "fail", "name": "not_null_col1"}
             }
             yaml.dump(expectations, f)
             expectations_file = f.name
-        
+
         # Should work with stream mode
         action = Action(
             name="dq_check",
@@ -97,13 +83,12 @@ class TestReadMode:
             source="v_source",
             target="v_validated",
             readMode="stream",
-            expectations_file=expectations_file
+            expectations_file=expectations_file,
         )
-        
+
         code = generator.generate(action, {"spec_dir": Path(expectations_file).parent})
         assert "spark.readStream.table" in code
-        
-        # Should fail with batch mode
+
         action_batch = Action(
             name="dq_check_batch",
             type=ActionType.TRANSFORM,
@@ -111,20 +96,22 @@ class TestReadMode:
             source="v_source",
             target="v_validated",
             readMode="batch",
-            expectations_file=expectations_file
+            expectations_file=expectations_file,
         )
-        
+
         with pytest.raises(ValueError) as exc:
-            generator.generate(action_batch, {"spec_dir": Path(expectations_file).parent})
+            generator.generate(
+                action_batch, {"spec_dir": Path(expectations_file).parent}
+            )
         assert "Invalid readMode" in str(exc.value)
-        
+
         # Clean up
         Path(expectations_file).unlink()
-    
+
     def test_delta_readmode_batch_stream(self):
         """Test Delta generator supports both batch and stream readMode."""
         generator = DeltaLoadGenerator()
-        
+
         # Test batch mode
         action_batch = Action(
             name="delta_batch",
@@ -135,15 +122,14 @@ class TestReadMode:
                 "type": "delta",
                 "catalog": "main",
                 "schema": "bronze",
-                "table": "customers"
-            }
+                "table": "customers",
+            },
         )
 
         code = generator.generate(action_batch, {})
         assert "spark.read.table" in code
         assert "spark.readStream" not in code
 
-        # Test stream mode
         action_stream = Action(
             name="delta_stream",
             type=ActionType.LOAD,
@@ -153,14 +139,14 @@ class TestReadMode:
                 "type": "delta",
                 "catalog": "main",
                 "schema": "bronze",
-                "table": "customers"
-            }
+                "table": "customers",
+            },
         )
-        
+
         code = generator.generate(action_stream, {})
         assert "spark.readStream" in code
         assert "spark.read.table" not in code
-    
+
     def test_transform_readmode_support(self):
         """Test that transform generators support readMode."""
         # Schema transform
@@ -172,12 +158,12 @@ class TestReadMode:
             source="v_raw",
             target="v_typed",
             schema_inline="col1: STRING",
-            readMode="stream"
+            readMode="stream",
         )
-        
+
         code = schema_gen.generate(action_schema, {})
         assert "spark.readStream.table" in code
-        
+
         # Python transform
         python_gen = PythonTransformGenerator()
         action_python = Action(
@@ -188,9 +174,9 @@ class TestReadMode:
             module_path="transforms/clean.py",
             function_name="clean_data",
             target="v_cleaned",
-            readMode="batch"
+            readMode="batch",
         )
-        
+
         # Create temporary Python file for the test
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
@@ -200,18 +186,19 @@ class TestReadMode:
 def clean_data(df, spark, parameters):
     return df.filter("value IS NOT NULL")
 """)
-            
-            code = python_gen.generate(action_python, {
-                "output_dir": tmpdir_path / "generated",
-                "spec_dir": tmpdir_path,
-                "flowgroup": FlowGroup(
-                    pipeline="test_pipeline",
-                    flowgroup="test_flowgroup",
-                    actions=[]
-                )
-            })
+
+            code = python_gen.generate(
+                action_python,
+                {
+                    "output_dir": tmpdir_path / "generated",
+                    "spec_dir": tmpdir_path,
+                    "flowgroup": FlowGroup(
+                        pipeline="test_pipeline", flowgroup="test_flowgroup", actions=[]
+                    ),
+                },
+            )
         assert "spark.read.table" in code
-    
+
     def test_yaml_parsing_with_readmode(self):
         """Test that YAML parser correctly handles readMode."""
         yaml_content = """
@@ -235,56 +222,61 @@ actions:
     target: v_validated
     expectations_file: expectations.json
 """
-        
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(yaml_content)
             yaml_file = f.name
-        
+
         # Create a simple project structure
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
-            
+
             # Create required directories
             (project_root / "pipelines").mkdir()
             (project_root / "presets").mkdir()
             (project_root / "templates").mkdir()
             (project_root / "substitutions").mkdir()
-            
+
             # Create expectations file
             exp_file = project_root / "expectations.json"
-            exp_file.write_text(yaml.dump({
-                "col1 IS NOT NULL": {"action": "fail", "name": "not_null"}
-            }))
-            
+            exp_file.write_text(
+                yaml.dump({"col1 IS NOT NULL": {"action": "fail", "name": "not_null"}})
+            )
+
             # Create substitutions file
-            (project_root / "substitutions" / "dev.yaml").write_text("environment:\n  catalog: test_catalog")
-            
+            (project_root / "substitutions" / "dev.yaml").write_text(
+                "environment:\n  catalog: test_catalog"
+            )
+
             # Parse the YAML
-            orchestrator = ActionOrchestrator(project_root)
-            flowgroup = orchestrator.yaml_parser.parse_flowgroup(yaml_file)
-            
+            orchestrator = build_facade_orchestrator(project_root)
+            flowgroups = orchestrator.yaml_parser.parse_flowgroups_from_file(
+                Path(yaml_file)
+            )
+            flowgroup = flowgroups[0]
+
             # Verify readMode was parsed correctly
             assert flowgroup.actions[0].readMode == "stream"
             assert flowgroup.actions[1].readMode == "stream"
-        
+
         # Clean up
         Path(yaml_file).unlink()
-    
+
     def test_orchestrator_integration(self):
         """Test full integration with orchestrator."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
-            
+
             # Create project structure
             pipeline_dir = project_root / "pipelines" / "test_pipeline"
             pipeline_dir.mkdir(parents=True)
-            
+
             # Create required directories
             (project_root / "presets").mkdir()
             (project_root / "templates").mkdir()
             (project_root / "substitutions").mkdir()
             (project_root / "generated").mkdir()
-            
+
             # Create flowgroup with readMode
             flowgroup_content = """
 pipeline: test_pipeline
@@ -318,65 +310,74 @@ actions:
       table: customers_typed
       create_table: true
 """
-            
+
             (pipeline_dir / "test_flow.yaml").write_text(flowgroup_content)
-            
+
             # Create substitutions
             (project_root / "substitutions" / "dev.yaml").write_text("""
 environment:
   catalog: dev_catalog
   schema: dev_schema
 """)
-            
-            # Generate code (output_dir required to read back content for
-            # assertions; payload diet stripped content from the return).
+
+            # output_dir required to read back content for assertions.
             output_dir = project_root / "generated"
-            orchestrator = ActionOrchestrator(project_root)
-            orchestrator.generate_pipeline_by_field(
-                pipeline_field="test_pipeline",
-                env="dev",
-                output_dir=output_dir,
+            orchestrator = build_facade_orchestrator(project_root)
+            # Drain the generator so the commit step actually writes the files read below.
+            list(
+                orchestrator.generate_pipelines(
+                    pipeline_filter="test_pipeline",
+                    env="dev",
+                    output_dir=output_dir,
+                )
             )
 
-            # Get the generated code for test_flow
             test_flow = output_dir / "test_pipeline" / "test_flow.py"
             generated_code = test_flow.read_text() if test_flow.exists() else ""
-            
-            # Find the sections
-            lines = generated_code.split('\n')
-            
-            # Check that load action uses batch mode
+
+            lines = generated_code.split("\n")
+
             load_section_found = False
             transform_section_found = False
-            
+
             for i, line in enumerate(lines):
                 # Check load section
                 if "def v_customers():" in line:
                     load_section_found = True
                     # Look for the read statement in the next few lines
-                    for j in range(i, min(i+10, len(lines))):
+                    for j in range(i, min(i + 10, len(lines))):
                         if "spark.read" in lines[j]:
-                            assert "spark.read.table" in lines[j], "Load action should use batch mode"
-                            assert "spark.readStream" not in lines[j], "Load action should not use stream mode"
+                            assert "spark.read.table" in lines[j], (
+                                "Load action should use batch mode"
+                            )
+                            assert "spark.readStream" not in lines[j], (
+                                "Load action should not use stream mode"
+                            )
                             break
-                
+
                 # Check transform section
                 if "def v_customers_typed():" in line:
                     transform_section_found = True
                     # Look for the read statement in the next few lines
-                    for j in range(i, min(i+10, len(lines))):
+                    for j in range(i, min(i + 10, len(lines))):
                         if "spark.read" in lines[j]:
-                            assert "spark.read.table" in lines[j], "Transform action should use batch mode"
-                            assert "spark.readStream" not in lines[j], "Transform action should not use stream mode"
+                            assert "spark.read.table" in lines[j], (
+                                "Transform action should use batch mode"
+                            )
+                            assert "spark.readStream" not in lines[j], (
+                                "Transform action should not use stream mode"
+                            )
                             break
-            
+
             assert load_section_found, "Load action not found in generated code"
-            assert transform_section_found, "Transform action not found in generated code"
-    
+            assert transform_section_found, (
+                "Transform action not found in generated code"
+            )
+
     def test_streaming_table_default_readmode(self):
         """Test that streaming table defaults to spark.readStream when readMode not specified."""
         generator = StreamingTableWriteGenerator()
-        
+
         action = Action(
             name="write_customers",
             type=ActionType.WRITE,
@@ -386,22 +387,22 @@ environment:
                 "catalog": "test_cat",
                 "schema": "silver",
                 "table": "customers",
-                "create_table": True
-            }
+                "create_table": True,
+            },
         )
-        
-        code = generator.generate(action, {"flowgroup": FlowGroup(
-            pipeline="test", flowgroup="test", actions=[]
-        )})
-        
-        # Should use spark.readStream by default
+
+        code = generator.generate(
+            action,
+            {"flowgroup": FlowGroup(pipeline="test", flowgroup="test", actions=[])},
+        )
+
         assert "spark.readStream.table" in code
         assert "spark.read.table" not in code or code.count("spark.read.table") == 0
-    
+
     def test_streaming_table_explicit_stream_readmode(self):
         """Test that streaming table uses spark.readStream with explicit readMode: stream."""
         generator = StreamingTableWriteGenerator()
-        
+
         action = Action(
             name="write_customers",
             type=ActionType.WRITE,
@@ -412,21 +413,21 @@ environment:
                 "catalog": "test_cat",
                 "schema": "silver",
                 "table": "customers",
-                "create_table": True
-            }
+                "create_table": True,
+            },
         )
-        
-        code = generator.generate(action, {"flowgroup": FlowGroup(
-            pipeline="test", flowgroup="test", actions=[]
-        )})
-        
-        # Should use spark.readStream
+
+        code = generator.generate(
+            action,
+            {"flowgroup": FlowGroup(pipeline="test", flowgroup="test", actions=[])},
+        )
+
         assert "spark.readStream.table" in code
-    
+
     def test_streaming_table_batch_readmode(self):
         """Test that streaming table uses spark.read with readMode: batch."""
         generator = StreamingTableWriteGenerator()
-        
+
         action = Action(
             name="write_customers",
             type=ActionType.WRITE,
@@ -437,22 +438,22 @@ environment:
                 "catalog": "test_cat",
                 "schema": "silver",
                 "table": "customers",
-                "create_table": True
-            }
+                "create_table": True,
+            },
         )
-        
-        code = generator.generate(action, {"flowgroup": FlowGroup(
-            pipeline="test", flowgroup="test", actions=[]
-        )})
-        
-        # Should use spark.read
+
+        code = generator.generate(
+            action,
+            {"flowgroup": FlowGroup(pipeline="test", flowgroup="test", actions=[])},
+        )
+
         assert "spark.read.table" in code
         assert "spark.readStream" not in code
-    
+
     def test_streaming_table_once_flag_with_default_readmode(self):
         """Test that once flag doesn't affect read method - readMode controls it."""
         generator = StreamingTableWriteGenerator()
-        
+
         # once=True with default readMode should still use spark.readStream
         action = Action(
             name="write_customers",
@@ -464,23 +465,22 @@ environment:
                 "catalog": "test_cat",
                 "schema": "silver",
                 "table": "customers",
-                "create_table": True
-            }
+                "create_table": True,
+            },
         )
-        
-        code = generator.generate(action, {"flowgroup": FlowGroup(
-            pipeline="test", flowgroup="test", actions=[]
-        )})
-        
-        # Should use spark.readStream (default readMode)
+
+        code = generator.generate(
+            action,
+            {"flowgroup": FlowGroup(pipeline="test", flowgroup="test", actions=[])},
+        )
+
         assert "spark.readStream.table" in code
-        # Should have once=True in decorator
         assert "once=True" in code
-    
+
     def test_streaming_table_once_flag_with_batch_readmode(self):
         """Test that readMode: batch overrides default even with once flag."""
         generator = StreamingTableWriteGenerator()
-        
+
         action = Action(
             name="write_customers",
             type=ActionType.WRITE,
@@ -492,24 +492,23 @@ environment:
                 "catalog": "test_cat",
                 "schema": "silver",
                 "table": "customers",
-                "create_table": True
-            }
+                "create_table": True,
+            },
         )
-        
-        code = generator.generate(action, {"flowgroup": FlowGroup(
-            pipeline="test", flowgroup="test", actions=[]
-        )})
-        
-        # Should use spark.read (explicit readMode: batch)
+
+        code = generator.generate(
+            action,
+            {"flowgroup": FlowGroup(pipeline="test", flowgroup="test", actions=[])},
+        )
+
         assert "spark.read.table" in code
         assert "spark.readStream" not in code
-        # Should have once=True in decorator
         assert "once=True" in code
-    
+
     def test_streaming_table_once_false_with_batch_readmode(self):
         """Test that readMode: batch works with once=False."""
         generator = StreamingTableWriteGenerator()
-        
+
         action = Action(
             name="write_customers",
             type=ActionType.WRITE,
@@ -521,18 +520,18 @@ environment:
                 "catalog": "test_cat",
                 "schema": "silver",
                 "table": "customers",
-                "create_table": True
-            }
+                "create_table": True,
+            },
         )
-        
-        code = generator.generate(action, {"flowgroup": FlowGroup(
-            pipeline="test", flowgroup="test", actions=[]
-        )})
-        
-        # Should use spark.read (explicit readMode: batch)
+
+        code = generator.generate(
+            action,
+            {"flowgroup": FlowGroup(pipeline="test", flowgroup="test", actions=[])},
+        )
+
         assert "spark.read.table" in code
         assert "spark.readStream" not in code
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"]) 
+    pytest.main([__file__, "-v"])

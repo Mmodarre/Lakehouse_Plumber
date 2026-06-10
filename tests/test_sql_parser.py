@@ -505,9 +505,9 @@ class TestStreamWithCTEContext:
         SELECT * FROM stream(raw_events)
         """
         tables = self.parser.extract_tables_from_sql(sql)
-        assert (
-            "raw_events" not in tables
-        ), "CTE name 'raw_events' wrapped in stream() should be filtered out"
+        assert "raw_events" not in tables, (
+            "CTE name 'raw_events' wrapped in stream() should be filtered out"
+        )
         assert "bronze.event_log" in tables
         assert tables == ["bronze.event_log"]
 
@@ -542,9 +542,9 @@ class TestStreamWithCTEContext:
         """
         tables = self.parser.extract_tables_from_sql(sql)
         for cte_name in ["incoming", "cleaned"]:
-            assert (
-                cte_name not in tables
-            ), f"CTE name '{cte_name}' wrapped in stream() should be filtered"
+            assert cte_name not in tables, (
+                f"CTE name '{cte_name}' wrapped in stream() should be filtered"
+            )
         assert "bronze.ingest" in tables
         assert "silver.reference_data" in tables
         assert sorted(tables) == ["bronze.ingest", "silver.reference_data"]

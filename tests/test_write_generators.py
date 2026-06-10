@@ -10,7 +10,7 @@ from lhp.generators.write import (
     MaterializedViewWriteGenerator,
     StreamingTableWriteGenerator,
 )
-from lhp.models.config import Action, ActionType
+from lhp.models import Action, ActionType
 
 
 class TestWriteGenerators:
@@ -28,7 +28,7 @@ class TestWriteGenerators:
                 "catalog": "silver_cat",
                 "schema": "silver_sch",
                 "table": "customers",
-                "create_table": True,  # ← Add explicit table creation flag
+                "create_table": True,
                 "partition_columns": ["year", "month"],
                 "cluster_columns": ["customer_id"],
                 "table_properties": {"quality": "silver"},
@@ -37,7 +37,6 @@ class TestWriteGenerators:
 
         code = generator.generate(action, {})
 
-        # Check generated code - standard mode creates table and append flow
         assert "dp.create_streaming_table" in code
         assert "@dp.append_flow(" in code
         assert "silver_cat.silver_sch.customers" in code
@@ -61,7 +60,6 @@ class TestWriteGenerators:
 
         code = generator.generate(action, {})
 
-        # Verify generated code
         assert "@dp.materialized_view(" in code
         assert 'name="gold_cat.gold_sch.customer_summary"' in code
         assert "spark.sql" in code
@@ -92,13 +90,13 @@ class TestWriteGenerators:
                 "partition_columns": ["region"],
                 "cluster_columns": ["id"],
                 "path": "/mnt/data/gold/advanced_table",
+                "refresh_policy": "incremental",
                 "sql": "SELECT * FROM silver.base_table",
             },
         )
 
         code = generator.generate(action, {})
 
-        # Verify all options are included
         # Note: temporary parameter is accepted in config for backward compat but not passed to decorator
         assert "@dp.materialized_view(" in code
         assert 'name="gold_cat.gold_sch.advanced_table"' in code
@@ -109,6 +107,43 @@ class TestWriteGenerators:
         assert 'partition_cols=["region"]' in code
         assert 'cluster_by=["id"]' in code
         assert 'path="/mnt/data/gold/advanced_table"' in code
+        assert 'refresh_policy="incremental"' in code
+
+    def test_materialized_view_cluster_by_auto(self):
+        """Test materialized view emits cluster_by_auto when set, omits when not."""
+        generator = MaterializedViewWriteGenerator()
+
+        # cluster_by_auto is mutually exclusive with cluster_columns, so omit them.
+        action_enabled = Action(
+            name="write_auto_cluster",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "materialized_view",
+                "catalog": "gold_cat",
+                "schema": "gold_sch",
+                "table": "auto_clustered",
+                "cluster_by_auto": True,
+                "sql": "SELECT * FROM silver.base_table",
+            },
+        )
+        code_enabled = generator.generate(action_enabled, {})
+        assert "@dp.materialized_view(" in code_enabled
+        assert "cluster_by_auto=True" in code_enabled
+
+        # Negative case: unset cluster_by_auto must emit nothing.
+        action_unset = Action(
+            name="write_no_auto_cluster",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "materialized_view",
+                "catalog": "gold_cat",
+                "schema": "gold_sch",
+                "table": "plain_table",
+                "sql": "SELECT * FROM silver.base_table",
+            },
+        )
+        code_unset = generator.generate(action_unset, {})
+        assert "cluster_by_auto" not in code_unset
 
     def test_streaming_table_with_all_options(self):
         """Test streaming table with all new options."""
@@ -122,7 +157,7 @@ class TestWriteGenerators:
                 "catalog": "silver_cat",
                 "schema": "silver_sch",
                 "table": "advanced_streaming",
-                "create_table": True,  # ← Add explicit table creation flag
+                "create_table": True,
                 "spark_conf": {
                     "spark.sql.streaming.checkpointLocation": "/checkpoints/advanced",
                     "spark.sql.streaming.stateStore.providerClass": "RocksDBStateStoreProvider",
@@ -142,7 +177,6 @@ class TestWriteGenerators:
 
         code = generator.generate(action, {})
 
-        # Verify all options are included in both create_streaming_table and @dp.append_flow
         assert "dp.create_streaming_table(" in code
         assert "@dp.append_flow(" in code
         assert 'name="silver_cat.silver_sch.advanced_streaming"' in code
@@ -175,7 +209,7 @@ class TestWriteGenerators:
                 "catalog": "silver_cat",
                 "schema": "silver_sch",
                 "table": "customers",
-                "create_table": True,  # ← Add explicit table creation flag
+                "create_table": True,
                 "snapshot_cdc_config": {
                     "source": "raw.customer_snapshots",
                     "keys": ["customer_id"],
@@ -186,7 +220,6 @@ class TestWriteGenerators:
 
         code = generator.generate(action, {})
 
-        # Verify snapshot CDC structure
         assert "dp.create_streaming_table(" in code
         assert 'name="silver_cat.silver_sch.customers"' in code
         assert "dp.create_auto_cdc_from_snapshot_flow(" in code
@@ -195,15 +228,160 @@ class TestWriteGenerators:
         assert 'keys=["customer_id"]' in code
         assert "stored_as_scd_type=1" in code
 
-        # Should not have function imports
         assert "import sys" not in code
         assert "sys.path.append" not in code
 
-    def test_streaming_table_snapshot_cdc_function_source(self):
-        """Test streaming table with snapshot CDC using function source."""
-        # Create a temporary function file for the test
+    def test_streaming_table_cluster_by_auto_standard(self):
+        """Standard mode emits cluster_by_auto=True without cluster_columns."""
+        generator = StreamingTableWriteGenerator()
+        action = Action(
+            name="write_cluster_auto",
+            type=ActionType.WRITE,
+            source="v_customers_final",
+            write_target={
+                "type": "streaming_table",
+                "catalog": "silver_cat",
+                "schema": "silver_sch",
+                "table": "customers",
+                "create_table": True,
+                "cluster_by_auto": True,
+            },
+        )
+
+        code = generator.generate(action, {})
+
+        assert "dp.create_streaming_table(" in code
+        assert "cluster_by_auto=True" in code
+        # cluster_by_auto is independent of explicit cluster columns
+        assert "cluster_by=" not in code
+
+    def test_streaming_table_cluster_by_auto_standard_unset(self):
+        """Standard mode omits cluster_by_auto when False/unset."""
+        generator = StreamingTableWriteGenerator()
+        action_false = Action(
+            name="write_cluster_auto_false",
+            type=ActionType.WRITE,
+            source="v_customers_final",
+            write_target={
+                "type": "streaming_table",
+                "catalog": "silver_cat",
+                "schema": "silver_sch",
+                "table": "customers",
+                "create_table": True,
+                "cluster_by_auto": False,
+            },
+        )
+        action_unset = Action(
+            name="write_cluster_auto_unset",
+            type=ActionType.WRITE,
+            source="v_customers_final",
+            write_target={
+                "type": "streaming_table",
+                "catalog": "silver_cat",
+                "schema": "silver_sch",
+                "table": "customers",
+                "create_table": True,
+            },
+        )
+
+        assert "cluster_by_auto" not in generator.generate(action_false, {})
+        assert "cluster_by_auto" not in generator.generate(action_unset, {})
+
+    def test_streaming_table_cluster_by_auto_cdc(self):
+        """CDC mode emits cluster_by_auto=True on the created table; omits when unset."""
+        generator = StreamingTableWriteGenerator()
+
+        def _cdc_action(cluster_by_auto):
+            write_target = {
+                "type": "streaming_table",
+                "mode": "cdc",
+                "catalog": "silver_cat",
+                "schema": "silver_sch",
+                "table": "dim_customer",
+                "create_table": True,
+                "cdc_config": {
+                    "keys": ["customer_id"],
+                    "sequence_by": "_commit_timestamp",
+                    "scd_type": 2,
+                },
+            }
+            if cluster_by_auto is not None:
+                write_target["cluster_by_auto"] = cluster_by_auto
+            return Action(
+                name="write_customer_dim",
+                type=ActionType.WRITE,
+                source="v_customer_changes",
+                write_target=write_target,
+            )
+
+        code = generator.generate(_cdc_action(True), {"expectations": []})
+        assert "dp.create_streaming_table(" in code
+        assert "dp.create_auto_cdc_flow(" in code
+        assert "cluster_by_auto=True" in code
+
+        code_false = generator.generate(_cdc_action(False), {"expectations": []})
+        assert "cluster_by_auto" not in code_false
+
+        code_unset = generator.generate(_cdc_action(None), {"expectations": []})
+        assert "cluster_by_auto" not in code_unset
+
+    def test_streaming_table_cluster_by_auto_snapshot_cdc(self):
+        """Snapshot CDC mode emits cluster_by_auto=True; omits when unset."""
+        generator = StreamingTableWriteGenerator()
+
+        def _snapshot_action(cluster_by_auto):
+            write_target = {
+                "type": "streaming_table",
+                "mode": "snapshot_cdc",
+                "catalog": "silver_cat",
+                "schema": "silver_sch",
+                "table": "customers",
+                "create_table": True,
+                "snapshot_cdc_config": {
+                    "source": "raw.customer_snapshots",
+                    "keys": ["customer_id"],
+                    "stored_as_scd_type": 1,
+                },
+            }
+            if cluster_by_auto is not None:
+                write_target["cluster_by_auto"] = cluster_by_auto
+            return Action(
+                name="write_customer_snapshot_cdc",
+                type=ActionType.WRITE,
+                write_target=write_target,
+            )
+
+        code = generator.generate(_snapshot_action(True), {})
+        assert "dp.create_streaming_table(" in code
+        assert "dp.create_auto_cdc_from_snapshot_flow(" in code
+        assert "cluster_by_auto=True" in code
+
+        code_false = generator.generate(_snapshot_action(False), {})
+        assert "cluster_by_auto" not in code_false
+
+        code_unset = generator.generate(_snapshot_action(None), {})
+        assert "cluster_by_auto" not in code_unset
+
+    def _make_snapshot_function_file(self, body: str) -> str:
+        """Write a temp snapshot source-function file, return its path.
+
+        ``body`` is the function definition (and any supporting imports).
+        """
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write("""
+            f.write(body)
+            return f.name
+
+    def test_streaming_table_snapshot_cdc_function_source_bare(self):
+        """Bare (no-params) source function: copy-and-import, alias-qualified.
+
+        The function body is NOT inlined; the user's module is imported under
+        a ``_snap_<mod>`` alias and ``spark``/``dbutils`` are injected into its
+        globals unconditionally.
+        """
+        from lhp.models import FlowGroup
+
+        function_file = self._make_snapshot_function_file(
+            """
 from typing import Optional, Tuple
 from pyspark.sql import DataFrame
 
@@ -212,8 +390,10 @@ def next_customer_snapshot(latest_version: Optional[int]) -> Optional[Tuple[Data
         df = spark.read.table("raw.customer_snapshots")
         return (df, 1)
     return None
-""")
-            function_file = f.name
+"""
+        )
+        mod = Path(function_file).stem
+        alias = f"_snap_{mod}"
 
         generator = StreamingTableWriteGenerator()
         action = Action(
@@ -225,10 +405,10 @@ def next_customer_snapshot(latest_version: Optional[int]) -> Optional[Tuple[Data
                 "catalog": "silver_cat",
                 "schema": "silver_sch",
                 "table": "customers",
-                "create_table": True,  # ← Add explicit table creation flag
+                "create_table": True,
                 "snapshot_cdc_config": {
                     "source_function": {
-                        "file": function_file,  # Use actual temp file path
+                        "file": function_file,
                         "function": "next_customer_snapshot",
                     },
                     "keys": ["customer_id", "region"],
@@ -237,27 +417,100 @@ def next_customer_snapshot(latest_version: Optional[int]) -> Optional[Tuple[Data
                 },
             },
         )
+        # output_dir omitted → dry-run copy path; flowgroup is required.
+        context = {"flowgroup": FlowGroup(pipeline="p", flowgroup="fg")}
 
         try:
-            code = generator.generate(action, {})
+            code = generator.generate(action, context)
+            imports = generator.imports
+            pre = generator.get_pre_pipeline_statements()
         finally:
-            # Clean up temp file
             Path(function_file).unlink()
 
-        # Verify function embedding structure
-        assert "# Snapshot function embedded directly in generated code" in code
-        assert "def next_customer_snapshot(latest_version: Optional[int])" in code
-        assert "from pyspark.sql import DataFrame" in code
-        assert "from typing import Optional, Tuple" in code
+        assert f"import custom_python_functions.{mod} as {alias}" in imports
 
-        # Verify snapshot CDC structure
-        assert "dp.create_streaming_table(" in code
+        # BOTH session globals injected, unconditionally.
+        assert f"{alias}.spark = spark" in pre
+        assert f"{alias}.dbutils = dbutils" in pre
+
+        assert "# Snapshot function embedded directly in generated code" not in code
+        assert "def next_customer_snapshot" not in code
+
         assert "dp.create_auto_cdc_from_snapshot_flow(" in code
         assert 'target="silver_cat.silver_sch.customers"' in code
-        assert "source=next_customer_snapshot" in code  # Function reference, not string
+        assert f"source={alias}.next_customer_snapshot" in code
+        assert "partial" not in code  # bare function: no partial wrapper needed
         assert 'keys=["customer_id", "region"]' in code
         assert "stored_as_scd_type=2" in code
-        assert 'track_history_column_list=["name", "email", "address"]' in code
+
+    def test_streaming_table_snapshot_cdc_function_source_parameterized(self):
+        """Parameterized source function: alias-qualified name is partial's
+        FIRST POSITIONAL argument, body not inlined, both globals injected."""
+        import re
+
+        from lhp.models import FlowGroup
+
+        function_file = self._make_snapshot_function_file(
+            """
+from typing import Optional, Tuple
+from pyspark.sql import DataFrame
+
+def next_customer_snapshot(latest_version: Optional[int], *, region: str) -> Optional[Tuple[DataFrame, int]]:
+    if latest_version is None:
+        df = spark.read.table(f"raw.{region}_customer_snapshots")
+        return (df, 1)
+    return None
+"""
+        )
+        mod = Path(function_file).stem
+        alias = f"_snap_{mod}"
+
+        generator = StreamingTableWriteGenerator()
+        action = Action(
+            name="write_customer_snapshot_cdc_param",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "streaming_table",
+                "mode": "snapshot_cdc",
+                "catalog": "silver_cat",
+                "schema": "silver_sch",
+                "table": "customers",
+                "create_table": True,
+                "snapshot_cdc_config": {
+                    "source_function": {
+                        "file": function_file,
+                        "function": "next_customer_snapshot",
+                        "parameters": {"region": "us"},
+                    },
+                    "keys": ["customer_id"],
+                    "stored_as_scd_type": 1,
+                },
+            },
+        )
+        context = {"flowgroup": FlowGroup(pipeline="p", flowgroup="fg")}
+
+        try:
+            code = generator.generate(action, context)
+            imports = generator.imports
+            pre = generator.get_pre_pipeline_statements()
+        finally:
+            Path(function_file).unlink()
+
+        assert f"import custom_python_functions.{mod} as {alias}" in imports
+        assert "from functools import partial" in imports
+        assert f"{alias}.spark = spark" in pre
+        assert f"{alias}.dbutils = dbutils" in pre
+
+        assert "def next_customer_snapshot" not in code
+        assert "# Snapshot function embedded directly in generated code" not in code
+
+        # The alias-qualified name is the partial's FIRST POSITIONAL argument
+        # (not merely that "partial" appears somewhere).
+        pattern = (
+            r"partial\(\s*" + re.escape(f"{alias}.next_customer_snapshot") + r"\s*,"
+        )
+        assert re.search(pattern, code), f"partial-first-arg not found in:\n{code}"
+        assert "region='us'" in code
 
     def test_streaming_table_snapshot_cdc_track_history_except(self):
         """Test snapshot CDC with track_history_except_column_list."""
@@ -271,7 +524,7 @@ def next_customer_snapshot(latest_version: Optional[int]) -> Optional[Tuple[Data
                 "catalog": "silver_cat",
                 "schema": "silver_sch",
                 "table": "products",
-                "create_table": True,  # ← Add explicit table creation flag
+                "create_table": True,
                 "snapshot_cdc_config": {
                     "source": "raw.product_snapshots",
                     "keys": ["product_id"],
@@ -287,7 +540,6 @@ def next_customer_snapshot(latest_version: Optional[int]) -> Optional[Tuple[Data
 
         code = generator.generate(action, {})
 
-        # Verify except columns usage
         assert "dp.create_auto_cdc_from_snapshot_flow(" in code
         assert (
             'track_history_except_column_list=["created_at", "updated_at", "_metadata"]'
@@ -302,7 +554,7 @@ def test_materialized_view_string_source():
     action = Action(
         name="write_test",
         type=ActionType.WRITE,
-        source="v_simple_view",  # String source, no SQL in write_target
+        source="v_simple_view",
         write_target={
             "type": "materialized_view",
             "catalog": "test_cat",
@@ -313,11 +565,10 @@ def test_materialized_view_string_source():
 
     code = generator.generate(action, {})
 
-    # Verify the string source is correctly extracted and used
     assert "v_simple_view" in code
     assert "@dp.materialized_view(" in code
     assert 'name="test_cat.test_sch.test_table"' in code
-    assert "spark.read.table" in code  # Should use spark.read.table for source view
+    assert "spark.read.table" in code
 
 
 def test_materialized_view_list_source_first_item():
@@ -326,7 +577,7 @@ def test_materialized_view_list_source_first_item():
     action = Action(
         name="write_test",
         type=ActionType.WRITE,
-        source=["first_view", "ignored_view", "also_ignored"],  # List source
+        source=["first_view", "ignored_view", "also_ignored"],
         write_target={
             "type": "materialized_view",
             "catalog": "test_cat",
@@ -337,7 +588,6 @@ def test_materialized_view_list_source_first_item():
 
     code = generator.generate(action, {})
 
-    # Verify only the first item in the list is used
     assert "first_view" in code
     assert "ignored_view" not in code
     assert "also_ignored" not in code
@@ -350,7 +600,6 @@ def test_materialized_view_invalid_source_type():
     """Test materialized view with invalid source type raises ValueError."""
     generator = MaterializedViewWriteGenerator()
 
-    # Test the _extract_source_view method directly with invalid source
     with pytest.raises(ValueError) as exc_info:
         generator._extract_source_view(42)  # Invalid source type (int)
 
@@ -364,10 +613,8 @@ def test_materialized_view_missing_write_target():
         name="write_test",
         type=ActionType.WRITE,
         source="v_simple_view",
-        # Missing write_target field entirely
     )
 
-    # Should raise ValueError for missing write_target
     with pytest.raises(ValueError) as exc_info:
         generator.generate(action, {})
 
@@ -380,17 +627,14 @@ def test_materialized_view_missing_source_and_sql():
     action = Action(
         name="write_test",
         type=ActionType.WRITE,
-        # Missing source field and no SQL in write_target
         write_target={
             "type": "materialized_view",
             "catalog": "test_cat",
             "schema": "test_sch",
             "table": "test_table",
-            # Missing sql field
         },
     )
 
-    # Should raise ValueError when trying to extract source view from None
     with pytest.raises(ValueError) as exc_info:
         generator.generate(action, {})
 
@@ -403,7 +647,7 @@ def test_materialized_view_empty_list_source():
     action = Action(
         name="write_test",
         type=ActionType.WRITE,
-        source=[],  # Empty list source
+        source=[],
         write_target={
             "type": "materialized_view",
             "catalog": "test_cat",
@@ -412,7 +656,6 @@ def test_materialized_view_empty_list_source():
         },
     )
 
-    # Should raise ValueError for empty list source
     with pytest.raises(ValueError) as exc_info:
         generator.generate(action, {})
 
@@ -434,11 +677,8 @@ def test_materialized_view_no_catalog_schema_fallback():
 
     code = generator.generate(action, {})
 
-    # Verify table name is used without catalog.schema prefix
     assert 'name="test_table"' in code
-    assert (
-        'name="test_cat.test_sch.test_table"' not in code
-    )  # Should not have catalog.schema prefix
+    assert 'name="test_cat.test_sch.test_table"' not in code
     assert "@dp.materialized_view(" in code
     assert "spark.sql" in code
 
@@ -462,9 +702,8 @@ def test_materialized_view_custom_comment_and_description():
 
     code = generator.generate(action, {})
 
-    # Verify custom comment and description appear in generated code
     assert 'comment="Custom table comment"' in code
-    assert "Custom action description" in code  # Should appear in function docstring
+    assert "Custom action description" in code
     assert "@dp.materialized_view(" in code
     assert "spark.sql" in code
 
@@ -484,24 +723,18 @@ def test_materialized_view_with_flowgroup_context():
         },
     )
 
-    # Pass flowgroup in context
     context = {"flowgroup": "test_flowgroup"}
     code = generator.generate(action, context)
 
-    # Verify flowgroup context is used (check this is passed to template)
-    # The template should have access to flowgroup variable
     assert "@dp.materialized_view(" in code
     assert 'name="test_cat.test_sch.test_table"' in code
     assert "spark.sql" in code
-    # Note: The actual usage of flowgroup in template may vary,
-    # this test ensures it's passed to template context without errors
 
 
 def test_materialized_view_partition_and_cluster_variations():
     """Test materialized view with different partition and cluster column combinations."""
     generator = MaterializedViewWriteGenerator()
 
-    # Test 1: Both partition and cluster columns
     action_both = Action(
         name="write_test_both",
         type=ActionType.WRITE,
@@ -520,7 +753,6 @@ def test_materialized_view_partition_and_cluster_variations():
     assert 'partition_cols=["year", "month"]' in code_both
     assert 'cluster_by=["id"]' in code_both
 
-    # Test 2: Only partition columns
     action_partition = Action(
         name="write_test_partition",
         type=ActionType.WRITE,
@@ -538,7 +770,6 @@ def test_materialized_view_partition_and_cluster_variations():
     assert 'partition_cols=["region"]' in code_partition
     assert "cluster_by=" not in code_partition
 
-    # Test 3: Only cluster columns
     action_cluster = Action(
         name="write_test_cluster",
         type=ActionType.WRITE,
@@ -574,9 +805,8 @@ def test_materialized_view_disabled_metadata():
 
     code = generator.generate(action, {})
 
-    # Verify metadata is disabled by default
     assert "# Add operational metadata columns" not in code
-    assert "withColumn" not in code  # No metadata column additions
+    assert "withColumn" not in code
     assert "@dp.materialized_view(" in code
     assert "spark.sql" in code
 
@@ -600,18 +830,12 @@ def test_materialized_view_enabled_metadata_mock():
     original_generate = generator.generate
 
     def mock_generate(action, context):
-        # Call original generate
         code_lines = original_generate(action, context).split("\n")
 
-        # Find the template context creation and modify it to add metadata
-        # Since this is testing a disabled feature, we'll just verify
-        # that when metadata is force-enabled, the template can handle it
         modified_context = context.copy() if context else {}
         modified_context["metadata_columns"] = {"_test_column": "F.current_timestamp()"}
 
-        # Re-call with modified context that forces metadata
         with patch.object(generator, "render_template") as mock_render:
-            # Mock the template rendering to include metadata
             mock_render.return_value = '''@dp.materialized_view(
     name="test_cat.test_sch.test_table",
     comment="Materialized view: test_table",
@@ -630,7 +854,6 @@ def test_table():
     with patch.object(generator, "generate", side_effect=mock_generate):
         code = generator.generate(action, {})
 
-    # Verify mocked metadata is present
     assert "# Add operational metadata columns" in code
     assert "withColumn" in code
     assert "_test_column" in code
@@ -640,9 +863,7 @@ def test_table():
 @pytest.mark.parametrize(
     "source_config,expected_view",
     [
-        # String source
         ("v_string_view", "v_string_view"),
-        # List source (first item string)
         (["first_view", "ignored_view"], "first_view"),
     ],
 )
@@ -663,7 +884,6 @@ def test_materialized_view_parametrized_sources(source_config, expected_view):
 
     code = generator.generate(action, {})
 
-    # Verify expected view name appears in generated code
     assert expected_view in code
     assert "@dp.materialized_view(" in code
     assert 'name="test_cat.test_sch.test_table"' in code
@@ -705,22 +925,19 @@ def test_materialized_view_full_structure():
     context = {"flowgroup": "analytics_flowgroup"}
     code = generator.generate(action, context)
 
-    # Verify overall structure and order
     lines = code.split("\n")
 
-    # Check that @dp.materialized_view comes before function definition
+    # @dp.materialized_view must come before the function definition
     dlt_mv_line = next(
         i for i, line in enumerate(lines) if "@dp.materialized_view(" in line
     )
     function_def_line = next(
         i for i, line in enumerate(lines) if "def customer_analytics():" in line
     )
-    assert (
-        dlt_mv_line < function_def_line
-    ), "DLT decorator should come before function definition"
+    assert dlt_mv_line < function_def_line, (
+        "DLT decorator should come before function definition"
+    )
 
-    # Check that imports would be at the top (handled by base generator)
-    # Check specific configurations are included
     assert 'name="gold_cat.gold_sch.customer_analytics"' in code
     assert 'comment="Customer analytics materialized view"' in code
     assert 'spark_conf={"spark.sql.adaptive.enabled": "true"' in code
@@ -731,11 +948,9 @@ def test_materialized_view_full_structure():
     assert 'cluster_by=["customer_id"]' in code
     assert 'path="/mnt/data/gold/customer_analytics"' in code
 
-    # Verify source extraction and usage
     assert "silver.customer_data" in code
     assert "spark.read.table" in code
 
-    # Verify function structure
     assert "def customer_analytics():" in code
     assert '"""Complex materialized view with all options"""' in code
     assert "return df" in code
@@ -749,7 +964,6 @@ def test_materialized_view_with_sql_path():
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
 
-        # Create SQL file
         sql_dir = project_root / "sql" / "gold"
         sql_dir.mkdir(parents=True)
         sql_file = sql_dir / "customer_summary.sql"
@@ -780,7 +994,6 @@ GROUP BY customer_id, customer_name
         context = {"project_root": project_root}
         code = generator.generate(action, context)
 
-        # Verify SQL content is loaded from file
         assert "customer_id" in code
         assert "customer_name" in code
         assert "total_orders" in code
@@ -801,7 +1014,6 @@ def test_materialized_view_sql_path_with_substitutions():
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
 
-        # Create SQL file with substitution variables
         sql_dir = project_root / "sql"
         sql_dir.mkdir()
         sql_file = sql_dir / "sales_summary.sql"
@@ -815,7 +1027,6 @@ WHERE sale_date >= '{start_date}'
 GROUP BY product_id
 """)
 
-        # Mock substitution manager
         mock_subst_mgr = Mock()
         mock_subst_mgr._process_string.return_value = """
 SELECT 
@@ -848,11 +1059,9 @@ GROUP BY product_id
         }
         code = generator.generate(action, context)
 
-        # Verify substitutions were applied
         assert "dev_catalog.bronze.sales" in code
         assert "2024-01-01" in code
 
-        # Verify substitution manager was called
         mock_subst_mgr._process_string.assert_called_once()
 
 
@@ -861,7 +1070,7 @@ def test_materialized_view_sql_path_file_not_found():
     import tempfile
     from pathlib import Path
 
-    from lhp.utils.error_formatter import LHPError
+    from lhp.errors import LHPError
 
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
@@ -881,7 +1090,6 @@ def test_materialized_view_sql_path_file_not_found():
 
         context = {"project_root": project_root}
 
-        # Should raise LHPError for missing file
         with pytest.raises(LHPError) as exc_info:
             generator.generate(action, context)
 
@@ -897,7 +1105,6 @@ def test_materialized_view_sql_vs_sql_path_precedence():
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
 
-        # Create SQL file (should be ignored)
         sql_dir = project_root / "sql"
         sql_dir.mkdir()
         sql_file = sql_dir / "query.sql"
@@ -920,7 +1127,6 @@ def test_materialized_view_sql_vs_sql_path_precedence():
         context = {"project_root": project_root}
         code = generator.generate(action, context)
 
-        # Should use inline SQL, not file
         assert "silver.customers" in code
         assert "ignored_table" not in code
 
@@ -933,7 +1139,6 @@ def test_materialized_view_table_schema_from_ddl_file():
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
 
-        # Create DDL file
         schema_dir = project_root / "schemas" / "gold"
         schema_dir.mkdir(parents=True)
         schema_file = schema_dir / "product_view_schema.ddl"
@@ -958,7 +1163,6 @@ def test_materialized_view_table_schema_from_ddl_file():
         context = {"project_root": project_root}
         code = generator.generate(action, context)
 
-        # Verify schema is loaded from file
         assert (
             'schema="product_id BIGINT NOT NULL, product_name STRING, price DECIMAL(10,2), category STRING"'
             in code
@@ -974,7 +1178,6 @@ def test_materialized_view_table_schema_from_sql_file():
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
 
-        # Create SQL file with schema DDL
         schema_dir = project_root / "schemas"
         schema_dir.mkdir()
         schema_file = schema_dir / "customer_view_schema.sql"
@@ -999,7 +1202,6 @@ def test_materialized_view_table_schema_from_sql_file():
         context = {"project_root": project_root}
         code = generator.generate(action, context)
 
-        # Verify schema is loaded from file
         assert (
             'schema="customer_id BIGINT, name STRING, email STRING, region STRING"'
             in code
@@ -1014,7 +1216,6 @@ def test_materialized_view_table_schema_inline_vs_file():
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
 
-        # Test 1: Inline schema (no file extension)
         generator = MaterializedViewWriteGenerator()
         action_inline = Action(
             name="create_view_inline",
@@ -1032,10 +1233,8 @@ def test_materialized_view_table_schema_inline_vs_file():
         context = {"project_root": project_root}
         code_inline = generator.generate(action_inline, context)
 
-        # Should use inline schema
         assert 'schema="id BIGINT, name STRING, amount DECIMAL(18,2)"' in code_inline
 
-        # Test 2: File path with .ddl extension
         schema_dir = project_root / "schemas"
         schema_dir.mkdir()
         schema_file = schema_dir / "product_schema.ddl"
@@ -1056,7 +1255,6 @@ def test_materialized_view_table_schema_inline_vs_file():
 
         code_file = generator.generate(action_file, context)
 
-        # Should load from file
         assert 'schema="product_id BIGINT, product_name STRING"' in code_file
 
 
@@ -1068,7 +1266,6 @@ def test_streaming_table_table_schema_from_ddl_file():
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
 
-        # Create DDL file
         schema_dir = project_root / "schemas" / "bronze"
         schema_dir.mkdir(parents=True)
         schema_file = schema_dir / "customer_table.ddl"
@@ -1097,7 +1294,6 @@ _processing_timestamp TIMESTAMP""")
         context = {"project_root": project_root}
         code = generator.generate(action, context)
 
-        # Verify schema is loaded from file
         assert "customer_id BIGINT NOT NULL" in code
         assert "_source_file_path STRING" in code
         assert "_processing_timestamp TIMESTAMP" in code
@@ -1112,7 +1308,6 @@ def test_streaming_table_table_schema_from_sql_file():
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
 
-        # Create SQL file with schema DDL
         schema_dir = project_root / "schemas"
         schema_dir.mkdir()
         schema_file = schema_dir / "orders_table.sql"
@@ -1137,7 +1332,6 @@ def test_streaming_table_table_schema_from_sql_file():
         context = {"project_root": project_root}
         code = generator.generate(action, context)
 
-        # Verify schema is loaded from file
         assert "order_id BIGINT" in code
         assert "customer_id BIGINT" in code
         assert "order_amount DECIMAL(10,2)" in code
@@ -1151,7 +1345,6 @@ def test_streaming_table_table_schema_inline_vs_file():
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
 
-        # Test 1: Inline schema (multiline string)
         generator = StreamingTableWriteGenerator()
         action_inline = Action(
             name="write_table_inline",
@@ -1169,12 +1362,10 @@ def test_streaming_table_table_schema_inline_vs_file():
         context = {"project_root": project_root}
         code_inline = generator.generate(action_inline, context)
 
-        # Should use inline schema (with triple quotes for multiline)
         assert (
             'schema="""id BIGINT, name STRING, created_at TIMESTAMP"""' in code_inline
         )
 
-        # Test 2: File path with .ddl extension
         schema_dir = project_root / "schemas"
         schema_dir.mkdir()
         schema_file = schema_dir / "test_schema.ddl"
@@ -1197,7 +1388,6 @@ def test_streaming_table_table_schema_inline_vs_file():
 
         code_file = generator.generate(action_file, context)
 
-        # Should load from file
         assert (
             "product_id BIGINT, product_name STRING, price DECIMAL(10,2)" in code_file
         )
@@ -1211,7 +1401,6 @@ def test_streaming_table_table_schema_from_yaml_file():
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
 
-        # Create YAML file with schema definition
         schema_dir = project_root / "schemas"
         schema_dir.mkdir()
         schema_file = schema_dir / "customer_table.yaml"
@@ -1249,7 +1438,6 @@ columns:
         context = {"project_root": project_root}
         code = generator.generate(action, context)
 
-        # Verify schema is loaded from YAML file and converted to DDL
         assert "customer_id BIGINT NOT NULL" in code
         assert "customer_name STRING" in code
         assert "email STRING" in code
@@ -1264,7 +1452,6 @@ def test_streaming_table_table_schema_from_yml_file():
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
 
-        # Create .yml file with schema definition
         schema_dir = project_root / "schemas"
         schema_dir.mkdir()
         schema_file = schema_dir / "product_table.yml"
@@ -1299,7 +1486,6 @@ columns:
         context = {"project_root": project_root}
         code = generator.generate(action, context)
 
-        # Verify schema is loaded from .yml file and converted to DDL
         assert "product_id BIGINT NOT NULL" in code
         assert "product_name STRING NOT NULL" in code
         assert "price DECIMAL(10,2) NOT NULL" in code
@@ -1313,7 +1499,6 @@ def test_materialized_view_table_schema_from_yaml_file():
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
 
-        # Create YAML file with schema definition
         schema_dir = project_root / "schemas"
         schema_dir.mkdir()
         schema_file = schema_dir / "orders_aggregate.yaml"
@@ -1351,7 +1536,6 @@ columns:
         context = {"project_root": project_root}
         code = generator.generate(action, context)
 
-        # Verify schema is loaded from YAML file and converted to DDL
         assert "customer_id BIGINT NOT NULL" in code
         assert "total_orders INT NOT NULL" in code
         assert "total_amount DECIMAL(18,2) NOT NULL" in code
@@ -1360,7 +1544,6 @@ columns:
 
 def test_write_generator_imports():
     """Test that write generators manage imports correctly."""
-    # Write generator
     mv_gen = MaterializedViewWriteGenerator()
     assert "from pyspark import pipelines as dp" in mv_gen.imports
     assert "from pyspark.sql import DataFrame" in mv_gen.imports

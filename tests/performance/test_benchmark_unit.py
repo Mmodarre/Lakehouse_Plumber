@@ -31,11 +31,6 @@ from tests.performance.benchmark import (
 )
 
 
-# ---------------------------------------------------------------------------
-# _semver_key
-# ---------------------------------------------------------------------------
-
-
 class TestSemverKey:
     def test_basic_parse(self):
         assert _semver_key("v0.8.7.json") == (0, 8, 7)
@@ -70,11 +65,6 @@ class TestSemverKey:
             _semver_key(bad)
 
 
-# ---------------------------------------------------------------------------
-# _percentiles
-# ---------------------------------------------------------------------------
-
-
 class TestPercentiles:
     def test_empty(self):
         assert _percentiles([]) == (0.0, 0.0, 0.0)
@@ -90,11 +80,6 @@ class TestPercentiles:
     def test_monotonic(self):
         p25, median, p75 = _percentiles([10.0, 11.0, 12.0, 13.0, 14.0])
         assert p25 <= median <= p75
-
-
-# ---------------------------------------------------------------------------
-# _classify decision table
-# ---------------------------------------------------------------------------
 
 
 class TestClassify:
@@ -160,24 +145,23 @@ class TestClassify:
         assert _classify(b, c) == "stable"
 
 
-# ---------------------------------------------------------------------------
-# _flatten_run + summarize
-# ---------------------------------------------------------------------------
-
-
 def _make_run(**overrides) -> BenchmarkRun:
-    defaults = dict(
-        phases={"Pipeline discovery": 1.5, "Bundle sync": 0.25},
-        sub_phases={"Pipeline discovery": (("Blueprint expansion", 0.3),)},
-        categories={
+    defaults = {
+        "phases": {"Pipeline discovery": 1.5, "Bundle sync": 0.25},
+        "sub_phases": {"Pipeline discovery": (("Blueprint expansion", 0.3),)},
+        "categories": {
             "format_code": {
-                "cnt": 100, "total": 5.0, "min": 0.01, "max": 0.2, "avg": 0.05
+                "cnt": 100,
+                "total": 5.0,
+                "min": 0.01,
+                "max": 0.2,
+                "avg": 0.05,
             },
         },
-        counts={"blueprints": 1, "instances": 18},
-        wall_clock_seconds=2.0,
-        exit_code=0,
-    )
+        "counts": {"blueprints": 1, "instances": 18},
+        "wall_clock_seconds": 2.0,
+        "exit_code": 0,
+    }
     defaults.update(overrides)
     return BenchmarkRun(**defaults)
 
@@ -216,11 +200,6 @@ class TestSummarize:
         assert bundle.unit == "seconds"
 
 
-# ---------------------------------------------------------------------------
-# compare()
-# ---------------------------------------------------------------------------
-
-
 def _baseline_doc(
     metrics: dict[str, dict],
     shape: dict[str, int] | None = None,
@@ -248,18 +227,32 @@ def _summary(median, p25=None, p75=None, unit="seconds") -> MetricSummary:
 
 class TestCompare:
     def test_stable_baseline_yields_zero_regressions(self):
-        b = _baseline_doc({
-            "phase.Bundle sync": {"median": 10.0, "p25": 9.5, "p75": 10.5, "unit": "seconds"},
-        })
+        b = _baseline_doc(
+            {
+                "phase.Bundle sync": {
+                    "median": 10.0,
+                    "p25": 9.5,
+                    "p75": 10.5,
+                    "unit": "seconds",
+                },
+            }
+        )
         c = {"phase.Bundle sync": _summary(10.1, 9.6, 10.6)}
         result = compare(b, c, candidate_shape={"blueprints": 1, "instances": 18})
         assert result.regressions == ()
         assert len(result.stable) == 1
 
     def test_seconds_regression_caught(self):
-        b = _baseline_doc({
-            "phase.Bundle sync": {"median": 10.0, "p25": 9.5, "p75": 10.5, "unit": "seconds"},
-        })
+        b = _baseline_doc(
+            {
+                "phase.Bundle sync": {
+                    "median": 10.0,
+                    "p25": 9.5,
+                    "p75": 10.5,
+                    "unit": "seconds",
+                },
+            }
+        )
         c = {"phase.Bundle sync": _summary(20.0, 18.0, 22.0)}
         result = compare(b, c, candidate_shape={"blueprints": 1, "instances": 18})
         assert len(result.regressions) == 1
@@ -269,27 +262,48 @@ class TestCompare:
         assert entry.unit == "seconds"
 
     def test_count_regression_caught(self):
-        b = _baseline_doc({
-            "category.bundle_extract_keys.cnt": {"median": 100.0, "p25": 100.0, "p75": 100.0, "unit": "count"},
-        })
+        b = _baseline_doc(
+            {
+                "category.bundle_extract_keys.cnt": {
+                    "median": 100.0,
+                    "p25": 100.0,
+                    "p75": 100.0,
+                    "unit": "count",
+                },
+            }
+        )
         c = {"category.bundle_extract_keys.cnt": _summary(10100.0, unit="count")}
         result = compare(b, c, candidate_shape={"blueprints": 1, "instances": 18})
         assert len(result.regressions) == 1
         assert result.regressions[0].unit == "count"
 
     def test_improvement_classified_separately(self):
-        b = _baseline_doc({
-            "phase.Bundle sync": {"median": 10.0, "p25": 9.5, "p75": 10.5, "unit": "seconds"},
-        })
+        b = _baseline_doc(
+            {
+                "phase.Bundle sync": {
+                    "median": 10.0,
+                    "p25": 9.5,
+                    "p75": 10.5,
+                    "unit": "seconds",
+                },
+            }
+        )
         c = {"phase.Bundle sync": _summary(5.0, 4.0, 6.0)}
         result = compare(b, c, candidate_shape={"blueprints": 1, "instances": 18})
         assert result.regressions == ()
         assert len(result.improvements) == 1
 
     def test_sub_second_baseline_skipped(self):
-        b = _baseline_doc({
-            "phase.tiny": {"median": 0.5, "p25": 0.4, "p75": 0.6, "unit": "seconds"},
-        })
+        b = _baseline_doc(
+            {
+                "phase.tiny": {
+                    "median": 0.5,
+                    "p25": 0.4,
+                    "p75": 0.6,
+                    "unit": "seconds",
+                },
+            }
+        )
         c = {"phase.tiny": _summary(5.0, 4.0, 6.0)}
         result = compare(b, c, candidate_shape={"blueprints": 1, "instances": 18})
         assert result.regressions == ()
@@ -298,14 +312,20 @@ class TestCompare:
     def test_shape_mismatch_warns_and_suppresses_count_regression(self):
         b = _baseline_doc(
             {
-                "count.blueprints": {"median": 1.0, "p25": 1.0, "p75": 1.0, "unit": "count"},
+                "count.blueprints": {
+                    "median": 1.0,
+                    "p25": 1.0,
+                    "p75": 1.0,
+                    "unit": "count",
+                },
             },
             shape={"blueprints": 1},
         )
         c = {"count.blueprints": _summary(2.0, unit="count")}
         result = compare(b, c, candidate_shape={"blueprints": 2})
-        assert result.regressions == (), \
+        assert result.regressions == (), (
             "shape drift must not double-fire as a count regression"
+        )
         assert len(result.shape_mismatches) == 1
         assert result.shape_mismatches[0].metric == "project_shape.blueprints"
 
@@ -314,17 +334,17 @@ class TestCompare:
             {},
             shape={"blueprints": 1},
         )
-        result = compare(
-            b, {}, candidate_shape={"blueprints": 1, "instances": 18}
-        )
+        result = compare(b, {}, candidate_shape={"blueprints": 1, "instances": 18})
         assert len(result.shape_mismatches) == 1
         assert result.shape_mismatches[0].metric == "project_shape.instances"
 
     def test_unknown_baseline_metric_is_ignored(self):
         """A new metric in candidate (not in baseline) is silently dropped."""
-        b = _baseline_doc({
-            "phase.A": {"median": 10.0, "p25": 9.5, "p75": 10.5, "unit": "seconds"},
-        })
+        b = _baseline_doc(
+            {
+                "phase.A": {"median": 10.0, "p25": 9.5, "p75": 10.5, "unit": "seconds"},
+            }
+        )
         c = {
             "phase.A": _summary(10.0, 9.5, 10.5),
             "phase.B_new": _summary(99.0, 95.0, 103.0),
@@ -341,11 +361,6 @@ class TestCompare:
         c = {"phase.A": _summary(10.0, 9.5, 10.5)}
         result = compare(b, c, candidate_shape={"blueprints": 1, "instances": 18})
         assert result.fingerprint_mismatch is True
-
-
-# ---------------------------------------------------------------------------
-# JSON round-trip + load_latest_baseline
-# ---------------------------------------------------------------------------
 
 
 class TestJsonRoundTrip:
@@ -379,9 +394,7 @@ class TestJsonRoundTrip:
         for ver in ("v0.8.7", "v0.10.0", "v0.9.5", "v0.8.0"):
             doc = _baseline_doc({})
             doc["lhp_version"] = ver
-            (tmp_path / f"{ver}.json").write_text(
-                json.dumps(doc), encoding="utf-8"
-            )
+            (tmp_path / f"{ver}.json").write_text(json.dumps(doc), encoding="utf-8")
         loaded = load_latest_baseline(tmp_path)
         assert loaded["lhp_version"] == "v0.10.0"
 
@@ -396,11 +409,6 @@ class TestJsonRoundTrip:
     def test_load_latest_raises_when_empty(self, tmp_path: Path):
         with pytest.raises(FileNotFoundError):
             load_latest_baseline(tmp_path)
-
-
-# ---------------------------------------------------------------------------
-# _parse_perf_log_text (seed parser)
-# ---------------------------------------------------------------------------
 
 
 PERF_LOG_FIXTURE = """\

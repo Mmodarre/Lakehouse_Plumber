@@ -5,13 +5,13 @@ Lakehouse Plumber
 ====================================
 
 .. meta::
-   :description: YAML-driven framework for generating Databricks Lakeflow Declarative Pipelines. Eliminate boilerplate with reusable templates and presets.
+   :description: YAML-driven framework for generating Databricks Lakeflow Spark Declarative Pipelines (SDP). Eliminate boilerplate with reusable templates and presets.
 
-Managing dozens of Lakeflow/DLT pipelines means thousands of lines of repetitive Python —
+Managing dozens of SDP pipelines means thousands of lines of repetitive Python —
 inconsistent patterns, boilerplate sprawl, and painful maintenance across environments.
 
 Lakehouse Plumber turns concise YAML **actions** into fully-featured
-Databricks Lakeflow Declarative Pipelines (formerly Delta Live Tables) — without hiding the Databricks
+Lakeflow Spark Declarative Pipelines (SDP) — without hiding the Databricks
 platform you already know and love.
 
 How LHP Solves It
@@ -112,6 +112,7 @@ want to understand the execution model first, read :doc:`architecture`.
    multi_flowgroup_guide
    dynamic_templates_guide
    configure_bundles
+   package_pipelines_as_wheels
    configure_catalog_schema
    enable_monitoring
    quarantine_records

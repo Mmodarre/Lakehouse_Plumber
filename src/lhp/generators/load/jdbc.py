@@ -2,9 +2,10 @@
 
 import logging
 
-from ...core.base_generator import BaseActionGenerator
-from ...models.config import Action
-from ...utils.error_formatter import ErrorFormatter
+from lhp.errors import ErrorFactory
+from lhp.models import Action
+
+from ...core.registry import BaseActionGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -17,10 +18,9 @@ class JDBCLoadGenerator(BaseActionGenerator):
         self.add_import("from pyspark import pipelines as dp")
 
     def generate(self, action: Action, context: dict) -> str:
-        """Generate JDBC load code with secret substitution."""
         source_config = action.source
         if isinstance(source_config, str):
-            raise ErrorFormatter.invalid_source_format(
+            raise ErrorFactory.invalid_source_format(
                 action_name=action.name,
                 action_type="jdbc load",
                 expected_formats=[
@@ -32,18 +32,15 @@ class JDBCLoadGenerator(BaseActionGenerator):
             f"Generating JDBC load for target '{action.target}', action '{action.name}'"
         )
 
-        # Process source config through substitution manager first if available
         if "substitution_manager" in context:
             source_config = context["substitution_manager"].substitute_yaml(
                 source_config
             )
 
-        # Handle operational metadata
         add_operational_metadata, metadata_columns = self._get_operational_metadata(
             action, context
         )
 
-        # Apply additional context substitutions for JDBC source
         table_name = source_config.get("table", "unknown_table")
         for col_name, expression in metadata_columns.items():
             metadata_columns[col_name] = expression.replace(
@@ -71,6 +68,4 @@ class JDBCLoadGenerator(BaseActionGenerator):
             "flowgroup": context.get("flowgroup"),
         }
 
-        code = self.render_template("load/jdbc.py.j2", template_context)
-
-        return code
+        return self.render_template("load/jdbc.py.j2", template_context)

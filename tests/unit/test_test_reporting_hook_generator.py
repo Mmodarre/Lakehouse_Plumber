@@ -1,19 +1,18 @@
-"""Unit tests for TestReportingHookGenerator."""
-
 import pytest
 
-from lhp.core.services.tst_reporting_hook_generator import (
+from lhp.core.codegen.test_reporting import build_test_reporting_hook_files
+from lhp.core.codegen.tst_reporting_hook_generator import (
     HOOK_FILENAME,
     TestReportingHookGenerator,
 )
-from lhp.models.config import (
+from lhp.core.processing.substitution import EnhancedSubstitutionManager
+from lhp.models import (
     Action,
     ActionType,
     FlowGroup,
     ProjectConfig,
     TestReportingConfig,
 )
-from lhp.utils.substitution import EnhancedSubstitutionManager
 
 
 def _make_project_config(
@@ -42,8 +41,6 @@ def _make_test_action(name, test_id=None, target=None):
 
 @pytest.mark.unit
 class TestTestReportingHookGenerator:
-    """Tests for TestReportingHookGenerator."""
-
     __test__ = True
 
     def test_returns_none_without_config(self, tmp_path):
@@ -119,15 +116,11 @@ class TestTestReportingHookGenerator:
         )
 
         assert content is not None
-        # Check test_id map contains the opted-in actions
         assert "tst_pk_null" in content
         assert "SIT-G01" in content
         assert "SIT-G02" in content
-        # Default target: tmp_test_tst_completeness
         assert "tmp_test_tst_completeness" in content
-        # Excluded action not in map
         assert "tst_no_id" not in content
-        # Hook file written
         assert (output_dir / HOOK_FILENAME).exists()
 
     def test_test_id_map_uses_default_target(self, tmp_path):
@@ -212,7 +205,6 @@ class TestTestReportingHookGenerator:
         assert providers_dir.exists()
         assert (providers_dir / "ado_publisher.py").exists()
         assert (providers_dir / "__init__.py").exists()
-        # Check header
         copied_content = (providers_dir / "ado_publisher.py").read_text()
         assert "LHP-SOURCE" in copied_content
 
@@ -224,9 +216,7 @@ class TestTestReportingHookGenerator:
 
         config_file = tmp_path / "config" / "ado_config.yaml"
         config_file.parent.mkdir(parents=True)
-        config_file.write_text(
-            "plan_id: 12345\n" "connection:\n" "  organization: myorg\n"
-        )
+        config_file.write_text("plan_id: 12345\nconnection:\n  organization: myorg\n")
 
         tr = TestReportingConfig(
             module_path="src/pub.py",
@@ -271,7 +261,7 @@ class TestTestReportingHookGenerator:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        from lhp.utils.error_formatter import LHPError
+        from lhp.errors import LHPError
 
         with pytest.raises(LHPError, match="not found"):
             gen.generate(
@@ -373,7 +363,7 @@ class TestTestReportingHookGenerator:
         """Backward compat: generate() without substitution_mgr copies verbatim."""
         provider = tmp_path / "src" / "pub.py"
         provider.parent.mkdir(parents=True)
-        provider.write_text('TARGET = "${catalog}"\n' "def pub(r, c, ctx, s): pass\n")
+        provider.write_text('TARGET = "${catalog}"\ndef pub(r, c, ctx, s): pass\n')
 
         tr = TestReportingConfig(module_path="src/pub.py", function_name="pub")
         config = _make_project_config(test_reporting=tr)
@@ -390,14 +380,11 @@ class TestTestReportingHookGenerator:
         )
 
         copied = (output_dir / "test_reporting_providers" / "pub.py").read_text()
-        # Token remains unresolved — no substitution manager
         assert "${catalog}" in copied
 
 
 @pytest.mark.unit
 class TestTestReportingValidation:
-    """Tests for TestReportingHookGenerator.validate()."""
-
     __test__ = True
 
     def test_validate_no_config(self, tmp_path):
@@ -490,3 +477,132 @@ class TestTestReportingValidation:
 
         errors = gen.validate(processed_flowgroups=[fg], include_tests=True)
         assert errors == []
+
+
+@pytest.mark.unit
+class TestBuildTestReportingHookFiles:
+    """Dedicated tests for the in-memory `build_test_reporting_hook_files`.
+
+    Mirrors `generate_test_reporting_hook` minus disk I/O: returns the hook's
+    three files keyed by source-relative path, or None when a guard trips.
+    """
+
+    __test__ = True
+
+    def test_happy_path_returns_three_files(self, tmp_path):
+        """include_tests + configured test_reporting + a test_id → dict of 3 files."""
+        provider = tmp_path / "src" / "ado_publisher.py"
+        provider.parent.mkdir(parents=True)
+        provider.write_text("def publish(results, config, context, spark): pass\n")
+
+        tr = TestReportingConfig(
+            module_path="src/ado_publisher.py",
+            function_name="publish",
+        )
+        config = _make_project_config(test_reporting=tr)
+
+        fg = _make_flowgroup(
+            actions=[
+                _make_test_action("tst_pk_null", test_id="SIT-G01"),
+            ]
+        )
+
+        result = build_test_reporting_hook_files(
+            pipeline_name="my_pipeline",
+            flowgroups=[fg],
+            project_config=config,
+            project_root=tmp_path,
+            include_tests=True,
+        )
+
+        assert result is not None
+        # Keys are EXACTLY the three source-relative paths; <stem> derives from
+        # the configured module_path ("src/ado_publisher.py" → "ado_publisher").
+        assert set(result.keys()) == {
+            HOOK_FILENAME,
+            "test_reporting_providers/__init__.py",
+            "test_reporting_providers/ado_publisher.py",
+        }
+        # Hook content is non-empty; providers __init__.py is the empty string.
+        assert result[HOOK_FILENAME]
+        assert "SIT-G01" in result[HOOK_FILENAME]
+        assert result["test_reporting_providers/__init__.py"] == ""
+        # Provider module carries the LHP-SOURCE header (PRE-normalization content).
+        assert "LHP-SOURCE" in result["test_reporting_providers/ado_publisher.py"]
+
+    def test_guard_include_tests_false_returns_none(self, tmp_path):
+        """include_tests=False → None (even with config + a test_id present)."""
+        provider = tmp_path / "src" / "publisher.py"
+        provider.parent.mkdir(parents=True)
+        provider.write_text("def publish(results, config, context, spark): pass\n")
+
+        tr = TestReportingConfig(
+            module_path="src/publisher.py",
+            function_name="publish",
+        )
+        config = _make_project_config(test_reporting=tr)
+        fg = _make_flowgroup(actions=[_make_test_action("tst_1", test_id="T-1")])
+
+        result = build_test_reporting_hook_files(
+            pipeline_name="p1",
+            flowgroups=[fg],
+            project_config=config,
+            project_root=tmp_path,
+            include_tests=False,
+        )
+        assert result is None
+
+    def test_guard_no_test_reporting_config_returns_none(self, tmp_path):
+        """project_config.test_reporting is None → None."""
+        config = _make_project_config(test_reporting=None)
+        fg = _make_flowgroup(actions=[_make_test_action("tst_1", test_id="T-1")])
+
+        result = build_test_reporting_hook_files(
+            pipeline_name="p1",
+            flowgroups=[fg],
+            project_config=config,
+            project_root=tmp_path,
+            include_tests=True,
+        )
+        assert result is None
+
+    def test_guard_none_project_config_returns_none(self, tmp_path):
+        """project_config is None → None."""
+        fg = _make_flowgroup(actions=[_make_test_action("tst_1", test_id="T-1")])
+
+        result = build_test_reporting_hook_files(
+            pipeline_name="p1",
+            flowgroups=[fg],
+            project_config=None,
+            project_root=tmp_path,
+            include_tests=True,
+        )
+        assert result is None
+
+    def test_guard_no_test_id_returns_none(self, tmp_path):
+        """include_tests + configured test_reporting but no flowgroup has a
+        test_id → None."""
+        provider = tmp_path / "src" / "publisher.py"
+        provider.parent.mkdir(parents=True)
+        provider.write_text("def publish(results, config, context, spark): pass\n")
+
+        tr = TestReportingConfig(
+            module_path="src/publisher.py",
+            function_name="publish",
+        )
+        config = _make_project_config(test_reporting=tr)
+        fg = _make_flowgroup(
+            actions=[
+                _make_test_action("tst_one"),  # no test_id
+                _make_test_action("tst_two"),  # no test_id
+            ]
+        )
+
+        result = build_test_reporting_hook_files(
+            pipeline_name="p1",
+            flowgroups=[fg],
+            project_config=config,
+            project_root=tmp_path,
+            include_tests=True,
+        )
+        assert result is None

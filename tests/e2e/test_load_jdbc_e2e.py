@@ -13,7 +13,7 @@ Both fixtures resolve ``${secret:database/...}`` references through the
 producing ``dbutils.secrets.get(scope="dev_db_secrets", key=...)`` calls in
 the generated code.
 
-Each test uses ``lhp generate --env dev --force`` and hash-compares the
+Each test uses ``lhp generate --env dev`` and hash-compares the
 generated file under ``generated/dev/14_jdbc_load/`` against the baseline at
 ``generated_baseline/dev/14_jdbc_load/``. The pipeline resource YAML at
 ``resources/lhp/14_jdbc_load.pipeline.yml`` is also compared.
@@ -34,11 +34,8 @@ from lhp.cli.main import cli
 
 @pytest.mark.e2e
 class TestLoadJDBCE2E:
-    """E2E tests for LHP JDBC load generation (table-mode + query-mode)."""
-
     @pytest.fixture(autouse=True)
     def setup_test_project(self, isolated_project):
-        """Create isolated copy of fixture project for each test."""
         fixture_path = Path(__file__).parent / "fixtures" / "testing_project"
         self.project_root = isolated_project / "test_project"
         shutil.copytree(fixture_path, self.project_root)
@@ -73,7 +70,6 @@ class TestLoadJDBCE2E:
         self.resources_dir.mkdir(parents=True, exist_ok=True)
 
     def run_generate(self) -> tuple:
-        """Run 'lhp generate --env dev --force' (no --include-tests)."""
         runner = CliRunner()
         result = runner.invoke(
             cli,
@@ -116,24 +112,19 @@ class TestLoadJDBCE2E:
         diff = self._compare_file_hashes(generated, baseline)
         assert diff == "", f"Baseline mismatch for {filename}: {diff}"
 
-        # Verify the pipeline resource YAML also matches its baseline.
         generated_resource = self.resources_dir / "14_jdbc_load.pipeline.yml"
-        assert (
-            generated_resource.exists()
-        ), "14_jdbc_load.pipeline.yml should be generated under resources/lhp/"
-        assert (
-            self.resource_baseline.exists()
-        ), "Resource baseline 14_jdbc_load.pipeline.yml should exist"
+        assert generated_resource.exists(), (
+            "14_jdbc_load.pipeline.yml should be generated under resources/lhp/"
+        )
+        assert self.resource_baseline.exists(), (
+            "Resource baseline 14_jdbc_load.pipeline.yml should exist"
+        )
         resource_diff = self._compare_file_hashes(
             generated_resource, self.resource_baseline
         )
-        assert (
-            resource_diff == ""
-        ), f"Resource baseline mismatch for 14_jdbc_load.pipeline.yml: {resource_diff}"
-
-    # ------------------------------------------------------------------
-    # 2 JDBC reader modes — one method per (table-mode, query-mode).
-    # ------------------------------------------------------------------
+        assert resource_diff == "", (
+            f"Resource baseline mismatch for 14_jdbc_load.pipeline.yml: {resource_diff}"
+        )
 
     def test_jdbc_table_mode_matches_baseline(self):
         """JDBC table-mode: spark.read.format('jdbc').option('dbtable', ...).load()."""

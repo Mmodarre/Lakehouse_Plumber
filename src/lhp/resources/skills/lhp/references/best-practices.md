@@ -91,7 +91,7 @@ Load this file when:
 - **BP-5.1** Design preset hierarchies with `extends`: `global_defaults` → `bronze_standard` → `orders_bronze`.
 - **BP-5.2** Encode organizational standards in presets — group related properties (schema evolution, rescue columns, metadata).
 - **BP-5.3** Cap total presets at **15–20 files** to avoid confusion and misuse.
-- **BP-5.4** Verify effective config with `lhp show <flowgroup> --env <env>` after preset merging/template expansion.
+- **BP-5.4** Verify effective config with `lhp validate --env <env> --verbose` (or `lhp diff --env <env>` to see the regenerated output) after preset merging/template expansion.
 - **BP-5.5** Treat preset changes as **high blast radius** — run full project validation before merging.
 
 ## 6. Substitutions & Environments
@@ -113,7 +113,7 @@ Load this file when:
 
 - **BP-8.1** Use array syntax (`flowgroups:`) with field inheritance when multiple flowgroups share `pipeline`, `use_template`, `presets`, `operational_metadata`, or `job_name`.
 - **BP-8.2** One pipeline per data domain. `orders_bronze` groups `raw_orders`, `raw_returns`, `raw_refunds`.
-- **BP-8.3** Use `job_name` to aggregate flowgroups into Databricks Workflow jobs; generate via `lhp deps --format job`.
+- **BP-8.3** Use `job_name` to aggregate flowgroups into Databricks Workflow jobs; generate via `lhp dag --format job`.
 - **BP-8.4** Order actions **Load → Transform → Write → Test**.
 
 ## 9. Load Actions
@@ -139,6 +139,7 @@ Load this file when:
 - **BP-11.2** **Streaming tables** for bronze ingestion and CDC targets — optimal for append-only.
 - **BP-11.3** On history tables: `table_properties: pipelines.reset.allowed: "false"` to prevent accidental full refresh.
 - **BP-11.4** Prefer `cluster_columns` (liquid clustering) over `partition_columns`.
+- **BP-11.4a** Use `cluster_by_auto: true` when clustering keys / cardinality are unknown — let Databricks pick and evolve them (mutually exclusive with `cluster_columns`).
 - **BP-11.5** Always include `comment` on write targets (Unity Catalog descriptions).
 - **BP-11.6** Use `spark_conf` on write targets for per-table tuning.
 - **BP-11.7** CDC: use `mode: cdc` with explicit `cdc_config` (`keys`, `sequence_by`, `scd_type`, etc.).
@@ -153,6 +154,7 @@ Load this file when:
 - **BP-12.2** Centralize expectations in external DQE files: `expectations/<domain>/<layer>/<description>.yaml`.
 - **BP-12.3** Name expectations descriptively: `valid_<column>_<constraint>` (e.g., `valid_order_id_not_null`, `valid_amount_positive`).
 - **BP-12.4** Use the 9 test action types for cross-table validation: `row_count`, `uniqueness`, `referential_integrity`, `completeness`, `range`, `schema_match`, `all_lookups_found`, `custom_sql`, `custom_expectations`. Generate with `--include-tests`.
+- **BP-12.5** To publish test results to an external system (via a `test_reporting` provider), set `test_id` on the test action — only `test_id`-tagged actions are published. The expectation must use `on_violation: warn`, **not** `fail`: a `fail` aborts the SDP flow before metrics are emitted, so the reporting hook never receives the result. Requires `--include-tests`.
 
 ## 13. Operational Metadata
 
@@ -173,10 +175,15 @@ Load this file when:
 - **BP-15.2** `lhp generate --dry-run` to verify codegen without writing files.
 - **BP-15.3** Maintain dry-run baselines in version control; diff against them to detect preset-change regressions.
 - **BP-15.4** **Layered CI:** yamllint → JSON Schema → `lhp validate` → `lhp generate --dry-run` → baseline diff → pytest `--include-tests`.
+- **BP-15.5** `lhp validate` runs the **same** structural and preflight checks as `lhp generate` (no-creator/duplicate `LHP-VAL-009`, blueprint/instance `LHP-VAL-041` family, test-reporting file existence `LHP-CFG-032`, bundle catalog/schema `LHP-CFG-026`). On a project containing `databricks.yml`, pass `--pipeline-config`/`-pc` to the CI `lhp validate` step (or `--no-bundle`) — without it validate fails fast with `LHP-CFG-023`, exactly like generate.
+- **BP-15.6** `lhp validate` runs cross-flowgroup conflict detection on the **resolved** flowgroups (after presets, templates, and substitutions). A conflict introduced by resolution — e.g. a template that expands into two `create_table: true` actions targeting the same table — now fails `lhp validate`, not just `lhp generate`.
+- **BP-15.7** `lhp generate`/`lhp validate` process flowgroups in a CPU-bound worker pool. Pool size precedence: `--max-workers N` flag → `LHP_MAX_WORKERS` env var → auto-default. Auto-default = `max(1, floor(detected_cpus * 0.8))` (20% headroom for the main thread + OS). Floored, so: 1→1, 2→1, 8→6, 16→12, 64→51.
+- **BP-15.8** On a **dedicated batch host** for large projects, the 0.8 auto-default under-utilizes CPU. Set `LHP_MAX_WORKERS=<physical core count>` (or `--max-workers N` per run) to maximize generation throughput.
+- **BP-15.9** Worker count clamps to ≥ 1: `LHP_MAX_WORKERS=0` runs sequentially (does not disable the pool); a non-integer value warns and falls back to auto-detect.
 
 ## 16. Bundle Integration
 
-- **BP-16.1** `lhp deps --format job` generates DAB job resource definitions from dependency analysis.
+- **BP-16.1** `lhp dag --format job` generates DAB job resource definitions from dependency analysis.
 - **BP-16.2** Bundle scaffolding is default in `lhp init`; use `--no-bundle` if managed separately.
 - **BP-16.3** Store generated bundle resources in a dedicated directory (e.g., `bundle/generated/`) separate from hand-written configs.
 - **BP-16.4** **`resources/lhp/` is exclusively LHP-managed.** Every `lhp generate` wipes it and regenerates one `<pipeline_name>.pipeline.yml` per pipeline. Never hand-edit anything under `resources/lhp/` — your changes will be overwritten on the next generate.
@@ -192,7 +199,7 @@ Load this file when:
 | **Gold** | `materialized_view` | `fail` on critical invariants | inherited |
 
 - Environment promotion: identical YAML, per-env substitution files.
-- Multi-pipeline orchestration: `job_name` + `lhp deps`.
+- Multi-pipeline orchestration: `job_name` + `lhp dag`.
 - Multi-source ingestion: multiple load/write actions to the same table → auto-consolidated `append_flow`s.
 
 ## 18. Documentation

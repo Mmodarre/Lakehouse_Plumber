@@ -1,10 +1,8 @@
 """File-header and content-normalization utilities."""
+
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from pathlib import Path
+from pathlib import Path
 
 
 def build_lhp_source_header(source_path: str) -> str:
@@ -17,15 +15,20 @@ def build_lhp_source_header(source_path: str) -> str:
     )
 
 
-def normalize_content(content: str) -> str:
-    """Normalize file content for comparison.
+def helper_header_path(module_path: str, rel_path: Path) -> str:
+    """Build the project-root-relative LHP-SOURCE path for a closure helper.
 
-    Args:
-        content: Raw content string
-
-    Returns:
-        Normalized content string
+    Joins the entry module's directory (``Path(module_path).parent``) with the
+    helper's ``rel_path`` and renders it with forward slashes via ``as_posix``.
+    Using ``as_posix`` rather than ``str(Path)`` keeps the emitted
+    ``# LHP-SOURCE:`` header deterministic across platforms; ``str(Path)`` would
+    emit backslash separators on Windows.
     """
+    return (Path(module_path).parent / rel_path).as_posix()
+
+
+def normalize_content(content: str) -> str:
+    """Normalize file content for comparison."""
     lines = content.splitlines()
     normalized_lines = [line.rstrip() for line in lines]
 
@@ -36,7 +39,7 @@ def normalize_content(content: str) -> str:
     return normalized
 
 
-def write_normalized(path: "Path", content: str) -> None:
+def write_normalized(path: Path, content: str) -> None:
     """Write ``content`` to ``path`` after normalization, as UTF-8.
 
     Centralizes the project-wide invariant that every LHP-generated file is

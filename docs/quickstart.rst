@@ -71,15 +71,24 @@ It also creates ``lhp.yaml`` (the project file), ``databricks.yml`` (DAB
 manifest, bundle mode), and a ``.vscode/`` directory wired for YAML
 IntelliSense.
 
-You see this success message:
+You see a success panel like this:
 
 .. code-block:: text
 
-   Initialized Databricks Asset Bundle project: my_first_pipeline
-   Created directories: presets, templates, pipelines, substitutions, schemas,
-   expectations, generated, config, resources
-   Created example files: presets/bronze_layer.yaml,
-   templates/standard_ingestion.yaml, databricks.yml
+   ╭─────────────────────────────────────────────────────────────────────╮
+   │ ✓ Initialized Databricks Asset Bundle project: my_first_pipeline    │
+   │ Created directories: presets, templates, pipelines, substitutions,  │
+   │ schemas, expectations, generated, config, resources                 │
+   │ Example files: presets/bronze_layer.yaml,                           │
+   │ templates/standard_ingestion.yaml, databricks.yml                   │
+   │ VS Code IntelliSense automatically configured for YAML files        │
+   │                                                                     │
+   │ Next steps:                                                         │
+   │   # Create your first pipeline                                      │
+   │   mkdir pipelines/my_pipeline                                       │
+   │   # Add flowgroup configurations                                    │
+   │   # Deploy bundle with: databricks bundle deploy                    │
+   ╰─────────────────────────────────────────────────────────────────────╯
 
 The example ``presets/`` and ``templates/`` files ship as ``.tmpl`` to prevent
 them from running until you adopt them. Leave them in place for now.
@@ -155,11 +164,11 @@ Run validation before generating code:
 
    lhp validate --env dev
 
-A passing run ends with:
+A passing run ends with a footer line like:
 
 .. code-block:: text
 
-   ✅ All configurations are valid
+   Validated 1 pipeline — all passed
 
 If validation fails, LHP prints a structured error with the file, action name,
 and a suggestion. Fix the reported issue and run ``lhp validate`` again.
@@ -174,12 +183,12 @@ Run code generation:
    lhp generate --env dev
 
 LHP writes the generated file to
-``generated/tpch_sample_ingestion/customer_ingestion.py`` and prints:
+``generated/tpch_sample_ingestion/customer_ingestion.py`` and prints a footer
+line like:
 
 .. code-block:: text
 
-   ✅ tpch_sample_ingestion: Generated 1 file(s)
-   ✅ Code generation completed successfully
+   Generated 1 files in 0.4s — all 1 pipeline passed
 
 Inspect the file. The body looks like this:
 

@@ -28,7 +28,6 @@ class TestTestReportingCleanupE2E:
 
     @pytest.fixture(autouse=True)
     def setup_test_project(self, isolated_project):
-        """Create isolated copy of fixture project for each test."""
         fixture_path = Path(__file__).parent / "fixtures" / "testing_project"
         self.project_root = isolated_project / "test_project"
         shutil.copytree(fixture_path, self.project_root)
@@ -50,10 +49,6 @@ class TestTestReportingCleanupE2E:
         yield
         os.chdir(self.original_cwd)
 
-    # ========================================================================
-    # HELPER METHODS
-    # ========================================================================
-
     def _run(self, *args: str) -> tuple:
         """Run ``lhp`` with the given args. Returns (exit_code, output)."""
         runner = CliRunner()
@@ -61,7 +56,6 @@ class TestTestReportingCleanupE2E:
         return result.exit_code, result.output
 
     def _test_reporting_paths(self) -> dict:
-        """Return the three expected test-reporting artifact paths for the pipeline."""
         pipeline_dir = self.generated_dir / self.PIPELINE
         return {
             "hook": pipeline_dir / "_test_reporting_hook.py",
@@ -107,7 +101,6 @@ class TestTestReportingCleanupE2E:
         return result
 
     def _test_reporting_entries(self, state: dict) -> list:
-        """Return all state entries whose artifact_type starts with 'test_reporting'."""
         env_files = state.get("environments", {}).get("dev", {})
         return [
             (path, entry)

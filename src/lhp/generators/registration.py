@@ -1,0 +1,90 @@
+"""``generators -> core.registry`` is a legal downward edge; ``core`` never imports ``generators``.
+
+The composition root (``lhp/__init__.py``) imports this module so registration runs before any
+``ActionRegistry`` is constructed.
+"""
+
+from lhp.core.registry import register_generators
+from lhp.generators.load import (
+    CloudFilesLoadGenerator,
+    CustomDataSourceLoadGenerator,
+    DeltaLoadGenerator,
+    JDBCLoadGenerator,
+    KafkaLoadGenerator,
+    PythonLoadGenerator,
+    SQLLoadGenerator,
+)
+from lhp.generators.test import (
+    AllLookupsFoundTestGenerator,
+    CompletenessTestGenerator,
+    CustomExpectationsTestGenerator,
+    CustomSqlTestGenerator,
+    RangeTestGenerator,
+    ReferentialIntegrityTestGenerator,
+    RowCountTestGenerator,
+    SchemaMatchTestGenerator,
+    UniquenessTestGenerator,
+)
+from lhp.generators.transform import (
+    DataQualityTransformGenerator,
+    PythonTransformGenerator,
+    SchemaTransformGenerator,
+    SQLTransformGenerator,
+    TempTableTransformGenerator,
+)
+from lhp.generators.write import (
+    MaterializedViewWriteGenerator,
+    SinkWriteGenerator,
+    StreamingTableWriteGenerator,
+)
+from lhp.models import LoadSourceType, TestActionType, TransformType, WriteTargetType
+
+
+def register_all() -> None:
+    register_generators(
+        "load",
+        {
+            LoadSourceType.CLOUDFILES: CloudFilesLoadGenerator,
+            LoadSourceType.DELTA: DeltaLoadGenerator,
+            LoadSourceType.SQL: SQLLoadGenerator,
+            LoadSourceType.JDBC: JDBCLoadGenerator,
+            LoadSourceType.PYTHON: PythonLoadGenerator,
+            LoadSourceType.CUSTOM_DATASOURCE: CustomDataSourceLoadGenerator,
+            LoadSourceType.KAFKA: KafkaLoadGenerator,
+        },
+    )
+    register_generators(
+        "transform",
+        {
+            TransformType.SQL: SQLTransformGenerator,
+            TransformType.DATA_QUALITY: DataQualityTransformGenerator,
+            TransformType.SCHEMA: SchemaTransformGenerator,
+            TransformType.PYTHON: PythonTransformGenerator,
+            TransformType.TEMP_TABLE: TempTableTransformGenerator,
+        },
+    )
+    register_generators(
+        "write",
+        {
+            WriteTargetType.STREAMING_TABLE: StreamingTableWriteGenerator,
+            WriteTargetType.MATERIALIZED_VIEW: MaterializedViewWriteGenerator,
+            WriteTargetType.SINK: SinkWriteGenerator,
+        },
+    )
+    register_generators(
+        "test",
+        {
+            TestActionType.ROW_COUNT: RowCountTestGenerator,
+            TestActionType.UNIQUENESS: UniquenessTestGenerator,
+            TestActionType.REFERENTIAL_INTEGRITY: ReferentialIntegrityTestGenerator,
+            TestActionType.COMPLETENESS: CompletenessTestGenerator,
+            TestActionType.RANGE: RangeTestGenerator,
+            TestActionType.SCHEMA_MATCH: SchemaMatchTestGenerator,
+            TestActionType.ALL_LOOKUPS_FOUND: AllLookupsFoundTestGenerator,
+            TestActionType.CUSTOM_SQL: CustomSqlTestGenerator,
+            TestActionType.CUSTOM_EXPECTATIONS: CustomExpectationsTestGenerator,
+        },
+    )
+
+
+register_all()

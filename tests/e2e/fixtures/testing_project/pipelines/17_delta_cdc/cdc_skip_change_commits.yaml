@@ -5,6 +5,7 @@
 # combine it with readChangeFeed (mutually exclusive per docs).
 pipeline: 17_delta_cdc
 flowgroup: cdc_skip_change_commits
+#job_name: j_cdc
 
 actions:
   - name: read_inventory_latest

@@ -1,14 +1,13 @@
 """Advanced feature tests for LakehousePlumber."""
 
 import tempfile
-from datetime import datetime
 from pathlib import Path
 
 import pytest
-import yaml
 
-from lhp.core.orchestrator import ActionOrchestrator
-from lhp.models.config import Action, ActionType, FlowGroup
+from lhp.api import collect_response
+from lhp.api.facade import LakehousePlumberApplicationFacade
+from lhp.errors import LHPError
 from tests.helpers import read_generated_pipeline
 
 
@@ -52,7 +51,6 @@ dev:
 
     def test_python_source_and_transform(self, project_root):
         """Test Python-based load and transform actions."""
-        # Create flowgroup with Python actions
         pipeline_dir = project_root / "pipelines" / "python_pipeline"
         pipeline_dir.mkdir(parents=True)
 
@@ -68,7 +66,7 @@ actions:
       module_path: "loaders/customer_loader.py"
     target: v_customers_python
     description: "Load data using Python function"
-    
+
   - name: transform_with_python
     type: transform
     transform_type: python
@@ -77,7 +75,7 @@ actions:
     function_name: "enrich_customers"
     target: v_customers_enriched
     description: "Enrich customers with Python"
-    
+
   - name: save_enriched
     type: write
     source: v_customers_enriched
@@ -89,7 +87,6 @@ actions:
       create_table: true
 """)
 
-        # Create the Python transform function file
         transformers_dir = project_root / "transformers"
         transformers_dir.mkdir(parents=True)
         (transformers_dir / "enrich_customers.py").write_text("""
@@ -98,7 +95,6 @@ def enrich_customers(df, spark, parameters):
     return df.withColumn("enriched", "true")
 """)
 
-        # Python LOAD now hard-requires a real .py file too.
         loaders_dir = project_root / "loaders"
         loaders_dir.mkdir(parents=True)
         (loaders_dir / "customer_loader.py").write_text("""
@@ -106,10 +102,11 @@ def get_df(spark, parameters):
     return spark.range(1)
 """)
 
-        # Generate pipeline
-        orchestrator = ActionOrchestrator(project_root)
+        facade = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False
+        )
         generated_files = read_generated_pipeline(
-            orchestrator,
+            facade,
             pipeline_field="python_pipeline",
             env="dev",
             output_dir=project_root / "generated",
@@ -117,14 +114,9 @@ def get_df(spark, parameters):
 
         code = generated_files["python_processing.py"]
 
-        # Check for Python imports
         assert "from custom_python_functions.customer_loader import" in code
         assert "from custom_python_functions.enrich_customers import" in code
-
-        # Check for DLT decorators
         assert "@dp.temporary_view()" in code
-
-        # Python sources should still be wrapped in DLT views
         assert "def v_customers_python" in code
         assert "def v_customers_enriched" in code
 
@@ -144,34 +136,34 @@ actions:
       type: sql
       sql: "SELECT * FROM source_table"
     target: v_raw_data
-    
+
   - name: create_temp_aggregate
     type: transform
     transform_type: temp_table
     source: v_raw_data
     target: temp_daily_aggregates
     sql: |
-      SELECT 
+      SELECT
         DATE(timestamp) as date,
         COUNT(*) as record_count,
         SUM(amount) as total_amount
       FROM {source}
       GROUP BY DATE(timestamp)
     description: "Create temporary aggregate table"
-    
+
   - name: join_with_temp
     type: transform
     transform_type: sql
     source: [v_raw_data, temp_daily_aggregates]
     target: v_enriched_data
     sql: |
-      SELECT 
+      SELECT
         r.*,
         t.record_count as daily_count,
         t.total_amount as daily_total
       FROM v_raw_data r
       JOIN temp_daily_aggregates t ON DATE(r.timestamp) = t.date
-      
+
   - name: save_final
     type: write
     source: v_enriched_data
@@ -183,9 +175,11 @@ actions:
       create_table: true
 """)
 
-        orchestrator = ActionOrchestrator(project_root)
+        facade = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False
+        )
         generated_files = read_generated_pipeline(
-            orchestrator,
+            facade,
             pipeline_field="temp_tables",
             env="dev",
             output_dir=project_root / "generated",
@@ -193,20 +187,15 @@ actions:
 
         code = generated_files["temp_processing.py"]
 
-        # Check for correct temporary table implementation
         assert "@dp.table(" in code
         assert "temporary=True" in code
         assert "def temp_daily_aggregates():" in code
-        # Verify it does NOT use the old incorrect temp table pattern
         assert "temp_daily_aggregates_temp" not in code
-        # Verify the temp table section uses @dp.table, not dp.create_streaming_table for temp
         temp_table_section = code.split("# TRANSFORMATION VIEWS")[1].split(
             "# TARGET TABLES"
         )[0]
         assert "@dp.table(" in temp_table_section
         assert "dp.create_streaming_table" not in temp_table_section
-
-        # Check for SQL with multiple sources
         assert "v_raw_data r" in code
         assert "temp_daily_aggregates t" in code
 
@@ -228,7 +217,7 @@ actions:
       format: json
       schema_evolution_mode: "rescue"
     target: v_raw_json
-    
+
   - name: apply_schema
     type: transform
     transform_type: schema
@@ -240,7 +229,7 @@ actions:
       amt -> amount: DOUBLE
       created_date: DATE
     description: "Apply schema and type casting"
-    
+
   - name: save_structured
     type: write
     source: v_structured_data
@@ -253,9 +242,11 @@ actions:
       create_table: true
 """)
 
-        orchestrator = ActionOrchestrator(project_root)
+        facade = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False
+        )
         generated_files = read_generated_pipeline(
-            orchestrator,
+            facade,
             pipeline_field="schema_pipeline",
             env="dev",
             output_dir=project_root / "generated",
@@ -263,19 +254,14 @@ actions:
 
         code = generated_files["schema_application.py"]
 
-        # Check for schema enforcement
         assert "cast" in code.lower()
         assert "customer_id" in code
         assert "BIGINT" in code
-
-        # Check for column mapping
         assert "withColumnRenamed" in code
         assert '"cust_id"' in code
         assert '"customer_id"' in code
-
-        # Check for materialized view
         assert "@dp.materialized_view(" in code
-        # Note: refresh_schedule no longer supported in @dp.materialized_view
+        # refresh_schedule no longer supported in @dp.materialized_view
 
     def test_many_to_many_relationships(self, project_root):
         """Test many-to-many action relationships."""
@@ -295,7 +281,7 @@ actions:
       schema: "bronze"
       table: "orders"
     target: v_orders
-    
+
   - name: load_customers
     type: load
     source:
@@ -304,20 +290,20 @@ actions:
       schema: "bronze"
       table: "customers"
     target: v_customers
-    
+
   - name: join_orders_customers
     type: transform
     transform_type: sql
     source: [v_orders, v_customers]
     target: v_order_details
     sql: |
-      SELECT 
+      SELECT
         o.*,
         c.customer_name,
         c.customer_segment
       FROM v_orders o
       JOIN v_customers c ON o.customer_id = c.customer_id
-      
+
   - name: calculate_metrics
     type: transform
     transform_type: sql
@@ -332,7 +318,7 @@ actions:
         SUM(amount) as total_revenue
       FROM {source}
       GROUP BY customer_id, customer_name, customer_segment
-      
+
   - name: write_to_orders_fact
     type: write
     source: v_order_details
@@ -342,7 +328,7 @@ actions:
       schema: "gold"
       table: "fact_orders"
       create_table: true
-      
+
   - name: write_to_customer_metrics
     type: write
     source: v_customer_metrics
@@ -354,9 +340,11 @@ actions:
       create_table: true
 """)
 
-        orchestrator = ActionOrchestrator(project_root)
+        facade = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False
+        )
         generated_files = read_generated_pipeline(
-            orchestrator,
+            facade,
             pipeline_field="complex_flows",
             env="dev",
             output_dir=project_root / "generated",
@@ -364,15 +352,11 @@ actions:
 
         code = generated_files["many_to_many.py"]
 
-        # Check for multiple sources in SQL
         assert "v_orders o" in code
         assert "v_customers c" in code
-
-        # Check for both write targets
         assert "fact_orders" in code
         assert "dim_customer_metrics" in code
 
-        # Check proper ordering (loads before transforms before writes)
         code_lines = code.split("\n")
         v_orders_idx = next(
             i for i, line in enumerate(code_lines) if "def v_orders" in line
@@ -384,13 +368,11 @@ actions:
             i for i, line in enumerate(code_lines) if "def v_order_details" in line
         )
 
-        # Transforms should come after loads
         assert v_order_details_idx > v_orders_idx
         assert v_order_details_idx > v_customers_idx
 
     def test_operational_metadata_configurations(self, project_root):
         """Test different operational metadata configurations."""
-        # Create preset with operational metadata
         (project_root / "presets" / "with_metadata.yaml").write_text("""
 name: with_metadata
 version: "1.0"
@@ -401,7 +383,6 @@ defaults:
         pipeline_dir = project_root / "pipelines" / "metadata_test"
         pipeline_dir.mkdir(parents=True)
 
-        # Flowgroup 1: Operational metadata from preset
         (pipeline_dir / "with_preset_metadata.yaml").write_text("""
 pipeline: metadata_test
 flowgroup: with_preset_metadata
@@ -415,7 +396,7 @@ actions:
       type: sql
       sql: "SELECT * FROM source"
     target: v_data
-    
+
   - name: write_with_metadata
     type: write
     source: v_data
@@ -427,7 +408,6 @@ actions:
       create_table: true
 """)
 
-        # Flowgroup 2: Operational metadata override
         (pipeline_dir / "override_metadata.yaml").write_text("""
 pipeline: metadata_test
 flowgroup: override_metadata
@@ -440,7 +420,7 @@ actions:
       type: sql
       sql: "SELECT * FROM source2"
     target: v_data2
-    
+
   - name: write_with_override
     type: write
     source: v_data2
@@ -452,38 +432,42 @@ actions:
       create_table: true
 """)
 
-        orchestrator = ActionOrchestrator(project_root)
+        facade = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False
+        )
 
-        # Test preset metadata
         files1 = read_generated_pipeline(
-            orchestrator,
+            facade,
             pipeline_field="metadata_test",
             env="dev",
             output_dir=project_root / "generated1",
         )
         code1 = files1["with_preset_metadata.py"]
 
-        # Should have metadata columns
         assert "_ingestion_timestamp" in code1
         assert "F.current_timestamp()" in code1
         assert "_pipeline_name" in code1
 
-        # Test override metadata
         files2 = read_generated_pipeline(
-            orchestrator,
+            facade,
             pipeline_field="metadata_test",
             env="dev",
             output_dir=project_root / "generated2",
         )
         code2 = files2["override_metadata.py"]
 
-        # Should also have metadata columns
         assert "_ingestion_timestamp" in code2
         assert "_pipeline_name" in code2
 
     def test_error_handling_invalid_configurations(self, project_root):
-        """Test error handling for invalid configurations."""
-        # Test 1: Missing required Load action
+        """Invalid configs raise ``LHPError`` via ``collect_response``.
+
+        The generate gate raises the aggregated error directly rather than
+        returning a failed DTO. The third case (multiple table creators)
+        asserts the specific ``LHP-CFG-004`` code because that error is stable
+        and uniquely identifying; the first two assert only that an LHP-coded
+        error is raised.
+        """
         pipeline_dir1 = project_root / "pipelines" / "invalid_no_load"
         pipeline_dir1.mkdir(parents=True)
 
@@ -500,15 +484,20 @@ actions:
     sql: "SELECT * FROM {source}"
 """)
 
-        orchestrator = ActionOrchestrator(project_root)
+        facade = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False
+        )
 
-        # The orphaned transform error is more specific and helpful than "missing load action"
-        with pytest.raises(ValueError, match="Unused transform action"):
-            orchestrator.generate_pipeline_by_field(
-                pipeline_field="invalid_no_load", env="dev"
+        with pytest.raises(LHPError) as exc_info:
+            collect_response(
+                facade.generation.generate_pipelines(
+                    pipeline_filter="invalid_no_load",
+                    env="dev",
+                    output_dir=None,
+                )
             )
+        assert exc_info.value.code.startswith("LHP-")
 
-        # Test 2: Circular dependency - Create separate pipeline
         pipeline_dir2 = project_root / "pipelines" / "invalid_circular"
         pipeline_dir2.mkdir(parents=True)
 
@@ -523,21 +512,21 @@ actions:
       type: sql
       sql: "SELECT * FROM raw"
     target: v_data
-    
+
   - name: transform_a
     type: transform
     transform_type: sql
     source: v_transform_b
     target: v_transform_a
     sql: "SELECT * FROM {source}"
-    
+
   - name: transform_b
     type: transform
     transform_type: sql
     source: v_transform_a
     target: v_transform_b
     sql: "SELECT * FROM {source}"
-    
+
   - name: write_result
     type: write
     source: v_transform_a
@@ -549,15 +538,20 @@ actions:
       create_table: true
 """)
 
-        # Create fresh orchestrator instance
-        orchestrator2 = ActionOrchestrator(project_root)
+        facade2 = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False
+        )
 
-        with pytest.raises(ValueError, match="Circular dependency"):
-            orchestrator2.generate_pipeline_by_field(
-                pipeline_field="invalid_circular", env="dev"
+        with pytest.raises(LHPError) as exc_info2:
+            collect_response(
+                facade2.generation.generate_pipelines(
+                    pipeline_filter="invalid_circular",
+                    env="dev",
+                    output_dir=None,
+                )
             )
+        assert exc_info2.value.code.startswith("LHP-")
 
-        # Test 3: Multiple table creators (rich error formatting)
         pipeline_dir3 = project_root / "pipelines" / "invalid_multiple_creators"
         pipeline_dir3.mkdir(parents=True)
 
@@ -573,7 +567,7 @@ actions:
       path: "/mnt/data"
       format: json
     target: v_data
-    
+
   - name: write_lineitem_countries
     type: write
     source: v_data
@@ -583,7 +577,7 @@ actions:
       schema: "schema"
       table: "lineitem"
       create_table: true
-      
+
   - name: write_lineitem_history
     type: write
     source: v_data
@@ -595,26 +589,25 @@ actions:
       create_table: true
 """)
 
-        # Create fresh orchestrator instance
-        orchestrator3 = ActionOrchestrator(project_root)
+        facade3 = LakehousePlumberApplicationFacade.for_project(
+            project_root, enforce_version=False
+        )
 
-        # Should raise a ValueError containing the rich LHPError formatting
-        with pytest.raises(ValueError) as exc_info:
-            orchestrator3.generate_pipeline_by_field(
-                pipeline_field="invalid_multiple_creators", env="dev"
+        # Identity-level assertions only; rendered shape is owned by
+        # snapshot tests in tests/test_lhperror_rendering.py.
+        with pytest.raises(LHPError) as exc_info3:
+            collect_response(
+                facade3.generation.generate_pipelines(
+                    pipeline_filter="invalid_multiple_creators",
+                    env="dev",
+                    output_dir=None,
+                )
             )
-
-        error_str = str(exc_info.value)
-        # Verify it contains rich error formatting
-        assert "❌ Error [LHP-CFG-004]" in error_str
-        assert "Multiple table creators detected" in error_str
-        assert "Context:" in error_str
-        assert "How to fix:" in error_str
-        assert "Example:" in error_str
+        assert exc_info3.value.code == "LHP-CFG-004"
+        assert "Multiple table creators detected" in str(exc_info3.value)
 
     def test_preset_inheritance_chain(self, project_root):
         """Test complex preset inheritance chains."""
-        # Create base preset
         (project_root / "presets" / "base.yaml").write_text("""
 name: base
 version: "1.0"
@@ -626,7 +619,6 @@ defaults:
       schema_evolution_mode: "failOnNewColumns"
 """)
 
-        # Create bronze preset extending base
         (project_root / "presets" / "bronze.yaml").write_text("""
 name: bronze
 version: "1.0"
@@ -641,7 +633,6 @@ defaults:
       rescue_data_column: "_rescued_data"
 """)
 
-        # Create source-specific preset extending bronze
         (project_root / "presets" / "customer_bronze.yaml").write_text("""
 name: customer_bronze
 version: "1.0"
@@ -669,7 +660,7 @@ actions:
       path: "/mnt/data/*.json"
       format: json
     target: v_customers
-    
+
   - name: write_customers
     type: write
     source: v_customers

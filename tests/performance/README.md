@@ -8,7 +8,7 @@ cutting a major release.
 
 The harness drives `lhp --perf generate --env dev --force` against each of the
 heavy fixture projects, reads structured metrics from the in-process perf
-summary (`get_perf_summary()` — see `src/lhp/utils/performance_timer.py`),
+summary (`_summary.snapshot()` — see `src/lhp/utils/performance_timer.py`),
 summarizes 5 runs via medians and the p25/p75 interquartile range, and
 compares the result against a committed baseline JSON.
 

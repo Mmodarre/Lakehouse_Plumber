@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from lhp.models.config import (
+from lhp.models import (
     Action,
     ActionType,
     FlowGroup,
@@ -58,9 +58,7 @@ class TestFlowGroupContextSerialization:
         restored = pickle.loads(pickle.dumps(original))
         assert restored.flowgroup.pipeline == "bronze_ingest"
         assert restored.flowgroup.flowgroup == "customers"
-        assert restored.source_yaml == Path(
-            "pipelines/bronze_ingest/customers.yaml"
-        )
+        assert restored.source_yaml == Path("pipelines/bronze_ingest/customers.yaml")
         assert restored.synthetic is False
         assert dict(restored.auxiliary_files) == {}
 
@@ -118,7 +116,8 @@ class TestFlowGroupContextSerialization:
             flowgroup=_make_flowgroup(),
             source_yaml=None,
         )
-        with pytest.raises(Exception):  # FrozenInstanceError or AttributeError
+        # FrozenInstanceError (a subclass of AttributeError) or AttributeError
+        with pytest.raises(AttributeError):
             ctx.synthetic = True  # type: ignore[misc]
 
     def test_dataclasses_replace_creates_new_context(self):

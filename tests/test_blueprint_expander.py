@@ -1,7 +1,7 @@
-"""Spec-driven unit tests for BlueprintExpander (Phase 5).
+"""Unit tests for BlueprintExpander.
 
-Covers M1 (env-token rejection, code 044), M6 (variables precedence),
-B6 (duplicate-tuple detection, code 045), 055 (unresolved %{var}),
+Covers env-token rejection (code 044), variables precedence,
+duplicate-tuple detection (code 045), unresolved %{var} (code 055),
 parameter defaults, and Cartesian-product expansion.
 """
 
@@ -9,21 +9,19 @@ from pathlib import Path
 
 import pytest
 
-from lhp.core.services.blueprint_expander import BlueprintExpander, BlueprintProvenance
-from lhp.models.config import (
+from lhp.core.processing.blueprint_expander import (
+    BlueprintExpander,
+    BlueprintProvenance,
+)
+from lhp.errors import ErrorCategory, LHPError
+from lhp.models import (
     Blueprint,
     BlueprintFlowgroupSpec,
     BlueprintInstance,
     BlueprintParameter,
 )
-from lhp.utils.error_formatter import ErrorCategory, LHPError
 
 pytestmark = pytest.mark.unit
-
-
-# ---------------------------------------------------------------------------
-# Helpers — pure model construction (no YAML round-trip needed for the unit).
-# ---------------------------------------------------------------------------
 
 
 def _make_blueprint(
@@ -47,11 +45,6 @@ def _make_blueprint(
 
 def _make_instance(blueprint="erp", **params) -> BlueprintInstance:
     return BlueprintInstance(blueprint=blueprint, **params)
-
-
-# ---------------------------------------------------------------------------
-# Cartesian product correctness
-# ---------------------------------------------------------------------------
 
 
 def test_cartesian_product_two_specs_three_instances(tmp_path):
@@ -81,9 +74,7 @@ def test_cartesian_product_two_specs_three_instances(tmp_path):
         ip.touch()
         instances.append((_make_instance(site_name=site), ip))
     contexts, provenance = BlueprintExpander().expand(blueprints, instances)
-    # 2 specs × 3 instances = 6 expanded flowgroup contexts.
-    assert len(contexts) == 6
-    # All synthetic and have correct resolved tuples.
+    assert len(contexts) == 6  # 2 specs × 3 instances
     pipelines = {ctx.flowgroup.pipeline for ctx in contexts}
     flow_names = {ctx.flowgroup.flowgroup for ctx in contexts}
     assert pipelines == {"apac_sg_raw", "emea_uk_raw", "latam_br_raw"}
@@ -91,18 +82,12 @@ def test_cartesian_product_two_specs_three_instances(tmp_path):
     assert "latam_br_customers" in flow_names
     for ctx in contexts:
         assert ctx.synthetic is True
-    # Provenance map keyed by resolved tuples.
     assert ("apac_sg_raw", "apac_sg_orders") in provenance
     assert ("latam_br_raw", "latam_br_customers") in provenance
     prov = provenance[("apac_sg_raw", "apac_sg_orders")]
     assert isinstance(prov, BlueprintProvenance)
     assert prov.blueprint_name == "erp"
     assert prov.blueprint_path == bp_path
-
-
-# ---------------------------------------------------------------------------
-# Parameter defaults respected
-# ---------------------------------------------------------------------------
 
 
 def test_default_parameter_used_when_instance_omits(tmp_path):
@@ -133,17 +118,9 @@ def test_default_parameter_used_when_instance_omits(tmp_path):
         [(_make_instance(site_name="apac_sg"), inst_path)],
     )
     fg = contexts[0].flowgroup
-    # The merged variables should carry the default through to the FlowGroup.
     assert fg.variables is not None
-    # Either the raw `pk` template uses the default, or the merged dict carries
-    # the default for downstream Step 0.5 resolution.
     assert "partition_key" in fg.variables
     assert fg.variables["partition_key"] == "order_date"
-
-
-# ---------------------------------------------------------------------------
-# M1: ${env_token} in identity fields raises code 044
-# ---------------------------------------------------------------------------
 
 
 def test_env_token_in_pipeline_raises_044(tmp_path):
@@ -197,11 +174,6 @@ def test_env_token_in_flowgroup_raises_044(tmp_path):
     assert exc.value.code == "LHP-VAL-044"
 
 
-# ---------------------------------------------------------------------------
-# M6: variables precedence — spec.variables wins over instance params
-# ---------------------------------------------------------------------------
-
-
 def test_spec_variables_shadow_instance_params(tmp_path):
     bp = _make_blueprint(
         parameters=[
@@ -226,20 +198,14 @@ def test_spec_variables_shadow_instance_params(tmp_path):
     inst_path = tmp_path / "instances" / "sg.yaml"
     inst_path.parent.mkdir(parents=True, exist_ok=True)
     inst_path.touch()
-    # Instance attempts to shadow the spec-defined variable.
     contexts, _ = BlueprintExpander().expand(
         {"erp": (bp, bp_path)},
         [(_make_instance(site_name="apac_sg", raw_table="from_instance"), inst_path)],
     )
     fg = contexts[0].flowgroup
-    # Spec value must win — instance 'raw_table=from_instance' must NOT appear.
+    # Spec value must win over instance value.
     assert fg.variables["raw_table"] != "from_instance"
     assert "spec_wins" in fg.variables["raw_table"]
-
-
-# ---------------------------------------------------------------------------
-# B6: duplicate (pipeline, flowgroup) raises 045 with both paths
-# ---------------------------------------------------------------------------
 
 
 def test_duplicate_tuple_raises_045_with_both_paths(tmp_path):
@@ -261,7 +227,6 @@ def test_duplicate_tuple_raises_045_with_both_paths(tmp_path):
     inst_a.touch()
     inst_b = tmp_path / "instances" / "sg_duplicate.yaml"
     inst_b.touch()
-    # Both instances pick the same site_name, which yields the same expanded tuple.
     with pytest.raises(LHPError) as exc:
         BlueprintExpander().expand(
             {"erp": (bp, bp_path)},
@@ -274,14 +239,8 @@ def test_duplicate_tuple_raises_045_with_both_paths(tmp_path):
     msg = str(exc.value)
     assert "sg.yaml" in msg
     assert "sg_duplicate.yaml" in msg
-    # Context should also reference both files.
     ctx = exc.value.context
     assert "instance_a" in ctx and "instance_b" in ctx
-
-
-# ---------------------------------------------------------------------------
-# 055: unresolved %{var} in identity fields after merge
-# ---------------------------------------------------------------------------
 
 
 def test_unresolved_var_in_pipeline_raises_055(tmp_path):
@@ -311,11 +270,6 @@ def test_unresolved_var_in_pipeline_raises_055(tmp_path):
     assert exc.value.code == "LHP-VAL-055"
 
 
-# ---------------------------------------------------------------------------
-# Provenance map structure
-# ---------------------------------------------------------------------------
-
-
 def test_provenance_records_paths(tmp_path):
     bp = _make_blueprint(
         parameters=[BlueprintParameter(name="site_name", required=True)],
@@ -343,11 +297,6 @@ def test_provenance_records_paths(tmp_path):
     assert prov.blueprint_path == bp_path
     assert prov.instance_path == inst_path
     assert prov.spec_index == 0
-
-
-# ---------------------------------------------------------------------------
-# Empty inputs
-# ---------------------------------------------------------------------------
 
 
 def test_empty_inputs_return_empty_outputs():

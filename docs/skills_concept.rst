@@ -32,6 +32,14 @@ skill`` command copies the bundle out of the Python package into
 - ``.lhp_skill_version`` — a marker file written by ``lhp skill install`` that
   records which LHP version produced the installed bundle.
 
+A project-local install additionally writes a short routing block into the
+project's ``CLAUDE.md`` (removed again by ``uninstall``). A skill's triggering
+description can only read the user's request, not the filesystem, so a request
+phrased without LHP terms would otherwise miss the skill; the routing block
+supplies the missing signal — "this directory is an LHP project" — so in-project
+work routes to the skill regardless of phrasing. A ``--user`` install is global
+and writes no project ``CLAUDE.md``.
+
 The skill ships inside the ``lakehouse-plumber`` wheel under
 ``src/lhp/resources/skills/lhp/``. Versioning the skill with the package
 guarantees that the YAML keys, action types, and error codes referenced in
@@ -122,7 +130,7 @@ domain the agent might be asked to work in:
   matching, and merge behaviour.
 - ``project-config.md`` — ``lhp.yaml``, substitutions, local variables,
   operational metadata, and CLI commands.
-- ``advanced.md`` — Databricks Asset Bundle (DAB) integration, dependency
+- ``advanced.md`` — Declarative Automation Bundles (DAB) integration, dependency
   analysis, multi-job orchestration, and Continuous Integration /
   Continuous Deployment (CI/CD) patterns.
 - ``monitoring.md`` — event log injection, monitoring pipeline, and the

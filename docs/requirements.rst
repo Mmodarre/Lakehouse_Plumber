@@ -47,7 +47,7 @@ Runtime dependencies
 * ``rich >= 14.0.0`` — formatted CLI output.
 * ``networkx >= 3.6.0`` — dependency graph for ``lhp deps``.
 * ``packaging >= 23.2`` — version parsing for ``required_lhp_version``.
-* ``black == 26.3.1`` — formats generated Python before write.
+* ``ruff == 0.13.3`` — formats generated Python before write.
 
 Pinning ``required_lhp_version`` in ``lhp.yaml`` (see :doc:`cicd`) locks this
 set transitively.
@@ -128,7 +128,7 @@ Development
 
 To develop LHP itself, install the ``dev`` extra
 (``pip install -e ".[dev]"``). Pulls in ``pytest``, ``pytest-cov``,
-``pytest-mock``, ``flake8``, ``isort``, ``mypy``, ``pre-commit``, plus
+``pytest-mock``, ``ruff``, ``mypy``, ``pre-commit``, plus
 security tooling (``pip-audit``, ``bandit``, ``liccheck``).
 
 See also

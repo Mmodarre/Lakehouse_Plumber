@@ -40,8 +40,10 @@ Reusability and patterns
 Deploy
 ------
 
-* :doc:`configure_bundles` — Enable Databricks Asset Bundle (DAB) integration for
+* :doc:`configure_bundles` — Enable Declarative Automation Bundle integration for
   environment-specific deployments.
+* :doc:`package_pipelines_as_wheels` — Package a pipeline as a deterministic Python
+  wheel to cut workspace sync and deploy cost.
 * :doc:`cicd` — Apply CI/CD patterns and DataOps practices for GitHub Actions,
   Azure DevOps, and Bitbucket Pipelines.
 

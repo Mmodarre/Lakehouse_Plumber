@@ -19,9 +19,8 @@ import pytest
 
 from tests.fakes import (
     CallRecord,
-    FakeCodeFormatter,
     FakeCodeGenerator,
-    FakeFlowgroupProcessor,
+    FakeFlowgroupResolutionService,
     FakeProjectConfig,
     FakeSubstitutionManager,
     FakeTemplate,
@@ -40,13 +39,13 @@ class TestFakesPickle:
         assert restored.kwargs == {"x": 1}
 
     def test_fake_flowgroup_processor_pickles(self) -> None:
-        fake = FakeFlowgroupProcessor()
+        fake = FakeFlowgroupResolutionService()
         restored = pickle.loads(pickle.dumps(fake))
-        assert isinstance(restored, FakeFlowgroupProcessor)
+        assert isinstance(restored, FakeFlowgroupResolutionService)
         assert restored.calls == []
 
     def test_fake_flowgroup_processor_pickles_with_call_history(self) -> None:
-        fake = FakeFlowgroupProcessor()
+        fake = FakeFlowgroupResolutionService()
         fake.process_flowgroup("fg", env="dev", include_tests=False)
         restored = pickle.loads(pickle.dumps(fake))
         assert len(restored.calls) == 1
@@ -76,10 +75,6 @@ class TestFakesPickle:
     def test_fake_code_generator_pickles(self) -> None:
         restored = pickle.loads(pickle.dumps(FakeCodeGenerator()))
         assert isinstance(restored, FakeCodeGenerator)
-
-    def test_fake_code_formatter_pickles(self) -> None:
-        restored = pickle.loads(pickle.dumps(FakeCodeFormatter()))
-        assert isinstance(restored, FakeCodeFormatter)
 
     def test_fake_project_config_pickles(self) -> None:
         fake = FakeProjectConfig(name="proj", test_reporting={"enabled": True})

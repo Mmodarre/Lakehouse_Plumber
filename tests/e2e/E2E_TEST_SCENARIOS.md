@@ -1,6 +1,6 @@
 # E2E Test Scenarios
 
-This document catalogs every scenario covered by the LHP end-to-end test suite. **156 tests across 19 files** (150 passing + 6 xfail), all running against the shared fixture project at `tests/e2e/fixtures/testing_project/`.
+This document catalogs every scenario covered by the LHP end-to-end test suite. **148 tests across 18 files**, all running against the shared fixture project at `tests/e2e/fixtures/testing_project/`. As of v0.8.7 the suite contains no `@pytest.mark.xfail` tests — every negative-path scenario is a regular passing assert.
 
 Companion documents:
 - **[E2E_TEST_ARCHITECTURE.md](E2E_TEST_ARCHITECTURE.md)** — How the suite works (fixture, isolation, hash comparison, state tracking)
@@ -20,7 +20,7 @@ Companion documents:
 | `test_deps_extraction.py` | 4 | Dependency extraction from `write_target` SQL/Python paths |
 | `test_local_variables_e2e.py` | 3 | `%{local_var}` resolution and undefined-variable errors |
 | `test_test_reporting_cleanup_e2e.py` | 1 | Cleanup when `--include-tests` is removed across runs |
-| `test_negative_paths_e2e.py` | 8 | Negative-path coverage (B6): bad YAML, unknown env, undefined token/secret, unknown action type, duplicate flowgroup, python collision (3 passing + 5 xfail TDD baselines) |
+| `test_negative_paths_e2e.py` | 11 | Negative-path coverage (B6): bad YAML, unknown env, undefined token/secret, unknown action type, duplicate flowgroup (generate + validate), table-creator validation on the validate path, python collision (all regular passing asserts) |
 | `test_generate_flags_e2e.py` | 6 | `lhp generate` flag plumbing (B7): `--dry-run`, `--pipeline`, `--no-bundle`, `--no-cleanup`, `--pipeline-config`, `--output` |
 | `test_state_cli_e2e.py` | 4 | `lhp state` subcommand (B4): `--orphaned`, `--stale`, `--orphaned --cleanup`, `--stale --regen` |
 | `test_load_jdbc_e2e.py` | 2 | JDBC load action (B5.1): table-mode (`.option("dbtable", ...)`) and query-mode (`.option("query", ...)`) with secret substitution |
@@ -276,7 +276,7 @@ Covers every documented test action `test_type` — one method per type. All tes
 |---|---|
 | `test_row_count_matches_baseline` | `row_count`: cross-product of two `SELECT COUNT(*)` subqueries; expectation `abs(source_count - target_count) <= tolerance` |
 | `test_referential_integrity_matches_baseline` | `referential_integrity`: LEFT JOIN; expectation `ref_<col> IS NOT NULL` aliased on the joined column |
-| `test_schema_match_matches_baseline` | `schema_match`: information_schema diff. **Currently `xfail`** — the baseline encodes the post-fix expected SQL (FQN split into `table_catalog`/`table_schema`/`table_name`, catalog-qualified `information_schema`); LHP's current generator at `src/lhp/generators/test/test_generator.py:42-67` and `:305-313` emits `WHERE table_name = '<FQN>'` which never matches in Unity Catalog. Test flips to `XPASS` automatically when LHP is fixed |
+| `test_schema_match_matches_baseline` | `schema_match`: information_schema diff. Baseline encodes the FQN split into `table_catalog`/`table_schema`/`table_name` with a catalog-qualified `information_schema`; the test passes against that baseline (regular assert, not xfail). |
 | `test_all_lookups_found_matches_baseline` | `all_lookups_found`: LEFT JOIN against lookup table; expectation `lookup_<col> IS NOT NULL` |
 | `test_custom_sql_matches_baseline` | `custom_sql`: pass-through user SQL with attached user expectations |
 | `test_custom_expectations_matches_baseline` | `custom_expectations`: synthesized `SELECT * FROM <source>` with multi-expectation grouping under a single `@dp.expect_all` decorator (warn variant) |
@@ -303,20 +303,23 @@ Covers the 3 streaming sink types from `docs/actions/write_actions.rst:847-1646`
 
 ---
 
-## `test_negative_paths_e2e.py` (8 tests, B6)
+## `test_negative_paths_e2e.py` (11 tests, B6)
 
-Negative-path coverage for `lhp validate` and `lhp generate`. All eight tests mutate a deep-copied tmp project at runtime — no permanent fixtures are added. Five tests are `@pytest.mark.xfail(strict=True)` TDD baselines encoding the expected post-fix behavior; their docstrings cite the specific LHP source location to fix. When LHP is updated, those tests flip to XPASS automatically.
+Negative-path coverage for `lhp validate` and `lhp generate`. All eleven tests mutate a deep-copied tmp project at runtime — no permanent fixtures are added. As of v0.8.7 these are all regular passing asserts (no `@pytest.mark.xfail`): LHP now fails non-zero on each negative path, including the validate-side structural checks added when `lhp validate` and `lhp generate` were unified on the same defect checks (CODING_CONSTITUTION §9.24).
 
 | Test | Scenario |
 |---|---|
-| `test_invalid_yaml_in_flowgroup_fails` *(xfail)* | Malformed YAML must fail validation. Today LHP skips bad files with a WARNING and exits 0; expected: non-zero exit on parse error. |
+| `test_invalid_yaml_in_flowgroup_fails` | Malformed YAML fails validation with a non-zero exit on parse error. |
 | `test_unknown_environment_fails` | `lhp generate --env xyz` fails when no `substitutions/xyz.yaml` exists. |
 | `test_missing_environment_flag_fails` | `lhp generate` without `--env` returns Click's "Missing option" usage error (`main.py:323` declares the flag required). |
-| `test_undefined_token_reference_fails` *(xfail)* | `${nonexistent_token}` triggers `LHP-CFG-010` from `flowgroup_processor.py:158`. Today the per-pipeline detail is hidden without `--verbose`; expected: code surfaced by default. |
-| `test_undefined_secret_reference_fails` *(xfail)* | `${secret:missing_scope/missing_key}` must fail because the scope is not in the available set. Today `SecretValidator()` at `orchestrator.py:139` has empty `available_scopes` so the existence check is a silent no-op; expected: configured scope set + scope-existence check enforced. |
-| `test_unknown_action_type_fails` *(xfail)* | `type: bogus_type` must surface `LHP-ACT-001`. Today the Pydantic enum failure becomes a parse-error skip with WARNING; expected: clean LHP-ACT-001 with non-zero exit. |
-| `test_duplicate_flowgroup_id_fails` | Two flowgroup files with same `(pipeline, flowgroup)` tuple surface `LHP-VAL-009` via `orchestrator.py:927-952`. Uses `lhp generate` because `validate_pipeline_by_field` does not run the cross-file duplicate check (only the generate path does at `orchestrator.py:1010`). |
-| `test_python_import_collision_fails` *(xfail)* | Two different `module_path` values resolving to the same destination stem trigger `PythonFunctionConflictError` (`LHP-VAL-019`, `python_file_copier.py:14-41`). Today the error is displayed but `generate` continues to "✅ completed successfully" with exit 0; expected: non-zero exit when any pipeline fails. |
+| `test_undefined_token_reference_fails` | `${nonexistent_token}` triggers `LHP-CFG-010` from `flowgroup_processor.py:158`, surfaced by default (non-zero exit). |
+| `test_undefined_secret_reference_fails` | `${secret:missing_scope/missing_key}` fails because the scope is not in the configured available set (scope-existence check enforced; non-zero exit). |
+| `test_unknown_action_type_fails` | `type: bogus_type` surfaces a clean `LHP-ACT-001` with a non-zero exit. |
+| `test_duplicate_flowgroup_id_fails` | Two flowgroup files with same `(pipeline, flowgroup)` tuple surface `LHP-VAL-009` on the **generate** path. Regression guard for the generate side of the shared cross-file duplicate check. |
+| `test_duplicate_flowgroup_id_fails_via_validate` | Same duplicate `(pipeline, flowgroup)` tuple, but via **`lhp validate`**. Per CODING_CONSTITUTION §9.24 the dup check is not duplicated across paths — validate now runs the same check as generate; the duplicate batch's `error_code="LHP-VAL-009"` maps to a non-zero exit (`ExitCode.DATA_ERROR`). Sibling of the generate test above. |
+| `test_validate_no_table_creator_fails` | A target table whose write actions all set `create_table: false` (no creating action anywhere) surfaces `LHP-VAL-009` on the **`lhp validate`** path (N1). Per §9.24 the cross-flowgroup table-creation check is single-sourced in `TableCreationValidator`; validate runs it via `validate_cross_flowgroup` and folds the `table_creation_errors` into a structured `LHP-VAL-009` (previously discarded on the validate path), exiting non-zero. |
+| `test_validate_multiple_table_creators_fails` | A table created by **multiple** actions (each `create_table: true`) surfaces `LHP-CFG-004` on the **`lhp validate`** path (N2). Symmetry guard for N1: the `LHPConfigError` raised by `TableCreationValidator` propagates out of `validate_cross_flowgroup` and is folded into the structured `lhp_errors`, so validate exits non-zero rather than only generate catching it. |
+| `test_python_import_collision_fails` | Two different `module_path` values resolving to the same destination stem trigger `PythonFunctionConflictError` (`LHP-VAL-019`, `python_file_copier.py:14-41`); `generate` exits non-zero when any pipeline fails. |
 
 **Fixture impact:** None — every mutation targets `self.project_root` (deep copy), so no `monitoring_baseline/`, deps orchestration, or other cross-fixture baselines are touched.
 

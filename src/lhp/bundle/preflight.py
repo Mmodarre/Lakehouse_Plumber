@@ -16,9 +16,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
-from ..core.services.pipeline_config_loader import PipelineConfigLoader
-from ..utils.error_formatter import ErrorCategory, LHPConfigError
-from ..utils.substitution import EnhancedSubstitutionManager
+from ..core.loaders.pipeline_config_loader import PipelineConfigLoader
+from ..core.processing.substitution import EnhancedSubstitutionManager
+from ..errors import ErrorFactory, LHPConfigError, codes
 
 logger = logging.getLogger(__name__)
 
@@ -73,39 +73,6 @@ class _PreflightFailures:
                 for d in self.empty_after_substitution
             ],
         }
-
-
-def require_pipeline_config_flag(
-    *,
-    bundle_enabled: bool,
-    pipeline_config_path: str | None,
-) -> None:
-    """Enforce ``--pipeline-config`` when bundle support is enabled.
-
-    Raises ``LHPConfigError`` with code ``LHP-CFG-023`` when bundle support is
-    on (``databricks.yml`` present, ``--no-bundle`` not passed) but no
-    ``-pc``/``--pipeline-config`` flag was supplied. Without that flag,
-    ``PipelineConfigLoader`` loads empty defaults and every pipeline would
-    fail catalog/schema validation later — so we surface the actionable
-    error up-front, before any wipes occur.
-    """
-    if bundle_enabled and not pipeline_config_path:
-        raise LHPConfigError(
-            category=ErrorCategory.CONFIG,
-            code_number="023",
-            title="--pipeline-config is required when bundle support is enabled",
-            details=(
-                "databricks.yml is present (bundle support is enabled) but the "
-                "--pipeline-config / -pc flag was not supplied. Bundle resource "
-                "generation requires a pipeline_config.yaml that defines `catalog` "
-                "and `schema` either per-pipeline or under `project_defaults`."
-            ),
-            suggestions=[
-                "Pass --pipeline-config (or -pc) pointing at your pipeline_config.yaml",
-                "Or use --no-bundle to skip bundle resource generation",
-            ],
-            doc_link=_CATALOG_SCHEMA_DOC_LINK,
-        )
 
 
 def validate_catalog_schema(
@@ -211,9 +178,8 @@ def _build_aggregated_error(failures: _PreflightFailures, env: str) -> LHPConfig
         lines = "\n".join(formatter(items))
         sections.append(f"{header} ({len(items)}):\n{lines}")
 
-    return LHPConfigError(
-        category=ErrorCategory.CONFIG,
-        code_number="026",
+    return ErrorFactory.config_error(
+        codes.CFG_026,
         title=f"Catalog/schema validation failed for {failures.total()} pipeline(s)",
         details="\n\n".join(sections),
         suggestions=[

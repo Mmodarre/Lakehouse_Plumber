@@ -432,7 +432,9 @@ automatically regenerated and include warning headers. Always edit your original
 
 **Generated File Structure**
 
-After generation, your Python functions appear in the pipeline output with warning headers:
+After generation, your Python functions appear in the pipeline output with warning headers.
+The entry module stays flat at the ``custom_python_functions/`` root; any local helper
+sub-package it imports is copied alongside it with its directory structure preserved:
 
 .. code-block:: text
 
@@ -440,8 +442,39 @@ After generation, your Python functions appear in the pipeline output with warni
   └── pipeline_name/
       ├── flowgroup_name.py
       └── custom_python_functions/
-          ├── __init__.py
-          └── customer_transforms.py
+          ├── __init__.py                  # LHP package marker
+          ├── customer_transforms.py       # entry module (flat); local imports rewritten
+          └── helpers/                     # referenced helper sub-package, copied in full
+              ├── __init__.py              # copied from your project
+              └── date_change.py           # copied; relative imports preserved
+
+**Importing local helper modules**
+
+When a transform function imports local helper modules that live alongside it, LHP follows
+those imports and copies the whole transitive closure of local helpers into
+``custom_python_functions/``, preserving sub-package structure (as shown in the tree above).
+
+The directory that holds your entry file is the **import root** against which "local" is
+decided:
+
+- **Rule A — the import root must not itself be a package.** It may not contain an
+  ``__init__.py`` at its top level, or generation fails with ``LHP-VAL-023`` (keep the
+  entry file flat and put helpers in a sub-directory).
+- **Rule B — referenced helper packages are copied in full**, with their directory
+  structure preserved, so ``__init__.py`` side effects and intra-package imports keep working.
+
+Imports inside copied files are reconciled as follows:
+
+- **Absolute local imports are prefix-rewritten** — ``from helpers.dates import to_date``
+  becomes ``from custom_python_functions.helpers.dates import to_date`` (aliases preserved).
+- **Relative imports are preserved unchanged** — ``from .sibling import x`` inside a helper
+  package is copied verbatim.
+- **External and standard-library imports are left untouched.**
+- **Plain dotted imports of a local module are rejected** with ``LHP-VAL-024``
+  (use ``from helpers.dates import ...`` instead of ``import helpers.dates``).
+- A local import whose target file or package member is missing on disk fails with
+  ``LHP-VAL-025``; a syntactically broken sibling inside a copied package surfaces
+  ``LHP-IO-003`` at generate time.
 
 **Example of Generated File with Warning Header:**
 
@@ -687,6 +720,22 @@ External schema files contain only column definitions (no enforcement):
 - ``"old_col -> new_col"`` - Rename only
 - ``"col: TYPE"`` - Cast only (no rename)
 - ``"col"`` - Pass-through (strict mode only, explicitly keep column)
+
+**Column Names and the ``$`` Character:**
+
+Any column name that *references an existing source column* may contain a
+``$`` — leading, internal, or trailing. This covers the rename source (left of
+``->``), a cast-only entry (``col: TYPE``), and a pass-through (``col``). This
+lets you map source columns whose names already carry ``$``:
+
+.. code-block:: yaml
+
+  columns:
+    - "$revenue -> revenue: DECIMAL(18,2)"   # source has a $, target is clean
+
+A rename **target** (right of ``->``), by contrast, must be a clean identifier —
+letters, digits, and underscores only. A ``$`` in the target (for example
+``a -> $b``) is rejected as a schema syntax error (``LHP-VAL-011``).
 
 **Schema File Paths:**
 

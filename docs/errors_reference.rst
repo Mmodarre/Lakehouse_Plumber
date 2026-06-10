@@ -15,36 +15,37 @@ code in the format ``LHP-{CATEGORY}-{NUMBER}``:
 - **CATEGORY** — The error category (e.g. ``CFG`` for configuration, ``VAL`` for validation)
 - **NUMBER** — A unique number within that category
 
-Here is what an error looks like in your terminal:
+Here is what an error looks like in your terminal (Rich-rendered Panel on
+stderr; file logs receive the same content as plain ASCII):
 
 .. code-block:: text
    :caption: Example error output
 
-   ❌ Error [LHP-VAL-001]: Missing required field 'source'
-   ======================================================================
-
-   The Load action 'load_customers' requires a 'source' field. This field
-   specifies where to read data from.
-
-   📍 Context:
-      • Component Type: Load action
-      • Component Name: load_customers
-      • Missing Field: source
-
-   💡 How to fix:
-      1. Add the 'source' field to your configuration
-      2. Check the example below for the correct format
-
-   📝 Example:
-      actions:
-        - name: load_customers
-          type: load
-          source:
-            type: cloudfiles
-            path: /data/customers/
-
-   📚 More info: https://docs.lakehouseplumber.com/errors/lhp-val-001
-   ======================================================================
+   ╭─ LHP-VAL-001   Validation ──────────────────────────────────────────╮
+   │ Missing required field 'source'                                     │
+   │                                                                    │
+   │ The Load action 'load_customers' requires a 'source' field. This    │
+   │ field specifies where to read data from.                            │
+   │                                                                    │
+   │ Context                                                             │
+   │   Component Type: Load action                                       │
+   │   Component Name: load_customers                                    │
+   │   Missing Field: source                                             │
+   │                                                                    │
+   │ Suggestions                                                         │
+   │   -> Add the 'source' field to your configuration                   │
+   │   -> Check the example below for the correct format                 │
+   │                                                                    │
+   │ Example                                                             │
+   │   actions:                                                          │
+   │     - name: load_customers                                          │
+   │       type: load                                                    │
+   │       source:                                                       │
+   │         type: cloudfiles                                            │
+   │         path: /data/customers/                                      │
+   │                                                                    │
+   │ More info: https://docs.lakehouseplumber.com/errors/lhp-val-001     │
+   ╰─────────────────────────────────────────────────────────────────────╯
 
 Each error includes the cause, relevant context, numbered fix suggestions, and a
 configuration example where applicable. Search this page for your error code to find
@@ -80,12 +81,15 @@ Error Categories
    * - Dependency
      - ``DEP``
      - Circular dependencies between views or preset inheritance cycles
+   * - Deprecation
+     - ``DEPR``
+     - Soft-deprecation warnings for fields/syntax scheduled for removal; surfaced as warnings, not failures
 
 Configuration Errors (LHP-CFG)
 ------------------------------
 
 Configuration errors indicate problems with your YAML files, presets, templates,
-or Databricks Asset Bundle setup. They are the most common error category.
+or Declarative Automation Bundles setup. They are the most common error category.
 
 LHP-CFG-001: Configuration Conflict
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -419,7 +423,7 @@ the ``template_parameters`` section of the flowgroup.
 LHP-CFG-020: Bundle Resource Error
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**When it occurs:** An error occurred while generating or syncing Databricks Asset Bundle
+**When it occurs:** An error occurred while generating or syncing Declarative Automation Bundles
 resource files during ``lhp generate``.
 
 **Common causes:**
@@ -488,7 +492,7 @@ problems that prevent LHP from processing it.
 
 **Resolution:**
 
-1. Review your ``databricks.yml`` against the Databricks Asset Bundles documentation
+1. Review your ``databricks.yml`` against the Declarative Automation Bundles documentation
 2. Run ``lhp validate`` for detailed diagnostics
 3. Compare with a working project's ``databricks.yml``
 
@@ -521,6 +525,226 @@ in the ``templates/`` directory.
 .. tip::
 
    Run ``lhp list_templates`` to see all available template names.
+
+LHP-CFG-032: Test Reporting File Not Found
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** ``lhp.yaml`` declares a ``test_reporting`` section, but the
+provider module at ``module_path`` (or the optional ``config_file``) does not
+exist at the resolved path.
+
+**Common causes:**
+
+- Typo in the ``module_path`` or ``config_file`` path
+- The provider module has not been created yet
+- A path that resolves relative to the wrong directory (paths are relative to
+  the project root)
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-CFG-032)
+
+   # lhp.yaml
+   test_reporting:
+     module_path: py_functions/test_reporting_publisher.py   # File does not exist
+     function_name: publish_results
+
+.. code-block:: yaml
+   :caption: After (fixed) — create the file, or correct the path
+
+   # lhp.yaml
+   test_reporting:
+     module_path: py_functions/delta_test_reporter.py        # File exists
+     function_name: publish_results
+
+.. note::
+
+   This is a project preflight check. It runs on both ``lhp validate`` and
+   ``lhp generate``, **independent of** ``--include-tests`` — a project with a
+   missing provider file fails ``lhp generate`` even without the flag.
+
+.. seealso::
+
+   :doc:`actions/test_reporting` for the provider module contract and built-in
+   providers.
+
+LHP-CFG-031: Generated Source Failed to Parse
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** LHP generated Python source that could not be parsed
+(``ast.parse`` raised a ``SyntaxError``). The in-worker syntax guard runs over
+every flowgroup's generated code before the output is committed, and the error
+names the offending flowgroup.
+
+**Common causes:**
+
+- A bug in an LHP generator or template that emitted syntactically invalid
+  Python — this is almost never a problem with your YAML.
+- A custom template or a snapshot-CDC ``source_function`` that embeds Python
+  which does not parse.
+
+**How to resolve:**
+
+- File a bug report against LHP with the failing flowgroup YAML.
+- Turn on DEBUG logging to inspect the generated source that failed to parse.
+- If you author a custom template or a snapshot-CDC ``source_function``, verify
+  the embedded Python parses with ``python -m py_compile``.
+
+LHP-CFG-033: Ruff Failed to Format Generated Code
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** The terminal ``ruff format`` pass over the generated output
+directory exited non-zero. The generated code was written to disk but could not
+be formatted. The error carries ruff's exit code, stdout, and stderr so the
+failure is diagnosable.
+
+**Common causes:**
+
+- A generated file is syntactically invalid (an LHP generator/template bug),
+  so ruff could not parse it.
+- The ruff invocation itself failed to read a file in the output tree.
+
+**How to resolve:**
+
+- Inspect ruff's error output (carried in the error context) for the offending
+  file.
+- Confirm ruff is installed and the generated tree is valid Python.
+- Re-run with ``--no-format`` to skip formatting and inspect the raw generated
+  code; if a generated file is invalid, file a bug report with the flowgroup
+  YAML.
+
+LHP-CFG-034: Ruff Executable Not Found
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** LHP could not locate the ``ruff`` executable required for
+the generated-code formatting pass. ruff ships as a runtime dependency of LHP
+but was not found in the active environment's scripts directory or on ``PATH``.
+
+**How to resolve:**
+
+- Install ruff into the active environment: ``pip install ruff``.
+- Reinstall LHP with its dependencies: ``pip install lakehouse-plumber``.
+- If you use an isolated or custom environment, ensure ruff is on ``PATH`` or
+  installed alongside LHP.
+
+LHP-CFG-054: Invalid Instance Definition
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** A blueprint instance file has a malformed blueprint
+reference. The ``use_blueprint:`` (or legacy ``blueprint:``) value must name the
+blueprint as a single, non-empty string. A list, mapping, empty string, or
+missing/null value triggers this error. It also fires when the instance document
+otherwise fails to parse into a blueprint instance.
+
+**Common causes:**
+
+- ``use_blueprint:`` (or ``blueprint:``) given a list or mapping instead of a
+  single string.
+- The blueprint reference is an empty string or ``null``.
+- The instance file's shape cannot be parsed into a valid blueprint instance.
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-CFG-054)
+
+   # Instance file — blueprint reference is a list, not a string
+   use_blueprint:
+     - bronze_ingestion
+   parameters:
+     table_name: customers
+
+.. code-block:: yaml
+   :caption: After (fixed)
+
+   # Instance file — blueprint reference is a single non-empty string
+   use_blueprint: bronze_ingestion
+   parameters:
+     table_name: customers
+
+.. seealso::
+
+   :doc:`blueprints` for the full set of blueprint and instance file errors
+   (``LHP-CFG-047``–``058``, ``LHP-VAL-041``–``061``).
+
+.. _lhp-cfg-060:
+
+LHP-CFG-060: Invalid Wheel Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** The top-level ``wheel`` block in ``lhp.yaml`` is malformed.
+The block must be a mapping, and its optional ``artifact_volume`` key, when
+present, must be a string. The ``/Volumes/...`` shape of the resolved value is
+checked separately and later — see :ref:`lhp-cfg-061`.
+
+**Common causes:**
+
+- ``wheel`` given a scalar or list instead of a mapping.
+- ``wheel.artifact_volume`` set to a non-string (for example a number or a list).
+- The ``wheel`` block otherwise fails to parse into the expected shape.
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-CFG-060)
+
+   # lhp.yaml — artifact_volume is a list, not a string
+   wheel:
+     artifact_volume:
+       - /Volumes/prod_catalog/lhp_artifacts/bundle_artifacts
+
+.. code-block:: yaml
+   :caption: After (fixed)
+
+   # lhp.yaml — wheel is a mapping; artifact_volume is a single string
+   wheel:
+     artifact_volume: /Volumes/prod_catalog/lhp_artifacts/bundle_artifacts
+
+.. seealso::
+
+   :doc:`package_pipelines_as_wheels` for the full wheel-packaging setup,
+   including the ``wheel`` block and the artifact-volume requirement.
+
+.. _lhp-cfg-061:
+
+LHP-CFG-061: Wheel Packaging Requires a ``/Volumes/...`` Artifact Volume
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** A pipeline is configured for ``packaging: wheel``, but the
+project's ``wheel.artifact_volume`` is missing, empty, or — after substitution —
+resolves to a path that does not start with ``/Volumes/``. Serverless compute
+installs custom wheels only from a Unity Catalog volume, so wheel packaging needs
+a valid ``/Volumes/...`` destination to resolve the wheel's install path.
+
+**Common causes:**
+
+- No ``wheel`` block (or no ``artifact_volume``) declared in ``lhp.yaml`` while a
+  pipeline opts into ``packaging: wheel``.
+- A ``${token}`` in ``artifact_volume`` that resolves to a non-``/Volumes/`` path
+  for the target environment.
+- ``artifact_volume`` set to an empty or whitespace-only string.
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-CFG-061)
+
+   # lhp.yaml — no artifact_volume, but a pipeline uses packaging: wheel
+   wheel:
+     artifact_volume: ""
+
+.. code-block:: yaml
+   :caption: After (fixed)
+
+   # lhp.yaml — artifact_volume resolves to a /Volumes/... path
+   wheel:
+     artifact_volume: /Volumes/${catalog}/${artifact_schema}/bundle_artifacts
+
+**How to resolve:**
+
+- Add a ``wheel.artifact_volume`` that resolves to a ``/Volumes/...`` path for
+  the environment you are generating.
+- Verify any ``${tokens}`` in the path resolve to a ``/Volumes/...`` value for
+  that environment.
+- Or set the pipeline's ``packaging`` back to ``source``.
+
+.. seealso::
+
+   :doc:`package_pipelines_as_wheels` for the artifact-volume requirement and the
+   per-environment ``packaging`` toggle.
 
 Validation Errors (LHP-VAL)
 ----------------------------
@@ -863,6 +1087,90 @@ expected format for its type.
    :doc:`actions/index` for the correct source configuration format for each
    action type.
 
+.. _lhp-val-062:
+
+LHP-VAL-062: Invalid Pipeline Packaging Mode
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** A pipeline's ``packaging`` field is set to a value other than
+``source`` or ``wheel``. The toggle lives in ``pipeline_config-<env>.yaml`` (per
+pipeline or under ``project_defaults``) and accepts only those two values.
+
+**Common causes:**
+
+- A typo such as ``wheels`` or ``whl`` instead of ``wheel``.
+- A case mismatch such as ``Wheel`` or ``Source`` (the values are
+  case-sensitive).
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-VAL-062)
+
+   ---
+   pipeline: large_ingest_a
+   packaging: wheels   # not a valid mode
+
+.. code-block:: yaml
+   :caption: After (fixed)
+
+   ---
+   pipeline: large_ingest_a
+   packaging: wheel
+
+.. seealso::
+
+   :doc:`package_pipelines_as_wheels` for the ``packaging`` toggle, its
+   precedence, and the per-environment behavior.
+
+.. _lhp-val-063:
+
+LHP-VAL-063: Invalid ``depends_on`` Entry
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** An action's optional ``depends_on`` field contains a
+malformed entry. ``depends_on`` is a list of upstream table references used to
+declare dependency-graph edges explicitly; each entry must be a non-empty
+string of at most three dot-separated parts
+(``catalog.schema.table``, ``schema.table``, or ``table``) with no blank parts.
+
+**Common causes:**
+
+- An entry that is not a string, or an empty / whitespace-only string
+- A reference with more than three dot-separated parts
+- A reference with a blank part (for example ``catalog..table`` or a trailing dot)
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-VAL-063)
+
+   actions:
+     - name: build_summary
+       type: transform
+       transform_type: python
+       source: v_orders
+       module_path: "transforms/build_summary.py"
+       function_name: run
+       depends_on:
+         - "a.b.c.d"   # four parts — too many
+         - ""          # empty string
+
+.. code-block:: yaml
+   :caption: After (fixed)
+
+   actions:
+     - name: build_summary
+       type: transform
+       transform_type: python
+       source: v_orders
+       module_path: "transforms/build_summary.py"
+       function_name: run
+       depends_on:
+         - my_catalog.my_schema.my_table
+         - my_schema.my_table
+
+.. seealso::
+
+   :doc:`dependency_analysis` for when and how to use ``depends_on`` to declare
+   edges the analyzer cannot parse from your sources.
+
 I/O Errors (LHP-IO)
 --------------------
 
@@ -949,6 +1257,92 @@ has zero documents (empty file) or multiple documents separated by ``---``.
    only. Schema files, expectations files, and substitution files must contain
    exactly one document. See :doc:`multi_flowgroup_guide` for multi-document
    flowgroup syntax.
+
+.. _lhp-io-022:
+
+LHP-IO-022: Wheel File Not Found
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** ``lhp inspect-wheel`` was given a wheel **path** that does not
+exist. Only the path form raises this; a pipeline-name selector locates the wheel
+under ``generated/<env>/_wheels/<pipeline>/dist/`` and reports a missing build as
+``LHP-GEN-001`` instead.
+
+**Common causes:**
+
+- A typo in the ``.whl`` path, or a shell glob that matched nothing and was passed
+  through literally.
+- The pipeline has not been generated yet, so no wheel has been built.
+- Running from the wrong working directory, so a relative path misresolves.
+
+.. code-block:: bash
+   :caption: Before (triggers LHP-IO-022)
+
+   lhp inspect-wheel generated/dev/_wheels/orders/dist/missing.whl
+
+.. code-block:: bash
+   :caption: After (fixed) — build first, then inspect by pipeline name
+
+   lhp generate -e dev
+   lhp inspect-wheel orders -e dev
+
+.. seealso::
+
+   :doc:`package_pipelines_as_wheels` (the "Inspect a built wheel" section) and
+   :doc:`cli` for ``lhp inspect-wheel`` usage and exit codes.
+
+.. _lhp-io-023:
+
+LHP-IO-023: Not a Wheel File
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** ``lhp inspect-wheel`` was given a path that exists but is not a
+usable ``.whl`` file — it is a directory, or a file whose name does not end in
+``.whl``.
+
+**Common causes:**
+
+- Passing the pipeline's ``dist`` directory instead of the ``.whl`` inside it.
+- Pointing at the runner ``.py`` or another generated file rather than the wheel.
+- A selector that looks like a path (contains a separator) but targets the wrong
+  file.
+
+.. code-block:: bash
+   :caption: Before (triggers LHP-IO-023)
+
+   lhp inspect-wheel generated/dev/_wheels/orders/dist/
+
+.. code-block:: bash
+   :caption: After (fixed) — name the .whl, or inspect by pipeline name
+
+   lhp inspect-wheel orders -e dev
+
+.. _lhp-io-024:
+
+LHP-IO-024: Corrupt Wheel Archive
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** ``lhp inspect-wheel`` reached a file that ends in ``.whl`` but
+is not a valid zip archive, so it cannot be opened (a wheel is a zip file).
+
+**Common causes:**
+
+- A truncated or partially written wheel — for example a build interrupted
+  mid-write, or a partial copy or download.
+- The file was overwritten with non-wheel content.
+- On-disk corruption.
+
+.. code-block:: bash
+   :caption: Recovery — rebuild the wheel
+
+   lhp generate -e dev
+   lhp inspect-wheel orders -e dev
+
+.. note::
+
+   LHP-built wheels are deterministic and content-addressed, so regenerating from
+   the same YAML reproduces a byte-identical wheel. See
+   :doc:`package_pipelines_as_wheels`.
 
 Action Errors (LHP-ACT)
 ------------------------
@@ -1060,6 +1454,36 @@ you identify which dependency to remove or redirect.
    Run ``lhp deps --format dot --env <env>`` to generate a visual dependency
    graph that makes cycles easier to spot. See :doc:`dependency_analysis`
    for details.
+
+Deprecation Warnings (LHP-DEPR)
+-------------------------------
+
+Deprecation codes are **warnings, not failures** — generation and validation
+still succeed. They flag fields and syntax that are scheduled for removal in a
+future release so you can migrate ahead of time.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 80
+
+   * - Code
+     - Deprecated usage and replacement
+   * - ``LHP-DEPR-001``
+     - Bare-braces ``{token}`` substitution syntax. Use ``${token}`` instead
+       (the only valid non-``$`` braces form is ``%{local_var}`` for local
+       variables).
+   * - ``LHP-DEPR-002``
+     - The ``database`` field. Use ``catalog`` and ``schema`` instead.
+   * - ``LHP-DEPR-003``
+     - The schema-transform ``enforcement`` key.
+   * - ``LHP-DEPR-004``
+     - The ``database_suffix`` field. Use ``catalog`` and ``schema`` instead.
+
+.. note::
+
+   The legacy ``blueprint:`` / ``use_blueprint:`` syntax is **not** a soft
+   deprecation — mixing it with the current syntax is a hard ``LHP-VAL-061``
+   error.
 
 General Troubleshooting
 -----------------------

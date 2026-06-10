@@ -1,198 +1,96 @@
-"""Init command implementation for LakehousePlumber CLI."""
+"""``lhp init`` — scaffold a new LakehousePlumber project in the cwd.
+
+Thin CLI shim (constitution §2.7 / §9.11): parse args, run the LHP-IO-007
+pre-check, delegate scaffolding to ``LakehousePlumberBootstrap``, then hand
+the result to the presenter. No business logic lives here. Domain failures
+surface by raising ``LHPError`` so :func:`cli_error_boundary` renders the
+panel and maps it to a POSIX exit code.
+"""
+
+from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import List
 
-import click
+import rich_click as click
+from rich_click import RichCommand
 
-from ...core.init_template_context import InitTemplateContext
-from ...core.init_template_loader import InitTemplateLoader
-from .base_command import BaseCommand
+from lhp.api import LakehousePlumberBootstrap
+from lhp.errors import ErrorCategory, ErrorFactory, LHPError, codes
+
+from .. import console as _console_module
+from ..error_boundary import cli_error_boundary
+from ..presenters.init_presenter import render_init_result
 
 logger = logging.getLogger(__name__)
 
 
-class InitCommand(BaseCommand):
+@click.command(cls=RichCommand, name="init")
+@click.argument("name")
+@click.option(
+    "--no-bundle",
+    is_flag=True,
+    help="Skip Databricks Asset Bundle setup (bundle is enabled by default).",
+)
+@cli_error_boundary("init")
+def init(name: str, no_bundle: bool) -> None:
+    """Initialize a new LakehousePlumber project in the current directory.
+
+    NAME is baked into template substitutions (bundle name, lhp.yaml). All
+    files are created in the current working directory.
     """
-    Handles project initialization command.
+    project_path = Path.cwd()
+    bundle = not no_bundle
+    logger.info(f"Initializing project '{name}' in {project_path}, bundle={bundle}")
 
-    Creates a LakehousePlumber project in the current working directory,
-    with Databricks Asset Bundle integration enabled by default.
-    """
-
-    def execute(self, project_name: str, bundle: bool = True) -> None:
-        """
-        Execute the init command.
-
-        Args:
-            project_name: Name used for template rendering (bundle name, lhp.yaml, etc.)
-            bundle: Whether to initialize as Databricks Asset Bundle project (default True)
-        """
-        self.setup_from_context()
-
-        project_path = Path.cwd()
-
-        logger.info(
-            f"Initializing project '{project_name}' in {project_path}, bundle={bundle}"
+    # Refuse to clobber an existing project before any filesystem mutation.
+    if (project_path / "lhp.yaml").exists():
+        raise ErrorFactory.io_error(
+            codes.IO_007,
+            title="LHP project already exists",
+            details="An lhp.yaml file already exists in this directory.",
+            suggestions=[
+                "Use a different directory to create a new project",
+                "Remove the existing lhp.yaml if you want to reinitialize",
+            ],
+            context={"Directory": str(project_path)},
         )
 
-        # Check for existing LHP project
-        if (project_path / "lhp.yaml").exists():
-            from ...utils.error_formatter import ErrorCategory, LHPFileError
+    result = LakehousePlumberBootstrap().init_project(
+        project_path, bundle=bundle, project_name=name
+    )
+    if not result.success:
+        _raise_for_failure(result.error_code, result.error_message, project_path)
 
-            raise LHPFileError(
-                category=ErrorCategory.IO,
-                code_number="007",
-                title="LHP project already exists",
-                details="An lhp.yaml file already exists in this directory.",
-                suggestions=[
-                    "Use a different directory to create a new project",
-                    "Remove the existing lhp.yaml if you want to reinitialize",
-                ],
-                context={"Directory": str(project_path)},
-            )
+    logger.info(f"Project '{name}' initialized successfully")
+    render_init_result(result, console=_console_module.console)
 
-        created_items: List[Path] = []
+
+def _raise_for_failure(
+    error_code: str | None, error_message: str | None, target_dir: Path
+) -> None:
+    """Re-raise a bootstrap failure as ``LHPError`` for the error boundary.
+
+    A structured ``error_code`` (e.g. ``LHP-IO-007``) is round-tripped so
+    the boundary emits the same exit code an inline raise would; failures
+    without a code fall back to the GENERAL category.
+    """
+    category, code_number = ErrorCategory.GENERAL, "000"
+    parts = (error_code or "").split("-")
+    if len(parts) == 3:
         try:
-            # Create project structure
-            logger.debug(f"Creating directory structure (bundle={bundle})")
-            created_items = self._create_project_structure(project_path, bundle)
-
-            # Create template context
-            context = InitTemplateContext.create(
-                project_name=project_name,
-                bundle_enabled=bundle,
-                author="",  # Empty by default as in original code
-            )
-
-            # Create project files using template loader
-            logger.debug("Rendering project template files")
-            self._create_project_files(project_path, context)
-
-            logger.info(f"Project '{project_name}' initialized successfully")
-
-            # Display success message
-            self._display_success_message(project_name, bundle)
-
-        except Exception as e:
-            self.logger.error(f"Failed to create project: {e}")
-
-            # Selective cleanup: only remove items we created
-            for item in reversed(created_items):
-                try:
-                    if item.is_dir() and not any(item.iterdir()):
-                        item.rmdir()
-                except OSError as cleanup_err:
-                    logger.debug(
-                        f"Could not remove directory {item} during cleanup: {cleanup_err}"
-                    )
-            raise  # Let cli_error_boundary handle the error
-
-    def _create_project_structure(self, project_path: Path, bundle: bool) -> List[Path]:
-        """
-        Create project directory structure.
-
-        Args:
-            project_path: Path to the project (CWD)
-            bundle: Whether to create bundle directories
-
-        Returns:
-            List of newly created directories for cleanup tracking
-        """
-        created: List[Path] = []
-
-        # Create standard directories
-        directories = [
-            "presets",
-            "templates",
-            "pipelines",
-            "substitutions",
-            "schemas",
-            "expectations",
-            "generated",
-            "config",
-        ]
-
-        for dir_name in directories:
-            dir_path = project_path / dir_name
-            if not dir_path.exists():
-                dir_path.mkdir()
-                created.append(dir_path)
-
-        # Add resources directory for bundle projects
-        if bundle:
-            resources_dir = project_path / "resources"
-            resources_lhp_dir = resources_dir / "lhp"
-            if not resources_dir.exists():
-                resources_dir.mkdir()
-                created.append(resources_dir)
-            if not resources_lhp_dir.exists():
-                resources_lhp_dir.mkdir(parents=True, exist_ok=True)
-                created.append(resources_lhp_dir)
-
-        return created
-
-    def _create_project_files(
-        self, project_path: Path, context: InitTemplateContext
-    ) -> None:
-        """
-        Create project files using template loader.
-
-        Args:
-            project_path: Path to the project
-            context: Template context for file creation
-        """
-        template_loader = InitTemplateLoader()
-        template_loader.create_project_files(project_path, context)
-
-    def _display_success_message(self, project_name: str, bundle: bool) -> None:
-        """
-        Display success message after project creation.
-
-        Args:
-            project_name: Name of the created project
-            bundle: Whether bundle support was enabled
-        """
-        directories = [
-            "presets",
-            "templates",
-            "pipelines",
-            "substitutions",
-            "schemas",
-            "expectations",
-            "generated",
-            "config",
-        ]
-
-        if bundle:
-            click.echo(
-                f"✅ Initialized Databricks Asset Bundle project: {project_name}"
-            )
-            click.echo(f"📁 Created directories: {', '.join(directories)}, resources")
-            click.echo(
-                "📄 Created example files: presets/bronze_layer.yaml, "
-                "templates/standard_ingestion.yaml, databricks.yml"
-            )
-            click.echo(
-                "🔧 VS Code IntelliSense automatically configured for YAML files"
-            )
-            click.echo("\n🚀 Next steps:")
-            click.echo("   # Create your first pipeline")
-            click.echo("   mkdir pipelines/my_pipeline")
-            click.echo("   # Add flowgroup configurations")
-            click.echo("   # Deploy bundle with: databricks bundle deploy")
-        else:
-            click.echo(f"✅ Initialized LakehousePlumber project: {project_name}")
-            click.echo(f"📁 Created directories: {', '.join(directories)}")
-            click.echo(
-                "📄 Created example files: presets/bronze_layer.yaml, "
-                "templates/standard_ingestion.yaml"
-            )
-            click.echo(
-                "🔧 VS Code IntelliSense automatically configured for YAML files"
-            )
-            click.echo("\n🚀 Next steps:")
-            click.echo("   # Create your first pipeline")
-            click.echo("   mkdir pipelines/my_pipeline")
-            click.echo("   # Add flowgroup configurations")
+            category = ErrorCategory(parts[1])
+        except ValueError:
+            category = ErrorCategory.GENERAL
+        code_number = parts[2]
+    raise LHPError(
+        category=category,
+        code_number=code_number,
+        title=error_message or "Project initialization failed.",
+        details=f"Target directory: {target_dir}",
+        suggestions=[
+            "Use a different directory to create a new project",
+            "Remove the conflicting files if you want to scaffold here",
+        ],
+        context={"Directory": str(target_dir)},
+    )

@@ -1,21 +1,6 @@
-"""E2E tests for LHP test action codegen (B1).
+"""E2E tests for LHP test action codegen across the 6 documented test action types.
 
-Covers the 6 documented test action types:
-  - row_count
-  - referential_integrity
-  - schema_match (currently xfail — see schema_match test docstring)
-  - all_lookups_found
-  - custom_sql
-  - custom_expectations
-
-Each test uses ``lhp generate --env dev --force --include-tests`` and verifies the
-generated file under ``generated/dev/12_test_actions/`` matches the baseline at
-``generated_baseline_with_tests/dev/12_test_actions/`` byte-for-byte.
-
-Fixture flowgroups live in ``tests/e2e/fixtures/testing_project/pipelines/12_test_actions/``
-and are pure test-only flowgroups (no load/transform/write actions). With
-``--include-tests`` off, LHP skips them entirely (per
-``src/lhp/core/services/code_generator.py`` test-only-flowgroup guard), so they do
+With ``--include-tests`` off, LHP skips test-only flowgroups entirely, so they do
 not pollute the standard ``generated_baseline/`` comparison.
 """
 
@@ -32,13 +17,10 @@ from lhp.cli.main import cli
 
 @pytest.mark.e2e
 class TestTestActionsE2E:
-    """E2E tests for test action codegen across all 6 documented test types."""
-
-    __test__ = True  # this is a real test class
+    __test__ = True
 
     @pytest.fixture(autouse=True)
     def setup_test_project(self, isolated_project):
-        """Create isolated copy of fixture project for each test."""
         fixture_path = Path(__file__).parent / "fixtures" / "testing_project"
         self.project_root = isolated_project / "test_project"
         shutil.copytree(fixture_path, self.project_root)
@@ -70,7 +52,7 @@ class TestTestActionsE2E:
         self.resources_dir.mkdir(parents=True, exist_ok=True)
 
     def run_generate_with_tests(self) -> tuple:
-        """Run 'lhp generate --env dev --force --include-tests'."""
+        """Run 'lhp generate --env dev --include-tests'."""
         runner = CliRunner()
         result = runner.invoke(
             cli,
@@ -99,23 +81,18 @@ class TestTestActionsE2E:
         return ""
 
     def _assert_baseline_match(self, filename: str):
-        """Generate with --include-tests, then assert the named file matches its baseline."""
         exit_code, output = self.run_generate_with_tests()
         assert exit_code == 0, f"Generation failed: {output}"
 
         generated = self.test_actions_dir / filename
         baseline = self.test_actions_baseline_dir / filename
-        assert (
-            generated.exists()
-        ), f"{filename} should be generated under 12_test_actions/"
+        assert generated.exists(), (
+            f"{filename} should be generated under 12_test_actions/"
+        )
         assert baseline.exists(), f"Baseline {filename} should exist"
 
         diff = self._compare_file_hashes(generated, baseline)
         assert diff == "", f"Baseline mismatch for {filename}: {diff}"
-
-    # ------------------------------------------------------------------
-    # 6 test types — one method per documented test action type.
-    # ------------------------------------------------------------------
 
     def test_row_count_matches_baseline(self):
         """row_count: cross-product COUNT subqueries; expectation on abs(diff) <= tolerance."""

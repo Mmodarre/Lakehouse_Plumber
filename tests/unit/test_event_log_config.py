@@ -1,22 +1,14 @@
-"""
-Unit tests for declarative event_log configuration in lhp.yaml.
-
-Tests the EventLogConfig model, ProjectConfigLoader parsing/validation,
-and BundleManager injection logic.
-"""
-
-import pytest
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from lhp.models.config import EventLogConfig, ProjectConfig
-from lhp.core.project_config_loader import ProjectConfigLoader
-from lhp.utils.error_formatter import LHPError
+import pytest
+
+from lhp.core.loaders import ProjectConfigLoader
+from lhp.errors import LHPError
+from lhp.models import EventLogConfig, ProjectConfig
 
 
 class TestEventLogConfigModel:
-    """Test EventLogConfig Pydantic model."""
-
     def test_default_values(self):
         """Test model creates with sensible defaults."""
         config = EventLogConfig()
@@ -205,11 +197,9 @@ class TestBundleManagerEventLogInjection:
     """Test BundleManager._inject_project_event_log() method."""
 
     def _make_project_config(self, event_log=None):
-        """Helper to create a ProjectConfig with optional event_log."""
         return ProjectConfig(name="test", event_log=event_log)
 
     def _make_manager(self, project_config=None):
-        """Helper to create a BundleManager with mocked internals."""
         from lhp.bundle.manager import BundleManager
 
         manager = BundleManager.__new__(BundleManager)
@@ -262,7 +252,6 @@ class TestBundleManagerEventLogInjection:
         }
         result = manager._inject_project_event_log(pipeline_config, "my_pipeline")
 
-        # Pipeline's own event_log should be unchanged
         assert result["event_log"]["name"] == "custom_log"
         assert result["event_log"]["catalog"] == "pipeline_cat"
 
@@ -326,7 +315,6 @@ class TestBundleManagerEventLogInjection:
         assert result["event_log"]["name"] == "my_pipeline_log"
 
     def test_empty_prefix_suffix_defaults(self):
-        """Test that empty prefix/suffix defaults result in pipeline_name as event_log name."""
         event_log = EventLogConfig(catalog="cat", schema="sch")
         project_config = self._make_project_config(event_log)
         manager = self._make_manager(project_config)

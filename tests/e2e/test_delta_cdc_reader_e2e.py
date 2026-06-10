@@ -120,22 +120,18 @@ class TestDeltaCDCReaderE2E:
 
         # Verify the pipeline resource YAML also matches its baseline.
         generated_resource = self.resources_dir / "17_delta_cdc.pipeline.yml"
-        assert (
-            generated_resource.exists()
-        ), "17_delta_cdc.pipeline.yml should be generated under resources/lhp/"
-        assert (
-            self.resource_baseline.exists()
-        ), "Resource baseline 17_delta_cdc.pipeline.yml should exist"
+        assert generated_resource.exists(), (
+            "17_delta_cdc.pipeline.yml should be generated under resources/lhp/"
+        )
+        assert self.resource_baseline.exists(), (
+            "Resource baseline 17_delta_cdc.pipeline.yml should exist"
+        )
         resource_diff = self._compare_file_hashes(
             generated_resource, self.resource_baseline
         )
-        assert (
-            resource_diff == ""
-        ), f"Resource baseline mismatch for 17_delta_cdc.pipeline.yml: {resource_diff}"
-
-    # ------------------------------------------------------------------
-    # 4 CDC / time-travel variants — one method per option combination.
-    # ------------------------------------------------------------------
+        assert resource_diff == "", (
+            f"Resource baseline mismatch for 17_delta_cdc.pipeline.yml: {resource_diff}"
+        )
 
     def test_delta_read_change_feed_matches_baseline(self):
         """readChangeFeed + startingVersion=0 (stream): full CDF from beginning."""

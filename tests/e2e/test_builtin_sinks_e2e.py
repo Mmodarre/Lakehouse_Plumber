@@ -104,10 +104,6 @@ class TestBuiltinSinksE2E:
         diff = self._compare_file_hashes(generated, baseline)
         assert diff == "", f"Baseline mismatch for {filename}: {diff}"
 
-    # ------------------------------------------------------------------
-    # 3 sink types — one method per sink_type.
-    # ------------------------------------------------------------------
-
     def test_delta_sink_matches_baseline(self):
         """Delta sink: dp.create_sink(format='delta') + @dp.append_flow streaming write."""
         self._assert_baseline_match("sk_delta.py")

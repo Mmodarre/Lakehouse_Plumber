@@ -3,25 +3,22 @@
 import logging
 from pathlib import Path
 
-from ...core.base_generator import BaseActionGenerator
-from ...models.config import Action
-from ...utils.error_formatter import (
-    ErrorCategory,
-    ErrorFormatter,
-    LHPValidationError,
-)
-from ...utils.external_file_loader import (
+from lhp.models import Action
+
+from ...core.loaders.external_file_loader import (
     is_file_path,
     load_external_file_text,
     resolve_external_file_path,
 )
-from ...utils.schema_parser import SchemaParser
+from ...core.registry import BaseActionGenerator
+from ...errors import ErrorFactory, codes
+from ...parsers.schema_parser import SchemaParser
 
 logger = logging.getLogger(__name__)
 
 
 class MaterializedViewWriteGenerator(BaseActionGenerator):
-    """Generate materialized view write actions using @dp.materialized_view decorator."""
+    """Uses @dp.materialized_view decorator."""
 
     def __init__(self):
         super().__init__()
@@ -30,10 +27,9 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
         self.schema_parser = SchemaParser()
 
     def generate(self, action: Action, context: dict) -> str:
-        """Generate materialized view code."""
         target_config = action.write_target
         if not target_config:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="write_target",
                 component_type="Materialized view write action",
                 component_name=action.name,
@@ -49,7 +45,6 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
       schema: my_schema""",
             )
 
-        # Extract configuration
         catalog = target_config.get("catalog")
         schema = target_config.get("schema")
         table = target_config.get("table")
@@ -60,69 +55,50 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
             f"Generating materialized view write for target '{full_table_name}', action '{action.name}'"
         )
 
-        # Table properties with defaults
         properties = target_config.get("table_properties", {})
-
-        # Spark configuration
         spark_conf = target_config.get("spark_conf", {})
-
-        # Schema definition (SQL DDL string or StructType)
         schema_value = target_config.get("table_schema")
         schema = None
 
         if schema_value:
-            # Check if it's a file path
             if is_file_path(schema_value):
-                # Load from external file
                 project_root = context.get("project_root", Path.cwd())
                 file_ext = Path(schema_value).suffix.lower()
 
                 if file_ext in [".yaml", ".yml", ".json"]:
-                    # YAML/JSON schema - parse and convert to DDL
                     resolved_path = resolve_external_file_path(
                         schema_value, project_root, file_type="table schema file"
                     )
                     schema_data = self.schema_parser.parse_schema_file(resolved_path)
                     schema = self.schema_parser.to_schema_hints(schema_data)
                 else:
-                    # DDL/SQL file - load as plain text
                     schema = load_external_file_text(
                         schema_value, project_root, file_type="table schema file"
                     ).strip()
             else:
-                # Inline DDL
                 schema = schema_value
 
-        # Row filter clause
         row_filter = target_config.get("row_filter")
-
-        # Temporary table flag
         temporary = target_config.get("temporary", False)
-
-        # Refresh schedule
         refresh_schedule = target_config.get("refresh_schedule")
         has_sql = "sql" in target_config or "sql_path" in target_config
         logger.debug(
             f"Materialized view '{action.name}': has_sql={has_sql}, has_schema={schema is not None}, refresh_schedule={refresh_schedule}"
         )
 
-        # Get SQL query if provided directly in write_target
         sql_query = None
         if "sql" in target_config:
             sql_query = target_config["sql"].strip()
         elif "sql_path" in target_config:
-            # Load from external SQL file
             project_root = context.get("project_root", Path.cwd())
             sql_query = load_external_file_text(
                 target_config["sql_path"], project_root, file_type="SQL file"
             ).strip()
 
-        # Apply substitutions to SQL content (both inline and file-based)
         if sql_query and "substitution_manager" in context:
             substitution_mgr = context["substitution_manager"]
             sql_query = substitution_mgr._process_string(sql_query)
 
-            # Track secret references
             secret_refs = substitution_mgr.secret_references
             if (
                 "secret_references" in context
@@ -130,13 +106,13 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
             ):
                 context["secret_references"].update(secret_refs)
 
-        # If no SQL in write_target, must have source view
+        # No SQL: must have a source view.
         source_view = None
         if not sql_query:
             source_view = self._extract_source_view(action.source)
 
-        # NOTE: Operational metadata support removed from write actions
-        # Metadata should be added at load level and flow through naturally
+        # Metadata is added at load level and flows through naturally — write
+        # actions intentionally have no operational-metadata columns of their own.
         metadata_columns = {}
         flowgroup = context.get("flowgroup")
 
@@ -153,44 +129,42 @@ class MaterializedViewWriteGenerator(BaseActionGenerator):
             "temporary": temporary,
             "partitions": target_config.get("partition_columns"),
             "cluster_by": target_config.get("cluster_columns"),
+            "cluster_by_auto": target_config.get("cluster_by_auto"),
             "table_path": target_config.get("path"),
             "comment": target_config.get("comment", f"Materialized view: {table}"),
             "refresh_schedule": refresh_schedule,
+            "refresh_policy": target_config.get("refresh_policy"),
             "description": action.description
             or f"Write to {full_table_name} from multiple sources",
             "add_operational_metadata": bool(metadata_columns),
             "metadata_columns": metadata_columns,
-            "flowgroup": flowgroup,  # Add flowgroup to context for template
+            "flowgroup": flowgroup,
         }
 
         return self.render_template("write/materialized_view.py.j2", template_context)
 
     def _extract_source_view(self, source) -> str:
-        """Extract source view name from action source."""
         if isinstance(source, str):
             return source
-        elif isinstance(source, list) and source:
+        if isinstance(source, list) and source:
             first_item = source[0]
             if isinstance(first_item, str):
                 return first_item
-            else:
-                logger.warning(
-                    f"Unexpected source list item type {type(first_item).__name__}, "
-                    f"converting to string"
-                )
-                return str(first_item)
-        else:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="017",
-                title="Invalid source configuration for materialized view write",
-                details=(
-                    "Materialized view write requires a valid source configuration. "
-                    "Source must be a string (view name) or non-empty list of strings."
-                ),
-                suggestions=[
-                    "Provide a source view name: source: v_transformed",
-                    "Or provide a list of source views",
-                ],
-                context={"Source Type": type(source).__name__},
+            logger.warning(
+                f"Unexpected source list item type {type(first_item).__name__}, "
+                f"converting to string"
             )
+            return str(first_item)
+        raise ErrorFactory.validation_error(
+            codes.VAL_017,
+            title="Invalid source configuration for materialized view write",
+            details=(
+                "Materialized view write requires a valid source configuration. "
+                "Source must be a string (view name) or non-empty list of strings."
+            ),
+            suggestions=[
+                "Provide a source view name: source: v_transformed",
+                "Or provide a list of source views",
+            ],
+            context={"Source Type": type(source).__name__},
+        )

@@ -7,9 +7,7 @@ pytest-mock>=3.10.0
 pytest-xdist>=3.8.0  # for parallel test execution
 
 # Code quality
-flake8>=6.0.0
-black>=23.0.0
-isort>=5.12.0
+ruff>=0.13.3  # the repo's single linter + formatter + import-sorter
 mypy>=1.0.0
 
 # Documentation

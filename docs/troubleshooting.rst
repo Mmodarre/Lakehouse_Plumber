@@ -21,16 +21,18 @@ before reaching for any of the recipes below.
 ``lhp generate`` fails with an error code
 -----------------------------------------
 
-Symptom: ``lhp generate --env <env>`` aborts with a banner like
-``❌ Error [LHP-CFG-009]: YAML parsing error``.
+Symptom: ``lhp generate --env <env>`` aborts with a Rich Panel whose title
+reads ``LHP-CFG-009   Configuration`` and whose body starts with the title
+``YAML parsing error``.
 
 Do this:
 
-1. Read the **Error code** in the banner. The prefix tells you the category:
-   ``CFG`` = configuration, ``VAL`` = validation, ``IO`` = file path, ``ACT`` =
-   unknown type, ``DEP`` = dependency cycle.
-2. Apply the **numbered fix suggestions** shown under ``💡 How to fix``. The
-   error includes a before/after example when applicable.
+1. Read the **Error code** in the panel title. The prefix tells you the
+   category: ``CFG`` = configuration, ``VAL`` = validation, ``IO`` = file
+   path, ``ACT`` = unknown type, ``DEP`` = dependency cycle.
+2. Apply the fix suggestions shown under the ``Suggestions`` section of the
+   panel. The error includes a before/after ``Example`` section when
+   applicable.
 3. If the cause is still unclear, look up the code in :doc:`errors_reference`
    for the same fix written as documentation, plus extra context and common
    causes.

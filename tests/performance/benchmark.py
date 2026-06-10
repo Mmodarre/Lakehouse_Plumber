@@ -36,11 +36,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 BASELINES_DIR = Path(__file__).resolve().parent / "baselines"
 
 
-# ---------------------------------------------------------------------------
-# Types
-# ---------------------------------------------------------------------------
-
-
 @dataclass(frozen=True, slots=True)
 class BenchmarkRun:
     phases: Mapping[str, float]
@@ -93,11 +88,6 @@ class BaselineDoc(TypedDict):
     metrics: dict[str, dict[str, float | str]]
 
 
-# ---------------------------------------------------------------------------
-# Internal helpers (testable in isolation)
-# ---------------------------------------------------------------------------
-
-
 _SEMVER_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)\.json$")
 
 
@@ -124,7 +114,6 @@ def _percentiles(values: list[float]) -> tuple[float, float, float]:
 
 
 def _flatten_run(run: BenchmarkRun) -> dict[str, tuple[float, str]]:
-    """Convert a run into a flat ``{metric_key: (value, unit)}`` mapping."""
     out: dict[str, tuple[float, str]] = {}
     for name, dur in run.phases.items():
         out[f"phase.{name}"] = (float(dur), "seconds")
@@ -264,7 +253,6 @@ def _parse_perf_log_text(text: str) -> BenchmarkRun:
 
 
 def _format_count(value: float) -> str:
-    """Render a count value: integer if whole, else 3-decimal float."""
     return f"{int(value):d}" if float(value).is_integer() else f"{value:.3f}"
 
 
@@ -330,11 +318,6 @@ def _format_failure_message(
     return "\n".join(lines)
 
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-
-
 def machine_fingerprint() -> str:
     """Return ``{system}-{machine}-py{major}.{minor}`` for baseline portability."""
     return (
@@ -354,7 +337,7 @@ def run_benchmark(fixture_path: Path, runs: int = 5) -> list[BenchmarkRun]:
 
     from lhp.cli.main import cli
     from lhp.utils.performance_timer import (
-        get_perf_summary,
+        _summary,
         reset_perf_summary,
     )
 
@@ -378,11 +361,11 @@ def run_benchmark(fixture_path: Path, runs: int = 5) -> list[BenchmarkRun]:
                 f"exit={result.exit_code}\n"
                 f"{result.output}\nException: {result.exception!r}"
             )
-        snap = get_perf_summary()
+        snap = _summary.snapshot()
         if not snap["phases"]:
             raise RuntimeError(
                 "--perf produced no phase data; harness wiring is broken "
-                "(get_perf_summary() returned empty phases)"
+                "(_summary.snapshot() returned empty phases)"
             )
         results.append(
             BenchmarkRun(
@@ -400,7 +383,6 @@ def run_benchmark(fixture_path: Path, runs: int = 5) -> list[BenchmarkRun]:
 
 
 def summarize(runs: list[BenchmarkRun]) -> dict[str, MetricSummary]:
-    """Compute ``MetricSummary`` (median, p25, p75) per metric across runs."""
     if not runs:
         return {}
     accum: dict[str, tuple[list[float], str]] = {}
@@ -422,7 +404,6 @@ def compare(
     candidate: Mapping[str, MetricSummary],
     candidate_shape: Mapping[str, int],
 ) -> ComparisonResult:
-    """Compare candidate metrics against baseline; classify each entry."""
     regressions: list[ComparisonEntry] = []
     improvements: list[ComparisonEntry] = []
     stable: list[ComparisonEntry] = []
@@ -447,9 +428,7 @@ def compare(
                         else math.nan
                     ),
                     delta_pct=0.0,
-                    reason=(
-                        f"baseline={baseline_count}, " f"candidate={candidate_count}"
-                    ),
+                    reason=(f"baseline={baseline_count}, candidate={candidate_count}"),
                     unit="count",
                 )
             )
@@ -592,7 +571,7 @@ def capture_baseline(
 
     from lhp.cli.main import cli
     from lhp.utils.performance_timer import (
-        get_perf_summary,
+        _summary,
         reset_perf_summary,
     )
 
@@ -615,11 +594,11 @@ def capture_baseline(
 
         if result.exit_code != 0:
             raise RuntimeError(
-                f"lhp generate failed (run {i+1}/{runs}, fixture "
+                f"lhp generate failed (run {i + 1}/{runs}, fixture "
                 f"{fixture_path.name}): exit={result.exit_code}\n"
                 f"{result.output}\nException: {result.exception!r}"
             )
-        snap = get_perf_summary()
+        snap = _summary.snapshot()
         if not snap["phases"]:
             raise RuntimeError(
                 "--perf produced no phase data; harness wiring is broken"
@@ -638,7 +617,7 @@ def capture_baseline(
         )
 
         if archive_dir is not None and perf_log.exists():
-            shutil.copy2(perf_log, archive_dir / f"run{i+1}.perf.log")
+            shutil.copy2(perf_log, archive_dir / f"run{i + 1}.perf.log")
 
     summary = summarize(benchmark_runs)
     doc = _build_baseline_doc(
@@ -653,7 +632,6 @@ def capture_baseline(
 
 
 def load_latest_baseline(baselines_dir: Path) -> BaselineDoc:
-    """Return the baseline with the highest semver in ``baselines_dir``."""
     candidates: list[tuple[tuple[int, int, int], Path]] = []
     for p in baselines_dir.glob("v*.json"):
         try:
@@ -665,8 +643,7 @@ def load_latest_baseline(baselines_dir: Path) -> BaselineDoc:
         raise FileNotFoundError(f"No vX.Y.Z.json baseline found under {baselines_dir}")
     candidates.sort(reverse=True)
     chosen = candidates[0][1]
-    data = json.loads(chosen.read_text(encoding="utf-8"))
-    return data  # type: ignore[return-value]
+    return json.loads(chosen.read_text(encoding="utf-8"))
 
 
 def _seed_from_log(
@@ -675,7 +652,6 @@ def _seed_from_log(
     version: str,
     output_dir: Path,
 ) -> Path:
-    """Build a single-run baseline JSON from one existing ``perf.log``."""
     text = perf_log_path.read_text(encoding="utf-8")
     run = _parse_perf_log_text(text)
     if not run.phases:
@@ -694,11 +670,6 @@ def _seed_from_log(
     target = output_dir / f"{version}.json"
     target.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
     return target
-
-
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
 
 
 def _resolve_fixture_path(name: str) -> Path:
@@ -740,10 +711,7 @@ def _cmd_seed(args: argparse.Namespace) -> int:
     if not version.startswith("v"):
         version = f"v{version}"
     output_dir = BASELINES_DIR / args.fixture
-    print(
-        f"Seeding baseline: fixture={args.fixture} version={version} "
-        f"from={log_path}"
-    )
+    print(f"Seeding baseline: fixture={args.fixture} version={version} from={log_path}")
     target = _seed_from_log(
         perf_log_path=log_path,
         fixture_name=args.fixture,

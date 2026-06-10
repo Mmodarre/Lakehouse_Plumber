@@ -3,14 +3,11 @@
 import logging
 from typing import Any, Dict
 
-from ...core.base_generator import BaseActionGenerator
-from ...models.config import Action
-from ...utils.error_formatter import (
-    ErrorCategory,
-    ErrorFormatter,
-    LHPValidationError,
-)
-from ...utils.kafka_validator import KafkaOptionsValidator
+from lhp.errors import ErrorFactory, codes
+from lhp.models import Action
+
+from ...core.registry import BaseActionGenerator
+from ...core.validators.field.kafka_options import KafkaOptionsValidator
 
 
 class KafkaLoadGenerator(BaseActionGenerator):
@@ -26,26 +23,23 @@ class KafkaLoadGenerator(BaseActionGenerator):
         self.mandatory_options = {"kafka.bootstrap.servers"}
 
     def generate(self, action: Action, context: Dict[str, Any]) -> str:
-        """Generate Kafka load code."""
         source_config = action.source if isinstance(action.source, dict) else {}
         self.logger.debug(
             f"Generating Kafka load for target '{action.target}', action '{action.name}'"
         )
 
-        # Kafka is always streaming
         readMode = action.readMode or source_config.get("readMode", "stream")
         if readMode != "stream":
-            raise ErrorFormatter.invalid_read_mode(
+            raise ErrorFactory.invalid_read_mode(
                 action_name=action.name,
                 action_type="kafka",
                 provided=readMode,
                 valid_modes=["stream"],
             )
 
-        # Extract configuration
         bootstrap_servers = source_config.get("bootstrap_servers")
         if not bootstrap_servers:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="bootstrap_servers",
                 component_type="Kafka load action",
                 component_name=action.name,
@@ -60,7 +54,6 @@ class KafkaLoadGenerator(BaseActionGenerator):
       subscribe: "my-topic" """,
             )
 
-        # Determine subscription method for logging
         sub_method = next(
             (
                 k
@@ -74,27 +67,17 @@ class KafkaLoadGenerator(BaseActionGenerator):
             f"Kafka load '{action.name}': bootstrap_servers='{bootstrap_servers}', subscription={sub_method}='{sub_value}'"
         )
 
-        # Validate subscription method
         self._validate_subscription_method(source_config, action.name)
-
-        # Check for conflicts between old and new approaches (if we ever add legacy support)
         self._check_conflicts(source_config, action.name)
 
-        # Process options
         reader_options = {}
-
-        # Add mandatory kafka.bootstrap.servers
         reader_options["kafka.bootstrap.servers"] = bootstrap_servers
-
-        # Add subscription method
         self._add_subscription_method(source_config, reader_options)
 
-        # Process additional options from options dict
         if source_config.get("options"):
             options = source_config["options"]
-            # Validate options is a dictionary
             if not isinstance(options, dict):
-                raise ErrorFormatter.invalid_field_type(
+                raise ErrorFactory.invalid_field_type(
                     action_name=action.name,
                     field_name="options",
                     expected_type="a dictionary (mapping)",
@@ -109,10 +92,8 @@ class KafkaLoadGenerator(BaseActionGenerator):
                 )
             )
 
-        # Validate mandatory options are present
         self._validate_mandatory_options(reader_options, action.name)
 
-        # Handle operational metadata
         add_operational_metadata, metadata_columns = self._get_operational_metadata(
             action, context
         )
@@ -133,12 +114,7 @@ class KafkaLoadGenerator(BaseActionGenerator):
     def _validate_subscription_method(
         self, source_config: Dict[str, Any], action_name: str
     ):
-        """Validate that exactly one subscription method is provided.
-
-        Args:
-            source_config: Source configuration dictionary
-            action_name: Name of the action for error messages
-        """
+        """Validate that exactly one subscription method is provided."""
         subscription_methods = {
             "subscribe": source_config.get("subscribe"),
             "subscribePattern": source_config.get("subscribePattern"),
@@ -148,7 +124,7 @@ class KafkaLoadGenerator(BaseActionGenerator):
         provided_methods = [k for k, v in subscription_methods.items() if v is not None]
 
         if len(provided_methods) == 0:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="subscribe/subscribePattern/assign",
                 component_type="Kafka load action",
                 component_name=action_name,
@@ -159,10 +135,9 @@ class KafkaLoadGenerator(BaseActionGenerator):
   # subscribePattern: "topic-.*"   # Option 2: topic pattern
   # assign: '{"topic": [0, 1]}'   # Option 3: specific partitions""",
             )
-        elif len(provided_methods) > 1:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="009",
+        if len(provided_methods) > 1:
+            raise ErrorFactory.validation_error(
+                codes.VAL_009,
                 title=f"Multiple subscription methods in Kafka action '{action_name}'",
                 details=(
                     f"Kafka action '{action_name}' specifies multiple subscription methods: "
@@ -181,12 +156,6 @@ class KafkaLoadGenerator(BaseActionGenerator):
     def _add_subscription_method(
         self, source_config: Dict[str, Any], reader_options: Dict[str, Any]
     ):
-        """Add the subscription method to reader options.
-
-        Args:
-            source_config: Source configuration dictionary
-            reader_options: Dictionary to add options to
-        """
         if source_config.get("subscribe"):
             reader_options["subscribe"] = source_config["subscribe"]
         elif source_config.get("subscribePattern"):
@@ -195,27 +164,14 @@ class KafkaLoadGenerator(BaseActionGenerator):
             reader_options["assign"] = source_config["assign"]
 
     def _check_conflicts(self, source_config: Dict[str, Any], action_name: str):
-        """Check for conflicts in configuration.
-
-        Args:
-            source_config: Source configuration dictionary
-            action_name: Name of the action for error messages
-        """
-        # Currently no legacy options to check, but keep method for future compatibility
         pass
 
     def _validate_mandatory_options(
         self, reader_options: Dict[str, Any], action_name: str
     ):
-        """Validate that mandatory kafka options are present.
-
-        Args:
-            reader_options: Combined reader options
-            action_name: Action name for error messages
-        """
-        # Check for mandatory kafka.bootstrap.servers
+        """Validate that mandatory kafka options are present."""
         if "kafka.bootstrap.servers" not in reader_options:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="kafka.bootstrap.servers",
                 component_type="Kafka load action",
                 component_name=action_name,

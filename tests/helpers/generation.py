@@ -1,8 +1,4 @@
-"""Generation-output read helpers.
-
-The worker pool writes formatted Python to disk and returns only filenames,
-so tests that need to assert on generated content read it back from disk.
-"""
+"""The worker pool writes formatted Python to disk and returns only filenames, so tests read generated content back from disk."""
 
 from __future__ import annotations
 
@@ -11,25 +7,40 @@ from typing import Any, Dict
 
 
 def read_generated_pipeline(
-    orchestrator: Any,
+    runner: Any,
     *,
     pipeline_field: str,
     env: str,
     output_dir: Path,
     **kwargs: Any,
 ) -> Dict[str, str]:
-    """Generate via ``generate_pipeline_by_field`` and return ``{filename: content}``.
+    """Accepts either a :class:`LakehousePlumberApplicationFacade` or a raw ``ActionOrchestrator`` — detected via the presence of ``.generation``."""
+    if hasattr(runner, "generation"):
+        # Facade path.
+        from lhp.api import collect_response
 
-    Files land at ``output_dir / pipeline_field / <filename>``; the helper
-    reads each back with ``Path.read_text()`` so callers can assert on
-    generated-Python content.
-    """
-    filenames = orchestrator.generate_pipeline_by_field(
-        pipeline_field=pipeline_field,
-        env=env,
-        output_dir=output_dir,
-        **kwargs,
-    )
+        response = collect_response(
+            runner.generation.generate_pipelines(
+                pipeline_filter=pipeline_field,
+                env=env,
+                output_dir=output_dir,
+                **kwargs,
+            )
+        )
+        pipeline_response = response.pipeline_responses.get(pipeline_field)
+        filenames: tuple = (
+            pipeline_response.generated_filenames if pipeline_response else ()
+        )
+    else:
+        # Raw orchestrator path.
+        outcomes = runner.generate_pipelines(
+            pipeline_filter=pipeline_field,
+            env=env,
+            output_dir=output_dir,
+            **kwargs,
+        )
+        filenames = outcomes.get(pipeline_field, ())
+
     out: Dict[str, str] = {}
     for filename in filenames:
         path = output_dir / pipeline_field / filename

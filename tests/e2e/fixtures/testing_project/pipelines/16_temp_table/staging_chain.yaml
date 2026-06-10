@@ -5,6 +5,7 @@
 # read from it without recomputing the source.
 pipeline: 16_temp_table
 flowgroup: staging_chain
+#job_name: j_temp_table
 
 actions:
   - name: load_raw_orders

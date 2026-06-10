@@ -32,10 +32,15 @@ Workflow shape
 Every LHP CI/CD pipeline follows the same three steps, repeated per target:
 
 1. ``lhp validate --env <env>`` — fail fast on YAML or substitution errors.
+   ``lhp validate`` runs the same structural and bundle preflight checks as
+   ``generate``, so on a project with ``databricks.yml`` it likewise requires
+   ``--pipeline-config`` / ``-pc`` (or ``--no-bundle``); without it the step
+   fails fast with ``LHP-CFG-023``.
 2. ``lhp generate --env <env>`` — produce Python files under
    ``generated/<env>/`` and resource YAML under ``resources/lhp/<env>/``.
    Bundle integration is enabled by default; pass ``--no-bundle`` only if you
-   are not using DABs.
+   are not using DABs. Like ``validate``, it requires ``--pipeline-config`` on a
+   bundle project.
 3. ``databricks bundle deploy --target <env>`` — deploy the generated bundle.
 
 Both ``lhp validate`` and ``lhp generate`` exit non-zero on failure
@@ -78,8 +83,10 @@ environments" below).
              python-version: '3.12'
              cache: 'pip'
          - run: pip install lakehouse-plumber
-         - run: lhp validate --env dev --verbose
-         - run: lhp generate --env dev --dry-run
+         # On a bundle project (databricks.yml present), validate and generate
+         # both require --pipeline-config / -pc, else they fail with LHP-CFG-023.
+         - run: lhp validate --env dev --pipeline-config config/pipeline_config.yaml --verbose
+         - run: lhp generate --env dev --pipeline-config config/pipeline_config.yaml --dry-run
 
      deploy-dev:
        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -96,7 +103,7 @@ environments" below).
              python-version: '3.12'
          - uses: databricks/setup-cli@main
          - run: pip install lakehouse-plumber
-         - run: lhp generate --env dev
+         - run: lhp generate --env dev --pipeline-config config/pipeline_config.yaml
          - run: databricks bundle deploy --target dev
 
 The ``validate`` job runs without Databricks credentials — ``lhp validate`` and
@@ -146,7 +153,7 @@ Add these jobs to the workflow above:
            python-version: '3.12'
        - uses: databricks/setup-cli@main
        - run: pip install lakehouse-plumber
-       - run: lhp generate --env uat
+       - run: lhp generate --env uat --pipeline-config config/pipeline_config.yaml
        - run: databricks bundle deploy --target uat
 
    deploy-prod:
@@ -166,7 +173,7 @@ Add these jobs to the workflow above:
            python-version: '3.12'
        - uses: databricks/setup-cli@main
        - run: pip install lakehouse-plumber
-       - run: lhp generate --env prod
+       - run: lhp generate --env prod --pipeline-config config/pipeline_config.yaml
        - run: databricks bundle deploy --target prod --mode production
 
 Configure GitHub environments (``Settings → Environments``) for ``development``,

@@ -2,6 +2,7 @@
 # Reads a full external table via JDBC option("dbtable", ...).
 pipeline: 14_jdbc_load
 flowgroup: jdbc_table_mode
+#job_name: j_jdbc
 
 actions:
   - name: load_external_products

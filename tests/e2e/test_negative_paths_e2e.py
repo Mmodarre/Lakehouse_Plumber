@@ -12,15 +12,8 @@ error messages for common failure modes:
 - Duplicate (pipeline, flowgroup) tuple across files (LHP-VAL-009)
 - Python module-name collision across flowgroups (LHP-VAL-019)
 
-Phase 2 invariant: all mutations target the deep-copied tmp project
-(``self.project_root``); no permanent fixtures are added under
-``tests/e2e/fixtures/testing_project/``.
-
-As of v0.8.7, all negative-path tests are regular (non-xfail) asserts:
-LHP surfaces structured ``LHP-<CATEGORY>-<CODE>`` errors with did-you-mean
-suggestions for unknown action types, and ``generate`` fails fast on any
-per-pipeline failure (returning a POSIX exit code mapped from the LHP
-error category by ``cli_error_boundary``).
+All mutations target the deep-copied tmp project (``self.project_root``); no
+permanent fixtures are added under ``tests/e2e/fixtures/testing_project/``.
 """
 
 import os
@@ -41,7 +34,6 @@ class TestNegativePathsE2E:
 
     @pytest.fixture(autouse=True)
     def setup_test_project(self, isolated_project):
-        """Create isolated copy of fixture project for each test."""
         fixture_path = Path(__file__).parent / "fixtures" / "testing_project"
         self.project_root = isolated_project / "test_project"
         shutil.copytree(fixture_path, self.project_root)
@@ -67,20 +59,33 @@ class TestNegativePathsE2E:
             shutil.rmtree(self.resources_dir)
         self.resources_dir.mkdir(parents=True, exist_ok=True)
 
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
     def run_validate(self, *args) -> tuple:
-        """Run 'lhp validate' with the given args. Returns (exit_code, output)."""
+        """Run 'lhp validate' with the given args. Returns (exit_code, output).
+
+        Bundle-enabled projects (databricks.yml present) require
+        ``--pipeline-config`` or preflight blocks with ``LHP-CFG-023``. If
+        the caller did not supply ``--pipeline-config`` / ``-pc`` /
+        ``--no-bundle`` and the fixture has a default
+        ``config/pipeline_config.yaml``, inject ``-pc`` automatically so
+        the negative-path assertions are not shadowed by the B-gate.
+        """
         runner = CliRunner()
-        result = runner.invoke(cli, ["validate", *args])
+        argv = list(args)
+        needs_pc = (
+            "--pipeline-config" not in argv
+            and "-pc" not in argv
+            and "--no-bundle" not in argv
+            and (self.project_root / "config" / "pipeline_config.yaml").exists()
+        )
+        if needs_pc:
+            argv.extend(["--pipeline-config", "config/pipeline_config.yaml"])
+        result = runner.invoke(cli, ["validate", *argv])
         return result.exit_code, result.output
 
     def run_generate(self, *args) -> tuple:
         """Run 'lhp generate' with the given args. Returns (exit_code, output).
 
-        v0.8.7: bundle-enabled projects (databricks.yml present) require
+        Bundle-enabled projects (databricks.yml present) require
         ``--pipeline-config`` or preflight blocks with ``LHP-CFG-023``. If
         the caller did not supply ``--pipeline-config`` / ``-pc`` /
         ``--no-bundle`` and the fixture has a default
@@ -99,10 +104,6 @@ class TestNegativePathsE2E:
             argv.extend(["--pipeline-config", "config/pipeline_config.yaml"])
         result = runner.invoke(cli, ["generate", *argv])
         return result.exit_code, result.output
-
-    # ------------------------------------------------------------------
-    # Tests
-    # ------------------------------------------------------------------
 
     def test_invalid_yaml_in_flowgroup_fails(self):
         """Malformed YAML in a flowgroup must surface a parse-time error
@@ -126,27 +127,27 @@ class TestNegativePathsE2E:
         exit_code, output = self.run_validate("--env", "dev")
         assert exit_code != 0, "Validate should fail on malformed YAML"
         lower = output.lower()
-        assert (
-            "yaml" in lower or "parse" in lower or "broken_yaml" in output
-        ), f"Expected YAML/parse error, got:\n{output[-2000:]}"
+        assert "yaml" in lower or "parse" in lower or "broken_yaml" in output, (
+            f"Expected YAML/parse error, got:\n{output[-2000:]}"
+        )
 
     def test_unknown_environment_fails(self):
         """An unknown --env value must fail (no substitution file)."""
         exit_code, output = self.run_generate("--env", "xyz")
         assert exit_code != 0, "Generate should fail on unknown environment"
         lower = output.lower()
-        assert (
-            "xyz" in output or "environment" in lower or "substitution" in lower
-        ), f"Expected env/substitution error, got:\n{output[-2000:]}"
+        assert "xyz" in output or "environment" in lower or "substitution" in lower, (
+            f"Expected env/substitution error, got:\n{output[-2000:]}"
+        )
 
     def test_missing_environment_flag_fails(self):
         """Generate requires --env; running without it must fail with a Click usage error."""
         exit_code, output = self.run_generate()
         assert exit_code != 0, "Generate should fail when --env is missing"
         lower = output.lower()
-        assert (
-            "--env" in output or "missing option" in lower or "required" in lower
-        ), f"Expected required-flag error, got:\n{output[-2000:]}"
+        assert "--env" in output or "missing option" in lower or "required" in lower, (
+            f"Expected required-flag error, got:\n{output[-2000:]}"
+        )
 
     def test_undefined_token_reference_fails(self):
         """Inserting ${nonexistent_token} into a flowgroup must surface a
@@ -227,9 +228,9 @@ class TestNegativePathsE2E:
         exit_code, output = self.run_validate("--env", "dev")
         assert exit_code != 0, "Validate should fail on invalid secret scope syntax"
         lower = output.lower()
-        assert (
-            "bad scope" in output or "secret" in lower or "scope" in lower
-        ), f"Expected secret-scope error, got:\n{output[-2000:]}"
+        assert "bad scope" in output or "secret" in lower or "scope" in lower, (
+            f"Expected secret-scope error, got:\n{output[-2000:]}"
+        )
 
     def test_unknown_action_type_fails(self):
         """type: bogus_type must surface LHP-ACT-001 cleanly (not a
@@ -262,11 +263,12 @@ class TestNegativePathsE2E:
 
     def test_duplicate_flowgroup_id_fails(self):
         """Two flowgroup files with same (pipeline, flowgroup) tuple must
-        surface LHP-VAL-009 (duplicate pipeline+flowgroup combination).
+        surface LHP-VAL-009 on the GENERATE path.
 
-        Cross-file duplicate detection runs in the orchestrator's generate
-        path (validate_duplicate_pipeline_flowgroup_combinations), so this
-        test uses 'lhp generate' rather than 'lhp validate'.
+        Per CODING_CONSTITUTION §9.24 the same detection logic must not be
+        duplicated across paths: ``lhp validate`` runs the identical check
+        (see ``test_duplicate_flowgroup_id_fails_via_validate``). This test
+        keeps the generate path covered so both error-surfacing paths stay green.
         """
         original = (
             self.project_root
@@ -300,9 +302,170 @@ class TestNegativePathsE2E:
         exit_code, output = self.run_generate("--env", "dev")
         assert exit_code != 0, "Generate should fail on duplicate (pipeline, flowgroup)"
         lower = output.lower()
-        assert (
-            "VAL-009" in output or "duplicate" in lower
-        ), f"Expected duplicate-flowgroup error, got:\n{output[-2000:]}"
+        assert "VAL-009" in output or "duplicate" in lower, (
+            f"Expected duplicate-flowgroup error, got:\n{output[-2000:]}"
+        )
+
+    def test_duplicate_flowgroup_id_fails_via_validate(self) -> None:
+        """Two flowgroup files with the same (pipeline, flowgroup) tuple must
+        also surface LHP-VAL-009 on the VALIDATE path.
+
+        Per CODING_CONSTITUTION §9.24 the cross-file duplicate check must not
+        be duplicated across paths: ``lhp validate`` runs the same check as
+        ``lhp generate``; the duplicate batch carries
+        ``error_code="LHP-VAL-009"``, which validate counts as an error and
+        maps to a non-zero exit (ExitCode.ERROR, exit 1).
+        """
+        original = (
+            self.project_root
+            / "pipelines"
+            / "01_raw_ingestion"
+            / "csv_ingestions"
+            / "customer_ingestion_incremental.yaml"
+        )
+        duplicate = original.with_name("customer_ingestion_incremental_dup.yaml")
+        duplicate.write_text(
+            "pipeline: acmi_edw_raw\n"
+            "flowgroup: customer_ingestion_incremental\n"
+            "actions:\n"
+            "  - name: dup_load\n"
+            "    type: load\n"
+            "    readMode: stream\n"
+            "    source:\n"
+            "      type: delta\n"
+            '      database: "${catalog}.${raw_schema}"\n'
+            "      table: customer_raw\n"
+            "    target: v_dup\n"
+            "  - name: dup_write\n"
+            "    type: write\n"
+            "    source: v_dup\n"
+            "    write_target:\n"
+            "      type: streaming_table\n"
+            '      database: "${catalog}.${raw_schema}"\n'
+            "      table: dup_table\n"
+        )
+
+        exit_code, output = self.run_validate("--env", "dev")
+        assert exit_code != 0, "Validate should fail on duplicate (pipeline, flowgroup)"
+        assert "LHP-VAL-009" in output, (
+            "Validate must surface the LHP-VAL-009 duplicate-flowgroup error "
+            f"code (shared §9.24 dup check). Got:\n{output[-2000:]}"
+        )
+
+    def test_validate_no_table_creator_fails(self) -> None:
+        """A target table written to only by actions with ``create_table:
+        false`` must surface LHP-VAL-009 on the VALIDATE path.
+
+        Per CODING_CONSTITUTION §9.24 the cross-flowgroup table-creation
+        check is single-sourced in ``TableCreationValidator``. ``lhp validate``
+        runs that check via ``validate_cross_flowgroup`` and folds the resulting
+        ``table_creation_errors`` into a structured LHP-VAL-009 error, making
+        validate report ``success=False`` and exit non-zero.
+
+        The fixture uses a unique table (``no_creator_raw``) with
+        ``create_table: false`` so no other fixture flowgroup creates it,
+        guaranteeing the zero-creator branch.
+        """
+        bad_file = (
+            self.project_root
+            / "pipelines"
+            / "01_raw_ingestion"
+            / "csv_ingestions"
+            / "no_table_creator.yaml"
+        )
+        bad_file.write_text(
+            "pipeline: acmi_edw_raw\n"
+            "flowgroup: no_table_creator_fg\n"
+            "actions:\n"
+            "  - name: load_no_creator\n"
+            "    type: load\n"
+            "    readMode: stream\n"
+            "    source:\n"
+            "      type: delta\n"
+            '      database: "${catalog}.${raw_schema}"\n'
+            "      table: customer_raw\n"
+            "    target: v_no_creator\n"
+            "  - name: write_no_creator\n"
+            "    type: write\n"
+            "    source: v_no_creator\n"
+            "    write_target:\n"
+            "      type: streaming_table\n"
+            '      catalog: "${catalog}"\n'
+            '      schema: "${raw_schema}"\n'
+            "      table: no_creator_raw\n"
+            "      create_table: false\n"
+        )
+
+        exit_code, output = self.run_validate("--env", "dev")
+        assert exit_code != 0, (
+            "Validate should fail when a target table has no creating action"
+        )
+        assert "LHP-VAL-009" in output, (
+            "Validate must surface the LHP-VAL-009 table-creation error code "
+            "for a table with no creator (folded cross-flowgroup "
+            f"table_creation_errors, §9.24). Got:\n{output[-2000:]}"
+        )
+
+    def test_validate_multiple_table_creators_fails(self) -> None:
+        """A table created by MULTIPLE actions (each ``create_table: true``)
+        must surface LHP-CFG-004 on the VALIDATE path.
+
+        LHP-CFG-004 is raised by ``TableCreationValidator`` when
+        ``len(creators) > 1``. The §9.24 routing lets the ``LHPConfigError``
+        propagate out of ``validate_cross_flowgroup`` and the executor folds it
+        into the structured ``lhp_errors`` (validate exits non-zero).
+
+        The fixture uses a unique table (``multi_creator_raw``) so the defect
+        is isolated from existing fixtures.
+        """
+        bad_file = (
+            self.project_root
+            / "pipelines"
+            / "01_raw_ingestion"
+            / "csv_ingestions"
+            / "multiple_table_creators.yaml"
+        )
+        bad_file.write_text(
+            "pipeline: acmi_edw_raw\n"
+            "flowgroup: multiple_table_creators_fg\n"
+            "actions:\n"
+            "  - name: load_multi_creator\n"
+            "    type: load\n"
+            "    readMode: stream\n"
+            "    source:\n"
+            "      type: delta\n"
+            '      database: "${catalog}.${raw_schema}"\n'
+            "      table: customer_raw\n"
+            "    target: v_multi_creator_a\n"
+            "  - name: write_multi_creator_a\n"
+            "    type: write\n"
+            "    source: v_multi_creator_a\n"
+            "    write_target:\n"
+            "      type: streaming_table\n"
+            '      catalog: "${catalog}"\n'
+            '      schema: "${raw_schema}"\n'
+            "      table: multi_creator_raw\n"
+            "      create_table: true\n"
+            "  - name: write_multi_creator_b\n"
+            "    type: write\n"
+            "    source: v_multi_creator_a\n"
+            "    write_target:\n"
+            "      type: streaming_table\n"
+            '      catalog: "${catalog}"\n'
+            '      schema: "${raw_schema}"\n'
+            "      table: multi_creator_raw\n"
+            "      create_table: true\n"
+        )
+
+        exit_code, output = self.run_validate("--env", "dev")
+        assert exit_code != 0, (
+            "Validate should fail when a table has multiple creating actions"
+        )
+        assert "LHP-CFG-004" in output, (
+            "Validate must surface the LHP-CFG-004 multiple-table-creators "
+            "error code (raised by TableCreationValidator, caught and folded "
+            f"on the validate path per §9.24). Got:\n{output[-2000:]}"
+        )
 
     def test_python_import_collision_fails(self):
         """Two flowgroups referencing different module_paths whose stem
@@ -399,6 +562,6 @@ class TestNegativePathsE2E:
         exit_code, output = self.run_generate("--env", "dev")
         assert exit_code != 0, "Generate should fail on Python module collision"
         lower = output.lower()
-        assert (
-            "VAL-019" in output or "naming conflict" in lower
-        ), f"Expected Python collision error, got:\n{output[-2000:]}"
+        assert "VAL-019" in output or "naming conflict" in lower, (
+            f"Expected Python collision error, got:\n{output[-2000:]}"
+        )

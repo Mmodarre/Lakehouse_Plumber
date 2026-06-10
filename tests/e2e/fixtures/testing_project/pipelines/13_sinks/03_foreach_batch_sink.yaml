@@ -2,6 +2,7 @@
 # Per-batch custom Python; inline batch_handler form (single source).
 pipeline: 13_sinks
 flowgroup: sk_foreach_batch
+#job_name: j_sinks
 
 actions:
   - name: load_customer_changes_for_merge

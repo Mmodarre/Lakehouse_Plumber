@@ -2,6 +2,7 @@
 # Provides a custom SQL statement and attaches expectations.
 pipeline: 12_test_actions
 flowgroup: ta_custom_sql
+#job_name: j_test_actions
 
 actions:
   - name: ta_revenue_reconciliation

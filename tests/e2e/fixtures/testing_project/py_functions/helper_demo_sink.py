@@ -1,0 +1,44 @@
+"""Entry module (custom SINK / write funnel) for the helper-copying E2E fixture.
+
+Imports the local helper ``helpers.aggregate`` (whose own
+``from helpers.other import tag`` is a transitive ABSOLUTE helper->helper import).
+Because the sink class is registered by value, LHP emits
+``register_pickle_by_value(custom_python_functions)`` so the embedded helper
+closure travels with the class to the executor; the entry's
+``from helpers.aggregate import aggregate_rows`` is prefix-rewritten.
+"""
+
+from pyspark.sql.datasource import DataSink, DataSourceWriter
+
+from helpers.aggregate import aggregate_rows
+
+
+class HelperBackedSink(DataSink):
+    """Custom sink whose writer leans on the imported helper closure."""
+
+    @classmethod
+    def name(cls):
+        return "helper_backed_sink"
+
+    def writer(self, schema, saveMode):
+        return HelperBackedSinkWriter(schema, saveMode, self.options)
+
+
+class HelperBackedSinkWriter(DataSourceWriter):
+    """Writer that references the helper so the import is load-bearing."""
+
+    def __init__(self, schema, save_mode, options):
+        self.schema = schema
+        self.save_mode = save_mode
+        self.options = options
+        self._aggregate = aggregate_rows
+
+    def write(self, iterator):
+        for _row in iterator:
+            pass
+
+    def commit(self, messages):
+        pass
+
+    def abort(self, messages):
+        pass

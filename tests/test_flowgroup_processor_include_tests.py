@@ -1,8 +1,8 @@
-"""Tests for FlowgroupProcessor include_tests filtering behavior.
+"""Tests for FlowgroupResolutionService include_tests filtering behavior.
 
 Unit tests verify that include_tests=False filters test actions from flowgroups
 before expensive processing (presets, substitution, validation). Integration tests
-verify the parameter threads correctly through orchestrator.validate_pipeline_by_field.
+verify the parameter threads correctly through orchestrator.validate_pipelines.
 """
 
 import tempfile
@@ -10,34 +10,27 @@ from pathlib import Path
 
 import pytest
 
-from lhp.core.secret_validator import SecretValidator
-from lhp.core.services.flowgroup_processor import FlowgroupProcessor
-from lhp.core.template_engine import TemplateEngine
-from lhp.core.validator import ConfigValidator
-from lhp.models.config import Action, ActionType, FlowGroup
+from lhp.core.processing import TemplateEngine
+from lhp.core.processing.flowgroup_resolver import FlowgroupResolutionService
+from lhp.core.processing.substitution import EnhancedSubstitutionManager
+from lhp.core.validators import ConfigValidator, SecretValidator
+from lhp.models import Action, ActionType, FlowGroup
 from lhp.presets.preset_manager import PresetManager
-from lhp.utils.error_formatter import LHPValidationError
-from lhp.utils.substitution import EnhancedSubstitutionManager
-from tests.helpers import process_unwrap as _process, wrap_in_ctx as _ctx_of
-
-
 from tests.fakes import (
-    FakeFlowgroupProcessor,
+    FakeFlowgroupResolutionService,
     FakeSubstitutionManager,
     FakeTemplate,
     FakeTemplateEngine,
 )
-
-# ============================================================================
-# Fixtures
-# ============================================================================
+from tests.helpers import process_unwrap as _process
+from tests.helpers import wrap_in_ctx as _ctx_of
 
 
 @pytest.fixture
 def processor():
-    """Create a FlowgroupProcessor with real dependencies."""
+    """Create a FlowgroupResolutionService with real dependencies."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        yield FlowgroupProcessor(
+        yield FlowgroupResolutionService(
             template_engine=TemplateEngine(),
             preset_manager=PresetManager(presets_dir=Path(tmpdir)),
             config_validator=ConfigValidator(),
@@ -113,14 +106,9 @@ def test_only_flowgroup():
     )
 
 
-# ============================================================================
-# Unit Tests — FlowgroupProcessor.process_flowgroup
-# ============================================================================
-
-
 @pytest.mark.unit
 class TestProcessFlowgroupIncludeTests:
-    """Test include_tests filtering in FlowgroupProcessor.process_flowgroup."""
+    """Test include_tests filtering in FlowgroupResolutionService.process_flowgroup."""
 
     def test_filters_test_actions_when_false(
         self, processor, substitution_mgr, mixed_flowgroup
@@ -215,7 +203,7 @@ class TestProcessFlowgroupIncludeTests:
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            processor = FlowgroupProcessor(
+            processor = FlowgroupResolutionService(
                 template_engine=fake_template_engine,
                 preset_manager=PresetManager(presets_dir=Path(tmpdir)),
                 config_validator=ConfigValidator(),
@@ -244,24 +232,17 @@ class TestProcessFlowgroupIncludeTests:
                 processor, flowgroup, substitution_mgr, include_tests=False
             )
 
-            # Template-generated test action should be filtered out
             action_types = [a.type for a in result.actions]
             assert ActionType.TEST not in action_types
-            # The inline write and template load should remain
             assert len(result.actions) == 2
             action_names = {a.name for a in result.actions}
             assert "template_load" in action_names
             assert "inline_write" in action_names
 
 
-# ============================================================================
-# Integration Tests — Parameter threading through orchestrator
-# ============================================================================
-
-
 @pytest.mark.integration
 class TestValidatePipelineIncludeTests:
-    """Test include_tests threading through validate_pipeline_by_field."""
+    """Test include_tests threading through validate_pipelines."""
 
     @staticmethod
     def _create_project_with_invalid_test(tmp_path):
@@ -297,46 +278,54 @@ actions:
 """)
 
     def test_validate_skips_test_actions_when_false(self, tmp_path):
-        """validate_pipeline_by_field(include_tests=False) skips test action errors."""
-        from lhp.core.orchestrator import ActionOrchestrator
+        """validate_pipelines(include_tests=False) skips test action errors."""
+        from lhp.core.coordination.layers import build_facade_orchestrator
 
         self._create_project_with_invalid_test(tmp_path)
-        orchestrator = ActionOrchestrator(tmp_path)
+        orchestrator = build_facade_orchestrator(tmp_path)
 
-        errors, _ = orchestrator.validate_pipeline_by_field(
-            "test_pipeline", "dev", include_tests=False
+        # ``validate_pipelines`` is a generator; drain it.
+        outcomes = list(
+            orchestrator.validate_pipelines(
+                pipeline_filter="test_pipeline", env="dev", include_tests=False
+            )
         )
-        assert (
-            len(errors) == 0
-        ), f"Expected no errors with include_tests=False, got: {errors}"
+        outcome = outcomes[0]
+        assert len(outcome.issues) == 0 and outcome.success is True, (
+            f"Expected no findings with include_tests=False, got: {outcome.issues}"
+        )
 
     def test_validate_catches_test_actions_when_true(self, tmp_path):
-        """validate_pipeline_by_field(include_tests=True) catches test action errors.
-
-        Uses a separate orchestrator to avoid shared-state issues with
-        discover_all_flowgroups caching.
-        """
-        from lhp.core.orchestrator import ActionOrchestrator
+        """Separate orchestrator instance — avoids shared-state from discover_all_flowgroups caching."""
+        from lhp.core.coordination.layers import build_facade_orchestrator
 
         self._create_project_with_invalid_test(tmp_path)
-        orchestrator = ActionOrchestrator(tmp_path)
+        orchestrator = build_facade_orchestrator(tmp_path)
 
-        errors, _ = orchestrator.validate_pipeline_by_field(
-            "test_pipeline", "dev", include_tests=True
+        # ``validate_pipelines`` is a generator; drain it.
+        outcomes = list(
+            orchestrator.validate_pipelines(
+                pipeline_filter="test_pipeline", env="dev", include_tests=True
+            )
         )
-        assert (
-            len(errors) > 0
-        ), "Expected validation errors with include_tests=True for missing columns"
+        outcome = outcomes[0]
+        # Structured config-validation errors (LHP-VAL-007 for the missing
+        # ``columns`` field) surface as ValidationIssueRecords on ``issues``.
+        assert len(outcome.issues) > 0 and outcome.success is False, (
+            "Expected validation findings with include_tests=True for missing columns"
+        )
 
-    def test_validate_passes_include_tests_through_chain(self):
-        """Worker function forwards include_tests to processor.process_flowgroup.
+    def test_validate_passes_include_tests_through_chain(self, monkeypatch):
+        """Worker forwards include_tests to processor.process_flowgroup.
 
-        Under ProcessPoolExecutor the orchestrator dispatches to a worker
-        process. Picklable fakes (not MagicMock) are required so the same
-        collaborators can be passed across the spawn boundary in upcoming
-        ``initializer=`` plumbing.
+        ``_flowgroup_state`` is a module-global populated by ``_init_flowgroup_worker``
+        in spawned workers; monkeypatching it lets us run the worker in-process.
         """
-        from lhp.core.pipeline_executor import _process_flowgroup_for_validate
+        from lhp.core.coordination import _flowgroup_pool as fp
+        from lhp.core.coordination._flowgroup_pool import (
+            _FlowgroupWorkerState,
+            _process_one_flowgroup,
+        )
 
         fg = FlowGroup(
             pipeline="test_pipeline",
@@ -350,16 +339,20 @@ actions:
                 ),
             ],
         )
-        fake_processor = FakeFlowgroupProcessor()
-        substitution_mgr = FakeSubstitutionManager()
-
-        _process_flowgroup_for_validate(
-            _ctx_of(fg),
+        fake_processor = FakeFlowgroupResolutionService()
+        state = _FlowgroupWorkerState(
             processor=fake_processor,
-            substitution_mgr=substitution_mgr,
+            substitution_managers={"test_pipeline": FakeSubstitutionManager()},
             include_tests=False,
+            code_generator=None,  # unused in validate mode
+            pipeline_output_dirs={"test_pipeline": None},
+            environment="dev",
         )
+        monkeypatch.setattr(fp, "_flowgroup_state", state)
 
+        outcome = _process_one_flowgroup(_ctx_of(fg), mode="validate")
+
+        assert outcome.success is True
         assert len(fake_processor.calls) == 1
         assert fake_processor.calls[0].kwargs.get("include_tests") is False
 

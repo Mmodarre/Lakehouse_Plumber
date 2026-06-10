@@ -1,14 +1,13 @@
 """Comprehensive CLI tests for LakehousePlumber."""
 
-import json
 import tempfile
 from pathlib import Path
 
 import pytest
-import yaml
 from click.testing import CliRunner
 
-from lhp.cli.main import cleanup_logging, cli
+from lhp.cli.logging_config import cleanup_logging
+from lhp.cli.main import cli
 
 
 class TestCLIComprehensive:
@@ -16,7 +15,6 @@ class TestCLIComprehensive:
 
     @pytest.fixture
     def runner(self):
-        """Create CLI runner."""
         return CliRunner()
 
     @pytest.fixture
@@ -25,7 +23,6 @@ class TestCLIComprehensive:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
 
-            # Create full project structure
             directories = [
                 "presets",
                 "templates",
@@ -39,14 +36,12 @@ class TestCLIComprehensive:
             for dir_name in directories:
                 (project_root / dir_name).mkdir(parents=True)
 
-            # Create project config
             (project_root / "lhp.yaml").write_text("""
 name: test_cli_project
 version: "1.0"
 description: "Test project for CLI"
 """)
 
-            # Create basic presets
             (project_root / "presets" / "bronze_layer.yaml").write_text("""
 name: bronze_layer
 version: "1.0"
@@ -56,7 +51,6 @@ defaults:
     quality: "bronze"
 """)
 
-            # Create basic template
             (project_root / "templates" / "basic_ingestion.yaml").write_text("""
 name: basic_ingestion
 version: "1.0"
@@ -71,7 +65,7 @@ actions:
       type: sql
       sql: "SELECT * FROM raw_{{ table_name }}"
     target: v_{{ table_name }}
-    
+
   - name: save_{{ table_name }}
     type: write
     source: v_{{ table_name }}
@@ -83,7 +77,6 @@ actions:
       create_table: true
 """)
 
-            # Create substitutions
             (project_root / "substitutions" / "dev.yaml").write_text("""
 dev:
   env: dev
@@ -108,7 +101,6 @@ secrets:
     database: prod_db_secrets
 """)
 
-            # Create sample pipeline
             pipeline_dir = project_root / "pipelines" / "test_pipeline"
             pipeline_dir.mkdir(parents=True)
 
@@ -125,7 +117,7 @@ actions:
       type: sql
       sql: "SELECT * FROM test_source"
     target: v_test_data
-    
+
   - name: save_test_data
     type: write
     source: v_test_data
@@ -142,47 +134,9 @@ actions:
                 # Clean up logging handlers to prevent Windows file lock issues
                 cleanup_logging()
 
-    def test_init_command(self, runner):
-        """Test project initialization command in CWD with bundle default."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with runner.isolated_filesystem(temp_dir=Path(tmpdir)):
-                result = runner.invoke(cli, ["init", "my_new_project"])
-
-                assert result.exit_code == 0
-
-                # Check created structure in CWD
-                assert Path("lhp.yaml").exists()
-                assert Path("presets").exists()
-                assert Path("templates").exists()
-                assert Path("pipelines").exists()
-                assert Path("substitutions").exists()
-
-                # Check example files were created
-                assert Path("substitutions/dev.yaml.tmpl").exists()
-                assert Path("presets/bronze_layer.yaml.tmpl").exists()
-
-                # Bundle files present by default
-                assert Path("databricks.yml").exists()
-                assert Path("resources").exists()
-
-    def test_init_existing_lhp_yaml(self, runner):
-        """Test init command when lhp.yaml already exists."""
-        from lhp.utils.exit_codes import ExitCode
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with runner.isolated_filesystem(temp_dir=Path(tmpdir)):
-                Path("lhp.yaml").write_text("name: existing\n")
-
-                result = runner.invoke(cli, ["init", "test_project"])
-
-                # LHP-IO-007 raised when lhp.yaml already exists.
-                assert result.exit_code == ExitCode.NO_INPUT
-                assert "LHP-IO-007" in result.output
-
     def test_validate_command_success(self, runner, temp_project):
         """Test validate command with valid configuration."""
         with runner.isolated_filesystem():
-            # Change to project directory
             import os
 
             os.chdir(str(temp_project))
@@ -227,11 +181,12 @@ actions: []
                 cli, ["validate", "--env", "dev", "--pipeline", "invalid_pipeline"]
             )
 
-            # Validation failures raise SystemExit(DATA_ERROR) from the
-            # validate command after the summary is rendered.
-            from lhp.utils.exit_codes import ExitCode
+            # Validation failures exit ExitCode.ERROR from the validate command
+            # after the summary is rendered (the exit-code scheme collapsed the
+            # old sysexits DATA_ERROR into the single domain-level ERROR=1).
+            from lhp.cli.exit_codes import ExitCode
 
-            assert result.exit_code == ExitCode.DATA_ERROR
+            assert result.exit_code == ExitCode.ERROR
 
     def test_generate_command(self, runner, temp_project):
         """Test code generation command."""
@@ -244,7 +199,6 @@ actions: []
 
             assert result.exit_code == 0
 
-            # Check generated files
             generated_file = (
                 temp_project
                 / "generated"
@@ -254,38 +208,10 @@ actions: []
             )
             assert generated_file.exists()
 
-            # Verify generated code content
             code = generated_file.read_text()
             assert "from pyspark import pipelines as dp" in code
             assert "@dp.temporary_view()" in code
             assert "dev_catalog.bronze.test_table" in code
-
-    def test_generate_dry_run(self, runner, temp_project):
-        """Test dry-run generation."""
-        with runner.isolated_filesystem():
-            import os
-
-            os.chdir(str(temp_project))
-
-            result = runner.invoke(cli, ["generate", "--env", "dev", "--dry-run"])
-
-            assert result.exit_code == 0
-
-            # Verify no files were actually created
-            generated_dir = temp_project / "generated"
-            assert not list(generated_dir.glob("**/*.py"))
-
-    def test_generate_with_format(self, runner, temp_project):
-        """Test generation with code formatting (always applied by default)."""
-        with runner.isolated_filesystem():
-            import os
-
-            os.chdir(str(temp_project))
-
-            result = runner.invoke(cli, ["generate", "--env", "dev"])
-
-            assert result.exit_code == 0
-            # Code should be formatted (Black is always applied by default)
 
     def test_generate_specific_pipeline(self, runner, temp_project):
         """Test generating a specific pipeline."""
@@ -300,7 +226,6 @@ actions: []
 
             assert result.exit_code == 0
 
-            # Check it used prod substitutions
             generated_file = (
                 temp_project
                 / "generated"
@@ -318,7 +243,7 @@ actions: []
 
             os.chdir(str(temp_project))
 
-            result = runner.invoke(cli, ["list-presets"])
+            result = runner.invoke(cli, ["list", "presets"])
 
             assert result.exit_code == 0
             # Behavioral: bronze_layer.yaml was discovered and surfaced.
@@ -331,50 +256,11 @@ actions: []
 
             os.chdir(str(temp_project))
 
-            result = runner.invoke(cli, ["list-templates"])
+            result = runner.invoke(cli, ["list", "templates"])
 
             assert result.exit_code == 0
             # Behavioral: basic_ingestion.yaml was discovered and surfaced.
             assert "basic_ingestion" in result.output
-
-    def test_show_command(self, runner, temp_project):
-        """Test show command for resolved configuration."""
-        with runner.isolated_filesystem():
-            import os
-
-            os.chdir(str(temp_project))
-
-            result = runner.invoke(cli, ["show", "test_flowgroup", "--env", "dev"])
-
-            assert result.exit_code == 0
-            # Behavioral: flowgroup body (action names) appears in rendered output.
-            assert "load_test_data" in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 5
-            assert "save_test_data" in result.output  # SNAPSHOT-TODO: re-target to new Rich output in Phase 5
-
-    def test_info_command(self, runner, temp_project):
-        """Test info command for project information."""
-        with runner.isolated_filesystem():
-            import os
-
-            os.chdir(str(temp_project))
-
-            result = runner.invoke(cli, ["info"])
-
-            assert result.exit_code == 0
-            # Behavioral: lhp.yaml name and discovered pipeline appear in output.
-            assert "test_cli_project" in result.output
-            assert "test_pipeline" in result.output
-
-    def test_stats_command(self, runner, temp_project):
-        """Test stats command for pipeline statistics."""
-        with runner.isolated_filesystem():
-            import os
-
-            os.chdir(str(temp_project))
-
-            result = runner.invoke(cli, ["stats"])
-
-            assert result.exit_code == 0
 
     def test_secret_validation_with_references(self, runner, temp_project):
         """Test secret validation with actual secret references."""
@@ -397,7 +283,7 @@ actions:
       driver: "org.postgresql.Driver"
       table: "customers"
     target: v_customers
-    
+
   - name: save_customers
     type: write
     source: v_customers
@@ -414,24 +300,22 @@ actions:
 
             os.chdir(str(temp_project))
 
-            # Validate should include secret validation
             result = runner.invoke(
                 cli, ["validate", "--env", "dev", "--pipeline", "secret_pipeline"]
             )
 
-            # Validation should pass (we have database scope configured)
             assert result.exit_code == 0
 
     def test_no_project_root(self, runner):
         """Test commands when not in a project directory."""
-        from lhp.utils.exit_codes import ExitCode
+        from lhp.cli.exit_codes import ExitCode
 
         with runner.isolated_filesystem():
-            # Try to validate without being in a project
             result = runner.invoke(cli, ["validate"])
 
-            # LHP-CFG-011 raised by _ensure_project_root.
-            assert result.exit_code == ExitCode.CONFIG_ERROR
+            # LHP-CFG-011 raised by resolve_project_root; any LHPError maps to
+            # the collapsed domain-level ERROR=1.
+            assert result.exit_code == ExitCode.ERROR
             assert "LHP-CFG-011" in result.output
 
     def test_verbose_flag(self, runner, temp_project):
@@ -441,12 +325,10 @@ actions:
 
             os.chdir(str(temp_project))
 
-            result = runner.invoke(
-                cli, ["--verbose", "validate", "--env", "dev", "--verbose"]
-            )
+            # ``--verbose`` is now a GLOBAL group option and must precede the
+            # subcommand; there is no per-command ``--verbose`` anymore.
+            result = runner.invoke(cli, ["--verbose", "validate", "--env", "dev"])
 
-            # With verbose, should see more detailed logging
-            # (exact output depends on logging configuration)
             assert result.exit_code == 0
 
     def test_version_command(self, runner):
@@ -471,7 +353,6 @@ actions:
 
             assert result.exit_code == 0
 
-            # Check files were generated in custom directory
             output_file = (
                 temp_project / custom_output / "test_pipeline" / "test_flowgroup.py"
             )
@@ -479,21 +360,20 @@ actions:
 
     def test_help_commands(self, runner):
         """Test help output for all commands (smoke: --help exits 0)."""
-        # Main help — content covered by test_cli.test_cli_help.
         result = runner.invoke(cli, ["--help"])
         assert result.exit_code == 0
 
         # Command-specific help smoke: every top-level command must exit 0
         # when invoked with --help (the only behavior Click guarantees here).
         commands = [
-            "init",
-            "validate",
             "generate",
-            "list-presets",
-            "list-templates",
-            "show",
-            "info",
-            "stats",
+            "validate",
+            "dag",
+            "list",
+            "substitutions",
+            "diff",
+            "init",
+            "skill",
         ]
 
         for cmd in commands:

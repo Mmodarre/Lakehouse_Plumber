@@ -1,0 +1,1507 @@
+"""Tests for dependency analyzer service."""
+
+import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock, Mock, mock_open, patch
+
+import networkx as nx
+import pytest
+
+from lhp.core.coordination.validation_service import ValidationService
+from lhp.core.dependencies.output import export_to_dot, export_to_json
+from lhp.core.dependencies.service import DependencyAnalysisService
+from lhp.core.dependencies.source_parsing import SourceParser
+from lhp.errors import ErrorCategory, LHPError
+from lhp.models import Action, ActionType, FlowGroup, ProjectConfig
+from lhp.models.dependencies import DependencyAnalysisResult, DependencyGraphs
+
+
+def _make_service(project_root):
+    """Construct DependencyAnalysisService; takes an already-loaded ProjectConfig and a ValidationService."""
+    project_config = ProjectConfig(name="test", version="1.0")
+    validation_service = ValidationService(project_root, project_config)
+    return DependencyAnalysisService(project_root, project_config, validation_service)
+
+
+class TestDependencyAnalysisService:
+    def setup_method(self):
+        self.temp_dir = Path(tempfile.mkdtemp())
+        self.analyzer = _make_service(self.temp_dir)
+
+    def teardown_method(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def create_mock_flowgroup(self, flowgroup_name: str, pipeline: str, actions: list):
+        mock_actions = []
+        for action_data in actions:
+            action = Mock(spec=Action)
+            action.name = action_data.get("name", "test_action")
+            action.type = action_data.get("type", ActionType.LOAD)
+            action.target = action_data.get("target", None)
+            action.source = action_data.get("source", None)
+            action.sql = action_data.get("sql", None)
+            action.sql_path = action_data.get("sql_path", None)
+            action.module_path = action_data.get("module_path", None)
+            action.write_target = action_data.get("write_target", None)
+            mock_actions.append(action)
+
+        flowgroup = Mock(spec=FlowGroup)
+        flowgroup.flowgroup = flowgroup_name
+        flowgroup.pipeline = pipeline
+        flowgroup.actions = mock_actions
+        return flowgroup
+
+    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    def test_build_dependency_graphs_empty(self, mockget_flowgroups):
+        mockget_flowgroups.return_value = []
+
+        result = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
+
+        assert isinstance(result, DependencyGraphs)
+        assert len(result.action_graph.nodes) == 0
+        assert len(result.flowgroup_graph.nodes) == 0
+        assert len(result.pipeline_graph.nodes) == 0
+
+    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    def test_build_action_graph_basic(self, mockget_flowgroups):
+        # Create test flowgroups
+        actions1 = [
+            {
+                "name": "load_customers",
+                "type": ActionType.LOAD,
+                "target": "bronze.customers",
+                "source": "raw.customers",
+            },
+            {
+                "name": "transform_customers",
+                "type": ActionType.TRANSFORM,
+                "source": "bronze.customers",
+                "target": "silver.customers",
+            },
+        ]
+        actions2 = [
+            {
+                "name": "load_orders",
+                "type": ActionType.LOAD,
+                "target": "bronze.orders",
+                "source": "raw.orders",
+            }
+        ]
+
+        flowgroup1 = self.create_mock_flowgroup(
+            "customer_processing", "customer_pipeline", actions1
+        )
+        flowgroup2 = self.create_mock_flowgroup(
+            "order_processing", "order_pipeline", actions2
+        )
+        mockget_flowgroups.return_value = [flowgroup1, flowgroup2]
+
+        graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
+
+        # Check action graph
+        action_graph = graphs.action_graph
+        expected_actions = [
+            "customer_processing.load_customers",
+            "customer_processing.transform_customers",
+            "order_processing.load_orders",
+        ]
+
+        assert len(action_graph.nodes) == 3
+        for action in expected_actions:
+            assert action in action_graph.nodes
+
+        # Check dependency between actions within the same flowgroup
+        assert action_graph.has_edge(
+            "customer_processing.load_customers",
+            "customer_processing.transform_customers",
+        )
+
+    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    def test_build_flowgroup_graph(self, mockget_flowgroups):
+        """Test flowgroup graph building across pipelines via a write_target table."""
+        actions1 = [
+            {
+                "name": "load_customers",
+                "type": ActionType.LOAD,
+                "target": "v_customers",
+            },
+            {
+                "name": "write_customers",
+                "type": ActionType.WRITE,
+                "source": "v_customers",
+                "write_target": {
+                    "catalog": "c",
+                    "schema": "bronze",
+                    "table": "customers",
+                },
+            },
+        ]
+        actions2 = [
+            {
+                "name": "process_orders",
+                "type": ActionType.TRANSFORM,
+                "source": "c.bronze.customers",
+            }
+        ]
+
+        flowgroup1 = self.create_mock_flowgroup("customers", "pipeline1", actions1)
+        flowgroup2 = self.create_mock_flowgroup("orders", "pipeline2", actions2)
+        mockget_flowgroups.return_value = [flowgroup1, flowgroup2]
+
+        graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
+
+        # Check flowgroup graph
+        flowgroup_graph = graphs.flowgroup_graph
+        assert len(flowgroup_graph.nodes) == 2
+        assert "customers" in flowgroup_graph.nodes
+        assert "orders" in flowgroup_graph.nodes
+
+        # Check dependency between flowgroups
+        assert flowgroup_graph.has_edge("customers", "orders")
+
+    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    def test_build_pipeline_graph(self, mockget_flowgroups):
+        """Test pipeline graph building for a bronze -> silver -> gold chain."""
+        actions1 = [
+            {"name": "load_raw", "type": ActionType.LOAD, "target": "v_data"},
+            {
+                "name": "write_bronze",
+                "type": ActionType.WRITE,
+                "source": "v_data",
+                "write_target": {
+                    "catalog": "c",
+                    "schema": "bronze",
+                    "table": "data",
+                },
+            },
+        ]
+        actions2 = [
+            {
+                "name": "transform",
+                "type": ActionType.TRANSFORM,
+                "source": "c.bronze.data",
+                "target": "v_silver_data",
+            },
+            {
+                "name": "write_silver",
+                "type": ActionType.WRITE,
+                "source": "v_silver_data",
+                "write_target": {
+                    "catalog": "c",
+                    "schema": "silver",
+                    "table": "data",
+                },
+            },
+        ]
+        actions3 = [
+            {
+                "name": "aggregate",
+                "type": ActionType.TRANSFORM,
+                "source": "c.silver.data",
+                "target": "v_gold_summary",
+            },
+            {
+                "name": "write_gold",
+                "type": ActionType.WRITE,
+                "source": "v_gold_summary",
+                "write_target": {
+                    "catalog": "c",
+                    "schema": "gold",
+                    "table": "summary",
+                },
+            },
+        ]
+
+        flowgroup1 = self.create_mock_flowgroup(
+            "bronze_flow", "bronze_pipeline", actions1
+        )
+        flowgroup2 = self.create_mock_flowgroup(
+            "silver_flow", "silver_pipeline", actions2
+        )
+        flowgroup3 = self.create_mock_flowgroup("gold_flow", "gold_pipeline", actions3)
+        mockget_flowgroups.return_value = [flowgroup1, flowgroup2, flowgroup3]
+
+        graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
+
+        # Check pipeline graph
+        pipeline_graph = graphs.pipeline_graph
+        assert len(pipeline_graph.nodes) == 3
+        assert "bronze_pipeline" in pipeline_graph.nodes
+        assert "silver_pipeline" in pipeline_graph.nodes
+        assert "gold_pipeline" in pipeline_graph.nodes
+
+        # Check pipeline dependencies
+        assert pipeline_graph.has_edge("bronze_pipeline", "silver_pipeline")
+        assert pipeline_graph.has_edge("silver_pipeline", "gold_pipeline")
+
+    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    def test_analyze_dependencies_complete(self, mockget_flowgroups):
+        """Test complete dependency analysis for a cross-pipeline chain."""
+        actions1 = [
+            {"name": "load", "type": ActionType.LOAD, "target": "v_data"},
+            {
+                "name": "write_bronze",
+                "type": ActionType.WRITE,
+                "source": "v_data",
+                "write_target": {
+                    "catalog": "c",
+                    "schema": "bronze",
+                    "table": "data",
+                },
+            },
+        ]
+        actions2 = [
+            {
+                "name": "transform",
+                "type": ActionType.TRANSFORM,
+                "source": "c.bronze.data",
+            }
+        ]
+
+        flowgroup1 = self.create_mock_flowgroup("loader", "pipeline1", actions1)
+        flowgroup2 = self.create_mock_flowgroup("transformer", "pipeline2", actions2)
+        mockget_flowgroups.return_value = [flowgroup1, flowgroup2]
+
+        result = self.analyzer.analyze(
+            self.analyzer.build_graphs(self.analyzer.get_flowgroups())
+        )
+
+        assert isinstance(result, DependencyAnalysisResult)
+        assert len(result.pipeline_dependencies) == 2
+        assert len(result.execution_stages) == 2  # Two stages in the execution order
+        assert len(result.circular_dependencies) == 0
+
+    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    def test_detect_circular_dependencies(self, mockget_flowgroups):
+        """Test circular dependency detection for cross-pipeline A -> B -> C -> A."""
+        actions_a = [
+            {
+                "name": "action_a",
+                "type": ActionType.TRANSFORM,
+                "source": "c.s.table_c",
+                "target": "v_a",
+            },
+            {
+                "name": "write_a",
+                "type": ActionType.WRITE,
+                "source": "v_a",
+                "write_target": {
+                    "catalog": "c",
+                    "schema": "s",
+                    "table": "table_a",
+                },
+            },
+        ]
+        actions_b = [
+            {
+                "name": "action_b",
+                "type": ActionType.TRANSFORM,
+                "source": "c.s.table_a",
+                "target": "v_b",
+            },
+            {
+                "name": "write_b",
+                "type": ActionType.WRITE,
+                "source": "v_b",
+                "write_target": {
+                    "catalog": "c",
+                    "schema": "s",
+                    "table": "table_b",
+                },
+            },
+        ]
+        actions_c = [
+            {
+                "name": "action_c",
+                "type": ActionType.TRANSFORM,
+                "source": "c.s.table_b",
+                "target": "v_c",
+            },
+            {
+                "name": "write_c",
+                "type": ActionType.WRITE,
+                "source": "v_c",
+                "write_target": {
+                    "catalog": "c",
+                    "schema": "s",
+                    "table": "table_c",
+                },
+            },
+        ]
+
+        flowgroup_a = self.create_mock_flowgroup("fg_a", "pipeline_a", actions_a)
+        flowgroup_b = self.create_mock_flowgroup("fg_b", "pipeline_b", actions_b)
+        flowgroup_c = self.create_mock_flowgroup("fg_c", "pipeline_c", actions_c)
+        mockget_flowgroups.return_value = [flowgroup_a, flowgroup_b, flowgroup_c]
+
+        result = self.analyzer.analyze(
+            self.analyzer.build_graphs(self.analyzer.get_flowgroups())
+        )
+
+        assert len(result.circular_dependencies) > 0
+        assert (
+            len(result.execution_stages) == 0
+        )  # No execution order possible due to cycles
+
+    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    def test_execution_order_parallel_stages(self, mockget_flowgroups):
+        """Test execution order: A -> B, A -> C, B -> D, C -> D across pipelines."""
+        actions_a = [
+            {"name": "load_base", "type": ActionType.LOAD, "target": "v_base"},
+            {
+                "name": "write_base",
+                "type": ActionType.WRITE,
+                "source": "v_base",
+                "write_target": {
+                    "catalog": "c",
+                    "schema": "s",
+                    "table": "base",
+                },
+            },
+        ]
+        actions_b = [
+            {
+                "name": "process_b",
+                "type": ActionType.TRANSFORM,
+                "source": "c.s.base",
+                "target": "v_branch_b",
+            },
+            {
+                "name": "write_b",
+                "type": ActionType.WRITE,
+                "source": "v_branch_b",
+                "write_target": {
+                    "catalog": "c",
+                    "schema": "s",
+                    "table": "branch_b",
+                },
+            },
+        ]
+        actions_c = [
+            {
+                "name": "process_c",
+                "type": ActionType.TRANSFORM,
+                "source": "c.s.base",
+                "target": "v_branch_c",
+            },
+            {
+                "name": "write_c",
+                "type": ActionType.WRITE,
+                "source": "v_branch_c",
+                "write_target": {
+                    "catalog": "c",
+                    "schema": "s",
+                    "table": "branch_c",
+                },
+            },
+        ]
+        actions_d = [
+            {
+                "name": "merge",
+                "type": ActionType.TRANSFORM,
+                "source": ["c.s.branch_b", "c.s.branch_c"],
+                "target": "v_final",
+            },
+            {
+                "name": "write_final",
+                "type": ActionType.WRITE,
+                "source": "v_final",
+                "write_target": {
+                    "catalog": "c",
+                    "schema": "s",
+                    "table": "final",
+                },
+            },
+        ]
+
+        flowgroup_a = self.create_mock_flowgroup("base", "pipeline_a", actions_a)
+        flowgroup_b = self.create_mock_flowgroup("branch_b", "pipeline_b", actions_b)
+        flowgroup_c = self.create_mock_flowgroup("branch_c", "pipeline_c", actions_c)
+        flowgroup_d = self.create_mock_flowgroup("final", "pipeline_d", actions_d)
+        mockget_flowgroups.return_value = [
+            flowgroup_a,
+            flowgroup_b,
+            flowgroup_c,
+            flowgroup_d,
+        ]
+
+        result = self.analyzer.analyze(
+            self.analyzer.build_graphs(self.analyzer.get_flowgroups())
+        )
+
+        # Should have 3 stages: A, [B,C], D
+        assert len(result.execution_stages) == 3
+        assert result.execution_stages[0] == ["pipeline_a"]  # A runs first
+        assert sorted(result.execution_stages[1]) == [
+            "pipeline_b",
+            "pipeline_c",
+        ]  # B and C run in parallel
+        assert result.execution_stages[2] == ["pipeline_d"]  # D runs last
+
+    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    @patch("lhp.utils.sql_parser.extract_tables_from_sql")
+    def test_sql_source_extraction(self, mock_extract_sql, mockget_flowgroups):
+        mock_extract_sql.return_value = ["bronze.customers", "bronze.orders"]
+
+        # Action with inline SQL
+        actions = [
+            {
+                "name": "sql_action",
+                "type": ActionType.TRANSFORM,
+                "sql": "SELECT * FROM bronze.customers JOIN bronze.orders",
+            }
+        ]
+        flowgroup = self.create_mock_flowgroup("test_fg", "test_pipeline", actions)
+        mockget_flowgroups.return_value = [flowgroup]
+
+        graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
+
+        # Verify SQL parser was called
+        mock_extract_sql.assert_called()
+
+        # Check that external sources were identified
+        action_id = "test_fg.sql_action"
+        assert action_id in graphs.action_graph.nodes
+        external_sources = graphs.action_graph.nodes[action_id].get(
+            "external_sources", []
+        )
+        assert "bronze.customers" in external_sources
+        assert "bronze.orders" in external_sources
+
+    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    @patch("lhp.core.dependencies.python_parser.extract_tables_from_python")
+    def test_python_source_extraction(self, mock_extract_python, mockget_flowgroups):
+        mock_extract_python.return_value = ["silver.processed_data"]
+
+        # Action with Python module
+        actions = [
+            {
+                "name": "python_action",
+                "type": ActionType.TRANSFORM,
+                "module_path": "transforms/process_data.py",
+            }
+        ]
+        flowgroup = self.create_mock_flowgroup("test_fg", "test_pipeline", actions)
+        mockget_flowgroups.return_value = [flowgroup]
+
+        # Mock file existence
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch(
+                "pathlib.Path.read_text",
+                return_value='spark.sql("SELECT * FROM silver.processed_data")',
+            ),
+        ):
+            graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
+
+        # Verify Python parser was called
+        mock_extract_python.assert_called()
+
+        # Check that external sources were identified
+        action_id = "test_fg.python_action"
+        assert action_id in graphs.action_graph.nodes
+        external_sources = graphs.action_graph.nodes[action_id].get(
+            "external_sources", []
+        )
+        assert "silver.processed_data" in external_sources
+
+    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    def test_sql_file_path_resolution(self, mockget_flowgroups):
+        actions = [
+            {
+                "name": "sql_file_action",
+                "type": ActionType.TRANSFORM,
+                "sql_path": "queries/transform.sql",
+            }
+        ]
+        flowgroup = self.create_mock_flowgroup("test_fg", "test_pipeline", actions)
+        mockget_flowgroups.return_value = [flowgroup]
+
+        # Set up flowgroup file path mapping
+        yaml_path = self.temp_dir / "pipelines" / "test.yaml"
+        yaml_path.parent.mkdir(parents=True, exist_ok=True)
+        self.analyzer._flowgroup_file_paths["test_fg"] = yaml_path
+
+        # Create SQL file
+        sql_file = yaml_path.parent / "queries" / "transform.sql"
+        sql_file.parent.mkdir(parents=True, exist_ok=True)
+        sql_file.write_text("SELECT * FROM bronze.test_table")
+
+        with patch(
+            "lhp.utils.sql_parser.extract_tables_from_sql",
+            return_value=["bronze.test_table"],
+        ):
+            graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
+
+        # Verify the SQL file was processed
+        action_id = "test_fg.sql_file_action"
+        assert action_id in graphs.action_graph.nodes
+        external_sources = graphs.action_graph.nodes[action_id].get(
+            "external_sources", []
+        )
+        assert "bronze.test_table" in external_sources
+
+    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    def test_sql_file_not_found_error(self, mockget_flowgroups):
+        actions = [
+            {
+                "name": "sql_file_action",
+                "type": ActionType.TRANSFORM,
+                "sql_path": "nonexistent.sql",
+            }
+        ]
+        flowgroup = self.create_mock_flowgroup("test_fg", "test_pipeline", actions)
+        mockget_flowgroups.return_value = [flowgroup]
+
+        # Set up flowgroup file path mapping
+        yaml_path = self.temp_dir / "test.yaml"
+        self.analyzer._flowgroup_file_paths["test_fg"] = yaml_path
+
+        # Should raise LHPError when file doesn't exist
+        with pytest.raises(LHPError) as exc_info:
+            self.analyzer.build_graphs(self.analyzer.get_flowgroups())
+
+        assert "LHP-IO-" in exc_info.value.code
+        assert "SQL file not found" in exc_info.value.title
+
+    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    def test_python_file_not_found_error(self, mockget_flowgroups):
+        actions = [
+            {
+                "name": "python_action",
+                "type": ActionType.TRANSFORM,
+                "module_path": "nonexistent.py",
+            }
+        ]
+        flowgroup = self.create_mock_flowgroup("test_fg", "test_pipeline", actions)
+        mockget_flowgroups.return_value = [flowgroup]
+
+        # Should raise LHPError when file doesn't exist
+        with pytest.raises(LHPError) as exc_info:
+            self.analyzer.build_graphs(self.analyzer.get_flowgroups())
+
+        assert "LHP-IO-" in exc_info.value.code
+        assert "Python file not found" in exc_info.value.title
+
+    def test_export_to_dot_format(self):
+        # Create a simple graph
+        graphs = DependencyGraphs(
+            action_graph=nx.DiGraph(),
+            flowgroup_graph=nx.DiGraph(),
+            pipeline_graph=nx.DiGraph(),
+            metadata={},
+        )
+
+        # Add some pipeline nodes and edges
+        graphs.pipeline_graph.add_node("pipeline_a", flowgroup_count=2)
+        graphs.pipeline_graph.add_node("pipeline_b", flowgroup_count=1)
+        graphs.pipeline_graph.add_edge("pipeline_a", "pipeline_b")
+
+        dot_output = export_to_dot(graphs, "pipeline")
+
+        assert "digraph pipeline_dependencies" in dot_output
+        assert "pipeline_a" in dot_output
+        assert "pipeline_b" in dot_output
+        assert 'pipeline_a" -> "pipeline_b"' in dot_output
+
+    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    def test_export_to_json_format(self, mockget_flowgroups):
+        # Create simple test data
+        actions = [
+            {"name": "test_action", "type": ActionType.LOAD, "target": "test.table"}
+        ]
+        flowgroup = self.create_mock_flowgroup("test_fg", "test_pipeline", actions)
+        mockget_flowgroups.return_value = [flowgroup]
+
+        result = self.analyzer.analyze(
+            self.analyzer.build_graphs(self.analyzer.get_flowgroups())
+        )
+        json_output = export_to_json(result)
+
+        assert "metadata" in json_output
+        assert "pipelines" in json_output
+        assert "execution_stages" in json_output
+        assert "external_sources" in json_output
+        assert "circular_dependencies" in json_output
+        assert json_output["metadata"]["total_pipelines"] == 1
+
+    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    def test_pipeline_filtering(self, mockget_flowgroups):
+        # Create flowgroups in different pipelines
+        actions1 = [{"name": "action1", "type": ActionType.LOAD, "target": "table1"}]
+
+        flowgroup1 = self.create_mock_flowgroup("fg1", "pipeline_a", actions1)
+
+        # Mock get_flowgroups to return only the filtered flowgroup when filtering
+        def mockget_flowgroups_filter(pipeline_filter=None):
+            if pipeline_filter == "pipeline_a":
+                return [flowgroup1]
+            return []
+
+        mockget_flowgroups.side_effect = mockget_flowgroups_filter
+
+        # Analyze only pipeline_a
+        result = self.analyzer.analyze(
+            self.analyzer.build_graphs(
+                self.analyzer.get_flowgroups(pipeline_filter="pipeline_a")
+            )
+        )
+
+        # Should only have one pipeline
+        assert len(result.pipeline_dependencies) == 1
+        assert "pipeline_a" in result.pipeline_dependencies
+
+    def test_external_source_collection(self):
+        graphs = DependencyGraphs(
+            action_graph=nx.DiGraph(),
+            flowgroup_graph=nx.DiGraph(),
+            pipeline_graph=nx.DiGraph(),
+            metadata={},
+        )
+
+        # Add action nodes with external sources
+        graphs.action_graph.add_node(
+            "action1", external_sources=["external.table1", "external.table2"]
+        )
+        graphs.action_graph.add_node("action2", external_sources=["external.table3"])
+
+        external_sources = self.analyzer._analyzer._collect_external_sources(graphs)
+
+        assert sorted(external_sources) == [
+            "external.table1",
+            "external.table2",
+            "external.table3",
+        ]
+
+    def test_write_target_handling(self):
+        # Mock a write action with write_target
+        write_action = Mock(spec=Action)
+        write_action.name = "write_action"
+        write_action.type = ActionType.WRITE
+        write_action.source = None
+        write_action.target = None
+        write_action.write_target = {
+            "catalog": "test_cat",
+            "schema": "bronze",
+            "table": "output_table",
+        }
+        write_action.sql = None
+        write_action.sql_path = None
+        write_action.module_path = None
+
+        # Mock a load action that depends on the write output
+        load_action = Mock(spec=Action)
+        load_action.name = "load_action"
+        load_action.type = ActionType.LOAD
+        load_action.source = "test_cat.bronze.output_table"
+        load_action.target = "silver.processed"
+        load_action.sql = None
+        load_action.sql_path = None
+        load_action.module_path = None
+        load_action.write_target = None
+
+        flowgroup1 = self.create_mock_flowgroup("writer", "pipeline1", [])
+        flowgroup1.actions = [write_action]
+
+        flowgroup2 = self.create_mock_flowgroup("reader", "pipeline2", [])
+        flowgroup2.actions = [load_action]
+
+        with patch.object(
+            self.analyzer,
+            "get_flowgroups",
+            return_value=[flowgroup1, flowgroup2],
+        ):
+            graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
+
+        # Check that dependency was established
+        assert graphs.action_graph.has_edge("writer.write_action", "reader.load_action")
+
+    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    def test_empty_graphs_metadata(self, mockget_flowgroups):
+        mockget_flowgroups.return_value = []
+
+        graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
+
+        # Empty graphs have empty metadata
+        assert graphs.metadata == {}
+        assert len(graphs.action_graph.nodes) == 0
+        assert len(graphs.flowgroup_graph.nodes) == 0
+        assert len(graphs.pipeline_graph.nodes) == 0
+
+    def test_invalid_graph_level_error(self):
+        graphs = DependencyGraphs(
+            action_graph=nx.DiGraph(),
+            flowgroup_graph=nx.DiGraph(),
+            pipeline_graph=nx.DiGraph(),
+            metadata={},
+        )
+
+        with pytest.raises(ValueError) as exc_info:
+            export_to_dot(graphs, "invalid_level")
+
+        error_msg = str(exc_info.value)
+        assert "invalid_level" in error_msg
+        assert "Unknown dependency graph level" in error_msg
+
+    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    def test_shared_view_targets_across_pipelines_no_phantom_cycles(
+        self, mockget_flowgroups
+    ):
+        """View targets are pipeline-scoped: identical view names across
+        sibling pipelines (e.g. blueprint expansion into site_a/b/c) must
+        not create cross-pipeline dependency edges or cycles."""
+
+        def make_site_actions(site: str):
+            return [
+                {
+                    "name": f"load_{site}",
+                    "type": ActionType.LOAD,
+                    "target": "v_data",
+                },
+                {
+                    "name": f"write_{site}",
+                    "type": ActionType.WRITE,
+                    "source": "v_data",
+                    "write_target": {
+                        "catalog": "c",
+                        "schema": "s",
+                        "table": f"{site}_table",
+                    },
+                },
+            ]
+
+        flowgroup_a = self.create_mock_flowgroup(
+            "site_a_raw", "site_a_pipeline", make_site_actions("site_a")
+        )
+        flowgroup_b = self.create_mock_flowgroup(
+            "site_b_raw", "site_b_pipeline", make_site_actions("site_b")
+        )
+        flowgroup_c = self.create_mock_flowgroup(
+            "site_c_raw", "site_c_pipeline", make_site_actions("site_c")
+        )
+        mockget_flowgroups.return_value = [flowgroup_a, flowgroup_b, flowgroup_c]
+
+        result = self.analyzer.analyze(
+            self.analyzer.build_graphs(self.analyzer.get_flowgroups())
+        )
+
+        assert result.circular_dependencies == []
+        assert len(result.execution_stages) > 0
+
+        graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
+        flowgroup_graph = graphs.flowgroup_graph
+        site_names = {"site_a_raw", "site_b_raw", "site_c_raw"}
+        for src in site_names:
+            for dst in site_names:
+                if src == dst:
+                    continue
+                assert not flowgroup_graph.has_edge(src, dst), (
+                    f"Phantom edge {src} -> {dst} should not exist when "
+                    "view targets are pipeline-scoped"
+                )
+
+
+class TestCycleDetection:
+    """Tests for the _detect_circular_dependencies method."""
+
+    def setup_method(self):
+        self.temp_dir = Path(tempfile.mkdtemp())
+        self.analyzer = _make_service(self.temp_dir)
+
+    def teardown_method(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def _make_graphs(
+        self,
+        action_edges=None,
+        flowgroup_edges=None,
+        pipeline_edges=None,
+    ):
+        action_graph = nx.DiGraph()
+        flowgroup_graph = nx.DiGraph()
+        pipeline_graph = nx.DiGraph()
+
+        for src, dst in action_edges or []:
+            action_graph.add_edge(src, dst)
+        for src, dst in flowgroup_edges or []:
+            flowgroup_graph.add_edge(src, dst)
+        for src, dst in pipeline_edges or []:
+            pipeline_graph.add_edge(src, dst)
+
+        return DependencyGraphs(
+            action_graph=action_graph,
+            flowgroup_graph=flowgroup_graph,
+            pipeline_graph=pipeline_graph,
+            metadata={},
+        )
+
+    def test_multiple_independent_cycles_all_reported(self):
+        """Two separate cycles (A->B->A and C->D->C) should both be detected."""
+        graphs = self._make_graphs(
+            action_edges=[("a", "b"), ("b", "a"), ("c", "d"), ("d", "c")],
+        )
+
+        result = self.analyzer._analyzer._detect_circular_dependencies(graphs)
+
+        # Flatten all cycle descriptions into one string for easy checking
+        all_descriptions = " | ".join(desc for cycle in result for desc in cycle)
+
+        # Both cycles must appear
+        assert len(result) >= 2, f"Expected at least 2 cycles, got {len(result)}"
+        # Verify both pairs are represented somewhere in the output
+        has_ab = any("a" in d and "b" in d for cycle in result for d in cycle)
+        has_cd = any("c" in d and "d" in d for cycle in result for d in cycle)
+        assert has_ab, f"Cycle A<->B not found in: {all_descriptions}"
+        assert has_cd, f"Cycle C<->D not found in: {all_descriptions}"
+
+    def test_multiple_independent_cycles_across_levels(self):
+        """Independent cycles at action and pipeline levels should both be detected."""
+        graphs = self._make_graphs(
+            action_edges=[("x", "y"), ("y", "x")],
+            pipeline_edges=[("p1", "p2"), ("p2", "p1")],
+        )
+
+        result = self.analyzer._analyzer._detect_circular_dependencies(graphs)
+
+        assert len(result) >= 2
+        levels_found = set()
+        for cycle in result:
+            for desc in cycle:
+                if desc.startswith("action level:"):
+                    levels_found.add("action")
+                elif desc.startswith("pipeline level:"):
+                    levels_found.add("pipeline")
+
+        assert "action" in levels_found, "Expected an action-level cycle"
+        assert "pipeline" in levels_found, "Expected a pipeline-level cycle"
+
+    def test_action_level_cycle_only(self):
+        """A cycle only in the action graph should be detected at action level."""
+        graphs = self._make_graphs(
+            action_edges=[("a1", "a2"), ("a2", "a3"), ("a3", "a1")],
+        )
+
+        result = self.analyzer._analyzer._detect_circular_dependencies(graphs)
+
+        assert len(result) >= 1
+        descriptions = [desc for cycle in result for desc in cycle]
+        assert all(d.startswith("action level:") for d in descriptions), (
+            f"Expected only action-level cycles, got: {descriptions}"
+        )
+
+    def test_flowgroup_level_cycle_only(self):
+        """A cycle only in the flowgroup graph should be detected at flowgroup level."""
+        graphs = self._make_graphs(
+            flowgroup_edges=[("fg_a", "fg_b"), ("fg_b", "fg_a")],
+        )
+
+        result = self.analyzer._analyzer._detect_circular_dependencies(graphs)
+
+        assert len(result) >= 1
+        descriptions = [desc for cycle in result for desc in cycle]
+        assert all(d.startswith("flowgroup level:") for d in descriptions), (
+            f"Expected only flowgroup-level cycles, got: {descriptions}"
+        )
+
+    def test_pipeline_level_cycle_only(self):
+        """A cycle only in the pipeline graph should be detected at pipeline level."""
+        graphs = self._make_graphs(
+            pipeline_edges=[("p_x", "p_y"), ("p_y", "p_z"), ("p_z", "p_x")],
+        )
+
+        result = self.analyzer._analyzer._detect_circular_dependencies(graphs)
+
+        assert len(result) >= 1
+        descriptions = [desc for cycle in result for desc in cycle]
+        assert all(d.startswith("pipeline level:") for d in descriptions), (
+            f"Expected only pipeline-level cycles, got: {descriptions}"
+        )
+
+    def test_cycles_at_all_three_levels(self):
+        """Cycles at action, flowgroup, and pipeline levels should all be reported."""
+        graphs = self._make_graphs(
+            action_edges=[("a1", "a2"), ("a2", "a1")],
+            flowgroup_edges=[("fg1", "fg2"), ("fg2", "fg1")],
+            pipeline_edges=[("p1", "p2"), ("p2", "p1")],
+        )
+
+        result = self.analyzer._analyzer._detect_circular_dependencies(graphs)
+
+        assert len(result) >= 3
+        levels_found = set()
+        for cycle in result:
+            for desc in cycle:
+                if desc.startswith("action level:"):
+                    levels_found.add("action")
+                elif desc.startswith("flowgroup level:"):
+                    levels_found.add("flowgroup")
+                elif desc.startswith("pipeline level:"):
+                    levels_found.add("pipeline")
+
+        assert levels_found == {
+            "action",
+            "flowgroup",
+            "pipeline",
+        }, f"Expected all three levels, got: {levels_found}"
+
+    def test_cycle_cap_at_twenty(self):
+        """When more than 20 cycles exist, only 20 should be reported."""
+        # Create 25 independent 2-node cycles in the action graph.
+        # Each pair (node_i_a, node_i_b) forms its own cycle.
+        action_edges = []
+        for i in range(25):
+            node_a = f"node_{i}_a"
+            node_b = f"node_{i}_b"
+            action_edges.append((node_a, node_b))
+            action_edges.append((node_b, node_a))
+
+        graphs = self._make_graphs(action_edges=action_edges)
+
+        result = self.analyzer._analyzer._detect_circular_dependencies(graphs)
+
+        assert len(result) == 20, (
+            f"Expected exactly 20 cycles (the cap), got {len(result)}"
+        )
+
+    def test_cycle_cap_across_levels(self):
+        """The 20-cycle cap applies globally across all graph levels."""
+        # Put 12 independent cycles in action graph, 12 in flowgroup graph.
+        # Total > 20, so the cap should kick in.
+        action_edges = []
+        for i in range(12):
+            a, b = f"act_{i}_a", f"act_{i}_b"
+            action_edges.append((a, b))
+            action_edges.append((b, a))
+
+        flowgroup_edges = []
+        for i in range(12):
+            a, b = f"fg_{i}_a", f"fg_{i}_b"
+            flowgroup_edges.append((a, b))
+            flowgroup_edges.append((b, a))
+
+        graphs = self._make_graphs(
+            action_edges=action_edges,
+            flowgroup_edges=flowgroup_edges,
+        )
+
+        result = self.analyzer._analyzer._detect_circular_dependencies(graphs)
+
+        assert len(result) == 20, (
+            f"Expected exactly 20 cycles (global cap), got {len(result)}"
+        )
+
+    def test_no_cycles_dag(self):
+        """A DAG with no cycles should return an empty list."""
+        graphs = self._make_graphs(
+            action_edges=[("a", "b"), ("b", "c"), ("a", "c")],
+            flowgroup_edges=[("fg_a", "fg_b"), ("fg_b", "fg_c")],
+            pipeline_edges=[("p1", "p2"), ("p2", "p3")],
+        )
+
+        result = self.analyzer._analyzer._detect_circular_dependencies(graphs)
+
+        assert result == [], f"Expected no cycles for a DAG, got: {result}"
+
+    def test_no_cycles_empty_graphs(self):
+        """Completely empty graphs should return an empty list."""
+        graphs = self._make_graphs()
+
+        result = self.analyzer._analyzer._detect_circular_dependencies(graphs)
+
+        assert result == []
+
+    def test_no_cycles_single_nodes(self):
+        """Graphs with isolated nodes (no edges) should return an empty list."""
+        action_graph = nx.DiGraph()
+        action_graph.add_node("lone_node_1")
+        action_graph.add_node("lone_node_2")
+
+        graphs = DependencyGraphs(
+            action_graph=action_graph,
+            flowgroup_graph=nx.DiGraph(),
+            pipeline_graph=nx.DiGraph(),
+            metadata={},
+        )
+
+        result = self.analyzer._analyzer._detect_circular_dependencies(graphs)
+
+        assert result == []
+
+    def test_cycle_description_format(self):
+        """Verify the cycle description format includes level and arrow notation."""
+        graphs = self._make_graphs(
+            action_edges=[("alpha", "beta"), ("beta", "alpha")],
+        )
+
+        result = self.analyzer._analyzer._detect_circular_dependencies(graphs)
+
+        assert len(result) >= 1
+        first_desc = result[0][0]
+        assert first_desc.startswith("action level: ")
+        assert " -> " in first_desc
+        # The cycle should close back to the start node
+        parts = first_desc.split(": ", 1)[1].split(" -> ")
+        assert parts[0] == parts[-1], (
+            f"Cycle should close back to start node: {first_desc}"
+        )
+
+
+class TestWriteTargetExtraction:
+    """Tests for extracting dependencies from SQL/Python externalized inside write_target."""
+
+    def setup_method(self):
+        self.temp_dir = Path(tempfile.mkdtemp())
+        self.analyzer = _make_service(self.temp_dir)
+
+    def teardown_method(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def _make_action(self, **overrides) -> Mock:
+        """Build a minimal Mock(spec=Action) with common defaults."""
+        action = Mock(spec=Action)
+        action.name = overrides.get("name", "action")
+        action.type = overrides.get("type", ActionType.WRITE)
+        action.source = overrides.get("source", None)
+        action.target = overrides.get("target", None)
+        action.sql = overrides.get("sql", None)
+        action.sql_path = overrides.get("sql_path", None)
+        action.module_path = overrides.get("module_path", None)
+        action.write_target = overrides.get("write_target", None)
+        return action
+
+    def test_iter_sql_bodies_yields_write_target_sql_path(self):
+        action = self._make_action(
+            write_target={"type": "materialized_view", "sql_path": "sql/mv.sql"}
+        )
+        results = list(
+            SourceParser(
+                self.analyzer._flowgroup_file_paths, self.analyzer.project_root
+            )._iter_sql_bodies(action)
+        )
+        # (top-level sql/sql_path), (write_target sql/sql_path)
+        assert (None, None) in results
+        assert (None, "sql/mv.sql") in results
+
+    def test_iter_sql_bodies_yields_write_target_inline_sql(self):
+        action = self._make_action(
+            write_target={"type": "materialized_view", "sql": "SELECT 1 FROM x"}
+        )
+        results = list(
+            SourceParser(
+                self.analyzer._flowgroup_file_paths, self.analyzer.project_root
+            )._iter_sql_bodies(action)
+        )
+        assert ("SELECT 1 FROM x", None) in results
+
+    def test_iter_sql_bodies_handles_pydantic_model_and_dict_forms(self):
+        # Object with model_dump() — simulate a Pydantic model.
+        class FakeWriteTarget:
+            def model_dump(self):
+                return {"type": "materialized_view", "sql_path": "sql/mv.sql"}
+
+        action = self._make_action(write_target=FakeWriteTarget())
+        results = list(
+            SourceParser(
+                self.analyzer._flowgroup_file_paths, self.analyzer.project_root
+            )._iter_sql_bodies(action)
+        )
+        assert (None, "sql/mv.sql") in results
+
+        # Dict form
+        action_dict = self._make_action(
+            write_target={"type": "materialized_view", "sql_path": "sql/mv.sql"}
+        )
+        results_dict = list(
+            SourceParser(
+                self.analyzer._flowgroup_file_paths, self.analyzer.project_root
+            )._iter_sql_bodies(action_dict)
+        )
+        assert (None, "sql/mv.sql") in results_dict
+
+    def test_iter_sql_bodies_combines_all_three_sources(self):
+        action = self._make_action(
+            sql="SELECT 1",
+            sql_path="a.sql",
+            source={"type": "sql", "sql": "SELECT 2", "sql_path": "b.sql"},
+            write_target={
+                "type": "materialized_view",
+                "sql": "SELECT 3",
+                "sql_path": "c.sql",
+            },
+        )
+        results = list(
+            SourceParser(
+                self.analyzer._flowgroup_file_paths, self.analyzer.project_root
+            )._iter_sql_bodies(action)
+        )
+        assert ("SELECT 1", "a.sql") in results
+        assert ("SELECT 2", "b.sql") in results
+        assert ("SELECT 3", "c.sql") in results
+
+    def test_iter_python_bodies_yields_custom_sink_module_path(self):
+        action = self._make_action(
+            write_target={"type": "custom", "module_path": "sinks/custom.py"}
+        )
+        results = list(
+            SourceParser(
+                self.analyzer._flowgroup_file_paths, self.analyzer.project_root
+            )._iter_python_bodies(action)
+        )
+        assert (None, "sinks/custom.py") in results
+
+    def test_iter_python_bodies_yields_batch_handler_inline(self):
+        action = self._make_action(
+            write_target={
+                "type": "foreachbatch",
+                "batch_handler": "def handler(df, epoch): spark.table('a.b.c')",
+            }
+        )
+        results = list(
+            SourceParser(
+                self.analyzer._flowgroup_file_paths, self.analyzer.project_root
+            )._iter_python_bodies(action)
+        )
+        assert any(inline and "spark.table" in inline for inline, _ in results)
+
+    def test_iter_python_bodies_yields_snapshot_cdc_source_function(self):
+        action = self._make_action(
+            write_target={
+                "type": "streaming_table",
+                "snapshot_cdc_config": {"source_function": {"file": "cdc/source.py"}},
+            }
+        )
+        results = list(
+            SourceParser(
+                self.analyzer._flowgroup_file_paths, self.analyzer.project_root
+            )._iter_python_bodies(action)
+        )
+        assert (None, "cdc/source.py") in results
+
+    def test_iter_python_bodies_preserves_top_level_module_path(self):
+        action = self._make_action(
+            type=ActionType.TRANSFORM, module_path="transforms/t.py"
+        )
+        results = list(
+            SourceParser(
+                self.analyzer._flowgroup_file_paths, self.analyzer.project_root
+            )._iter_python_bodies(action)
+        )
+        assert (None, "transforms/t.py") in results
+
+    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    def test_extract_sql_sources_reads_write_target_sql_path_e2e(
+        self, mockget_flowgroups
+    ):
+        """Materialized-view SQL in write_target.sql_path should resolve into sources."""
+        # Write SQL file relative to a fake YAML path.
+        yaml_path = self.temp_dir / "pipelines" / "mv.yaml"
+        yaml_path.parent.mkdir(parents=True, exist_ok=True)
+        sql_file = yaml_path.parent / "sql" / "mv.sql"
+        sql_file.parent.mkdir(parents=True, exist_ok=True)
+        sql_file.write_text("SELECT * FROM silver.customers")
+
+        action = self._make_action(
+            write_target={"type": "materialized_view", "sql_path": "sql/mv.sql"}
+        )
+        flowgroup = Mock(spec=FlowGroup)
+        flowgroup.flowgroup = "gold_fg"
+        flowgroup.pipeline = "gold_pipeline"
+        flowgroup.actions = [action]
+        mockget_flowgroups.return_value = [flowgroup]
+        self.analyzer._flowgroup_file_paths["gold_fg"] = yaml_path
+
+        with patch(
+            "lhp.utils.sql_parser.extract_tables_from_sql",
+            return_value=["silver.customers"],
+        ):
+            graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
+
+        action_id = "gold_fg.action"
+        assert action_id in graphs.action_graph.nodes
+        external_sources = graphs.action_graph.nodes[action_id].get(
+            "external_sources", []
+        )
+        assert "silver.customers" in external_sources
+
+    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    def test_extract_sql_sources_raises_lhperror_on_missing_write_target_sql_path(
+        self, mockget_flowgroups
+    ):
+        """Missing write_target.sql_path must raise LHPError(IO, 002) with full context."""
+        action = self._make_action(
+            write_target={"type": "materialized_view", "sql_path": "nonexistent.sql"}
+        )
+        flowgroup = Mock(spec=FlowGroup)
+        flowgroup.flowgroup = "gold_fg"
+        flowgroup.pipeline = "p"
+        flowgroup.actions = [action]
+        mockget_flowgroups.return_value = [flowgroup]
+        self.analyzer._flowgroup_file_paths["gold_fg"] = self.temp_dir / "mv.yaml"
+
+        with pytest.raises(LHPError) as exc_info:
+            self.analyzer.build_graphs(self.analyzer.get_flowgroups())
+
+        err = exc_info.value
+        assert "LHP-IO-002" in err.code
+        assert "SQL file not found" in err.title
+        # Context must carry enough to locate the failure.
+        assert err.context["Action"] == "action"
+        assert err.context["Flowgroup"] == "gold_fg"
+        assert err.context["SQL Path"] == "nonexistent.sql"
+        assert "Full Path" in err.context
+
+    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    def test_extract_python_sources_reads_write_target_module_path_e2e(
+        self, mockget_flowgroups
+    ):
+        """Custom-sink Python in write_target.module_path should be parsed."""
+        yaml_path = self.temp_dir / "pipelines" / "sink.yaml"
+        yaml_path.parent.mkdir(parents=True, exist_ok=True)
+        py_file = yaml_path.parent / "sinks" / "custom.py"
+        py_file.parent.mkdir(parents=True, exist_ok=True)
+        py_file.write_text('spark.table("aux.lookup_table")')
+
+        action = self._make_action(
+            write_target={"type": "custom", "module_path": "sinks/custom.py"}
+        )
+        flowgroup = Mock(spec=FlowGroup)
+        flowgroup.flowgroup = "sink_fg"
+        flowgroup.pipeline = "p"
+        flowgroup.actions = [action]
+        mockget_flowgroups.return_value = [flowgroup]
+        self.analyzer._flowgroup_file_paths["sink_fg"] = yaml_path
+
+        graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
+
+        action_id = "sink_fg.action"
+        external_sources = graphs.action_graph.nodes[action_id].get(
+            "external_sources", []
+        )
+        assert "aux.lookup_table" in external_sources
+
+    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    def test_extract_python_sources_raises_lhperror_on_missing_module_path(
+        self, mockget_flowgroups
+    ):
+        action = self._make_action(
+            write_target={"type": "custom", "module_path": "nonexistent.py"}
+        )
+        flowgroup = Mock(spec=FlowGroup)
+        flowgroup.flowgroup = "sink_fg"
+        flowgroup.pipeline = "p"
+        flowgroup.actions = [action]
+        mockget_flowgroups.return_value = [flowgroup]
+        self.analyzer._flowgroup_file_paths["sink_fg"] = self.temp_dir / "s.yaml"
+
+        with pytest.raises(LHPError) as exc_info:
+            self.analyzer.build_graphs(self.analyzer.get_flowgroups())
+
+        assert "LHP-IO-003" in exc_info.value.code
+        assert "Python file not found" in exc_info.value.title
+        assert exc_info.value.context["Module Path"] == "nonexistent.py"
+
+    def test_resolve_and_parse_file_yaml_relative_wins_over_project_root(self):
+        """When a file exists in both yaml-relative and project-root, yaml wins."""
+        yaml_path = self.temp_dir / "pipelines" / "x.yaml"
+        yaml_path.parent.mkdir(parents=True, exist_ok=True)
+        yaml_rel = yaml_path.parent / "q.sql"
+        yaml_rel.write_text("SELECT * FROM yaml_rel_source")
+        root_rel = self.temp_dir / "q.sql"
+        root_rel.write_text("SELECT * FROM root_rel_source")
+        self.analyzer._flowgroup_file_paths["fg"] = yaml_path
+
+        captured = []
+
+        def fake_parser(content):
+            captured.append(content)
+            return ["dummy"]
+
+        SourceParser(
+            self.analyzer._flowgroup_file_paths, self.analyzer.project_root
+        )._resolve_and_parse_file(
+            "q.sql",
+            "fg",
+            self._make_action(name="act"),
+            fake_parser,
+            file_type_label="SQL",
+            code_number="002",
+            path_context_key="SQL Path",
+        )
+        assert captured == ["SELECT * FROM yaml_rel_source"]
+
+    def test_resolve_and_parse_file_falls_back_to_project_root(self):
+        """When the yaml-relative path doesn't exist, project-root is used."""
+        yaml_path = self.temp_dir / "pipelines" / "x.yaml"
+        yaml_path.parent.mkdir(parents=True, exist_ok=True)  # no q.sql here
+        root_rel = self.temp_dir / "q.sql"
+        root_rel.write_text("SELECT * FROM root_rel_source")
+        self.analyzer._flowgroup_file_paths["fg"] = yaml_path
+
+        captured = []
+
+        def fake_parser(content):
+            captured.append(content)
+            return ["dummy"]
+
+        SourceParser(
+            self.analyzer._flowgroup_file_paths, self.analyzer.project_root
+        )._resolve_and_parse_file(
+            "q.sql",
+            "fg",
+            self._make_action(name="act"),
+            fake_parser,
+            file_type_label="SQL",
+            code_number="002",
+            path_context_key="SQL Path",
+        )
+        assert captured == ["SELECT * FROM root_rel_source"]
+
+    def test_resolve_and_parse_file_uses_correct_file_type_label_in_error(self):
+        """Python errors should say 'Python file not found', SQL errors 'SQL file not found'."""
+        self.analyzer._flowgroup_file_paths["fg"] = self.temp_dir / "x.yaml"
+
+        with pytest.raises(LHPError) as sql_err:
+            SourceParser(
+                self.analyzer._flowgroup_file_paths, self.analyzer.project_root
+            )._resolve_and_parse_file(
+                "missing.sql",
+                "fg",
+                self._make_action(name="act"),
+                lambda c: [],
+                file_type_label="SQL",
+                code_number="002",
+                path_context_key="SQL Path",
+            )
+        assert "SQL file not found" in sql_err.value.title
+
+        with pytest.raises(LHPError) as py_err:
+            SourceParser(
+                self.analyzer._flowgroup_file_paths, self.analyzer.project_root
+            )._resolve_and_parse_file(
+                "missing.py",
+                "fg",
+                self._make_action(name="act"),
+                lambda c: [],
+                file_type_label="Python",
+                code_number="003",
+                path_context_key="Module Path",
+            )
+        assert "Python file not found" in py_err.value.title
+
+    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    def test_extract_action_sources_python_unions_parser_and_explicit(
+        self, mockget_flowgroups
+    ):
+        """Python action with batch_handler code AND explicit source: unions both."""
+        # batch_handler code that parses to ["parser.src"]; explicit source ["explicit.src"].
+        action = self._make_action(
+            source=["explicit.src"],
+            write_target={
+                "type": "foreachbatch",
+                "batch_handler": 'spark.table("parser.src")',
+            },
+        )
+        flowgroup = Mock(spec=FlowGroup)
+        flowgroup.flowgroup = "fg"
+        flowgroup.pipeline = "p"
+        flowgroup.actions = [action]
+        mockget_flowgroups.return_value = [flowgroup]
+        self.analyzer._flowgroup_file_paths["fg"] = self.temp_dir / "x.yaml"
+
+        graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
+        external_sources = set(
+            graphs.action_graph.nodes["fg.action"].get("external_sources", [])
+        )
+        assert "parser.src" in external_sources
+        assert "explicit.src" in external_sources
+
+    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    def test_extract_action_sources_sql_does_not_union_explicit(
+        self, mockget_flowgroups
+    ):
+        """SQL action: parser wins — explicit sources suppressed when SQL parser matches."""
+        yaml_path = self.temp_dir / "x.yaml"
+        sql_file = self.temp_dir / "q.sql"
+        sql_file.write_text("SELECT * FROM parser.src")
+
+        action = self._make_action(
+            source=["explicit.src"],
+            sql_path="q.sql",
+        )
+        flowgroup = Mock(spec=FlowGroup)
+        flowgroup.flowgroup = "fg"
+        flowgroup.pipeline = "p"
+        flowgroup.actions = [action]
+        mockget_flowgroups.return_value = [flowgroup]
+        self.analyzer._flowgroup_file_paths["fg"] = yaml_path
+
+        with patch(
+            "lhp.utils.sql_parser.extract_tables_from_sql",
+            return_value=["parser.src"],
+        ):
+            graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
+        external_sources = set(
+            graphs.action_graph.nodes["fg.action"].get("external_sources", [])
+        )
+        assert "parser.src" in external_sources
+        # SQL precedence: explicit is intentionally dropped.
+        assert "explicit.src" not in external_sources
+
+    @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
+    def test_sql_path_file_body_produces_internal_edge(self, mockget_flowgroups):
+        """A downstream action whose real .sql file references an upstream
+        action's view target must yield an INTERNAL edge, not an external source.
+
+        Guards the silent-empty-extraction failure mode: if the SourceParser
+        captured an empty file-path index (e.g. snapshotted at builder.__init__
+        before discovery populated it), the file body would silently parse to []
+        and no edge would form — with no test failure. This exercises the real
+        SQL parser end-to-end through the file-path index populated during build.
+        """
+        yaml_path = self.temp_dir / "pipelines" / "medallion.yaml"
+        yaml_path.parent.mkdir(parents=True, exist_ok=True)
+        sql_file = yaml_path.parent / "sql" / "gold.sql"
+        sql_file.parent.mkdir(parents=True, exist_ok=True)
+        sql_file.write_text("SELECT * FROM silver.customers")
+
+        # Upstream action produces the view target the downstream SQL reads.
+        upstream = self._make_action(
+            name="build_silver",
+            type=ActionType.TRANSFORM,
+            target="silver.customers",
+        )
+        # Downstream action's source SQL lives in a real file (sql_path).
+        downstream = self._make_action(
+            name="build_gold",
+            type=ActionType.TRANSFORM,
+            target="gold.customers",
+            sql_path="sql/gold.sql",
+        )
+
+        flowgroup = Mock(spec=FlowGroup)
+        flowgroup.flowgroup = "medallion_fg"
+        flowgroup.pipeline = "medallion_pipeline"
+        flowgroup.actions = [upstream, downstream]
+        mockget_flowgroups.return_value = [flowgroup]
+        # Populate the file-path index the way discovery would, BEFORE build().
+        self.analyzer._flowgroup_file_paths["medallion_fg"] = yaml_path
+
+        graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
+
+        upstream_id = "medallion_fg.build_silver"
+        downstream_id = "medallion_fg.build_gold"
+        # Internal edge from producer -> consumer.
+        assert graphs.action_graph.has_edge(upstream_id, downstream_id)
+        assert (
+            graphs.action_graph.edges[upstream_id, downstream_id]["dependency_type"]
+            == "internal"
+        )
+        # The file-body source resolved to a producer, so it must NOT be external.
+        external = graphs.action_graph.nodes[downstream_id].get("external_sources", [])
+        assert "silver.customers" not in external

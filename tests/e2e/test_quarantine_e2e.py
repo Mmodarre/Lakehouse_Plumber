@@ -1,10 +1,4 @@
-"""
-End-to-end tests for quarantine mode in data quality transforms.
-
-Tests the complete quarantine workflow: YAML config → lhp generate → generated
-Python code with DLQ pipeline components (clean view, DLQ sink, append flow,
-output view with UNION of clean + recycled).
-"""
+"""E2E tests for quarantine mode in data quality transforms."""
 
 import hashlib
 import os
@@ -20,11 +14,8 @@ from lhp.cli.main import cli
 
 @pytest.mark.e2e
 class TestQuarantineE2E:
-    """E2E tests for quarantine mode data quality transforms."""
-
     @pytest.fixture(autouse=True)
     def setup_test_project(self, isolated_project):
-        """Create isolated copy of fixture project for each test."""
         fixture_path = Path(__file__).parent / "fixtures" / "testing_project"
         self.project_root = isolated_project / "test_project"
         shutil.copytree(fixture_path, self.project_root)
@@ -41,7 +32,6 @@ class TestQuarantineE2E:
         os.chdir(self.original_cwd)
 
     def _init_bundle_project(self):
-        """Wipe and recreate working directories."""
         if self.generated_dir.exists():
             shutil.rmtree(self.generated_dir)
         self.generated_dir.mkdir(parents=True, exist_ok=True)
@@ -50,12 +40,8 @@ class TestQuarantineE2E:
             shutil.rmtree(self.resources_dir)
         self.resources_dir.mkdir(parents=True, exist_ok=True)
 
-    # ========================================================================
-    # HELPER METHODS
-    # ========================================================================
-
     def run_generate(self) -> tuple:
-        """Run 'lhp generate --env dev --force'. Returns (exit_code, output)."""
+        """Run 'lhp generate --env dev'. Returns (exit_code, output)."""
         runner = CliRunner()
         result = runner.invoke(
             cli,
@@ -72,7 +58,16 @@ class TestQuarantineE2E:
     def run_validate(self) -> tuple:
         """Run 'lhp validate --env dev'. Returns (exit_code, output)."""
         runner = CliRunner()
-        result = runner.invoke(cli, ["validate", "--env", "dev"])
+        result = runner.invoke(
+            cli,
+            [
+                "validate",
+                "--env",
+                "dev",
+                "--pipeline-config",
+                "config/pipeline_config.yaml",
+            ],
+        )
         return result.exit_code, result.output
 
     def _compare_file_hashes(self, file1: Path, file2: Path) -> str:
@@ -88,20 +83,13 @@ class TestQuarantineE2E:
             )
         return ""
 
-    # ========================================================================
-    # TEST CASES
-    # ========================================================================
-
     def test_quarantine_non_cloudfiles_generation(self):
-        """Verify quarantine non-CloudFiles generates expected output matching baseline."""
         exit_code, output = self.run_generate()
         assert exit_code == 0, f"Generation failed: {output}"
 
-        # Verify the quarantine file was generated
         generated_file = self.generated_dir / "acmi_edw_bronze" / "quarantine_flow.py"
         assert generated_file.exists(), "quarantine_flow.py should be generated"
 
-        # Compare with baseline
         baseline_file = (
             self.project_root
             / "generated_baseline"
@@ -115,7 +103,6 @@ class TestQuarantineE2E:
         assert hash_diff == "", f"Baseline mismatch: {hash_diff}"
 
     def test_quarantine_generated_code_structure(self):
-        """Verify quarantine output has all required DLQ pipeline components."""
         exit_code, output = self.run_generate()
         assert exit_code == 0, f"Generation failed: {output}"
 
@@ -190,19 +177,16 @@ class TestQuarantineE2E:
         assert "# --- Validated output (clean + recycled) ---" in code
 
     def test_quarantine_validate_passes(self):
-        """Verify 'lhp validate' passes on valid quarantine config."""
         exit_code, output = self.run_validate()
         assert exit_code == 0, f"Validation failed: {output}"
 
     def test_quarantine_validate_fails_missing_block(self):
-        """Verify validation fails when mode=quarantine but quarantine block missing."""
         # Modify the quarantine flowgroup to remove the quarantine block
         flowgroup_file = (
             self.project_root / "pipelines" / "02_bronze" / "quarantine_flow.yaml"
         )
         content = yaml.safe_load(flowgroup_file.read_text())
 
-        # Find the DQ action and remove quarantine block
         for action in content["actions"]:
             if action.get("mode") == "quarantine":
                 del action["quarantine"]
@@ -212,24 +196,21 @@ class TestQuarantineE2E:
 
         exit_code, output = self.run_validate()
         assert exit_code != 0, "Validation should fail without quarantine block"
-        assert (
-            "quarantine" in output.lower()
-        ), f"Error should mention quarantine: {output}"
+        assert "quarantine" in output.lower(), (
+            f"Error should mention quarantine: {output}"
+        )
 
     def test_quarantine_runtime_rescued_data_detection(self):
-        """Verify quarantine generates runtime _rescued_data detection (both branches)."""
         exit_code, output = self.run_generate()
         assert exit_code == 0, f"Generation failed: {output}"
 
         generated_file = self.generated_dir / "acmi_edw_bronze" / "quarantine_flow.py"
         code = generated_file.read_text()
 
-        # Runtime if/else for _rescued_data with native Spark functions
         assert 'if "_rescued_data" in batch_df.columns:' in code
         assert "variant_cols" in code
         assert "map_zip_with" in code
         assert "map_filter" in code
 
-        # Both branches present
         assert "_dlq_rescued_data" in code
         assert 'F.lit(None).cast("string")' in code

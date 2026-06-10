@@ -5,7 +5,8 @@ description: "Performance testing project - 4000 flowgroups across 5 pipelines a
 author: "Performance Testing"
 created_date: "2026-04-08"
 required_lhp_version: ">=0.5.0,<0.10.0"
-
+wheel:
+  artifact_volume: "/Volumes/perf_test_wheels/a/b/c"
 # Use include patterns to select subsets for targeted testing
 # Uncomment specific patterns to test with smaller subsets:
 

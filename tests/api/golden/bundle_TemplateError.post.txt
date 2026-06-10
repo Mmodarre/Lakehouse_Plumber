@@ -1,0 +1,19 @@
+╭─ LHP-CFG-024   Configuration Error ──────────────────────────────────────────╮
+│                                                                              │
+│  Bundle template error during test_op                                        │
+│                                                                              │
+│  template fetch failed                                                       │
+│                                                                              │
+│  Context                                                                     │
+│    Operation: test_op                                                        │
+│    Original Error: RuntimeError                                              │
+│                                                                              │
+│  Suggestions                                                                 │
+│    -> Check your internet connection if downloading templates                │
+│    -> Verify the template path or URL is correct                             │
+│    -> Try running the command again                                          │
+│                                                                              │
+│  More info:                                                                  │
+│  https://lakehouse-plumber.readthedocs.io/en/latest/errors_reference.html    │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯

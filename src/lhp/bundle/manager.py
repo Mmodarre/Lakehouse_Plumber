@@ -1,20 +1,19 @@
-"""
-Bundle manager for LHP Databricks Asset Bundle integration.
-
-This module provides the main BundleManager class that coordinates bundle
-resource operations including resource file synchronization and management.
-"""
+# JUSTIFIED: bundle-manager state-machine + resource-file sync +
+# Databricks-CLI delegation form one cohesive runtime; splitting
+# requires a typed event bus to maintain manager-state invariants.
+# TODO(Phase 9.5): decompose into BundleStateMachine + ResourceFileSyncer + DatabricksCliAdapter
 
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from ..core.services.monitoring_pipeline_builder import (
+from ..core.codegen.template_renderer import TemplateRenderer
+from ..core.coordination.monitoring_pipeline_builder import (
     resolve_monitoring_pipeline_name,
 )
-from ..utils.error_formatter import ErrorCategory, LHPConfigError, LHPError
+from ..core.packaging import wheel_reader
+from ..errors import ErrorFactory, LHPError, codes
 from ..utils.performance_timer import perf_timer, record_count
-from ..utils.template_renderer import TemplateRenderer
 from .exceptions import BundleResourceError
 
 logger = logging.getLogger(__name__)
@@ -58,27 +57,21 @@ class BundleManager:
     via the top-level ``project_defaults`` block).
     """
 
+    # Subdirectories under ``generated/<env>/`` that LHP reserves for its own
+    # use and that must NOT be treated as pipeline directories. Currently just
+    # the wheel-packaging staging dir (``generated/<env>/_wheels/<pipeline>/``).
+    # A set so future reserved names are trivial to add.
+    _RESERVED_GENERATED_SUBDIRS = {"_wheels"}
+
     def __init__(
         self,
         project_root: Union[Path, str],
         pipeline_config_path: Optional[str] = None,
         project_config: Optional[Any] = None,
     ):
-        """
-        Initialize the bundle manager.
-
-        Args:
-            project_root: Path to the project root directory
-            pipeline_config_path: Optional path to custom pipeline config file (relative to project_root)
-            project_config: Optional ProjectConfig with project-level settings (e.g., event_log)
-
-        Raises:
-            TypeError: If project_root is None
-        """
         if project_root is None:
-            raise LHPConfigError(
-                category=ErrorCategory.CONFIG,
-                code_number="028",
+            raise ErrorFactory.config_error(
+                codes.CFG_028,
                 title="BundleManager requires a project root",
                 details="project_root cannot be None when initializing BundleManager.",
                 suggestions=[
@@ -87,7 +80,6 @@ class BundleManager:
                 ],
             )
 
-        # Convert string to Path if necessary
         if isinstance(project_root, str):
             project_root = Path(project_root)
 
@@ -98,7 +90,7 @@ class BundleManager:
 
         self.template_renderer = TemplateRenderer.from_package()
 
-        from ..core.services.pipeline_config_loader import PipelineConfigLoader
+        from ..core.loaders.pipeline_config_loader import PipelineConfigLoader
 
         self.config_loader = PipelineConfigLoader(
             self.project_root,
@@ -117,7 +109,7 @@ class BundleManager:
 
         substitution_file = self.project_root / "substitutions" / f"{env}.yaml"
         if substitution_file.exists():
-            from ..utils.substitution import EnhancedSubstitutionManager
+            from ..core.processing.substitution import EnhancedSubstitutionManager
 
             sub_mgr: Optional[Any] = EnhancedSubstitutionManager(substitution_file, env)
         else:
@@ -134,23 +126,10 @@ class BundleManager:
         output_dir: Path,
         env: str,
     ) -> int:
-        """
-        Write one bundle resource file per current pipeline directory.
-
-        Wipe-and-regenerate contract: callers must clear ``resources/lhp/``
-        before invoking this method. BundleManager only writes the resource
-        files for the pipelines that exist under ``output_dir`` — it does not
-        preserve, back up, or delete any pre-existing files.
-
-        Args:
-            output_dir: Directory containing generated Python files
-            env: Environment name for template processing
-
-        Returns:
-            Number of resource files written
-
-        Raises:
-            BundleResourceError: If synchronization fails
+        """Wipe-and-regenerate contract: callers must clear ``resources/lhp/`` before
+        invoking this method. BundleManager only writes files for pipelines that
+        exist under ``output_dir`` — it does not preserve, back up, or delete
+        any pre-existing files.
         """
         self.logger.info("Syncing bundle resources for environment: %s", env)
 
@@ -169,42 +148,16 @@ class BundleManager:
         pipeline_dir: Path,
         env: str,
     ) -> bool:
-        """
-        Write a single pipeline's resource file unconditionally.
-
-        Callers are expected to have wiped ``resources/lhp/`` before invoking
-        sync, so this method always (re)creates the resource file for the
-        pipeline.
-
-        Args:
-            pipeline_name: Name of the pipeline
-            pipeline_dir: Directory containing pipeline Python files
-            env: Environment name
-
-        Returns:
-            True (a file was written)
+        """Callers are expected to have wiped ``resources/lhp/`` before invoking
+        sync, so this method always (re)creates the resource file for the pipeline.
         """
         self._create_new_resource_file(pipeline_name, pipeline_dir.parent, env)
         return True
 
     def ensure_resources_directory(self):
-        """Create resources/lhp directory if it doesn't exist."""
         self._safe_directory_create(self.resources_dir, "LHP resources directory")
 
     def get_pipeline_directories(self, output_dir: Path) -> List[Path]:
-        """
-        Get list of pipeline directories in the output directory.
-
-        Args:
-            output_dir: Directory to scan for pipeline directories
-
-        Returns:
-            List of pipeline directory paths in sorted order
-
-        Raises:
-            BundleResourceError: If directory access fails
-        """
-        # Validate directory access using utility
         self._safe_directory_access(output_dir, "output directory")
 
         try:
@@ -212,6 +165,11 @@ class BundleManager:
             # Sort directories to ensure deterministic processing order across platforms
             for item in sorted(output_dir.iterdir()):
                 if item.is_dir():
+                    if item.name in self._RESERVED_GENERATED_SUBDIRS:
+                        self.logger.debug(
+                            "Skipping reserved generated subdirectory: %s", item.name
+                        )
+                        continue
                     pipeline_dirs.append(item)
                     self.logger.debug("Found pipeline directory: %s", item.name)
 
@@ -242,15 +200,7 @@ class BundleManager:
         - pipeline_config has event_log: false → delete key, return (opt-out)
         - pipeline_config has event_log dict → return unchanged (full replace)
         - Otherwise → inject event_log block from project config
-
-        Args:
-            pipeline_config: Raw pipeline config dict (pre-substitution)
-            pipeline_name: Name of the pipeline (used for event_log name generation)
-
-        Returns:
-            Pipeline config dict, potentially with event_log injected
         """
-        # No project config or no event_log configured
         if not self.project_config or not getattr(
             self.project_config, "event_log", None
         ):
@@ -258,11 +208,9 @@ class BundleManager:
 
         event_log_cfg = self.project_config.event_log
 
-        # Project-level event_log is disabled
         if not event_log_cfg.enabled:
             return pipeline_config
 
-        # Check pipeline-level override
         if "event_log" in pipeline_config:
             pipeline_event_log = pipeline_config["event_log"]
 
@@ -282,7 +230,6 @@ class BundleManager:
                 )
                 return pipeline_config
 
-        # Inject project-level event_log
         event_log_name = (
             f"{event_log_cfg.name_prefix}{pipeline_name}{event_log_cfg.name_suffix}"
         )
@@ -344,6 +291,21 @@ class BundleManager:
         else:
             pipeline_config_resolved = pipeline_config_raw
 
+        # R8: ``packaging`` is an LHP-internal toggle consumed by the generator,
+        # never by Databricks. Strip it in BOTH modes BEFORE render — the
+        # template's pass-through loop would otherwise leak it into the resource
+        # YAML (it is not in EXPLICITLY_RENDERED_PIPELINE_CONFIG_KEYS).
+        pipeline_config_resolved.pop("packaging", None)
+
+        # Wheel mode: inject this pipeline's wheel artifact as the last
+        # ``environment.dependencies`` entry, preserving any user-declared deps
+        # (R11). Source mode is unchanged apart from the strip above.
+        packaging_mode = self.config_loader.resolve_packaging_modes([pipeline_name])[
+            pipeline_name
+        ]
+        if packaging_mode == "wheel":
+            self._inject_wheel_dependency(pipeline_config_resolved, pipeline_name, env)
+
         catalog = pipeline_config_resolved.get("catalog")
         schema = pipeline_config_resolved.get("schema")
         if (
@@ -352,9 +314,8 @@ class BundleManager:
             or not str(catalog).strip()
             or not str(schema).strip()
         ):
-            raise LHPConfigError(
-                category=ErrorCategory.GENERAL,
-                code_number="001",
+            raise ErrorFactory.general_error(
+                codes.GEN_001,
                 title="Internal error: preflight bypassed for bundle resource generation",
                 details=(
                     f"Pipeline '{pipeline_name}' reached the bundle-write phase "
@@ -389,21 +350,198 @@ class BundleManager:
             "bundle/pipeline_resource.yml.j2", context
         )
 
-    # === UTILITY METHODS ===
+    def _resolve_artifact_volume(self, env: str) -> str:
+        """Resolve and validate the project's ``wheel.artifact_volume`` for ``env``.
+
+        The raw value (``lhp.yaml`` ``wheel.artifact_volume``) is run through the
+        same per-env substitution manager that resolves ``event_log`` and every
+        other per-env value, so ``${catalog}``/``${...}`` tokens expand against
+        ``substitutions/<env>.yaml``.
+
+        This is the single ``/Volumes/...`` validation point shared by every
+        wheel-packaging consumer (the per-pipeline wheel-reference injector and
+        the bundle-level ``artifact_path`` writer): serverless installs custom
+        wheels only from a UC volume, so the *resolved* value MUST start with
+        ``/Volumes/``.
+
+        Raises:
+            LHPError: ``LHP-CFG-061`` if the project declares no
+                ``wheel.artifact_volume`` (absent/empty) OR if the resolved value
+                does not start with ``/Volumes/`` — a wheel-mode pipeline cannot
+                resolve a valid install path in either case.
+        """
+        wheel_cfg = getattr(self.project_config, "wheel", None)
+        artifact_volume_raw = getattr(wheel_cfg, "artifact_volume", None)
+        if not artifact_volume_raw or not str(artifact_volume_raw).strip():
+            raise ErrorFactory.config_error(
+                codes.CFG_061,
+                title="Wheel packaging requires a /Volumes/... artifact volume",
+                details=(
+                    "A pipeline is configured for wheel packaging but the project "
+                    "defines no 'wheel.artifact_volume' in lhp.yaml, so the wheel's "
+                    "install path cannot be resolved."
+                ),
+                suggestions=[
+                    "Add a 'wheel.artifact_volume' (a /Volumes/... path) to lhp.yaml",
+                    "Or set the pipeline's 'packaging' back to 'source'",
+                ],
+                context={"env": env},
+            )
+
+        sub_mgr = self._get_substitution_manager(env)
+        if sub_mgr is None:
+            resolved = str(artifact_volume_raw)
+        else:
+            # substitute_yaml resolves tokens recursively; wrap the scalar so it
+            # rides the exact same path as event_log (no separate string API).
+            resolved = str(sub_mgr.substitute_yaml({"v": artifact_volume_raw})["v"])
+
+        if not resolved.startswith("/Volumes/"):
+            raise ErrorFactory.config_error(
+                codes.CFG_061,
+                title="Wheel packaging requires a /Volumes/... artifact volume",
+                details=(
+                    f"The resolved 'wheel.artifact_volume' for environment "
+                    f"'{env}' is {resolved!r}, which is not a Unity Catalog volume "
+                    f"path. Serverless compute installs custom wheels only from a "
+                    f"/Volumes/... path, so wheel packaging cannot proceed."
+                ),
+                suggestions=[
+                    "Set 'wheel.artifact_volume' in lhp.yaml to a /Volumes/... path",
+                    "Verify any ${tokens} resolve to a /Volumes/... path for this env",
+                    "Or set the pipeline's 'packaging' back to 'source'",
+                ],
+                context={"env": env, "resolved_artifact_volume": resolved},
+            )
+        return resolved
+
+    def _inject_wheel_dependency(
+        self, pipeline_config: Dict[str, Any], pipeline_name: str, env: str
+    ) -> None:
+        """Append this pipeline's wheel artifact to ``environment.dependencies``.
+
+        Mutates ``pipeline_config`` in place. Handles the three shapes of
+        ``environment``: absent (create), present without ``dependencies`` (add),
+        present with a user ``dependencies`` list (append, wheel_ref last so user
+        deps are preserved — R11).
+
+        ``wheel_ref`` is a FILE-RELATIVE LOCAL path (relative to ``resources/lhp/``,
+        where ``environment.dependencies`` paths are resolved):
+        ``../../generated/<env>/_wheels/<pipeline>/dist/<wheel_filename>``. DAB
+        classifies this local reference as a prebuilt wheel, uploads it to
+        ``<artifact_path>/.internal/<wheel>``, and rewrites the dependency to the
+        uploaded location itself — so LHP emits no ``artifacts:`` block and no
+        absolute volume path. The filename is read from disk
+        (``generated/<env>/_wheels/<pipeline>/dist/*.whl``): in wheel mode the
+        on-disk name IS the content-addressed identity, so it is taken as-is rather
+        than recomputed.
+
+        Raises:
+            LHPError: ``LHP-GEN-001`` if the built wheel is not found on disk
+                (generation should have produced exactly one ``.whl``).
+        """
+        wheel_filename = self._find_wheel_filename(pipeline_name, env)
+        wheel_ref = (
+            f"../../generated/{env}/_wheels/{pipeline_name}/dist/{wheel_filename}"
+        )
+
+        environment = pipeline_config.get("environment")
+        if not isinstance(environment, dict):
+            environment = {}
+            pipeline_config["environment"] = environment
+
+        dependencies = environment.get("dependencies")
+        if not isinstance(dependencies, list):
+            dependencies = []
+        else:
+            dependencies = list(dependencies)
+        dependencies.append(wheel_ref)
+        environment["dependencies"] = dependencies
+
+        self.logger.debug(
+            f"Injected wheel dependency for pipeline '{pipeline_name}': {wheel_ref}"
+        )
+
+    def _find_wheel_filename(self, pipeline_name: str, env: str) -> str:
+        """Return the single ``.whl`` filename built for this pipeline under env.
+
+        Delegates the glob + single-match invariant to
+        ``wheel_reader.locate_pipeline_wheel`` (DRY: identical
+        ``generated/<env>/_wheels/<pipeline>/dist/*.whl`` lookup) and returns
+        only the filename, which is all the bundle dependency reference needs.
+
+        Raises:
+            LHPError: ``LHP-GEN-001`` if zero or more than one wheel is found.
+        """
+        return wheel_reader.locate_pipeline_wheel(
+            self.project_root, pipeline_name, env
+        ).name
+
+    def emit_wheels_bundle_file(self, output_dir: Path, env: str) -> None:
+        """Write the LHP-owned ``resources/lhp/_wheels.bundle.yml`` for ``env``.
+
+        Self-derives the wheel-mode pipeline list from ``output_dir`` (symmetric
+        with ``_inject_wheel_dependency`` — the API layer passes nothing extra):
+        every generated pipeline directory whose resolved packaging mode is
+        ``"wheel"``. The emitted fragment sets
+        ``targets.<env>.workspace.artifact_path`` to the resolved UC volume (so DAB
+        uploads the wheels referenced by ``environment.dependencies`` there) and
+        excludes the ``_wheels/`` staging dir from the bundle file sync. It declares
+        NO ``artifacts:`` block: each wheel reaches Databricks as a prebuilt local
+        library reference that DAB uploads and rewrites itself (R2).
+
+        No-op when there are zero wheel pipelines: nothing is written and the
+        method returns early, so source-only projects gain no bundle file.
+
+        ``${bundle.target}`` in the sync-exclude is a Databricks bundle runtime
+        variable, emitted literally — it is NOT an LHP token and is never
+        substituted here.
+
+        Raises:
+            LHPError: ``LHP-CFG-061`` (via ``_resolve_artifact_volume``) if a
+                wheel pipeline exists but the resolved ``wheel.artifact_volume``
+                is absent/empty or not a ``/Volumes/...`` path.
+        """
+        pipeline_dirs = self.get_pipeline_directories(output_dir)
+        modes = self.config_loader.resolve_packaging_modes(
+            [p.name for p in pipeline_dirs]
+        )
+        wheel_pipelines = [p.name for p in pipeline_dirs if modes[p.name] == "wheel"]
+
+        if not wheel_pipelines:
+            self.logger.debug(
+                "No wheel-mode pipelines under %s; skipping _wheels.bundle.yml",
+                output_dir,
+            )
+            return
+
+        artifact_path = self._resolve_artifact_volume(env)
+
+        context = {
+            "env": env,
+            "artifact_path": artifact_path,
+        }
+        content = self.template_renderer.render_template(
+            "bundle/wheels_bundle.yml.j2", context
+        )
+
+        self.ensure_resources_directory()
+        wheels_file = self.resources_dir / "_wheels.bundle.yml"
+        try:
+            wheels_file.write_text(content, encoding="utf-8")
+        except (OSError, PermissionError) as e:
+            raise BundleResourceError(
+                f"Failed to write wheels bundle file {wheels_file}: {e}", e
+            ) from e
+
+        self.logger.info(
+            f"Wrote wheel packaging bundle file for {len(wheel_pipelines)} "
+            f"pipeline(s): {wheels_file}"
+        )
 
     def _safe_directory_create(
         self, directory: Path, error_context: str = "directory"
     ) -> None:
-        """
-        Safely create directory with consistent error handling.
-
-        Args:
-            directory: Path to directory to create
-            error_context: Context for error messages
-
-        Raises:
-            BundleResourceError: If directory creation fails
-        """
         try:
             directory.mkdir(parents=True, exist_ok=True)
             self.logger.debug("Ensured %s exists: %s", error_context, directory)
@@ -415,16 +553,6 @@ class BundleManager:
     def _safe_directory_access(
         self, directory: Path, error_context: str = "directory"
     ) -> None:
-        """
-        Safely validate directory access with consistent error handling.
-
-        Args:
-            directory: Path to directory to validate
-            error_context: Context for error messages
-
-        Raises:
-            BundleResourceError: If directory access fails
-        """
         try:
             if not directory.exists():
                 raise BundleResourceError(
@@ -451,8 +579,6 @@ class BundleManager:
 
         return BundleResourceError(error_msg, error)
 
-    # === MAIN WORKFLOW METHODS ===
-
     def _setup_sync_environment(self, output_dir: Path) -> List[Path]:
         """Ensure resources/lhp/ exists and return the current pipeline dirs."""
         self.ensure_resources_directory()
@@ -463,19 +589,6 @@ class BundleManager:
         current_pipeline_dirs: List[Path],
         env: str,
     ) -> int:
-        """
-        Write a resource file for each current pipeline directory.
-
-        Args:
-            current_pipeline_dirs: List of pipeline directories to process
-            env: Environment name for template processing
-
-        Returns:
-            Number of resource files written
-
-        Raises:
-            BundleResourceError: If pipeline processing fails
-        """
         written_count = 0
 
         for pipeline_dir in current_pipeline_dirs:
@@ -499,12 +612,6 @@ class BundleManager:
         return written_count
 
     def _log_sync_summary(self, written_count: int) -> None:
-        """
-        Log wipe-and-regenerate sync results summary.
-
-        Args:
-            written_count: Number of resource files written
-        """
         if written_count > 0:
             self.logger.info(
                 f"Wrote {written_count} bundle resource file(s) under resources/lhp/"
@@ -515,20 +622,11 @@ class BundleManager:
             )
 
     def _create_new_resource_file(self, pipeline_name: str, output_dir: Path, env: str):
-        """
-        Create new resource file for a pipeline.
-
-        Args:
-            pipeline_name: Name of the pipeline
-            output_dir: Output directory containing generated Python files
-            env: Environment name for template context
-        """
         with perf_timer("_create_new_resource_file", category="bundle_create_resource"):
             # resources/lhp/ is already created by _setup_sync_environment for
             # the sync flow; safe to assume it exists here.
             resource_file = self.get_resource_file_path(pipeline_name)
 
-            # Generate resource file content from Python files
             content = self.generate_resource_file_content(
                 pipeline_name, output_dir, env
             )
@@ -540,4 +638,4 @@ class BundleManager:
             except (OSError, PermissionError) as e:
                 raise BundleResourceError(
                     f"Failed to create resource file {resource_file}: {e}", e
-                )
+                ) from e

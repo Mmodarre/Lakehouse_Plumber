@@ -30,7 +30,7 @@ Basic Usage
    # Create a standard project
    lhp init my_project
 
-   # Create a Databricks Asset Bundle project
+   # Create a Declarative Automation Bundle project
    lhp init my_project --bundle
 
 **Created Directory Structure:**
@@ -140,6 +140,39 @@ Regeneration behavior
    The ``lhp skill install --force`` flag is unrelated and remains active —
    it overwrites an existing skill install.
 
+Inspect a generated wheel
+-------------------------
+
+When a pipeline uses ``packaging: wheel`` (see
+:doc:`package_pipelines_as_wheels`), ``lhp generate`` emits a single
+content-addressed wheel instead of loose ``.py`` files. ``lhp inspect-wheel``
+reads that wheel and either lists its Python modules (the default) or extracts
+them with ``--extract DIR``. It is read-only and never modifies the wheel.
+
+.. code-block:: bash
+
+   # List the .py modules in a pipeline's built wheel (a pipeline name needs -e)
+   lhp inspect-wheel my_pipeline -e prod
+
+   # List by an explicit path to the .whl
+   lhp inspect-wheel generated/prod/_wheels/my_pipeline/dist/*.whl
+
+   # Extract the .py modules to a directory, preserving in-wheel structure
+   lhp inspect-wheel my_pipeline -e prod --extract /tmp/my_pipeline
+
+The ``SELECTOR`` argument is read as a **wheel path** when it ends in ``.whl`` or
+contains a path separator, and otherwise as a **pipeline name**. A pipeline name
+requires ``-e/--env`` so LHP can resolve the single hashed wheel under
+``generated/<env>/_wheels/<pipeline>/dist/``; ``--env`` is ignored when a path is
+given.
+
+**Exit codes:** ``0`` on success; ``2`` for a usage error (a pipeline name without
+``--env``, or an ``--extract`` target that is an existing file); and ``1`` for a
+wheel-level failure — the wheel is missing (``LHP-IO-022``), is not a wheel file
+(``LHP-IO-023``), or is corrupt (``LHP-IO-024``); a pipeline name matches zero or
+several wheels (``LHP-GEN-001``); or the ``--extract`` directory is not writable
+(``LHP-IO-005``).
+
 Skill Management
 ----------------
 
@@ -152,7 +185,8 @@ Subcommands
 
 .. code-block:: bash
 
-   # Install the skill into <cwd>/.claude/skills/lhp/
+   # Install the skill into <cwd>/.claude/skills/lhp/ and write the
+   # routing block into <cwd>/CLAUDE.md
    lhp skill install
 
    # Install for the current user (~/.claude/skills/lhp/)
@@ -186,6 +220,12 @@ Behavior
 - An ``.lhp_skill_version`` marker file inside the install directory tracks which
   LHP version produced the content; this file is the source of truth for
   ``status`` and ``update``.
+- A project install also writes an LHP routing block into ``<cwd>/CLAUDE.md``
+  (creating the file if absent, refreshing it on ``update``). The block tells
+  Claude Code that the directory is an LHP project, so requests phrased without
+  LHP-specific vocabulary still route to the skill. ``uninstall`` strips the
+  block again, preserving any other content you added to ``CLAUDE.md``. A
+  ``--user`` install is global and never touches a project ``CLAUDE.md``.
 
 When to use ``--user``
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -219,6 +259,18 @@ Both commands respect ``--include-tests`` for per-flowgroup processing.
 
 - **Without flag**: Test actions are skipped during per-flowgroup processing in both validation and generation
 - **With flag**: Test actions are included — validated for configuration errors and generated as temporary DLT tables
+
+.. note::
+   ``lhp validate`` shares ``lhp generate``'s bundle-preflight flags. It accepts
+   ``--no-bundle`` and ``--pipeline-config`` / ``-pc``, and on a project that
+   contains ``databricks.yml`` it likewise **requires** ``-pc`` (or
+   ``--no-bundle``) — otherwise it fails with ``LHP-CFG-023``, exactly like
+   ``generate``. ``validate`` runs the same structural and bundle catalog/schema
+   preflight checks as ``generate``, and runs cross-flowgroup conflict detection
+   on the **resolved** flowgroups (after presets, templates, and substitutions),
+   so a conflict introduced by resolution — e.g. a template that expands into
+   two ``create_table: true`` actions targeting the same table — fails
+   ``validate``, not just ``generate``. See :doc:`configure_catalog_schema`.
 
 **Examples:**
 

@@ -429,9 +429,6 @@ Blueprint-related codes. The project-wide catalog lives in
    * - ``LHP-CFG-058``
      - Config
      - ``lhp show`` called with neither ``FLOWGROUP`` nor ``--instance``.
-   * - ``LHP-IO-059``
-     - I/O
-     - Instance file path resolves outside the project root.
    * - ``LHP-VAL-061``
      - Validation
      - Conflicting instance syntax: both ``use_blueprint:`` and legacy

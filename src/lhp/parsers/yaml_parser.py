@@ -1,45 +1,44 @@
+# JUSTIFIED: YAML parse + cache + schema validation share a single
+# document-tree representation; splitting requires either deep-copy
+# at every boundary or a parser-internal mutability contract.
+
 import logging
 import threading
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar
 
+from lhp.models import ActionType, FlowGroup, Preset, Template
 
-from ..models.config import ActionType, FlowGroup, Preset, Template
-from ..utils.error_formatter import (
-    ErrorCategory,
-    ErrorFormatter,
-    LHPConfigError,
-    LHPError,
-    LHPValidationError,
-)
-from ..utils.yaml_loader import load_yaml_documents_all, load_yaml_file
+from ..errors import ErrorFactory, LHPError, codes
+from .yaml_loader import load_yaml_documents_all, load_yaml_file
 
 _CacheValueT = TypeVar("_CacheValueT")
 
 
 class YAMLParser:
-    """Parse and validate YAML configuration files."""
-
     def __init__(self):
         self.logger = logging.getLogger(__name__)
 
+    def reserve_capacity(self, n: int) -> None:
+        """No-op: a non-caching parser has no cache to size.
+
+        Present so callers can size any parser uniformly without a
+        capability check. The caching subclass overrides this.
+        """
+
     def parse_file(self, file_path: Path) -> Dict[str, Any]:
-        """Parse a single YAML file."""
         self.logger.debug(f"Parsing YAML file: {file_path}")
 
         try:
             content = load_yaml_file(file_path, error_context=f"YAML file {file_path}")
             return content or {}
         except Exception as e:
-            # Check if it's an LHPError that should be re-raised
             if isinstance(e, LHPError):
-                raise  # Re-raise LHPError as-is
-            elif isinstance(e, ValueError):
-                # For backward compatibility, convert back to generic error for non-LHPErrors
+                raise
+            if isinstance(e, ValueError):
                 if "File not found" in str(e):
-                    raise LHPConfigError(
-                        category=ErrorCategory.IO,
-                        code_number="004",
+                    raise ErrorFactory.io_error(
+                        codes.IO_004,
                         title="Error reading YAML file",
                         details=f"Error reading {file_path}: {e}",
                         suggestions=[
@@ -47,21 +46,19 @@ class YAMLParser:
                             "Ensure the file exists and is readable",
                         ],
                         context={"file": str(file_path)},
-                    )
-                raise  # Re-raise ValueError as-is for YAML errors
-            else:
-                raise LHPConfigError(
-                    category=ErrorCategory.IO,
-                    code_number="004",
-                    title="Error reading YAML file",
-                    details=f"Error reading {file_path}: {e}",
-                    suggestions=[
-                        "Check the file path is correct",
-                        "Ensure the file exists and is readable",
-                        "Verify the YAML syntax is correct",
-                    ],
-                    context={"file": str(file_path)},
-                )
+                    ) from e
+                raise
+            raise ErrorFactory.io_error(
+                codes.IO_004,
+                title="Error reading YAML file",
+                details=f"Error reading {file_path}: {e}",
+                suggestions=[
+                    "Check the file path is correct",
+                    "Ensure the file exists and is readable",
+                    "Verify the YAML syntax is correct",
+                ],
+                context={"file": str(file_path)},
+            ) from e
 
     def _validate_action_types(self, doc: Dict[str, Any], file_path: Path) -> None:
         """Pre-check ``type:`` on every action before Pydantic constructs FlowGroup.
@@ -69,7 +66,7 @@ class YAMLParser:
         Pydantic's own validation rejects unknown action types, but produces a
         generic ValidationError. Doing the check here lets us emit a friendlier
         LHP-ACT-001 with a did-you-mean suggestion sourced from
-        ``ErrorFormatter.unknown_type_with_suggestion``.
+        ``ErrorFactory.unknown_type_with_suggestion``.
 
         Args:
             doc: A single parsed YAML document (one flowgroup's worth, or an
@@ -93,7 +90,7 @@ class YAMLParser:
             if action_type is None:
                 continue  # Missing type: Pydantic enforces required field
             if action_type not in valid_values:
-                error = ErrorFormatter.unknown_type_with_suggestion(
+                error = ErrorFactory.unknown_type_with_suggestion(
                     value_type="action type",
                     provided_value=str(action_type),
                     valid_values=valid_values,
@@ -108,34 +105,21 @@ class YAMLParser:
                 raise error
 
     def parse_flowgroups_from_file(self, file_path: Path) -> List[FlowGroup]:
-        """Parse one or more FlowGroups from a YAML file.
+        """Supports both multi-document syntax (---) and flowgroups array syntax."""
+        from .yaml_loader import load_yaml_documents_all
 
-        Supports both multi-document syntax (---) and flowgroups array syntax.
+        documents = load_yaml_documents_all(
+            file_path, error_context=f"flowgroup file {file_path}"
+        )
 
-        Args:
-            file_path: Path to YAML file containing one or more flowgroups
+        return self._flowgroups_from_documents(documents, file_path)
 
-        Returns:
-            List of FlowGroup objects
-
-        Raises:
-            ValueError: For duplicate flowgroup names, mixed syntax, or parsing errors
-        """
-        from ..utils.yaml_loader import load_yaml_documents_all
-        from .blueprint_parser import BlueprintParser
-
-        try:
-            documents = load_yaml_documents_all(
-                file_path, error_context=f"flowgroup file {file_path}"
-            )
-        except ValueError:
-            # Re-raise with better context
-            raise
-
+    def _flowgroups_from_documents(
+        self, documents: List[Dict], file_path: Path
+    ) -> List[FlowGroup]:
         if not documents:
-            raise LHPConfigError(
-                category=ErrorCategory.CONFIG,
-                code_number="005",
+            raise ErrorFactory.config_error(
+                codes.CFG_005,
                 title="Empty flowgroup file",
                 details=f"No content found in {file_path}",
                 suggestions=[
@@ -145,6 +129,8 @@ class YAMLParser:
                 ],
                 context={"file": str(file_path)},
             )
+
+        from .blueprint_parser import BlueprintParser
 
         is_multi_doc = len(documents) > 1
         self.logger.debug(
@@ -157,17 +143,15 @@ class YAMLParser:
         uses_array_syntax = False
         uses_regular_syntax = False
 
-        # Process each document
-        for doc_index, doc in enumerate(documents, start=1):
+        for _doc_index, doc in enumerate(documents, start=1):
             # Defensive guard: catch a blueprint *definition* accidentally
             # placed under `include:` (pipelines/) instead of `blueprint_include:`.
             # Without this, the array-syntax path below would attempt to
             # construct a FlowGroup from a BlueprintFlowgroupSpec and crash with
             # an opaque error about missing `actions:` and unresolved %{var}.
             if BlueprintParser.looks_like_blueprint(doc):
-                raise LHPConfigError(
-                    category=ErrorCategory.CONFIG,
-                    code_number="040",
+                raise ErrorFactory.config_error(
+                    codes.CFG_040,
                     title="Blueprint file in flowgroup directory",
                     details=(
                         f"{file_path} appears to be a blueprint (has 'parameters' "
@@ -197,12 +181,9 @@ class YAMLParser:
             if "flowgroups" in doc:
                 uses_array_syntax = True
 
-                # Extract document-level shared fields
                 shared_fields = {k: v for k, v in doc.items() if k != "flowgroups"}
 
-                # Process each flowgroup in the array
                 for fg_config in doc["flowgroups"]:
-                    # Apply inheritance: only inherit if key not present in fg_config
                     inheritable_fields = [
                         "pipeline",
                         "use_template",
@@ -214,12 +195,10 @@ class YAMLParser:
                         if field not in fg_config and field in shared_fields:
                             fg_config[field] = shared_fields[field]
 
-                    # Check for duplicate flowgroup name
                     fg_name = fg_config.get("flowgroup")
                     if fg_name in seen_flowgroup_names:
-                        raise LHPValidationError(
-                            category=ErrorCategory.VALIDATION,
-                            code_number="013",
+                        raise ErrorFactory.validation_error(
+                            codes.VAL_013,
                             title=f"Duplicate flowgroup name '{fg_name}'",
                             details=f"Duplicate flowgroup name '{fg_name}' in file {file_path}. Each flowgroup must have a unique name.",
                             suggestions=[
@@ -231,26 +210,15 @@ class YAMLParser:
                     if fg_name:
                         seen_flowgroup_names.add(fg_name)
 
-                    # Pre-check action types (better error than Pydantic's generic
-                    # ValidationError; emits LHP-ACT-001 with did-you-mean).
                     self._validate_action_types(fg_config, file_path)
-
-                    # Build the flowgroup. LHPError subclasses (e.g. the pre-check
-                    # above, or LHPValidationError raised inside Pydantic validators)
-                    # already carry structured context — let them propagate as-is.
-                    # Pydantic's ValidationError also propagates and is detailed
-                    # enough for the user; no need to wrap it.
                     flowgroups.append(FlowGroup(**fg_config))
             else:
-                # Regular syntax (one flowgroup per document)
                 uses_regular_syntax = True
 
-                # Check for duplicate flowgroup name
                 fg_name = doc.get("flowgroup")
                 if fg_name in seen_flowgroup_names:
-                    raise LHPValidationError(
-                        category=ErrorCategory.VALIDATION,
-                        code_number="013",
+                    raise ErrorFactory.validation_error(
+                        codes.VAL_013,
                         title=f"Duplicate flowgroup name '{fg_name}'",
                         details=f"Duplicate flowgroup name '{fg_name}' in file {file_path}. Each flowgroup must have a unique name.",
                         suggestions=[
@@ -262,10 +230,7 @@ class YAMLParser:
                 if fg_name:
                     seen_flowgroup_names.add(fg_name)
 
-                # Pre-check action types (see array-syntax branch above).
                 self._validate_action_types(doc, file_path)
-
-                # See array-syntax branch comments above.
                 flowgroups.append(FlowGroup(**doc))
 
         self.logger.debug(
@@ -273,11 +238,9 @@ class YAMLParser:
             f" (syntax: {'array' if uses_array_syntax else 'regular'})"
         )
 
-        # Check for mixed syntax
         if uses_array_syntax and uses_regular_syntax:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="014",
+            raise ErrorFactory.validation_error(
+                codes.VAL_014,
                 title="Mixed flowgroup syntax",
                 details=f"Mixed syntax detected in {file_path}: cannot use both multi-document (---) and flowgroups array syntax in the same file.",
                 suggestions=[
@@ -290,68 +253,12 @@ class YAMLParser:
 
         return flowgroups
 
-    def parse_flowgroup(self, file_path: Path) -> FlowGroup:
-        """Parse a FlowGroup YAML file.
-
-        Note: This method only supports single-flowgroup files. If the file contains
-        multiple flowgroups (via --- separator or flowgroups array), use
-        parse_flowgroups_from_file() instead.
-        """
-        from ..utils.yaml_loader import load_yaml_documents_all
-
-        # Check if file contains multiple flowgroups
-        try:
-            documents = load_yaml_documents_all(file_path)
-        except ValueError as e:
-            # If we can't even load it, fall back to original behavior
-            self.logger.debug(
-                f"Multi-document load failed for {file_path}, falling back to single-document parse: {e}"
-            )
-            content = self.parse_file(file_path)
-            return FlowGroup(**content)
-
-        # Check for multiple documents
-        if len(documents) > 1:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="015",
-                title="Multiple documents in single-flowgroup parse",
-                details=f"File {file_path} contains multiple flowgroups (multiple documents). Use parse_flowgroups_from_file() instead.",
-                suggestions=[
-                    "Use parse_flowgroups_from_file() for multi-document YAML files",
-                    "Split into separate files if single-flowgroup parsing is needed",
-                ],
-                context={"file": str(file_path)},
-            )
-
-        # Check for array syntax
-        if documents and "flowgroups" in documents[0]:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="015",
-                title="Array syntax in single-flowgroup parse",
-                details=f"File {file_path} contains multiple flowgroups (array syntax). Use parse_flowgroups_from_file() instead.",
-                suggestions=[
-                    "Use parse_flowgroups_from_file() for array-syntax YAML files",
-                    "Split into separate files if single-flowgroup parsing is needed",
-                ],
-                context={"file": str(file_path)},
-            )
-
-        # Single flowgroup - use original parsing
-        content = self.parse_file(file_path)
-        return FlowGroup(**content)
-
     def parse_template_raw(self, file_path: Path) -> Template:
-        """Parse a Template YAML file with raw actions (no Action object creation).
-
-        This is used during template loading to avoid validation of template syntax
-        like {{ table_properties }}. Actions will be validated later during rendering
-        when actual parameter values are available.
+        """Skip Action object creation so template syntax (e.g. ``{{ table_properties }}``)
+        is not validated until rendering when actual parameter values are available.
         """
         content = self.parse_file(file_path)
 
-        # Create template with raw actions
         raw_actions = content.pop("actions", [])
         template = Template(**content, actions=raw_actions)
         template._raw_actions = True  # Set flag after creation
@@ -363,7 +270,6 @@ class YAMLParser:
         return Preset(**content)
 
     def discover_presets(self, presets_dir: Path) -> List[Preset]:
-        """Discover all Preset files."""
         self.logger.debug(f"Discovering presets in {presets_dir}")
         presets = []
         for yaml_file in presets_dir.glob("*.yaml"):
@@ -386,19 +292,21 @@ class CachingYAMLParser:
     def __init__(
         self, base_parser: Optional["YAMLParser"] = None, max_cache_size: int = 500
     ) -> None:
-        """Initialize caching parser.
-
-        Args:
-            base_parser: Underlying YAMLParser instance (creates new if None)
-            max_cache_size: Maximum number of cached entries
-        """
         self._parser: YAMLParser = base_parser or YAMLParser()
         self._cache: Dict[Tuple[str, float], List[FlowGroup]] = {}
         self._documents_cache: Dict[Tuple[str, float], List[Dict[str, Any]]] = {}
         self._max_cache_size: int = max_cache_size
         self._lock: threading.RLock = threading.RLock()
         self._hits: int = 0
-        self._misses: int = 0
+
+    def reserve_capacity(self, n: int) -> None:
+        """Grow-only size hint (``max(current, n)``): both discovery passes call
+        this with their own glob size; a monotonic max ensures neither pass
+        can shrink the ceiling mid-workload. FIFO eviction in ``_cached_load``
+        still guards against unbounded growth.
+        """
+        with self._lock:
+            self._max_cache_size = max(self._max_cache_size, n)
 
     def _cached_load(
         self,
@@ -407,11 +315,8 @@ class CachingYAMLParser:
         loader: Callable[[], _CacheValueT],
         label: str,
     ) -> _CacheValueT:
-        """Cache-shell shared by every sub-cache: mtime-keyed lookup, FIFO
-        eviction at the shared ``max_cache_size`` ceiling, hit/miss counters.
-
-        ``loader`` is the no-arg fallback invoked on cache miss (and on the
-        OSError fast-path where the key can't be computed).
+        """Mtime-keyed lookup with FIFO eviction at ``max_cache_size``.
+        ``loader`` is called on cache miss or when stat fails (OSError fast-path).
         """
         resolved_path: Path = path.resolve()
         try:
@@ -432,8 +337,6 @@ class CachingYAMLParser:
                 )
                 return cache[cache_key]
 
-            self._misses += 1
-
             if len(cache) >= self._max_cache_size:
                 # Remove ~10% of entries (FIFO approximation)
                 keys_to_remove = list(cache.keys())[: self._max_cache_size // 10]
@@ -445,22 +348,24 @@ class CachingYAMLParser:
             return result
 
     def parse_flowgroups_from_file(self, path: Path) -> List[FlowGroup]:
-        """Parse flowgroups with caching based on file mtime."""
+        """On a ``_cache`` miss, documents are obtained via ``load_documents_all``
+        so the raw read populates ``_documents_cache`` too; the instance pass then
+        hits that entry instead of re-reading the file.
+        """
         return self._cached_load(
             path,
             self._cache,
-            lambda: self._parser.parse_flowgroups_from_file(path),
+            lambda: self._parser._flowgroups_from_documents(
+                self.load_documents_all(path, error_context=f"flowgroup file {path}"),
+                path,
+            ),
             label="Flowgroup",
         )
 
     def load_documents_all(
         self, path: Path, error_context: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        """Load all YAML documents from a file with mtime-keyed caching.
-
-        Hit/miss counters are shared with the flowgroup sub-cache;
-        ``get_cache_stats()`` reports per-sub-cache sizes separately.
-        """
+        """Mtime-keyed cached load; hit/miss counters shared with the flowgroup sub-cache."""
         return self._cached_load(
             path,
             self._documents_cache,
@@ -468,43 +373,5 @@ class CachingYAMLParser:
             label="Documents",
         )
 
-    def clear_cache(self) -> None:
-        """Clear all cached entries across both sub-caches."""
-        with self._lock:
-            self._cache.clear()
-            self._documents_cache.clear()
-            self._hits = 0
-            self._misses = 0
-
-    def get_cache_stats(self) -> Dict[str, Any]:
-        """Get cache performance statistics.
-
-        Hit/miss counters are aggregated across both sub-caches (flowgroup
-        parsing and raw-document loading). Sub-cache sizes are reported
-        separately for visibility.
-
-        Returns:
-            Dictionary with cache hits, misses, hit rate, and per-sub-cache sizes
-        """
-        with self._lock:
-            total: int = self._hits + self._misses
-            hit_rate: float = (self._hits / total * 100) if total > 0 else 0
-            return {
-                "hits": self._hits,
-                "misses": self._misses,
-                "total": total,
-                "hit_rate_percent": round(hit_rate, 1),
-                "cache_size": len(self._cache),
-                "documents_cache_size": len(self._documents_cache),
-            }
-
     def __getattr__(self, name: str) -> Any:
-        """Delegate other methods to base parser.
-
-        Args:
-            name: Attribute name
-
-        Returns:
-            Attribute from base parser
-        """
         return getattr(self._parser, name)

@@ -133,6 +133,7 @@ Standard mode appends rows from one or more source views via
       - **table_properties**: Delta table properties for optimization and metadata
       - **partition_columns**: Columns to partition the table by
       - **cluster_columns**: Columns to cluster/z-order the table by
+      - **cluster_by_auto**: Boolean — enable automatic liquid clustering (Databricks selects and evolves the clustering keys). Renders ``cluster_by_auto=True``; omitted when ``false`` or unset. Mutually exclusive with ``cluster_columns``.
       - **spark_conf**: Streaming-specific Spark configuration
       - **table_schema**: DDL schema definition for the table (supports inline DDL or external file - see below)
       - **row_filter**: Row-level security filter using SQL UDF (format: "ROW FILTER function_name ON (column_names)")
@@ -287,7 +288,7 @@ Requirements:
 - All contributors must agree on the following shared fields (table-level and CDC-key semantics):
 
   - ``cdc_config``: ``keys``, ``sequence_by``, ``stored_as_scd_type`` / ``scd_type``, ``track_history_column_list``, ``track_history_except_column_list``
-  - ``write_target``: ``partition_columns``, ``cluster_columns``, ``table_properties``, ``spark_conf``, ``table_schema``, ``comment``, ``path``, ``row_filter``, ``temporary``
+  - ``write_target``: ``partition_columns``, ``cluster_columns``, ``cluster_by_auto``, ``table_properties``, ``spark_conf``, ``table_schema``, ``comment``, ``path``, ``row_filter``, ``temporary``
 
 - The following fields are **per-flow** and may differ across contributors:
 
@@ -541,6 +542,36 @@ Create file `py_functions/part_snapshot_func.py`:
 .. seealso::
   - For more information on ``create_auto_cdc_from_snapshot_flow`` see the `Databricks snapshot CDC documentation <https://docs.databricks.com/aws/en/ldp/developer/ldp-python-ref-apply-changes-from-snapshot>`_
 
+**Importing local helper modules**
+
+A snapshot ``source_function`` may import local helper modules that live alongside it. LHP
+follows those imports and copies the whole transitive closure of local helpers into
+``custom_python_functions/``, preserving sub-package structure, so the function imports
+cleanly at runtime. (The ``source_function`` file path itself is resolved relative to the
+project root.)
+
+The directory that holds your function file is the **import root** against which "local"
+is decided:
+
+- **Rule A — the import root must not itself be a package.** It may not contain an
+  ``__init__.py`` at its top level, or generation fails with ``LHP-VAL-023``; keep the
+  function file flat and put helpers in a sub-directory.
+- **Rule B — referenced helper packages are copied in full**, with their directory
+  structure preserved, so ``__init__.py`` side effects and intra-package imports keep working.
+
+Imports inside copied files are reconciled as follows:
+
+- **Absolute local imports are prefix-rewritten** — ``from helpers.dates import to_date``
+  becomes ``from custom_python_functions.helpers.dates import to_date`` (aliases preserved).
+- **Relative imports are preserved unchanged** — ``from .sibling import x`` inside a helper
+  package is copied verbatim.
+- **External and standard-library imports are left untouched.**
+- **Plain dotted imports of a local module are rejected** with ``LHP-VAL-024``
+  (use ``from helpers.dates import ...`` instead of ``import helpers.dates``).
+- A local import whose target file or package member is missing on disk fails with
+  ``LHP-VAL-025``; a syntactically broken sibling inside a copied package surfaces
+  ``LHP-IO-003`` at generate time.
+
 **The above YAML examples translate to the following PySpark code**
 
 **For table source (Option 1):**
@@ -675,7 +706,7 @@ Create file `py_functions/part_snapshot_func.py`:
   - `stored_as_scd_type` must be "1" or "2"
   - Can use either `track_history_column_list` OR `track_history_except_column_list` (mutually exclusive)
   - When using `source_function`, the Python function is embedded directly into the generated DLT code
-  - Function file paths are relative to the YAML file location
+  - Function file paths are relative to the project root
   - **Substitution support**: Python functions support ``${token}`` and ``${secret:scope/key}`` substitutions
   - **Parameters support**: Use ``parameters`` inside ``source_function`` to bind keyword arguments via ``functools.partial``. The function must use a ``*`` separator for keyword-only args. Substitution tokens in parameter values are resolved before binding.
 
@@ -818,6 +849,8 @@ Minimum example:
       - **table_properties**: Delta table properties for optimization
       - **partition_columns**: Columns to partition the view by
       - **cluster_columns**: Columns to cluster/z-order the view by
+      - **cluster_by_auto**: Boolean — enable automatic liquid clustering (Databricks selects and evolves the clustering keys). Renders ``cluster_by_auto=True``; omitted when ``false`` or unset. Mutually exclusive with ``cluster_columns``.
+      - **refresh_policy**: String — refresh strategy for the materialized view. One of ``"auto"``, ``"incremental"``, ``"incremental_strict"``, or ``"full"`` (e.g. ``"incremental"``); any other value is rejected at validation. Renders ``refresh_policy="incremental"``. Materialized-view only.
       - **table_schema**: DDL schema definition for the view (supports inline DDL or external file - see below)
       - **row_filter**: Row-level security filter using SQL UDF (format: "ROW FILTER function_name ON (column_names)")
       - **comment**: Table comment for documentation
@@ -920,6 +953,58 @@ can either read from source views or execute custom SQL queries.
 The ``refresh_schedule`` parameter is no longer supported by ``@dp.materialized_view``. If
 present in YAML configurations, it is accepted for backward compatibility but ignored during
 code generation.
+
+Automatic clustering and refresh policy
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Set ``cluster_by_auto: true`` on a write target to enable automatic liquid clustering —
+Databricks selects and evolves the clustering keys for you. It applies to both
+``materialized_view`` and ``streaming_table`` targets (all three streaming modes:
+``standard``, ``cdc``, ``snapshot_cdc``) and renders ``cluster_by_auto=True`` in the generated
+code. When ``false`` or unset, the argument is omitted entirely.
+
+On a materialized view you can also set ``refresh_policy`` to control the refresh strategy.
+It must be one of ``"auto"``, ``"incremental"``, ``"incremental_strict"``, or ``"full"`` — any
+other value is rejected at validation. It renders ``refresh_policy="incremental"`` (for example)
+and is materialized-view only.
+
+.. important::
+  ``cluster_columns`` and ``cluster_by_auto`` are mutually exclusive — setting both fails
+  validation with ``'cluster_columns' and 'cluster_by_auto' are mutually exclusive``. Databricks
+  rejects ``CLUSTER BY (cols)`` combined with ``CLUSTER BY AUTO``. Choose explicit named columns
+  (``cluster_columns``) or automatic clustering (``cluster_by_auto``), never both.
+
+.. code-block:: yaml
+  :caption: Materialized view with automatic clustering and an incremental refresh policy
+
+  actions:
+    - name: create_customer_summary_mv
+      type: write
+      write_target:
+        type: materialized_view
+        catalog: "${catalog}"
+        schema: "${gold_schema}"
+        table: customer_summary
+        sql: "SELECT customer_id, COUNT(*) AS orders FROM v_orders GROUP BY customer_id"
+        cluster_by_auto: true
+        refresh_policy: "incremental"
+      description: "Customer order summary with auto liquid clustering"
+
+.. code-block:: yaml
+  :caption: Streaming table with automatic clustering
+
+  actions:
+    - name: write_customer_bronze
+      type: write
+      source: v_customer_cleansed
+      write_target:
+        type: streaming_table
+        mode: standard
+        catalog: "${catalog}"
+        schema: "${bronze_schema}"
+        table: customer
+        cluster_by_auto: true
+      description: "Bronze customer stream with auto liquid clustering"
 
 Row-level security with row_filter
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

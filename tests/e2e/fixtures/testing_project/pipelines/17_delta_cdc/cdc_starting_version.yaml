@@ -4,6 +4,7 @@
 # .option("ignoreDeletes", "true") on a spark.readStream chain.
 pipeline: 17_delta_cdc
 flowgroup: cdc_starting_version
+#job_name: j_cdc
 
 actions:
   - name: read_customers_cdf

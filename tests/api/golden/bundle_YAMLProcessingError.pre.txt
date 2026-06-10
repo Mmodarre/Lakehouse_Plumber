@@ -1,0 +1,23 @@
+╭─ LHP-CFG-021   Configuration Error ──────────────────────────────────────────╮
+│                                                                              │
+│  Bundle YAML processing error                                                │
+│                                                                              │
+│  Failed to process YAML in 'resources/lhp/x.yml': YAML processing error in   │
+│  resources/lhp/x.yml: bad yaml (line 10)                                     │
+│  Context: line context                                                       │
+│  Original error: parse error                                                 │
+│  Context: line context                                                       │
+│                                                                              │
+│  Context                                                                     │
+│    File: resources/lhp/x.yml                                                 │
+│    Line: 10                                                                  │
+│                                                                              │
+│  Suggestions                                                                 │
+│    -> Check YAML syntax (indentation, colons, dashes)                        │
+│    -> Validate the file with a YAML linter                                   │
+│    -> Ensure the file is not corrupted or truncated                          │
+│                                                                              │
+│  More info:                                                                  │
+│  https://lakehouse-plumber.readthedocs.io/en/latest/errors_reference.html    │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯

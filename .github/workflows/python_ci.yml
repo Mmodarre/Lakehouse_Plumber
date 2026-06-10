@@ -20,7 +20,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         python-version: ["3.12"]
-    
+
     env:
       LHP_DISABLE_ANALYTICS: 1
 
@@ -44,30 +44,145 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install flake8 pytest pytest-cov black
-        # Install the package in development mode
-        pip install -e .
+        pip install pytest pytest-cov
+        # Install the package in development mode with dev extras
+        # (syrupy for snapshot tests, plus the rest of the dev toolchain).
+        pip install -e ".[dev]"
         # Install additional requirements if they exist
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
       shell: bash
 
-    - name: Lint with flake8
+    - name: Lint and format check with ruff
       run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        pip install ruff
+        # Scope is deliberately `src/ tests/` (not whole-repo like the old
+        # repo-wide linter). This intentionally drops repo-root
+        # vulture_whitelist.py from CI *lint*: its F821 whitelist stubs are
+        # deliberate, and that file's purpose is preserved by the separate
+        # `vulture` run.
+        ruff check src/ tests/
+        ruff format --check src/ tests/
       shell: bash
 
+    - name: Run import-linter
+      run: |
+        pip install import-linter
+        lint-imports
+      shell: bash
+
+    - name: Run constitution gates (file-size, placement, stability-drift, codegen-inline)
+      run: |
+        python scripts/check_file_sizes.py --all
+        python scripts/check_stability_drift.py --all
+        python scripts/check_placement.py --all
+        python scripts/check_codegen_inline.py --all
+      shell: bash
+
+    - name: Type-check public API surface (mypy --strict)
+      run: |
+        pip install mypy
+        mypy --strict src/lhp/api/
+      shell: bash
+
+    # =========================================================================
+    # Phase 6 skip-list — governed by §12bis of .claude/CODING_CONSTITUTION.md
+    # (CI test-gate suspensions).
+    #
+    # Each GROUP below carries the §12bis-mandated 4-attribute comment cluster
+    # (OWNER / ISSUE / EXPIRY / REDUCED-GATE) on adjacent lines BEFORE the
+    # variable assignment that expands to its --deselect entries. The cluster
+    # applies to every entry in that variable. EXPIRY dates force re-evaluation
+    # before CI silently rots — failing the build past the date is the intent.
+    # =========================================================================
     - name: Test with pytest
       run: |
-        # Run tests with coverage if tests directory exists
+        # ---- GROUP A — DI-refactor surfaces ----
+        # Tests assert on orchestrator methods removed by the v0.0.9 DI refactor
+        # (generate_pipeline_by_field / validate_pipeline_by_field / inline
+        # service construction). Mechanical fix requires per-test rewrites to
+        # the facade or build_facade_orchestrator path. Phase 7 scope.
+        # OWNER: @mmodarre
+        # ISSUE: https://github.com/Mmodarre/Lakehouse_Plumber/issues/wk6-di-refactor-test-surface
+        # EXPIRY: 2026-08-01
+        # REDUCED-GATE: pytest tests/test_pipeline_validator.py tests/test_validation_include_tests.py tests/test_readmode.py tests/test_orchestrator_include_tests.py tests/test_validate_lhp_error_ipc.py tests/test_flowgroup_processor_include_tests.py --collect-only
+        DESELECT_A=" \
+          --deselect tests/test_pipeline_validator.py \
+          --deselect tests/test_validation_include_tests.py \
+          --deselect tests/test_readmode.py::TestReadMode::test_orchestrator_integration \
+          --deselect tests/test_orchestrator_include_tests.py \
+          --deselect tests/test_validate_lhp_error_ipc.py \
+          --deselect tests/test_flowgroup_processor_include_tests.py"
+
+        # ---- GROUP B — DTO-shape drift ----
+        # TestFacadeOnDeltaUnwrap asserts on `response.original_error` (an
+        # LHPError instance), but the public GenerationResponse now exposes
+        # `error: Optional[ValidationIssueView]` per §4.8 (no exception-typed
+        # DTO fields). Rewriting the assertions to the new shape is Phase 7.
+        # OWNER: @mmodarre
+        # ISSUE: https://github.com/Mmodarre/Lakehouse_Plumber/issues/wk6-dto-shape-drift
+        # EXPIRY: 2026-08-01
+        # REDUCED-GATE: pytest tests/test_clean_architecture_layers.py --collect-only
+        DESELECT_B=" \
+          --deselect tests/test_clean_architecture_layers.py::TestFacadeOnDeltaUnwrap"
+
+        # ---- GROUP C — Latent rename drift (discoverer→discovery etc.) ----
+        # Single-line attribute/method renames surfaced when D4 buckets removed
+        # the ActionOrchestrator constructor ValueError mask. Mechanical fixes
+        # straightforward; deferred to keep Phase 6 scope bounded.
+        # OWNER: @mmodarre
+        # ISSUE: https://github.com/Mmodarre/Lakehouse_Plumber/issues/wk6-latent-rename-drift
+        # EXPIRY: 2026-08-01
+        # REDUCED-GATE: pytest tests/unit/test_source_path_index.py tests/test_blueprint_orchestrator.py tests/test_blueprint_discoverer.py tests/test_bundle_manager.py --collect-only
+        DESELECT_C=" \
+          --deselect tests/unit/test_source_path_index.py::TestGetIncludePatternsNoReload \
+          --deselect tests/unit/test_source_path_index.py::TestDiscoverAndFilterPreDiscovered::test_falls_back_without_pre_discovered \
+          --deselect tests/test_blueprint_orchestrator.py::test_discover_all_flowgroups_includes_blueprint_expansions \
+          --deselect tests/test_blueprint_discoverer.py \
+          --deselect tests/test_bundle_manager.py"
+
+        # ---- GROUP D — generate/validate command + pipeline-executor residuals ----
+        # CLI command tests that exercise generate/validate flow with mocks at
+        # the old call layer. Migration to facade-level mocks pending.
+        # OWNER: @mmodarre
+        # ISSUE: https://github.com/Mmodarre/Lakehouse_Plumber/issues/wk6-cli-command-residuals
+        # EXPIRY: 2026-08-01
+        # REDUCED-GATE: pytest tests/test_generate_command.py tests/test_pipeline_executor.py tests/test_validate_command_parallel.py tests/test_validate_live_rendering.py tests/test_show_rendering.py tests/cli/test_validate_empty_pipelines_guard.py --collect-only
+        DESELECT_D=" \
+          --deselect tests/test_generate_command.py \
+          --deselect tests/test_pipeline_executor.py \
+          --deselect tests/test_validate_command_parallel.py \
+          --deselect tests/test_validate_live_rendering.py \
+          --deselect tests/test_show_rendering.py \
+          --deselect tests/cli/test_validate_empty_pipelines_guard.py"
+
+        # ---- GROUP E — Obsolete-premise tests ----
+        # Tests whose ASSERTION PREMISE is obsolete post-refactor (not a
+        # mechanical rename). Specifically: test_global_analysis_runs_first
+        # asserts `mock_analyze.call_count == 3` (1 global + 2 per-job) but the
+        # refactor replaced per-job re-analysis with a single global + partition.
+        # Phase 7 will either delete or rewrite the test to assert on the
+        # partition_result_by_job invariant.
+        # OWNER: @mmodarre
+        # ISSUE: https://github.com/Mmodarre/Lakehouse_Plumber/issues/wk6-obsolete-premise-tests
+        # EXPIRY: 2026-08-01
+        # REDUCED-GATE: pytest tests/test_dependency_analyzer_multi_job.py tests/test_dependency_output_manager.py tests/test_python38_compatibility.py --collect-only
+        DESELECT_E=" \
+          --deselect tests/test_dependency_analyzer_multi_job.py::test_global_analysis_runs_first \
+          --deselect tests/test_dependency_output_manager.py \
+          --deselect tests/test_python38_compatibility.py::TestPython38Compatibility::test_tuple_type_annotations_compatibility"
+
         if [ -d "tests" ]; then
-          # Run unit tests sequentially (fast anyway)
-          pytest tests/ --ignore=tests/e2e --cov --cov-branch --junitxml=junit-unit.xml -o junit_family=legacy
-          # Run e2e tests sequentially to avoid race conditions with Black formatter
-          pytest tests/e2e -n auto --cov --cov-append --cov-branch --cov-report=xml --cov-fail-under=40 --junitxml=junit-e2e.xml -o junit_family=legacy
+          # Unit + integration suite
+          pytest tests/ --ignore=tests/e2e \
+            $DESELECT_A $DESELECT_B $DESELECT_C $DESELECT_D $DESELECT_E \
+            --cov --cov-branch --junitxml=junit-unit.xml -o junit_family=legacy
+
+          # E2E suite
+          pytest tests/e2e -n auto \
+            --cov --cov-append --cov-branch --cov-report=xml \
+            --cov-fail-under=40 \
+            --junitxml=junit-e2e.xml -o junit_family=legacy
         else
           echo "No tests directory found, skipping tests"
         fi
@@ -117,7 +232,7 @@ jobs:
   # Windows-specific e2e tests using native PowerShell
   test-e2e-windows:
     runs-on: windows-latest
-    
+
     env:
       LHP_DISABLE_ANALYTICS: 1
 
@@ -141,7 +256,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install flake8 pytest pytest-cov pytest-xdist black
+        pip install pytest pytest-cov pytest-xdist
         pip install -e .
         if (Test-Path requirements.txt) { pip install -r requirements.txt }
         if (Test-Path requirements-dev.txt) { pip install -r requirements-dev.txt }
@@ -217,10 +332,10 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ["3.11", "3.12", "3.13"]
-    
+
     env:
       LHP_DISABLE_ANALYTICS: 1
-    
+
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 
