@@ -23,6 +23,16 @@ configuration contract. Existing projects generate the same pipeline code.
   tables and materialized views.
 - **Deterministic per-pipeline wheel packaging** — content-addressed wheels
   emitted alongside source-mode pipelines.
+- **`lhp inspect-wheel <selector>` command** to list the `.py` modules inside a
+  built pipeline wheel, or extract them with `--extract DIR` (preserving the
+  in-wheel structure). The selector is either a path to a `.whl` or a pipeline
+  name; the pipeline form requires `--env`/`-e`. New error codes `LHP-IO-022`
+  (wheel file not found), `LHP-IO-023` (not a wheel file), and `LHP-IO-024`
+  (corrupt wheel archive) cover the failure modes.
+- **Provisional `WheelFacade` public API** — reachable as `facade.wheel` with
+  `list_modules(...)` / `extract_modules(...)`, returning the new provisional
+  DTOs `WheelContentsView` and `WheelModuleView` (`api/views.py`) and
+  `WheelExtractionResult` (`api/responses.py`). All are `:stability: provisional`.
 - **Public typed API.** A versioned `lhp.api` surface with stability annotations
   on every public symbol, shipped with `py.typed`.
 - **Opt-in `--log-file` flag** to persist verbose logs without cluttering the
@@ -42,6 +52,11 @@ configuration contract. Existing projects generate the same pipeline code.
   were decomposed and domain errors moved into a dedicated error-code registry.
 - Documentation rewritten (Sphinx RST) with condensed per-action-sub-type AI
   skill references.
+- **Bundle wheel-locator deduplicated.** `bundle/manager._find_wheel_filename`
+  now delegates to the shared `core/packaging/wheel_reader.locate_pipeline_wheel`,
+  removing the duplicate locate logic. The `TARGET_ARCHITECTURE.md` §5bis budget
+  is amended accordingly (`wheel_reader.py ≤130`; `core/packaging/` total raised
+  ≤650 → ≤700).
 
 ### Performance
 

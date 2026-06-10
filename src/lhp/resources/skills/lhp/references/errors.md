@@ -44,6 +44,8 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | **CFG-033** | `ruff format` terminal pass exited non-zero — generated code written but not formatted; error carries ruff's exit code + stderr/stdout | Inspect ruff's output for the offending file; confirm ruff is installed and the generated tree is valid Python; re-run with `--no-format` to skip formatting and inspect the raw code |
 | **CFG-034** | `ruff` executable not found for the generated-code formatting pass (not in the active env's scripts dir or on `PATH`) | ruff ships as an LHP runtime dependency — `pip install ruff`, or reinstall LHP (`pip install lakehouse-plumber`); in isolated/custom envs ensure ruff is on `PATH` |
 | **CFG-054** | Invalid/malformed blueprint instance definition — `use_blueprint:`/`blueprint:` reference is not a single non-empty string (list, mapping, empty, or null), or the instance doc otherwise fails to parse | Set `use_blueprint: <blueprint_name>` to one non-empty string naming an existing blueprint; do not use a list/mapping/empty value (one of the instance-shape errors `CFG-047`–`058`) |
+| **CFG-060** | Malformed top-level `wheel` block in `lhp.yaml` — not a mapping, or `artifact_volume` is not a string (the `/Volumes/...` shape is checked later, see `CFG-061`) | Define `wheel:` as a mapping with an optional `artifact_volume:` set to a single string path |
+| **CFG-061** | A pipeline uses `packaging: wheel` but `wheel.artifact_volume` is missing/empty or resolves (post-substitution) to a non-`/Volumes/` path — serverless installs custom wheels only from a UC volume | Set `wheel.artifact_volume` to a `/Volumes/...` path for the env; verify `${tokens}` resolve; or set the pipeline back to `packaging: source` |
 
 ## Validation Errors (LHP-VAL)
 
@@ -57,6 +59,7 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | **VAL-010** | Both `__eventlog_monitoring` alias and real pipeline name in config | Use only one — alias or real name |
 | **VAL-011** | Multiple validation causes; commonly: eventlog alias misuse OR schema column-type syntax. See source for the specific site. | Check the error context for the specific cause |
 | **VAL-012** | Invalid source format (string where dict needed) | Provide full source config with `type`, `path`, etc. |
+| **VAL-062** | A pipeline's `packaging` value is not `source` or `wheel` (case-sensitive; e.g. `wheels`, `whl`, `Wheel`) | Use exactly `source` or `wheel` |
 | **VAL-063** | Malformed `depends_on` entry on an action — not a non-empty string, more than three dot-separated parts, or a blank dotted part | Each entry must be a well-formed table ref: `catalog.schema.table`, `schema.table`, or `table` (no blank parts) |
 | **VAL-902** | All-or-nothing aggregator — one or more flowgroups failed anywhere in a parallel `lhp generate` run (per-flowgroup validation, codegen, generated-source parse failure `LHP-CFG-031`, cross-flowgroup conflict, or copy conflict `LHP-VAL-019`); raised by the coordinator gate after all worker results are joined, before any files are written | Re-run with `--verbose` for full stack; re-run with `--log-file` to capture a debug log at `<project>/.lhp/logs/lhp.log` and attach it to the bug report; every listed failure must be fixed — the run wrote zero files |
 
@@ -66,6 +69,9 @@ Terminal output includes: error code, description, context, fix suggestions, and
 |------|---------|-----|
 | **IO-001** | Referenced file not found | Check path spelling; paths are relative to YAML file location |
 | **IO-003** | Wrong document count (empty file or unexpected `---`) | Schema/expectations files must have exactly 1 document; `---` separators only for flowgroup files |
+| **IO-022** | `lhp inspect-wheel` given a wheel *path* that does not exist (path-mode only; a pipeline-name selector reports a missing build as `GEN-001`) | Check the `.whl` path; run `lhp generate` to build it first; or inspect by pipeline name with `-e <env>` |
+| **IO-023** | `lhp inspect-wheel` path is not a usable `.whl` file — a directory, or a file without the `.whl` suffix | Name the built `.whl` under `generated/<env>/_wheels/<pipeline>/dist/`, not a directory or other file; or inspect by pipeline name |
+| **IO-024** | `lhp inspect-wheel` target ends in `.whl` but is not a valid zip archive (truncated/corrupt) | Rebuild with `lhp generate`; LHP wheels are deterministic, so a clean rebuild reproduces it |
 
 ## Action Errors (LHP-ACT)
 

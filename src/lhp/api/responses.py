@@ -276,6 +276,31 @@ class DependencyOutputsResult:
 
 
 @dataclass(frozen=True)
+class WheelExtractionResult:
+    """Outcome of extracting the modules from a built wheel to disk.
+
+    A one-shot result DTO (§1.3) returned by the wheel-extraction
+    operation. Deliberately departs from
+    :class:`DependencyOutputsResult`'s shape: that DTO carries
+    ``success`` / ``error_message`` / ``error_code`` and reports
+    failure via ``success=False``. Wheel extraction instead *raises*
+    (the wheel reader raises :class:`~lhp.errors.LHPError` on failure)
+    and only ever constructs this result on success, so the same
+    ``success`` / ``error_*`` fields would be permanently
+    ``True`` / ``None`` / ``None`` — dead state — and are omitted by
+    convention. ``written_paths`` enumerates every file written under
+    ``output_dir``; ``written_count`` mirrors its length.
+
+    :stability: provisional
+    """
+
+    wheel_path: Path
+    output_dir: Path
+    written_paths: Tuple[Path, ...]
+    written_count: int
+
+
+@dataclass(frozen=True)
 class BundleSyncResult:
     """Outcome of a bundle resource sync run.
 

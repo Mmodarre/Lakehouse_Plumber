@@ -13,6 +13,27 @@ per pipeline; the generated pipeline logic is byte-identical to source mode.
 
 .. versionadded:: 0.9.0
 
+When to use wheel packaging
+---------------------------
+
+Wheel packaging is aimed at **large projects**. As a rule of thumb, reach for it
+once a project generates on the order of **5,000 or more** Python files: at that
+scale the per-file write phase of ``lhp generate`` and the file-by-file upload of
+``databricks bundle deploy`` both grow long, and collapsing each pipeline to one
+uploaded artifact plus a one-line runner is where that time is recovered. Below
+that scale the saving is marginal and source mode is simpler to operate.
+
+LHP recommends keeping **dev and test in source mode**, even when production runs
+on wheels. Source mode writes the generated logic as clear-text ``.py`` files you
+can open, read, and edit in place in the workspace for a quick iteration — a
+workflow that is central to developing with LHP and that a wheel, which must be
+rebuilt and reinstalled to change, cannot offer. Because the packaging toggle is
+per environment (see `Turn on wheel packaging`_), a pipeline can be ``source`` in
+dev and ``wheel`` in prod with no change to its logic. To read the code a
+wheel-mode build actually produced, ``lhp inspect-wheel`` lists or extracts its
+modules (see `Inspect a built wheel`_) — read-only inspection, not the in-place
+edit loop source mode gives you.
+
 Requirements
 ------------
 
@@ -131,11 +152,10 @@ the bundle:
    references only the import-package name, so it is stable across content changes.
 
 ``generated/<env>/_wheels/<pipeline>/dist/lhp_<pipeline>_<env>_<hash>-<lhp-version>-py3-none-any.whl``
-   The built wheel. Its distribution name carries an ``lhp_`` brand prefix that
-   marks it as LHP-generated, and its version is a normalized tool version (for
-   example ``0.9.0``). It is gitignored and excluded from the bundle file sync, and
-   reaches the workspace only when Declarative Automation Bundles uploads it on
-   deploy. It contains the pipeline's flowgroup package, the
+   The built wheel; its filename encodes the pipeline's identity and content (see
+   `How wheels are named and versioned`_). It is gitignored and excluded from the
+   bundle file sync, and reaches the workspace only when Declarative Automation
+   Bundles uploads it on deploy. It contains the pipeline's flowgroup package, the
    ``custom_python_functions`` package as a top-level import root, and any generated
    test or quality and reporting modules.
 
@@ -162,10 +182,85 @@ the bundle:
    upload time, per-user development-mode isolation works without any further
    configuration.
 
-The wheel is deterministic and content-addressed: its filename is a function of
-the packaged ``.py`` bytes and the environment, so an unchanged pipeline produces
-an identical filename and deploys as a no-op. ``lhp validate``, ``lhp show``, and
-dependency analysis operate on YAML and are unaffected by the packaging mode.
+How wheels are named and versioned
+----------------------------------
+
+The wheel is deterministic and content-addressed, and its filename encodes the
+pipeline's identity — so reading the filename tells you what changed between
+builds:
+
+``lhp_<pipeline>_<env>_<hash>-<lhp-version>-py3-none-any.whl``
+
+``lhp_``
+   A fixed brand prefix that marks the distribution as LHP-generated. It appears
+   in the distribution name only; the package imported *inside* the wheel keeps a
+   separate, sanitized name derived from the pipeline name.
+
+``<pipeline>`` and ``<env>``
+   The pipeline name and target environment, so the same pipeline produces a
+   distinct wheel per environment.
+
+``<hash>``
+   A content hash: the first 12 hexadecimal characters of a SHA-256 digest taken
+   over the packaged ``.py`` members — each member's path and its exact bytes. It
+   covers generated code only. An unchanged pipeline therefore hashes to the same
+   value and rebuilds a byte-identical wheel with an identical filename, so its
+   deploy is a no-op; any change to the generated logic changes the hash, and with
+   it the filename.
+
+``<lhp-version>``
+   The version of LHP that built the wheel (for example ``0.9.0``), normalized to
+   a PEP 440 public version. The wheel has no version of its own — it is stamped
+   with the tool version for traceability. One consequence, an LHP upgrade
+   re-stamping every wheel, is covered under `Limitations`_ below.
+
+The same commit regenerates an identical wheel on any machine, so rollback is a
+redeploy of a prior commit. ``lhp validate`` and dependency analysis operate on
+YAML and are unaffected by the packaging mode.
+
+Inspect a built wheel
+---------------------
+
+Wheel mode leaves no loose ``.py`` files on disk, so to see what code a build
+packaged, use ``lhp inspect-wheel``. It reads a built wheel and either lists its
+Python modules (the default) or extracts them with ``--extract``; it never
+modifies the wheel.
+
+Identify the wheel by **pipeline name** — which resolves the content-hashed
+filename for you and so requires ``--env`` — or by an explicit **path** to the
+``.whl``:
+
+.. code-block:: bash
+
+   # List the .py modules in a pipeline's built wheel (resolves the hashed name)
+   lhp inspect-wheel large_ingest_a --env prod
+
+   # List by explicit path (the shell glob expands to the single wheel)
+   lhp inspect-wheel generated/prod/_wheels/large_ingest_a/dist/*.whl
+
+The listing has one row per packaged module — its in-wheel path and uncompressed
+size — covering the flowgroup package, the ``custom_python_functions`` import
+root, and any generated test or quality modules. The ``.dist-info`` metadata is
+not listed.
+
+To read or diff the generated code in an editor, extract the modules with
+``--extract``. LHP writes only the ``.py`` members, preserves their in-wheel
+directory structure, and creates the target directory if it is missing:
+
+.. code-block:: bash
+
+   lhp inspect-wheel large_ingest_a --env prod --extract /tmp/large_ingest_a
+
+Extraction is for inspection only: editing the extracted files does not change
+the deployed wheel, which is rebuilt from your YAML on the next ``lhp generate``.
+
+A selector that ends in ``.whl`` or contains a path separator is read as a path;
+anything else is a pipeline name (``--env`` is ignored in path mode). The command
+exits non-zero when the wheel is missing (:ref:`LHP-IO-022 <lhp-io-022>`), is not
+a wheel file (:ref:`LHP-IO-023 <lhp-io-023>`), or is corrupt
+(:ref:`LHP-IO-024 <lhp-io-024>`); when a pipeline name resolves to zero or several
+wheels (``LHP-GEN-001``); or when a pipeline name is given without ``--env`` (a
+usage error). See :doc:`cli` for the full command syntax.
 
 Limitations
 -----------
@@ -215,5 +310,6 @@ Related articles
 * :doc:`cicd` — Promote the same commit across environments; rollback is a redeploy
   of a prior commit, which regenerates an identical wheel.
 * :doc:`bundle_config_reference` — Full bundle and pipeline configuration schema.
-* :doc:`errors_reference` — ``LHP-VAL-062``, ``LHP-CFG-060``, and ``LHP-CFG-061``
-  in context.
+* :doc:`errors_reference` — :ref:`LHP-VAL-062 <lhp-val-062>`,
+  :ref:`LHP-CFG-060 <lhp-cfg-060>`, and :ref:`LHP-CFG-061 <lhp-cfg-061>` in
+  context.

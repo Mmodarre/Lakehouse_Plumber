@@ -48,6 +48,7 @@ from lhp.api.facade import (
     InspectionFacade,
     LakehousePlumberApplicationFacade,
     ValidationFacade,
+    WheelFacade,
 )
 from lhp.api.responses import (
     BatchGenerationResponse,
@@ -65,6 +66,7 @@ from lhp.api.responses import (
     PlannedFileView,
     StatsResult,
     ValidationResponse,
+    WheelExtractionResult,
 )
 from lhp.api.views import (
     ActionView,
@@ -81,6 +83,8 @@ from lhp.api.views import (
     TemplateParameterView,
     TemplateView,
     ValidationIssueView,
+    WheelContentsView,
+    WheelModuleView,
 )
 from lhp.bundle.detection import should_enable_bundle_support
 
@@ -186,6 +190,10 @@ __all__: list[str] = [
     "ValidationIssueView",
     "ValidationResponse",
     "WarningEmitted",
+    "WheelContentsView",
+    "WheelExtractionResult",
+    "WheelFacade",
+    "WheelModuleView",
     "collect_response",
     "should_enable_bundle_support",
     "to_dict",

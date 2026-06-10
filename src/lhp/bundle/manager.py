@@ -11,6 +11,7 @@ from ..core.codegen.template_renderer import TemplateRenderer
 from ..core.coordination.monitoring_pipeline_builder import (
     resolve_monitoring_pipeline_name,
 )
+from ..core.packaging import wheel_reader
 from ..errors import ErrorFactory, LHPError, codes
 from ..utils.performance_timer import perf_timer, record_count
 from .exceptions import BundleResourceError
@@ -464,38 +465,17 @@ class BundleManager:
     def _find_wheel_filename(self, pipeline_name: str, env: str) -> str:
         """Return the single ``.whl`` filename built for this pipeline under env.
 
-        Globs ``generated/<env>/_wheels/<pipeline>/dist/*.whl`` and requires
-        exactly one match.
+        Delegates the glob + single-match invariant to
+        ``wheel_reader.locate_pipeline_wheel`` (DRY: identical
+        ``generated/<env>/_wheels/<pipeline>/dist/*.whl`` lookup) and returns
+        only the filename, which is all the bundle dependency reference needs.
 
         Raises:
             LHPError: ``LHP-GEN-001`` if zero or more than one wheel is found.
         """
-        dist_dir = (
-            self.project_root / "generated" / env / "_wheels" / pipeline_name / "dist"
-        )
-        matches = sorted(dist_dir.glob("*.whl"))
-        if len(matches) != 1:
-            raise ErrorFactory.general_error(
-                codes.GEN_001,
-                title="Wheel artifact not found for wheel-mode pipeline",
-                details=(
-                    f"Pipeline '{pipeline_name}' is configured for wheel packaging "
-                    f"but {len(matches)} wheel file(s) were found under "
-                    f"{dist_dir} (expected exactly one). Generation should have "
-                    f"built the wheel before the bundle-write phase."
-                ),
-                suggestions=[
-                    "Run 'lhp generate' so the wheel is built before bundle sync",
-                    "Verify the pipeline's wheel build did not fail",
-                ],
-                context={
-                    "pipeline": pipeline_name,
-                    "env": env,
-                    "dist_dir": str(dist_dir),
-                    "matches": [m.name for m in matches],
-                },
-            )
-        return matches[0].name
+        return wheel_reader.locate_pipeline_wheel(
+            self.project_root, pipeline_name, env
+        ).name
 
     def emit_wheels_bundle_file(self, output_dir: Path, env: str) -> None:
         """Write the LHP-owned ``resources/lhp/_wheels.bundle.yml`` for ``env``.

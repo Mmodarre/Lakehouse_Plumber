@@ -15,12 +15,20 @@ from .identity import (
     wheel_filename,
 )
 from .packager import PipelinePackager, WheelPackageResult
+from .wheel_reader import (
+    extract_wheel_py_modules,
+    list_wheel_py_modules,
+    locate_pipeline_wheel,
+)
 
 __all__ = [
     "PipelinePackager",
     "WheelPackageResult",
     "content_hash",
     "distribution_name",
+    "extract_wheel_py_modules",
     "import_package_name",
+    "list_wheel_py_modules",
+    "locate_pipeline_wheel",
     "wheel_filename",
 ]

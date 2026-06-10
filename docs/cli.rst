@@ -30,7 +30,7 @@ Basic Usage
    # Create a standard project
    lhp init my_project
 
-   # Create a Databricks Asset Bundle project
+   # Create a Declarative Automation Bundle project
    lhp init my_project --bundle
 
 **Created Directory Structure:**
@@ -139,6 +139,39 @@ Regeneration behavior
 .. note::
    The ``lhp skill install --force`` flag is unrelated and remains active —
    it overwrites an existing skill install.
+
+Inspect a generated wheel
+-------------------------
+
+When a pipeline uses ``packaging: wheel`` (see
+:doc:`package_pipelines_as_wheels`), ``lhp generate`` emits a single
+content-addressed wheel instead of loose ``.py`` files. ``lhp inspect-wheel``
+reads that wheel and either lists its Python modules (the default) or extracts
+them with ``--extract DIR``. It is read-only and never modifies the wheel.
+
+.. code-block:: bash
+
+   # List the .py modules in a pipeline's built wheel (a pipeline name needs -e)
+   lhp inspect-wheel my_pipeline -e prod
+
+   # List by an explicit path to the .whl
+   lhp inspect-wheel generated/prod/_wheels/my_pipeline/dist/*.whl
+
+   # Extract the .py modules to a directory, preserving in-wheel structure
+   lhp inspect-wheel my_pipeline -e prod --extract /tmp/my_pipeline
+
+The ``SELECTOR`` argument is read as a **wheel path** when it ends in ``.whl`` or
+contains a path separator, and otherwise as a **pipeline name**. A pipeline name
+requires ``-e/--env`` so LHP can resolve the single hashed wheel under
+``generated/<env>/_wheels/<pipeline>/dist/``; ``--env`` is ignored when a path is
+given.
+
+**Exit codes:** ``0`` on success; ``2`` for a usage error (a pipeline name without
+``--env``, or an ``--extract`` target that is an existing file); and ``1`` for a
+wheel-level failure — the wheel is missing (``LHP-IO-022``), is not a wheel file
+(``LHP-IO-023``), or is corrupt (``LHP-IO-024``); a pipeline name matches zero or
+several wheels (``LHP-GEN-001``); or the ``--extract`` directory is not writable
+(``LHP-IO-005``).
 
 Skill Management
 ----------------

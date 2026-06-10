@@ -109,6 +109,38 @@ class TestWheelPackagingE2E:
         )
         return result.exit_code, result.output
 
+    def run_inspect_wheel(self, *args: str) -> tuple:
+        """Run 'lhp inspect-wheel <args>' through the same in-process CliRunner.
+
+        Reuses the exact CLI-invocation mechanism as ``run_generate_wheel`` so
+        the worktree CLI (which is the one ``lhp.cli.main:cli`` resolves to under
+        the test's ``PYTHONPATH``) is exercised in-process — no subprocess, no
+        reliance on the installed ``lhp`` binary.
+        """
+        runner = CliRunner()
+        result = runner.invoke(cli, ["inspect-wheel", *args])
+        return result.exit_code, result.output
+
+    @staticmethod
+    def _parse_listed_arcnames(output: str) -> set:
+        """Extract the listed ``.py`` module arcnames from inspect-wheel output.
+
+        The list presenter renders a non-TTY tab-separated table under the
+        deterministic test console (``force_terminal=False``): a title line, a
+        ``Module\\tSize (bytes)`` header, one ``<arcname>\\t<size>`` row per
+        module, and a ``Total modules: N`` footer. The arcname is the first
+        tab-delimited field; keeping only first-fields that end in ``.py`` drops
+        the title (no tab), the header (``Module``), and the footer naturally.
+        """
+        arcnames = set()
+        for line in output.splitlines():
+            if "\t" not in line:
+                continue
+            first = line.split("\t", 1)[0].strip()
+            if first.endswith(".py"):
+                arcnames.add(first)
+        return arcnames
+
     def _compare_file_hashes(self, file1: Path, file2: Path) -> str:
         """Compare two files by SHA-256. Returns '' if identical, error otherwise."""
 
@@ -327,4 +359,41 @@ class TestWheelPackagingE2E:
         assert not differences, (
             f"Source-mode pipeline {SOURCE_PIPELINE} drifted in a wheel-mode run: "
             f"{differences}"
+        )
+
+    def test_inspect_wheel_list_matches_extract(self, tmp_path):
+        """After generate, 'lhp inspect-wheel' list mode and --extract agree.
+
+        Exercises the consumer-side wheel reader end-to-end against the real
+        wheel built by the generate step (content-addressed, gitignored — no
+        baseline involved): the set of ``.py`` module arcnames LISTED must equal
+        the set of ``.py`` files EXTRACTED to disk (relative to the extract dir),
+        since extraction preserves the in-wheel structure (writes each member at
+        ``<extract_dir>/<arcname>``).
+        """
+        exit_code, output = self.run_generate_wheel()
+        assert exit_code == 0, f"Generation failed: {output}"
+
+        list_code, list_output = self.run_inspect_wheel(WHEEL_PIPELINE, "-e", "dev")
+        assert list_code == 0, f"inspect-wheel list failed: {list_output}"
+        listed = self._parse_listed_arcnames(list_output)
+        assert listed, (
+            f"inspect-wheel listed no .py modules; raw output:\n{list_output}"
+        )
+
+        extract_dir = tmp_path / "wheel_extract"
+        extract_code, extract_output = self.run_inspect_wheel(
+            WHEEL_PIPELINE, "-e", "dev", "--extract", str(extract_dir)
+        )
+        assert extract_code == 0, f"inspect-wheel --extract failed: {extract_output}"
+
+        extracted = {
+            p.relative_to(extract_dir).as_posix()
+            for p in extract_dir.rglob("*.py")
+            if p.is_file()
+        }
+        assert listed == extracted, (
+            "inspect-wheel listed modules differ from extracted .py files.\n"
+            f"  listed only: {sorted(listed - extracted)}\n"
+            f"  extracted only: {sorted(extracted - listed)}"
         )

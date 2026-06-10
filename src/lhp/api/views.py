@@ -340,3 +340,41 @@ class SubstitutionView:
     raw_mappings: Mapping[str, JSONValue] = field(default_factory=dict)
     secret_references: Tuple[SecretReferenceView, ...] = ()
     default_secret_scope: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class WheelModuleView:
+    """A single module entry inside a built wheel.
+
+    Frozen projection of one archive member observed while inspecting a
+    Python wheel (``.whl``). ``arcname`` is the member's path inside the
+    archive; ``size_bytes`` is its uncompressed size. Both fields are
+    flat and JSON-safe (§4.8).
+
+    :stability: provisional
+    """
+
+    arcname: str
+    size_bytes: int
+
+
+@dataclass(frozen=True)
+class WheelContentsView:
+    """Read-only view of the modules packaged inside a built wheel.
+
+    Frozen projection of the result of inspecting a Python wheel
+    (``.whl``) for a generated pipeline. Captures the source wheel path,
+    the optional ``pipeline`` / ``env`` context the wheel was built for,
+    and the enumerated module entries. ``modules`` is a frozen tuple of
+    :class:`WheelModuleView`; ``module_count`` mirrors its length for
+    callers that only need the count. No live archive handle reaches the
+    public API — only flat, JSON-shape-compatible fields (§4.8).
+
+    :stability: provisional
+    """
+
+    wheel_path: Path
+    pipeline: Optional[str]
+    env: Optional[str]
+    modules: Tuple[WheelModuleView, ...]
+    module_count: int

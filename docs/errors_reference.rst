@@ -664,6 +664,88 @@ otherwise fails to parse into a blueprint instance.
    :doc:`blueprints` for the full set of blueprint and instance file errors
    (``LHP-CFG-047``–``058``, ``LHP-VAL-041``–``061``).
 
+.. _lhp-cfg-060:
+
+LHP-CFG-060: Invalid Wheel Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** The top-level ``wheel`` block in ``lhp.yaml`` is malformed.
+The block must be a mapping, and its optional ``artifact_volume`` key, when
+present, must be a string. The ``/Volumes/...`` shape of the resolved value is
+checked separately and later — see :ref:`lhp-cfg-061`.
+
+**Common causes:**
+
+- ``wheel`` given a scalar or list instead of a mapping.
+- ``wheel.artifact_volume`` set to a non-string (for example a number or a list).
+- The ``wheel`` block otherwise fails to parse into the expected shape.
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-CFG-060)
+
+   # lhp.yaml — artifact_volume is a list, not a string
+   wheel:
+     artifact_volume:
+       - /Volumes/prod_catalog/lhp_artifacts/bundle_artifacts
+
+.. code-block:: yaml
+   :caption: After (fixed)
+
+   # lhp.yaml — wheel is a mapping; artifact_volume is a single string
+   wheel:
+     artifact_volume: /Volumes/prod_catalog/lhp_artifacts/bundle_artifacts
+
+.. seealso::
+
+   :doc:`package_pipelines_as_wheels` for the full wheel-packaging setup,
+   including the ``wheel`` block and the artifact-volume requirement.
+
+.. _lhp-cfg-061:
+
+LHP-CFG-061: Wheel Packaging Requires a ``/Volumes/...`` Artifact Volume
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** A pipeline is configured for ``packaging: wheel``, but the
+project's ``wheel.artifact_volume`` is missing, empty, or — after substitution —
+resolves to a path that does not start with ``/Volumes/``. Serverless compute
+installs custom wheels only from a Unity Catalog volume, so wheel packaging needs
+a valid ``/Volumes/...`` destination to resolve the wheel's install path.
+
+**Common causes:**
+
+- No ``wheel`` block (or no ``artifact_volume``) declared in ``lhp.yaml`` while a
+  pipeline opts into ``packaging: wheel``.
+- A ``${token}`` in ``artifact_volume`` that resolves to a non-``/Volumes/`` path
+  for the target environment.
+- ``artifact_volume`` set to an empty or whitespace-only string.
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-CFG-061)
+
+   # lhp.yaml — no artifact_volume, but a pipeline uses packaging: wheel
+   wheel:
+     artifact_volume: ""
+
+.. code-block:: yaml
+   :caption: After (fixed)
+
+   # lhp.yaml — artifact_volume resolves to a /Volumes/... path
+   wheel:
+     artifact_volume: /Volumes/${catalog}/${artifact_schema}/bundle_artifacts
+
+**How to resolve:**
+
+- Add a ``wheel.artifact_volume`` that resolves to a ``/Volumes/...`` path for
+  the environment you are generating.
+- Verify any ``${tokens}`` in the path resolve to a ``/Volumes/...`` value for
+  that environment.
+- Or set the pipeline's ``packaging`` back to ``source``.
+
+.. seealso::
+
+   :doc:`package_pipelines_as_wheels` for the artifact-volume requirement and the
+   per-environment ``packaging`` toggle.
+
 Validation Errors (LHP-VAL)
 ----------------------------
 
@@ -1005,6 +1087,40 @@ expected format for its type.
    :doc:`actions/index` for the correct source configuration format for each
    action type.
 
+.. _lhp-val-062:
+
+LHP-VAL-062: Invalid Pipeline Packaging Mode
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** A pipeline's ``packaging`` field is set to a value other than
+``source`` or ``wheel``. The toggle lives in ``pipeline_config-<env>.yaml`` (per
+pipeline or under ``project_defaults``) and accepts only those two values.
+
+**Common causes:**
+
+- A typo such as ``wheels`` or ``whl`` instead of ``wheel``.
+- A case mismatch such as ``Wheel`` or ``Source`` (the values are
+  case-sensitive).
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-VAL-062)
+
+   ---
+   pipeline: large_ingest_a
+   packaging: wheels   # not a valid mode
+
+.. code-block:: yaml
+   :caption: After (fixed)
+
+   ---
+   pipeline: large_ingest_a
+   packaging: wheel
+
+.. seealso::
+
+   :doc:`package_pipelines_as_wheels` for the ``packaging`` toggle, its
+   precedence, and the per-environment behavior.
+
 .. _lhp-val-063:
 
 LHP-VAL-063: Invalid ``depends_on`` Entry
@@ -1141,6 +1257,92 @@ has zero documents (empty file) or multiple documents separated by ``---``.
    only. Schema files, expectations files, and substitution files must contain
    exactly one document. See :doc:`multi_flowgroup_guide` for multi-document
    flowgroup syntax.
+
+.. _lhp-io-022:
+
+LHP-IO-022: Wheel File Not Found
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** ``lhp inspect-wheel`` was given a wheel **path** that does not
+exist. Only the path form raises this; a pipeline-name selector locates the wheel
+under ``generated/<env>/_wheels/<pipeline>/dist/`` and reports a missing build as
+``LHP-GEN-001`` instead.
+
+**Common causes:**
+
+- A typo in the ``.whl`` path, or a shell glob that matched nothing and was passed
+  through literally.
+- The pipeline has not been generated yet, so no wheel has been built.
+- Running from the wrong working directory, so a relative path misresolves.
+
+.. code-block:: bash
+   :caption: Before (triggers LHP-IO-022)
+
+   lhp inspect-wheel generated/dev/_wheels/orders/dist/missing.whl
+
+.. code-block:: bash
+   :caption: After (fixed) — build first, then inspect by pipeline name
+
+   lhp generate -e dev
+   lhp inspect-wheel orders -e dev
+
+.. seealso::
+
+   :doc:`package_pipelines_as_wheels` (the "Inspect a built wheel" section) and
+   :doc:`cli` for ``lhp inspect-wheel`` usage and exit codes.
+
+.. _lhp-io-023:
+
+LHP-IO-023: Not a Wheel File
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** ``lhp inspect-wheel`` was given a path that exists but is not a
+usable ``.whl`` file — it is a directory, or a file whose name does not end in
+``.whl``.
+
+**Common causes:**
+
+- Passing the pipeline's ``dist`` directory instead of the ``.whl`` inside it.
+- Pointing at the runner ``.py`` or another generated file rather than the wheel.
+- A selector that looks like a path (contains a separator) but targets the wrong
+  file.
+
+.. code-block:: bash
+   :caption: Before (triggers LHP-IO-023)
+
+   lhp inspect-wheel generated/dev/_wheels/orders/dist/
+
+.. code-block:: bash
+   :caption: After (fixed) — name the .whl, or inspect by pipeline name
+
+   lhp inspect-wheel orders -e dev
+
+.. _lhp-io-024:
+
+LHP-IO-024: Corrupt Wheel Archive
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** ``lhp inspect-wheel`` reached a file that ends in ``.whl`` but
+is not a valid zip archive, so it cannot be opened (a wheel is a zip file).
+
+**Common causes:**
+
+- A truncated or partially written wheel — for example a build interrupted
+  mid-write, or a partial copy or download.
+- The file was overwritten with non-wheel content.
+- On-disk corruption.
+
+.. code-block:: bash
+   :caption: Recovery — rebuild the wheel
+
+   lhp generate -e dev
+   lhp inspect-wheel orders -e dev
+
+.. note::
+
+   LHP-built wheels are deterministic and content-addressed, so regenerating from
+   the same YAML reproduces a byte-identical wheel. See
+   :doc:`package_pipelines_as_wheels`.
 
 Action Errors (LHP-ACT)
 ------------------------

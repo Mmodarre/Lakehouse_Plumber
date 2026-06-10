@@ -1,7 +1,7 @@
 """Application facade — single entry point for LHP runtime operations.
 
-Composes four sub-facades (generation, validation, inspection, bundle)
-that group related operations. Constructed exclusively via
+Composes five sub-facades (generation, validation, inspection, bundle,
+wheel) that group related operations. Constructed exclusively via
 :meth:`LakehousePlumberApplicationFacade.for_project`; the composition
 root lives in :mod:`lhp.core.coordination.layers`.
 
@@ -31,6 +31,7 @@ from lhp.api._progress import ProgressSink
 from lhp.api._validation_facade import (
     ValidationFacade as ValidationFacade,  # re-export (§1.10)
 )
+from lhp.api._wheel_facade import WheelFacade as WheelFacade  # re-export (§1.10)
 from lhp.api.events import LHPEvent
 
 if TYPE_CHECKING:
@@ -45,12 +46,13 @@ if TYPE_CHECKING:
 class LakehousePlumberApplicationFacade:
     """Top-level application facade.
 
-    Composes four sub-facades that group related operations:
+    Composes five sub-facades that group related operations:
 
     - ``generation`` — batch generation runs.
     - ``validation`` — config validation.
     - ``inspection`` — read-only project introspection.
     - ``bundle`` — Asset Bundle operations.
+    - ``wheel`` — built-wheel inspection / extraction.
 
     Constructed exclusively via :meth:`for_project`. The bare
     ``__init__(...)`` form is internal — external callers must route
@@ -69,6 +71,7 @@ class LakehousePlumberApplicationFacade:
         self.validation = ValidationFacade(orchestrator)
         self.inspection = InspectionFacade(orchestrator)
         self.bundle = BundleFacade(orchestrator)
+        self.wheel = WheelFacade(orchestrator)
 
     @classmethod
     def for_project(

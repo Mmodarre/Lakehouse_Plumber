@@ -42,6 +42,7 @@ COMMAND_IMPORTS: dict[str, str] = {
     "dag": "lhp.cli.commands.dag_command:dag",
     "list": "lhp.cli.commands.list_command:list_group",
     "substitutions": "lhp.cli.commands.substitutions_command:substitutions_command",
+    "inspect-wheel": "lhp.cli.commands.inspect_wheel_command:inspect_wheel_command",
     "diff": "lhp.cli.commands.diff_command:diff_command",
     "init": "lhp.cli.commands.init_command:init",
     "skill": "lhp.cli.commands.skill_command:skill",

@@ -84,6 +84,9 @@ IO_006 = ErrorCode(ErrorCategory.IO, "006")
 IO_007 = ErrorCode(ErrorCategory.IO, "007")
 IO_020 = ErrorCode(ErrorCategory.IO, "020")
 IO_021 = ErrorCode(ErrorCategory.IO, "021")
+IO_022 = ErrorCode(ErrorCategory.IO, "022")
+IO_023 = ErrorCode(ErrorCategory.IO, "023")
+IO_024 = ErrorCode(ErrorCategory.IO, "024")
 
 CFG_001 = ErrorCode(ErrorCategory.CONFIG, "001")
 CFG_002 = ErrorCode(ErrorCategory.CONFIG, "002")
@@ -208,6 +211,9 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     IO_007,
     IO_020,
     IO_021,
+    IO_022,
+    IO_023,
+    IO_024,
     CFG_001,
     CFG_002,
     CFG_003,
@@ -332,6 +338,9 @@ __all__ = [
     "IO_007",
     "IO_020",
     "IO_021",
+    "IO_022",
+    "IO_023",
+    "IO_024",
     "VAL_001",
     "VAL_002",
     "VAL_003",
