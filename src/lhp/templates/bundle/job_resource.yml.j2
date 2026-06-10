@@ -94,6 +94,12 @@ resources:
         timezone_id: {{ job_config.schedule.timezone_id }}
         pause_status: {{ job_config.schedule.pause_status }}
 {%- endif %}
+{#- Pass-through: render any job_config key not handled explicitly above.
+    Lets users specify new Databricks Jobs API fields (trigger.file_arrival,
+    continuous, run_as, git_source, health, …) without a template change. #}
+{%- for key, value in job_config.items() if key not in explicitly_rendered_keys %}
+      {{ {key: value} | toyaml | indent(6) }}
+{%- endfor %}
 
       # Additional job configuration options (add to you job_config.yaml as needed):
 

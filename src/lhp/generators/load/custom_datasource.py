@@ -4,22 +4,29 @@ import logging
 import re
 from pathlib import Path
 
-from ...core.base_generator import BaseActionGenerator
-from ...models.config import Action
-from ...utils.error_formatter import ErrorFormatter, LHPFileError, LHPValidationError
-from ...utils.error_formatter import ErrorCategory
+from lhp.core.codegen import copy_user_module_for_pipeline
+from lhp.errors import ErrorFactory
+from lhp.models import Action
+
+from ...core.loaders.external_file_loader import load_external_file_text
+from ...core.registry import BaseActionGenerator
 
 
 class CustomDataSourceLoadGenerator(BaseActionGenerator):
-    """Generate custom data source load actions with unified import management."""
+    """Generate custom data source load actions via copy-and-import.
+
+    Copies the user's PySpark ``DataSource`` source file into a
+    ``custom_python_functions/`` sibling directory of the generated pipeline
+    file, then registers the package with PySpark's *vendored* cloudpickle
+    so the class survives serialization to executors. The class is imported
+    by name and registered on the local Spark session at module load.
+    """
 
     def __init__(self):
         # Enable ImportManager for advanced import handling
         super().__init__(use_import_manager=True)
         self.add_import("from pyspark import pipelines as dp")
         self.logger = logging.getLogger(__name__)
-        self.custom_source_code = None  # Store for later appending by orchestrator
-        self.source_file_path = None  # Track source file
 
     def _extract_datasource_format_name(self, source_code: str, class_name: str) -> str:
         """Extract the format name from the DataSource class name() method."""
@@ -49,11 +56,10 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
                     f"Extracted format name '{format_name}' from {class_name}.name() method"
                 )
                 return format_name
-            else:
-                self.logger.warning(
-                    f"Could not find name() method in {class_name}, using class name as fallback"
-                )
-                return class_name  # Fallback to class name
+            self.logger.warning(
+                f"Could not find name() method in {class_name}, using class name as fallback"
+            )
+            return class_name  # Fallback to class name
 
         except (re.error, AttributeError, IndexError) as e:
             self.logger.warning(
@@ -62,11 +68,9 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
             return class_name  # Fallback to class name
 
     def generate(self, action: Action, context: dict) -> str:
-        """Generate custom data source load code with unified import management."""
-        # Extract configuration from source (following cloudfiles pattern)
         source_config = action.source
         if isinstance(source_config, str):
-            raise ErrorFormatter.invalid_source_format(
+            raise ErrorFactory.invalid_source_format(
                 action_name=action.name,
                 action_type="custom_datasource",
                 expected_formats=[
@@ -78,7 +82,6 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
             f"Generating custom datasource load for target '{action.target}', action '{action.name}'"
         )
 
-        # Process source config through substitution manager first if available
         if "substitution_manager" in context:
             source_config = context["substitution_manager"].substitute_yaml(
                 source_config
@@ -88,9 +91,8 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
         custom_datasource_class = source_config.get("custom_datasource_class")
         parameters = source_config.get("options", {})
 
-        # Validate required fields
         if not module_path:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="module_path",
                 component_type="Custom data source load action",
                 component_name=action.name,
@@ -108,7 +110,7 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
             )
 
         if not custom_datasource_class:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="custom_datasource_class",
                 component_type="Custom data source load action",
                 component_name=action.name,
@@ -125,52 +127,55 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
         endpoint: "https://api.example.com" """,
             )
 
-        # Read custom source file
+        # Read the user's source via the shared external-file loader so that
+        # missing-file / permission / encoding errors match every other
+        # generator. The copy itself happens later via
+        # ``copy_user_module_for_pipeline``.
         project_root = context.get("spec_dir") or Path.cwd()
-        source_path = project_root / module_path
+        raw_source_code = load_external_file_text(
+            module_path, project_root, file_type="custom data source file"
+        )
 
-        if not source_path.exists():
-            raise ErrorFormatter.file_not_found(
-                file_path=str(source_path),
-                search_locations=[
-                    f"Relative to project root: {project_root / module_path}",
-                ],
-                file_type="custom data source file",
+        # Substitute so format-name extraction sees resolved tokens (e.g.
+        # ``${datasource_format}`` in the user's ``name()`` return value).
+        # ``copy_user_module`` re-substitutes when copying — idempotent for
+        # resolved tokens.
+        if "substitution_manager" in context:
+            raw_source_code = context["substitution_manager"]._process_string(
+                raw_source_code
             )
 
-        raw_source_code = source_path.read_text()
-        self.source_file_path = Path(module_path).as_posix()
-
-        # Apply substitutions to the raw source code if substitution_manager is available
-        if context and "substitution_manager" in context:
-            substitution_mgr = context["substitution_manager"]
-            raw_source_code = substitution_mgr._process_string(raw_source_code)
-
-            # Track secret references if they exist
-            secret_refs = substitution_mgr.get_secret_references()
-            if (
-                "secret_references" in context
-                and context["secret_references"] is not None
-            ):
-                context["secret_references"].update(secret_refs)
-
-        # Use ImportManager to extract imports and get cleaned source
-        self.custom_source_code = self.add_imports_from_file(raw_source_code)
-
-        self.logger.info(f"Extracted imports from custom source file: {source_path}")
-
-        # Extract the actual format name from the DataSource class
+        # Extract the format name against the substituted source so the
+        # generated ``format=...`` value matches the user's post-substitution
+        # ``name()`` return value.
         datasource_format_name = self._extract_datasource_format_name(
             raw_source_code, custom_datasource_class
         )
 
-        # Get readMode from action or default to stream
-        readMode = action.readMode or "stream"
-        self.logger.debug(
-            f"Custom datasource '{action.name}': class='{custom_datasource_class}', format='{datasource_format_name}', readMode='{readMode}'"
+        # Copy the user's module into custom_python_functions/ alongside the
+        # generated pipeline file. Skipped in dry-run (output_dir is None).
+        module_name = copy_user_module_for_pipeline(
+            module_path, context, component_label="Custom data source"
         )
 
-        # Handle operational metadata
+        # Plumb the three imports + the cloudpickle registration statement.
+        # Dedupe across actions in the same flowgroup is handled by
+        # ImportManager (imports) and the assembler (pre-pipeline statements).
+        self.add_import("import custom_python_functions")
+        self.add_import("from pyspark import cloudpickle as _lhp_cloudpickle")
+        self.add_import(
+            f"from custom_python_functions.{module_name} import {custom_datasource_class}"
+        )
+        self.add_pre_pipeline_statement(
+            "_lhp_cloudpickle.register_pickle_by_value(custom_python_functions)"
+        )
+
+        readMode = action.readMode or "stream"
+        self.logger.debug(
+            f"Custom datasource '{action.name}': class='{custom_datasource_class}', "
+            f"format='{datasource_format_name}', readMode='{readMode}', module='{module_name}'"
+        )
+
         add_operational_metadata, metadata_columns = self._get_operational_metadata(
             action, context
         )

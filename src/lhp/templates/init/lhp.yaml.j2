@@ -78,9 +78,11 @@ operational_metadata:
 ## Requires event_log to be enabled above.
 ## See docs/monitoring.rst for full configuration reference.
 ##
-## Minimal setup (uses sensible defaults — checkpoint_path is required):
+## Minimal setup (uses sensible defaults — checkpoint_path AND
+## job_config_path are required when monitoring is enabled):
 # monitoring:
 #   checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+#   job_config_path: "config/monitoring_job_config.yaml"
 ##
 ## Custom configuration example:
 # monitoring:
@@ -89,6 +91,7 @@ operational_metadata:
 #   schema: "_monitoring"                  # Default: inherits from event_log.schema
 #   streaming_table: "unified_event_log"   # Default: all_pipelines_event_log
 #   checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"  # required
+#   job_config_path: "config/monitoring_job_config.yaml"                 # required
 #   max_concurrent_streams: 10             # Default: 10 (ThreadPoolExecutor size)
 #   materialized_views:                    # Default: one events_summary MV
 #     - name: "error_events"

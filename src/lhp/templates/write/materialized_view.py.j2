@@ -11,6 +11,9 @@
     {%- if cluster_by %},
     cluster_by={{ cluster_by | tojson }}
     {%- endif %}
+    {%- if cluster_by_auto %},
+    cluster_by_auto={{ cluster_by_auto | string | title }}
+    {%- endif %}
     {%- if table_path %},
     path="{{ table_path }}"
     {%- endif %}
@@ -25,6 +28,9 @@
     {%- endif %}
     {%- if refresh_schedule %},
     refresh_schedule="{{ refresh_schedule }}"
+    {%- endif %}
+    {%- if refresh_policy %},
+    refresh_policy="{{ refresh_policy }}"
     {%- endif %}
 )
 {% if expect_all %}

@@ -7,6 +7,7 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from pyspark.sql import functions as F
+from pyspark.sql.utils import AnalysisException
 
 # ---------------------------------------------------------------------------
 # Configuration (injected at generation time)
@@ -19,6 +20,46 @@ SOURCES = [
 {% for pipeline_name, table_ref in sources %}
     ({{ pipeline_name | tojson }}, {{ table_ref | tojson }}),
 {% endfor %}]
+
+
+# ---------------------------------------------------------------------------
+# Prologue — pre-create the target table to avoid a cold-run CREATE race
+# ---------------------------------------------------------------------------
+# The parallel streaming queries below all call .toTable(TARGET_TABLE). On a
+# cold run (target table does not yet exist), every worker races to CREATE
+# the table; one wins, the rest fail with TABLE_OR_VIEW_ALREADY_EXISTS. We
+# pre-create the table here using the schema of any readable source event
+# log. Event-log schemas are uniform across DLT pipelines, and each stream
+# uses mergeSchema=true to absorb any runtime-specific columns.
+def _ensure_target_exists() -> None:
+    """Pre-create TARGET_TABLE so parallel streams do not race on first run.
+
+    Idempotent: no-op if the table already exists. Tries each source in
+    SOURCES order until one event log is readable; raises RuntimeError only
+    if no source is readable.
+    """
+    if spark.catalog.tableExists(TARGET_TABLE):  # noqa: F821
+        return
+    last_error: Exception | None = None
+    for sample_name, sample_ref in SOURCES:
+        try:
+            empty = (
+                spark.read.format("delta").table(sample_ref).limit(0)  # noqa: F821
+                .withColumn("_source_pipeline", F.lit(sample_name))
+            )
+            empty.write.format("delta").saveAsTable(TARGET_TABLE)
+            return
+        except AnalysisException as exc:
+            last_error = exc
+            continue
+    raise RuntimeError(
+        f"Unable to create target table {TARGET_TABLE}: no source event log "
+        f"readable among {[ref for _, ref in SOURCES]}. Last error: {last_error}"
+    )
+
+
+if SOURCES:
+    _ensure_target_exists()
 
 
 # ---------------------------------------------------------------------------

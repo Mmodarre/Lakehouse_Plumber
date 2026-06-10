@@ -1,0 +1,21 @@
+{% if add_imports %}
+from pyspark import pipelines as dp
+from pyspark.sql.functions import *
+
+{% endif %}
+{% if fail_expectations %}
+@dp.expect_all_or_fail({{ fail_expectations | tojson }})
+{% endif %}
+{% if drop_expectations %}
+@dp.expect_all_or_drop({{ drop_expectations | tojson }})
+{% endif %}
+{% if warn_expectations %}
+@dp.expect_all({{ warn_expectations | tojson }})
+{% endif %}
+@dp.table(name="{{ target }}", comment="{{ description }}", temporary=True)
+def {{ target }}():
+    """{{ description }}"""
+    return spark.sql("""
+        SELECT {{ columns }}
+                    FROM {{ source }}
+    """)

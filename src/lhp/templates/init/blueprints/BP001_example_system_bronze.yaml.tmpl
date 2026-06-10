@@ -1,0 +1,44 @@
+# BP001 — Example blueprint definition for an "example_system" bronze layer.
+#
+# A blueprint is a parameterised template for a flowgroup (or several). One
+# blueprint can be instantiated many times — typically once per site, region,
+# tenant, or other variant — with different parameter values. Instance files
+# live alongside hand-written flowgroups under pipelines/<system>/<layer>/
+# (or under pipelines/<system>/instances/ for the multi-layer escape hatch).
+#
+# To activate this example, rename the file to remove the `.tmpl` suffix
+# and edit the values below.
+#
+# name: example_system_bronze
+# description: Bronze ingestion for example_system, parameterised by variant.
+#
+# parameters:
+#   - name: variant
+#     description: "Logical variant identifier (e.g., 'acme', 'globex')."
+#     required: true
+#   - name: source_path
+#     description: "Cloud storage path containing the variant's raw files."
+#     required: true
+#   - name: file_format
+#     description: "Auto Loader source format (e.g., 'csv', 'parquet')."
+#     default: csv
+#
+# flowgroups:
+#   - pipeline: "%{variant}_example_system_bronze"
+#     flowgroup: "%{variant}_example_system_bronze"
+#     actions:
+#       - name: load_raw
+#         type: load
+#         source:
+#           type: cloudfiles
+#           path: "%{source_path}"
+#           format: "%{file_format}"
+#         target: v_raw
+#
+#       - name: write_bronze
+#         type: write
+#         source: v_raw
+#         write_target:
+#           type: streaming_table
+#           database: "${bronze_schema}"
+#           table: "%{variant}_example_system_bronze"
