@@ -246,7 +246,15 @@ def pytest_configure(config):
     module-level registries are built. ``register_all`` is idempotent (later
     calls update), so re-running it here is harmless.
     """
-    from lhp.generators.registration import register_all
+    try:
+        from lhp.generators.registration import register_all
+    except ImportError:
+        # The ``packaging-check`` CI job installs neither the project nor its
+        # runtime deps (pydantic) into its venv — it only builds a wheel in a
+        # subprocess via ``tests/test_packaging.py``. There is no in-process
+        # ``lhp`` to register against there, so skip. Mirrors the defensive
+        # rich/console import guard at the top of this module.
+        return
 
     register_all()
 

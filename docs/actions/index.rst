@@ -105,7 +105,7 @@ A few fields are valid on **any** action type, regardless of its sub-type:
 ||                         || the analyzer cannot parse from the action's     |
 ||                         || source. Entries are **additive** — they add     |
 ||                         || edges on top of whatever is parsed. See         |
-||                         || :doc:`/dependency_analysis`.                     |
+||                         || :doc:`/dependency_analysis`.                    |
 +--------------------------+--------------------------------------------------+
 
 Where to start

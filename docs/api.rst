@@ -90,12 +90,12 @@ These symbols are the recommended entry points for programmatic use.
    * - ``lhp.bundle.manager.BundleManager``
      - Synchronizes Databricks Asset Bundle (DAB) resource files with
        generated pipeline code.
-   * - ``lhp.models.config``
+   * - ``lhp.models``
      - Pydantic models for the on-disk YAML schema: ``FlowGroup``, ``Action``,
        ``Preset``, ``Template``, ``ProjectConfig``, ``Blueprint``, and the
        associated enumerations (``ActionType``, ``LoadSourceType``,
        ``TransformType``, ``WriteTargetType``, ``TestActionType``).
-   * - ``lhp.utils.error_formatter``
+   * - ``lhp.errors``
      - Public exception hierarchy: ``LHPError``, ``LHPConfigError``,
        ``LHPValidationError``, ``LHPFileError``. Catch these to handle LHP
        failures programmatically.
@@ -111,18 +111,6 @@ These symbols are exposed but may change without notice.
 
    * - Symbol
      - Summary
-   * - ``lhp.utils.substitution.EnhancedSubstitutionManager``
-     - Resolves ``${token}``, ``%{local_var}``, and ``${secret:scope/key}``
-       substitutions. Signature subject to revision while secret handling
-       evolves.
-   * - ``lhp.utils.substitution.SecretReference``
-     - Value class representing a parsed ``${secret:scope/key}`` reference.
-   * - ``lhp.core.template_engine.TemplateEngine``
-     - Loads and renders Jinja2 FlowGroup templates. Public for advanced
-       template authors; the parameter surface may grow.
-   * - ``lhp.core.validator.ConfigValidator``
-     - Standalone validator used by ``lhp validate``. Useful for embedding
-       configuration checks in CI without generating code.
    * - ``lhp.utils.version.get_version``
      - Returns the installed LHP package version string.
 
@@ -216,68 +204,27 @@ Asset Bundle integration: ``lhp.bundle.manager``
    :show-inheritance:
    :member-order: bysource
 
-Configuration models: ``lhp.models.config``
+Configuration models: ``lhp.models``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Pydantic models that mirror the on-disk YAML schema. Import these to type
 your own loaders or to construct configurations programmatically.
 
-.. automodule:: lhp.models.config
+.. automodule:: lhp.models
    :members:
    :show-inheritance:
    :member-order: bysource
    :exclude-members: model_config
 
-Errors and exceptions: ``lhp.utils.error_formatter``
+Errors and exceptions: ``lhp.errors``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Catch ``LHPError`` for any LHP-originated failure. The concrete subclasses
 disambiguate configuration, validation, and I/O failures and carry an error
 code that maps to entries in the error reference.
 
-.. automodule:: lhp.utils.error_formatter
+.. automodule:: lhp.errors
    :members: ErrorCategory, LHPError, LHPConfigError, LHPValidationError, LHPFileError
-   :show-inheritance:
-   :member-order: bysource
-
-Substitution (Experimental): ``lhp.utils.substitution``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Token, local variable, and secret substitution. Substitutions are applied in
-this order: ``%{local_var}`` → ``{{ template_param }}`` → ``${env_token}`` →
-``${secret:scope/key}``. The bare-braces ``{token}`` form is deprecated.
-
-.. automodule:: lhp.utils.substitution
-   :no-members:
-
-.. autoclass:: lhp.utils.substitution.EnhancedSubstitutionManager
-   :members:
-   :show-inheritance:
-   :member-order: bysource
-
-.. autoclass:: lhp.utils.substitution.SecretReference
-   :members:
-   :show-inheritance:
-
-Templates (Experimental): ``lhp.core.template_engine``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. automodule:: lhp.core.template_engine
-   :no-members:
-
-.. autoclass:: lhp.core.template_engine.TemplateEngine
-   :members:
-   :show-inheritance:
-   :member-order: bysource
-
-Standalone validation (Experimental): ``lhp.core.validator``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. automodule:: lhp.core.validator
-   :no-members:
-
-.. autoclass:: lhp.core.validator.ConfigValidator
-   :members:
    :show-inheritance:
    :member-order: bysource
 
@@ -296,7 +243,7 @@ Notes on usage
   application's logging.
 - LHP raises ``LHPError`` (or a subclass) for every recoverable failure.
   Unexpected exceptions indicate a bug; file an issue with the traceback.
-- Pydantic v2 powers ``lhp.models.config``. Treat the models as immutable
+- Pydantic v2 powers ``lhp.models``. Treat the models as immutable
   once constructed; use ``model_copy(update=...)`` for derived instances.
 - Construct one ``LakehousePlumberApplicationFacade`` per run; it is not
   thread-safe. ``CachingYAMLParser`` is thread-safe and shared internally.
