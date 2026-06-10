@@ -6,7 +6,7 @@ Error Reference
    :description: Troubleshooting guide with all Lakehouse Plumber error codes, causes, and resolution steps.
 
 Overview
-========
+--------
 
 When Lakehouse Plumber encounters a problem, it displays a structured error with a unique
 code in the format ``LHP-{CATEGORY}-{NUMBER}``:
@@ -15,36 +15,37 @@ code in the format ``LHP-{CATEGORY}-{NUMBER}``:
 - **CATEGORY** — The error category (e.g. ``CFG`` for configuration, ``VAL`` for validation)
 - **NUMBER** — A unique number within that category
 
-Here is what an error looks like in your terminal:
+Here is what an error looks like in your terminal (Rich-rendered Panel on
+stderr; file logs receive the same content as plain ASCII):
 
 .. code-block:: text
    :caption: Example error output
 
-   ❌ Error [LHP-VAL-001]: Missing required field 'source'
-   ======================================================================
-
-   The Load action 'load_customers' requires a 'source' field. This field
-   specifies where to read data from.
-
-   📍 Context:
-      • Component Type: Load action
-      • Component Name: load_customers
-      • Missing Field: source
-
-   💡 How to fix:
-      1. Add the 'source' field to your configuration
-      2. Check the example below for the correct format
-
-   📝 Example:
-      actions:
-        - name: load_customers
-          type: load
-          source:
-            type: cloudfiles
-            path: /data/customers/
-
-   📚 More info: https://docs.lakehouseplumber.com/errors/lhp-val-001
-   ======================================================================
+   ╭─ LHP-VAL-001   Validation ──────────────────────────────────────────╮
+   │ Missing required field 'source'                                     │
+   │                                                                    │
+   │ The Load action 'load_customers' requires a 'source' field. This    │
+   │ field specifies where to read data from.                            │
+   │                                                                    │
+   │ Context                                                             │
+   │   Component Type: Load action                                       │
+   │   Component Name: load_customers                                    │
+   │   Missing Field: source                                             │
+   │                                                                    │
+   │ Suggestions                                                         │
+   │   -> Add the 'source' field to your configuration                   │
+   │   -> Check the example below for the correct format                 │
+   │                                                                    │
+   │ Example                                                             │
+   │   actions:                                                          │
+   │     - name: load_customers                                          │
+   │       type: load                                                    │
+   │       source:                                                       │
+   │         type: cloudfiles                                            │
+   │         path: /data/customers/                                      │
+   │                                                                    │
+   │ More info: https://docs.lakehouseplumber.com/errors/lhp-val-001     │
+   ╰─────────────────────────────────────────────────────────────────────╯
 
 Each error includes the cause, relevant context, numbered fix suggestions, and a
 configuration example where applicable. Search this page for your error code to find
@@ -56,7 +57,7 @@ detailed resolution steps.
    that can help diagnose the issue.
 
 Error Categories
-================
+----------------
 
 .. list-table::
    :header-rows: 1
@@ -80,15 +81,18 @@ Error Categories
    * - Dependency
      - ``DEP``
      - Circular dependencies between views or preset inheritance cycles
+   * - Deprecation
+     - ``DEPR``
+     - Soft-deprecation warnings for fields/syntax scheduled for removal; surfaced as warnings, not failures
 
 Configuration Errors (LHP-CFG)
-==============================
+------------------------------
 
 Configuration errors indicate problems with your YAML files, presets, templates,
-or Databricks Asset Bundle setup. They are the most common error category.
+or Declarative Automation Bundles setup. They are the most common error category.
 
 LHP-CFG-001: Configuration Conflict
-------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** You have specified the same configuration option in multiple ways,
 typically when both legacy and new-format fields are present in the same action.
@@ -128,7 +132,7 @@ typically when both legacy and new-format fields are present in the same action.
    :doc:`actions/index` for the current configuration format for each action type.
 
 LHP-CFG-006: Invalid Event Log Configuration
----------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** The ``event_log`` section in ``lhp.yaml`` is not a valid YAML mapping,
 or its field values have incorrect types.
@@ -155,10 +159,10 @@ or its field values have incorrect types.
 
 .. seealso::
 
-   :doc:`monitoring` for all available event log and monitoring configuration options.
+   :doc:`monitoring_reference` for all available event log and monitoring configuration options.
 
 LHP-CFG-007: Incomplete Event Log Configuration
-------------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** The ``event_log`` section in ``lhp.yaml`` is enabled but missing
 required fields (``catalog`` and/or ``schema``).
@@ -199,7 +203,7 @@ required fields (``catalog`` and/or ``schema``).
    Set ``enabled: false`` to define the section without activating event log injection.
 
 LHP-CFG-008: Invalid Monitoring Configuration
-----------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** The ``monitoring`` section in ``lhp.yaml`` is not a valid YAML mapping,
 its field values have incorrect types, or it fails cross-validation with the ``event_log``
@@ -302,10 +306,10 @@ at ``{checkpoint_path}/{pipeline_name}/``.
 
 .. seealso::
 
-   :doc:`monitoring` for complete monitoring configuration reference and examples.
+   :doc:`monitoring_reference` for complete monitoring configuration reference and examples.
 
 LHP-CFG-009: YAML Parsing Error
---------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** A YAML file contains invalid syntax that cannot be parsed.
 
@@ -342,7 +346,7 @@ LHP-CFG-009: YAML Parsing Error
    issues before running ``lhp validate``.
 
 LHP-CFG-010: Deprecated Field
-------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** Your configuration uses a field name that has been removed
 or replaced in a newer version of Lakehouse Plumber.
@@ -377,7 +381,7 @@ deprecated field with the suggested replacement.
            cloudFiles.schemaHints: "id BIGINT, name STRING"   # New format
 
 LHP-CFG-012: Missing Template Parameters
------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** A template requires parameters that were not provided in
 the ``template_parameters`` section of the flowgroup.
@@ -417,9 +421,9 @@ the ``template_parameters`` section of the flowgroup.
    :doc:`templates_reference` for how templates and parameters work.
 
 LHP-CFG-020: Bundle Resource Error
------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**When it occurs:** An error occurred while generating or syncing Databricks Asset Bundle
+**When it occurs:** An error occurred while generating or syncing Declarative Automation Bundles
 resource files during ``lhp generate``.
 
 **Common causes:**
@@ -432,14 +436,14 @@ resource files during ``lhp generate``.
 
 1. Run ``lhp validate --env <env>`` to check your configuration
 2. Check that files under ``resources/lhp/`` are valid YAML
-3. If files are corrupted, delete them and re-run ``lhp generate --env <env> --force``
+3. If files are corrupted, delete them and re-run ``lhp generate --env <env>``
 
 .. seealso::
 
-   :doc:`databricks_bundles` for bundle setup and configuration.
+   :doc:`configure_bundles` for bundle setup and configuration.
 
 LHP-CFG-021: Bundle YAML Processing Error
-------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** A bundle-related YAML file (such as ``databricks.yml`` or a resource
 file) could not be processed.
@@ -456,66 +460,8 @@ file) could not be processed.
 2. Check for syntax errors at the line number shown in the error details
 3. Ensure all YAML files use UTF-8 encoding
 
-LHP-CFG-022: Missing databricks.yml
-------------------------------------
-
-**When it occurs:** Bundle operations require a ``databricks.yml`` file, but it was
-not found in the project root.
-
-**Common causes:**
-
-- Running bundle commands in a project that was not initialized with bundle support
-- Running commands from the wrong directory
-
-.. code-block:: bash
-   :caption: Resolution options
-
-   # Option 1: Initialize a new project with bundle support
-   lhp init my_project
-
-   # Option 2: Skip bundle operations
-   lhp generate --env dev --no-bundle
-
-LHP-CFG-023: Missing Databricks Bundle Targets
------------------------------------------------
-
-**When it occurs:** Substitution files exist for environments (e.g., ``substitutions/dev.yaml``)
-but the corresponding targets are not defined in ``databricks.yml``.
-
-**Common causes:**
-
-- Adding a new substitution file without updating ``databricks.yml``
-- Renaming a target in ``databricks.yml`` without updating the substitution file name
-
-.. code-block:: yaml
-   :caption: Before (triggers LHP-CFG-023) — substitutions/staging.yaml exists but...
-
-   # databricks.yml
-   targets:
-     dev:
-       default: true
-     prod:
-       mode: production
-     # Missing: staging target!
-
-.. code-block:: yaml
-   :caption: After (fixed)
-
-   # databricks.yml
-   targets:
-     dev:
-       default: true
-     staging:                    # Added to match substitutions/staging.yaml
-       mode: development
-     prod:
-       mode: production
-
-.. seealso::
-
-   :doc:`databricks_bundles` for target configuration details.
-
 LHP-CFG-024: Bundle Template Error
------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** An error occurred while fetching or processing bundle templates
 during project initialization.
@@ -533,7 +479,7 @@ during project initialization.
 3. Try running the command again
 
 LHP-CFG-025: Bundle Configuration Error
-----------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** The ``databricks.yml`` file or bundle configuration has structural
 problems that prevent LHP from processing it.
@@ -546,12 +492,12 @@ problems that prevent LHP from processing it.
 
 **Resolution:**
 
-1. Review your ``databricks.yml`` against the Databricks Asset Bundles documentation
+1. Review your ``databricks.yml`` against the Declarative Automation Bundles documentation
 2. Run ``lhp validate`` for detailed diagnostics
 3. Compare with a working project's ``databricks.yml``
 
 LHP-CFG-027: Template Not Found
---------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** The flowgroup references a template name that does not exist
 in the ``templates/`` directory.
@@ -580,14 +526,152 @@ in the ``templates/`` directory.
 
    Run ``lhp list_templates`` to see all available template names.
 
+LHP-CFG-032: Test Reporting File Not Found
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** ``lhp.yaml`` declares a ``test_reporting`` section, but the
+provider module at ``module_path`` (or the optional ``config_file``) does not
+exist at the resolved path.
+
+**Common causes:**
+
+- Typo in the ``module_path`` or ``config_file`` path
+- The provider module has not been created yet
+- A path that resolves relative to the wrong directory (paths are relative to
+  the project root)
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-CFG-032)
+
+   # lhp.yaml
+   test_reporting:
+     module_path: py_functions/test_reporting_publisher.py   # File does not exist
+     function_name: publish_results
+
+.. code-block:: yaml
+   :caption: After (fixed) — create the file, or correct the path
+
+   # lhp.yaml
+   test_reporting:
+     module_path: py_functions/delta_test_reporter.py        # File exists
+     function_name: publish_results
+
+.. note::
+
+   This is a project preflight check. It runs on both ``lhp validate`` and
+   ``lhp generate``, **independent of** ``--include-tests`` — a project with a
+   missing provider file fails ``lhp generate`` even without the flag.
+
+.. seealso::
+
+   :doc:`actions/test_reporting` for the provider module contract and built-in
+   providers.
+
+LHP-CFG-031: Generated Source Failed to Parse
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** LHP generated Python source that could not be parsed
+(``ast.parse`` raised a ``SyntaxError``). The in-worker syntax guard runs over
+every flowgroup's generated code before the output is committed, and the error
+names the offending flowgroup.
+
+**Common causes:**
+
+- A bug in an LHP generator or template that emitted syntactically invalid
+  Python — this is almost never a problem with your YAML.
+- A custom template or a snapshot-CDC ``source_function`` that embeds Python
+  which does not parse.
+
+**How to resolve:**
+
+- File a bug report against LHP with the failing flowgroup YAML.
+- Turn on DEBUG logging to inspect the generated source that failed to parse.
+- If you author a custom template or a snapshot-CDC ``source_function``, verify
+  the embedded Python parses with ``python -m py_compile``.
+
+LHP-CFG-033: Ruff Failed to Format Generated Code
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** The terminal ``ruff format`` pass over the generated output
+directory exited non-zero. The generated code was written to disk but could not
+be formatted. The error carries ruff's exit code, stdout, and stderr so the
+failure is diagnosable.
+
+**Common causes:**
+
+- A generated file is syntactically invalid (an LHP generator/template bug),
+  so ruff could not parse it.
+- The ruff invocation itself failed to read a file in the output tree.
+
+**How to resolve:**
+
+- Inspect ruff's error output (carried in the error context) for the offending
+  file.
+- Confirm ruff is installed and the generated tree is valid Python.
+- Re-run with ``--no-format`` to skip formatting and inspect the raw generated
+  code; if a generated file is invalid, file a bug report with the flowgroup
+  YAML.
+
+LHP-CFG-034: Ruff Executable Not Found
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** LHP could not locate the ``ruff`` executable required for
+the generated-code formatting pass. ruff ships as a runtime dependency of LHP
+but was not found in the active environment's scripts directory or on ``PATH``.
+
+**How to resolve:**
+
+- Install ruff into the active environment: ``pip install ruff``.
+- Reinstall LHP with its dependencies: ``pip install lakehouse-plumber``.
+- If you use an isolated or custom environment, ensure ruff is on ``PATH`` or
+  installed alongside LHP.
+
+LHP-CFG-054: Invalid Instance Definition
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** A blueprint instance file has a malformed blueprint
+reference. The ``use_blueprint:`` (or legacy ``blueprint:``) value must name the
+blueprint as a single, non-empty string. A list, mapping, empty string, or
+missing/null value triggers this error. It also fires when the instance document
+otherwise fails to parse into a blueprint instance.
+
+**Common causes:**
+
+- ``use_blueprint:`` (or ``blueprint:``) given a list or mapping instead of a
+  single string.
+- The blueprint reference is an empty string or ``null``.
+- The instance file's shape cannot be parsed into a valid blueprint instance.
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-CFG-054)
+
+   # Instance file — blueprint reference is a list, not a string
+   use_blueprint:
+     - bronze_ingestion
+   parameters:
+     table_name: customers
+
+.. code-block:: yaml
+   :caption: After (fixed)
+
+   # Instance file — blueprint reference is a single non-empty string
+   use_blueprint: bronze_ingestion
+   parameters:
+     table_name: customers
+
+.. seealso::
+
+   :doc:`blueprints` for the full set of blueprint and instance file errors
+   (``LHP-CFG-047``–``058``, ``LHP-VAL-041``–``061``).
+
 Validation Errors (LHP-VAL)
-============================
+----------------------------
 
 Validation errors indicate that your configuration is syntactically valid YAML but
 contains values that are structurally incorrect, missing, or incompatible.
 
 LHP-VAL-001: Missing Required Field
-------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** An action is missing a field that is required for its type.
 
@@ -625,7 +709,7 @@ LHP-VAL-001: Missing Required Field
    example of the correct configuration.
 
 LHP-VAL-002: Validation Failed
--------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** An action or component has multiple validation issues that
 were detected together during ``lhp validate`` or ``lhp generate``.
@@ -671,7 +755,7 @@ item in the list to resolve this error.
    on SQL transform syntax.
 
 LHP-VAL-006: Invalid Field Value
----------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** A field has a value that is not in the set of allowed values.
 
@@ -708,7 +792,7 @@ LHP-VAL-006: Invalid Field Value
          type: streaming_table    # Correct spelling
 
 LHP-VAL-007: Invalid readMode
-------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** The ``readMode`` value is not valid for the action type.
 
@@ -746,7 +830,7 @@ LHP-VAL-007: Invalid readMode
    use ``stream(view_name)`` in the SQL expression.
 
 LHP-VAL-008: Invalid Field Type
---------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** A field has the wrong data type (e.g., a string where a list is
 expected, or a number where a boolean is expected).
@@ -776,7 +860,7 @@ expected, or a number where a boolean is expected).
          path: /data/events/
 
 LHP-VAL-010: Duplicate Monitoring Pipeline Configuration
----------------------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** Both the ``__eventlog_monitoring`` alias and the actual monitoring
 pipeline name are defined as separate entries in ``pipeline_config.yaml``.
@@ -806,11 +890,11 @@ pipeline name are defined as separate entries in ``pipeline_config.yaml``.
 
 .. seealso::
 
-   :doc:`monitoring` for details on the ``__eventlog_monitoring`` reserved keyword
+   :doc:`monitoring_reference` for details on the ``__eventlog_monitoring`` reserved keyword
    and monitoring pipeline configuration.
 
 LHP-VAL-011: Monitoring Alias in Pipeline List / Schema Syntax Error
----------------------------------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 This error code covers two validation scenarios.
 
@@ -846,7 +930,7 @@ This error code covers two validation scenarios.
 
 .. seealso::
 
-   :doc:`monitoring` for details on the ``__eventlog_monitoring`` reserved keyword
+   :doc:`monitoring_reference` for details on the ``__eventlog_monitoring`` reserved keyword
    and monitoring pipeline configuration.
 
 **Scenario 2: Schema Syntax Error**
@@ -886,7 +970,7 @@ This error code covers two validation scenarios.
    ``BINARY``, ``BYTE``, ``SHORT``, and ``DECIMAL(precision,scale)``.
 
 LHP-VAL-012: Invalid Source Format
------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** The ``source`` configuration for an action is not in the
 expected format for its type.
@@ -921,13 +1005,63 @@ expected format for its type.
    :doc:`actions/index` for the correct source configuration format for each
    action type.
 
+.. _lhp-val-063:
+
+LHP-VAL-063: Invalid ``depends_on`` Entry
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** An action's optional ``depends_on`` field contains a
+malformed entry. ``depends_on`` is a list of upstream table references used to
+declare dependency-graph edges explicitly; each entry must be a non-empty
+string of at most three dot-separated parts
+(``catalog.schema.table``, ``schema.table``, or ``table``) with no blank parts.
+
+**Common causes:**
+
+- An entry that is not a string, or an empty / whitespace-only string
+- A reference with more than three dot-separated parts
+- A reference with a blank part (for example ``catalog..table`` or a trailing dot)
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-VAL-063)
+
+   actions:
+     - name: build_summary
+       type: transform
+       transform_type: python
+       source: v_orders
+       module_path: "transforms/build_summary.py"
+       function_name: run
+       depends_on:
+         - "a.b.c.d"   # four parts — too many
+         - ""          # empty string
+
+.. code-block:: yaml
+   :caption: After (fixed)
+
+   actions:
+     - name: build_summary
+       type: transform
+       transform_type: python
+       source: v_orders
+       module_path: "transforms/build_summary.py"
+       function_name: run
+       depends_on:
+         - my_catalog.my_schema.my_table
+         - my_schema.my_table
+
+.. seealso::
+
+   :doc:`dependency_analysis` for when and how to use ``depends_on`` to declare
+   edges the analyzer cannot parse from your sources.
+
 I/O Errors (LHP-IO)
-====================
+--------------------
 
 I/O errors indicate problems reading or writing files referenced in your configuration.
 
 LHP-IO-001: File Not Found
----------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** A file referenced in your configuration does not exist at the
 expected path.
@@ -968,7 +1102,7 @@ expected path.
    were searched.
 
 LHP-IO-003: Invalid Document Count
------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** A YAML file that is expected to contain a single document
 has zero documents (empty file) or multiple documents separated by ``---``.
@@ -1009,12 +1143,12 @@ has zero documents (empty file) or multiple documents separated by ``---``.
    flowgroup syntax.
 
 Action Errors (LHP-ACT)
-========================
+------------------------
 
 Action errors indicate that an action type, subtype, or preset name is not recognized.
 
 LHP-ACT-001: Unknown Type
---------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** A value you provided is not recognized. This covers unknown
 action types, subtypes, sink types, source types, and preset names.
@@ -1052,13 +1186,13 @@ to a valid option. It also lists all valid values.
    :doc:`actions/index` for valid action types and subtypes.
 
 Dependency Errors (LHP-DEP)
-============================
+----------------------------
 
 Dependency errors indicate circular references in your pipeline's view graph
 or preset inheritance chain.
 
 LHP-DEP-001: Circular Dependency Detected
-------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **When it occurs:** Two or more views form a dependency cycle where
 view A depends on view B, which depends on view C, which depends back on view A.
@@ -1119,27 +1253,41 @@ you identify which dependency to remove or redirect.
    graph that makes cycles easier to spot. See :doc:`dependency_analysis`
    for details.
 
+Deprecation Warnings (LHP-DEPR)
+-------------------------------
+
+Deprecation codes are **warnings, not failures** — generation and validation
+still succeed. They flag fields and syntax that are scheduled for removal in a
+future release so you can migrate ahead of time.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 80
+
+   * - Code
+     - Deprecated usage and replacement
+   * - ``LHP-DEPR-001``
+     - Bare-braces ``{token}`` substitution syntax. Use ``${token}`` instead
+       (the only valid non-``$`` braces form is ``%{local_var}`` for local
+       variables).
+   * - ``LHP-DEPR-002``
+     - The ``database`` field. Use ``catalog`` and ``schema`` instead.
+   * - ``LHP-DEPR-003``
+     - The schema-transform ``enforcement`` key.
+   * - ``LHP-DEPR-004``
+     - The ``database_suffix`` field. Use ``catalog`` and ``schema`` instead.
+
+.. note::
+
+   The legacy ``blueprint:`` / ``use_blueprint:`` syntax is **not** a soft
+   deprecation — mixing it with the current syntax is a hard ``LHP-VAL-061``
+   error.
+
 General Troubleshooting
-=======================
-
-State Management
-----------------
-
-.. code-block:: bash
-   :caption: Debugging state issues
-
-   # Force regeneration of all files
-   lhp generate --force-all --env dev
-
-   # Clear state and regenerate everything
-   rm .lhp_state.json
-   lhp generate --env dev
-
-   # Check what files would be regenerated
-   lhp generate --dry-run --env dev --verbose
+-----------------------
 
 Dependency Debugging
---------------------
+~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
    :caption: Dependency debugging
@@ -1151,15 +1299,14 @@ Dependency Debugging
    lhp validate --env dev --check-cycles
 
 Performance Optimization
-------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 - Use **include patterns** to limit file scanning scope
 - Keep **FlowGroups focused** — avoid overly large YAML files
-- Leverage **state management** — don't force regeneration unless needed
 - Use **specific targets** when possible instead of full pipeline generation
 
 Getting Help
-============
+------------
 
 **Error not listed here?** This page documents the most common errors you will
 encounter as a pipeline author. Some error codes are used internally for rare

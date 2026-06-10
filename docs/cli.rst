@@ -2,12 +2,12 @@ CLI Reference
 =============
 
 .. meta::
-   :description: Command-line reference for lhp: generate, validate, deps, state, show, stats, and all available options.
+   :description: Command-line reference for lhp: generate, validate, deps, show, stats, and all available options.
 
 The **Lakehouse Plumber** command-line interface provides project creation,
-validation, code generation, state inspection and more.  All commands are
-implemented with `click <https://click.palletsprojects.com>`_ so you can use the
-usual ``--help`` flags.
+validation, code generation and more.  All commands are implemented with
+`click <https://click.palletsprojects.com>`_ so you can use the usual
+``--help`` flags.
 
 .. click:: lhp.cli.main:cli
    :prog: lhp
@@ -15,15 +15,15 @@ usual ``--help`` flags.
 
 .. seealso::
 
-   For detailed information about dependency analysis and orchestration job generation, see :doc:`databricks_bundles`.
+   For detailed information about dependency analysis and orchestration job generation, see :doc:`configure_bundles`.
 
 Project Initialization
-======================
+----------------------
 
 The ``lhp init`` command creates a new LakehousePlumber project with the complete directory structure and configuration templates.
 
 Basic Usage
------------
+~~~~~~~~~~~
 
 .. code-block:: bash
 
@@ -51,7 +51,7 @@ Basic Usage
    └── resources/                # Bundle resources (--bundle only)
 
 Configuration Templates
------------------------
+~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``config/`` directory contains template files for customizing Databricks job and pipeline settings:
 
@@ -77,14 +77,18 @@ Template for customizing orchestration job configuration used with ``lhp deps`` 
    # 2. Use with lhp deps command
    lhp deps --job-config config/job_config.yaml --bundle-output
 
-See :doc:`databricks_bundles` for detailed job configuration options.
+See :doc:`bundle_config_reference` for detailed job configuration options.
 
 **pipeline_config.yaml.tmpl**
 
-Template for customizing Delta Live Tables (DLT) pipeline settings used with ``lhp generate`` command:
+Template for customizing Databricks Lakeflow Declarative Pipelines settings
+used with ``lhp generate`` command:
 
+- ``catalog`` and ``schema`` — required for bundle projects, defined either in
+  ``project_defaults`` (project-wide) or per pipeline. See
+  :doc:`configure_catalog_schema` for resolution rules.
 - Compute configuration (serverless vs. classic clusters)
-- DLT edition and runtime channel
+- Pipeline edition and runtime channel
 - Processing mode (continuous vs. triggered)
 - Notifications and tags
 - Event logging (can also be configured project-wide in ``lhp.yaml`` without requiring ``-pc``)
@@ -94,51 +98,101 @@ Template for customizing Delta Live Tables (DLT) pipeline settings used with ``l
 .. code-block:: bash
 
    # 1. Copy and customize the template
-   cp config/pipeline_config.yaml.tmpl templates/bundle/pipeline_config.yaml
-   # Edit templates/bundle/pipeline_config.yaml with your settings
+   cp config/pipeline_config.yaml.tmpl config/pipeline_config.yaml
+   # Edit config/pipeline_config.yaml with your settings (catalog, schema, …)
 
-   # 2. Auto-loaded when generating (if at default location)
-   lhp generate -e dev
+   # 2. Pass the path on every generate invocation
+   lhp generate -e dev --pipeline-config config/pipeline_config.yaml
 
-   # 3. Or specify custom path
-   lhp generate -e dev --pipeline-config config/my_pipeline_config.yaml
+The ``--pipeline-config`` (``-pc``) flag tells LHP where to find the file that
+defines ``catalog`` and ``schema``. Bundle projects require it on every
+``lhp generate`` run; without it, every pipeline fails fast with a
+``BundleResourceError`` pointing at :doc:`configure_catalog_schema`.
 
-See :doc:`databricks_bundles` for detailed pipeline configuration options.
+See :doc:`bundle_config_reference` for detailed pipeline configuration options
+and :doc:`configure_catalog_schema` for the catalog/schema resolution order.
 
 .. note::
    Template files (\*.tmpl) are provided as starting points. Copy and remove the
    ``.tmpl`` extension to activate them. This allows you to keep the original
    templates as reference while customizing your own versions.
 
-Force Regeneration of Pipeline Resources
------------------------------------------
+Regeneration behavior
+~~~~~~~~~~~~~~~~~~~~~
 
-The ``--force`` flag combined with ``--pipeline-config`` allows you to regenerate bundle pipeline resource YAML files even when they haven't changed.
+.. deprecated::
+   The ``--force`` flag on ``lhp generate`` and ``--no-state`` are retained
+   for backwards compatibility but are no-ops. Every ``lhp generate`` run
+   regenerates Python output unconditionally and wipes ``resources/lhp/``
+   before rewriting one ``.pipeline.yml`` per pipeline.
 
 **Behavior:**
 
-- ``--force`` alone: Regenerates Python code but preserves LHP-generated bundle YAML files
-- ``--force`` with ``-pc``: Regenerates both Python code AND LHP-generated bundle YAML files
-- User-created bundle YAML files are always backed up and replaced (regardless of flags)
+- Bare ``lhp generate -e <env>``: regenerates Python code under
+  ``generated/``. Skip bundle sync with ``--no-bundle``.
+- ``lhp generate -e <env> --pipeline-config <file>``: regenerates Python code
+  and rewrites every file under ``resources/lhp/`` from the pipeline config.
+- Files outside ``resources/lhp/`` are never touched, with one exception: the
+  monitoring job YAML at ``resources/<name>.job.yml``, identified by its
+  ``# Generated by LakehousePlumber - Monitoring Job`` header.
 
-**When to Use:**
+.. note::
+   The ``lhp skill install --force`` flag is unrelated and remains active —
+   it overwrites an existing skill install.
 
-Use this when you've modified your pipeline configuration and need to update the Databricks Asset Bundle resource files:
+Skill Management
+----------------
+
+LHP ships a Claude Code skill (``SKILL.md`` + reference markdown) that teaches Claude
+how to author LHP YAML configurations. The ``lhp skill`` command group installs and
+maintains this skill in your project (or your user-global Claude Code directory).
+
+Subcommands
+~~~~~~~~~~~
 
 .. code-block:: bash
 
-   # Update bundle resources after changing pipeline config
-   lhp generate -e dev --force --pipeline-config config/my_pipeline_config.yaml
+   # Install the skill into <cwd>/.claude/skills/lhp/
+   lhp skill install
 
-   # Or with short flags
-   lhp generate -e dev -f -pc config/my_pipeline_config.yaml
+   # Install for the current user (~/.claude/skills/lhp/)
+   lhp skill install --user
 
-.. note::
-   LHP-generated files are overwritten directly without backup when using ``--force`` with ``-pc``. 
-   This is safe because LHP can always regenerate them. User-created files are backed up for safety.
+   # Overwrite an existing install
+   lhp skill install --force
 
-Test Generation Workflow
-========================
+   # Update an existing install to the current LHP version
+   lhp skill update
+
+   # Show installed version, current LHP version, and any drift
+   lhp skill status
+
+   # Remove the install (prompts for confirmation)
+   lhp skill uninstall
+
+   # Remove without prompting
+   lhp skill uninstall --force
+
+Behavior
+~~~~~~~~
+
+- ``install`` errors if a skill is already present unless ``--force`` is given.
+- ``update`` errors if no install is found (use ``install`` instead). The skill is
+  always overwritten — local modifications under ``.claude/skills/lhp/`` will be
+  replaced.
+- ``status`` reports one of: not installed, up-to-date, update available,
+  installed-newer-than-CLI (suggests ``pip install -U lakehouse-plumber``), or
+  foreign-install (no marker file — suggests ``install --force``).
+- An ``.lhp_skill_version`` marker file inside the install directory tracks which
+  LHP version produced the content; this file is the source of truth for
+  ``status`` and ``update``.
+
+When to use ``--user``
+~~~~~~~~~~~~~~~~~~~~~~
+
+Use ``--user`` when you want the skill available across every project on your
+machine. The default project-scoped install is best when each project might be
+pinned to a different LHP version.
 
 By default, Lakehouse Plumber skips test actions during code generation for faster builds and cleaner production pipelines. Use the ``--include-tests`` flag to include data quality tests when needed.
 
@@ -166,15 +220,27 @@ Both commands respect ``--include-tests`` for per-flowgroup processing.
 - **Without flag**: Test actions are skipped during per-flowgroup processing in both validation and generation
 - **With flag**: Test actions are included — validated for configuration errors and generated as temporary DLT tables
 
+.. note::
+   ``lhp validate`` shares ``lhp generate``'s bundle-preflight flags. It accepts
+   ``--no-bundle`` and ``--pipeline-config`` / ``-pc``, and on a project that
+   contains ``databricks.yml`` it likewise **requires** ``-pc`` (or
+   ``--no-bundle``) — otherwise it fails with ``LHP-CFG-023``, exactly like
+   ``generate``. ``validate`` runs the same structural and bundle catalog/schema
+   preflight checks as ``generate``, and runs cross-flowgroup conflict detection
+   on the **resolved** flowgroups (after presets, templates, and substitutions),
+   so a conflict introduced by resolution — e.g. a template that expands into
+   two ``create_table: true`` actions targeting the same table — fails
+   ``validate``, not just ``generate``. See :doc:`configure_catalog_schema`.
+
 **Examples:**
 
 .. code-block:: bash
 
    # Skip tests for faster CI/CD builds
-   lhp generate -e prod --force --dry-run
+   lhp generate -e prod --dry-run
 
    # Include tests for comprehensive validation
-   lhp generate -e dev --include-tests --force
+   lhp generate -e dev --include-tests
 
    # Preview test generation without writing files
    lhp generate -e dev --include-tests --dry-run
