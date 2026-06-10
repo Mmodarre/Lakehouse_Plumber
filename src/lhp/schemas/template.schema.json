@@ -395,6 +395,13 @@
                     ],
                     "description": "Cluster columns (can use template parameters with {{ }})"
                 },
+                "cluster_by_auto": {
+                    "oneOf": [
+                        {"type": "boolean"},
+                        {"type": "string"}
+                    ],
+                    "description": "Enable automatic liquid clustering (can use template parameters with {{ }})"
+                },
                 "spark_conf": {
                     "oneOf": [
                         {
@@ -431,6 +438,10 @@
                 "refresh_schedule": {
                     "type": "string",
                     "description": "Refresh schedule for materialized views"
+                },
+                "refresh_policy": {
+                    "type": "string",
+                    "description": "Refresh policy for materialized views. One of: auto, incremental, incremental_strict, full (can use template parameters with {{ }})"
                 },
                 "sql": {
                     "type": "string",

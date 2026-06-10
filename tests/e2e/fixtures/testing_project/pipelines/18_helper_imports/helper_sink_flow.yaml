@@ -1,0 +1,31 @@
+# Helper-copying E2E fixture (custom SINK / write funnel).
+# The custom-sink entry imports the local helper helpers.aggregate (whose own
+# from helpers.other import tag is a transitive ABSOLUTE helper->helper import).
+# Because the sink class is registered by value, LHP emits
+# register_pickle_by_value(custom_python_functions) so the embedded helper
+# closure travels with the class to the executor.
+pipeline: helper_imports
+flowgroup: helper_sink_flow
+#job_name: j_helpers
+
+actions:
+  - name: load_helper_sink_seed
+    type: load
+    source:
+      type: sql
+      sql: "SELECT 1 AS id, '  alpha  ' AS name"
+    target: v_helper_sink_seed
+    description: "Seed rows for the helper-backed custom sink"
+
+  - name: write_to_helper_sink
+    type: write
+    source: v_helper_sink_seed
+    write_target:
+      type: sink
+      sink_type: custom
+      sink_name: "helper_backed_sink"
+      module_path: "py_functions/helper_demo_sink.py"
+      custom_sink_class: "HelperBackedSink"
+      options:
+        output_path: "/tmp/helper_sink_output"
+    description: "Write seed rows to a custom sink backed by a helper closure"

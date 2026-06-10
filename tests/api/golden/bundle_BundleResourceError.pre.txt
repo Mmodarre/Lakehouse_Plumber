@@ -1,0 +1,20 @@
+╭─ LHP-CFG-020   Configuration Error ──────────────────────────────────────────╮
+│                                                                              │
+│  Bundle resource error during test_op                                        │
+│                                                                              │
+│  test message                                                                │
+│  Original error: orig error                                                  │
+│                                                                              │
+│  Context                                                                     │
+│    Operation: test_op                                                        │
+│    Original Error: RuntimeError                                              │
+│                                                                              │
+│  Suggestions                                                                 │
+│    -> Check your databricks.yml configuration                                │
+│    -> Verify bundle resource files are valid YAML                            │
+│    -> Run 'lhp validate' to check configuration                              │
+│                                                                              │
+│  More info:                                                                  │
+│  https://lakehouse-plumber.readthedocs.io/en/latest/errors_reference.html    │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯

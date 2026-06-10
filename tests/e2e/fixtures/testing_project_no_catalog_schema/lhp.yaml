@@ -1,0 +1,8 @@
+# Minimal LHP project for testing missing catalog/schema scenarios.
+# pipeline_config.yaml omits both project_defaults catalog/schema AND
+# per-pipeline catalog/schema. Generation is expected to fail fast under
+# the post-refactor behavior, referencing docs/configure_catalog_schema.rst.
+name: no_catalog_schema_project
+version: "1.0"
+description: "Fixture variant for missing catalog/schema fail-fast test."
+required_lhp_version: ">=0.5.0,<=0.9.9"

@@ -2,29 +2,22 @@
 
 import logging
 
-from ...core.base_generator import BaseActionGenerator
-from ...models.config import Action
-from ...utils.error_formatter import (
-    ErrorCategory,
-    LHPValidationError,
-)
+from lhp.models import Action
+
+from ...core.registry import BaseActionGenerator
+from ...errors import ErrorFactory, codes
 
 logger = logging.getLogger(__name__)
 
 
 class TempTableTransformGenerator(BaseActionGenerator):
-    """Generate temporary streaming table transformations."""
-
     def __init__(self):
         super().__init__()
         self.add_import("from pyspark import pipelines as dp")
 
     def generate(self, action: Action, context: dict) -> str:
-        """Generate temporary table transform code."""
-        # Extract source view
         source_view = self._extract_source_view(action.source)
 
-        # Get readMode from action or default to batch
         readMode = action.readMode or "batch"
         logger.debug(
             f"Generating temp table for target '{action.target}', source='{source_view}', readMode='{readMode}'"
@@ -33,7 +26,6 @@ class TempTableTransformGenerator(BaseActionGenerator):
         # Target table name (use exact target from YAML)
         target_table = action.target
 
-        # Handle operational metadata
         add_operational_metadata, metadata_columns = self._get_operational_metadata(
             action, context
         )
@@ -54,23 +46,20 @@ class TempTableTransformGenerator(BaseActionGenerator):
         return self.render_template("transform/temp_table.py.j2", template_context)
 
     def _extract_source_view(self, source) -> str:
-        """Extract source view name from action source."""
         if isinstance(source, str):
             return source
-        elif isinstance(source, dict):
+        if isinstance(source, dict):
             return source.get("view", source.get("source", ""))
-        else:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="016",
-                title="Missing source view for temp table transform",
-                details=(
-                    f"Temp table transform must have a source view, "
-                    f"but got {type(source).__name__}."
-                ),
-                suggestions=[
-                    "Add a 'source' field with a view name string",
-                    "Example: source: v_raw_data",
-                ],
-                context={"Source Type": type(source).__name__},
-            )
+        raise ErrorFactory.validation_error(
+            codes.VAL_016,
+            title="Missing source view for temp table transform",
+            details=(
+                f"Temp table transform must have a source view, "
+                f"but got {type(source).__name__}."
+            ),
+            suggestions=[
+                "Add a 'source' field with a view name string",
+                "Example: source: v_raw_data",
+            ],
+            context={"Source Type": type(source).__name__},
+        )

@@ -1,5 +1,6 @@
 pipeline: namespace_validation
 flowgroup: namespace_mv
+#job_name: j_namespace
 actions:
   - name: ns_summary_sql
     type: load

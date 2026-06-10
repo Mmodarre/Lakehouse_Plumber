@@ -4,11 +4,16 @@ version: "1.0"
 description: "acme Delta Lakehouse Project - TPC-H"
 author: "Mehdi Modarressi"
 created_date: "2025-07-11"
-required_lhp_version: ">=0.5.0,<=0.8.9"
+required_lhp_version: ">=0.5.0,<=0.9.9"
 
 # include:
 #   - "01_raw_ingestion/**"
-  
+
+# Per-pipeline wheel packaging: pipelines that opt in via `packaging: wheel`
+# upload their built wheel to this UC volume (must resolve to a /Volumes/... path).
+wheel:
+  artifact_volume: /Volumes/${catalog}/${raw_schema}/artifacts
+
 
 operational_metadata:
   columns:

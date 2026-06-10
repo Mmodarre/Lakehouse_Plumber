@@ -103,14 +103,14 @@ echo "📊 Test 1: Clean Generation (Full Rebuild)" | tee -a "$RESULTS_FILE"
 echo "-------------------------------------------" | tee -a "$RESULTS_FILE"
 
 cd "$PROJECT_ROOT/$TEST_PROJECT"
-rm -rf generated/ .lhp_state/
+rm -rf generated/
 cd "$PROJECT_ROOT"
 
 echo "  Running v0.7.1..."
 TIME_OLD_CLEAN=$(run_benchmark "$VENV_OLD" "v0.7.1" "clean" "--force")
 
 cd "$PROJECT_ROOT/$TEST_PROJECT"
-rm -rf generated/ .lhp_state/
+rm -rf generated/
 cd "$PROJECT_ROOT"
 
 echo "  Running current version..."
@@ -130,7 +130,7 @@ echo "-----------------------------------------------" | tee -a "$RESULTS_FILE"
 
 # Generate once first for both
 cd "$PROJECT_ROOT/$TEST_PROJECT"
-rm -rf generated/ .lhp_state/
+rm -rf generated/
 cd "$PROJECT_ROOT"
 
 source "$VENV_OLD/bin/activate"
@@ -143,7 +143,7 @@ echo "  Running v0.7.1 (incremental)..."
 TIME_OLD_INCR=$(run_benchmark "$VENV_OLD" "v0.7.1" "incremental" "")
 
 cd "$PROJECT_ROOT/$TEST_PROJECT"
-rm -rf generated/ .lhp_state/
+rm -rf generated/
 cd "$PROJECT_ROOT"
 
 source "$VENV_NEW/bin/activate"
@@ -169,7 +169,7 @@ echo "----------------------------------------------" | tee -a "$RESULTS_FILE"
 
 # Generate once first for both
 cd "$PROJECT_ROOT/$TEST_PROJECT"
-rm -rf generated/ .lhp_state/
+rm -rf generated/
 cd "$PROJECT_ROOT"
 
 source "$VENV_OLD/bin/activate"
@@ -182,7 +182,7 @@ echo "  Running v0.7.1 (force, warm cache)..."
 TIME_OLD_FORCE=$(run_benchmark "$VENV_OLD" "v0.7.1" "force" "--force")
 
 cd "$PROJECT_ROOT/$TEST_PROJECT"
-rm -rf generated/ .lhp_state/
+rm -rf generated/
 cd "$PROJECT_ROOT"
 
 source "$VENV_NEW/bin/activate"

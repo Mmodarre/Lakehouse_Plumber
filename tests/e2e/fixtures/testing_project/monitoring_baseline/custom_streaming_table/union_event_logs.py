@@ -17,6 +17,12 @@ CHECKPOINT_BASE = "/Volumes/acme_edw_dev/_meta/checkpoints/event_logs"
 MAX_WORKERS = 10
 
 SOURCES = [
+    ("12_test_actions", "acme_edw_dev._meta.12_test_actions_event_log"),
+    ("13_sinks", "acme_edw_dev._meta.13_sinks_event_log"),
+    ("14_jdbc_load", "acme_edw_dev._meta.14_jdbc_load_event_log"),
+    ("15_python_load", "acme_edw_dev._meta.15_python_load_event_log"),
+    ("16_temp_table", "acme_edw_dev._meta.16_temp_table_event_log"),
+    ("17_delta_cdc", "acme_edw_dev._meta.17_delta_cdc_event_log"),
     ("acme_edw_bp_bronze", "acme_edw_dev._meta.acme_edw_bp_bronze_event_log"),
     ("acme_edw_bp_raw", "acme_edw_dev._meta.acme_edw_bp_raw_event_log"),
     ("acme_edw_bp_silver", "acme_edw_dev._meta.acme_edw_bp_silver_event_log"),
@@ -26,6 +32,7 @@ SOURCES = [
     ("acmi_edw_silver", "acme_edw_dev._meta.acmi_edw_silver_event_log"),
     ("custom_datasource", "acme_edw_dev._meta.custom_datasource_event_log"),
     ("gold_load", "acme_edw_dev._meta.gold_load_event_log"),
+    ("helper_imports", "acme_edw_dev._meta.helper_imports_event_log"),
     ("kafka_sample_pipeline", "acme_edw_dev._meta.kafka_sample_pipeline_event_log"),
     ("namespace_validation", "acme_edw_dev._meta.namespace_validation_event_log"),
     ("sample_python_func_pipeline", "acme_edw_dev._meta.sample_python_func_pipeline_event_log"),

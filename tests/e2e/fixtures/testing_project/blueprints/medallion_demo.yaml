@@ -15,6 +15,7 @@ flowgroups:
   # ---- RAW (template) ----
   - pipeline: acme_edw_bp_raw
     flowgroup: "%{site_name}_customer_ingestion"
+    #job_name: j_blueprint
     presets:
       - default_delta_properties
     use_template: parquet_ingestion_template
@@ -25,6 +26,7 @@ flowgroups:
   # ---- BRONZE (direct: python transform + DQ + write) ----
   - pipeline: acme_edw_bp_bronze
     flowgroup: "%{site_name}_customer_bronze"
+    #job_name: j_blueprint
     presets:
       - default_delta_properties
     actions:
@@ -73,6 +75,7 @@ flowgroups:
   # ---- SILVER (direct: snapshot CDC via py_function) ----
   - pipeline: acme_edw_bp_silver
     flowgroup: "%{site_name}_customer_silver"
+    #job_name: j_blueprint
     presets:
       - default_delta_properties
     actions:

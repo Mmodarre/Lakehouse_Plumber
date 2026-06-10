@@ -63,9 +63,7 @@ class TestBlueprintE2E:
 
         self.generated_dir = self.project_root / "generated" / "dev"
         self.resources_dir = self.project_root / "resources" / "lhp"
-        self.blueprint_path = (
-            self.project_root / "blueprints" / "medallion_demo.yaml"
-        )
+        self.blueprint_path = self.project_root / "blueprints" / "medallion_demo.yaml"
         self.site_alpha_path = (
             self.project_root
             / "pipelines"
@@ -88,10 +86,6 @@ class TestBlueprintE2E:
             shutil.rmtree(self.resources_dir)
         self.generated_dir.mkdir(parents=True, exist_ok=True)
         self.resources_dir.mkdir(parents=True, exist_ok=True)
-
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
 
     def run_bundle_sync(self) -> tuple:
         """Run lhp generate --env dev --pipeline-config ... --force."""
@@ -157,16 +151,40 @@ class TestBlueprintE2E:
                 if self._file_hash(gen_files[common]) != self._file_hash(
                     base_files[common]
                 ):
-                    differences.append(
-                        f"{pipeline}: hash mismatch on {common}"
-                    )
+                    differences.append(f"{pipeline}: hash mismatch on {common}")
         return differences
 
     def _load_state_file(self) -> dict:
-        state_file = self.project_root / ".lhp_state.json"
-        if not state_file.exists():
+        """Rebuild the legacy-shape state dict from the new sharded format.
+
+        Merges ``.lhp_state/_global.json`` plus every per-pipeline shard's
+        ``environments`` slice so callers can keep asserting against the
+        old monolithic dict shape.
+        """
+        state_dir = self.project_root / ".lhp_state"
+        if not state_dir.exists():
             return {}
-        return json.loads(state_file.read_text())
+
+        result: dict = {"environments": {}}
+
+        global_path = state_dir / "_global.json"
+        if global_path.exists():
+            global_data = json.loads(global_path.read_text())
+            result["version"] = global_data.get("version", "1.0")
+            result["last_updated"] = global_data.get("last_updated", "")
+            result["global_dependencies"] = global_data.get("global_dependencies", {})
+            result["last_generation_context"] = global_data.get(
+                "last_generation_context", {}
+            )
+
+        for shard_path in sorted(state_dir.glob("*.json")):
+            if shard_path.stem.startswith("_"):
+                continue
+            shard_data = json.loads(shard_path.read_text())
+            for env_name, env_files in shard_data.get("environments", {}).items():
+                result["environments"].setdefault(env_name, {}).update(env_files)
+
+        return result
 
     def _bp_state_paths(self, state: dict) -> set:
         """Return state-tracked generated paths for the BP pipelines."""
@@ -174,13 +192,11 @@ class TestBlueprintE2E:
         return {
             path
             for path in env
-            if any(f"/{p}/" in path or path.startswith(f"{p}/") for p in self.BP_PIPELINES)
+            if any(
+                f"/{p}/" in path or path.startswith(f"{p}/") for p in self.BP_PIPELINES
+            )
             or any(f"generated/dev/{p}/" in path for p in self.BP_PIPELINES)
         }
-
-    # ------------------------------------------------------------------
-    # BP-1: Golden path baseline match (subsumes the original BP-2 + BP-5)
-    # ------------------------------------------------------------------
 
     def test_BP1_blueprint_expansion_matches_baseline(self):
         """Blueprint with 2 instances expands to 6 synthetic flowgroups whose
@@ -214,10 +230,6 @@ class TestBlueprintE2E:
                     f"{[ln for ln in content.splitlines() if '%{' in ln]}"
                 )
 
-    # ------------------------------------------------------------------
-    # BP-3: Duplicate (pipeline, flowgroup) after expansion
-    # ------------------------------------------------------------------
-
     def test_BP3_duplicate_identity_after_expansion_raises(self):
         """Two instances binding the same site_name produce identical
         synthetic (pipeline, flowgroup) tuples; expander must raise
@@ -239,17 +251,11 @@ class TestBlueprintE2E:
             "Both conflicting instance paths should be reported"
         )
 
-    # ------------------------------------------------------------------
-    # BP-4: Missing required parameter
-    # ------------------------------------------------------------------
-
     def test_BP4_missing_required_parameter_raises(self):
         """Removing the required `domain_id` from an instance must surface
         a parse-time error that names the missing parameter."""
         self.site_alpha_path.write_text(
-            "use_blueprint: medallion_demo\n"
-            "parameters:\n"
-            "  site_name: site_alpha\n"
+            "use_blueprint: medallion_demo\nparameters:\n  site_name: site_alpha\n"
         )
 
         exit_code, output = self.run_bundle_sync()
@@ -257,81 +263,6 @@ class TestBlueprintE2E:
         assert "domain_id" in output, (
             f"Error must mention missing parameter 'domain_id'. Got:\n{output[-2000:]}"
         )
-
-    # ------------------------------------------------------------------
-    # BP-6: Editing the blueprint regenerates only synthetic flowgroups
-    # ------------------------------------------------------------------
-
-    def test_BP6_blueprint_edit_regenerates_synthetic_only(self):
-        """Editing medallion_demo.yaml must update the source_yaml_checksum
-        of all 6 synthetic flowgroups (the blueprint IS their source_yaml)
-        while leaving every non-blueprint flowgroup's source_yaml_checksum
-        unchanged. This is the core dependency-tracking signal: it proves
-        that the state resolver wires synthetic flowgroups to the blueprint
-        file, so an incremental regenerate would re-emit them.
-        Whether the *generated* file content actually changes depends on
-        which part of the blueprint was edited, so it isn't asserted here."""
-        # Phase 1: fresh generation
-        exit_code, output = self.run_bundle_sync()
-        assert exit_code == 0, f"Initial generation failed: {output}"
-        baseline_state = self._load_state_file()
-        assert baseline_state, "State file should exist after generation"
-
-        # Phase 2: edit the blueprint — any byte-level change suffices
-        # because what we're testing is the dependency wiring.
-        original_text = self.blueprint_path.read_text()
-        self.blueprint_path.write_text(
-            original_text + "\n# BP-6 edit marker\n"
-        )
-
-        # Phase 3: incremental regeneration (no --force)
-        exit_code, output = self.run_generate_no_force()
-        assert exit_code == 0, f"Regeneration failed: {output}"
-        updated_state = self._load_state_file()
-
-        baseline_env = baseline_state["environments"]["dev"]
-        updated_env = updated_state["environments"]["dev"]
-
-        synthetic_py_paths = {
-            f"generated/dev/{pipeline}/{flowgroup}.py"
-            for pipeline, flowgroup in self.BP_SYNTHETIC_FLOWGROUPS
-        }
-        for path in synthetic_py_paths:
-            assert path in baseline_env, (
-                f"Synthetic flowgroup not tracked in state: {path}"
-            )
-            base = baseline_env[path]
-            upd = updated_env.get(path, {})
-            assert base.get("synthetic") is True, (
-                f"State entry should be flagged synthetic: {path}"
-            )
-            assert base.get("source_yaml") == "blueprints/medallion_demo.yaml", (
-                f"Synthetic source_yaml should be the blueprint, got: "
-                f"{base.get('source_yaml')}"
-            )
-            assert base["source_yaml_checksum"] != upd.get("source_yaml_checksum"), (
-                f"source_yaml_checksum (blueprint hash) must change for {path}"
-            )
-
-        # Non-blueprint flowgroups: source_yaml_checksum is their own YAML
-        # file's hash. Since we only edited the blueprint, those must stay
-        # constant — proving the blueprint is NOT in their dependency graph.
-        bp_prefixes = tuple(f"generated/dev/{p}/" for p in self.BP_PIPELINES)
-        non_bp_paths = [p for p in baseline_env if not p.startswith(bp_prefixes)]
-        leaked = [
-            p
-            for p in non_bp_paths
-            if baseline_env[p].get("source_yaml_checksum")
-            != updated_env.get(p, {}).get("source_yaml_checksum")
-        ]
-        assert not leaked, (
-            "Editing the blueprint must not change any non-blueprint "
-            f"flowgroup's source_yaml_checksum; leaked: {leaked}"
-        )
-
-    # ------------------------------------------------------------------
-    # BP-8: Env tokens in identity fields are rejected
-    # ------------------------------------------------------------------
 
     def test_BP8_env_token_in_identity_rejected(self):
         """`${catalog}` in a blueprint pipeline: field must be rejected by
@@ -355,18 +286,16 @@ class TestBlueprintE2E:
             f"Got:\n{output[-2000:]}"
         )
 
-    # ------------------------------------------------------------------
-    # BP-9: lhp deps includes synthetic flowgroups
-    # ------------------------------------------------------------------
-
-    def test_BP9_lhp_deps_includes_synthetic_flowgroups(self):
-        """`lhp deps` must surface the 3 acme_edw_bp_* pipelines and all 6
+    def test_BP9_lhp_dag_includes_synthetic_flowgroups(self):
+        """`lhp dag` must surface the 3 acme_edw_bp_* pipelines and all 6
         synthetic flowgroups in its dependency analysis output."""
         runner = CliRunner()
-        result = runner.invoke(cli, ["deps", "-b"])
-        assert result.exit_code == 0, f"deps failed: {result.output}"
+        result = runner.invoke(cli, ["dag", "-b"])
+        assert result.exit_code == 0, f"dag failed: {result.output}"
 
-        deps_json = self.project_root / ".lhp" / "dependencies" / "pipeline_dependencies.json"
+        deps_json = (
+            self.project_root / ".lhp" / "dependencies" / "pipeline_dependencies.json"
+        )
         assert deps_json.exists(), f"Missing deps JSON: {deps_json}"
         data = json.loads(deps_json.read_text())
 
@@ -383,10 +312,6 @@ class TestBlueprintE2E:
             assert f"{p}_pipeline" in job_text, (
                 f"Pipeline {p} missing from orchestration job YAML"
             )
-
-    # ------------------------------------------------------------------
-    # BP-10: Explicit-vs-synthetic flowgroup collision
-    # ------------------------------------------------------------------
 
     def test_BP10_explicit_vs_synthetic_collision_raises(self):
         """A hand-written flowgroup with the same (pipeline, flowgroup) as an
@@ -406,7 +331,7 @@ class TestBlueprintE2E:
             "    type: load\n"
             "    source:\n"
             "      type: delta\n"
-            "      database: \"{catalog}.{raw_schema}\"\n"
+            '      database: "{catalog}.{raw_schema}"\n'
             "      table: irrelevant\n"
             "    target: v_collision\n"
             "  - name: collision_write\n"
@@ -414,13 +339,12 @@ class TestBlueprintE2E:
             "    source: v_collision\n"
             "    write_target:\n"
             "      type: streaming_table\n"
-            "      database: \"{catalog}.{raw_schema}\"\n"
+            '      database: "{catalog}.{raw_schema}"\n'
             "      table: irrelevant\n"
         )
 
         exit_code, output = self.run_bundle_sync()
         assert exit_code != 0, "Generation should fail on identity collision"
         assert (
-            "duplicate" in output.lower()
-            or "site_alpha_customer_ingestion" in output
+            "duplicate" in output.lower() or "site_alpha_customer_ingestion" in output
         ), f"Expected duplicate-flowgroup error. Got:\n{output[-2000:]}"

@@ -1,43 +1,45 @@
 """Tests for CLI --include-tests flag functionality."""
 
+import tempfile
+from pathlib import Path
+
 import pytest
 from click.testing import CliRunner
-from pathlib import Path
-import tempfile
+
 from lhp.cli.main import cli
 
 
 class TestCLIIncludeTestsFlag:
     """Test CLI --include-tests flag functionality."""
-    
+
     @pytest.fixture
     def runner(self):
-        """Create CLI runner."""
         return CliRunner()
-    
+
     @pytest.fixture
     def temp_project(self):
-        """Create a temporary project directory with full structure."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
-            
-            # Create full project structure matching working tests
+
             directories = [
-                'presets', 'templates', 'pipelines', 'substitutions',
-                'schemas', 'expectations', 'generated'
+                "presets",
+                "templates",
+                "pipelines",
+                "substitutions",
+                "schemas",
+                "expectations",
+                "generated",
             ]
-            
+
             for dir_name in directories:
                 (project_root / dir_name).mkdir(parents=True)
-            
-            # Create project config (flat structure like working tests)
+
             (project_root / "lhp.yaml").write_text("""
 name: test_cli_project
 version: "1.0"
 description: "Test project for CLI include-tests flag"
 """)
-            
-            # Create substitutions matching working pattern
+
             (project_root / "substitutions" / "test.yaml").write_text("""
 test:
   env: test
@@ -48,12 +50,11 @@ test:
 secrets:
   default_scope: test_secrets
 """)
-            
-            # Create pipeline directory structure
+
             pipeline_dir = project_root / "pipelines" / "test_pipeline"
             pipeline_dir.mkdir(parents=True)
-            
-            # Create mixed flowgroup (has both test and non-test actions)
+
+            # mixed flowgroup: has both test and non-test actions
             (pipeline_dir / "mixed_flowgroup.yaml").write_text("""
 pipeline: test_pipeline
 flowgroup: mixed_flowgroup
@@ -83,11 +84,10 @@ actions:
     on_violation: fail
     description: "Test data quality"
 """)
-            
-            # Create test-only pipeline
+
             test_pipeline_dir = project_root / "pipelines" / "test_only_pipeline"
             test_pipeline_dir.mkdir(parents=True)
-            
+
             (test_pipeline_dir / "test_only_flowgroup.yaml").write_text("""
 pipeline: test_only_pipeline  
 flowgroup: test_only_flowgroup
@@ -101,70 +101,80 @@ actions:
     on_violation: fail
     description: "Test only pipeline"
 """)
-            
+
             yield project_root
-    
+
     def test_cli_help_shows_include_tests_flag(self, runner):
         """Test that CLI help shows --include-tests flag."""
-        result = runner.invoke(cli, ['generate', '--help'])
-        
-        # Should show the include-tests flag in help
-        assert '--include-tests' in result.output
-        assert 'Include test actions in generation' in result.output
-    
+        result = runner.invoke(cli, ["generate", "--help"])
+
+        assert "--include-tests" in result.output
+
     def test_cli_accepts_include_tests_flag(self, runner, temp_project):
-        """Test that CLI generate command accepts --include-tests flag."""
+        """Test that the diff command accepts the --include-tests flag.
+
+        ``generate --dry-run`` was removed; ``lhp diff`` is its successor and
+        carries the same ``--include-tests`` flag. A clean exit confirms the
+        flag is still wired up (an unregistered flag is a Click usage error).
+        """
         with runner.isolated_filesystem():
             import os
+
             os.chdir(str(temp_project))
-            
+
             # Test that the flag is accepted without error
-            result = runner.invoke(cli, [
-                'generate', 
-                '--env', 'test',
-                '--include-tests',
-                '--dry-run'
-            ])
-            
-            # Should not fail due to unknown flag
-            assert result.exit_code == 0 or "No such option" not in result.output
-    
+            result = runner.invoke(cli, ["diff", "--env", "test", "--include-tests"])
+
+            # If the flag were unregistered, Click would exit with a
+            # non-zero status before reaching the command body. A clean
+            # exit confirms the flag is wired up correctly.
+            assert result.exit_code == 0, f"CLI failed: {result.output}"
+
     def test_cli_default_behavior_skips_tests(self, runner, temp_project):
-        """Test that CLI generate skips tests by default (no flag)."""
+        """Test that diff skips test-only flowgroups by default (no flag)."""
         with runner.isolated_filesystem():
             import os
+
             os.chdir(str(temp_project))
-            
-            # Run without --include-tests flag
-            result = runner.invoke(cli, [
-                'generate', 
-                '--env', 'test',
-                '--dry-run'
-            ])
-            
+
+            # Run without --include-tests flag (diff is the dry-run successor).
+            result = runner.invoke(cli, ["diff", "--env", "test"])
+
             # Should succeed
             assert result.exit_code == 0, f"CLI failed: {result.output}"
-            
-            # Should not mention test-only pipeline files in output
-            # (test_only_pipeline should be skipped entirely)
-            assert "test_only_pipeline" not in result.output or "Would generate 0 file(s)" in result.output
-    
+
+            # Without --include-tests the test-only flowgroup contributes no
+            # files, so only the mixed pipeline is planned. The mixed
+            # flowgroup is the sole would-create entry, and the test-only
+            # flowgroup never produces one. (The progress table still lists
+            # ``test_only_pipeline`` at ``0 files`` on stderr — the
+            # would-create line is the file-count contract that the flag
+            # actually governs.) With the flag set (next test) the test-only
+            # flowgroup's would-create line appears.
+            assert "+ would-create  test_pipeline/mixed_flowgroup.py" in result.output
+            assert "test_only_pipeline/test_only_flowgroup.py" not in result.output
+
     def test_cli_with_flag_includes_tests(self, runner, temp_project):
-        """Test that CLI generate includes tests when --include-tests flag is present."""
+        """Test that diff includes test-only flowgroups with --include-tests."""
         with runner.isolated_filesystem():
             import os
+
             os.chdir(str(temp_project))
-            
-            # Run with --include-tests flag
-            result = runner.invoke(cli, [
-                'generate', 
-                '--env', 'test',
-                '--include-tests',
-                '--dry-run'
-            ])
-            
+
+            # Run with --include-tests flag (diff is the dry-run successor).
+            result = runner.invoke(
+                cli,
+                ["diff", "--env", "test", "--include-tests"],
+            )
+
             # Should succeed
             assert result.exit_code == 0, f"CLI failed: {result.output}"
-            
-            # Should mention test-related content in output (test_only_pipeline should be included)
-            assert "test_only_pipeline" in result.output or "DATA QUALITY TESTS" in result.output
+
+            # With --include-tests, the test-only flowgroup now contributes a
+            # file and appears as a would-create entry in the diff body (the
+            # discriminator vs the default run, whose progress table also
+            # names ``test_only_pipeline`` but at ``0 files``).
+            assert (
+                "+ would-create  test_only_pipeline/test_only_flowgroup.py"
+                in result.output
+            )

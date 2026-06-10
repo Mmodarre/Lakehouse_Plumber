@@ -1,12 +1,11 @@
 """Tests for transform action validator — extended coverage."""
 
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
-from lhp.core.validators.transform_validator import TransformActionValidator
-from lhp.models.config import Action, ActionType, TransformType
+from lhp.core.validators import TransformActionValidator
+from lhp.models import Action, ActionType, TransformType
 
 
 def _make_validator(project_root=None, project_config=None):
@@ -21,13 +20,13 @@ def _make_validator(project_root=None, project_config=None):
 
 def _make_action(**kwargs):
     """Create an Action with sensible transform defaults."""
-    defaults = dict(
-        name="test_action",
-        type=ActionType.TRANSFORM,
-        target="v_output",
-        transform_type="sql",
-        source="v_input",
-    )
+    defaults = {
+        "name": "test_action",
+        "type": ActionType.TRANSFORM,
+        "target": "v_output",
+        "transform_type": "sql",
+        "source": "v_input",
+    }
     defaults.update(kwargs)
     return Action(**defaults)
 
@@ -106,15 +105,15 @@ class TestValidatePythonTransform:
 
     def _make_python_action(self, **overrides):
         """Helper for Python transform actions."""
-        defaults = dict(
-            name="test_py",
-            type=ActionType.TRANSFORM,
-            target="v_output",
-            transform_type="python",
-            source="v_input",
-            module_path="transforms/my_transform.py",
-            function_name="my_func",
-        )
+        defaults = {
+            "name": "test_py",
+            "type": ActionType.TRANSFORM,
+            "target": "v_output",
+            "transform_type": "python",
+            "source": "v_input",
+            "module_path": "transforms/my_transform.py",
+            "function_name": "my_func",
+        }
         defaults.update(overrides)
         return Action(**defaults)
 
@@ -163,7 +162,6 @@ class TestValidatePythonTransform:
         validator = _make_validator()
         action = self._make_python_action(source=["v_input", "v_lookup"])
         errors = validator._validate_python_transform(action, "test")
-        # No source-related errors
         assert not any("source" in e.lower() for e in errors)
 
     def test_python_missing_module_path_produces_error(self):
@@ -355,43 +353,6 @@ class TestValidateSchemaTransform:
         )
         errors = validator._validate_schema_transform(action, "test")
         assert any("not found" in e for e in errors)
-
-
-class TestValidateQuarantineExpectations:
-    """Tests for _validate_quarantine_expectations edge cases."""
-
-    def test_missing_expectations_file_returns_early(self):
-        """When expectations_file is None, no error is appended."""
-        validator = _make_validator(project_root=Path("/some/root"))
-        action = _make_action(
-            transform_type="data_quality",
-            expectations_file=None,
-        )
-        errors = []
-        validator._validate_quarantine_expectations(action, "test", errors)
-        assert errors == []
-
-    def test_missing_project_root_returns_early(self):
-        """When project_root is None, no error is appended."""
-        validator = _make_validator(project_root=None)
-        action = _make_action(
-            transform_type="data_quality",
-            expectations_file="expectations.yaml",
-        )
-        errors = []
-        validator._validate_quarantine_expectations(action, "test", errors)
-        assert errors == []
-
-    def test_both_missing_returns_early(self):
-        """When both expectations_file and project_root are None, no error."""
-        validator = _make_validator(project_root=None)
-        action = _make_action(
-            transform_type="data_quality",
-            expectations_file=None,
-        )
-        errors = []
-        validator._validate_quarantine_expectations(action, "test", errors)
-        assert errors == []
 
 
 class TestValidateTopLevel:

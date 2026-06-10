@@ -4,11 +4,12 @@ import logging
 import re
 from pathlib import Path
 
-from ...core.base_generator import BaseActionGenerator
-from ...models.config import Action
-from ...utils.error_formatter import ErrorFormatter
-from ...utils.external_file_loader import load_external_file_text
-from ..python_file_copier import copy_user_module_for_pipeline
+from lhp.core.codegen import copy_user_module_for_pipeline
+from lhp.errors import ErrorFactory
+from lhp.models import Action
+
+from ...core.loaders.external_file_loader import load_external_file_text
+from ...core.registry import BaseActionGenerator
 
 
 class CustomDataSourceLoadGenerator(BaseActionGenerator):
@@ -55,11 +56,10 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
                     f"Extracted format name '{format_name}' from {class_name}.name() method"
                 )
                 return format_name
-            else:
-                self.logger.warning(
-                    f"Could not find name() method in {class_name}, using class name as fallback"
-                )
-                return class_name  # Fallback to class name
+            self.logger.warning(
+                f"Could not find name() method in {class_name}, using class name as fallback"
+            )
+            return class_name  # Fallback to class name
 
         except (re.error, AttributeError, IndexError) as e:
             self.logger.warning(
@@ -68,10 +68,9 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
             return class_name  # Fallback to class name
 
     def generate(self, action: Action, context: dict) -> str:
-        """Generate custom data source load code via copy-and-import."""
         source_config = action.source
         if isinstance(source_config, str):
-            raise ErrorFormatter.invalid_source_format(
+            raise ErrorFactory.invalid_source_format(
                 action_name=action.name,
                 action_type="custom_datasource",
                 expected_formats=[
@@ -83,7 +82,6 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
             f"Generating custom datasource load for target '{action.target}', action '{action.name}'"
         )
 
-        # Process source config through substitution manager first if available
         if "substitution_manager" in context:
             source_config = context["substitution_manager"].substitute_yaml(
                 source_config
@@ -93,9 +91,8 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
         custom_datasource_class = source_config.get("custom_datasource_class")
         parameters = source_config.get("options", {})
 
-        # Validate required fields
         if not module_path:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="module_path",
                 component_type="Custom data source load action",
                 component_name=action.name,
@@ -113,7 +110,7 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
             )
 
         if not custom_datasource_class:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="custom_datasource_class",
                 component_type="Custom data source load action",
                 component_name=action.name,
@@ -173,14 +170,12 @@ class CustomDataSourceLoadGenerator(BaseActionGenerator):
             "_lhp_cloudpickle.register_pickle_by_value(custom_python_functions)"
         )
 
-        # Get readMode from action or default to stream
         readMode = action.readMode or "stream"
         self.logger.debug(
             f"Custom datasource '{action.name}': class='{custom_datasource_class}', "
             f"format='{datasource_format_name}', readMode='{readMode}', module='{module_name}'"
         )
 
-        # Handle operational metadata
         add_operational_metadata, metadata_columns = self._get_operational_metadata(
             action, context
         )

@@ -48,7 +48,7 @@ actions:
     type: load
     source:
       type: cloudfiles
-      path: "{landing_volume}/{{ table_name }}/*.csv"
+      path: "${landing_volume}/{{ table_name }}/*.csv"
     target: "v_{{ table_name }}_raw"
 
   - name: "write_{{ table_name }}_bronze"
@@ -56,10 +56,37 @@ actions:
     source: "v_{{ table_name }}_raw"
     write_target:
       type: streaming_table
-      database: "{catalog}.{bronze_schema}"
+      database: "${catalog}.${bronze_schema}"
       table: "{{ table_name }}"
       table_properties: "{{ table_properties }}"
       partition_columns: "{{ partition_columns }}"
+```
+
+### Inline SQL parametrized with Jinja
+
+A template's inline `sql:` block is rendered through Jinja2 like any other field — interpolate `{{ param }}`, branch with `{% if %}`, and loop with `{% for %}`. Because Jinja runs at step 2 (before `${env_token}` at step 3), you can freely mix template params and env tokens in one statement.
+
+```yaml
+parameters:
+  - name: table_name
+    type: string
+    required: true
+  - name: filter_status
+    type: string
+    required: false
+    default: "active"
+
+actions:
+  - name: "clean_{{ table_name }}"
+    type: transform
+    transform_type: sql
+    source: "v_{{ table_name }}_raw"
+    target: "v_{{ table_name }}_clean"
+    sql: |
+      SELECT *
+      FROM stream(v_{{ table_name }}_raw)         -- {{ }} resolves first (step 2)
+      WHERE status = '{{ filter_status }}'
+        AND region = '${default_region}'          -- ${ } resolves after (step 3)
 ```
 
 ### Using Templates in FlowGroups
@@ -108,6 +135,21 @@ source: "{% if enable_dqe %}v_{{ table_name }}_validated{% else %}v_{{ table_nam
 name: "{{ table_name | lower }}_processing"
 ```
 
+**Loops (over `array` parameters):**
+```yaml
+# loop.last → comma separation
+sql: |
+  SELECT {% for col in columns %}{{ col }}{% if not loop.last %}, {% endif %}{% endfor %}
+  FROM {{ source_table }}
+# or the join filter (simpler)
+sql: |
+  SELECT {{ columns | join(', ') }}
+  FROM {{ source_table }}
+```
+Loop helpers: `loop.last`, `loop.first`, `loop.index` (1-based), `loop.index0`, `loop.length`. The engine is **bare Jinja2** — built-in filters (`join`, `lower`, `upper`, `default`, `length`, `sort`) work; the custom `tojson` / `toyaml` filters are **not** available in user templates.
+
+> **Jinja gotcha (most common mistake):** a `{% if %}` / `{% for %}` block is evaluated **only if the same string value also contains a `{{ }}` expression**. A `sql:` (or any string) with block tags but no `{{ }}` is treated as a literal and the tags are left unprocessed. Add a `{{ }}` reference to the string to trigger Jinja on it.
+
 ### Practical Examples
 
 **CSV Ingestion Template:**
@@ -136,7 +178,7 @@ actions:
     operational_metadata: ["_source_file_path", "_processing_timestamp"]
     source:
       type: cloudfiles
-      path: "{landing_volume}/{{ landing_folder }}/*.csv"
+      path: "${landing_volume}/{{ landing_folder }}/*.csv"
       format: csv
       options:
         cloudFiles.format: csv
@@ -149,7 +191,7 @@ actions:
     source: "v_{{ table_name }}_cloudfiles"
     write_target:
       type: streaming_table
-      database: "{catalog}.{bronze_schema}"
+      database: "${catalog}.${bronze_schema}"
       table: "{{ table_name }}"
       cluster_columns: "{{ cluster_columns }}"
 ```
@@ -183,7 +225,7 @@ actions:
     readMode: stream
     source:
       type: delta
-      database: "{catalog}.{bronze_schema}"
+      database: "${catalog}.${bronze_schema}"
       table: "{{ source_table }}"
       options:
         readChangeFeed: "true"
@@ -194,7 +236,7 @@ actions:
     source: "v_{{ table_name }}_changes"
     write_target:
       type: streaming_table
-      database: "{catalog}.{silver_schema}"
+      database: "${catalog}.${silver_schema}"
       table: "dim_{{ table_name }}"
       mode: cdc
       cdc_config:

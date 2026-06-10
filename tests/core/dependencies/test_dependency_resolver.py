@@ -1,0 +1,886 @@
+"""Tests for DependencyResolver."""
+
+import pytest
+
+from lhp.core.dependencies import DependencyResolver
+from lhp.core.validators import ConfigValidator
+from lhp.errors import LHPError
+from lhp.models import Action, ActionType, FlowGroup, TransformType
+
+
+class TestDependencyResolver:
+    def test_simple_dependency_chain(self):
+        """Test resolving simple linear dependencies."""
+        resolver = DependencyResolver()
+
+        actions = [
+            Action(
+                name="load_data",
+                type=ActionType.LOAD,
+                target="v_raw_data",
+                source={"type": "cloudfiles", "path": "/mnt/data"},
+            ),
+            Action(
+                name="clean_data",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source="v_raw_data",
+                target="v_clean_data",
+                sql="SELECT * FROM v_raw_data WHERE is_valid = true",
+            ),
+            Action(
+                name="write_data",
+                type=ActionType.WRITE,
+                source={
+                    "type": "streaming_table",
+                    "view": "v_clean_data",
+                    "table": "clean_data",
+                },
+            ),
+        ]
+
+        ordered = resolver.resolve_dependencies(actions)
+
+        assert len(ordered) == 3
+        assert ordered[0].name == "load_data"
+        assert ordered[1].name == "clean_data"
+        assert ordered[2].name == "write_data"
+
+    def test_parallel_dependencies(self):
+        """Test resolving actions that can run in parallel."""
+        resolver = DependencyResolver()
+
+        actions = [
+            Action(
+                name="load_customers",
+                type=ActionType.LOAD,
+                target="v_customers",
+                source={"type": "delta", "table": "customers"},
+            ),
+            Action(
+                name="load_orders",
+                type=ActionType.LOAD,
+                target="v_orders",
+                source={"type": "delta", "table": "orders"},
+            ),
+            Action(
+                name="join_data",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source=["v_customers", "v_orders"],
+                target="v_customer_orders",
+                sql="SELECT * FROM v_customers c JOIN v_orders o ON c.id = o.customer_id",
+            ),
+            Action(
+                name="write_result",
+                type=ActionType.WRITE,
+                source={
+                    "type": "streaming_table",
+                    "view": "v_customer_orders",
+                    "table": "customer_orders",
+                },
+            ),
+        ]
+
+        ordered = resolver.resolve_dependencies(actions)
+
+        load_names = {ordered[0].name, ordered[1].name}
+        assert load_names == {"load_customers", "load_orders"}
+        assert ordered[2].name == "join_data"
+        assert ordered[3].name == "write_result"
+
+    def test_circular_dependency_detection(self):
+        """Test detection of circular dependencies."""
+        resolver = DependencyResolver()
+
+        actions = [
+            Action(
+                name="action1",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source="v_view2",
+                target="v_view1",
+                sql="SELECT * FROM v_view2",
+            ),
+            Action(
+                name="action2",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source="v_view3",
+                target="v_view2",
+                sql="SELECT * FROM v_view3",
+            ),
+            Action(
+                name="action3",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source="v_view1",
+                target="v_view3",
+                sql="SELECT * FROM v_view1",
+            ),
+        ]
+
+        with pytest.raises(LHPError, match="Circular dependency detected"):
+            resolver.resolve_dependencies(actions)
+
+    def test_circular_dependency_dep001_payload_preserved(self):
+        """DEP_001 payload (code/title/details/context) must stay byte-identical.
+
+        Two consumers (config_validator, codegen.coordinator) propagate this
+        LHPError unchanged; the Kahn -> NetworkX reconciliation must not alter
+        the residual-node ordering, the cycle-visual rendering, or the context
+        keys they relay.
+        """
+        resolver = DependencyResolver()
+
+        actions = [
+            Action(
+                name="action1",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source="v_view2",
+                target="v_view1",
+                sql="SELECT * FROM v_view2",
+            ),
+            Action(
+                name="action2",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source="v_view3",
+                target="v_view2",
+                sql="SELECT * FROM v_view3",
+            ),
+            Action(
+                name="action3",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source="v_view1",
+                target="v_view3",
+                sql="SELECT * FROM v_view1",
+            ),
+        ]
+
+        with pytest.raises(LHPError) as exc_info:
+            resolver.resolve_dependencies(actions)
+
+        err = exc_info.value
+        assert err.code == "LHP-DEP-001"
+        assert err.title == "Circular dependency detected"
+        assert err.details == (
+            "Circular dependency detected involving: "
+            "['action1', 'action2', 'action3']\n\n"
+            "action1 -> action2 -> action3 -> action1"
+        )
+        assert err.context == {
+            "Cycle": "action1 -> action2 -> action3 -> action1",
+            "Components": "action1, action2, action3",
+        }
+
+    def test_validate_relationships(self):
+        """Test relationship validation."""
+        resolver = DependencyResolver()
+
+        valid_actions = [
+            Action(
+                name="load_data",
+                type=ActionType.LOAD,
+                target="v_raw_data",
+                source={"type": "cloudfiles", "path": "/mnt/data"},
+            ),
+            Action(
+                name="transform_data",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source="v_raw_data",
+                target="v_transformed",
+                sql="SELECT * FROM v_raw_data",
+            ),
+            Action(
+                name="write_data",
+                type=ActionType.WRITE,
+                source={
+                    "type": "streaming_table",
+                    "view": "v_transformed",
+                    "table": "output",
+                },
+            ),
+        ]
+
+        errors = resolver.validate_relationships(valid_actions)
+        assert len(errors) == 0
+
+        no_load_actions = [
+            Action(
+                name="transform_data",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source="external_table",  # External source
+                target="v_transformed",
+                sql="SELECT * FROM external_table",
+            ),
+            Action(
+                name="write_data",
+                type=ActionType.WRITE,
+                source={
+                    "type": "streaming_table",
+                    "view": "v_transformed",
+                    "table": "output",
+                },
+            ),
+        ]
+
+        errors = resolver.validate_relationships(no_load_actions)
+        assert any("must have at least one Load action" in error for error in errors)
+
+        no_write_actions = [
+            Action(
+                name="load_data",
+                type=ActionType.LOAD,
+                target="v_raw_data",
+                source={"type": "cloudfiles", "path": "/mnt/data"},
+            )
+        ]
+
+        errors = resolver.validate_relationships(no_write_actions)
+        assert any("must have at least one Write action" in error for error in errors)
+
+    def test_missing_dependency_detection(self):
+        """Registry-based detection cannot distinguish external tables from typos — missing internal views are treated as external."""
+        resolver = DependencyResolver()
+
+        actions = [
+            Action(
+                name="transform_data",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source="v_missing_view",  # This view is not produced by any action
+                target="v_transformed",
+                sql="SELECT * FROM v_missing_view",
+            ),
+            Action(
+                name="write_data",
+                type=ActionType.WRITE,
+                source="v_transformed",
+                write_target={
+                    "type": "streaming_table",
+                    "catalog": "bronze_cat",
+                    "schema": "bronze_sch",
+                    "table": "output",
+                },
+            ),
+        ]
+
+        errors = resolver.validate_relationships(actions)
+        assert any("must have at least one Load action" in error for error in errors)
+
+    def test_orphaned_action_detection(self):
+        """Test detection of orphaned actions."""
+        resolver = DependencyResolver()
+
+        actions = [
+            Action(
+                name="load_data",
+                type=ActionType.LOAD,
+                target="v_raw_data",
+                source={"type": "cloudfiles", "path": "/mnt/data"},
+            ),
+            Action(
+                name="orphaned_transform",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source="v_raw_data",
+                target="v_orphaned",
+                sql="SELECT * FROM v_raw_data",
+            ),
+            Action(
+                name="write_data",
+                type=ActionType.WRITE,
+                source="v_raw_data",
+                write_target={
+                    "type": "streaming_table",
+                    "catalog": "bronze_cat",
+                    "schema": "bronze_sch",
+                    "table": "output",
+                },
+            ),
+        ]
+
+        errors = resolver.validate_relationships(actions)
+        assert any(
+            "orphaned_transform" in error and "no other action references it" in error
+            for error in errors
+        )
+
+    def test_complex_dependency_graph(self):
+        """Test resolving complex dependency graph."""
+        resolver = DependencyResolver()
+
+        actions = [
+            Action(
+                name="load_a",
+                type=ActionType.LOAD,
+                target="v_a",
+                source={"type": "delta", "table": "a"},
+            ),
+            Action(
+                name="load_b",
+                type=ActionType.LOAD,
+                target="v_b",
+                source={"type": "delta", "table": "b"},
+            ),
+            Action(
+                name="load_c",
+                type=ActionType.LOAD,
+                target="v_c",
+                source={"type": "delta", "table": "c"},
+            ),
+            Action(
+                name="join_ab",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source=["v_a", "v_b"],
+                target="v_ab",
+                sql="SELECT * FROM v_a JOIN v_b",
+            ),
+            Action(
+                name="join_bc",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source=["v_b", "v_c"],
+                target="v_bc",
+                sql="SELECT * FROM v_b JOIN v_c",
+            ),
+            Action(
+                name="final_join",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source=["v_ab", "v_bc"],
+                target="v_final",
+                sql="SELECT * FROM v_ab JOIN v_bc",
+            ),
+            Action(
+                name="write_final",
+                type=ActionType.WRITE,
+                source={
+                    "type": "streaming_table",
+                    "view": "v_final",
+                    "table": "final_result",
+                },
+            ),
+        ]
+
+        ordered = resolver.resolve_dependencies(actions)
+
+        action_positions = {action.name: i for i, action in enumerate(ordered)}
+
+        assert action_positions["load_a"] < action_positions["join_ab"]
+        assert action_positions["load_b"] < action_positions["join_ab"]
+        assert action_positions["load_b"] < action_positions["join_bc"]
+        assert action_positions["load_c"] < action_positions["join_bc"]
+
+        assert action_positions["join_ab"] < action_positions["final_join"]
+        assert action_positions["join_bc"] < action_positions["final_join"]
+
+        assert action_positions["final_join"] < action_positions["write_final"]
+
+    def test_external_source_handling(self):
+        """Test handling of external sources (not produced by any action)."""
+        resolver = DependencyResolver()
+
+        actions = [
+            Action(
+                name="load_from_external",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source="bronze.customers",  # External table (not produced by any action in this flowgroup)
+                target="v_customers",
+                sql="SELECT * FROM bronze.customers",
+            ),
+            Action(
+                name="write_customers",
+                type=ActionType.WRITE,
+                source="v_customers",
+                write_target={
+                    "type": "streaming_table",
+                    "catalog": "silver_cat",
+                    "schema": "silver_sch",
+                    "table": "silver_customers",
+                },
+            ),
+        ]
+
+        errors = resolver.validate_relationships(actions)
+        assert not any("bronze.customers" in error for error in errors)
+        assert any("must have at least one Load action" in error for error in errors)
+
+    def test_snapshot_cdc_source_function_no_false_dependencies(self):
+        """snapshot CDC with source_function must not raise a false dependency on action.source."""
+        validator = ConfigValidator()
+
+        snapshot_cdc_action = Action(
+            name="write_part_silver_snapshot",
+            type=ActionType.WRITE,
+            source="v_part_bronze_snapshot",
+            write_target={
+                "type": "streaming_table",
+                "catalog": "catalog",
+                "schema": "silver_schema",
+                "table": "part_dim",
+                "mode": "snapshot_cdc",
+                "snapshot_cdc_config": {
+                    "source_function": {
+                        "file": "py_functions/part_snapshot_func.py",
+                        "function": "next_snapshot_and_version",
+                    },
+                    "keys": ["part_id"],
+                    "stored_as_scd_type": 2,
+                    "track_history_except_column_list": [
+                        "_source_file_path",
+                        "_processing_timestamp",
+                    ],
+                },
+            },
+        )
+
+        flowgroup = FlowGroup(
+            pipeline="test_pipeline",
+            flowgroup="part_silver_dim",
+            actions=[snapshot_cdc_action],
+        )
+
+        errors = validator.validate_flowgroup(flowgroup)
+
+        # snapshot CDC with source_function is self-contained — no false dependency on action.source
+        dependency_errors = [
+            e
+            for e in errors
+            if "depends on 'v_part_bronze_snapshot' which is not produced by any action"
+            in e
+        ]
+        assert len(dependency_errors) == 0, (
+            f"Should not have false dependency error for snapshot CDC with source_function. Got errors: {errors}"
+        )
+
+    def test_snapshot_cdc_source_function_no_load_action_required(self):
+        """snapshot CDC with source_function is self-contained and must not require a separate load action."""
+        validator = ConfigValidator()
+
+        # Create a flowgroup with only snapshot CDC + source_function
+        snapshot_cdc_action = Action(
+            name="write_part_silver_snapshot",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "streaming_table",
+                "catalog": "catalog",
+                "schema": "silver_schema",
+                "table": "part_dim",
+                "mode": "snapshot_cdc",
+                "snapshot_cdc_config": {
+                    "source_function": {
+                        "file": "py_functions/part_snapshot_func.py",
+                        "function": "next_snapshot_and_version",
+                    },
+                    "keys": ["part_id"],
+                    "stored_as_scd_type": 2,
+                },
+            },
+        )
+
+        flowgroup = FlowGroup(
+            pipeline="test_pipeline",
+            flowgroup="part_silver_dim",
+            actions=[snapshot_cdc_action],
+        )
+
+        errors = validator.validate_flowgroup(flowgroup)
+
+        # snapshot CDC with source_function is self-contained — no load action required
+        load_action_errors = [
+            e for e in errors if "FlowGroup must have at least one Load action" in e
+        ]
+        assert len(load_action_errors) == 0, (
+            f"Should not require load action for self-contained snapshot CDC flowgroup. Got errors: {errors}"
+        )
+
+    def test_normal_write_action_unchanged(self):
+        """Test that normal (non-CDC) write actions still work as before."""
+        resolver = DependencyResolver()
+
+        load_action = Action(
+            name="load_customer_data",
+            type=ActionType.LOAD,
+            target="v_customer_raw",
+            source={
+                "type": "cloudfiles",
+                "path": "/data/customers",
+                "format": "parquet",
+            },
+        )
+
+        write_action = Action(
+            name="write_customer_table",
+            type=ActionType.WRITE,
+            source="v_customer_raw",  # Traditional source reference
+            write_target={
+                "type": "streaming_table",
+                "catalog": "catalog",
+                "schema": "bronze",
+                "table": "customers",
+            },
+        )
+
+        actions = [load_action, write_action]
+
+        errors = resolver.validate_relationships(actions)
+        assert len(errors) == 0, (
+            f"Normal write actions should still work. Got errors: {errors}"
+        )
+
+        sources = resolver._get_action_sources(write_action)
+        assert sources == ["v_customer_raw"], (
+            f"Normal write action should extract source correctly. Got: {sources}"
+        )
+
+    def test_cdc_mode_with_explicit_source(self):
+        """Test that CDC mode (not snapshot_cdc) with explicit source still works."""
+        resolver = DependencyResolver()
+
+        cdc_action = Action(
+            name="write_customer_cdc",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "streaming_table",
+                "catalog": "catalog",
+                "schema": "bronze",
+                "table": "customers",
+                "mode": "cdc",
+                "cdc_config": {"source": "v_customer_changes", "keys": ["customer_id"]},
+            },
+        )
+
+        sources = resolver._get_action_sources(cdc_action)
+        assert sources == ["v_customer_changes"], (
+            f"CDC action should extract source from cdc_config. Got: {sources}"
+        )
+
+    def test_snapshot_cdc_with_explicit_source(self):
+        """Test that snapshot_cdc with explicit source (not source_function) still works."""
+        resolver = DependencyResolver()
+
+        snapshot_action = Action(
+            name="write_customer_snapshot",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "streaming_table",
+                "catalog": "catalog",
+                "schema": "silver",
+                "table": "customers",
+                "mode": "snapshot_cdc",
+                "snapshot_cdc_config": {
+                    "source": "v_customer_snapshots",  # Explicit source, no source_function
+                    "keys": ["customer_id"],
+                },
+            },
+        )
+
+        sources = resolver._get_action_sources(snapshot_action)
+        assert sources == ["v_customer_snapshots"], (
+            f"Snapshot CDC with explicit source should work. Got: {sources}"
+        )
+
+    def test_mixed_action_types_coexist(self):
+        """Test that different action types (normal, CDC, snapshot CDC) can coexist."""
+        validator = ConfigValidator()
+
+        load_action = Action(
+            name="load_raw_data",
+            type=ActionType.LOAD,
+            target="v_raw_data",
+            source={"type": "cloudfiles", "path": "/data", "format": "parquet"},
+        )
+
+        normal_write = Action(
+            name="write_bronze_normal",
+            type=ActionType.WRITE,
+            source="v_raw_data",
+            write_target={
+                "type": "streaming_table",
+                "catalog": "bronze_cat",
+                "schema": "bronze_sch",
+                "table": "normal_table",
+            },
+        )
+
+        snapshot_cdc_self_contained = Action(
+            name="write_silver_snapshot",
+            type=ActionType.WRITE,
+            write_target={
+                "type": "streaming_table",
+                "catalog": "silver_cat",
+                "schema": "silver_sch",
+                "table": "snapshot_table",
+                "mode": "snapshot_cdc",
+                "snapshot_cdc_config": {
+                    "source_function": {
+                        "file": "functions/snapshot.py",
+                        "function": "get_snapshot",
+                    },
+                    "keys": ["id"],
+                },
+            },
+        )
+
+        flowgroup = FlowGroup(
+            pipeline="mixed_pipeline",
+            flowgroup="mixed_flowgroup",
+            actions=[load_action, normal_write, snapshot_cdc_self_contained],
+        )
+
+        errors = validator.validate_flowgroup(flowgroup)
+        assert len(errors) == 0, (
+            f"Mixed action types should coexist. Got errors: {errors}"
+        )
+
+    def test_malformed_cdc_config_fallback(self):
+        """Test that malformed CDC configs fall back to action.source gracefully."""
+        resolver = DependencyResolver()
+
+        malformed_cdc = Action(
+            name="write_malformed_cdc",
+            type=ActionType.WRITE,
+            source="v_fallback_source",  # Should fallback to this
+            write_target={
+                "type": "streaming_table",
+                "catalog": "bronze_cat",
+                "schema": "bronze_sch",
+                "table": "malformed",
+                "mode": "cdc",
+                "cdc_config": {},  # Empty config, no source
+            },
+        )
+
+        sources = resolver._get_action_sources(malformed_cdc)
+        assert sources == ["v_fallback_source"], (
+            f"Malformed CDC should fallback to action.source. Got: {sources}"
+        )
+
+    def test_non_v_prefix_internal_views(self):
+        """Test that internal views without v_ prefix are recognized correctly."""
+        resolver = DependencyResolver()
+
+        actions = [
+            Action(
+                name="load_data",
+                type=ActionType.LOAD,
+                target="raw_customer_data",
+                source={"type": "cloudfiles", "path": "/data/customers"},
+            ),
+            Action(
+                name="transform_data",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source="raw_customer_data",
+                target="staging_customer",
+                sql="SELECT * FROM raw_customer_data WHERE active = true",
+            ),
+            Action(
+                name="write_data",
+                type=ActionType.WRITE,
+                source="staging_customer",
+                write_target={
+                    "type": "streaming_table",
+                    "catalog": "catalog",
+                    "schema": "bronze",
+                    "table": "customer",
+                },
+            ),
+        ]
+
+        errors = resolver.validate_relationships(actions)
+
+        missing_dep_errors = [e for e in errors if "not produced by any action" in e]
+        assert len(missing_dep_errors) == 0, (
+            f"Should not have missing dependency errors. Got: {missing_dep_errors}"
+        )
+
+        ordered = resolver.resolve_dependencies(actions)
+        assert ordered[0].name == "load_data"
+        assert ordered[1].name == "transform_data"
+        assert ordered[2].name == "write_data"
+
+    def test_mixed_naming_conventions(self):
+        """Test that v_ and non-v_ prefixed targets can coexist."""
+        resolver = DependencyResolver()
+
+        actions = [
+            Action(
+                name="load_a",
+                type=ActionType.LOAD,
+                target="v_data_a",
+                source={"type": "delta", "table": "source_a"},
+            ),
+            Action(
+                name="load_b",
+                type=ActionType.LOAD,
+                target="raw_data_b",
+                source={"type": "delta", "table": "source_b"},
+            ),
+            Action(
+                name="transform_merged",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source=["v_data_a", "raw_data_b"],
+                target="staging_merged",
+                sql="SELECT * FROM v_data_a JOIN raw_data_b",
+            ),
+            Action(
+                name="write_result",
+                type=ActionType.WRITE,
+                source="staging_merged",
+                write_target={
+                    "type": "streaming_table",
+                    "catalog": "catalog",
+                    "schema": "silver",
+                    "table": "merged_data",
+                },
+            ),
+        ]
+
+        errors = resolver.validate_relationships(actions)
+        missing_dep_errors = [e for e in errors if "not produced by any action" in e]
+        assert len(missing_dep_errors) == 0, (
+            f"Should handle mixed naming conventions. Got: {missing_dep_errors}"
+        )
+
+        ordered = resolver.resolve_dependencies(actions)
+        action_positions = {action.name: i for i, action in enumerate(ordered)}
+
+        assert action_positions["load_a"] < action_positions["transform_merged"]
+        assert action_positions["load_b"] < action_positions["transform_merged"]
+        assert action_positions["transform_merged"] < action_positions["write_result"]
+
+    def test_internal_dependency_typo_detection(self):
+        """Registry-based detection treats unknown sources as external; typos surface as orphaned actions instead."""
+        resolver = DependencyResolver()
+
+        actions = [
+            Action(
+                name="load_data",
+                type=ActionType.LOAD,
+                target="customer_data",
+                source={"type": "delta", "table": "customers"},
+            ),
+            Action(
+                name="transform_correct",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source="customer_data",
+                target="enriched_data",
+                sql="SELECT * FROM customer_data",
+            ),
+            Action(
+                name="transform_depends_on_typo",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source="enriched_dta",  # typo: should be 'enriched_data'
+                target="final_data",
+                sql="SELECT * FROM enriched_dta",
+            ),
+            Action(
+                name="write_data",
+                type=ActionType.WRITE,
+                source="final_data",
+                write_target={
+                    "type": "streaming_table",
+                    "catalog": "catalog",
+                    "schema": "silver",
+                    "table": "customer",
+                },
+            ),
+        ]
+
+        # enriched_dta is treated as external (not caught directly); enriched_data becomes orphaned instead.
+        errors = resolver.validate_relationships(actions)
+
+        # Should detect orphaned transform (enriched_data is not used)
+        assert any(
+            "transform_correct" in error or "enriched_data" in error for error in errors
+        )
+
+    def test_sql_only_mv_needs_no_load(self):
+        """Test that a materialized view with SQL needs no load action."""
+        resolver = DependencyResolver()
+
+        actions = [
+            Action(
+                name="write_gold_mv",
+                type=ActionType.WRITE,
+                write_target={
+                    "type": "materialized_view",
+                    "catalog": "gold_cat",
+                    "schema": "gold_sch",
+                    "table": "ecomm_summary",
+                    "sql": "SELECT COUNT(*) FROM silver.orders",
+                },
+            ),
+        ]
+
+        errors = resolver.validate_relationships(actions)
+        load_errors = [e for e in errors if "must have at least one Load action" in e]
+        assert len(load_errors) == 0, f"SQL-only MV should not need load. Got: {errors}"
+
+    def test_sql_path_mv_needs_no_load(self):
+        """Test that a materialized view with sql_path needs no load action."""
+        resolver = DependencyResolver()
+
+        actions = [
+            Action(
+                name="write_gold_mv",
+                type=ActionType.WRITE,
+                write_target={
+                    "type": "materialized_view",
+                    "catalog": "gold_cat",
+                    "schema": "gold_sch",
+                    "table": "ecomm_summary",
+                    "sql_path": "sql/gold/ecomm_summary.sql",
+                },
+            ),
+        ]
+
+        errors = resolver.validate_relationships(actions)
+        load_errors = [e for e in errors if "must have at least one Load action" in e]
+        assert len(load_errors) == 0, f"sql_path MV should not need load. Got: {errors}"
+
+    def test_orphaned_transform_plus_missing_load_both_reported(self):
+        """Test that orphaned transform and missing load are both reported."""
+        resolver = DependencyResolver()
+
+        actions = [
+            Action(
+                name="orphaned_transform",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source="v_external",
+                target="v_orphaned",
+                sql="SELECT * FROM v_external",
+            ),
+            Action(
+                name="write_data",
+                type=ActionType.WRITE,
+                source="v_external",
+                write_target={
+                    "type": "streaming_table",
+                    "catalog": "bronze_cat",
+                    "schema": "bronze_sch",
+                    "table": "output",
+                },
+            ),
+        ]
+
+        errors = resolver.validate_relationships(actions)
+        assert any("must have at least one Load action" in e for e in errors)
+        assert any("orphaned_transform" in e for e in errors)
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

@@ -1,4 +1,4 @@
-"""Spec-driven unit tests for BlueprintDiscoverer (Phase 4).
+"""Unit tests for BlueprintDiscoverer.
 
 Covers default-pattern + custom-pattern discovery, the empty-project case,
 and code 046 for duplicate blueprint names.
@@ -8,11 +8,11 @@ from pathlib import Path
 
 import pytest
 
-from lhp.core.services.blueprint_discoverer import BlueprintDiscoverer
-from lhp.models.config import ProjectConfig
+from lhp.core.discovery.blueprint_discoverer import BlueprintDiscoverer
+from lhp.errors import ErrorCategory, LHPError
+from lhp.models import ProjectConfig
 from lhp.parsers.blueprint_parser import BlueprintParser
 from lhp.parsers.yaml_parser import CachingYAMLParser, YAMLParser
-from lhp.utils.error_formatter import ErrorCategory, LHPError
 
 pytestmark = pytest.mark.unit
 
@@ -90,8 +90,8 @@ def test_duplicate_blueprint_name_raises_046(tmp_path):
 
 
 def test_discover_instances_default_patterns(tmp_path):
-    # New default: instance_include = ['pipelines/**/*.yaml']. Instance files
-    # live alongside hand-written flowgroups under pipelines/<system>/<layer>/.
+    # instance_include = ['pipelines/**/*.yaml']; instance files live alongside
+    # hand-written flowgroups under pipelines/<system>/<layer>/.
     _write(tmp_path / "blueprints" / "erp.yaml", _bp_yaml("erp_ingestion"))
     _write(
         tmp_path / "pipelines" / "erp" / "bronze" / "sg.yaml",
@@ -137,11 +137,6 @@ def test_discover_instances_custom_patterns(tmp_path):
     assert sites == {"apac_sg"}
 
 
-# ----------------------------------------------------------------------
-# Issue 2 + 3 (PR #130): cache plumbing + load-error UX
-# ----------------------------------------------------------------------
-
-
 def test_discover_instances_uses_cached_parser_single_load(tmp_path):
     """When wired with a CachingYAMLParser, every unique YAML file is read
     from disk exactly once across the entire blueprint+instance discovery
@@ -164,19 +159,20 @@ def test_discover_instances_uses_cached_parser_single_load(tmp_path):
     blueprints = disco.discover_blueprints()
     disco.discover_instances(blueprints)
 
-    cold = cache.get_cache_stats()
+    cold_documents_cache_size = len(cache._documents_cache)
+    cold_hits = cache._hits
     # 3 unique files (1 blueprint + 2 instances) → cache has 3 entries,
     # each loaded from disk exactly once.
-    assert cold["documents_cache_size"] == 3
-    assert cold["misses"] == 3
+    assert cold_documents_cache_size == 3
     # parse_instance_file re-reads each of the 2 instances → 2 hits.
-    assert cold["hits"] >= 2
+    assert cold_hits >= 2
 
-    # Warm pass: no new physical reads, only hits.
+    # Warm pass: no new physical reads (no new cache entries), only hits.
     disco.discover_instances(blueprints)
-    warm = cache.get_cache_stats()
-    assert warm["misses"] == cold["misses"], "warm pass must not re-read disk"
-    assert warm["hits"] > cold["hits"], "warm pass must produce additional hits"
+    assert len(cache._documents_cache) == cold_documents_cache_size, (
+        "warm pass must not re-read disk"
+    )
+    assert cache._hits > cold_hits, "warm pass must produce additional hits"
 
 
 def test_blueprint_discoverer_emits_warning_on_load_errors(tmp_path, caplog):
@@ -200,7 +196,7 @@ def test_blueprint_discoverer_emits_warning_on_load_errors(tmp_path, caplog):
     blueprints = disco.discover_blueprints()
 
     with caplog.at_level(
-        logging.WARNING, logger="lhp.core.services.blueprint_discoverer"
+        logging.WARNING, logger="lhp.core.discovery.blueprint_discoverer"
     ):
         instances = disco.discover_instances(blueprints)
 
@@ -210,12 +206,12 @@ def test_blueprint_discoverer_emits_warning_on_load_errors(tmp_path, caplog):
     assert sites == {"apac_sg"}
 
     # Filter to *this* logger; unrelated WARNINGs (e.g. deprecation messages
-    # from lhp.models.config) are noise for this assertion.
+    # from the legacy "lhp.models.config" logger) are noise for this assertion.
     warnings = [
         r
         for r in caplog.records
         if r.levelno == logging.WARNING
-        and r.name == "lhp.core.services.blueprint_discoverer"
+        and r.name == "lhp.core.discovery.blueprint_discoverer"
     ]
     assert len(warnings) == 1
     msg = warnings[0].getMessage()
@@ -243,7 +239,7 @@ def test_blueprint_discoverer_silent_on_non_instance_files(tmp_path, caplog):
     blueprints = disco.discover_blueprints()
 
     with caplog.at_level(
-        logging.WARNING, logger="lhp.core.services.blueprint_discoverer"
+        logging.WARNING, logger="lhp.core.discovery.blueprint_discoverer"
     ):
         instances = disco.discover_instances(blueprints)
 
@@ -256,7 +252,7 @@ def test_blueprint_discoverer_silent_on_non_instance_files(tmp_path, caplog):
         r
         for r in caplog.records
         if r.levelno == logging.WARNING
-        and r.name == "lhp.core.services.blueprint_discoverer"
+        and r.name == "lhp.core.discovery.blueprint_discoverer"
     ]
     assert warnings == [], (
         "Non-instance files (regular flowgroups) must not produce "

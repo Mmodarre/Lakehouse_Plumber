@@ -35,6 +35,7 @@ dp.create_streaming_table(
     name="acme_edw_dev.edw_silver.nation_dim",
     comment="Streaming table: nation_dim",
     table_properties={"delta.enableRowTracking": "true"},
+    cluster_by_auto=True,
 )
 
 

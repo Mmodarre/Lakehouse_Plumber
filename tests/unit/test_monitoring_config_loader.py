@@ -1,13 +1,13 @@
 """Unit tests for monitoring config parsing and validation in ProjectConfigLoader."""
 
-import pytest
 from pathlib import Path
 from unittest.mock import patch
 
-from lhp.core.project_config_loader import ProjectConfigLoader
-from lhp.models.config import EventLogConfig, MonitoringConfig
-from lhp.utils.error_formatter import LHPError
+import pytest
 
+from lhp.core.loaders import ProjectConfigLoader
+from lhp.errors import LHPError
+from lhp.models import EventLogConfig, MonitoringConfig
 
 # Path (relative to project root / tmp_path) used across tests as the monitoring
 # job config location. The `loader` fixture creates this file so validation passes.
@@ -16,9 +16,7 @@ JOB_CFG_REL = "config/monitoring_job_config.yaml"
 
 @pytest.fixture
 def loader(tmp_path):
-    """Create a ProjectConfigLoader with a minimal lhp.yaml and a valid
-    monitoring job config file on disk so the required-file validation passes.
-    """
+    """Monitoring job config file on disk so the required-file validation passes."""
     lhp_yaml = tmp_path / "lhp.yaml"
     lhp_yaml.write_text("name: test_project\n")
     job_cfg_file = tmp_path / JOB_CFG_REL
@@ -241,7 +239,7 @@ class TestValidateMonitoringConfig:
         loader._validate_monitoring_config(config, event_log)
 
     def test_duplicate_mv_names_raises(self, loader):
-        from lhp.models.config import MonitoringMaterializedViewConfig
+        from lhp.models import MonitoringMaterializedViewConfig
 
         config = MonitoringConfig(
             enabled=True,
@@ -257,7 +255,7 @@ class TestValidateMonitoringConfig:
             loader._validate_monitoring_config(config, event_log)
 
     def test_mv_with_both_sql_and_sql_path_raises(self, loader):
-        from lhp.models.config import MonitoringMaterializedViewConfig
+        from lhp.models import MonitoringMaterializedViewConfig
 
         config = MonitoringConfig(
             enabled=True,
@@ -274,7 +272,7 @@ class TestValidateMonitoringConfig:
             loader._validate_monitoring_config(config, event_log)
 
     def test_mv_missing_name_raises(self, loader):
-        from lhp.models.config import MonitoringMaterializedViewConfig
+        from lhp.models import MonitoringMaterializedViewConfig
 
         config = MonitoringConfig(
             enabled=True,
@@ -289,7 +287,7 @@ class TestValidateMonitoringConfig:
             loader._validate_monitoring_config(config, event_log)
 
     def test_unique_mv_names_pass(self, loader):
-        from lhp.models.config import MonitoringMaterializedViewConfig
+        from lhp.models import MonitoringMaterializedViewConfig
 
         config = MonitoringConfig(
             enabled=True,
@@ -348,8 +346,6 @@ class TestParseProjectConfigWithMonitoring:
             )
 
     def test_monitoring_enabled_without_job_config_path_raises(self, loader):
-        """Parsing a full project config with monitoring enabled but no
-        job_config_path should surface the new validation error."""
         with pytest.raises(LHPError, match="job_config_path is required"):
             loader._parse_project_config(
                 {

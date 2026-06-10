@@ -1,0 +1,31 @@
+# B8 fixture — Delta reader with skipChangeCommits.
+# Streams a Delta table but skips commits that contain data-changing operations
+# (the inverse of readChangeFeed: ignore change events, take latest state only).
+# Verifies that LHP emits .option("skipChangeCommits", "true") and does NOT
+# combine it with readChangeFeed (mutually exclusive per docs).
+pipeline: 17_delta_cdc
+flowgroup: cdc_skip_change_commits
+#job_name: j_cdc
+
+actions:
+  - name: read_inventory_latest
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: "inventory"
+      options:
+        skipChangeCommits: "true"
+    target: v_inventory_latest
+    description: "Stream inventory latest state, skipping data-changing commits"
+
+  - name: write_inventory_latest
+    type: write
+    source: v_inventory_latest
+    write_target:
+      type: streaming_table
+      database: "${catalog}.${silver_schema}"
+      table: "inventory_latest"
+      comment: "Latest inventory state derived from skipChangeCommits stream"

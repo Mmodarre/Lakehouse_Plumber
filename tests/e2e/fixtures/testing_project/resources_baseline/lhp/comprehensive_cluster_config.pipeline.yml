@@ -6,9 +6,8 @@ resources:
       name: comprehensive_cluster_config_pipeline
       
       # Catalog and Schema for the pipeline
-      # Using databricks.yml variables (not defined in pipeline config)
-      catalog: ${var.default_pipeline_catalog}
-      schema: ${var.default_pipeline_schema}
+      catalog: acme_edw_dev
+      schema: edw_raw
       
       serverless: false
       # Compute clusters configuration

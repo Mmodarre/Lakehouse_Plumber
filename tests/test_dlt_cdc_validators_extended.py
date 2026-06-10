@@ -6,12 +6,13 @@ directly (not via ConfigValidator) to cover uncovered validation paths.
 """
 
 import pytest
-from lhp.core.dlt_cdc_validators import (
+
+from lhp.core.validators import (
     CdcConfigValidator,
     CdcSchemaValidator,
     SnapshotCdcConfigValidator,
 )
-from lhp.models.config import Action, ActionType
+from lhp.models import Action, ActionType
 
 
 class TestCdcConfigValidatorDirect:
@@ -147,7 +148,9 @@ class TestCdcConfigValidatorDirect:
             }
         )
         errors = self.validator.validate(action, self.prefix)
-        assert any("'apply_as_truncates' must be a string expression" in e for e in errors)
+        assert any(
+            "'apply_as_truncates' must be a string expression" in e for e in errors
+        )
 
     def test_validate_scd_options_apply_as_truncates_with_scd_type_2(self):
         """apply_as_truncates with scd_type=2 should produce error."""
@@ -163,8 +166,7 @@ class TestCdcConfigValidatorDirect:
         )
         errors = self.validator.validate(action, self.prefix)
         assert any(
-            "'apply_as_truncates' is not supported with SCD Type 2" in e
-            for e in errors
+            "'apply_as_truncates' is not supported with SCD Type 2" in e for e in errors
         )
 
     def test_validate_scd_options_track_history_column_list_and_except_mutual_exclusivity(
@@ -214,9 +216,7 @@ class TestCdcConfigValidatorDirect:
             }
         )
         errors = self.validator.validate(action, self.prefix)
-        assert any(
-            "track_history_column_list[1] must be a string" in e for e in errors
-        )
+        assert any("track_history_column_list[1] must be a string" in e for e in errors)
 
     def test_validate_scd_options_track_history_except_column_list_non_list(self):
         """Non-list track_history_except_column_list should produce error."""
@@ -249,8 +249,7 @@ class TestCdcConfigValidatorDirect:
         )
         errors = self.validator.validate(action, self.prefix)
         assert any(
-            "track_history_except_column_list[0] must be a string" in e
-            for e in errors
+            "track_history_except_column_list[0] must be a string" in e for e in errors
         )
 
     def test_validate_column_lists_both_present_mutual_exclusivity(self):
@@ -359,7 +358,9 @@ class TestCdcConfigValidatorDirect:
             }
         )
         errors = self.validator.validate(action, self.prefix)
-        assert any("'apply_as_deletes' must be a string expression" in e for e in errors)
+        assert any(
+            "'apply_as_deletes' must be a string expression" in e for e in errors
+        )
 
     def test_validate_valid_full_cdc_config(self):
         """A fully valid cdc_config should produce no errors."""
@@ -567,9 +568,7 @@ class TestSnapshotCdcConfigValidatorDirect:
             }
         )
         errors = self.validator.validate(action, self.prefix)
-        assert any(
-            "track_history_column_list[1] must be a string" in e for e in errors
-        )
+        assert any("track_history_column_list[1] must be a string" in e for e in errors)
 
     def test_validate_track_history_except_column_list_non_list(self):
         """Non-list track_history_except_column_list should produce error."""
@@ -602,8 +601,7 @@ class TestSnapshotCdcConfigValidatorDirect:
         )
         errors = self.validator.validate(action, self.prefix)
         assert any(
-            "track_history_except_column_list[0] must be a string" in e
-            for e in errors
+            "track_history_except_column_list[0] must be a string" in e for e in errors
         )
 
     def test_validate_track_history_mutual_exclusivity(self):

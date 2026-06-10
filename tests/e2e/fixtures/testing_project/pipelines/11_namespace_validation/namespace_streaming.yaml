@@ -1,5 +1,6 @@
 pipeline: namespace_validation
 flowgroup: namespace_streaming
+#job_name: j_namespace
 presets:
   - default_delta_properties
 actions:

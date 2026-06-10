@@ -4,27 +4,89 @@ Write Actions
 .. meta::
    :description: Complete reference for LHP Write action types: streaming tables, materialized views, and sinks (Delta, Kafka, Event Hubs, custom, foreachbatch).
 
+Concept
+-------
 
-+-------------------+--------------------------------------------------------------------------+
-| Sub-type          | Purpose                                                                  |
-+===================+==========================================================================+
-|| streaming_table  || Create or append to a Delta streaming table in Unity Catalog.           |
-||                  || Supports Change Data Feed (CDF), CDC modes, and append flows.           |
-+-------------------+--------------------------------------------------------------------------+
-|| materialized_view|| Create a Lakeflow *materialized view* for batch-computed analytics.     |
-+-------------------+--------------------------------------------------------------------------+
+What
+~~~~
 
-streaming_table
--------------------------------------------
-Streaming table write actions create or append to Delta streaming tables. They support three modes: **standard** (append flows), **cdc** (change data capture), and **snapshot_cdc** (snapshot-based CDC).
+A Write action persists the output of a :term:`FlowGroup` to a target managed by
+Lakeflow Declarative Pipelines. Every Write action sets ``type: write`` and
+declares a ``write_target`` block whose ``type`` field selects one of three
+targets:
+
+* **streaming_table** — incremental, append-style or Change Data Capture (CDC)
+  Delta table managed by the pipeline.
+* **materialized_view** — batch-computed analytics table refreshed on demand.
+* **sink** — push-out destination (Delta external, Kafka, Azure Event Hubs,
+  custom Python DataSink, or ForEachBatch handler) for data that leaves the
+  pipeline-managed catalog.
+
+When
+~~~~
+
+Pick the target by the kind of object you want to produce:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 75
+
+   * - Target
+     - Use when…
+   * - ``streaming_table``
+     - Persisting incrementally arriving data. Bronze and Silver layers, CDC,
+       fan-in from multiple sources. Supports ``standard``, ``cdc``, and
+       ``snapshot_cdc`` modes.
+   * - ``materialized_view``
+     - Batch-computed analytics — Gold dashboards and aggregations that refresh
+       on a schedule.
+   * - ``sink``
+     - Pushing data out of the lakehouse — Kafka, Delta to an external catalog,
+       Azure Event Hubs, or a custom REST endpoint.
+
+For the full matrix including how to pick streaming vs batch at the Load side,
+see :doc:`../decisions`.
+
+Minimum example
+~~~~~~~~~~~~~~~
+
+The smallest working Write action appends a streaming view to a Delta
+streaming table:
+
+.. code-block:: yaml
+   :caption: pipelines/bronze/customer.yaml
+
+   actions:
+     - name: write_customer_bronze
+       type: write
+       source: v_customer_cleansed
+       write_target:
+         type: streaming_table
+         catalog: "${catalog}"
+         schema: "${bronze_schema}"
+         table: customer
+       description: "Write customer data to bronze streaming table"
+
+The reference body below documents every option for each target.
+
+Streaming tables
+----------------
+
+Use ``streaming_table`` to persist incrementally arriving data into a Delta
+table managed by the pipeline. Streaming tables support three modes:
+``standard`` (default — append flows), ``cdc`` (change data capture), and
+``snapshot_cdc`` (snapshot-based CDC).
 
 .. deprecated:: 0.7.8
    The ``database`` field (e.g., ``database: "${catalog}.${schema}"``) is deprecated.
    Use explicit ``catalog`` and ``schema`` fields instead. The old format is
    auto-converted with a deprecation warning. Removal in v1.0.0.
 
-Append Streaming Table Write
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Standard mode (append)
+~~~~~~~~~~~~~~~~~~~~~~
+
+Standard mode appends rows from one or more source views via
+``@dp.append_flow``.
 
 .. code-block:: yaml
 
@@ -71,6 +133,7 @@ Append Streaming Table Write
       - **table_properties**: Delta table properties for optimization and metadata
       - **partition_columns**: Columns to partition the table by
       - **cluster_columns**: Columns to cluster/z-order the table by
+      - **cluster_by_auto**: Boolean — enable automatic liquid clustering (Databricks selects and evolves the clustering keys). Renders ``cluster_by_auto=True``; omitted when ``false`` or unset. Mutually exclusive with ``cluster_columns``.
       - **spark_conf**: Streaming-specific Spark configuration
       - **table_schema**: DDL schema definition for the table (supports inline DDL or external file - see below)
       - **row_filter**: Row-level security filter using SQL UDF (format: "ROW FILTER function_name ON (column_names)")
@@ -105,8 +168,7 @@ The ``table_schema`` option supports two formats, automatically detected by the 
   # or
   table_schema: "schemas/customer_table.yaml"
 
-.. note::
-  **External Schema Files**: Schema files can be organized in subdirectories relative to your project root (e.g., ``"schemas/bronze/customer_table.ddl"``). The framework automatically detects file paths based on file extensions (``.ddl``, ``.sql``, ``.yaml``, ``.yml``, ``.json``) or path separators.
+**External Schema Files**: Schema files can be organized in subdirectories relative to your project root (e.g., ``"schemas/bronze/customer_table.ddl"``). The framework automatically detects file paths based on file extensions (``.ddl``, ``.sql``, ``.yaml``, ``.yml``, ``.json``) or path separators.
 
 **The above YAML translates to the following PySpark code**
 
@@ -151,13 +213,13 @@ The ``table_schema`` option supports two formats, automatically detected by the 
       df = spark.readStream.table("v_customer_cleansed")
       return df
 
-CDC Mode
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+CDC mode
+~~~~~~~~
 
 
 **Incremental CDC**
 
-CDC mode enables Change Data Capture using DLT's auto CDC functionality for SCD Type 1 and Type 2 processing.
+:term:`CDC` mode enables Change Data Capture using :term:`DLT`'s auto CDC functionality for :term:`SCD` Type 1 and Type 2 processing.
 
 .. code-block:: yaml
 
@@ -226,7 +288,7 @@ Requirements:
 - All contributors must agree on the following shared fields (table-level and CDC-key semantics):
 
   - ``cdc_config``: ``keys``, ``sequence_by``, ``stored_as_scd_type`` / ``scd_type``, ``track_history_column_list``, ``track_history_except_column_list``
-  - ``write_target``: ``partition_columns``, ``cluster_columns``, ``table_properties``, ``spark_conf``, ``table_schema``, ``comment``, ``path``, ``row_filter``, ``temporary``
+  - ``write_target``: ``partition_columns``, ``cluster_columns``, ``cluster_by_auto``, ``table_properties``, ``spark_conf``, ``table_schema``, ``comment``, ``path``, ``row_filter``, ``temporary``
 
 - The following fields are **per-flow** and may differ across contributors:
 
@@ -279,16 +341,16 @@ Cross-flowgroup fan-in is supported: the creator and contributors may live in di
 
 If any shared field disagrees across contributors, ``lhp validate`` / ``lhp generate`` fails with ``LHPConfigError`` listing the offending field, the conflicting actions, and a remediation example. CDC and non-CDC actions may not share the same target — mode-mixing is rejected.
 
-**Snapshot CDC**
+Snapshot CDC mode
+~~~~~~~~~~~~~~~~~
 
-Snapshot CDC mode creates CDC flows from full snapshots of data using DLT's `create_auto_cdc_from_snapshot_flow()`. It supports two source approaches: direct table references or custom Python functions.
+:term:`Snapshot CDC` mode creates CDC flows from full snapshots of data using DLT's `create_auto_cdc_from_snapshot_flow()`. It supports two source approaches: direct table references or custom Python functions.
 
-.. note::
-  **Recent Improvements**: Snapshot CDC actions using ``source_function`` are now **self-contained** and automatically handle:
-  
-  - **Dependency Management**: No false dependency errors when using ``source_function``
-  - **FlowGroup Validation**: Exempt from "must have at least one Load action" requirement
-  - **Source Field Handling**: Action-level ``source`` field is redundant and should be omitted
+**Recent Improvements**: Snapshot CDC actions using ``source_function`` are now **self-contained** and automatically handle:
+
+- **Dependency Management**: No false dependency errors when using ``source_function``
+- **FlowGroup Validation**: Exempt from "must have at least one Load action" requirement
+- **Source Field Handling**: Action-level ``source`` field is redundant and should be omitted
 
 **Option 1: Table Source**
 
@@ -414,15 +476,16 @@ instead of a bare function reference.
       - **track_history_column_list**: Specific columns to track history for (optional)
       - **track_history_except_column_list**: Columns to exclude from history tracking (optional, mutually exclusive with track_history_column_list)
 
-.. Important::
-  **Source Configuration for snapshot CDC**: 
+**Source configuration for snapshot CDC:**
 
-  - **With source_function**: The action becomes **self-contained** and does not require external dependencies. 
-    Any ``source`` field at the action level is **redundant** and should be omitted.
-  - **With source table**: The action depends on the specified source table and requires proper dependency management.
-  
-  **FlowGroup Requirements**: Self-contained snapshot CDC actions (using ``source_function``) are exempt from the 
-  "FlowGroup must have at least one Load action" requirement, as they provide their own data source.
+- **With source_function**: The action becomes self-contained and does not require external
+  dependencies. Any ``source`` field at the action level is redundant and should be omitted.
+- **With source table**: The action depends on the specified source table and requires proper
+  dependency management.
+
+**FlowGroup requirements**: Self-contained snapshot CDC actions (using ``source_function``)
+are exempt from the "FlowGroup must have at least one Load action" requirement, as they
+provide their own data source.
 
 **Example Python Function for source_function**
 
@@ -437,46 +500,77 @@ Create file `py_functions/part_snapshot_func.py`:
   def next_snapshot_and_version(latest_snapshot_version: Optional[int]) -> Optional[Tuple[DataFrame, int]]:
       """
       Snapshot processing function for part dimension data.
-      
+
       Args:
           latest_snapshot_version: Most recent snapshot version processed, or None for first run
-          
+
       Returns:
           Tuple of (DataFrame, snapshot_version) or None if no more snapshots available
       """
       if latest_snapshot_version is None:
           # First run - load initial snapshot
           df = spark.sql("""
-              SELECT * FROM acme_edw_dev.edw_bronze.part 
+              SELECT * FROM acme_edw_dev.edw_bronze.part
               WHERE snapshot_id = (SELECT min(snapshot_id) FROM acme_edw_dev.edw_bronze.part)
           """)
-          
+
           min_snapshot_id = spark.sql("""
               SELECT min(snapshot_id) as min_id FROM acme_edw_dev.edw_bronze.part
           """).collect()[0].min_id
-          
+
           return (df, min_snapshot_id)
-      
+
       else:
           # Subsequent runs - check for new snapshots
           next_snapshot_result = spark.sql(f"""
-              SELECT min(snapshot_id) as next_id 
-              FROM acme_edw_dev.edw_bronze.part 
+              SELECT min(snapshot_id) as next_id
+              FROM acme_edw_dev.edw_bronze.part
               WHERE snapshot_id > '{latest_snapshot_version}'
           """).collect()[0]
-          
+
           if next_snapshot_result.next_id is None:
               return None  # No more snapshots available
-          
+
           next_snapshot_id = next_snapshot_result.next_id
           df = spark.sql(f"""
-              SELECT * FROM acme_edw_dev.edw_bronze.part 
+              SELECT * FROM acme_edw_dev.edw_bronze.part
               WHERE snapshot_id = '{next_snapshot_id}'
           """)
-          
+
           return (df, next_snapshot_id)
+
 .. seealso::
-  - For more information on ``create_auto_cdc_from_snapshot_flow`` see the `Databricks snapshot CDC documentation <https://docs.databricks.com/en/delta-live-tables/python-ref.html#create_auto_cdc_from_snapshot_flow>`_
+  - For more information on ``create_auto_cdc_from_snapshot_flow`` see the `Databricks snapshot CDC documentation <https://docs.databricks.com/aws/en/ldp/developer/ldp-python-ref-apply-changes-from-snapshot>`_
+
+**Importing local helper modules**
+
+A snapshot ``source_function`` may import local helper modules that live alongside it. LHP
+follows those imports and copies the whole transitive closure of local helpers into
+``custom_python_functions/``, preserving sub-package structure, so the function imports
+cleanly at runtime. (The ``source_function`` file path itself is resolved relative to the
+project root.)
+
+The directory that holds your function file is the **import root** against which "local"
+is decided:
+
+- **Rule A — the import root must not itself be a package.** It may not contain an
+  ``__init__.py`` at its top level, or generation fails with ``LHP-VAL-023``; keep the
+  function file flat and put helpers in a sub-directory.
+- **Rule B — referenced helper packages are copied in full**, with their directory
+  structure preserved, so ``__init__.py`` side effects and intra-package imports keep working.
+
+Imports inside copied files are reconciled as follows:
+
+- **Absolute local imports are prefix-rewritten** — ``from helpers.dates import to_date``
+  becomes ``from custom_python_functions.helpers.dates import to_date`` (aliases preserved).
+- **Relative imports are preserved unchanged** — ``from .sibling import x`` inside a helper
+  package is copied verbatim.
+- **External and standard-library imports are left untouched.**
+- **Plain dotted imports of a local module are rejected** with ``LHP-VAL-024``
+  (use ``from helpers.dates import ...`` instead of ``import helpers.dates``).
+- A local import whose target file or package member is missing on disk fails with
+  ``LHP-VAL-025``; a syntactically broken sibling inside a copied package surfaces
+  ``LHP-IO-003`` at generate time.
 
 **The above YAML examples translate to the following PySpark code**
 
@@ -521,43 +615,43 @@ Create file `py_functions/part_snapshot_func.py`:
   def next_snapshot_and_version(latest_snapshot_version: Optional[int]) -> Optional[Tuple[DataFrame, int]]:
       """
       Snapshot processing function for part dimension data.
-      
+
       Args:
           latest_snapshot_version: Most recent snapshot version processed, or None for first run
-          
+
       Returns:
           Tuple of (DataFrame, snapshot_version) or None if no more snapshots available
       """
       if latest_snapshot_version is None:
           # First run - load initial snapshot
           df = spark.sql("""
-              SELECT * FROM acme_edw_dev.edw_bronze.part 
+              SELECT * FROM acme_edw_dev.edw_bronze.part
               WHERE snapshot_id = (SELECT min(snapshot_id) FROM acme_edw_dev.edw_bronze.part)
           """)
-          
+
           min_snapshot_id = spark.sql("""
               SELECT min(snapshot_id) as min_id FROM acme_edw_dev.edw_bronze.part
           """).collect()[0].min_id
-          
+
           return (df, min_snapshot_id)
-      
+
       else:
           # Subsequent runs - check for new snapshots
           next_snapshot_result = spark.sql(f"""
-              SELECT min(snapshot_id) as next_id 
-              FROM acme_edw_dev.edw_bronze.part 
+              SELECT min(snapshot_id) as next_id
+              FROM acme_edw_dev.edw_bronze.part
               WHERE snapshot_id > '{latest_snapshot_version}'
           """).collect()[0]
-          
+
           if next_snapshot_result.next_id is None:
               return None  # No more snapshots available
-          
+
           next_snapshot_id = next_snapshot_result.next_id
           df = spark.sql(f"""
-              SELECT * FROM acme_edw_dev.edw_bronze.part 
+              SELECT * FROM acme_edw_dev.edw_bronze.part
               WHERE snapshot_id = '{next_snapshot_id}'
           """)
-          
+
           return (df, next_snapshot_id)
 
   # Create the streaming table for snapshot CDC
@@ -606,36 +700,36 @@ Create file `py_functions/part_snapshot_func.py`:
 
   **CDC Requirements**: CDC modes automatically set `create_table: true` and require specific source configurations. Standard mode supports multiple source views through append flows.
 
-  **Snapshot CDC Requirements**: 
+  **Snapshot CDC Requirements**:
   - Must have either `source` OR `source_function` (mutually exclusive)
   - `keys` field is required and must be a list of column names
-  - `stored_as_scd_type` must be "1" or "2" 
+  - `stored_as_scd_type` must be "1" or "2"
   - Can use either `track_history_column_list` OR `track_history_except_column_list` (mutually exclusive)
   - When using `source_function`, the Python function is embedded directly into the generated DLT code
-  - Function file paths are relative to the YAML file location
+  - Function file paths are relative to the project root
   - **Substitution support**: Python functions support ``${token}`` and ``${secret:scope/key}`` substitutions
   - **Parameters support**: Use ``parameters`` inside ``source_function`` to bind keyword arguments via ``functools.partial``. The function must use a ``*`` separator for keyword-only args. Substitution tokens in parameter values are resolved before binding.
-  
-  **⚠️ Source Field Redundancy**: When using ``source_function`` in snapshot CDC configuration, do NOT include a ``source`` field at the action level. The ``source`` field becomes redundant and may cause false dependency errors. The ``source_function`` provides the data source internally.
 
-  **✅ Correct pattern (self-contained)**:
-  
+  **Source Field Redundancy**: When using ``source_function`` in snapshot CDC configuration, do NOT include a ``source`` field at the action level. The ``source`` field becomes redundant and may cause false dependency errors. The ``source_function`` provides the data source internally.
+
+  **Correct pattern (self-contained)**:
+
   .. code-block:: yaml
-  
+
     - name: write_part_silver_snapshot
       type: write
       # No source field needed
       write_target:
-        mode: "snapshot_cdc" 
+        mode: "snapshot_cdc"
         snapshot_cdc_config:
           source_function: # This provides the data
             file: "py_functions/part_snapshot_func.py"
             function: "next_snapshot_and_version"
-  
-  **❌ Incorrect pattern (redundant source)**:
-  
+
+  **Incorrect pattern (redundant source)**:
+
   .. code-block:: yaml
-  
+
     - name: write_part_silver_snapshot
       type: write
       source: v_part_bronze_snapshot  # ← REDUNDANT, causes false dependencies
@@ -646,10 +740,27 @@ Create file `py_functions/part_snapshot_func.py`:
             file: "py_functions/part_snapshot_func.py"
             function: "next_snapshot_and_version"
 
-materialized_view
--------------------------------------------
-Materialized view write actions create Databricks materialized views
-for pre-computed analytics tables based on the output of a query.
+Materialized views
+------------------
+
+Use ``materialized_view`` for batch-computed analytics tables — Gold dashboards
+and aggregations that refresh on a schedule. Materialized views always run in
+batch mode and either read from a source view or execute custom SQL.
+
+Minimum example:
+
+.. code-block:: yaml
+
+  actions:
+    - name: create_customer_summary_mv
+      type: write
+      source: v_customer_aggregated
+      write_target:
+        type: materialized_view
+        catalog: "${catalog}"
+        schema: "${gold_schema}"
+        table: customer_summary
+      description: "Create daily customer summary for analytics"
 
 **Option 1: Source View Based**
 
@@ -686,7 +797,7 @@ for pre-computed analytics tables based on the output of a query.
         schema: "${gold_schema}"
         table: daily_sales_summary
         sql: |
-          SELECT 
+          SELECT
             region,
             product_category,
             DATE(transaction_date) as sales_date,
@@ -738,20 +849,21 @@ for pre-computed analytics tables based on the output of a query.
       - **table_properties**: Delta table properties for optimization
       - **partition_columns**: Columns to partition the view by
       - **cluster_columns**: Columns to cluster/z-order the view by
+      - **cluster_by_auto**: Boolean — enable automatic liquid clustering (Databricks selects and evolves the clustering keys). Renders ``cluster_by_auto=True``; omitted when ``false`` or unset. Mutually exclusive with ``cluster_columns``.
+      - **refresh_policy**: String — refresh strategy for the materialized view. One of ``"auto"``, ``"incremental"``, ``"incremental_strict"``, or ``"full"`` (e.g. ``"incremental"``); any other value is rejected at validation. Renders ``refresh_policy="incremental"``. Materialized-view only.
       - **table_schema**: DDL schema definition for the view (supports inline DDL or external file - see below)
       - **row_filter**: Row-level security filter using SQL UDF (format: "ROW FILTER function_name ON (column_names)")
       - **comment**: Table comment for documentation
 - **description**: Optional documentation for the action
 
-.. note::
-  **SQL Query Options**: You can define the materialized view query in three ways:
-  
-  1. **Source view** (Option 1): Read from an existing view using ``source``
-  2. **Inline SQL** (Option 2): Define SQL directly in YAML using ``sql``
-  3. **External SQL file** (Option 3): Reference external SQL file using ``sql_path``
-  
-  External SQL files support substitution variables (``${tokens}`` and ``${secret:scope/key}``) 
-  and can be organized in subdirectories (e.g., ``"sql/gold/aggregations/sales_summary.sql"``).
+**SQL Query Options**: You can define the materialized view query in three ways:
+
+1. **Source view** (Option 1): Read from an existing view using ``source``
+2. **Inline SQL** (Option 2): Define SQL directly in YAML using ``sql``
+3. **External SQL file** (Option 3): Reference external SQL file using ``sql_path``
+
+External SQL files support substitution variables (``${tokens}`` and ``${secret:scope/key}``)
+and can be organized in subdirectories (e.g., ``"sql/gold/aggregations/sales_summary.sql"``).
 
 **table_schema Format Options**
 
@@ -773,8 +885,7 @@ The ``table_schema`` option supports two formats, automatically detected by the 
   # or
   table_schema: "schemas/product_view_schema.yaml"
 
-.. note::
-  **External Schema Files**: Schema files can be organized in subdirectories relative to your project root. The framework automatically detects file paths based on file extensions (``.ddl``, ``.sql``, ``.yaml``, ``.yml``, ``.json``) or path separators.
+**External Schema Files**: Schema files can be organized in subdirectories relative to your project root. The framework automatically detects file paths based on file extensions (``.ddl``, ``.sql``, ``.yaml``, ``.yml``, ``.json``) or path separators.
 
 **The above YAML examples translate to the following PySpark code**
 
@@ -822,7 +933,7 @@ The ``table_schema`` option supports two formats, automatically detected by the 
   def daily_sales_summary():
       """Daily sales summary by region and category"""
       # Materialized views use batch processing
-      df = spark.sql("""SELECT 
+      df = spark.sql("""SELECT
         region,
         product_category,
         DATE(transaction_date) as sales_date,
@@ -835,21 +946,136 @@ The ``table_schema`` option supports two formats, automatically detected by the 
       return df
 
 
-.. Important::
-  Materialized views are designed for analytics workloads and always use batch processing.
-  Materialized views in Databricks refresh automatically based on source data changes.
-  Materialized views can either read from source views or execute custom SQL queries.
+Materialized views are designed for analytics workloads and always use batch processing.
+Materialized views in Databricks refresh automatically based on source data changes, and they
+can either read from source views or execute custom SQL queries.
 
-.. Note::
-  The `refresh_schedule` parameter is no longer supported by `@dp.materialized_view`.
-  If present in YAML configurations, it will be accepted for backward compatibility but ignored during code generation.
+The ``refresh_schedule`` parameter is no longer supported by ``@dp.materialized_view``. If
+present in YAML configurations, it is accepted for backward compatibility but ignored during
+code generation.
 
-sink
--------------------------------------------
-Sink write actions enable streaming data to external destinations beyond traditional 
-DLT-managed streaming tables. Sinks provide flexible output for real-time data 
-distribution to external systems, Unity Catalog external tables, and event streaming 
-services.
+Automatic clustering and refresh policy
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Set ``cluster_by_auto: true`` on a write target to enable automatic liquid clustering —
+Databricks selects and evolves the clustering keys for you. It applies to both
+``materialized_view`` and ``streaming_table`` targets (all three streaming modes:
+``standard``, ``cdc``, ``snapshot_cdc``) and renders ``cluster_by_auto=True`` in the generated
+code. When ``false`` or unset, the argument is omitted entirely.
+
+On a materialized view you can also set ``refresh_policy`` to control the refresh strategy.
+It must be one of ``"auto"``, ``"incremental"``, ``"incremental_strict"``, or ``"full"`` — any
+other value is rejected at validation. It renders ``refresh_policy="incremental"`` (for example)
+and is materialized-view only.
+
+.. important::
+  ``cluster_columns`` and ``cluster_by_auto`` are mutually exclusive — setting both fails
+  validation with ``'cluster_columns' and 'cluster_by_auto' are mutually exclusive``. Databricks
+  rejects ``CLUSTER BY (cols)`` combined with ``CLUSTER BY AUTO``. Choose explicit named columns
+  (``cluster_columns``) or automatic clustering (``cluster_by_auto``), never both.
+
+.. code-block:: yaml
+  :caption: Materialized view with automatic clustering and an incremental refresh policy
+
+  actions:
+    - name: create_customer_summary_mv
+      type: write
+      write_target:
+        type: materialized_view
+        catalog: "${catalog}"
+        schema: "${gold_schema}"
+        table: customer_summary
+        sql: "SELECT customer_id, COUNT(*) AS orders FROM v_orders GROUP BY customer_id"
+        cluster_by_auto: true
+        refresh_policy: "incremental"
+      description: "Customer order summary with auto liquid clustering"
+
+.. code-block:: yaml
+  :caption: Streaming table with automatic clustering
+
+  actions:
+    - name: write_customer_bronze
+      type: write
+      source: v_customer_cleansed
+      write_target:
+        type: streaming_table
+        mode: standard
+        catalog: "${catalog}"
+        schema: "${bronze_schema}"
+        table: customer
+        cluster_by_auto: true
+      description: "Bronze customer stream with auto liquid clustering"
+
+Row-level security with row_filter
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``row_filter`` option enables row-level security for both streaming tables and materialized views. Row filters use SQL user-defined functions (UDFs) to control which rows users can see based on their identity, group membership, or other criteria.
+
+**Creating a Row Filter Function**
+
+Before applying a row filter to a table, you must create a SQL UDF that returns a boolean value:
+
+.. code-block:: sql
+
+  -- Example: Region-based access control
+  CREATE FUNCTION catalog.schema.region_access_filter(region STRING)
+  RETURN
+    CASE
+      WHEN IS_ACCOUNT_GROUP_MEMBER('admin') THEN TRUE
+      WHEN IS_ACCOUNT_GROUP_MEMBER('na_users') THEN region IN ('US', 'Canada')
+      WHEN IS_ACCOUNT_GROUP_MEMBER('emea_users') THEN region IN ('UK', 'Germany', 'France')
+      ELSE FALSE
+    END;
+
+  -- Example: User-specific customer access
+  CREATE FUNCTION catalog.schema.customer_access_filter(customer_id BIGINT)
+  RETURN
+    IS_ACCOUNT_GROUP_MEMBER('admin') OR
+    EXISTS(
+      SELECT 1 FROM catalog.access_control.user_customer_mapping
+      WHERE username = CURRENT_USER() AND customer_id_access = customer_id
+    );
+
+**Key Functions for Row Filters:**
+
+- **CURRENT_USER()**: Returns the username of the current user
+- **IS_ACCOUNT_GROUP_MEMBER('group_name')**: Returns true if user is in the specified group
+- **EXISTS()**: Checks for existence in mapping tables for complex access control
+
+**Row Filter Syntax**
+
+The row filter format is: ``"ROW FILTER function_name ON (column_names)"``
+
+- **function_name**: Name of the SQL UDF that implements the filtering logic
+- **column_names**: Comma-separated list of columns to pass to the function
+
+.. seealso::
+  - For complete row filter documentation see the `Databricks Row Filters and Column Masks documentation <https://docs.databricks.com/aws/en/ldp/unity-catalog#publish-tables-with-row-filters-and-column-masks>`_.
+
+Sinks
+-----
+
+Use ``sink`` to push data out of the pipeline-managed catalog to external
+destinations: Unity Catalog external Delta tables, Apache Kafka or Azure Event
+Hubs topics, custom Python DataSink implementations, or per-batch handlers via
+ForEachBatch. Sinks support low-latency operational use cases (fraud detection,
+real-time analytics) and reverse-ETL exports.
+
+Minimum example:
+
+.. code-block:: yaml
+
+  actions:
+    - name: export_to_analytics_catalog
+      type: write
+      source: v_daily_sales_summary
+      write_target:
+        type: sink
+        sink_type: delta
+        sink_name: analytics_catalog_export
+        options:
+          tableName: "analytics_shared_catalog.reporting.daily_sales_summary"
+          checkpointLocation: "/tmp/checkpoints/analytics_export"
 
 **Supported Sink Types:**
 
@@ -862,6 +1088,8 @@ services.
 +---------------+------------------------------------------------------------+
 | custom        | Write to custom destinations via Python DataSink class     |
 +---------------+------------------------------------------------------------+
+| foreachbatch  | Apply custom Python logic per micro-batch                  |
++---------------+------------------------------------------------------------+
 
 **When to Use Sinks:**
 
@@ -870,13 +1098,14 @@ services.
 * **Reverse ETL** - Export processed data to external systems like Kafka for downstream consumption
 * **Custom formats** - Use Python custom data sources to write to any destination not directly supported by Databricks
 
-Delta Sink
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Delta sink
+~~~~~~~~~~
 
-Write processed data to Delta tables in external Unity Catalog locations or shared 
+Write processed data to Delta tables in external Unity Catalog locations or shared
 analytics databases managed outside of DLT pipelines.
 
 **Use Cases:**
+
 - Export aggregated metrics to shared analytics catalog
 - Sync data to external reporting systems
 - Write to tables managed outside DLT pipelines
@@ -901,7 +1130,7 @@ analytics databases managed outside of DLT pipelines.
       source: v_sales_metrics
       target: v_daily_sales_summary
       sql: |
-        SELECT 
+        SELECT
           DATE(order_date) as sales_date,
           store_id,
           product_id,
@@ -935,19 +1164,19 @@ analytics databases managed outside of DLT pipelines.
 - **write_target.sink_name**: Unique identifier for this sink
 - **write_target.comment**: Description of the sink's purpose
 - **write_target.options**:
-  
+
   - **tableName**: Fully qualified table name (``catalog.schema.table``) - Required (use this OR path)
   - **path**: File system path (``/mnt/delta/table``) - Required (use this OR tableName)
   - Other options can be specified and will be passed to DLT (currently not all options are supported by DLT)
 
-.. Important::
-  Delta sinks require EITHER ``tableName`` OR ``path`` (not both).
-  
-  - Use ``tableName`` for Unity Catalog tables (``catalog.schema.table``) or Hive metastore (``schema.table``)
-  - Use ``path`` for file-based Delta tables
-  
-  Additional options like ``checkpointLocation`` can be included in YAML for future compatibility, 
-  but verify current DLT support before relying on them.
+Delta sinks require EITHER ``tableName`` OR ``path`` (not both):
+
+- Use ``tableName`` for Unity Catalog tables (``catalog.schema.table``) or Hive metastore
+  (``schema.table``).
+- Use ``path`` for file-based Delta tables.
+
+Additional options like ``checkpointLocation`` can be included in YAML for future
+compatibility, but verify current DLT support before relying on them.
 
 **The above YAML translates to the following PySpark code:**
 
@@ -955,7 +1184,7 @@ analytics databases managed outside of DLT pipelines.
   :linenos:
 
   from pyspark import pipelines as dp
-  
+
   # Create the Delta sink
   dp.create_sink(
       name="analytics_catalog_export",
@@ -967,7 +1196,7 @@ analytics databases managed outside of DLT pipelines.
           "optimizeWrite": "true"
       }
   )
-  
+
   # Write to the sink using append flow
   @dp.append_flow(
       name="export_to_analytics_catalog",
@@ -994,20 +1223,21 @@ analytics databases managed outside of DLT pipelines.
       options:
         path: "/mnt/delta_exports/my_table"
 
-Kafka Sink
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Kafka sink
+~~~~~~~~~~
 
 Stream data to Apache Kafka topics for real-time consumption by downstream applications,
 microservices, or event-driven architectures.
 
 **Use Cases:**
+
 - Stream events to microservices
 - Feed real-time dashboards and monitoring systems
 - Integrate with event-driven architectures
 
 .. Important::
-  **Kafka sinks require explicit ``key`` and ``value`` columns.** You must create these 
-  columns in a transform action before writing to Kafka. The ``value`` column is mandatory, 
+  **Kafka sinks require explicit ``key`` and ``value`` columns.** You must create these
+  columns in a transform action before writing to Kafka. The ``value`` column is mandatory,
   while ``key``, ``partition``, and ``headers`` are optional.
 
 .. code-block:: yaml
@@ -1030,10 +1260,10 @@ microservices, or event-driven architectures.
       source: v_order_data
       target: v_kafka_ready
       sql: |
-        SELECT 
+        SELECT
           -- Kafka key: use order_id for partitioning
           CAST(order_id AS STRING) as key,
-          
+
           -- Kafka value: JSON structure with order details
           to_json(struct(
             order_id,
@@ -1045,7 +1275,7 @@ microservices, or event-driven architectures.
             current_timestamp() as event_timestamp,
             'order_fulfillment' as event_type
           )) as value,
-          
+
           -- Optional: Kafka headers (as map)
           map(
             'source', 'acme_lakehouse',
@@ -1070,12 +1300,12 @@ microservices, or event-driven architectures.
           kafka.security.protocol: "${KAFKA_SECURITY_PROTOCOL}"
           kafka.sasl.mechanism: "${KAFKA_SASL_MECHANISM}"
           kafka.sasl.jaas.config: "${KAFKA_JAAS_CONFIG}"
-          
+
           # Performance tuning
           kafka.batch.size: "16384"
           kafka.compression.type: "snappy"
           kafka.acks: "1"
-          
+
           # Checkpointing
           checkpointLocation: "/tmp/checkpoints/kafka_orders"
 
@@ -1117,7 +1347,7 @@ microservices, or event-driven architectures.
   :linenos:
 
   from pyspark import pipelines as dp
-  
+
   # Create the Kafka sink
   dp.create_sink(
       name="order_events_kafka",
@@ -1134,7 +1364,7 @@ microservices, or event-driven architectures.
           "checkpointLocation": "/tmp/checkpoints/kafka_orders"
       }
   )
-  
+
   # Write to the sink using append flow
   @dp.append_flow(
       name="stream_to_kafka",
@@ -1145,10 +1375,10 @@ microservices, or event-driven architectures.
       df = spark.readStream.table("v_kafka_ready")
       return df
 
-Azure Event Hubs Sink
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Azure Event Hubs sink
+~~~~~~~~~~~~~~~~~~~~~
 
-Azure Event Hubs is Kafka-compatible, so you use ``sink_type: kafka`` with OAuth 
+Azure Event Hubs is Kafka-compatible, so you use ``sink_type: kafka`` with OAuth
 configuration for authentication.
 
 **Key Configuration:**
@@ -1167,7 +1397,7 @@ configuration for authentication.
       source: v_alerts
       target: v_event_hubs_ready
       sql: |
-        SELECT 
+        SELECT
           CONCAT(store_id, '-', product_id) as key,
           to_json(struct(
             store_id,
@@ -1193,17 +1423,18 @@ configuration for authentication.
           kafka.sasl.jaas.config: "${EVENT_HUBS_JAAS_CONFIG}"
           checkpointLocation: "/tmp/checkpoints/eventhubs_alerts"
 
-For more details on Event Hubs authentication, see the 
-`Databricks Event Hubs documentation <https://docs.databricks.com/structured-streaming/streaming-event-hubs.html>`_.
+For more details on Event Hubs authentication, see the
+`Databricks Event Hubs documentation <https://docs.databricks.com/aws/en/ldp/event-hubs>`_.
 
-Custom Sink
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Custom sink
+~~~~~~~~~~~
 
-Implement custom Python DataSink classes to write data to any destination not directly 
-supported by Databricks, including REST APIs, databases, file systems, or proprietary 
+Implement custom Python DataSink classes to write data to any destination not directly
+supported by Databricks, including REST APIs, databases, file systems, or proprietary
 data stores.
 
 **Use Cases:**
+
 - Push updates to external REST APIs or webhooks
 - Write to non-Spark data stores
 - Implement custom retry/error handling logic
@@ -1220,7 +1451,7 @@ data stores.
       source: v_customer_changes
       target: v_api_ready_customers
       sql: |
-        SELECT 
+        SELECT
           customer_id,
           first_name,
           last_name,
@@ -1273,52 +1504,52 @@ Your custom sink class must implement the PySpark DataSink interface:
   from pyspark.sql.datasource import DataSink, DataSource, InputPartition
   import requests
   import json
-  
+
   class CustomerAPIDataSource(DataSource):
       """Custom DataSource for streaming to external API."""
-      
+
       @classmethod
       def name(cls):
           """Return the format name for this sink."""
           return "customer_api_sink"
-      
+
       def writer(self, schema, overwrite):
           """Return a DataSink writer instance."""
           return CustomerAPIDataSink(self.options)
-  
-  
+
+
   class CustomerAPIDataSink(DataSink):
       """DataSink implementation for external API."""
-      
+
       def __init__(self, options):
           self.endpoint = options.get("endpoint")
           self.api_key = options.get("apiKey")
           self.batch_size = int(options.get("batchSize", 100))
           self.timeout = int(options.get("timeout", 30))
           self.max_retries = int(options.get("maxRetries", 3))
-      
+
       def write(self, iterator):
           """Write data to external API with batching and retry logic."""
           batch = []
-          
+
           for row in iterator:
               batch.append(row.asDict())
-              
+
               if len(batch) >= self.batch_size:
                   self._send_batch(batch)
                   batch = []
-          
+
           # Send remaining records
           if batch:
               self._send_batch(batch)
-      
+
       def _send_batch(self, batch):
           """Send batch to API with retry logic."""
           headers = {
               "Authorization": f"Bearer {self.api_key}",
               "Content-Type": "application/json"
           }
-          
+
           for attempt in range(self.max_retries):
               try:
                   response = requests.post(
@@ -1404,93 +1635,13 @@ and registers the sink format on the local Spark session at module load:
 * **Monitoring**: Log metrics for tracking success/failure rates
 * **Authentication**: Use Unity Catalog secrets for API keys and credentials
 
-For more details on implementing custom data sources, see the 
-`PySpark Custom Data Sources documentation <https://spark.apache.org/docs/latest/api/python/user_guide/sql/python_data_source.html>`_.
+For more details on implementing custom data sources, see the
+`PySpark Custom Data Sources documentation <https://spark.apache.org/docs/latest/api/python/tutorial/sql/python_data_source.html>`_.
 
-Operational Metadata with Sinks
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ForEachBatch sink
+~~~~~~~~~~~~~~~~~
 
-Operational metadata columns can be added to your data before writing to sinks. 
-Use a transform action to add metadata columns such as processing timestamps, 
-source identifiers, or record hashes.
-
-.. code-block:: yaml
-
-  # Example: Adding operational metadata before sink
-  actions:
-    - name: add_metadata
-      type: transform
-      transform_type: sql
-      source: v_source_data
-      target: v_with_metadata
-      sql: |
-        SELECT 
-          *,
-          current_timestamp() as _processing_timestamp,
-          'acme_lakehouse' as _source_system,
-          md5(concat_ws('|', *)) as _record_hash
-        FROM v_source_data
-    
-    - name: write_to_sink
-      type: write
-      source: v_with_metadata
-      write_target:
-        type: sink
-        sink_type: kafka
-        sink_name: enriched_data_kafka
-        # ... sink configuration
-
-Row-Level Security with row_filter
--------------------------------------------
-
-The `row_filter` option enables row-level security for both streaming tables and materialized views. Row filters use SQL user-defined functions (UDFs) to control which rows users can see based on their identity, group membership, or other criteria.
-
-**Creating a Row Filter Function**
-
-Before applying a row filter to a table, you must create a SQL UDF that returns a boolean value:
-
-.. code-block:: sql
-
-  -- Example: Region-based access control
-  CREATE FUNCTION catalog.schema.region_access_filter(region STRING)
-  RETURN 
-    CASE 
-      WHEN IS_ACCOUNT_GROUP_MEMBER('admin') THEN TRUE
-      WHEN IS_ACCOUNT_GROUP_MEMBER('na_users') THEN region IN ('US', 'Canada')
-      WHEN IS_ACCOUNT_GROUP_MEMBER('emea_users') THEN region IN ('UK', 'Germany', 'France')
-      ELSE FALSE
-    END;
-
-  -- Example: User-specific customer access
-  CREATE FUNCTION catalog.schema.customer_access_filter(customer_id BIGINT)
-  RETURN 
-    IS_ACCOUNT_GROUP_MEMBER('admin') OR 
-    EXISTS(
-      SELECT 1 FROM catalog.access_control.user_customer_mapping 
-      WHERE username = CURRENT_USER() AND customer_id_access = customer_id
-    );
-
-**Key Functions for Row Filters:**
-
-- **CURRENT_USER()**: Returns the username of the current user
-- **IS_ACCOUNT_GROUP_MEMBER('group_name')**: Returns true if user is in the specified group
-- **EXISTS()**: Checks for existence in mapping tables for complex access control
-
-**Row Filter Syntax**
-
-The row filter format is: ``"ROW FILTER function_name ON (column_names)"``
-
-- **function_name**: Name of the SQL UDF that implements the filtering logic
-- **column_names**: Comma-separated list of columns to pass to the function
-
-.. seealso::
-  - For complete row filter documentation see the `Databricks Row Filters and Column Masks documentation <https://docs.databricks.com/aws/en/ldp/unity-catalog#publish-tables-with-row-filters-and-column-masks>`_.
-
-
-ForEachBatch Sink
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Process streaming data with custom Python logic for each micro-batch, enabling advanced use cases like 
+Process streaming data with custom Python logic for each micro-batch, enabling advanced use cases like
 merging into Delta tables, writing to multiple destinations, or implementing complex upsert logic.
 
 **Use Cases:**
@@ -1500,10 +1651,10 @@ merging into Delta tables, writing to multiple destinations, or implementing com
 - Implement complex upsert patterns with conditional logic
 - Apply custom transformations or validations per batch
 
-.. Important::
-  **ForEachBatch sinks are for advanced streaming use cases.** Unlike other sinks that use ``dp.create_sink()``,
-  ForEachBatch uses the ``@dp.foreach_batch_sink()`` decorator pattern. You provide the batch processing logic
-  (function body), and LHP wraps it with the decorator and generates the append_flow.
+ForEachBatch sinks are for advanced streaming use cases. Unlike other sinks that use
+``dp.create_sink()``, ForEachBatch uses the ``@dp.foreach_batch_sink()`` decorator pattern.
+You provide the batch processing logic (function body), and LHP wraps it with the decorator
+and generates the ``append_flow``.
 
 **Configuration Options**
 
@@ -1534,18 +1685,18 @@ ForEachBatch sinks support two modes:
 
   # Function body only - no decorator, no function signature
   # LHP will wrap this with @dp.foreach_batch_sink decorator
-  
+
   df.createOrReplaceTempView("batch_view")
   df.sparkSession.sql("""
       MERGE INTO ${target_table} AS tgt
       USING batch_view AS src
       ON tgt.customer_id = src.customer_id
-      WHEN MATCHED THEN 
-          UPDATE SET 
+      WHEN MATCHED THEN
+          UPDATE SET
               tgt.email = src.email,
               tgt.phone = src.phone,
               tgt.updated_at = src.updated_at
-      WHEN NOT MATCHED THEN 
+      WHEN NOT MATCHED THEN
           INSERT (customer_id, email, phone, created_at, updated_at)
           VALUES (src.customer_id, src.email, src.phone, src.created_at, src.updated_at)
   """)
@@ -1574,7 +1725,7 @@ LHP generates the complete ForEachBatch sink code:
   :linenos:
 
   from pyspark import pipelines as dp
-  
+
   @dp.foreach_batch_sink(name="customer_merge_sink")
   def customer_merge_sink(df, batch_id):
       """ForEachBatch sink: merge_customer_updates"""
@@ -1583,17 +1734,17 @@ LHP generates the complete ForEachBatch sink code:
           MERGE INTO catalog.schema.customers AS tgt
           USING batch_view AS src
           ON tgt.customer_id = src.customer_id
-          WHEN MATCHED THEN 
-              UPDATE SET 
+          WHEN MATCHED THEN
+              UPDATE SET
                   tgt.email = src.email,
                   tgt.phone = src.phone,
                   tgt.updated_at = src.updated_at
-          WHEN NOT MATCHED THEN 
+          WHEN NOT MATCHED THEN
               INSERT (customer_id, email, phone, created_at, updated_at)
               VALUES (src.customer_id, src.email, src.phone, src.created_at, src.updated_at)
       """)
       return
-  
+
   @dp.append_flow(target="customer_merge_sink", name="f_customer_merge_sink_1")
   def f_customer_merge_sink_1():
       df = spark.readStream.table("v_customer_changes")
@@ -1609,8 +1760,7 @@ LHP generates the complete ForEachBatch sink code:
 - **write_target.comment**: Optional description
 - **source**: Single source view (string) - ForEachBatch sinks support only one source
 
-.. Important::
-  **You must provide EITHER ``module_path`` OR ``batch_handler``, not both.**
+Provide EITHER ``module_path`` OR ``batch_handler``, not both — supplying both raises an error.
 
 **Writing to Multiple Destinations**
 
@@ -1632,26 +1782,25 @@ ForEachBatch excels at writing each batch to multiple destinations:
             .option("txnVersion", batch_id) \
             .option("txnAppId", "my-app") \
             .saveAsTable("${primary_table}")
-          
+
           # Also write to backup location
           df.write.format("delta").mode("append") \
             .option("txnVersion", batch_id) \
             .option("txnAppId", "my-app-backup") \
             .save("/mnt/backup/data")
-          
+
           # And write summary to monitoring table
           summary = df.groupBy().count()
           summary.write.format("delta").mode("append") \
             .saveAsTable("${monitoring_table}")
 
-.. Note::
-  **Idempotent Writes**: Use ``txnVersion`` and ``txnAppId`` options to make Delta writes idempotent.
-  This ensures that if a batch is re-run, duplicate writes are prevented. See 
-  `Databricks documentation on idempotent writes <https://docs.databricks.com/structured-streaming/foreach-batch.html#idempotent-table-writes-in-foreachbatch>`_.
+**Idempotent writes**: Use the ``txnVersion`` and ``txnAppId`` options to make Delta writes
+idempotent. This ensures that if a batch is re-run, duplicate writes are prevented. See the
+`Databricks documentation on idempotent writes <https://docs.databricks.com/aws/en/structured-streaming/delta-lake#use-foreachbatch-for-idempotent-table-writes>`_.
 
 **Full Refresh Handling**
 
-ForEachBatch sinks track checkpoints per flow. On **full refresh**, the checkpoint resets and ``batch_id`` 
+ForEachBatch sinks track checkpoints per flow. On **full refresh**, the checkpoint resets and ``batch_id``
 starts from 0. You are responsible for handling downstream data cleanup:
 
 .. code-block:: python
@@ -1660,7 +1809,7 @@ starts from 0. You are responsible for handling downstream data cleanup:
   if batch_id == 0:
       # Full refresh - clean up target table
       df.sparkSession.sql("TRUNCATE TABLE ${target_table}")
-  
+
   # Then process the batch normally
   df.write.format("delta").mode("append").saveAsTable("${target_table}")
 
@@ -1677,10 +1826,10 @@ ForEachBatch sinks support operational metadata columns (like other sinks):
         expression: "F.current_timestamp()"
       _batch_id:
         expression: "F.lit(batch_id)"
-  
+
   # In flowgroup YAML
   operational_metadata: [_ingestion_timestamp, _batch_id]
-  
+
   actions:
     - name: batch_with_metadata
       type: write
@@ -1704,7 +1853,7 @@ Use ``${token}`` substitutions in your batch handler code:
     target_table: "dev_catalog.bronze.customers"
   prod:
     target_table: "prod_catalog.bronze.customers"
-  
+
   # In flowgroup YAML
   actions:
     - name: write_customers
@@ -1734,6 +1883,37 @@ Use ``${token}`` substitutions in your batch handler code:
 
 .. seealso::
   - `Databricks ForEachBatch documentation <https://docs.databricks.com/aws/en/ldp/for-each-batch>`_
-  - `Idempotent writes in ForEachBatch <https://docs.databricks.com/structured-streaming/foreach-batch.html#idempotent-table-writes-in-foreachbatch>`_
+  - `Idempotent writes in ForEachBatch <https://docs.databricks.com/aws/en/structured-streaming/delta-lake#use-foreachbatch-for-idempotent-table-writes>`_
 
+Operational metadata with sinks
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+Operational metadata columns can be added to your data before writing to sinks.
+Use a transform action to add metadata columns such as processing timestamps,
+source identifiers, or record hashes.
+
+.. code-block:: yaml
+
+  # Example: Adding operational metadata before sink
+  actions:
+    - name: add_metadata
+      type: transform
+      transform_type: sql
+      source: v_source_data
+      target: v_with_metadata
+      sql: |
+        SELECT
+          *,
+          current_timestamp() as _processing_timestamp,
+          'acme_lakehouse' as _source_system,
+          md5(concat_ws('|', *)) as _record_hash
+        FROM v_source_data
+
+    - name: write_to_sink
+      type: write
+      source: v_with_metadata
+      write_target:
+        type: sink
+        sink_type: kafka
+        sink_name: enriched_data_kafka
+        # ... sink configuration

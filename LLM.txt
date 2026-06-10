@@ -16,7 +16,7 @@
 - `rich>=12.0.0` - Terminal formatting
 - `pydantic>=2.0.0` - Data validation
 - `jsonschema>=4.0.0` - Schema validation
-- `black>=23.0.0` - Code formatting
+- `ruff>=0.13.3` - Linting and code formatting
 
 **CLI Entry Point** (from pyproject.toml:61)
 - Command: `lhp = "lhp.cli.main:cli"`
@@ -64,7 +64,7 @@ FlowgroupDiscoverer → FlowgroupProcessor → CodeGenerator → PipelineValidat
 
 #### Utilities (`/utils/`)
 - `substitution.py` - Environment variable and token substitution
-- `formatter.py` - Code formatting with Black integration
+- `formatter.py` - Code formatting with ruff integration
 - `error_handler.py` - Comprehensive error handling framework
 - `operational_metadata.py` - Metadata column management
 - `smart_file_writer.py` - Change-aware file writing
@@ -247,7 +247,7 @@ Dependency injection container providing:
 - Template parameter substitution
 
 ### Code Formatting (from utils/formatter.py)
-- Black integration for Python code formatting
+- ruff integration for Python code formatting
 - Configurable formatting options
 - Import statement management
 

@@ -5,7 +5,7 @@ Test Actions (Data Quality Unit Tests)
    :description: Complete reference for LHP Test action types: row count, uniqueness, referential integrity, completeness, range, and custom expectations.
 
 
-Test actions let you validate data pipelines using Databricks Lakeflow Declarative Pipelines expectations. They generate lightweight DLT temporary tables that read from existing tables/views and attach expectations that either fail the pipeline or warn on violations.
+Test actions let you validate data pipelines using Databricks :term:`Lakeflow Declarative Pipeline` :term:`expectations <Expectation>`. They generate lightweight :term:`DLT` temporary tables that read from existing tables/views and attach expectations that either fail the pipeline or warn on violations.
 
 .. note::
    **CLI Flag Required**: By default, both ``lhp generate`` and ``lhp validate`` skip test actions

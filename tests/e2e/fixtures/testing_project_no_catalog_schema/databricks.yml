@@ -1,0 +1,22 @@
+# Minimal databricks.yml for fail-fast fixture variant.
+# Includes resources/lhp glob so bundle wiring is consistent with the
+# main testing_project fixture, but generation is expected to fail
+# BEFORE any resource file is written.
+bundle:
+  name: no_catalog_schema_bundle
+
+include:
+-   resources/*.yml
+-   resources/lhp/*.yml
+
+sync:
+  include:
+  -   generated/${bundle.target}/*
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://example.cloud.databricks.com
+      root_path: /Workspace/.bundle/${bundle.name}/${bundle.target}

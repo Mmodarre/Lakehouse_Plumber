@@ -27,13 +27,6 @@ LHP templates use **Jinja2** as their rendering engine. When LHP processes a tem
 .. seealso::
    For full details on each substitution stage, see :doc:`substitutions`.
 
-.. important::
-
-   Jinja2 processing is triggered when a string contains **both** ``{{`` and ``}}``.
-   If a string only contains ``{% %}`` block tags without any ``{{ }}`` expression,
-   it will **not** be processed by Jinja2. Always include at least one ``{{ }}``
-   expression in any string that uses ``{% if %}`` or ``{% for %}``.
-
 Parameter Substitution Basics
 -----------------------------
 
@@ -291,10 +284,8 @@ Iterating Over a List
    FROM ${catalog}.${silver_schema}.fct_sap_prch_ord_hdr_hist
    GROUP BY po_id
 
-.. note::
-
-   Environment tokens like ``${catalog}`` and ``${silver_schema}`` remain as-is after template
-   rendering — they are resolved in step 4 of the pipeline, after Jinja2 has finished.
+Environment tokens like ``${catalog}`` and ``${silver_schema}`` remain as-is after template
+rendering — they are resolved in step 4 of the pipeline, after Jinja2 has finished.
 
 The ``loop`` Variable
 ~~~~~~~~~~~~~~~~~~~~~
@@ -334,11 +325,9 @@ Jinja2 Filters
 
 Jinja2 built-in filters are available inside ``{{ }}`` expressions. These let you transform parameter values during rendering.
 
-.. note::
-
-   LHP's template engine uses a bare Jinja2 ``Environment()`` — the custom ``tojson`` and ``toyaml``
-   filters are only available in internal code-generation templates, not in user YAML templates.
-   Standard Jinja2 built-in filters work normally.
+LHP's template engine uses a bare Jinja2 ``Environment()`` — the custom ``tojson`` and ``toyaml``
+filters are only available in internal code-generation templates, not in user YAML templates.
+Standard Jinja2 built-in filters work normally.
 
 Common Filters
 ~~~~~~~~~~~~~~
