@@ -1,0 +1,16 @@
+"""Intermediate helper module for the transitive helper-copying E2E fixture.
+
+Proves the three import classes in one file:
+  * ``from .util import clean`` — intra-package RELATIVE import (preserved verbatim).
+  * ``from pyspark.sql.functions import lit`` — external import (left untouched).
+"""
+
+from .util import clean
+from pyspark.sql import DataFrame
+from pyspark.sql.functions import lit
+
+
+def enrich(df: DataFrame) -> DataFrame:
+    """Clean the input then tag it with a constant source marker."""
+    cleaned = clean(df)
+    return cleaned.withColumn("source", lit("helper_demo"))

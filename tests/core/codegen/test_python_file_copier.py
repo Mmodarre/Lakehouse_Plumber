@@ -1,0 +1,309 @@
+"""Unit tests for thread-safe Python file copier."""
+
+import shutil
+import tempfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+
+import pytest
+
+from lhp.core.codegen import PythonFileCopier
+from lhp.core.codegen.python_file_copier import copy_user_module_for_pipeline
+from lhp.core.processing.substitution import EnhancedSubstitutionManager
+from lhp.errors import PythonFunctionConflictError
+from lhp.models import FlowGroup
+
+
+class TestPythonFileCopier:
+    @pytest.fixture
+    def temp_dir(self):
+        temp = tempfile.mkdtemp()
+        yield Path(temp)
+        shutil.rmtree(temp, ignore_errors=True)
+
+    @pytest.fixture
+    def copier(self):
+        return PythonFileCopier()
+
+    def test_single_file_copy(self, copier, temp_dir):
+        dest_path = temp_dir / "test_module.py"
+        source_path = "py_functions/test_module.py"
+        content = "# Test content\ndef test_func():\n    pass"
+
+        result = copier.copy_python_file(source_path, dest_path, content)
+
+        assert result is True
+        assert dest_path.exists()
+        # write_normalized() guarantees a single trailing newline and UTF-8
+        # encoding; the body lines are written verbatim otherwise.
+        written = dest_path.read_text(encoding="utf-8")
+        assert written.endswith("\n")
+        assert written.splitlines() == content.splitlines()
+
+    def test_duplicate_same_source(self, copier, temp_dir):
+        dest_path = temp_dir / "test_module.py"
+        source_path = "py_functions/test_module.py"
+        content = "# Test content\ndef test_func():\n    pass"
+
+        result1 = copier.copy_python_file(source_path, dest_path, content)
+        assert result1 is True
+
+        result2 = copier.copy_python_file(source_path, dest_path, content)
+        assert result2 is False
+
+    def test_conflict_different_sources(self, copier, temp_dir):
+        dest_path = temp_dir / "test_module.py"
+        source_path1 = "py_functions/test_module.py"
+        source_path2 = "other_functions/test_module.py"
+        content = "# Test content"
+
+        copier.copy_python_file(source_path1, dest_path, content)
+
+        with pytest.raises(PythonFunctionConflictError) as exc_info:
+            copier.copy_python_file(source_path2, dest_path, content)
+
+        assert source_path1 in str(exc_info.value)
+        assert source_path2 in str(exc_info.value)
+
+    def test_concurrent_same_source(self, copier, temp_dir):
+        dest_path = temp_dir / "test_module.py"
+        source_path = "py_functions/test_module.py"
+        content = "# Test content\ndef test_func():\n    pass"
+
+        results = []
+
+        def copy_file():
+            return copier.copy_python_file(source_path, dest_path, content)
+
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = [executor.submit(copy_file) for _ in range(10)]
+            for future in as_completed(futures):
+                results.append(future.result())
+
+        assert sum(results) == 1
+        assert len(results) == 10
+        assert dest_path.exists()
+        # write_normalized() guarantees a single trailing newline and UTF-8
+        # encoding; the body lines are written verbatim otherwise.
+        written = dest_path.read_text(encoding="utf-8")
+        assert written.endswith("\n")
+        assert written.splitlines() == content.splitlines()
+
+    def test_concurrent_different_files(self, copier, temp_dir):
+        files = [
+            ("py_functions/module1.py", temp_dir / "module1.py", "# Module 1"),
+            ("py_functions/module2.py", temp_dir / "module2.py", "# Module 2"),
+            ("py_functions/module3.py", temp_dir / "module3.py", "# Module 3"),
+        ]
+
+        def copy_file(source, dest, content):
+            return copier.copy_python_file(source, dest, content)
+
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = [
+                executor.submit(copy_file, source, dest, content)
+                for source, dest, content in files
+            ]
+            results = [future.result() for future in as_completed(futures)]
+
+        # All should succeed
+        assert all(results)
+        assert all(dest.exists() for _, dest, _ in files)
+
+    def test_ensure_init_file(self, copier, temp_dir):
+        custom_dir = temp_dir / "custom_python_functions"
+
+        copier.ensure_init_file(custom_dir)
+
+        assert custom_dir.exists()
+        assert (custom_dir / "__init__.py").exists()
+        assert "Generated package" in (custom_dir / "__init__.py").read_text()
+
+    def test_ensure_init_file_concurrent(self, copier, temp_dir):
+        custom_dir = temp_dir / "custom_python_functions"
+
+        def create_init():
+            copier.ensure_init_file(custom_dir)
+
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(create_init) for _ in range(5)]
+            for future in as_completed(futures):
+                future.result()
+
+        assert custom_dir.exists()
+        assert (custom_dir / "__init__.py").exists()
+
+    def test_error_attributes(self, copier, temp_dir):
+        dest_path = temp_dir / "test_module.py"
+        source1 = "py_functions/test_module.py"
+        source2 = "other_functions/test_module.py"
+        content = "# Test"
+
+        copier.copy_python_file(source1, dest_path, content)
+
+        try:
+            copier.copy_python_file(source2, dest_path, content)
+            raise AssertionError("Should have raised error")
+        except PythonFunctionConflictError as e:
+            assert e.destination == str(dest_path)
+            assert e.existing_source == source1
+            assert e.new_source == source2
+
+    def test_thread_safety_stress(self, copier, temp_dir):
+        """Stress test with many concurrent operations."""
+        num_files = 20
+        copies_per_file = 5
+
+        results = []
+        errors = []
+
+        def copy_file(file_id, thread_id):
+            try:
+                dest = temp_dir / f"module_{file_id}.py"
+                source = f"py_functions/module_{file_id}.py"
+                content = f"# Module {file_id} from thread {thread_id}"
+                return copier.copy_python_file(source, dest, content)
+            except Exception as e:
+                errors.append(e)
+                return False
+
+        with ThreadPoolExecutor(max_workers=20) as executor:
+            futures = []
+            for file_id in range(num_files):
+                for thread_id in range(copies_per_file):
+                    futures.append(executor.submit(copy_file, file_id, thread_id))
+
+            for future in as_completed(futures):
+                results.append(future.result())
+
+        assert len(errors) == 0
+
+        true_count = sum(results)
+        assert true_count == num_files
+
+    def test_parent_directory_creation(self, copier, temp_dir):
+        dest_path = temp_dir / "nested" / "deep" / "test_module.py"
+        source_path = "py_functions/test_module.py"
+        content = "# Test content"
+
+        copier.copy_python_file(source_path, dest_path, content)
+
+        assert dest_path.exists()
+        assert dest_path.parent.exists()
+        # write_normalized() guarantees a single trailing newline and UTF-8
+        # encoding; the body lines are written verbatim otherwise.
+        written = dest_path.read_text(encoding="utf-8")
+        assert written.endswith("\n")
+        assert written.splitlines() == content.splitlines()
+
+    def test_path_separator_normalization_windows(self, copier, temp_dir):
+        """Test that forward and backslash paths are treated as equal (cross-platform compatibility)."""
+        dest_path = temp_dir / "test_module.py"
+        content = "# Test content"
+
+        result1 = copier.copy_python_file(
+            "py_functions/test_module.py", dest_path, content
+        )
+        assert result1 is True
+
+        result2 = copier.copy_python_file(
+            "py_functions\\test_module.py", dest_path, content
+        )
+        assert result2 is False
+
+        assert dest_path.exists()
+        # write_normalized() guarantees a single trailing newline and UTF-8
+        # encoding; the body lines are written verbatim otherwise.
+        written = dest_path.read_text(encoding="utf-8")
+        assert written.endswith("\n")
+        assert written.splitlines() == content.splitlines()
+
+
+class TestCopyUserModuleBodySubstitution:
+    """Token/secret substitution of a user module's body is the copier's responsibility and only runs when ``output_dir`` is a real path."""
+
+    def test_token_and_secret_substituted_in_copied_body(self, tmp_path):
+        """Tokens are replaced inline; secrets render to ``__SECRET_scope_key__``
+        placeholders and are tracked on the substitution manager."""
+        source_file = tmp_path / "snapshot_func.py"
+        source_file.write_text("""from typing import Optional, Tuple
+from pyspark.sql import DataFrame
+
+def next_snapshot(latest_version: Optional[int]) -> Optional[Tuple[DataFrame, int]]:
+    api_key = "${secret:db_config/api_key}"
+    if latest_version is None:
+        df = spark.sql("SELECT * FROM {catalog}.{bronze_schema}.tbl")
+        return (df, 1)
+    return None
+""")
+
+        substitution_mgr = EnhancedSubstitutionManager()
+        substitution_mgr.mappings.update(
+            {"catalog": "prod_catalog", "bronze_schema": "prod_bronze"}
+        )
+
+        secret_references = set()
+        output_dir = tmp_path / "generated"
+        output_dir.mkdir()
+
+        context = {
+            "substitution_manager": substitution_mgr,
+            "secret_references": secret_references,
+            "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
+            "spec_dir": tmp_path,
+            "output_dir": output_dir,
+        }
+
+        leaf = copy_user_module_for_pipeline(
+            "snapshot_func.py",
+            context,
+            component_label="snapshot source function",
+        )
+        assert leaf == "snapshot_func"
+
+        copied = output_dir / "custom_python_functions" / "snapshot_func.py"
+        assert copied.exists(), f"Expected copied module at {copied}"
+        content = copied.read_text()
+
+        assert "prod_catalog.prod_bronze.tbl" in content
+        assert "{catalog}" not in content
+        assert "{bronze_schema}" not in content
+
+        assert "__SECRET_db_config_api_key__" in content
+        assert "${secret:db_config/api_key}" not in content
+
+        assert len(substitution_mgr.secret_references) > 0
+        scopes_keys = {(r.scope, r.key) for r in substitution_mgr.secret_references}
+        assert ("db_config", "api_key") in scopes_keys
+        assert len(secret_references) > 0
+
+        assert "# LHP-SOURCE: snapshot_func.py" in content
+
+    def test_dry_run_skips_write_but_returns_leaf(self, tmp_path):
+        """With ``output_dir=None`` no file is written and the body is not
+        processed, but the leaf module name is still returned."""
+        source_file = tmp_path / "snapshot_func.py"
+        source_file.write_text(
+            'def f():\n    return "{catalog}.${secret:db_config/api_key}"\n'
+        )
+
+        substitution_mgr = EnhancedSubstitutionManager()
+        substitution_mgr.mappings.update({"catalog": "prod_catalog"})
+
+        context = {
+            "substitution_manager": substitution_mgr,
+            "secret_references": set(),
+            "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
+            "spec_dir": tmp_path,
+            "output_dir": None,
+        }
+
+        leaf = copy_user_module_for_pipeline(
+            "snapshot_func.py",
+            context,
+            component_label="snapshot source function",
+        )
+
+        assert leaf == "snapshot_func"
+        assert not (tmp_path / "generated").exists()
+        assert len(substitution_mgr.secret_references) == 0

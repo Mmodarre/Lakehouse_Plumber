@@ -420,6 +420,13 @@
                     "type": "string",
                     "description": "Path to Python module file relative to project root (e.g., 'transformations/customer_transforms.py'). Required for Python transforms and loads."
                 },
+                "depends_on": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Explicit upstream table references (catalog.schema.table or schema.table) this action depends on, for dependency-graph edges that cannot be parsed from SQL/Python sources."
+                },
                 "function_name": {
                     "type": "string",
                     "description": "Name of Python function to call. Required for Python transforms and loads."
@@ -484,6 +491,10 @@
                     },
                     "description": "Cluster columns"
                 },
+                "cluster_by_auto": {
+                    "type": "boolean",
+                    "description": "Enable automatic liquid clustering (streaming tables and materialized views)"
+                },
                 "spark_conf": {
                     "type": "object",
                     "additionalProperties": true,
@@ -509,6 +520,11 @@
                 "refresh_schedule": {
                     "type": "string",
                     "description": "Refresh schedule for materialized views"
+                },
+                "refresh_policy": {
+                    "type": "string",
+                    "enum": ["auto", "incremental", "incremental_strict", "full"],
+                    "description": "Refresh policy for materialized views. One of: auto, incremental, incremental_strict, full"
                 },
                 "sql": {
                     "type": "string",

@@ -2,6 +2,8 @@
 # This fixture is used for comprehensive testing of cluster configuration
 
 project_defaults:
+  catalog: acme_edw_dev
+  schema: edw_raw
   serverless: false
   edition: ADVANCED
   channel: PREVIEW

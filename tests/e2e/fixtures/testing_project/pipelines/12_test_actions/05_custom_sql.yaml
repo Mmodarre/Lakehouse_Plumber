@@ -1,0 +1,20 @@
+# B1 fixture — custom_sql test action
+# Provides a custom SQL statement and attaches expectations.
+pipeline: 12_test_actions
+flowgroup: ta_custom_sql
+#job_name: j_test_actions
+
+actions:
+  - name: ta_revenue_reconciliation
+    type: test
+    test_type: custom_sql
+    source: "${catalog}.${gold_schema}.monthly_revenue"
+    sql: |
+      SELECT month, gold_revenue, silver_revenue,
+             (ABS(gold_revenue - silver_revenue) / silver_revenue) * 100 AS pct_difference
+      FROM ${catalog}.${gold_schema}.revenue_comparison
+    expectations:
+      - name: revenue_matches
+        expression: "pct_difference < 0.5"
+        on_violation: warn
+    description: "Reconcile gold vs silver monthly revenue within 0.5%"

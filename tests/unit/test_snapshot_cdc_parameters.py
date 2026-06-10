@@ -5,18 +5,14 @@ from pathlib import Path
 
 import pytest
 
-from lhp.core.dlt_cdc_validators import SnapshotCdcConfigValidator
+from lhp.core.processing.substitution import EnhancedSubstitutionManager
+from lhp.core.validators import SnapshotCdcConfigValidator
+from lhp.errors import LHPError
 from lhp.generators.write.streaming_table import (
     SourceFunctionResult,
     StreamingTableWriteGenerator,
 )
-from lhp.models.config import Action, ActionType
-from lhp.utils.error_formatter import LHPError
-from lhp.utils.substitution import EnhancedSubstitutionManager
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
+from lhp.models import Action, ActionType, FlowGroup
 
 
 @pytest.fixture
@@ -30,7 +26,6 @@ def validator():
 
 
 def _write_function_file(code: str) -> str:
-    """Write a temporary Python function file and return its path."""
     f = tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False)
     f.write(code)
     f.flush()
@@ -39,7 +34,6 @@ def _write_function_file(code: str) -> str:
 
 
 def _make_action(function_file: str, function_name: str, parameters=None):
-    """Create an Action for snapshot CDC with source_function."""
     source_function = {
         "file": function_file,
         "function": function_name,
@@ -66,16 +60,21 @@ def _make_action(function_file: str, function_name: str, parameters=None):
 
 
 def _make_context(substitution_mgr=None):
-    """Create a generation context."""
-    ctx = {"secret_references": set()}
+    """``output_dir=None`` triggers dry-run copy: import lines are rendered without writing files."""
+    ctx = {
+        "secret_references": set(),
+        "flowgroup": FlowGroup(pipeline="p_test", flowgroup="fg_test"),
+        "output_dir": None,
+        "source_function_signature_cache": {},
+    }
     if substitution_mgr:
         ctx["substitution_manager"] = substitution_mgr
     return ctx
 
 
-# ---------------------------------------------------------------------------
-# Source function code snippets
-# ---------------------------------------------------------------------------
+def _alias_for(function_file: str) -> str:
+    return f"_snap_{Path(function_file).stem}"
+
 
 FUNC_WITH_KW_ONLY = """\
 from typing import Optional, Tuple
@@ -154,17 +153,13 @@ def next_delta_snapshot(
 """
 
 
-# ============================================================================
-# Generator tests — partial() rendering
-# ============================================================================
-
-
 class TestParameterRendering:
-    """Test that parameters produce correct partial() output."""
-
     def test_string_parameters_produce_partial(self, generator):
-        """String parameters render as partial(func, k='v')."""
+        """String parameters render as partial(alias.func, k='v') and the
+        copied module is imported + spark/dbutils injected (copy-and-import
+        model); no inlined ``def`` body is emitted."""
         fn = _write_function_file(FUNC_WITH_KW_ONLY)
+        alias = _alias_for(fn)
         try:
             action = _make_action(
                 fn,
@@ -175,11 +170,23 @@ class TestParameterRendering:
 
             # Import is collected by the generator (assembled at pipeline level)
             assert "from functools import partial" in generator._imports
+            assert (
+                f"import custom_python_functions.{Path(fn).stem} as {alias}"
+                in generator._imports
+            )
+            # Both spark/dbutils injection statements are pre-pipeline.
+            pre = generator.get_pre_pipeline_statements()
+            assert f"{alias}.spark = spark" in pre
+            assert f"{alias}.dbutils = dbutils" in pre
+
             assert "partial(" in code
-            assert "next_delta_snapshot," in code
+            # source= references the alias-qualified function, not a bare name.
+            assert f"{alias}.next_delta_snapshot," in code
             assert "catalog='prod'" in code
             assert "schema='silver'" in code
             assert "table='customers'" in code
+            # The function body is never inlined into the generated flowgroup.
+            assert "def next_delta_snapshot" not in code
         finally:
             Path(fn).unlink()
 
@@ -219,36 +226,50 @@ def typed_snapshot(
             assert "enabled=True" in code
             assert "tags=['a', 'b']" in code
             assert "options={'x': 1}" in code
+            # Body is imported, not inlined.
+            assert "def typed_snapshot" not in code
         finally:
             Path(fn).unlink()
 
     def test_no_parameters_produces_bare_function_name(self, generator):
-        """Without parameters, source= uses bare function reference (backward compat)."""
+        """Without parameters, source= uses the alias-qualified function
+        reference (no partial)."""
         fn = _write_function_file(FUNC_NO_EXTRA_PARAMS)
+        alias = _alias_for(fn)
         try:
             action = _make_action(fn, "simple_snapshot")
             code = generator.generate(action, _make_context())
 
-            assert "source=simple_snapshot," in code
+            assert f"source={alias}.simple_snapshot," in code
             assert "partial" not in code
             assert "functools" not in code
+            # Import + injection still emitted even without parameters.
+            assert (
+                f"import custom_python_functions.{Path(fn).stem} as {alias}"
+                in generator._imports
+            )
+            pre = generator.get_pre_pipeline_statements()
+            assert f"{alias}.spark = spark" in pre
+            assert f"{alias}.dbutils = dbutils" in pre
+            # No inlined body.
+            assert "def simple_snapshot" not in code
         finally:
             Path(fn).unlink()
 
     def test_empty_parameters_treated_as_no_parameters(self, generator):
         """Empty parameters dict {} is treated as no parameters."""
         fn = _write_function_file(FUNC_NO_EXTRA_PARAMS)
+        alias = _alias_for(fn)
         try:
             action = _make_action(fn, "simple_snapshot", {})
             code = generator.generate(action, _make_context())
 
-            assert "source=simple_snapshot," in code
+            assert f"source={alias}.simple_snapshot," in code
             assert "partial" not in code
         finally:
             Path(fn).unlink()
 
     def test_functools_import_only_when_parameters_present(self, generator):
-        """from functools import partial only added when parameters are non-empty."""
         fn = _write_function_file(FUNC_NO_EXTRA_PARAMS)
         try:
             action = _make_action(fn, "simple_snapshot")
@@ -258,16 +279,8 @@ def typed_snapshot(
             Path(fn).unlink()
 
 
-# ============================================================================
-# AST validation tests
-# ============================================================================
-
-
 class TestASTValidation:
-    """Test function signature validation against declared parameters."""
-
     def test_valid_keyword_only_args_accepted(self, generator):
-        """Parameters matching keyword-only args pass validation."""
         fn = _write_function_file(FUNC_WITH_KW_ONLY)
         try:
             action = _make_action(
@@ -275,14 +288,12 @@ class TestASTValidation:
                 "next_delta_snapshot",
                 {"catalog": "prod", "schema": "silver", "table": "items"},
             )
-            # Should not raise
             code = generator.generate(action, _make_context())
             assert "partial(" in code
         finally:
             Path(fn).unlink()
 
     def test_unknown_parameter_names_rejected(self, generator):
-        """Parameters not in keyword-only args raise LHPError."""
         fn = _write_function_file(FUNC_WITH_KW_ONLY)
         try:
             action = _make_action(
@@ -296,7 +307,6 @@ class TestASTValidation:
             Path(fn).unlink()
 
     def test_kwargs_bypasses_validation(self, generator):
-        """Function with **kwargs skips parameter name validation."""
         fn = _write_function_file(FUNC_WITH_KWARGS)
         try:
             action = _make_action(
@@ -304,14 +314,12 @@ class TestASTValidation:
                 "flexible_snapshot",
                 {"catalog": "prod", "anything_goes": "yes"},
             )
-            # Should not raise even though 'anything_goes' isn't explicitly declared
             code = generator.generate(action, _make_context())
             assert "partial(" in code
         finally:
             Path(fn).unlink()
 
     def test_regular_args_with_defaults_rejected(self, generator):
-        """Parameters matching regular args (not keyword-only) are rejected."""
         fn = _write_function_file(FUNC_WITH_REGULAR_ARGS)
         try:
             action = _make_action(
@@ -325,16 +333,8 @@ class TestASTValidation:
             Path(fn).unlink()
 
 
-# ============================================================================
-# Type guard tests
-# ============================================================================
-
-
 class TestTypeGuard:
-    """Test that unsupported parameter value types are rejected."""
-
     def test_supported_types_accepted(self, generator):
-        """str, int, float, bool, list, dict, None all pass the type guard."""
         func_code = """\
 from typing import Optional, Tuple, Any
 from pyspark.sql import DataFrame
@@ -367,14 +367,12 @@ def multi_type_func(
                     "n": None,
                 },
             )
-            # Should not raise
             code = generator.generate(action, _make_context())
             assert "partial(" in code
         finally:
             Path(fn).unlink()
 
     def test_unsupported_type_rejected(self, generator):
-        """Unsupported types like set raise LHPError."""
         fn = _write_function_file(FUNC_WITH_KW_ONLY)
         try:
             action = _make_action(
@@ -388,16 +386,8 @@ def multi_type_func(
             Path(fn).unlink()
 
 
-# ============================================================================
-# Substitution tests
-# ============================================================================
-
-
 class TestParameterSubstitution:
-    """Test that substitution tokens in parameter values are resolved."""
-
     def test_tokens_in_parameters_resolved(self, generator):
-        """Substitution tokens like {catalog} in parameter values are resolved."""
         fn = _write_function_file(FUNC_WITH_SUBSTITUTION_TOKENS)
         try:
             action = _make_action(
@@ -420,7 +410,7 @@ class TestParameterSubstitution:
             Path(fn).unlink()
 
     def test_secret_references_in_parameters_tracked(self, generator):
-        """Secret references in parameter values are collected."""
+        """``EnhancedSubstitutionManager.secret_references`` is canonical; the per-context accumulator is a mirror."""
         fn = _write_function_file(FUNC_WITH_SUBSTITUTION_TOKENS)
         try:
             action = _make_action(
@@ -437,22 +427,13 @@ class TestParameterSubstitution:
 
             generator.generate(action, ctx)
 
-            # Secret references should be tracked in context
-            assert len(ctx["secret_references"]) > 0
+            assert len(sub_mgr.secret_references) > 0
         finally:
             Path(fn).unlink()
 
 
-# ============================================================================
-# Validator tests
-# ============================================================================
-
-
 class TestValidatorParameters:
-    """Test SnapshotCdcConfigValidator parameter validation."""
-
     def test_valid_parameters_dict_accepted(self, validator):
-        """A valid parameters dict produces no errors."""
         config = {
             "source_function": {
                 "file": "funcs.py",
@@ -465,7 +446,6 @@ class TestValidatorParameters:
         assert errors == []
 
     def test_non_dict_parameters_rejected(self, validator):
-        """Non-dict parameters (string, list) produce errors."""
         for bad_value in ["not_a_dict", ["a", "b"], 42]:
             config = {
                 "source_function": {
@@ -476,12 +456,11 @@ class TestValidatorParameters:
                 "keys": ["id"],
             }
             errors = validator._validate_source_configuration(config, "test_flowgroup")
-            assert any(
-                "'parameters' must be a dictionary" in e for e in errors
-            ), f"Expected validation error for parameters={bad_value!r}"
+            assert any("'parameters' must be a dictionary" in e for e in errors), (
+                f"Expected validation error for parameters={bad_value!r}"
+            )
 
     def test_no_parameters_still_valid(self, validator):
-        """source_function without parameters is still valid."""
         config = {
             "source_function": {
                 "file": "funcs.py",
@@ -493,27 +472,23 @@ class TestValidatorParameters:
         assert errors == []
 
 
-# ============================================================================
-# SourceFunctionResult tests
-# ============================================================================
-
-
 class TestSourceFunctionResult:
-    """Test the NamedTuple return type."""
+    """Test the NamedTuple return type (shape ``(name, parameters)``)."""
 
     def test_result_with_parameters(self):
-        result = SourceFunctionResult("code", "name", {"k": "v"})
-        assert result.code == "code"
+        result = SourceFunctionResult("name", {"k": "v"})
         assert result.name == "name"
         assert result.parameters == {"k": "v"}
+        assert not hasattr(result, "code")
+        assert result._fields == ("name", "parameters")
 
     def test_result_without_parameters(self):
-        result = SourceFunctionResult("code", "name")
+        result = SourceFunctionResult("name")
+        assert result.name == "name"
         assert result.parameters is None
 
     def test_result_unpacking(self):
-        result = SourceFunctionResult("code", "name", {"k": "v"})
-        code, name, params = result
-        assert code == "code"
+        result = SourceFunctionResult("name", {"k": "v"})
+        name, params = result
         assert name == "name"
         assert params == {"k": "v"}

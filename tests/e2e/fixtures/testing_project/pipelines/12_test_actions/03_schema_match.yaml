@@ -1,0 +1,14 @@
+# B1 fixture — schema_match test action
+# Compares schemas between two tables via information_schema.
+pipeline: 12_test_actions
+flowgroup: ta_schema_match
+#job_name: j_test_actions
+
+actions:
+  - name: ta_orders_schema_match
+    type: test
+    test_type: schema_match
+    source: "${catalog}.${silver_schema}.fact_orders"
+    reference: "${catalog}.${gold_schema}.fact_orders_expected"
+    on_violation: warn
+    description: "Ensure orders schema matches expected reference"

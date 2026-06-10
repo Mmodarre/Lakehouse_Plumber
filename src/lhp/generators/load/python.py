@@ -2,10 +2,11 @@
 
 import logging
 
-from ...core.base_generator import BaseActionGenerator
-from ...models.config import Action
-from ...utils.error_formatter import ErrorFormatter
-from ..python_file_copier import copy_user_module_for_pipeline
+from lhp.core.codegen import copy_user_module_for_pipeline
+from lhp.errors import ErrorFactory
+from lhp.models import Action
+
+from ...core.registry import BaseActionGenerator
 
 
 class PythonLoadGenerator(BaseActionGenerator):
@@ -22,10 +23,9 @@ class PythonLoadGenerator(BaseActionGenerator):
         self.logger = logging.getLogger(__name__)
 
     def generate(self, action: Action, context: dict) -> str:
-        """Generate Python load code."""
         source_config = action.source
         if isinstance(source_config, str):
-            raise ErrorFormatter.invalid_source_format(
+            raise ErrorFactory.invalid_source_format(
                 action_name=action.name,
                 action_type="python load",
                 expected_formats=[
@@ -37,19 +37,17 @@ class PythonLoadGenerator(BaseActionGenerator):
             f"Generating Python load for target '{action.target}', action '{action.name}'"
         )
 
-        # Process source config through substitution manager first if available
         if "substitution_manager" in context:
             source_config = context["substitution_manager"].substitute_yaml(
                 source_config
             )
 
-        # Extract module and function information
         module_path = source_config.get("module_path")
         function_name = source_config.get("function_name", "get_df")
         parameters = source_config.get("parameters", {})
 
         if not module_path:
-            raise ErrorFormatter.missing_required_field(
+            raise ErrorFactory.missing_required_field(
                 field_name="module_path",
                 component_type="Python load action",
                 component_name=action.name,
@@ -67,12 +65,9 @@ class PythonLoadGenerator(BaseActionGenerator):
         end_date: "2023-12-31" """,
             )
 
-        # Hard-require a .py file path. The legacy dotted-import and
-        # bare-module-name forms are no longer accepted; this generator
-        # now follows the same copy-and-import convention as the rest of
-        # the family (transform/python, custom_datasource, custom_sink).
+        # Legacy dotted-import and bare-module-name forms are no longer accepted.
         if not module_path.endswith(".py"):
-            raise ErrorFormatter.file_not_found(
+            raise ErrorFactory.file_not_found(
                 file_path=module_path,
                 search_locations=[
                     "module_path must be a path to a Python file ending in .py",
@@ -84,12 +79,10 @@ class PythonLoadGenerator(BaseActionGenerator):
             f"Python load '{action.name}': module_path='{module_path}', function='{function_name}'"
         )
 
-        # Resolve and copy the user's Python file via the shared helper.
         copied_module_name = copy_user_module_for_pipeline(
             module_path, context, component_label="Python load action"
         )
 
-        # Handle operational metadata
         add_operational_metadata, metadata_columns = self._get_operational_metadata(
             action, context
         )
@@ -108,7 +101,6 @@ class PythonLoadGenerator(BaseActionGenerator):
             "flowgroup": context.get("flowgroup"),
         }
 
-        # Import the loader function from the copied module.
         self.add_import(
             f"from custom_python_functions.{copied_module_name} import {function_name}"
         )

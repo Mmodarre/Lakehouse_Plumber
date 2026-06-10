@@ -57,11 +57,21 @@ master_doc = 'index'
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'README.md', 'DOCS_REORGANIZATION_PLAN.md']
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'README.md', 'DOCS_REORGANIZATION_PLAN.md', 'STYLE_GUIDE.md']
 
 # -- Options for HTML output -------------------------------------------------
 html_theme = 'furo'
 html_static_path = ['_static']
+
+# -- Analytics: GoatCounter (privacy-respecting, no cookies, free for OSS) ---
+# Register the slug at https://www.goatcounter.com/signup before this collects data.
+html_js_files = [
+    (
+        "https://gc.zgo.at/count.js",
+        {"data-goatcounter": "https://lakehouse-plumber.goatcounter.com/count",
+         "async": "async"},
+    ),
+]
 
 # -- SEO: Page title ----------------------------------------------------------
 html_title = "Lakehouse Plumber"

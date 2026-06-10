@@ -1,19 +1,12 @@
-"""
-Integration tests for declarative event_log configuration.
-
-Tests the full round-trip: lhp.yaml event_log → BundleManager → rendered YAML,
-including substitution token resolution, pipeline_config overrides, and backward compatibility.
-"""
-
-import pytest
-import tempfile
 import shutil
+import tempfile
 from pathlib import Path
 
+import pytest
 import yaml
 
 from lhp.bundle.manager import BundleManager
-from lhp.models.config import EventLogConfig, ProjectConfig
+from lhp.models import EventLogConfig, ProjectConfig
 
 
 class TestEventLogIntegration:
@@ -43,6 +36,15 @@ class TestEventLogIntegration:
         with open(project_root / "substitutions" / "dev.yaml", "w") as f:
             yaml.dump(sub_content, f)
 
+        # Tests that need a different config call _create_pipeline_config() to overwrite this.
+        default_config_path = project_root / "config" / "pipeline_config.yaml"
+        default_config_path.write_text(
+            "project_defaults:\n"
+            "  catalog: test_catalog\n"
+            "  schema: test_schema\n"
+            "  serverless: true\n"
+        )
+
         yield project_root
 
         shutil.rmtree(temp_dir)
@@ -65,10 +67,10 @@ class TestEventLogIntegration:
 
         manager = BundleManager(
             project_root=temp_project,
+            pipeline_config_path=str(temp_project / "config" / "pipeline_config.yaml"),
             project_config=project_config,
         )
 
-        # Capture the template context
         captured_context = None
 
         def mock_render(template_name, context):
@@ -98,6 +100,7 @@ class TestEventLogIntegration:
 
         manager = BundleManager(
             project_root=temp_project,
+            pipeline_config_path=str(temp_project / "config" / "pipeline_config.yaml"),
             project_config=project_config,
         )
 
@@ -120,7 +123,6 @@ class TestEventLogIntegration:
 
     def test_pipeline_config_full_replace(self, temp_project):
         """Test pipeline_config event_log fully replaces project-level event_log."""
-        # Project-level event_log
         event_log = EventLogConfig(
             catalog="project_catalog",
             schema="project_schema",
@@ -128,12 +130,13 @@ class TestEventLogIntegration:
         )
         project_config = ProjectConfig(name="test", event_log=event_log)
 
-        # Pipeline-specific event_log in pipeline_config.yaml
         config_path = self._create_pipeline_config(
             temp_project,
             """
 ---
 project_defaults:
+  catalog: test_catalog
+  schema: test_schema
   serverless: true
 
 ---
@@ -165,9 +168,7 @@ event_log:
 
         assert captured_context is not None
         config = captured_context["pipeline_config"]
-        # Pipeline config's event_log should be used, not project-level
         assert config["event_log"]["name"] == "custom_event_log"
-        # Substitution tokens in pipeline config's event_log should also resolve
         assert config["event_log"]["catalog"] == "dev_meta"
         assert config["event_log"]["schema"] == "custom_schema"
 
@@ -184,6 +185,8 @@ event_log:
             """
 ---
 project_defaults:
+  catalog: test_catalog
+  schema: test_schema
   serverless: true
 
 ---
@@ -224,6 +227,8 @@ event_log: false
             """
 ---
 project_defaults:
+  catalog: test_catalog
+  schema: test_schema
   serverless: true
 
 ---
@@ -263,6 +268,7 @@ event_log:
         """Test no event_log when neither project nor pipeline config defines it."""
         manager = BundleManager(
             project_root=temp_project,
+            pipeline_config_path=str(temp_project / "config" / "pipeline_config.yaml"),
             project_config=None,
         )
 
@@ -291,12 +297,13 @@ event_log:
         )
         project_config = ProjectConfig(name="test", event_log=event_log)
 
-        # Pipeline config only has defaults, no pipeline-specific section
         config_path = self._create_pipeline_config(
             temp_project,
             """
 ---
 project_defaults:
+  catalog: test_catalog
+  schema: test_schema
   serverless: true
 """,
         )
@@ -317,7 +324,6 @@ project_defaults:
         manager.template_renderer.render_template = mock_render
 
         output_dir = temp_project / "generated"
-        # This pipeline is not in pipeline_config, so project-level should apply
         manager.generate_resource_file_content("unlisted_pipeline", output_dir, "dev")
 
         assert captured_context is not None

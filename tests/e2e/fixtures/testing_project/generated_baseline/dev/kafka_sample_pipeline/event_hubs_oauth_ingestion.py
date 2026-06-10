@@ -26,7 +26,7 @@ def v_event_hubs_telemetry_raw():
         .option("kafka.sasl.mechanism", "OAUTHBEARER")
         .option(
             "kafka.sasl.jaas.config",
-            f"kafkashaded.org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required clientId=\"{dbutils.secrets.get(scope='azure_secrets', key='client_id')}\" clientSecret=\"{dbutils.secrets.get(scope='azure_secrets', key='client_secret')}\" scope=\"https://my-namespace.servicebus.windows.net/.default\" ssl.protocol=\"SSL\";",
+            f'kafkashaded.org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required clientId="{dbutils.secrets.get(scope="azure_secrets", key="client_id")}" clientSecret="{dbutils.secrets.get(scope="azure_secrets", key="client_secret")}" scope="https://my-namespace.servicebus.windows.net/.default" ssl.protocol="SSL";',
         )
         .option(
             "kafka.sasl.oauthbearer.token.endpoint.url",

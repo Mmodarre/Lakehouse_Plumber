@@ -4,20 +4,17 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-from ...core.base_generator import BaseActionGenerator
-from ...models.config import Action
-from ...utils.error_formatter import (
-    ErrorCategory,
-    ErrorFormatter,
-    LHPError,
-    LHPValidationError,
-)
-from ...utils.external_file_loader import (
+from lhp.errors import ErrorFactory, LHPError, codes
+from lhp.models import Action
+
+from ...core.codegen.struct_type_emitter import emit_struct_type_code
+from ...core.loaders.external_file_loader import (
     is_file_path,
     load_external_file_text,
     resolve_external_file_path,
 )
-from ...utils.schema_parser import SchemaParser
+from ...core.registry import BaseActionGenerator
+from ...parsers.schema_parser import SchemaParser
 
 
 class CloudFilesLoadGenerator(BaseActionGenerator):
@@ -61,23 +58,20 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
         self.mandatory_options = {"format"}
 
     def generate(self, action: Action, context: Dict[str, Any]) -> str:
-        """Generate CloudFiles load code."""
         source_config = action.source if isinstance(action.source, dict) else {}
         self.logger.debug(
             f"Generating CloudFiles load for target '{action.target}', action '{action.name}'"
         )
 
-        # CloudFiles requires stream mode
         readMode = action.readMode or source_config.get("readMode", "stream")
         if readMode != "stream":
-            raise ErrorFormatter.invalid_read_mode(
+            raise ErrorFactory.invalid_read_mode(
                 action_name=action.name,
                 action_type="cloudfiles",
                 provided=readMode,
                 valid_modes=["stream"],
             )
 
-        # Extract configuration
         path = source_config.get("path")
         file_format = source_config.get("format", "json")
 
@@ -85,16 +79,13 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             f"CloudFiles load '{action.name}': format='{file_format}', path='{path}'"
         )
 
-        # Check for conflicts between old and new approaches
         self._check_conflicts(source_config, action.name)
 
-        # Handle schema processing
         schema_code_lines = []
         schema_variable = None
         schema_hints_value = None
         explicit_schema = source_config.get("schema")
 
-        # Process explicit schema field
         if explicit_schema:
             if isinstance(explicit_schema, str):
                 # Schema file path
@@ -107,13 +98,11 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
                     explicit_schema["file"], context.get("spec_dir")
                 )
 
-        # Process options (new approach)
         reader_options = {}
         if source_config.get("options"):
             options = source_config["options"]
-            # Validate options is a dictionary
             if not isinstance(options, dict):
-                raise ErrorFormatter.invalid_field_type(
+                raise ErrorFactory.invalid_field_type(
                     action_name=action.name,
                     field_name="options",
                     expected_type="a dictionary (mapping)",
@@ -126,11 +115,9 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
                 self._process_options(options, action.name, context.get("spec_dir"))
             )
 
-            # Extract schema hints if present in options
             if "cloudFiles.schemaHints" in reader_options:
                 schema_hints_value = reader_options["cloudFiles.schemaHints"]
 
-        # Process legacy options (old approach)
         if source_config.get("reader_options"):
             reader_options.update(source_config["reader_options"])
         if source_config.get("format_options"):
@@ -139,7 +126,6 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
                     key = f"{file_format}.{key}"
                 reader_options[key] = value
 
-        # Handle legacy schema_file
         if (
             source_config.get("schema_file")
             and not explicit_schema
@@ -170,22 +156,23 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
                         str(value).lower() if isinstance(value, bool) else value
                     )
 
-        # Validate mandatory options
         self._validate_mandatory_options(reader_options, file_format)
 
-        # Process schema hints for better formatting
+        # Process schema hints into render data (template emits the code, §9.14)
         schema_hints_variable = None
-        schema_hints_lines = []
+        schema_hints_label = None
+        schema_hints_columns = []
         if "cloudFiles.schemaHints" in reader_options:
-            schema_hints_variable, schema_hints_lines = (
-                self._create_schema_hints_variable(
-                    reader_options["cloudFiles.schemaHints"], action.target
-                )
+            (
+                schema_hints_variable,
+                schema_hints_label,
+                schema_hints_columns,
+            ) = self._create_schema_hints_variable(
+                reader_options["cloudFiles.schemaHints"], action.target
             )
             # Remove from reader_options since we'll use the variable instead
             del reader_options["cloudFiles.schemaHints"]
 
-        # Handle operational metadata
         add_operational_metadata, metadata_columns = self._get_operational_metadata(
             action, context
         )
@@ -199,7 +186,8 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             "schema_code_lines": schema_code_lines,
             "schema_variable": schema_variable,
             "schema_hints_variable": schema_hints_variable,
-            "schema_hints_lines": schema_hints_lines,
+            "schema_hints_label": schema_hints_label,
+            "schema_hints_columns": schema_hints_columns,
             "description": action.description
             or f"Load data from {file_format} files at {path}",
             "add_operational_metadata": add_operational_metadata,
@@ -210,39 +198,25 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
         return self.render_template("load/cloudfiles.py.j2", template_context)
 
     def _process_options(
-        self, options: Dict[str, Any], action_name: str, spec_dir: Path = None
+        self, options: Dict[str, Any], action_name: str, spec_dir: Path | None = None
     ) -> Dict[str, Any]:
-        """Process the options field and validate cloudFiles options.
-
-        Args:
-            options: Options dictionary from YAML
-            action_name: Name of the action for error messages
-            spec_dir: Base directory for relative paths
-
-        Returns:
-            Processed options dictionary
-        """
+        """Process the options field and validate cloudFiles options."""
         processed_options = {}
 
         for key, value in options.items():
-            # Check if this looks like a cloudFiles option without prefix
             if (
                 not key.startswith("cloudFiles.")
                 and key in self.known_cloudfiles_options
             ):
-                raise ErrorFormatter.configuration_conflict(
+                raise ErrorFactory.configuration_conflict(
                     action_name=action_name,
                     field_pairs=[(key, f"cloudFiles.{key}")],
                     preset_name=None,
                 )
 
-            # Handle schema hints specially
             if key == "cloudFiles.schemaHints":
                 if isinstance(value, str):
-                    # Use common utility for file path detection
                     if is_file_path(value):
-                        # User provided schema file path
-                        # Use common utility for path resolution
                         project_root = spec_dir or Path.cwd()
                         file_ext = Path(value).suffix.lower()
                         resolved_path = resolve_external_file_path(
@@ -250,7 +224,6 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
                         )
 
                         if file_ext in [".yaml", ".yml", ".json"]:
-                            # YAML/JSON schema - parse and convert to DDL
                             schema_data = self.schema_parser.parse_schema_file(
                                 resolved_path
                             )
@@ -258,13 +231,11 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
                                 schema_data
                             )
                         elif file_ext in [".ddl", ".sql"]:
-                            # DDL file - load as plain text
                             ddl_content = load_external_file_text(
                                 value, project_root, file_type="DDL schema file"
                             ).strip()
                             processed_options[key] = ddl_content
                         else:
-                            # Default to YAML for backward compatibility
                             schema_data = self.schema_parser.parse_schema_file(
                                 resolved_path
                             )
@@ -272,40 +243,27 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
                                 schema_data
                             )
                     else:
-                        # User provided direct hints string
                         processed_options[key] = str(value)
                 else:
-                    # User provided direct hints string
                     processed_options[key] = str(value)
             else:
-                # Preserve original type for all other options
                 processed_options[key] = value
 
         return processed_options
 
     def _process_schema_file(
-        self, schema_file_path: str, spec_dir: Path = None
+        self, schema_file_path: str, spec_dir: Path | None = None
     ) -> Tuple[str, List[str]]:
-        """Process a schema file and generate StructType code.
-
-        Args:
-            schema_file_path: Path to schema file
-            spec_dir: Base directory for relative paths
-
-        Returns:
-            Tuple of (variable_name, code_lines)
-        """
+        """Process a schema file and generate StructType code."""
         try:
             schema_data = self.schema_parser.parse_schema_file(
                 Path(schema_file_path), spec_dir
             )
 
-            # Validate schema
             errors = self.schema_parser.validate_schema(schema_data)
             if errors:
-                raise LHPValidationError(
-                    category=ErrorCategory.VALIDATION,
-                    code_number="011",
+                raise ErrorFactory.validation_error(
+                    codes.VAL_011,
                     title="Schema validation failed",
                     details=f"Schema file '{schema_file_path}' failed validation: {'; '.join(errors)}",
                     suggestions=[
@@ -318,17 +276,13 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
                     },
                 )
 
-            variable_name, code_lines = self.schema_parser.to_struct_type_code(
-                schema_data
-            )
+            variable_name, code_lines = emit_struct_type_code(schema_data)
 
-            # Add the imports to the generator
             for line in code_lines:
                 if line.startswith("from pyspark.sql.types import"):
                     self.add_import(line)
                     break
 
-            # Return variable name and the schema definition lines (excluding imports)
             schema_def_lines = [
                 line
                 for line in code_lines
@@ -338,7 +292,6 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             return variable_name, schema_def_lines
 
         except FileNotFoundError as exc:
-            # Build search locations
             search_locations = []
             if schema_file_path.startswith("/"):
                 search_locations.append(f"Absolute path: {schema_file_path}")
@@ -350,7 +303,7 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
                     f"Project root: {Path.cwd() / schema_file_path}"
                 )
 
-            raise ErrorFormatter.file_not_found(
+            raise ErrorFactory.file_not_found(
                 file_path=str(schema_file_path),
                 search_locations=search_locations,
                 file_type="schema file",
@@ -359,9 +312,8 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             # Re-raise LHPError as-is (it's already well-formatted)
             raise
         except Exception as e:
-            raise LHPValidationError(
-                category=ErrorCategory.VALIDATION,
-                code_number="011",
+            raise ErrorFactory.validation_error(
+                codes.VAL_011,
                 title=f"Error processing schema file '{schema_file_path}'",
                 details=f"Failed to process schema file '{schema_file_path}': {e}",
                 suggestions=[
@@ -372,15 +324,9 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             ) from e
 
     def _check_conflicts(self, source_config: Dict[str, Any], action_name: str):
-        """Check for conflicts between old and new configuration approaches.
-
-        Args:
-            source_config: Source configuration dictionary
-            action_name: Name of the action for error messages
-        """
+        """Check for conflicts between old and new configuration approaches."""
         options = source_config.get("options", {})
 
-        # Check for conflicts with legacy options
         conflicts = []
 
         legacy_to_new = {
@@ -395,7 +341,6 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             if source_config.get(legacy_key) is not None and new_key in options:
                 conflicts.append(f"Both '{legacy_key}' and '{new_key}' specified")
 
-        # Check schema conflicts
         schema_sources = []
         if source_config.get("schema_file"):
             schema_sources.append("schema_file")
@@ -410,16 +355,14 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             )
 
         if conflicts:
-            # Extract field pairs from conflicts for better error formatting
             field_pairs = []
             for legacy_key, new_key in legacy_to_new.items():
                 if source_config.get(legacy_key) is not None and new_key in options:
                     field_pairs.append((legacy_key, new_key))
 
-            # Check for preset name in the source config
             preset_name = source_config.get("preset")
 
-            raise ErrorFormatter.configuration_conflict(
+            raise ErrorFactory.configuration_conflict(
                 action_name=action_name,
                 field_pairs=field_pairs,
                 preset_name=preset_name,
@@ -427,22 +370,17 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
 
     def _create_schema_hints_variable(
         self, schema_hints: str, target_view: str
-    ) -> Tuple[str, List[str]]:
-        """Create a formatted schema hints variable for better readability.
+    ) -> Tuple[str, str, List[str]]:
+        """Parse schema hints into the data the template needs to render them.
 
-        Args:
-            schema_hints: The schema hints string (e.g., "col1 TYPE1, col2 TYPE2, ...")
-            target_view: The target view name to use for variable naming
-
-        Returns:
-            Tuple of (variable_name, code_lines)
+        Code generation itself lives in ``templates/load/cloudfiles.py.j2`` per
+        constitution §9.14 / §2.10 — this method only performs data
+        transformation (paren-aware column parsing + variable naming).
         """
-        # Create variable name based on target view
         clean_target = target_view.replace("v_", "").replace("_raw", "")
         variable_name = f"{clean_target}_schema_hints"
 
-        # Split schema hints by comma, but be careful with types like DECIMAL(18,2)
-        # Use a more sophisticated parsing that respects parentheses
+        # Split by comma, but respect parentheses — types like DECIMAL(18,2) contain commas
         columns = []
         current_col = ""
         paren_count = 0
@@ -453,7 +391,6 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             elif char == ")":
                 paren_count -= 1
             elif char == "," and paren_count == 0:
-                # Only split on comma if we're not inside parentheses
                 if current_col.strip():
                     columns.append(current_col.strip())
                 current_col = ""
@@ -461,40 +398,14 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
 
             current_col += char
 
-        # Don't forget the last column
         if current_col.strip():
             columns.append(current_col.strip())
 
-        # Format each column with proper indentation
-        code_lines = [
-            f"# Schema hints for {clean_target} table",
-            f'{variable_name} = """',
-        ]
-
-        # Add each column on its own line with indentation
-        for i, column in enumerate(columns):
-            if i == len(columns) - 1:  # Last column doesn't need comma
-                code_lines.append(f"    {column}")
-            else:
-                code_lines.append(f"    {column},")
-
-        code_lines.extend(
-            ['""".strip().replace("\\n", " ")', ""]  # Empty line for separation
-        )
-
-        return variable_name, code_lines
+        return variable_name, clean_target, columns
 
     def _validate_mandatory_options(
         self, reader_options: Dict[str, Any], file_format: str
     ):
-        """Validate that mandatory cloudFiles options are present.
-
-        Args:
-            reader_options: Combined reader options
-            file_format: File format
-        """
-        # Check for mandatory cloudFiles.format
+        """Validate that mandatory cloudFiles options are present."""
         if "cloudFiles.format" not in reader_options:
             reader_options["cloudFiles.format"] = file_format
-
-        # Additional validation can be added here for other mandatory options

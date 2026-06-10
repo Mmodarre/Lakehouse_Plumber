@@ -4,17 +4,45 @@ Operational Metadata
 .. meta::
    :description: Configure operational metadata columns for lineage, provenance, and processing context in Lakehouse Plumber pipelines.
 
-Column Definitions
-------------------
+Concept
+-------
 
-Operational metadata are automatically generated columns that provide lineage, data
-provenance, and processing context. These columns are added to your tables without
-requiring manual SQL modifications.
+**What.** Operational metadata columns are auto-injected provenance and lineage
+columns that Lakehouse Plumber (LHP) adds to your generated tables. You define
+each column once in ``lhp.yaml`` — a name, a Spark expression, and the target
+table types it applies to — then opt actions in by listing the column name.
+LHP appends a ``withColumn(...)`` call for every selected column to the
+generated Python.
 
-.. note::
-   Operational metadata columns are defined in the project level configuration file. under the ``operational_metadata`` key.
+**When.** Enable operational metadata when you need a row-level audit trail
+(processing timestamp, pipeline name, run ID) or file-level lineage
+(source file path, modification time, size) on Bronze loads. Disable it on
+Silver and Gold tables when those columns no longer carry meaning downstream.
 
-**Project-level configuration:**
+**Minimum example.** One preset turns on a single processing-timestamp column:
+
+.. code-block:: yaml
+   :caption: presets/bronze_layer.yaml
+
+   name: bronze_layer
+   version: "1.0"
+
+   defaults:
+     operational_metadata: ["_processing_timestamp"]
+
+The column definition itself (the Spark expression behind
+``_processing_timestamp``) lives at project level — see the reference body below.
+
+Reference
+---------
+
+Column catalogue
+~~~~~~~~~~~~~~~~
+
+Define operational metadata columns in the project-level configuration file
+under the ``operational_metadata`` key. Each column declares its Spark
+expression, a description, the target types it applies to, and any extra
+imports the expression needs.
 
 .. code-block:: yaml
    :caption: lhp.yaml - Project operational metadata configuration
@@ -48,110 +76,8 @@ requiring manual SQL modifications.
          description: "Name of the processing pipeline"
          applies_to: ["streaming_table", "materialized_view", "view"]
 
-Version Requirements
---------------------
-
-LakehousePlumber supports version enforcement to ensure consistent code generation across development and CI environments. This prevents "works on my machine" issues and ensures reproducible builds.
-
-**Basic configuration:**
-
-.. code-block:: yaml
-   :caption: lhp.yaml - Version enforcement examples
-   :linenos:
-
-   # LakehousePlumber Project Configuration
-   name: my_lakehouse_project
-   version: "1.0"
-
-   # Enforce version requirements (optional)
-   required_lhp_version: ">=0.4.1,<0.5.0"  # Allow patch updates within 0.4.x
-
-**Version specification formats:**
-
-.. code-block:: yaml
-   :caption: Version requirement examples
-
-   # Exact version pin (strict)
-   required_lhp_version: "==0.4.1"
-
-   # Allow patch updates only
-   required_lhp_version: "~=0.4.1"          # Equivalent to >=0.4.1,<0.5.0
-
-   # Range with exclusions
-   required_lhp_version: ">=0.4.1,<0.5.0,!=0.4.3"  # Exclude known bad version
-
-   # Allow minor updates
-   required_lhp_version: ">=0.4.0,<1.0.0"
-
-**Behavior:**
-
-- When ``required_lhp_version`` is set, ``lhp validate`` and ``lhp generate`` will fail if the installed version doesn't satisfy the requirement
-- Informational commands like ``lhp show`` skip version checking to allow inspection even with mismatches
-- Version checking uses `PEP 440 <https://peps.python.org/pep-0440/>`_ version specifiers
-
-**Emergency bypass:**
-
-.. code-block:: bash
-   :caption: Bypass version checking in emergencies
-
-   # Temporarily bypass version checking
-   export LHP_IGNORE_VERSION=1
-   lhp generate -e dev
-
-   # Or inline
-   LHP_IGNORE_VERSION=1 lhp validate -e prod
-
-**CI/CD integration:**
-
-.. code-block:: bash
-   :caption: CI pipeline with version enforcement
-
-   # Install exact version matching project requirements
-   pip install "lakehouse-plumber$(yq -r .required_lhp_version lhp.yaml | sed 's/^//')"
-
-   # Or use range-compatible version
-   pip install "lakehouse-plumber>=0.4.1,<0.5.0"
-
-   # Validate and generate (will fail if version mismatch)
-   lhp validate -e prod
-   lhp generate -e prod
-
-.. note::
-   Version enforcement is **optional**. Projects without ``required_lhp_version`` work normally with any installed LakehousePlumber version.
-
-.. warning::
-   Use the bypass environment variable (``LHP_IGNORE_VERSION=1``) only in emergencies. It's not recommended for production environments as it defeats the purpose of version consistency.
-
-Event Log Configuration
------------------------
-
-LakehousePlumber supports project-level event log configuration in ``lhp.yaml``. When
-configured, event log blocks are automatically injected into all pipeline resource files
-during generation — no ``-pc`` flag or ``pipeline_config.yaml`` required.
-
-.. code-block:: yaml
-   :caption: lhp.yaml - Event log configuration
-
-   name: my_lakehouse_project
-   version: "1.0"
-
-   event_log:
-     catalog: "${catalog}"
-     schema: _meta
-     name_suffix: "_event_log"
-
-When ``event_log`` is defined, each generated pipeline resource will include an ``event_log``
-block with the table name derived from the pipeline name (e.g., ``bronze_load_event_log``).
-
-Individual pipelines can override or opt out of project-level event logging through
-``pipeline_config.yaml``.
-
-.. seealso::
-   For complete details including per-pipeline overrides, opt-out, monitoring pipeline
-   setup, and all configuration options, see :doc:`monitoring`.
-
-Target Type Compatibility
--------------------------
+Target type compatibility
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``applies_to`` field controls which DLT table types can use each operational metadata column.
 LHP automatically filters columns based on the target type to prevent runtime errors.
@@ -250,15 +176,15 @@ pipeline configurations. This is a defensive design pattern that prevents common
        # Custom metadata depends on DataSource implementation
      target: v_api_data
 
-Usage in YAML Files
--------------------
+Multi-level configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Operational metadata can be configured at multiple levels with **additive behavior** - columns from all levels are combined together:
+Operational metadata can be configured at multiple levels with **additive behavior** - columns from all levels are combined together.
 
-.. important::
-   **Additive Behavior**: Operational metadata columns are **never overridden** between levels.
-   Instead, columns from preset + flowgroup + action levels are **combined together**.
-   The only exception is ``operational_metadata: false`` at action level, which disables **all** metadata.
+**Additive behavior:** Operational metadata columns are **never overridden** between levels.
+Instead, columns from preset + flowgroup + action levels are **combined together**. The
+only exception is ``operational_metadata: false`` at action level, which disables **all**
+metadata.
 
 **Preset level**
 
@@ -356,8 +282,8 @@ Operational metadata can be configured at multiple levels with **additive behavi
    # ✓ _pipeline_name             (from action)
    # ✓ _custom_business_logic     (from action)
 
-Usage Patterns
---------------
+Usage patterns
+~~~~~~~~~~~~~~
 
 **Enable all available columns:**
 
@@ -409,7 +335,7 @@ Usage Patterns
      you need to make sure they are included in the SQL query.
 
 Internal Implementation Note
------------------------------
+----------------------------
 
 The codebase maintains strict semantic separation between single and multi-document YAML files:
 

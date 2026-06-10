@@ -4,54 +4,88 @@ Transform Actions
 .. meta::
    :description: Complete reference for LHP Transform action types: SQL, Python, data quality, schema, and temp table transforms.
 
+Concept
+-------
 
-+--------------+---------------------------------------------------------------+
-| Sub-type     | Purpose                                                       |
-+==============+===============================================================+
-|| sql         || Run an inline SQL statement or external ``.sql`` file.       |
-+--------------+---------------------------------------------------------------+
-|| python      || Apply arbitrary PySpark code; useful for complex logic.      |
-+--------------+---------------------------------------------------------------+
-|| schema      || Add, drop, or rename columns, or change data types.          |
-+--------------+---------------------------------------------------------------+
-|| data_quality|| Attach *expectations* (fail, warn, drop) to validate data.   |
-+--------------+---------------------------------------------------------------+
-|| temp_table  || Create an intermediate temp table or view for re-use.        |
-+--------------+---------------------------------------------------------------+
+A Transform action reads one or more views, applies logic, and writes a new
+view that downstream actions consume. Transforms are the middle layer of a
+FlowGroup: Load actions produce input views, Transform actions reshape them,
+and Write actions persist the result.
+
+LHP exposes five sub-types. Pick the one that matches your transformation
+logic:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 80
+
+   * - Sub-type
+     - Use when…
+   * - ``sql``
+     - You can express the transformation as a SQL ``SELECT``. Inline SQL
+       or an external ``.sql`` file.
+   * - ``python``
+     - You need PySpark DataFrame logic, a UDF, or to call an external API.
+   * - ``data_quality``
+     - You want to attach Lakeflow expectations (``fail``, ``warn``, ``drop``)
+       to validate rows before they reach a Write action.
+   * - ``schema``
+     - You need to rename columns, cast types, or enforce a column list
+       without other logic.
+   * - ``temp_table``
+     - You want to materialise an intermediate result as a temporary table
+       so several downstream actions can share it.
+
+The smallest useful Transform action runs an inline SQL projection:
+
+.. code-block:: yaml
+   :caption: pipelines/bronze/customer.yaml
+
+   actions:
+     - name: customer_bronze_cleanse
+       type: transform
+       transform_type: sql
+       source: v_customer_raw
+       target: v_customer_bronze_cleaned
+       sql: |
+         SELECT
+           c_custkey   AS customer_id,
+           c_name      AS name,
+           c_nationkey AS nation_id,
+           c_acctbal   AS account_balance
+         FROM stream(v_customer_raw)
+       description: "Project and rename customer columns"
+
+The reference body below documents each sub-type — its keys, defaults, and
+the PySpark code LHP generates.
 
 sql
--------------------------------------------
-SQL transform actions execute SQL queries to transform data between views. They support both **inline SQL** and **external SQL files**.
+---
 
-**Option 1: Inline SQL**
+Use ``sql`` when the transformation fits in a SQL ``SELECT``. Both inline
+SQL and external ``.sql`` files are supported.
+
+Minimum example
+~~~~~~~~~~~~~~~
 
 .. code-block:: yaml
 
-  actions:
-    - name: customer_bronze_cleanse
-      type: transform
-      transform_type: sql
-      source: v_customer_raw
-      target: v_customer_bronze_cleaned
-      sql: |
-        SELECT 
-          c_custkey as customer_id,
-          c_name as name,
-          c_address as address,
-          c_nationkey as nation_id,
-          c_phone as phone,
-          c_acctbal as account_balance,
-          c_mktsegment as market_segment,
-          c_comment as comment,
-          _source_file_path,
-          _source_file_size,
-          _source_file_modification_time,
-          _record_hash,
-          _processing_timestamp
-        FROM stream(v_customer_raw)
-      description: "Cleanse and standardize customer data for bronze layer"
+   actions:
+     - name: customer_bronze_cleanse
+       type: transform
+       transform_type: sql
+       source: v_customer_raw
+       target: v_customer_bronze_cleaned
+       sql: |
+         SELECT
+           c_custkey   AS customer_id,
+           c_name      AS name,
+           c_nationkey AS nation_id,
+           c_acctbal   AS account_balance
+         FROM stream(v_customer_raw)
+       description: "Cleanse and standardize customer data for bronze layer"
 
-**Option 2: External SQL File**
+**Option: External SQL File**
 
 .. code-block:: yaml
 
@@ -79,23 +113,54 @@ SQL transform actions execute SQL queries to transform data between views. They 
   - For SQL syntax see the `Databricks SQL documentation <https://docs.databricks.com/en/sql/index.html>`_.
   - Stream syntax: Use ``stream(view_name)`` for streaming transformations
 
-.. Important::
-  SQL transforms can use ``stream()`` function for streaming data or direct view references for batch processing.
-  Column aliasing and data type transformations are common patterns in bronze layer cleansing.
+SQL transforms can use the ``stream()`` function for streaming data or direct view references
+for batch processing. Column aliasing and data type transformations are common patterns in
+bronze layer cleansing.
 
-.. note:: **File Substitution Support**
-   
-   Substitution variables work in both inline SQL and external SQL files (``sql_path``). 
-   The same ``${token}`` and ``${secret:scope/key}`` syntax from YAML works in ``.sql`` files.
-   Files are processed for substitutions before query execution.
+**File Substitution Support**
 
-.. Warning::
-  When writing SQL statements, if your source or target is a streaming table you must use the ``stream()`` function.
-  For example: `` FROM stream(v_customer_raw) ``
+Substitution variables work in both inline SQL and external SQL files (``sql_path``).
+The same ``${token}`` and ``${secret:scope/key}`` syntax from YAML works in ``.sql`` files.
+Files are processed for substitutions before query execution.
 
-.. note::
-  **File Organization**: When using ``sql_path``, the path is relative to your YAML file location.
-  Common practice is to create a ``sql/`` folder alongside your pipeline YAML files.
+.. warning::
+  When writing SQL statements, if your source or target is a streaming table you must use the
+  ``stream()`` function. For example: ``FROM stream(v_customer_raw)``.
+
+**File Organization**: When using ``sql_path``, the path is relative to your YAML file location.
+Common practice is to create a ``sql/`` folder alongside your pipeline YAML files.
+
+Advanced example
+~~~~~~~~~~~~~~~~
+
+A full bronze cleanse typically projects every column the downstream layer needs,
+including the operational-metadata triple and a record hash:
+
+.. code-block:: yaml
+
+  actions:
+    - name: customer_bronze_cleanse
+      type: transform
+      transform_type: sql
+      source: v_customer_raw
+      target: v_customer_bronze_cleaned
+      sql: |
+        SELECT
+          c_custkey as customer_id,
+          c_name as name,
+          c_address as address,
+          c_nationkey as nation_id,
+          c_phone as phone,
+          c_acctbal as account_balance,
+          c_mktsegment as market_segment,
+          c_comment as comment,
+          _source_file_path,
+          _source_file_size,
+          _source_file_modification_time,
+          _record_hash,
+          _processing_timestamp
+        FROM stream(v_customer_raw)
+      description: "Cleanse and standardize customer data for bronze layer"
 
 **The above YAML examples translate to the following PySpark code**
 
@@ -110,7 +175,7 @@ SQL transform actions execute SQL queries to transform data between views. They 
   def v_customer_bronze_cleaned():
       """Cleanse and standardize customer data for bronze layer"""
       return spark.sql("""
-          SELECT 
+          SELECT
             c_custkey as customer_id,
             c_name as name,
             c_address as address,
@@ -139,11 +204,11 @@ SQL transform actions execute SQL queries to transform data between views. They 
       """Enrich customer data with additional attributes"""
       return spark.sql("""
           -- Content from sql/customer_enrichment.sql file
-          SELECT 
+          SELECT
             c.*,
             n.name as nation_name,
             r.name as region_name,
-            CASE 
+            CASE
               WHEN account_balance > 5000 THEN 'High Value'
               WHEN account_balance > 1000 THEN 'Medium Value'
               ELSE 'Standard'
@@ -154,11 +219,14 @@ SQL transform actions execute SQL queries to transform data between views. They 
       """)
 
 python
--------------------------------------------
-Python transform actions call custom Python functions to apply complex transformation logic that goes beyond SQL capabilities. 
+------
 
-.. tip::
-  The framework automatically copies your Python functions into the generated pipeline and handles import management.
+Use ``python`` when the transformation needs PySpark DataFrame logic, UDFs, or
+calls to external libraries — anything that does not fit a SQL ``SELECT``.
+
+Python transform actions call custom Python functions to apply complex transformation logic that goes beyond SQL capabilities.
+
+The framework automatically copies your Python functions into the generated pipeline and handles import management.
 
 .. code-block:: yaml
 
@@ -166,7 +234,7 @@ Python transform actions call custom Python functions to apply complex transform
     - name: customer_advanced_enrichment
       type: transform
       transform_type: python
-      source: v_customer_bronze 
+      source: v_customer_bronze
       module_path: "transformations/customer_transforms.py"
       function_name: "enrich_customer_data"
       parameters:
@@ -208,12 +276,12 @@ Python transform actions call custom Python functions to apply complex transform
 
   def enrich_customer_data(df: DataFrame, spark, parameters: dict) -> DataFrame:
       """Apply advanced customer enrichment using external APIs.
-      
+
       Args:
           df: Input DataFrame from source view
           spark: SparkSession instance
           parameters: Configuration parameters from YAML
-          
+
       Returns:
           DataFrame: Enriched customer data
       """
@@ -221,7 +289,7 @@ Python transform actions call custom Python functions to apply complex transform
       api_endpoint = parameters.get("api_endpoint")
       api_key = parameters.get("api_key")
       batch_size = parameters.get("batch_size", 1000)
-      
+
       # Define UDF for geocoding
       def geocode_address(address):
           if not address:
@@ -237,9 +305,9 @@ Python transform actions call custom Python functions to apply complex transform
               return None
           except:
               return None
-      
+
       geocode_udf = udf(geocode_address, StringType())
-      
+
       # Apply transformations
       enriched_df = df.withColumn(
           "latitude", geocode_udf(col("address"))
@@ -252,7 +320,7 @@ Python transform actions call custom Python functions to apply complex transform
           "address_normalized",
           col("address").cast("string").alias("address")
       )
-      
+
       return enriched_df
 
 **Multiple Sources Function Example (analytics/customer_analysis.py):**
@@ -266,31 +334,31 @@ Python transform actions call custom Python functions to apply complex transform
 
   def analyze_customer_orders(dataframes: List[DataFrame], spark, parameters: dict) -> DataFrame:
       """Analyze customer order patterns from multiple source views.
-      
+
       Args:
           dataframes: List of DataFrames [customers_df, orders_df]
           spark: SparkSession instance
           parameters: Configuration parameters from YAML
-          
+
       Returns:
           DataFrame: Customer order insights
       """
       customers_df, orders_df = dataframes
       analysis_window_days = parameters.get("analysis_window_days", 90)
       min_order_count = parameters.get("min_order_count", 5)
-      
+
       # Join customers with their orders
       customer_orders = customers_df.alias("c").join(
           orders_df.alias("o"),
           col("c.customer_id") == col("o.customer_id"),
           "left"
       )
-      
+
       # Filter orders within analysis window
       recent_orders = customer_orders.filter(
           datediff(current_date(), col("o.order_date")) <= analysis_window_days
       )
-      
+
       # Calculate customer insights
       insights = recent_orders.groupBy(
           col("c.customer_id"),
@@ -303,7 +371,7 @@ Python transform actions call custom Python functions to apply complex transform
       ).filter(
           col("order_count") >= min_order_count
       )
-      
+
       return insights
 
 **Anatomy of a Python transform action**
@@ -331,41 +399,42 @@ Lakehouse Plumber automatically handles Python function deployment:
 5. **State Tracking**: All copied files are tracked and cleaned up when source YAML is removed
 6. **Package Structure**: A ``__init__.py`` file is automatically created to make the directory a Python package
 
-.. note:: **File Substitution Support**
-   
-   Python transform files support the same substitution syntax as YAML:
-   
-   - **Environment tokens**: ``${catalog}``, ``${schema}``, ``${environment}``
-   - **Secret references**: ``${secret:scope/key}`` or ``${secret:key}``
-   
-   Substitutions are applied before the file is copied and imported.
+**File Substitution Support**
+
+Python transform files support the same substitution syntax as YAML:
+
+- **Environment tokens**: ``${catalog}``, ``${schema}``, ``${environment}``
+- **Secret references**: ``${secret:scope/key}`` or ``${secret:key}``
+
+Substitutions are applied before the file is copied and imported.
 
 .. seealso::
   - For PySpark DataFrame operations see the `Databricks PySpark documentation <https://docs.databricks.com/en/spark/latest/spark-sql/index.html>`_.
-  - Custom functions: :doc:`../concepts`
+  - Custom functions: :doc:`../architecture`
 
 .. Important::
   **Function Requirements**: Python functions must accept the appropriate parameters based on source configuration:
-  
+
   - **Single source**: ``function_name(df: DataFrame, spark: SparkSession, parameters: dict)``
-  - **Multiple sources**: ``function_name(dataframes: List[DataFrame], spark: SparkSession, parameters: dict)``  
+  - **Multiple sources**: ``function_name(dataframes: List[DataFrame], spark: SparkSession, parameters: dict)``
   - **No sources**: ``function_name(spark: SparkSession, parameters: dict)`` (for data generators)
 
-.. note::
-  **File Organization Tips**:
-  
-  - Keep your Python functions in a dedicated folder (e.g., ``transformations/``, ``functions/``)
-  - Use descriptive function names that clearly indicate their purpose
-  - Always edit the original files in your project, never the copied files in ``generated/``
-  - The ``module_path`` is relative to your project root directory
-  - Multiple transforms can reference the same Python file with different functions
+**File Organization Tips**:
 
-.. Warning::
-  **DO NOT Edit Generated Files**: The copied Python files in ``custom_python_functions/`` are automatically regenerated and include warning headers. Always edit your original source files.
+- Keep your Python functions in a dedicated folder (e.g., ``transformations/``, ``functions/``)
+- Use descriptive function names that clearly indicate their purpose
+- Always edit the original files in your project, never the copied files in ``generated/``
+- The ``module_path`` is relative to your project root directory
+- Multiple transforms can reference the same Python file with different functions
+
+**Do not edit generated files.** The copied Python files in ``custom_python_functions/`` are
+automatically regenerated and include warning headers. Always edit your original source files.
 
 **Generated File Structure**
 
-After generation, your Python functions appear in the pipeline output with warning headers:
+After generation, your Python functions appear in the pipeline output with warning headers.
+The entry module stays flat at the ``custom_python_functions/`` root; any local helper
+sub-package it imports is copied alongside it with its directory structure preserved:
 
 .. code-block:: text
 
@@ -373,8 +442,39 @@ After generation, your Python functions appear in the pipeline output with warni
   └── pipeline_name/
       ├── flowgroup_name.py
       └── custom_python_functions/
-          ├── __init__.py
-          └── customer_transforms.py
+          ├── __init__.py                  # LHP package marker
+          ├── customer_transforms.py       # entry module (flat); local imports rewritten
+          └── helpers/                     # referenced helper sub-package, copied in full
+              ├── __init__.py              # copied from your project
+              └── date_change.py           # copied; relative imports preserved
+
+**Importing local helper modules**
+
+When a transform function imports local helper modules that live alongside it, LHP follows
+those imports and copies the whole transitive closure of local helpers into
+``custom_python_functions/``, preserving sub-package structure (as shown in the tree above).
+
+The directory that holds your entry file is the **import root** against which "local" is
+decided:
+
+- **Rule A — the import root must not itself be a package.** It may not contain an
+  ``__init__.py`` at its top level, or generation fails with ``LHP-VAL-023`` (keep the
+  entry file flat and put helpers in a sub-directory).
+- **Rule B — referenced helper packages are copied in full**, with their directory
+  structure preserved, so ``__init__.py`` side effects and intra-package imports keep working.
+
+Imports inside copied files are reconciled as follows:
+
+- **Absolute local imports are prefix-rewritten** — ``from helpers.dates import to_date``
+  becomes ``from custom_python_functions.helpers.dates import to_date`` (aliases preserved).
+- **Relative imports are preserved unchanged** — ``from .sibling import x`` inside a helper
+  package is copied verbatim.
+- **External and standard-library imports are left untouched.**
+- **Plain dotted imports of a local module are rejected** with ``LHP-VAL-024``
+  (use ``from helpers.dates import ...`` instead of ``import helpers.dates``).
+- A local import whose target file or package member is missing on disk fails with
+  ``LHP-VAL-025``; a syntactically broken sibling inside a copied package surfaces
+  ``LHP-IO-003`` at generate time.
 
 **Example of Generated File with Warning Header:**
 
@@ -411,7 +511,7 @@ After generation, your Python functions appear in the pipeline output with warni
       """Apply advanced customer enrichment using external APIs"""
       # Load source view(s)
       v_customer_bronze_df = spark.read.table("v_customer_bronze")
-      
+
       # Apply Python transformation
       parameters = {
           "api_endpoint": "https://api.example.com/geocoding",
@@ -419,10 +519,10 @@ After generation, your Python functions appear in the pipeline output with warni
           "batch_size": 1000
       }
       df = enrich_customer_data(v_customer_bronze_df, spark, parameters)
-      
+
       # Add operational metadata columns
       df = df.withColumn('_processing_timestamp', current_timestamp())
-      
+
       return df
 
 **For multiple source views:**
@@ -439,7 +539,7 @@ After generation, your Python functions appear in the pipeline output with warni
       # Load source views
       v_customer_bronze_df = spark.read.table("v_customer_bronze")
       v_orders_bronze_df = spark.read.table("v_orders_bronze")
-      
+
       # Apply Python transformation with multiple sources
       parameters = {
           "analysis_window_days": 90,
@@ -447,12 +547,17 @@ After generation, your Python functions appear in the pipeline output with warni
       }
       dataframes = [v_customer_bronze_df, v_orders_bronze_df]
       df = analyze_customer_orders(dataframes, spark, parameters)
-      
+
       return df
 
 data_quality
--------------------------------------------
-Data quality transform actions apply data validation rules using Databricks DLT expectations. They automatically handle data that fails validation based on configured actions.
+------------
+
+Use ``data_quality`` when you want to attach Lakeflow expectations to validate
+rows before they reach a Write action. Expectations can fail the pipeline,
+log warnings, or drop offending rows.
+
+Data quality transform actions apply data validation rules using Databricks DLT :term:`expectations <Expectation>`. They automatically handle data that fails validation based on configured actions.
 
 .. code-block:: yaml
 
@@ -462,7 +567,7 @@ Data quality transform actions apply data validation rules using Databricks DLT 
       transform_type: data_quality
       source: v_customer_bronze_cleaned
       target: v_customer_bronze_DQE
-      readMode: stream  
+      readMode: stream
       expectations_file: "expectations/customer_quality.json"
       description: "Apply data quality checks to customer data"
 
@@ -516,20 +621,19 @@ Data quality transform actions apply data validation rules using Databricks DLT 
 
 **Expectation Actions:**
 - **fail**: Stop the pipeline if any records violate the rule
-- **warn**: Log warnings but continue processing all records  
+- **warn**: Log warnings but continue processing all records
 - **drop**: Remove records that violate the rule but continue processing
 
 .. seealso::
   - For DLT expectations see the `Databricks DLT expectations documentation <https://docs.databricks.com/en/delta-live-tables/expectations.html>`_.
-  - Data quality patterns: :doc:`../concepts`
+  - Data quality patterns: :doc:`../architecture`
 
-.. Important::
-  Data quality transforms require ``readMode: stream`` and generate DLT streaming tables with built-in quality monitoring.
-  Use **fail** for critical business rules, **warn** for monitoring, and **drop** for data cleansing.
+Data quality transforms require ``readMode: stream`` and generate DLT streaming tables with
+built-in quality monitoring. Use **fail** for critical business rules, **warn** for monitoring,
+and **drop** for data cleansing.
 
-.. note::
-  **File Organization**: Expectations files are typically stored in an ``expectations/`` folder.
-  JSON format allows for version control and reuse across multiple pipelines.
+**File Organization**: Expectations files are typically stored in an ``expectations/`` folder.
+JSON format allows for version control and reuse across multiple pipelines.
 
 **The above YAML translates to the following PySpark code**
 
@@ -556,16 +660,20 @@ Data quality transform actions apply data validation rules using Databricks DLT 
   def v_customer_bronze_DQE():
       """Apply data quality checks to customer data"""
       df = spark.readStream.table("v_customer_bronze_cleaned")
-      
+
       return df
 
 .. seealso::
-   For advanced quarantine mode with Dead Letter Queue (DLQ) recycling — routing failed rows
+   For advanced :term:`quarantine <Quarantine>` mode with Dead Letter Queue (DLQ) recycling — routing failed rows
    to an external table and automatically recycling fixed records back into the pipeline —
    see :doc:`../quarantine`.
 
 schema
--------------------------------------------
+------
+
+Use ``schema`` when you only need to rename columns, cast types, or enforce a
+column list. For richer logic, reach for ``sql`` or ``python`` instead.
+
 Schema transform actions apply column mapping, type casting, and schema enforcement to standardize data structures.
 
 **Action Format Structure**
@@ -613,6 +721,22 @@ External schema files contain only column definitions (no enforcement):
 - ``"col: TYPE"`` - Cast only (no rename)
 - ``"col"`` - Pass-through (strict mode only, explicitly keep column)
 
+**Column Names and the ``$`` Character:**
+
+Any column name that *references an existing source column* may contain a
+``$`` — leading, internal, or trailing. This covers the rename source (left of
+``->``), a cast-only entry (``col: TYPE``), and a pass-through (``col``). This
+lets you map source columns whose names already carry ``$``:
+
+.. code-block:: yaml
+
+  columns:
+    - "$revenue -> revenue: DECIMAL(18,2)"   # source has a $, target is clean
+
+A rename **target** (right of ``->``), by contrast, must be a clean identifier —
+letters, digits, and underscores only. A ``$`` in the target (for example
+``a -> $b``) is rejected as a schema syntax error (``LHP-VAL-011``).
+
 **Schema File Paths:**
 
 Schema files can be organized in subdirectories relative to your project root:
@@ -621,13 +745,13 @@ Schema files can be organized in subdirectories relative to your project root:
 
   # Root level
   schema_file: "customer_transform.yaml"
-  
+
   # In schemas/ directory
   schema_file: "schemas/customer_transform.yaml"
-  
+
   # Nested subdirectories (recommended for organization by layer)
   schema_file: "schemas/bronze/dimensions/customer_transform.yaml"
-  
+
   # Absolute paths also supported
   schema_file: "/absolute/path/to/schema.yaml"
 
@@ -684,7 +808,7 @@ Schema transforms support two enforcement modes (specified at action level):
     target: v_clean
     enforcement: strict
     schema_file: "schemas/transform.yaml"
-  
+
   # Input:  c_custkey, c_name, c_address, c_phone, extra_col
   # Output: customer_id, customer_name (+ operational metadata)
   #         ↑ All unmapped columns dropped
@@ -699,7 +823,7 @@ Schema transforms support two enforcement modes (specified at action level):
     target: v_clean
     enforcement: permissive  # or omit (permissive is default)
     schema_file: "schemas/transform.yaml"
-  
+
   # Input:  c_custkey, c_name, c_address, c_phone, extra_col
   # Output: customer_id, customer_name, c_address, c_phone, extra_col
   #         ↑ All unmapped columns kept
@@ -708,19 +832,19 @@ Schema transforms support two enforcement modes (specified at action level):
 
 .. warning::
   The nested format with schema definition inside ``source`` is no longer supported and will raise an error:
-  
+
   .. code-block:: yaml
-  
+
     # OLD FORMAT (NO LONGER WORKS):
     source:
       view: v_customer_raw
       schema_file: "path.yaml"
-    
+
     # NEW FORMAT (REQUIRED):
     source: v_customer_raw
     schema_file: "path.yaml"
     enforcement: strict
-  
+
   If you see an error about "deprecated nested format", move ``schema_inline`` or ``schema_file`` to the top level of the action.
 
 **Anatomy of a schema transform action**
@@ -738,10 +862,12 @@ Schema transforms support two enforcement modes (specified at action level):
 
 .. seealso::
   - For Spark data types see the `PySpark SQL types documentation <https://spark.apache.org/docs/latest/sql-ref-datatypes.html>`_.
-  - Schema evolution: :doc:`../concepts`
+  - Schema evolution: :doc:`../architecture`
 
-.. Important::
-  Schema transforms preserve operational metadata columns automatically. These columns are never renamed or cast, and are always included in the output regardless of enforcement mode. Use schema transforms for standardizing column names and ensuring consistent data types across your lakehouse.
+Schema transforms preserve operational metadata columns automatically. These columns are never
+renamed or cast, and are always included in the output regardless of enforcement mode. Use
+schema transforms to standardize column names and ensure consistent data types across your
+lakehouse.
 
 **The above YAML translates to the following PySpark code**
 
@@ -756,17 +882,17 @@ Schema transforms support two enforcement modes (specified at action level):
   def v_customer_standardized():
       """Standardize customer schema and data types"""
       df = spark.readStream.table("v_customer_raw")  # Default is stream mode
-      
+
       # Apply column renaming
       df = df.withColumnRenamed("c_custkey", "customer_id")
       df = df.withColumnRenamed("c_name", "customer_name")
       df = df.withColumnRenamed("c_address", "address")
-      
+
       # Apply type casting
       df = df.withColumn("customer_id", F.col("customer_id").cast("BIGINT"))
       df = df.withColumn("account_balance", F.col("account_balance").cast("DECIMAL(18,2)"))
       df = df.withColumn("phone_number", F.col("phone_number").cast("STRING"))
-      
+
       # Strict schema enforcement - select only specified columns
       # Schema-defined columns (will fail if missing)
       columns_to_select = [
@@ -776,7 +902,7 @@ Schema transforms support two enforcement modes (specified at action level):
           "account_balance",
           "phone_number"
       ]
-      
+
       # Add operational metadata columns only if they exist (optional)
       available_columns = set(df.columns)
       metadata_columns = [
@@ -786,13 +912,18 @@ Schema transforms support two enforcement modes (specified at action level):
       for meta_col in metadata_columns:
           if meta_col in available_columns:
               columns_to_select.append(meta_col)
-      
+
       df = df.select(*columns_to_select)
-      
+
       return df
 
-Temporary Tables
--------------------------------------------
+temp_table
+----------
+
+Use ``temp_table`` when several downstream actions need to read the same
+intermediate result. Materialising it as a temporary table prevents the
+upstream logic from running once per consumer.
+
 Temp table transform actions create temporary streaming tables for intermediate processing and reuse across multiple downstream actions.
 
 **Option 1: Simple Passthrough**
@@ -820,7 +951,7 @@ Temp table transform actions create temporary streaming tables for intermediate 
       target: temp_daily_summary
       readMode: stream
       sql: |
-        SELECT 
+        SELECT
           DATE(order_date) as date,
           COUNT(*) as order_count,
           SUM(total_amount) as total_amount
@@ -841,19 +972,16 @@ Temp table transform actions create temporary streaming tables for intermediate 
 
 .. seealso::
   - For SDP table types see the `Databricks SDP table types documentation <https://docs.databricks.com/aws/en/ldp/developer/ldp-python-ref-table>`_.
-  - Intermediate processing: :doc:`../concepts`
+  - Intermediate processing: :doc:`../architecture`
 
-.. Important::
-  Temp tables are automatically cleaned up when the pipeline completes.
-  Use for complex multi-step transformations where intermediate materialization improves performance.
-  
-  For instance, if you have a complex transformation that will be used by several downstream actions,
-  you can create a temporary table to prevent the transformation from being recomputed each time.
+Temp tables are automatically cleaned up when the pipeline completes. Use them for complex
+multi-step transformations where intermediate materialization improves performance — for
+instance, if you have a complex transformation that will be used by several downstream actions,
+create a temporary table to prevent the transformation from being recomputed each time.
 
-.. Warning::
-  When using the ``sql`` property with streaming tables (``readMode: stream``), you must use the 
-  ``stream()`` function in your SQL query to maintain streaming semantics. Without it, the query 
-  will process data in batch mode.
+When using the ``sql`` property with streaming tables (``readMode: stream``), use the
+``stream()`` function in your SQL query to maintain streaming semantics. Without it, the query
+will process data in batch mode.
 
 **The above YAML examples translate to the following PySpark code**
 
@@ -870,7 +998,7 @@ Temp table transform actions create temporary streaming tables for intermediate 
   def customer_intermediate():
       """Create temporary table for customer intermediate processing"""
       df = spark.readStream.table("v_customer_processed")
-      
+
       return df
 
 **For SQL transformation:**
@@ -886,13 +1014,12 @@ Temp table transform actions create temporary streaming tables for intermediate 
   def temp_daily_summary():
       """Create temporary aggregate table with daily summaries"""
       df = spark.sql("""
-          SELECT 
+          SELECT
             DATE(order_date) as date,
             COUNT(*) as order_count,
             SUM(total_amount) as total_amount
           FROM stream(v_customer_raw)
           GROUP BY DATE(order_date)
       """)
-      
-      return df
 
+      return df

@@ -1,0 +1,28 @@
+# B5.1 fixture — JDBC load (table-mode)
+# Reads a full external table via JDBC option("dbtable", ...).
+pipeline: 14_jdbc_load
+flowgroup: jdbc_table_mode
+#job_name: j_jdbc
+
+actions:
+  - name: load_external_products
+    type: load
+    readMode: batch
+    source:
+      type: jdbc
+      url: "jdbc:postgresql://example.com:5432/sample"
+      driver: "org.postgresql.Driver"
+      user: "${secret:database/username}"
+      password: "${secret:database/password}"
+      table: "public.products"
+    target: v_external_products
+    description: "Load products table from external PostgreSQL via JDBC"
+
+  - name: write_external_products
+    type: write
+    source: v_external_products
+    write_target:
+      type: materialized_view
+      database: "${catalog}.${bronze_schema}"
+      table: "jdbc_products"
+      comment: "Materialized view of external JDBC products table"

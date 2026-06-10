@@ -2,13 +2,13 @@
 End-to-end tests for dependency extraction from externalized SQL/Python inside
 ``write_target``.
 
-These tests exist to prevent a regression of the bug where ``lhp deps`` under-
+These tests exist to prevent a regression of the bug where ``lhp dag`` under-
 reported dependencies for materialized views (``write_target.sql_path``),
 custom sinks (``write_target.module_path``), and ForEachBatch handlers
 (``write_target.batch_handler``). See the V0.8.6 changelog entry.
 
 Each test gets an isolated deep copy of the ``testing_project`` fixture and
-may add per-test flowgroups/files before running ``lhp deps``. The full
+may add per-test flowgroups/files before running ``lhp dag``. The full
 fixture project is left undisturbed between tests.
 """
 
@@ -26,7 +26,7 @@ from lhp.cli.main import cli
 
 @pytest.mark.e2e
 class TestDepsExtraction:
-    """E2E tests validating lhp deps extraction from write_target bodies."""
+    """E2E tests validating lhp dag extraction from write_target bodies."""
 
     @pytest.fixture(autouse=True)
     def setup_test_project(self, isolated_project):
@@ -42,10 +42,10 @@ class TestDepsExtraction:
 
         os.chdir(self.original_cwd)
 
-    def run_deps_command(self, *args) -> tuple:
-        """Run ``lhp deps`` and return (exit_code, output)."""
+    def run_dag_command(self, *args) -> tuple:
+        """Run ``lhp dag`` and return (exit_code, output)."""
         runner = CliRunner()
-        result = runner.invoke(cli, ["deps", *args])
+        result = runner.invoke(cli, ["dag", *args])
         return result.exit_code, result.output
 
     def _load_json_output(self) -> dict:
@@ -65,9 +65,6 @@ class TestDepsExtraction:
         assert dot_path.exists(), f"Expected DOT output at {dot_path}"
         return dot_path.read_text(encoding="utf-8")
 
-    # ------------------------------------------------------------------
-    # Test 1: write_target.sql_path SQL is parsed, external sources found
-    # ------------------------------------------------------------------
     def test_deps_extracts_write_target_sql_path_upstream(self):
         """Materialized-view SQL in write_target.sql_path must contribute to
         external_sources in pipeline_dependencies.json.
@@ -78,8 +75,8 @@ class TestDepsExtraction:
         the analyzer skipped ``write_target.sql_path`` entirely and the
         upstream silver table never surfaced.
         """
-        exit_code, output = self.run_deps_command("-f", "json")
-        assert exit_code == 0, f"lhp deps failed: {output}"
+        exit_code, output = self.run_dag_command("--format", "json")
+        assert exit_code == 0, f"lhp dag failed: {output}"
 
         data = self._load_json_output()
         gold = data["pipelines"].get("gold_load")
@@ -92,9 +89,6 @@ class TestDepsExtraction:
             f"Actual external_sources: {external_sources}"
         )
 
-    # ------------------------------------------------------------------
-    # Test 2: write_target.module_path Python is parsed
-    # ------------------------------------------------------------------
     def test_deps_extracts_write_target_python_upstream(self):
         """Custom-sink Python in write_target.module_path must be parsed for
         table references."""
@@ -142,8 +136,8 @@ class TestDepsExtraction:
             encoding="utf-8",
         )
 
-        exit_code, output = self.run_deps_command("-f", "json")
-        assert exit_code == 0, f"lhp deps failed: {output}"
+        exit_code, output = self.run_dag_command("--format", "json")
+        assert exit_code == 0, f"lhp dag failed: {output}"
 
         data = self._load_json_output()
         gold = data["pipelines"].get("gold_load")
@@ -155,9 +149,6 @@ class TestDepsExtraction:
             f"Actual: {external_sources}"
         )
 
-    # ------------------------------------------------------------------
-    # Test 3: Regression sentinel — MV flowgroup must have incoming edges
-    # ------------------------------------------------------------------
     def test_deps_flowgroup_graph_has_incoming_edges_on_mv_flowgroup(self):
         """The exact invariant the BWH bug violated: a flowgroup whose sole
         body is externalized via ``write_target.sql_path`` should have ≥1
@@ -174,7 +165,6 @@ class TestDepsExtraction:
         dependency analyzer doesn't apply runtime substitution, so tokens
         on both sides let the edge land.
         """
-        # 1. Add a silver flowgroup that produces a known token-qualified table.
         silver_dir = self.project_root / "pipelines" / "03_silver" / "dim"
         silver_yaml = silver_dir / "e2e_orders_silver.yaml"
         silver_yaml.write_text(
@@ -203,8 +193,6 @@ class TestDepsExtraction:
             encoding="utf-8",
         )
 
-        # 2. Add a gold MV flowgroup whose SQL file reads the token-qualified
-        #    silver table via write_target.sql_path.
         gold_dir = self.project_root / "pipelines" / "04_gold"
         sql_dir = self.project_root / "sql" / "gold"
         sql_dir.mkdir(parents=True, exist_ok=True)
@@ -233,8 +221,8 @@ class TestDepsExtraction:
             encoding="utf-8",
         )
 
-        exit_code, output = self.run_deps_command()
-        assert exit_code == 0, f"lhp deps failed: {output}"
+        exit_code, output = self.run_dag_command()
+        assert exit_code == 0, f"lhp dag failed: {output}"
 
         dot = self._load_flowgroup_dot()
 
@@ -251,9 +239,6 @@ class TestDepsExtraction:
             f"Observed edges into this flowgroup: {incoming_to_mv}"
         )
 
-    # ------------------------------------------------------------------
-    # Test 4: Python parser output is unioned with explicit source
-    # ------------------------------------------------------------------
     def test_deps_union_of_python_parse_and_explicit_source(self):
         """Python actions: parser output is UNIONED with explicit source:,
         not replaced. This is the Python-specific escape hatch the V0.8.6
@@ -316,8 +301,8 @@ class TestDepsExtraction:
             encoding="utf-8",
         )
 
-        exit_code, output = self.run_deps_command("-f", "json")
-        assert exit_code == 0, f"lhp deps failed: {output}"
+        exit_code, output = self.run_dag_command("--format", "json")
+        assert exit_code == 0, f"lhp dag failed: {output}"
 
         data = self._load_json_output()
         gold = data["pipelines"].get("gold_load")

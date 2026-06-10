@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yaml
 
-from lhp.core.validators.transform_validator import TransformActionValidator
-from lhp.models.config import Action, ActionType, QuarantineConfig, TransformType
+from lhp.core.validators import TransformActionValidator
+from lhp.models import Action, ActionType, QuarantineConfig, TransformType
 
 
 @pytest.fixture
@@ -27,13 +27,13 @@ def validator(tmp_path):
 
 def _make_dq_action(**kwargs):
     """Helper to create a data quality action with defaults."""
-    defaults = dict(
-        name="test_dq",
-        type=ActionType.TRANSFORM,
-        transform_type=TransformType.DATA_QUALITY,
-        source="v_raw",
-        target="v_validated",
-    )
+    defaults = {
+        "name": "test_dq",
+        "type": ActionType.TRANSFORM,
+        "transform_type": TransformType.DATA_QUALITY,
+        "source": "v_raw",
+        "target": "v_validated",
+    }
     defaults.update(kwargs)
     return Action(**defaults)
 
@@ -156,9 +156,7 @@ class TestQuarantineValidation:
         with caplog.at_level(logging.WARNING):
             errors = validator._validate_data_quality_transform(action, "test")
 
-        # Should not have errors (just warnings)
         assert errors == []
-        # Should have warnings for fail and warn rules
         assert any(
             "fail_rule" in r.message and "fail" in r.message for r in caplog.records
         )
@@ -219,7 +217,9 @@ class TestQuarantineValidation:
         errors = validator._validate_data_quality_transform(action, "test")
         assert any("unexpected format" in e for e in errors)
 
-    def test_list_expectations_with_fail_action_warns(self, validator, tmp_path, caplog):
+    def test_list_expectations_with_fail_action_warns(
+        self, validator, tmp_path, caplog
+    ):
         """List-format expectations with failureAction: fail should warn."""
         exp_file = tmp_path / "expectations.yaml"
         exp_file.write_text(
@@ -285,7 +285,7 @@ class TestQuarantineValidation:
         action.transform_type = "bogus_type"
 
         with patch(
-            "lhp.core.validators.transform_validator.TransformType",
+            "lhp.core.validators.action.transform.TransformType",
             side_effect=ValueError("invalid"),
         ):
             errors = validator._validate_transform_type(action, "test")

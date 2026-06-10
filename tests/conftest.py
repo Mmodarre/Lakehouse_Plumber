@@ -1,12 +1,85 @@
 """Test configuration and shared fixtures."""
 
-import pytest
+import contextlib
+import io
 import logging
-import tempfile
 import shutil
+import sys
+import tempfile
 from pathlib import Path
 from unittest.mock import patch
-import sys
+
+import pytest
+
+# Rich and the LHP console module are imported defensively so the
+# ``packaging-check`` CI job — which installs neither the project nor
+# rich into its venv — can still collect ``tests/test_packaging.py``.
+# Tests that actually exercise rich rendering live elsewhere and run
+# under the unit-test job, which installs ``lhp[dev]`` and therefore
+# has both rich and syrupy available.
+try:
+    from rich.console import Console
+
+    import lhp.cli.console as _lhp_console_module
+
+    _RICH_AVAILABLE = True
+except ImportError:
+    Console = None  # type: ignore[assignment,misc]
+    _lhp_console_module = None  # type: ignore[assignment]
+    _RICH_AVAILABLE = False
+
+
+@contextlib.contextmanager
+def capture_lhp_console(width: int = 80):
+    """Capture rendered output from ``lhp.cli.console.console`` for a single test block.
+
+    Swaps the module-level ``console`` singleton with a deterministic
+    no-color in-memory Console at the given width, yields the underlying
+    StringIO buffer, then restores the prior console on exit. Composes
+    with the autouse ``_isolate_lhp_console`` fixture: the autouse fixture
+    sets the per-test default, this helper temporarily overrides it
+    within a ``with`` block, and exit restores the autouse default.
+
+    Importable as ``from conftest import capture_lhp_console`` because
+    pytest inserts the testpaths root onto ``sys.path`` when there is no
+    ``tests/__init__.py``, making conftest a top-level module.
+    """
+    buf = io.StringIO()
+    fake = Console(file=buf, force_terminal=False, no_color=True, width=width)
+    saved = _lhp_console_module.console
+    _lhp_console_module.console = fake
+    try:
+        yield buf
+    finally:
+        _lhp_console_module.console = saved
+
+
+@pytest.fixture(autouse=True)
+def _isolate_lhp_console(monkeypatch):
+    """Per-test Rich Console with deterministic settings.
+
+    Replaces the module-level ``console`` and ``err_console`` singletons with
+    Consoles that emit plain text at a fixed wide width so assertions are not
+    perturbed by terminal width, ANSI codes, or TTY detection.
+
+    No-ops when rich (and therefore ``lhp.cli.console``) is not importable —
+    needed so the ``packaging-check`` CI job, which runs against a minimal
+    venv, can still collect ``tests/test_packaging.py``.
+    """
+    if not _RICH_AVAILABLE:
+        yield
+        return
+    monkeypatch.setattr(
+        _lhp_console_module,
+        "console",
+        Console(force_terminal=False, no_color=True, width=999),
+    )
+    monkeypatch.setattr(
+        _lhp_console_module,
+        "err_console",
+        Console(stderr=True, force_terminal=False, no_color=True, width=999),
+    )
+    yield
 
 
 def pytest_addoption(parser):
@@ -49,28 +122,24 @@ def golden(request):
 def force_close_all_log_handlers():
     """Force close all logging handlers to release file locks on Windows."""
     root_logger = logging.getLogger()
-    
-    # Close and remove all handlers
+
     for handler in root_logger.handlers[:]:
         try:
             handler.close()
         except Exception:
-            pass  # Ignore errors during cleanup
+            pass
         root_logger.removeHandler(handler)
-    
-    # Reset logging configuration
+
     logging.basicConfig(force=True)
 
 
 @pytest.fixture(autouse=True)
 def clean_logging():
     """Automatically clean up logging for all tests to prevent Windows file locking."""
-    # Setup: Clean logging state before test
     force_close_all_log_handlers()
-    
+
     yield
-    
-    # Teardown: Clean logging state after test
+
     force_close_all_log_handlers()
 
 
@@ -83,30 +152,25 @@ def isolated_project():
         yield temp_dir
     finally:
         if temp_dir and temp_dir.exists():
-            # Force close any log handlers before cleanup
             force_close_all_log_handlers()
-            
-            # Try to remove directory, with special handling for Windows
+
             try:
                 shutil.rmtree(temp_dir)
-            except PermissionError as e:
+            except PermissionError:
                 if sys.platform == "win32":
-                    # On Windows, try to handle file locking issues
-                    import time
                     import gc
-                    
-                    # Force garbage collection to close any remaining file handles
+                    import time
+
                     gc.collect()
-                    time.sleep(0.1)  # Brief pause to let Windows release locks
-                    
+                    time.sleep(0.1)
+
                     try:
                         shutil.rmtree(temp_dir)
                     except PermissionError:
-                        # Last resort: rename the directory and let system cleanup later
                         try:
-                            temp_dir.rename(temp_dir.with_suffix('.cleanup'))
+                            temp_dir.rename(temp_dir.with_suffix(".cleanup"))
                         except Exception:
-                            pass  # Give up gracefully
+                            pass
                 else:
                     raise
 
@@ -114,8 +178,7 @@ def isolated_project():
 @pytest.fixture
 def mock_logging_config():
     """Mock the configure_logging function to prevent file creation during tests."""
-    with patch('lhp.cli.main.configure_logging') as mock_config:
-        # Return a mock log file path that doesn't actually create files
+    with patch("lhp.cli.main.configure_logging") as mock_config:
         mock_config.return_value = Path(tempfile.gettempdir()) / "mock_lhp.log"
         yield mock_config
 
@@ -125,84 +188,101 @@ def temp_project_with_logging_cleanup():
     """Create a temporary project with proper logging cleanup."""
     with tempfile.TemporaryDirectory() as tmpdir:
         project_root = Path(tmpdir)
-        
-        # Ensure logging is configured to not interfere
+
         force_close_all_log_handlers()
-        
-        # Configure minimal logging for tests
+
         logging.basicConfig(
-            level=logging.WARNING,  # Reduce log noise in tests
-            format='%(levelname)s: %(message)s',
-            force=True
+            level=logging.WARNING,
+            format="%(levelname)s: %(message)s",
+            force=True,
         )
-        
+
         yield project_root
-        
-        # Clean up logging before directory deletion
+
         force_close_all_log_handlers()
 
 
-# Platform-specific fixtures
 @pytest.fixture
 def windows_safe_tempdir():
     """Create a temporary directory with Windows-safe cleanup."""
     if sys.platform != "win32":
-        # On non-Windows platforms, use standard tempfile
         with tempfile.TemporaryDirectory() as tmpdir:
             yield Path(tmpdir)
     else:
-        # On Windows, use custom cleanup logic
         temp_dir = Path(tempfile.mkdtemp())
         try:
             yield temp_dir
         finally:
-            # Windows-specific cleanup
             force_close_all_log_handlers()
-            
-            # Try multiple cleanup strategies
+
             for attempt in range(3):
                 try:
                     shutil.rmtree(temp_dir)
                     break
                 except PermissionError:
                     if attempt < 2:
-                        import time
                         import gc
+                        import time
+
                         gc.collect()
                         time.sleep(0.1 * (attempt + 1))
                     else:
-                        # Final attempt: rename and let OS clean up later
                         try:
-                            temp_dir.rename(temp_dir.with_suffix(f'.cleanup.{attempt}'))
+                            temp_dir.rename(temp_dir.with_suffix(f".cleanup.{attempt}"))
                         except Exception:
                             pass
+
+
+def pytest_configure(config):
+    """Wire the per-action generators into the core ``ActionRegistry``.
+
+    In production this is triggered lazily at the single composition point
+    (``LakehousePlumberApplicationFacade.for_project``); ``import lhp`` no
+    longer eagerly imports ``lhp.generators.registration``. Tests that
+    construct ``ActionRegistry()`` directly never go through the facade, and
+    some do so at module import time (e.g. ``tests/generators/test/``), which
+    happens during collection — before any fixture runs. ``pytest_configure``
+    runs *before* collection, so registration is in place when those
+    module-level registries are built. ``register_all`` is idempotent (later
+    calls update), so re-running it here is harmless.
+    """
+    try:
+        from lhp.generators.registration import register_all
+    except ImportError:
+        # The ``packaging-check`` CI job installs neither the project nor its
+        # runtime deps (pydantic) into its venv — it only builds a wheel in a
+        # subprocess via ``tests/test_packaging.py``. There is no in-process
+        # ``lhp`` to register against there, so skip. Mirrors the defensive
+        # rich/console import guard at the top of this module.
+        return
+
+    register_all()
 
 
 @pytest.fixture(autouse=True, scope="session")
 def configure_test_logging():
     """Configure logging for the entire test session."""
-    # Set up minimal logging configuration for tests
-    logging.getLogger('lhp').setLevel(logging.WARNING)
-    logging.getLogger('urllib3').setLevel(logging.ERROR)
-    logging.getLogger('requests').setLevel(logging.ERROR)
-    
+    logging.getLogger("lhp").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.ERROR)
+    logging.getLogger("requests").setLevel(logging.ERROR)
+
     yield
-    
-    # Final cleanup at end of test session
+
     force_close_all_log_handlers()
 
-
-# ============================================================================
-# Multi-Job Orchestration Test Fixtures
-# ============================================================================
 
 @pytest.fixture
 def create_flowgroup():
     """Factory fixture to create FlowGroup with minimal valid structure."""
-    from lhp.models.config import FlowGroup, Action, ActionType
-    
-    def _create(pipeline: str, flowgroup: str, job_name: str = None, 
-                source_table: str = "raw.source", target_table: str = "bronze.target"):
+    from lhp.models import Action, ActionType, FlowGroup
+
+    def _create(
+        pipeline: str,
+        flowgroup: str,
+        job_name: str | None = None,
+        source_table: str = "raw.source",
+        target_table: str = "bronze.target",
+    ):
         return FlowGroup(
             pipeline=pipeline,
             flowgroup=flowgroup,
@@ -212,7 +292,7 @@ def create_flowgroup():
                     name=f"load_{flowgroup}",
                     type=ActionType.LOAD,
                     source=source_table,
-                    target=f"v_{flowgroup}_raw"
+                    target=f"v_{flowgroup}_raw",
                 ),
                 Action(
                     name=f"write_{flowgroup}",
@@ -221,11 +301,12 @@ def create_flowgroup():
                     write_target={
                         "type": "streaming_table",
                         "database": "bronze",
-                        "table": target_table
-                    }
-                )
-            ]
+                        "table": target_table,
+                    },
+                ),
+            ],
         )
+
     return _create
 
 
@@ -233,9 +314,19 @@ def create_flowgroup():
 def sample_flowgroups_with_job_name(create_flowgroup):
     """3 flowgroups: 2 bronze, 1 silver."""
     return [
-        create_flowgroup("bronze_pipeline", "bronze_fg1", "bronze_job", "raw.table1", "bronze.table1"),
-        create_flowgroup("bronze_pipeline", "bronze_fg2", "bronze_job", "raw.table2", "bronze.table2"),
-        create_flowgroup("silver_pipeline", "silver_fg1", "silver_job", "bronze.table1", "silver.table1"),
+        create_flowgroup(
+            "bronze_pipeline", "bronze_fg1", "bronze_job", "raw.table1", "bronze.table1"
+        ),
+        create_flowgroup(
+            "bronze_pipeline", "bronze_fg2", "bronze_job", "raw.table2", "bronze.table2"
+        ),
+        create_flowgroup(
+            "silver_pipeline",
+            "silver_fg1",
+            "silver_job",
+            "bronze.table1",
+            "silver.table1",
+        ),
     ]
 
 
@@ -255,7 +346,7 @@ def sample_multi_doc_job_config(tmp_path):
     """Creates temp multi-doc job_config.yaml at tmp_path/config/job_config.yaml."""
     config_dir = tmp_path / "config"
     config_dir.mkdir(parents=True, exist_ok=True)
-    
+
     config_content = """project_defaults:
   max_concurrent_runs: 1
   performance_target: STANDARD
@@ -275,22 +366,35 @@ tags:
 """
     config_file = config_dir / "job_config.yaml"
     config_file.write_text(config_content)
-    return tmp_path  # Return tmp_path (project root)
+    return tmp_path
 
 
 @pytest.fixture
 def mock_dependency_result():
     """Creates mock DependencyAnalysisResult with required attributes."""
-    from lhp.models.dependencies import DependencyAnalysisResult
     from unittest.mock import Mock
-    
+
+    from lhp.models.dependencies import DependencyAnalysisResult
+
     result = Mock(spec=DependencyAnalysisResult)
     result.total_pipelines = 2
     result.execution_stages = [["pipeline1"], ["pipeline2"]]
     result.pipeline_dependencies = {
-        "pipeline1": Mock(depends_on=[], flowgroup_count=1, action_count=2, external_sources=[], stage=1),
-        "pipeline2": Mock(depends_on=["pipeline1"], flowgroup_count=1, action_count=2, external_sources=[], stage=2)
+        "pipeline1": Mock(
+            depends_on=[],
+            flowgroup_count=1,
+            action_count=2,
+            external_sources=[],
+            stage=1,
+        ),
+        "pipeline2": Mock(
+            depends_on=["pipeline1"],
+            flowgroup_count=1,
+            action_count=2,
+            external_sources=[],
+            stage=2,
+        ),
     }
     result.external_sources = []
     result.circular_dependencies = []
-    return result 
+    return result

@@ -1,0 +1,454 @@
+{
+  "lhp_version": "v0.8.7",
+  "captured_at": "2026-05-11T12:27:07+00:00",
+  "machine_fingerprint": "Darwin-arm64-py3.12",
+  "fixture": "performance_testing_blueprint",
+  "runs": 5,
+  "project_shape": {
+    "blueprints": 1,
+    "instances": 3,
+    "synthetic_flowgroups": 600,
+    "pipelines_synced": 16,
+    "resource_files_scanned": 0
+  },
+  "metrics": {
+    "category.blueprint_discovery.avg": {
+      "median": 0.14514,
+      "p25": 0.138637,
+      "p75": 0.156047,
+      "unit": "seconds"
+    },
+    "category.blueprint_discovery.cnt": {
+      "median": 1.0,
+      "p25": 1.0,
+      "p75": 1.0,
+      "unit": "count"
+    },
+    "category.blueprint_discovery.total": {
+      "median": 0.14514,
+      "p25": 0.138637,
+      "p75": 0.156047,
+      "unit": "seconds"
+    },
+    "category.blueprint_expansion.avg": {
+      "median": 0.029152,
+      "p25": 0.028002,
+      "p75": 0.04325,
+      "unit": "seconds"
+    },
+    "category.blueprint_expansion.cnt": {
+      "median": 1.0,
+      "p25": 1.0,
+      "p75": 1.0,
+      "unit": "count"
+    },
+    "category.blueprint_expansion.total": {
+      "median": 0.029152,
+      "p25": 0.028002,
+      "p75": 0.04325,
+      "unit": "seconds"
+    },
+    "category.bundle_cleanup_orphans.avg": {
+      "median": 0.000142,
+      "p25": 0.000125,
+      "p75": 0.000177,
+      "unit": "seconds"
+    },
+    "category.bundle_cleanup_orphans.cnt": {
+      "median": 1.0,
+      "p25": 1.0,
+      "p75": 1.0,
+      "unit": "count"
+    },
+    "category.bundle_cleanup_orphans.total": {
+      "median": 0.000142,
+      "p25": 0.000125,
+      "p75": 0.000177,
+      "unit": "seconds"
+    },
+    "category.bundle_create_resource.avg": {
+      "median": 0.00134,
+      "p25": 0.001322,
+      "p75": 0.001405,
+      "unit": "seconds"
+    },
+    "category.bundle_create_resource.cnt": {
+      "median": 16.0,
+      "p25": 16.0,
+      "p75": 16.0,
+      "unit": "count"
+    },
+    "category.bundle_create_resource.total": {
+      "median": 0.021447,
+      "p25": 0.021153,
+      "p75": 0.022477,
+      "unit": "seconds"
+    },
+    "category.bundle_existing_files.avg": {
+      "median": 0.00014,
+      "p25": 0.000117,
+      "p75": 0.000153,
+      "unit": "seconds"
+    },
+    "category.bundle_existing_files.cnt": {
+      "median": 1.0,
+      "p25": 1.0,
+      "p75": 1.0,
+      "unit": "count"
+    },
+    "category.bundle_existing_files.total": {
+      "median": 0.00014,
+      "p25": 0.000117,
+      "p75": 0.000153,
+      "unit": "seconds"
+    },
+    "category.bundle_extract_catalog.avg": {
+      "median": 0.000431,
+      "p25": 0.000399,
+      "p75": 0.000512,
+      "unit": "seconds"
+    },
+    "category.bundle_extract_catalog.cnt": {
+      "median": 1.0,
+      "p25": 1.0,
+      "p75": 1.0,
+      "unit": "count"
+    },
+    "category.bundle_extract_catalog.total": {
+      "median": 0.000431,
+      "p25": 0.000399,
+      "p75": 0.000512,
+      "unit": "seconds"
+    },
+    "category.bundle_extract_keys.avg": {
+      "median": 0.001358,
+      "p25": 0.001333,
+      "p75": 0.001391,
+      "unit": "seconds"
+    },
+    "category.bundle_extract_keys.cnt": {
+      "median": 15.0,
+      "p25": 15.0,
+      "p75": 15.0,
+      "unit": "count"
+    },
+    "category.bundle_extract_keys.total": {
+      "median": 0.020364,
+      "p25": 0.019993,
+      "p75": 0.02087,
+      "unit": "seconds"
+    },
+    "category.bundle_find_resource_files.avg": {
+      "median": 0.001533,
+      "p25": 0.001511,
+      "p75": 0.001599,
+      "unit": "seconds"
+    },
+    "category.bundle_find_resource_files.cnt": {
+      "median": 16.0,
+      "p25": 16.0,
+      "p75": 16.0,
+      "unit": "count"
+    },
+    "category.bundle_find_resource_files.total": {
+      "median": 0.024532,
+      "p25": 0.024169,
+      "p75": 0.025582,
+      "unit": "seconds"
+    },
+    "category.bundle_update_databricks_yaml.avg": {
+      "median": 0.001441,
+      "p25": 0.00137,
+      "p75": 0.001543,
+      "unit": "seconds"
+    },
+    "category.bundle_update_databricks_yaml.cnt": {
+      "median": 1.0,
+      "p25": 1.0,
+      "p75": 1.0,
+      "unit": "count"
+    },
+    "category.bundle_update_databricks_yaml.total": {
+      "median": 0.001441,
+      "p25": 0.00137,
+      "p75": 0.001543,
+      "unit": "seconds"
+    },
+    "category.find_source_yaml.avg": {
+      "median": 2e-06,
+      "p25": 2e-06,
+      "p75": 2e-06,
+      "unit": "seconds"
+    },
+    "category.find_source_yaml.cnt": {
+      "median": 601.0,
+      "p25": 601.0,
+      "p75": 601.0,
+      "unit": "count"
+    },
+    "category.find_source_yaml.total": {
+      "median": 0.000983,
+      "p25": 0.000912,
+      "p75": 0.00124,
+      "unit": "seconds"
+    },
+    "category.format_code.avg": {
+      "median": 0.006529,
+      "p25": 0.006386,
+      "p75": 0.007729,
+      "unit": "seconds"
+    },
+    "category.format_code.cnt": {
+      "median": 601.0,
+      "p25": 601.0,
+      "p75": 601.0,
+      "unit": "count"
+    },
+    "category.format_code.total": {
+      "median": 3.923644,
+      "p25": 3.837807,
+      "p75": 4.644895,
+      "unit": "seconds"
+    },
+    "category.generate_code.avg": {
+      "median": 0.09669,
+      "p25": 0.092034,
+      "p75": 0.100291,
+      "unit": "seconds"
+    },
+    "category.generate_code.cnt": {
+      "median": 601.0,
+      "p25": 601.0,
+      "p75": 601.0,
+      "unit": "count"
+    },
+    "category.generate_code.total": {
+      "median": 58.110651,
+      "p25": 55.312156,
+      "p75": 60.275125,
+      "unit": "seconds"
+    },
+    "category.instance_discovery.avg": {
+      "median": 0.014592,
+      "p25": 0.013592,
+      "p75": 0.015059,
+      "unit": "seconds"
+    },
+    "category.instance_discovery.cnt": {
+      "median": 1.0,
+      "p25": 1.0,
+      "p75": 1.0,
+      "unit": "count"
+    },
+    "category.instance_discovery.total": {
+      "median": 0.014592,
+      "p25": 0.013592,
+      "p75": 0.015059,
+      "unit": "seconds"
+    },
+    "category.process_flowgroup.avg": {
+      "median": 0.033709,
+      "p25": 0.032016,
+      "p75": 0.035069,
+      "unit": "seconds"
+    },
+    "category.process_flowgroup.cnt": {
+      "median": 601.0,
+      "p25": 601.0,
+      "p75": 601.0,
+      "unit": "count"
+    },
+    "category.process_flowgroup.total": {
+      "median": 20.258968,
+      "p25": 19.241563,
+      "p75": 21.076261,
+      "unit": "seconds"
+    },
+    "category.write_file.avg": {
+      "median": 0.000315,
+      "p25": 0.000281,
+      "p75": 0.000364,
+      "unit": "seconds"
+    },
+    "category.write_file.cnt": {
+      "median": 1.0,
+      "p25": 1.0,
+      "p75": 1.0,
+      "unit": "count"
+    },
+    "category.write_file.total": {
+      "median": 0.000315,
+      "p25": 0.000281,
+      "p75": 0.000364,
+      "unit": "seconds"
+    },
+    "count.blueprints": {
+      "median": 1.0,
+      "p25": 1.0,
+      "p75": 1.0,
+      "unit": "count"
+    },
+    "count.instances": {
+      "median": 3.0,
+      "p25": 3.0,
+      "p75": 3.0,
+      "unit": "count"
+    },
+    "count.pipelines_synced": {
+      "median": 16.0,
+      "p25": 16.0,
+      "p75": 16.0,
+      "unit": "count"
+    },
+    "count.resource_files_scanned": {
+      "median": 0.0,
+      "p25": 0.0,
+      "p75": 0.0,
+      "unit": "count"
+    },
+    "count.synthetic_flowgroups": {
+      "median": 600.0,
+      "p25": 600.0,
+      "p75": 600.0,
+      "unit": "count"
+    },
+    "phase.Bundle sync": {
+      "median": 0.049463,
+      "p25": 0.048724,
+      "p75": 0.051591,
+      "unit": "seconds"
+    },
+    "phase.Cleanup operations": {
+      "median": 4.1e-05,
+      "p25": 3.9e-05,
+      "p75": 4.4e-05,
+      "unit": "seconds"
+    },
+    "phase.Monitoring artifacts": {
+      "median": 0.01336,
+      "p25": 0.012139,
+      "p75": 0.079323,
+      "unit": "seconds"
+    },
+    "phase.Orchestrator init": {
+      "median": 0.006037,
+      "p25": 0.005979,
+      "p75": 0.006532,
+      "unit": "seconds"
+    },
+    "phase.Pipeline discovery": {
+      "median": 0.207136,
+      "p25": 0.197593,
+      "p75": 0.211997,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [perf_test_edw_blueprint_event_log_monitoring]": {
+      "median": 0.024577,
+      "p25": 0.024239,
+      "p75": 0.025771,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [site_a_bronze]": {
+      "median": 1.247961,
+      "p25": 1.122678,
+      "p75": 1.760882,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [site_a_gold]": {
+      "median": 0.331368,
+      "p25": 0.32793,
+      "p75": 0.373339,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [site_a_modelled]": {
+      "median": 0.638615,
+      "p25": 0.61492,
+      "p75": 0.702705,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [site_a_raw]": {
+      "median": 1.108987,
+      "p25": 1.064623,
+      "p75": 1.307867,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [site_a_silver]": {
+      "median": 1.064646,
+      "p25": 1.015911,
+      "p75": 1.186181,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [site_b_bronze]": {
+      "median": 1.246633,
+      "p25": 1.18752,
+      "p75": 1.41608,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [site_b_gold]": {
+      "median": 0.409073,
+      "p25": 0.392021,
+      "p75": 0.43248,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [site_b_modelled]": {
+      "median": 0.736239,
+      "p25": 0.701508,
+      "p75": 0.814329,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [site_b_raw]": {
+      "median": 1.167155,
+      "p25": 1.121431,
+      "p75": 1.477347,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [site_b_silver]": {
+      "median": 1.135956,
+      "p25": 1.019071,
+      "p75": 1.195232,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [site_c_bronze]": {
+      "median": 1.21202,
+      "p25": 1.167306,
+      "p75": 1.808684,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [site_c_gold]": {
+      "median": 0.370601,
+      "p25": 0.344086,
+      "p75": 0.403708,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [site_c_modelled]": {
+      "median": 0.618483,
+      "p25": 0.589667,
+      "p75": 0.663148,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [site_c_raw]": {
+      "median": 1.094524,
+      "p25": 1.081807,
+      "p75": 1.242462,
+      "unit": "seconds"
+    },
+    "phase.Pipeline generation [site_c_silver]": {
+      "median": 1.083643,
+      "p25": 1.051107,
+      "p75": 1.187722,
+      "unit": "seconds"
+    },
+    "phase.Staleness analysis": {
+      "median": 6.2e-05,
+      "p25": 6.1e-05,
+      "p75": 6.6e-05,
+      "unit": "seconds"
+    },
+    "wall_clock": {
+      "median": 14.363925,
+      "p25": 13.957108,
+      "p75": 15.323872,
+      "unit": "seconds"
+    }
+  }
+}

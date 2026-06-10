@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from lhp.models.config import (
+from lhp.models import (
     EventLogConfig,
     MonitoringConfig,
     MonitoringMaterializedViewConfig,
@@ -78,7 +78,7 @@ class TestMonitoringConfig:
 
     def test_schema_alias(self):
         """Verify 'schema' alias works for schema_ field."""
-        config = MonitoringConfig(**{"schema": "_meta"})
+        config = MonitoringConfig(schema="_meta")
         assert config.schema_ == "_meta"
 
     def test_custom_streaming_table(self):

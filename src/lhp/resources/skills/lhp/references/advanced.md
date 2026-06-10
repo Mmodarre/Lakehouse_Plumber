@@ -6,7 +6,7 @@
 - [Dependency Analysis](#dependency-analysis)
 - [Multi-Job Orchestration](#multi-job-orchestration)
 - [CI/CD Patterns](#cicd-patterns)
-- [State Management](#state-management)
+- [Custom Python Functions & Local Helpers](#custom-python-functions--local-helpers)
 
 ---
 
@@ -16,20 +16,23 @@ LHP generates DAB pipeline resource YAML files; it does NOT replace DAB or deplo
 
 ### Setup
 
+Bundle is enabled by default. Use `--no-bundle` to opt out.
+
 ```bash
-lhp init --bundle my-data-platform
+lhp init my-data-platform
 cd my-data-platform
-# Edit databricks.yml with workspace details
+# Edit databricks.yml with workspace details (host, run_as)
 lhp generate -e dev
 databricks bundle deploy --target dev
 ```
 
 ### What LHP Does
 
-- Generates `resources/lhp/*.pipeline.yml` using glob patterns
-- Synchronizes resources with generated code
-- Cleans up obsolete resource files
-- Never modifies `databricks.yml` or files outside `resources/lhp/`
+- `lhp init` (default) scaffolds `databricks.yml` (targets: dev/tst/prod) and `resources/lhp/`
+- Generates `resources/lhp/*.pipeline.yml` using glob libraries
+- Conservative sync: creates missing files, leaves LHP-owned files untouched, backs up user-edited files to `.bkup`, deletes orphans when a pipeline directory is removed
+- Never modifies `databricks.yml` (except DEPRECATED auto-detect variable update, removed in v1.0.0) or files outside `resources/lhp/`
+- Target names in `databricks.yml` must match substitution filenames under `substitutions/`
 
 ### Generated Resource Example
 
@@ -102,7 +105,7 @@ permissions:
     user_name: admin@company.com
 ```
 
-Usage: `lhp deps --format job --job-config config/job_config.yaml --bundle-output`
+Usage: `lhp dag --format job --job-config config/job_config.yaml --bundle-output`
 
 ---
 
@@ -113,21 +116,23 @@ Analyzes FlowGroup YAML to detect pipeline dependencies, execution stages, and e
 ### Commands
 
 ```bash
-lhp deps                                    # All formats
-lhp deps --format job --job-name my_etl      # Orchestration job
-lhp deps --format job --bundle-output        # Save to resources/
-lhp deps --format mermaid                    # Mermaid diagram
-lhp deps --pipeline bronze --format json     # Specific pipeline
+lhp dag                                    # All formats
+lhp dag --format job --job-name my_etl      # Orchestration job
+lhp dag --format job --bundle-output        # Save to resources/
+lhp dag --format dot                        # GraphViz diagram
+lhp dag --format json                       # Structured dependency graph
+lhp dag --expand-blueprints                 # One node per blueprint instance
 ```
 
 ### Output Formats
+
+`--format` accepts a comma-separated list; `all` (the default) emits every format.
 
 | Format | Description |
 |--------|-------------|
 | `text` | Human-readable report |
 | `json` | Structured data |
 | `dot` | GraphViz diagram |
-| `mermaid` | Mermaid diagram |
 | `job` | Databricks job YAML |
 | `all` | All formats |
 
@@ -206,7 +211,6 @@ Each unique `job_name` generates a separate job file + a master orchestration jo
 1. YAML is single source of truth; generated Python is ephemeral
 2. Same commit SHA deployed to all environments
 3. Environment isolation via separate substitution files
-4. `.lhp_state.json` not in git (regenerates in CI)
 
 **Version pinning (lhp.yaml):**
 ```yaml
@@ -225,18 +229,53 @@ required_lhp_version: ">=0.7.0,<1.0.0"
 # In CI/CD
 pip install lakehouse-plumber
 lhp validate --env $ENV
-lhp generate --env $ENV --force
-lhp deps --format job --job-config config/job_config.yaml --bundle-output
+lhp generate --env $ENV
+lhp dag --format job --job-config config/job_config.yaml --bundle-output
 databricks bundle deploy --target $ENV
 ```
 
 ---
 
-## State Management
+## Custom Python Functions & Local Helpers
 
-`.lhp_state.json` tracks generated files, checksums, and dependencies.
+User Python entry modules — python load/transform (`module_path`), custom data source
+(`module_path`), custom sink (`module_path`), and snapshot CDC `source_function` — are
+copied into `generated/<pipeline>/custom_python_functions/` at generate time. All of these
+paths are resolved relative to the **project root** (not the YAML file's location).
 
-- Only changed files regenerated on subsequent runs
-- Upstream changes trigger downstream regeneration
-- `--force` flag skips state checking
-- Not committed to git (regenerates in CI)
+**Transitive local-helper copying.** When an entry module imports a local helper
+module/sub-package, LHP copies the entry **and** its transitive local helpers into
+`custom_python_functions/`, **mirroring sub-package structure**:
+
+```
+custom_python_functions/
+├── __init__.py                 # LHP package marker
+├── entry_module.py             # entry, flat; local imports rewritten
+└── helpers/                    # referenced helper sub-package, copied in full
+    ├── __init__.py             # copied from your project
+    └── date_change.py          # copied; relative imports preserved
+```
+
+The directory holding the entry file is the **import root**. An import is *local* iff its
+top dotted segment resolves to a `.py` file or package under that root.
+
+- **Rule A:** the import root must NOT itself be a package (no `__init__.py` at its top) →
+  `LHP-VAL-023`. Keep the entry flat; put helpers in a sub-directory.
+- **Rule B (whole-sub-package copy):** a referenced helper **package is copied in full**
+  (every `.py` under it), structure preserved — so `__init__.py` side effects and
+  intra-package imports keep working.
+- **Import rewriting:** absolute-local imports are prefix-rewritten
+  (`from helpers.x import y` → `from custom_python_functions.helpers.x import y`, aliases
+  kept); **intra-package relative imports (`from .x import y`) are preserved unchanged**
+  (first-class inside helper packages); external/stdlib imports are untouched.
+- **Plain-dotted-local** (`import helpers.x`) is rejected with `LHP-VAL-024` — use
+  `from helpers.x import ...` instead.
+- **Missing local helper** → `LHP-VAL-025`.
+- A syntactically broken sibling inside a copied package surfaces `LHP-IO-003` at generate
+  time (a consequence of whole-package copy).
+
+**Pickle interaction (custom data source / sink):** `register_pickle_by_value` registers the
+top-level `custom_python_functions` package, so every copied descendant
+(`custom_python_functions.helpers.*`) is pickled by value with no change to the registration
+line — which is why helpers are mirrored under `custom_python_functions/` rather than placed
+elsewhere on `sys.path`.

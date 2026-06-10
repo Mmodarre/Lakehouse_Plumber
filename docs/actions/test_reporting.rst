@@ -4,7 +4,7 @@ Test Result Reporting (Publishing)
 .. meta::
    :description: Publish DQ test results from Lakehouse Plumber pipelines to external systems like Azure DevOps, Delta audit tables, or custom providers.
 
-Test result reporting extends :doc:`test_actions` by **publishing DQ expectation
+Test result reporting extends :doc:`test_actions` by **publishing DQ :term:`expectation <Expectation>`
 results to external systems** after each pipeline run. Lakehouse Plumber generates
 a ``@dp.on_event_hook()`` per pipeline that listens for DQ metrics in the Databricks
 event stream, accumulates pass/fail results, and calls a user-supplied **provider
@@ -14,12 +14,12 @@ The design is pluggable: LHP generates the hook and wiring; you supply the provi
 module that decides *where* results go — Azure DevOps Test Plans, a Delta audit table,
 a REST API, or anything reachable from the Databricks driver.
 
-.. note::
-   **Prerequisites:**
+Prerequisites
+--------------------------------------------
 
-   * ``test_reporting`` section configured in ``lhp.yaml``
-   * ``test_id`` set on each test action you want to report
-   * ``--include-tests`` flag passed to ``lhp generate``
+* ``test_reporting`` section configured in ``lhp.yaml``
+* ``test_id`` set on each test action you want to report
+* ``--include-tests`` flag passed to ``lhp generate``
 
 
 Architecture
@@ -265,13 +265,18 @@ actions and pipeline tables are ignored.
 Validation
 --------------------------------------------
 
-``lhp validate`` performs test reporting checks when the ``test_reporting`` section
-exists in ``lhp.yaml``:
+Both ``lhp validate`` and ``lhp generate`` perform test reporting checks when the
+``test_reporting`` section exists in ``lhp.yaml``:
 
-**Always checked:**
+**Always checked (file-existence preflight, error** ``LHP-CFG-032`` **):**
 
 * ``module_path`` — the provider module file must exist at the specified path.
 * ``config_file`` — if specified, the file must exist.
+
+This file-existence check runs **independent of** ``--include-tests``. A project
+whose provider file is missing fails ``lhp generate`` even without the flag, and
+fails ``lhp validate`` the same way. See :doc:`/errors_reference` for
+``LHP-CFG-032``.
 
 **With** ``--include-tests``:
 
@@ -280,7 +285,7 @@ exists in ``lhp.yaml``:
 
 .. code-block:: bash
 
-   # Basic validation (checks file existence)
+   # Basic validation (still checks provider file existence — LHP-CFG-032)
    lhp validate --env dev
 
    # Extended validation (also checks test_id presence)
@@ -469,13 +474,7 @@ value — no mapping file needed. Simpler setup, but less readable YAML.
        on_violation: warn
        test_id: "2272983"           # This IS the ADO Test Case ID
 
-.. tip::
-   **Which ADO variant to choose?**
-
-   * Use **config mapping** (``ado_test_reporter.py``) when you want readable,
-     project-specific test IDs in your YAML and a centralized mapping file.
-   * Use **inline** (``ado_test_reporter_inline.py``) when you want the simplest
-     setup and don't mind numeric ADO IDs in your YAML.
+**Which ADO variant to choose?** Use **config mapping** (``ado_test_reporter.py``) when you want readable, project-specific test IDs in your YAML and a centralized mapping file. Use **inline** (``ado_test_reporter_inline.py``) when you want the simplest setup and don't mind numeric ADO IDs in your YAML.
 
 
 Writing a Custom Provider
@@ -534,10 +533,9 @@ Important Considerations
    ``fail``-mode expectations. Use ``on_violation: warn`` for test actions whose results
    you want to report.
 
-.. note::
-   **Event hooks are Public Preview** — The ``@dp.on_event_hook()`` decorator was
-   introduced in Databricks in January 2026 and is currently in Public Preview.
-   Refer to Databricks documentation for the latest status.
+**Event hooks are Public Preview** — The ``@dp.on_event_hook()`` decorator was
+introduced in Databricks in January 2026 and is currently in Public Preview.
+Refer to Databricks documentation for the latest status.
 
 .. note::
    **Best-effort delivery** — Databricks documentation notes approximately a 10% event
@@ -558,7 +556,7 @@ Related Documentation
 --------------------------------------------
 
 * :doc:`test_actions` — test action types, configuration, and best practices
-* :doc:`/monitoring` — centralized pipeline event log monitoring
+* :doc:`/monitoring_reference` — centralized pipeline event log monitoring
 * :doc:`/cli` — command-line reference (``--include-tests`` flag)
 * :doc:`/substitutions` — environment tokens and secret references in provider modules
 * :doc:`/errors_reference` — error codes and resolution steps

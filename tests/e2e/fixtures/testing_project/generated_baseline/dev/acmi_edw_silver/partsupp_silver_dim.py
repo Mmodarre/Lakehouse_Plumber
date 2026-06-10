@@ -3,6 +3,10 @@
 # FlowGroup: partsupp_silver_dim
 
 from pyspark import pipelines as dp
+import custom_python_functions.partsupp_snapshot_func as _snap_partsupp_snapshot_func
+
+_snap_partsupp_snapshot_func.dbutils = dbutils
+_snap_partsupp_snapshot_func.spark = spark
 
 # Pipeline Configuration
 PIPELINE_ID = "acmi_edw_silver"
@@ -13,51 +17,6 @@ FLOWGROUP_ID = "partsupp_silver_dim"
 # TARGET TABLES
 # ============================================================================
 
-# Snapshot function embedded directly in generated code
-from typing import Optional, Tuple
-from pyspark.sql import DataFrame
-
-
-def next_snapshot_and_version(
-    latest_snapshot_version: Optional[int],
-) -> Optional[Tuple[DataFrame, int]]:
-
-    if latest_snapshot_version is None:
-        df = spark.sql("""
-            SELECT * FROM acme_edw_dev.edw_bronze.partsupp
-            WHERE snapshot_id = (SELECT min(snapshot_id) FROM acme_edw_dev.edw_bronze.partsupp)
-        """)
-
-        min_snapshot_id = spark.sql("""
-            SELECT min(snapshot_id) as min_id FROM acme_edw_dev.edw_bronze.partsupp
-        """).collect()[0].min_id
-
-        return (df, min_snapshot_id)
-
-    else:
-        next_snapshot_result = spark.sql(f"""
-            SELECT min(snapshot_id) as next_id
-            FROM acme_edw_dev.edw_bronze.partsupp
-            WHERE snapshot_id > '{latest_snapshot_version}'
-        """).collect()[0]
-
-        if next_snapshot_result.next_id is None:
-            return None
-
-        next_snapshot_id = next_snapshot_result.next_id
-        df = spark.sql(f"""
-            SELECT * except(rn) FROM (
-                SELECT *,
-                ROW_NUMBER() OVER (PARTITION BY part_id, supplier_id ORDER BY last_modified_dt DESC) as rn
-                FROM acme_edw_dev.edw_bronze.partsupp
-                WHERE snapshot_id = '{next_snapshot_id}'
-            )
-            WHERE rn = 1
-        """)
-
-        return (df, next_snapshot_id)
-
-
 # Create the streaming table for snapshot CDC
 dp.create_streaming_table(
     name="acme_edw_dev.edw_silver.partsupp_dim", comment="Streaming table: partsupp_dim"
@@ -66,7 +25,7 @@ dp.create_streaming_table(
 # Snapshot CDC mode using create_auto_cdc_from_snapshot_flow
 dp.create_auto_cdc_from_snapshot_flow(
     target="acme_edw_dev.edw_silver.partsupp_dim",
-    source=next_snapshot_and_version,
+    source=_snap_partsupp_snapshot_func.next_snapshot_and_version,
     keys=["part_id", "supplier_id"],
     stored_as_scd_type=2,
     track_history_except_column_list=[

@@ -1,0 +1,31 @@
+# B8 fixture — Delta CDC reader with readChangeFeed enabled.
+# Streams the Change Data Feed of a Delta table, starting from version 0.
+# Verifies that LHP emits .option("readChangeFeed", "true") and
+# .option("startingVersion", "0") on a spark.readStream chain.
+pipeline: 17_delta_cdc
+flowgroup: cdc_read_change_feed
+#job_name: j_cdc
+
+actions:
+  - name: read_orders_cdf
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: "orders"
+      options:
+        readChangeFeed: "true"
+        startingVersion: "0"
+    target: v_orders_cdf
+    description: "Stream order changes via Delta Change Data Feed"
+
+  - name: write_orders_cdf
+    type: write
+    source: v_orders_cdf
+    write_target:
+      type: streaming_table
+      database: "${catalog}.${silver_schema}"
+      table: "orders_cdf"
+      comment: "CDF stream of orders into silver"

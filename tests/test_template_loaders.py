@@ -6,13 +6,9 @@ import pytest
 from jinja2 import Environment
 from jinja2.exceptions import TemplateNotFound
 
-from lhp.core.base_generator import BaseActionGenerator
-from lhp.core.init_template_context import InitTemplateContext
-from lhp.core.init_template_loader import InitTemplateLoader
-from lhp.utils.template_renderer import (
-    TemplateRenderer,
-    get_lhp_template_loader,
-)
+from lhp.core.codegen.template_renderer import TemplateRenderer, get_lhp_template_loader
+from lhp.core.loaders import InitTemplateContext, InitTemplateLoader
+from lhp.core.registry import BaseActionGenerator
 
 
 def test_get_lhp_template_loader_resolves_known_template() -> None:
@@ -31,8 +27,7 @@ def test_get_lhp_template_loader_raises_template_not_found_for_missing() -> None
 
 
 def test_template_renderer_from_package_resolves_bundle_template() -> None:
-    """TemplateRenderer.from_package() wires the package loader so real
-    templates under lhp/templates/ resolve."""
+    """TemplateRenderer.from_package() wires the package loader so real templates resolve."""
     renderer = TemplateRenderer.from_package()
     template = renderer.env.get_template("bundle/pipeline_resource.yml.j2")
     assert template is not None
@@ -60,6 +55,5 @@ def test_base_generator_subclass_can_render() -> None:
             return ""
 
     gen = _ConcreteGen()
-    # cloudfiles.py.j2 is one of the standard load action templates.
     template = gen.env.get_template("load/cloudfiles.py.j2")
     assert template is not None

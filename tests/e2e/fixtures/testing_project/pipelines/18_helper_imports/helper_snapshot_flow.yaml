@@ -1,0 +1,26 @@
+# Helper-copying E2E fixture (snapshot-CDC source_function / write funnel).
+# The snapshot source function imports the local helper helpers.aggregate
+# (whose own from helpers.other import tag is a transitive ABSOLUTE
+# helper->helper import). LHP copies the entry + helper closure into
+# custom_python_functions/, prefix-rewrites the entry's absolute-local import,
+# and the snapshot driver imports the module via
+# import custom_python_functions.helper_demo_snapshot as _snap_...
+pipeline: helper_imports
+flowgroup: helper_snapshot_flow
+#job_name: j_helpers
+
+actions:
+  - name: write_helper_snapshot
+    type: write
+    source: v_helper_snapshot_seed
+    write_target:
+      type: streaming_table
+      database: "${catalog}.${bronze_schema}"
+      table: "helper_snapshot_dim"
+      mode: "snapshot_cdc"
+      snapshot_cdc_config:
+        source_function:
+          file: "py_functions/helper_demo_snapshot.py"
+          function: "next_helper_snapshot"
+        keys: ["id"]
+        stored_as_scd_type: 1

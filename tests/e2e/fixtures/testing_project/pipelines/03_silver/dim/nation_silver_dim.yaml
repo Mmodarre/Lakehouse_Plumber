@@ -28,4 +28,5 @@ actions:
       type: streaming_table
       database: "{catalog}.{silver_schema}"
       table: "nation_dim"
+      cluster_by_auto: true
         

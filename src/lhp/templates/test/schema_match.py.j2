@@ -1,0 +1,48 @@
+{% if add_imports %}
+from pyspark import pipelines as dp
+from pyspark.sql.functions import *
+
+{% endif %}
+{% if fail_expectations %}
+@dp.expect_all_or_fail({{ fail_expectations | tojson }})
+{% endif %}
+{% if drop_expectations %}
+@dp.expect_all_or_drop({{ drop_expectations | tojson }})
+{% endif %}
+{% if warn_expectations %}
+@dp.expect_all({{ warn_expectations | tojson }})
+{% endif %}
+@dp.table(name="{{ target }}", comment="{{ description }}", temporary=True)
+def {{ target }}():
+    """{{ description }}"""
+    return spark.sql("""
+        WITH source_schema AS (
+                      SELECT column_name, data_type, ordinal_position
+                      FROM {{ src_catalog }}.information_schema.columns
+                      WHERE table_catalog = '{{ src_catalog }}'
+                        AND table_schema = '{{ src_schema }}'
+                        AND table_name = '{{ src_table }}'
+                    ),
+                    reference_schema AS (
+                      SELECT column_name, data_type, ordinal_position
+                      FROM {{ ref_catalog }}.information_schema.columns
+                      WHERE table_catalog = '{{ ref_catalog }}'
+                        AND table_schema = '{{ ref_schema }}'
+                        AND table_name = '{{ ref_table }}'
+                    ),
+                    schema_diff AS (
+                      SELECT
+                        COALESCE(s.column_name, r.column_name) as column_name,
+                        s.data_type as source_type,
+                        r.data_type as reference_type,
+                        CASE
+                          WHEN s.column_name IS NULL THEN 'missing_in_source'
+                          WHEN r.column_name IS NULL THEN 'extra_in_source'
+                          WHEN s.data_type != r.data_type THEN 'type_mismatch'
+                          ELSE 'match'
+                        END as status
+                      FROM source_schema s
+                      FULL OUTER JOIN reference_schema r ON s.column_name = r.column_name
+                    )
+                    SELECT * FROM schema_diff WHERE status != 'match'
+    """)

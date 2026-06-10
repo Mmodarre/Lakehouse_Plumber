@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from lhp.models.config import (
+from lhp.models import (
     Action,
     ActionType,
     ProjectConfig,
@@ -13,8 +13,6 @@ from lhp.models.config import (
 
 @pytest.mark.unit
 class TestTestReportingConfig:
-    """Tests for TestReportingConfig model."""
-
     __test__ = True  # Explicitly mark as a test class (overrides __test__ = False on some models)
 
     def test_required_fields(self):
@@ -49,8 +47,6 @@ class TestTestReportingConfig:
 
 @pytest.mark.unit
 class TestActionTestId:
-    """Tests for test_id field on Action model."""
-
     def test_test_id_defaults_to_none(self):
         action = Action(name="test_1", type=ActionType.TEST)
         assert action.test_id is None
@@ -75,8 +71,6 @@ class TestActionTestId:
 
 @pytest.mark.unit
 class TestProjectConfigTestReporting:
-    """Tests for test_reporting field on ProjectConfig."""
-
     def test_defaults_to_none(self):
         config = ProjectConfig(name="test_project")
         assert config.test_reporting is None
@@ -93,8 +87,6 @@ class TestProjectConfigTestReporting:
 
 @pytest.mark.unit
 class TestProjectConfigLoaderTestReporting:
-    """Tests for test_reporting parsing in ProjectConfigLoader."""
-
     def test_parses_test_reporting_section(self, tmp_path):
         """Config loader parses test_reporting from lhp.yaml."""
         lhp_yaml = tmp_path / "lhp.yaml"
@@ -105,7 +97,7 @@ class TestProjectConfigLoaderTestReporting:
             "  function_name: publish_results\n"
             "  config_file: config/ado_config.yaml\n"
         )
-        from lhp.core.project_config_loader import ProjectConfigLoader
+        from lhp.core.loaders import ProjectConfigLoader
 
         loader = ProjectConfigLoader(tmp_path)
         config = loader.load_project_config()
@@ -119,7 +111,7 @@ class TestProjectConfigLoaderTestReporting:
         """Config loader returns None for test_reporting when absent."""
         lhp_yaml = tmp_path / "lhp.yaml"
         lhp_yaml.write_text("name: test_project\n")
-        from lhp.core.project_config_loader import ProjectConfigLoader
+        from lhp.core.loaders import ProjectConfigLoader
 
         loader = ProjectConfigLoader(tmp_path)
         config = loader.load_project_config()
@@ -134,8 +126,8 @@ class TestProjectConfigLoaderTestReporting:
             "test_reporting:\n"
             "  config_file: config/ado_config.yaml\n"
         )
-        from lhp.core.project_config_loader import ProjectConfigLoader
-        from lhp.utils.error_formatter import LHPError
+        from lhp.core.loaders import ProjectConfigLoader
+        from lhp.errors import LHPError
 
         loader = ProjectConfigLoader(tmp_path)
         with pytest.raises(LHPError, match="missing required fields"):
@@ -144,9 +136,9 @@ class TestProjectConfigLoaderTestReporting:
     def test_rejects_non_dict_test_reporting(self, tmp_path):
         """Config loader raises error for non-dict test_reporting."""
         lhp_yaml = tmp_path / "lhp.yaml"
-        lhp_yaml.write_text("name: test_project\n" "test_reporting: just_a_string\n")
-        from lhp.core.project_config_loader import ProjectConfigLoader
-        from lhp.utils.error_formatter import LHPError
+        lhp_yaml.write_text("name: test_project\ntest_reporting: just_a_string\n")
+        from lhp.core.loaders import ProjectConfigLoader
+        from lhp.errors import LHPError
 
         loader = ProjectConfigLoader(tmp_path)
         with pytest.raises(LHPError, match="must be a mapping"):

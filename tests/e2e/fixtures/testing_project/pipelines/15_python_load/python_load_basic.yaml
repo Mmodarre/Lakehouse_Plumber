@@ -1,0 +1,32 @@
+# B5.2 fixture — Python load action.
+# Invokes a user-defined extraction function returning a DataFrame.
+# Verifies the v0.8.6 unified copy-and-import pattern: the extractor module
+# is copied into custom_python_functions/ next to the generated file, and
+# imported via 'from custom_python_functions.<module_name> import ...'.
+pipeline: 15_python_load
+flowgroup: python_load_basic
+#job_name: j_python_load
+
+actions:
+  - name: load_customer_extract
+    type: load
+    readMode: batch
+    source:
+      type: python
+      module_path: "pipelines/15_python_load/extractors/api_extractor.py"
+      function_name: "extract_customer_data"
+      parameters:
+        api_endpoint: "https://api.example.com/customers"
+        batch_size: 1000
+        start_date: "2024-01-01"
+    target: v_customer_extract
+    description: "Load customer data from external API via Python function"
+
+  - name: write_customer_extract
+    type: write
+    source: v_customer_extract
+    write_target:
+      type: materialized_view
+      database: "${catalog}.${bronze_schema}"
+      table: "python_load_customers"
+      comment: "Customers loaded via Python extractor function"

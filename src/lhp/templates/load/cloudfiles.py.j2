@@ -6,9 +6,17 @@
 
 {% endif %}
 {% if schema_hints_variable %}
-{% for line in schema_hints_lines %}
-{{ line }}
+# Schema hints for {{ schema_hints_label }} table
+{{ schema_hints_variable }} = """
+{% for column in schema_hints_columns %}
+{% if loop.last %}
+    {{ column }}
+{% else %}
+    {{ column }},
+{% endif %}
 {% endfor %}
+""".strip().replace("\n", " ")
+
 
 {% endif %}
 @dp.temporary_view()
