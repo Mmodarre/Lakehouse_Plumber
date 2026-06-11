@@ -6,12 +6,21 @@ End-to-end path from nothing to generated pipeline code. Use when scaffolding a 
 
 ```bash
 lhp init my_project        # creates the project IN THE CURRENT DIRECTORY; bundle ON by default
-lhp init my_project --no-bundle   # skip the Databricks Asset Bundle setup
+lhp init my_project --no-bundle   # skip the Declarative Automation Bundles setup
+lhp init my_demo --sample  # ready-to-run TPC-H sample project (see below)
 ```
 
 `init` refuses to run if `lhp.yaml` already exists (`LHP-IO-007`). It writes a live `lhp.yaml`, `.gitignore`, `README.md`, `.vscode/`, and a tree of **disabled example files** ending in `.tmpl` under `substitutions/`, `config/`, `presets/`, `templates/`, `blueprints/`, `schemas/`, `sql/`, `expectations/`, `pipelines/`. With bundle on (default) it also writes `databricks.yml` at the root and a `resources/` directory.
 
 **Activate any example by renaming it to drop the `.tmpl` suffix** (e.g. `substitutions/dev.yaml.tmpl` → `substitutions/dev.yaml`), then edit the values.
+
+### `--sample` — the TPC-H demo project
+
+`lhp init <name> --sample` scaffolds a ready-to-run TPC-H medallion demo instead of the empty skeleton. It runs against the read-only `samples.tpch` catalog on any Unity Catalog workspace (zero data setup) and exercises the full feature surface: bronze ingest (delta load of nation/region + cloudfiles JSON orders + cloudfiles CSV lineitem via one reusable template), silver CDC both flavors (streaming `mode: cdc` with `apply_as_deletes`, and `mode: snapshot_cdc` + `source_function`), all four transform types, a gold materialized view from `sql/sales_by_nation.sql`, presets, every substitution syntax, operational metadata, a data-prep notebook (`notebooks/data_prep.py`), and a hand-authored job (`resources/sample_job.yml`).
+
+- **Bundle required**: `--sample` + `--no-bundle` is a usage error (exit 2).
+- Ships a ready `config/pipeline_config.yaml` (no `.tmpl` suffix). The project is bundle-enabled, so every run needs it: `lhp validate --env dev -pc config/pipeline_config.yaml`, then `lhp generate --env dev -pc config/pipeline_config.yaml`.
+- The scaffolded `README.md` is the full walkthrough (edit catalog in `databricks.yml` **and** `substitutions/dev.yaml` → generate → `databricks bundle deploy` → `databricks bundle run sample_job`).
 
 ## 2. The four files you must get right
 
@@ -20,7 +29,7 @@ lhp init my_project --no-bundle   # skip the Databricks Asset Bundle setup
 | `lhp.yaml` | Project metadata, operational-metadata column defs | Only `name` is required. **`catalog`/`schema` do NOT live here.** |
 | `substitutions/<env>.yaml` | Per-env tokens (`${...}`) and secret scopes | One file per environment (`dev.yaml`, `prod.yaml`). |
 | `config/pipeline_config.yaml` | **`catalog` + `schema`** (required), pipeline runtime settings | Both catalog and schema, per-pipeline or in `project_defaults`. |
-| `databricks.yml` | DAB bundle: name, `include:`, targets | Target names **must match** your substitution env names. |
+| `databricks.yml` | Declarative Automation Bundles: name, `include:`, targets | Target names **must match** your substitution env names. |
 
 ### `lhp.yaml` (minimal)
 

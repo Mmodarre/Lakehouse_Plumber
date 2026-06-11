@@ -218,7 +218,7 @@ def _scaffold_bundle_assets(
 
     databricks_yml = target_dir / "databricks.yml"
     if not databricks_yml.exists():
-        loader = InitTemplateLoader()  # type: ignore[no-untyped-call]
+        loader = InitTemplateLoader()
         context = InitTemplateContext.create(
             project_name=target_dir.name,
             bundle_enabled=True,

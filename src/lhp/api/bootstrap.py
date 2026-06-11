@@ -37,6 +37,7 @@ class LakehousePlumberBootstrap:
         *,
         bundle: bool = True,
         project_name: Optional[str] = None,
+        sample_mode: bool = False,
     ) -> InitProjectResult:
         """Scaffold a new LHP project at ``target_dir``.
 
@@ -54,6 +55,12 @@ class LakehousePlumberBootstrap:
                 Defaults to ``target_dir.name`` when omitted — the
                 historical behaviour for callers that scaffold into a
                 directory whose name already matches the project name.
+            sample_mode: If True, scaffold the TPC-H sample quickstart
+                project from ``templates/init_sample`` instead of the
+                plain starter tree. The facade deliberately does not
+                reject ``sample_mode=True, bundle=False`` — the CLI
+                guards that combination, and this provisional API
+                leaves the policy to its callers.
 
         Returns:
             A frozen :class:`InitProjectResult` describing the outcome.
@@ -71,9 +78,10 @@ class LakehousePlumberBootstrap:
 
         target_dir = Path(target_dir).resolve()
         resolved_project_name = project_name or target_dir.name
+        template_subpath = "templates/init_sample" if sample_mode else "templates/init"
         logger.debug(
             f"Bootstrap init_project: target={target_dir} bundle={bundle} "
-            f"project_name={resolved_project_name}"
+            f"project_name={resolved_project_name} sample_mode={sample_mode}"
         )
 
         # Reject non-empty existing directory before mutating anything.
@@ -98,6 +106,8 @@ class LakehousePlumberBootstrap:
 
             pre_paths = _walk_paths(target_dir)
 
+            # Sample mode relies on per-file mkdir in create_project_files;
+            # the static tree below is plain-init only.
             new_dirs.extend(_create_directory_tree(target_dir, bundle=bundle))
 
             context = InitTemplateContext.create(
@@ -105,7 +115,7 @@ class LakehousePlumberBootstrap:
                 bundle_enabled=bundle,
                 author="",
             )
-            InitTemplateLoader().create_project_files(  # type: ignore[no-untyped-call]
+            InitTemplateLoader(template_subpath).create_project_files(
                 target_dir, context
             )
 

@@ -97,6 +97,7 @@ want to understand the execution model first, read :doc:`architecture`.
    :caption: Get Started
 
    quickstart
+   tutorials/sample_quickstart
    editor_setup
    requirements
 

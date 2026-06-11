@@ -1,0 +1,43 @@
+# Delta load (batch) — reads the read-only Databricks sample data directly
+# from the samples catalog. No copy step, no file landing needed.
+# Delta sources take separate catalog/schema/table keys.
+pipeline: sample_ingest
+flowgroup: nation_region
+presets:
+  - bronze_layer
+operational_metadata: ["_processing_timestamp"]
+actions:
+  - name: load_nation
+    type: load
+    source:
+      type: delta
+      catalog: samples                  # read-only sample catalog
+      schema: tpch
+      table: nation
+      readMode: batch
+    target: v_nation
+  - name: write_nation
+    type: write
+    source: v_nation
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: nation
+  - name: load_region
+    type: load
+    source:
+      type: delta
+      catalog: samples                  # read-only sample catalog
+      schema: tpch
+      table: region
+      readMode: batch
+    target: v_region
+  - name: write_region
+    type: write
+    source: v_region
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: region

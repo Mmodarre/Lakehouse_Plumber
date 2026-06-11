@@ -1,0 +1,38 @@
+# Hand-authored Declarative Automation Bundles job for the LHP sample quickstart.
+#
+# This file coexists with the LHP-managed resources under resources/lhp/
+# (those are wiped and regenerated on every `lhp generate`); anything else
+# under resources/ — like this file — is never touched by LHP.
+#
+# Task chain: data_prep (notebook) → ingest → silver → gold (pipelines).
+# Everything runs serverless: no cluster blocks anywhere.
+#
+# Run it with: databricks bundle run sample_job
+# Run it AGAIN to advance the demo (new files land, CDC history grows,
+# a new supplier snapshot appears) — the notebook auto-detects the round.
+resources:
+  jobs:
+    sample_job:
+      name: lhp_sample_quickstart
+      tasks:
+        - task_key: data_prep
+          notebook_task:
+            notebook_path: ../notebooks/data_prep.py
+            base_parameters:
+              catalog: ${var.catalog}
+              round: "auto"          # notebook auto-advances; override per-run if needed
+        - task_key: ingest
+          depends_on:
+            - task_key: data_prep
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.sample_ingest_pipeline.id}
+        - task_key: silver
+          depends_on:
+            - task_key: ingest
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.sample_silver_pipeline.id}
+        - task_key: gold
+          depends_on:
+            - task_key: silver
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.sample_gold_pipeline.id}

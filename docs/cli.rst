@@ -27,11 +27,14 @@ Basic Usage
 
 .. code-block:: bash
 
-   # Create a standard project
+   # Create a standard project (Declarative Automation Bundles support is on by default)
    lhp init my_project
 
-   # Create a Declarative Automation Bundle project
-   lhp init my_project --bundle
+   # Create a project without bundle support
+   lhp init my_project --no-bundle
+
+   # Scaffold the ready-to-run TPC-H sample project
+   lhp init my_demo --sample
 
 **Created Directory Structure:**
 
@@ -48,7 +51,39 @@ Basic Usage
    ├── schemas/                  # Table schema definitions
    ├── expectations/             # Data quality expectations
    ├── generated/                # Generated Python code (gitignored)
-   └── resources/                # Bundle resources (--bundle only)
+   └── resources/                # Bundle resources (omitted with --no-bundle)
+
+Sample Project (``--sample``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``lhp init <name> --sample`` scaffolds a ready-to-run TPC-H sample project
+instead of the empty skeleton. The sample builds a bronze → silver → gold
+medallion architecture against the read-only ``samples.tpch`` dataset
+available on every Unity Catalog workspace, and exercises the full LHP
+feature surface: delta and Auto Loader (``cloudfiles``) bronze ingestion
+driven by a reusable template, both Change Data Capture (CDC) flavors in
+silver (streaming CDC with ``apply_as_deletes`` and snapshot CDC), all four
+transform types, a gold materialized view from an external SQL file
+(``sql/sales_by_nation.sql``), presets, every substitution syntax, and
+operational metadata. A data-prep notebook (``notebooks/data_prep.py``) seeds
+the source data, and a hand-authored Declarative Automation Bundles job
+(``resources/sample_job.yml``) orchestrates the notebook and the three
+pipelines.
+
+The sample requires Declarative Automation Bundles support: combining
+``--sample`` with ``--no-bundle`` is a usage error (exit code ``2``).
+
+The sample ships a ready ``config/pipeline_config.yaml`` (no ``.tmpl``
+suffix). Because the project is bundle-enabled, pass it on every
+``lhp validate`` and ``lhp generate`` run:
+
+.. code-block:: bash
+
+   lhp validate --env dev -pc config/pipeline_config.yaml
+   lhp generate --env dev -pc config/pipeline_config.yaml
+
+For the guided walkthrough — deploy, run, and re-run the demo — see
+:doc:`tutorials/sample_quickstart`.
 
 Configuration Templates
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -106,8 +141,8 @@ used with ``lhp generate`` command:
 
 The ``--pipeline-config`` (``-pc``) flag tells LHP where to find the file that
 defines ``catalog`` and ``schema``. Bundle projects require it on every
-``lhp generate`` run; without it, every pipeline fails fast with a
-``BundleResourceError`` pointing at :doc:`configure_catalog_schema`.
+``lhp generate`` run; without it, every pipeline fails fast with
+``LHP-CFG-023`` pointing at :doc:`configure_catalog_schema`.
 
 See :doc:`bundle_config_reference` for detailed pipeline configuration options
 and :doc:`configure_catalog_schema` for the catalog/schema resolution order.
@@ -121,8 +156,8 @@ Regeneration behavior
 ~~~~~~~~~~~~~~~~~~~~~
 
 .. deprecated::
-   The ``--force`` flag on ``lhp generate`` and ``--no-state`` are retained
-   for backwards compatibility but are no-ops. Every ``lhp generate`` run
+   The ``--force`` flag on ``lhp generate`` is retained
+   for backwards compatibility but is a no-op. Every ``lhp generate`` run
    regenerates Python output unconditionally and wipes ``resources/lhp/``
    before rewriting one ``.pipeline.yml`` per pipeline.
 
