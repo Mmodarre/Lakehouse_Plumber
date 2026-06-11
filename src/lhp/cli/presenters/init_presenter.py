@@ -97,6 +97,8 @@ def _render_plain(
         lines.append(f"  created dir:  {d}")
     for f in file_names:
         lines.append(f"  created file: {f}")
+    if result.git_initialized:
+        lines.append("Initialized git repository: .git/")
     lines.append("Next steps:")
     for cmd in _next_step_commands(result):
         lines.append(f"  {cmd}")
@@ -124,6 +126,10 @@ def _render_rich(
     for f in file_names:
         tree.add(Text(f))
     console.print(tree)
+    if result.git_initialized:
+        console.print(
+            Text.assemble(("✓ ", "bold green"), ("Initialized git repository", "dim"))
+        )
 
     steps = [Text("Next steps:", style="bold")]
     steps.extend(Text(f"  {cmd}") for cmd in _next_step_commands(result))

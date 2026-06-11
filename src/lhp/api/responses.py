@@ -173,6 +173,8 @@ class InitProjectResult:
     result and render it themselves. ``created_files`` and
     ``created_dirs`` are tuples of absolute paths to filesystem entries
     that did not exist before the call and that this run produced.
+    ``git_initialized`` is True when this run created a project-local git
+    repository (``lhp init --sample`` only).
 
     :stability: provisional
     """
@@ -184,6 +186,7 @@ class InitProjectResult:
     bundle_enabled: bool
     error_message: Optional[str] = None
     error_code: Optional[str] = None
+    git_initialized: bool = False
 
     def is_successful(self) -> bool:
         return self.success
