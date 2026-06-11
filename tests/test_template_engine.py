@@ -1,5 +1,6 @@
 """Tests for Template Engine."""
 
+import pickle
 import tempfile
 from pathlib import Path
 
@@ -837,6 +838,90 @@ class TestTemplateEngineCompileCache:
 
         assert "{{ v }}" in engine_a._compiled
         assert engine_b._compiled == {}
+
+
+class TestTemplateEnginePickle:
+    """Pickling across the ``--sandbox`` spawn boundary.
+
+    ``TemplateEngine`` rides to worker processes via ``ProcessPoolExecutor``
+    initargs. Its ``_compiled`` memo holds ``jinja2.environment.Template``
+    objects whose ``root_render_func`` is dynamically compiled and therefore
+    NOT picklable, so ``__getstate__`` must ship an empty memo — the cache is
+    per-process and ``_compile`` rebuilds entries lazily from source strings.
+    """
+
+    TEMPLATE_YAML = """
+name: pickle_check
+version: "1.0"
+parameters:
+  - name: table
+    type: string
+    required: true
+actions:
+  - name: load_{{ table }}_raw
+    type: load
+    target: v_{{ table }}_raw
+    source:
+      type: cloudfiles
+      path: "/landing/{{ table }}"
+      format: json
+      readMode: stream
+"""
+
+    def _make_engine(self, tmp_path: Path) -> TemplateEngine:
+        """Build an engine over a minimal one-action template directory."""
+        (tmp_path / "pickle_check.yaml").write_text(self.TEMPLATE_YAML)
+        return TemplateEngine(tmp_path)
+
+    def test_fresh_engine_pickle_round_trip(self, tmp_path):
+        """A never-used engine survives a pickle round-trip intact."""
+        engine = self._make_engine(tmp_path)
+
+        clone = pickle.loads(pickle.dumps(engine))
+
+        assert isinstance(clone, TemplateEngine)
+        assert clone.list_templates() == engine.list_templates() == ["pickle_check"]
+
+    def test_warm_engine_pickle_round_trip(self, tmp_path):
+        """REGRESSION PIN: a warm compile cache must not poison pickling.
+
+        Rendering through the normal ``render_template`` path populates
+        ``_compiled`` with unpicklable jinja2 Template objects. Without
+        ``__getstate__`` dropping the memo, ``pickle.dumps`` raises
+        "Can't pickle <function root ...>" — exactly what broke every
+        ``--sandbox`` generate after the main-thread template pre-pass.
+        """
+        engine = self._make_engine(tmp_path)
+        engine.render_template("pickle_check", {"table": "orders"})
+        assert engine._compiled, "precondition: render must warm the memo"
+
+        clone = pickle.loads(pickle.dumps(engine))
+
+        assert isinstance(clone, TemplateEngine)
+
+    def test_unpickled_engine_renders_identically(self, tmp_path):
+        """The clone rebuilds compiled templates lazily and renders the same."""
+        engine = self._make_engine(tmp_path)
+        original = engine.render_template("pickle_check", {"table": "orders"})
+
+        clone = pickle.loads(pickle.dumps(engine))
+        rendered = clone.render_template("pickle_check", {"table": "orders"})
+
+        assert rendered == original
+        assert rendered[0].name == "load_orders_raw"
+        assert rendered[0].source["path"] == "/landing/orders"
+
+    def test_unpickled_engine_cache_starts_empty(self, tmp_path):
+        """The memo is per-process: empty after unpickling, refilled on use."""
+        engine = self._make_engine(tmp_path)
+        engine.render_template("pickle_check", {"table": "orders"})
+        assert engine._compiled  # original stays warm
+
+        clone = pickle.loads(pickle.dumps(engine))
+        assert clone._compiled == {}
+
+        clone.render_template("pickle_check", {"table": "orders"})
+        assert clone._compiled  # rebuilt lazily on first render
 
 
 if __name__ == "__main__":

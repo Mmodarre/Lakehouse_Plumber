@@ -5,6 +5,140 @@ All notable changes to Lakehouse Plumber are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] — 2026-06-10
+
+Developer sandbox mode plus a dependency-extraction overhaul.
+`lhp generate --sandbox` gives each developer a personal, namespaced copy of
+their slice of the project without touching shared tables. SQL table
+extraction is now parser-based and byte-faithful to substitution tokens,
+Python reads declared through YAML parameters form real dependency edges, and
+unresolvable reads surface as actionable advisory warnings instead of
+silently missing edges.
+
+### Added
+
+- **`lhp init <name> --sample` — scaffold a complete, runnable sample
+  project.** The new flag generates a TPC-H medallion-architecture project:
+  bronze ingestion via `delta` and `cloudfiles` loads, silver CDC in both
+  flavors (streaming AUTO CDC with deletes, and snapshot CDC), a gold
+  materialized view, plus templates, presets, every substitution syntax,
+  operational metadata columns, a data-prep notebook, and a hand-authored
+  Declarative Automation Bundles job. The project runs against the
+  `samples.tpch` dataset available on any Unity Catalog workspace. `--sample`
+  requires bundle support and cannot be combined with `--no-bundle`.
+- **Developer sandbox mode** — `lhp generate --sandbox` and
+  `lhp validate --sandbox` (mutually exclusive with `-p`/`--pipeline`). A
+  gitignored personal profile (`.lhp/profile.yaml`, `sandbox:` key) declares a
+  `namespace` and the `pipelines` in scope (exact names or globs); an optional
+  `sandbox:` block in `lhp.yaml` sets team policy — `strategy` (v1: `table`
+  only), `table_pattern` (default `{namespace}_{table}`), and `allowed_envs`.
+  Generation and validation are scoped to the profile's pipelines, and every
+  table produced in scope is renamed through the pattern — write targets,
+  delta-sink `tableName`, and in-scope reads, across structured fields, SQL
+  bodies in generated `spark.sql` literals, table literals in copied Python
+  modules, and table refs passed as YAML parameter values into user Python
+  code (python-transform `parameters`, python-load `source.parameters`, and
+  snapshot-CDC `source_function.parameters`, whole-value match only) — while
+  reads of tables produced outside the scope stay pointed at the shared tables
+  (read-shared / write-own). Bundle resource
+  files regenerate for the scoped pipelines only, the project event-log table
+  name is namespaced through the same pattern, and the monitoring phase is
+  skipped so shared monitoring artifacts are never clobbered. Deferred to a
+  follow-up (v1 limitations):
+  - `catalog` / `schema` rename strategies — v1 ships the `table` strategy
+    only (the strategy seam is in place).
+  - No sandbox teardown command — `bundle destroy` removes the sandbox
+    streaming tables and materialized views, but Delta-sink tables created by
+    sandbox runs are not auto-removed (manual cleanup; see the
+    "Develop in a sandbox" how-to).
+  - `lhp validate --sandbox` applies the structured renames but does not
+    surface Python unrewritable-read warnings — `LHP-VAL-066` is
+    generate-only in v1.
+  - Per-pipeline explicit `event_log:` dicts are not rewritten — only the
+    project-level composed event-log table name is namespaced.
+- **Sandbox warnings and errors.** `LHP-VAL-065` warns when a sandbox-renamed
+  sink table is also produced by out-of-scope pipelines (mixed producers; the
+  rewrite proceeds), and `LHP-VAL-066` warns when an in-scope read cannot be
+  rewritten (e.g. variable-bound or f-string table references in Python);
+  both ride the warning stream with category `sandbox` and never fail a run.
+  New errors `LHP-IO-025` (missing `.lhp/profile.yaml`), `LHP-CFG-062`
+  (invalid `sandbox:` block in `lhp.yaml`), `LHP-CFG-063` (invalid
+  `table_pattern`), `LHP-CFG-064` (invalid personal profile), `LHP-CFG-065`
+  (environment not sandbox-enabled), and `LHP-VAL-064` (a profile `pipelines`
+  entry matches no pipeline) cover the failure modes.
+- **Sandbox documentation** — a "Develop in a sandbox" how-to, a "Sandbox Mode
+  Reference" page, error-reference entries for all eight sandbox codes, and
+  AI-skill parity updates (new `sandbox.md` reference plus `project-config.md`
+  and `errors.md` additions).
+- **Parameter-bound Python dependency resolution.** Table reads built from
+  YAML-declared parameters now form dependency edges, mirroring the generated
+  code exactly: snapshot_cdc `source_function.parameters` (keyword-only
+  binding), Python transform `parameters` (positional dict), and Python load
+  `source.parameters` (positional dict, applied to `get_df` by default). The
+  analyzer also unrolls for-loops over statically-known string lists and
+  resolves string methods (`.replace`, `.upper`, `.lower`, `.strip`,
+  `.lstrip`, `.rstrip`, `.join`), subscripts, `.get()`, and binding-aware
+  f-strings. Calls routed through helper functions are deliberately not
+  followed.
+- **Dependency-extraction warnings, on by default.** `LHP-DEP-002` flags a
+  recognized Python table-read whose argument cannot be statically resolved;
+  `LHP-DEP-003` flags an unparseable SQL body. Both are advisory-only — they
+  never fail a run — and each carries flowgroup/action/file/line context and
+  recommends an explicit `depends_on`. Warnings surface on `lhp dag` stderr
+  and in the JSON (`warnings` + `metadata.total_warnings`) and text outputs,
+  but never in DOT or job/orchestration YAML. New provisional public DTO
+  `DependencyWarningView` (`api/responses.py`), exposed as
+  `DependencyAnalysisResult.warnings`.
+- **E2E coverage for dependency extraction** — a new fixture pipeline
+  `19_dependency_bindings` exercises parameter-bound snapshot/transform reads,
+  loop unrolling, and `LHP-DEP-002`; orchestration, master-job, and monitoring
+  baselines were regenerated to include it, and mid-segment-token SQL
+  extraction gained dedicated e2e coverage.
+
+### Changed
+
+- **SQL table extraction is now parser-based.** Dependency analysis parses SQL
+  with `sqlglot` (Spark/Databricks dialect) instead of regexes, replacing the
+  legacy regex SQL parser.
+- **Unresolvable f-string reads no longer emit a `"{var}"` marker.** F-strings
+  containing names that cannot be statically resolved previously produced a
+  junk `"{var}"` placeholder table in external sources; such reads are now
+  reported as unresolved via `LHP-DEP-002`, and the junk `{var}` entries
+  disappear from `lhp dag` outputs.
+
+### Fixed
+
+- **`TemplateEngine` instances pickle with an empty compiled-template memo.**
+  The compiled-template cache is per-process state; previously a warm cache
+  made sandbox runs on template-using projects fail at the worker spawn
+  boundary (sandbox-specific: only the sandbox pre-pass warms the cache on
+  the main thread before the worker pool starts).
+- **Substitution tokens survive SQL extraction byte-for-byte.** The regex
+  parser silently truncated mid-segment tokens (`FROM cat.sch.tbl${suffix}`
+  was extracted as `cat.sch.tbl`), so suffix-carrying producers could never
+  match suffixed readers in `lhp dag`. The parser-based extraction also
+  correctly excludes MERGE/INSERT/CTAS write targets and handles CTEs, quoted
+  identifiers, multi-statement SQL, and string literals containing `FROM`;
+  the `$source` placeholder no longer leaks into external sources.
+
+### Removed
+
+- **Legacy regex SQL parser** (`lhp/utils/sql_parser.py`) — superseded by the
+  sqlglot-based extraction in `core/dependencies/`.
+
+### Dependencies
+
+- Add `sqlglot>=26.0,<28` as a runtime dep (parser-based SQL table extraction
+  for dependency analysis).
+
+### Notes
+
+- **Sample-project live-workspace validation is deferred.** Offline validation
+  of the `--sample` project — init → validate → generate, plus an end-to-end
+  test — is covered in CI. Deploying the bundle and running the sample job
+  (rounds 1–2) on a real workspace is deliberately deferred to post-merge
+  manual verification.
+
 ## [0.9.0] — 2026-06-10
 
 Architecture refactor release. The internals were reorganized into a layered,

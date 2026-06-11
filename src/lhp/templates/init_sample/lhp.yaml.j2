@@ -1,0 +1,38 @@
+# LakehousePlumber Project Configuration — sample quickstart (TPC-H)
+name: {{ project_name }}
+version: "1.0"
+description: "LHP sample quickstart: TPC-H medallion demo against samples.tpch"
+author: "{{ author }}"
+created_date: "{{ current_date }}"
+
+## Operational metadata columns available to flowgroups.
+## Each sample flowgroup opts in explicitly with a list, e.g.:
+##   operational_metadata: ["_processing_timestamp"]
+## The file-lineage columns only make sense at the view (load) stage of
+## cloudfiles ingestion, so their applies_to is restricted to ["view"].
+## Note: the CDC flowgroups (dim_customer, dim_supplier) deliberately do NOT
+## enable operational metadata — a per-run _processing_timestamp flowing
+## through apply_changes would churn SCD2 history (see README).
+operational_metadata:
+  columns:
+    _processing_timestamp:
+      expression: "F.current_timestamp()"
+      description: "When LHP processed the record"
+      applies_to: ["view", "streaming_table", "materialized_view"]
+    _source_file_path:
+      expression: "F.col('_metadata.file_path')"
+      description: "Source file (cloudfiles only)"
+      applies_to: ["view"]
+    _source_file_size:
+      expression: "F.col('_metadata.file_size')"
+      description: "Source file size in bytes (cloudfiles only)"
+      applies_to: ["view"]
+
+event_log:
+  catalog: "${catalog}"
+  schema: _meta
+  name_suffix: "_event_log"
+
+monitoring:
+  checkpoint_path:  "/Volumes/${catalog}/_meta/checkpoints"
+  job_config_path: "config/monitoring_job_config.yaml"

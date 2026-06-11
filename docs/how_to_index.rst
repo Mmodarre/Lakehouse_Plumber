@@ -37,6 +37,12 @@ Reusability and patterns
 * :doc:`dynamic_templates_guide` — Use Jinja2 conditionals, loops, and filters in
   Templates for advanced parameter patterns.
 
+Develop in parallel
+-------------------
+
+* :doc:`develop_in_a_sandbox` — Generate a personal, namespaced copy of your
+  pipelines so parallel developers never collide on shared tables.
+
 Deploy
 ------
 

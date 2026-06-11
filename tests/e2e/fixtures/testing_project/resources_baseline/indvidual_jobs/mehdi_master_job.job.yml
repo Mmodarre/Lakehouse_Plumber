@@ -13,6 +13,11 @@ resources:
         - task_key: j_cdc_task
           job_task:
             job_id: ${resources.jobs.j_cdc.id}
+        - task_key: j_dep_bindings_task
+          depends_on:
+            - task_key: j_helpers_task
+          job_task:
+            job_id: ${resources.jobs.j_dep_bindings.id}
         - task_key: j_four_task
           depends_on:
             - task_key: j_three_task

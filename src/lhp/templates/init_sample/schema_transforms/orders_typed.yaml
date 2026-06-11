@@ -1,0 +1,17 @@
+# Schema transform for orders_clean: rename and/or cast via arrow syntax.
+#   "old -> new: TYPE"  rename + cast
+#   "old -> new"        rename only
+#   "name: TYPE"        cast only
+# Everything downstream (expectations, python transform, gold SQL) uses the
+# POST-RENAME names. enforcement: permissive lets unlisted columns through.
+name: orders_typed
+columns:
+  - "o_orderkey -> order_id: BIGINT"
+  - "o_custkey -> customer_id: BIGINT"
+  - "o_orderstatus -> order_status: STRING"
+  - "o_totalprice -> total_price: DECIMAL(15,2)"
+  - "o_orderdate -> order_date: DATE"
+  - "o_orderpriority -> order_priority"
+  - "o_clerk -> clerk"
+  - "o_comment -> comment"
+  - "received_at: TIMESTAMP"                   # cast only, no rename

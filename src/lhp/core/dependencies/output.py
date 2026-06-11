@@ -59,7 +59,9 @@ def export_to_json(result: DependencyAnalysisResult) -> Dict[str, Any]:
         result: Complete dependency analysis result
 
     Returns:
-        Structured dictionary suitable for ``json.dump``.
+        Structured dictionary suitable for ``json.dump``. The top-level
+        ``"warnings"`` key is always present (empty list when no extraction
+        warnings were recorded) so the schema stays stable for consumers.
     """
     return {
         "metadata": {
@@ -67,6 +69,7 @@ def export_to_json(result: DependencyAnalysisResult) -> Dict[str, Any]:
             "total_external_sources": result.total_external_sources,
             "total_stages": len(result.execution_stages),
             "has_circular_dependencies": len(result.circular_dependencies) > 0,
+            "total_warnings": len(result.warnings),
         },
         "pipelines": {
             name: {
@@ -82,6 +85,18 @@ def export_to_json(result: DependencyAnalysisResult) -> Dict[str, Any]:
         "execution_stages": result.execution_stages,
         "external_sources": result.external_sources,
         "circular_dependencies": result.circular_dependencies,
+        "warnings": [
+            {
+                "code": warning.code,
+                "message": warning.message,
+                "flowgroup": warning.flowgroup,
+                "action": warning.action,
+                "suggestion": warning.suggestion,
+                "file_path": warning.file_path,
+                "line": warning.line,
+            }
+            for warning in result.warnings
+        ],
     }
 
 
@@ -164,6 +179,20 @@ def _generate_text_representation(result: DependencyAnalysisResult) -> str:
         lines.append("These must be resolved before pipeline execution:")
         for cycle in result.circular_dependencies:
             lines.append(f"  {cycle[0]}")
+        lines.append("")
+
+    if result.warnings:
+        lines.append("DEPENDENCY EXTRACTION WARNINGS")
+        lines.append("-" * 40)
+        for warning in result.warnings:
+            header = f"  {warning.code} {warning.flowgroup}.{warning.action}"
+            if warning.file_path and warning.line is not None:
+                header += f" ({warning.file_path}:{warning.line})"
+            elif warning.file_path:
+                header += f" ({warning.file_path})"
+            lines.append(header)
+            lines.append(f"    {warning.message}")
+            lines.append(f"    Suggestion: {warning.suggestion}")
         lines.append("")
 
     lines.append("DEPENDENCY TREE")

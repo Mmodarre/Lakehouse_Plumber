@@ -317,6 +317,10 @@ class InspectionFacade:
         further restricts the graph to synthetic flowgroups expanded
         from the named blueprint.
 
+        The result's ``warnings`` may carry ``LHP-DEP-002`` /
+        ``LHP-DEP-003`` advisory codes (never raised), each suggesting
+        an explicit ``depends_on`` declaration.
+
         :stability: provisional
         :raises lhp.errors.LHPError: ``LHP-CFG-*`` / ``LHP-VAL-*`` /
             ``LHP-FILE-*`` / ``LHP-MULT-*`` propagated from flowgroup

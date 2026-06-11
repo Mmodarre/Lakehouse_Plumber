@@ -12,9 +12,9 @@ non-optional contracts:
    ``error_code`` strings).
 
 The sweep covers ``GenerationResponse``, ``BatchGenerationResponse``,
-``ValidationResponse``, ``BatchValidationResponse``, and
-``InitProjectResult`` (the latter is added by B4 — the test skips
-gracefully if absent at collection time).
+``ValidationResponse``, ``BatchValidationResponse``,
+``DependencyWarningView``, and ``InitProjectResult`` (the latter is
+added by B4 — the test skips gracefully if absent at collection time).
 """
 
 from __future__ import annotations
@@ -38,6 +38,7 @@ from lhp.api import (
 from lhp.api.responses import (
     BatchGenerationResponse,
     BatchValidationResponse,
+    DependencyWarningView,
     GenerationResponse,
     ValidationResponse,
 )
@@ -176,6 +177,19 @@ def batch_validation_response(
     )
 
 
+@pytest.fixture
+def dependency_warning_view() -> DependencyWarningView:
+    return DependencyWarningView(
+        code="LHP-DEP-002",
+        message="Source 'raw.customer' is not produced by any flowgroup in scope",
+        flowgroup="customer_ingest",
+        action="load_customer",
+        suggestion="Declare an explicit depends_on for 'raw.customer'",
+        file_path="pipelines/bronze/customer.yaml",
+        line=12,
+    )
+
+
 @pytest.mark.unit
 class TestFrozenContract:
     """§4.4 / §9.7: every public DTO must be a frozen dataclass."""
@@ -187,6 +201,7 @@ class TestFrozenContract:
             BatchGenerationResponse,
             ValidationResponse,
             BatchValidationResponse,
+            DependencyWarningView,
             pytest.param(
                 InitProjectResult,
                 marks=pytest.mark.skipif(
@@ -231,6 +246,12 @@ class TestFrozenMutationRaises:
     ) -> None:
         with pytest.raises(FrozenInstanceError):
             batch_validation_response.success = True  # type: ignore[misc]
+
+    def test_dependency_warning_view_mutation_raises(
+        self, dependency_warning_view: DependencyWarningView
+    ) -> None:
+        with pytest.raises(FrozenInstanceError):
+            dependency_warning_view.code = "tampered"  # type: ignore[misc]
 
     @pytest.mark.skipif(
         InitProjectResult is None,
@@ -284,6 +305,14 @@ class TestPickleRoundTrip:
     ) -> None:
         restored = pickle.loads(pickle.dumps(batch_validation_response))
         assert restored == batch_validation_response
+
+    def test_dependency_warning_view_pickle(
+        self, dependency_warning_view: DependencyWarningView
+    ) -> None:
+        restored = pickle.loads(pickle.dumps(dependency_warning_view))
+        assert restored == dependency_warning_view
+        assert restored.code == "LHP-DEP-002"
+        assert restored.line == 12
 
     @pytest.mark.skipif(
         InitProjectResult is None,
@@ -365,6 +394,15 @@ class TestJSONRoundTripViaFields:
         round_tripped = _json_round_trip(list(validation_response.validated_pipelines))
         assert round_tripped == ["bronze"]
 
+    def test_dependency_warning_view_fields_json_round_trip(
+        self, dependency_warning_view: DependencyWarningView
+    ) -> None:
+        """Every field is a flat JSON-native value (str / Optional / int)."""
+        payload = dataclasses.asdict(dependency_warning_view)
+        assert _json_round_trip(payload) == payload
+        restored = DependencyWarningView(**_json_round_trip(payload))
+        assert restored == dependency_warning_view
+
     @pytest.mark.skipif(
         InitProjectResult is None,
         reason="InitProjectResult not yet present (added by B4).",
@@ -417,6 +455,7 @@ class TestFieldTypeContract:
             BatchGenerationResponse,
             ValidationResponse,
             BatchValidationResponse,
+            DependencyWarningView,
             pytest.param(
                 InitProjectResult,
                 marks=pytest.mark.skipif(
@@ -442,6 +481,7 @@ class TestFieldTypeContract:
             BatchGenerationResponse,
             ValidationResponse,
             BatchValidationResponse,
+            DependencyWarningView,
             pytest.param(
                 InitProjectResult,
                 marks=pytest.mark.skipif(
@@ -474,6 +514,7 @@ class TestFieldTypeContract:
             BatchGenerationResponse,
             ValidationResponse,
             BatchValidationResponse,
+            DependencyWarningView,
             pytest.param(
                 InitProjectResult,
                 marks=pytest.mark.skipif(
@@ -571,3 +612,65 @@ class TestBatchValidationDuplicateContract:
         assert isinstance(response, BatchValidationResponse)
         assert response.error_code == "LHP-VAL-009"
         assert response.success is False
+
+
+@pytest.mark.unit
+class TestDependencyWarningConverterMapping:
+    """Internal ``DependencyWarning`` records project field-by-field onto
+    the public ``warnings`` tuple of :class:`DependencyAnalysisResult`
+    (via the private ``_dependency_result_to_view`` seam)."""
+
+    @staticmethod
+    def _internal_result(warnings: list):
+        import networkx as nx
+
+        from lhp.models.dependencies import (
+            DependencyAnalysisResult as InternalDepResult,
+        )
+        from lhp.models.dependencies import DependencyGraphs
+
+        return InternalDepResult(
+            graphs=DependencyGraphs(
+                action_graph=nx.DiGraph(),
+                flowgroup_graph=nx.DiGraph(),
+                pipeline_graph=nx.DiGraph(),
+                metadata={},
+            ),
+            pipeline_dependencies={},
+            execution_stages=[],
+            circular_dependencies=[],
+            external_sources=[],
+            warnings=warnings,
+        )
+
+    def test_one_internal_warning_maps_to_one_tuple_field_by_field(self) -> None:
+        from lhp.api._inspection_converters import _dependency_result_to_view
+        from lhp.models.dependencies import DependencyWarning
+
+        internal_warning = DependencyWarning(
+            code="LHP-DEP-003",
+            message="Cross-pipeline reference to 'silver.orders'",
+            flowgroup="orders_enrich",
+            action="load_orders",
+            suggestion="Declare an explicit depends_on for 'silver.orders'",
+            file_path="pipelines/silver/orders.yaml",
+            line=7,
+        )
+        view = _dependency_result_to_view(self._internal_result([internal_warning]))
+
+        assert len(view.warnings) == 1
+        warning_view = view.warnings[0]
+        assert isinstance(warning_view, DependencyWarningView)
+        assert warning_view.code == internal_warning.code
+        assert warning_view.message == internal_warning.message
+        assert warning_view.flowgroup == internal_warning.flowgroup
+        assert warning_view.action == internal_warning.action
+        assert warning_view.suggestion == internal_warning.suggestion
+        assert warning_view.file_path == internal_warning.file_path
+        assert warning_view.line == internal_warning.line
+
+    def test_no_internal_warnings_maps_to_empty_tuple(self) -> None:
+        from lhp.api._inspection_converters import _dependency_result_to_view
+
+        view = _dependency_result_to_view(self._internal_result([]))
+        assert view.warnings == ()

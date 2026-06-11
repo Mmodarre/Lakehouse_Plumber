@@ -22,7 +22,7 @@ import networkx as nx
 
 from lhp.models import FlowGroup
 
-from ...models.dependencies import DependencyGraphs
+from ...models.dependencies import DependencyGraphs, DependencyWarning
 from ._producers import build_producer_indexes, match_table_producers
 from .source_parsing import SourceParser
 
@@ -66,7 +66,9 @@ class DependencyGraphBuilder:
             self.logger.warning("No flowgroups found for analysis")
             return self._create_empty_graphs()
 
-        action_graph = self._build_action_graph(flowgroups, file_paths)
+        action_graph, extraction_warnings = self._build_action_graph(
+            flowgroups, file_paths
+        )
         flowgroup_graph = self._build_flowgroup_graph(flowgroups, action_graph)
         pipeline_graph = self._build_pipeline_graph(flowgroups, flowgroup_graph)
         metadata = self._build_metadata(
@@ -83,6 +85,7 @@ class DependencyGraphBuilder:
             flowgroup_graph=flowgroup_graph,
             pipeline_graph=pipeline_graph,
             metadata=metadata,
+            extraction_warnings=extraction_warnings,
         )
 
     def _create_empty_graphs(self) -> DependencyGraphs:
@@ -96,8 +99,8 @@ class DependencyGraphBuilder:
 
     def _build_action_graph(
         self, flowgroups: List[FlowGroup], file_paths: Dict[str, Path]
-    ) -> nx.DiGraph:
-        """Build action-level dependency graph."""
+    ) -> Tuple[nx.DiGraph, List[DependencyWarning]]:
+        """Build the action-level dependency graph + stamped extraction warnings."""
         graph = nx.DiGraph()
         # View targets are pipeline-scoped to mirror Lakeflow runtime semantics:
         # `action.target` produces a temporary view visible only within its own
@@ -144,15 +147,17 @@ class DependencyGraphBuilder:
         # producer whose write_target resolved to a concrete catalog — this is a
         # documented authoring constraint, NOT fixed by ref canonicalization.
         source_parser = SourceParser(file_paths, self.project_root)
+        extraction_warnings: List[DependencyWarning] = []
 
         for flowgroup in flowgroups:
             for action in flowgroup.actions:
                 action_id = f"{flowgroup.flowgroup}.{action.name}"
-                sources = source_parser.extract_action_sources(
+                action_sources = source_parser.extract_action_sources(
                     action, flowgroup.flowgroup
                 )
+                extraction_warnings.extend(action_sources.warnings)
 
-                for source in sources:
+                for source in action_sources.sources:
                     # CHOKE POINT (ii) EDGE-MATCH LOOKUP. View path first
                     # (pipeline-scoped, raw key, NO canonicalization); fall back
                     # to the global, canonicalized table path.
@@ -172,7 +177,10 @@ class DependencyGraphBuilder:
                             graph.nodes[action_id]["external_sources"] = []
                         graph.nodes[action_id]["external_sources"].append(source)
 
-        return graph
+        # Ordered dedup over full-record equality (DependencyWarning is a
+        # frozen dataclass): identical advisories — same code/message/
+        # flowgroup/action/file/line — collapse to one, first occurrence wins.
+        return graph, list(dict.fromkeys(extraction_warnings))
 
     def _build_flowgroup_graph(
         self, flowgroups: List[FlowGroup], action_graph: nx.DiGraph

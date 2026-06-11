@@ -174,6 +174,7 @@ class TestJobOrchestrationE2E:
             # fixture is a valid multi-job project.
             "j_blueprint.job.yml",
             "j_cdc.job.yml",
+            "j_dep_bindings.job.yml",
             "j_helpers.job.yml",
             "j_jdbc.job.yml",
             "j_namespace.job.yml",
@@ -233,6 +234,7 @@ class TestJobOrchestrationE2E:
             # Feature-demo jobs (see test_multi_job_with_default_master).
             "j_blueprint.job.yml",
             "j_cdc.job.yml",
+            "j_dep_bindings.job.yml",
             "j_helpers.job.yml",
             "j_jdbc.job.yml",
             "j_namespace.job.yml",
@@ -290,6 +292,7 @@ class TestJobOrchestrationE2E:
             # Feature-demo jobs (see test_multi_job_with_default_master).
             "j_blueprint.job.yml",
             "j_cdc.job.yml",
+            "j_dep_bindings.job.yml",
             "j_helpers.job.yml",
             "j_jdbc.job.yml",
             "j_namespace.job.yml",

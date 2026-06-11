@@ -1,0 +1,10 @@
+# Preset applied to the silver streaming-table writes (dim_customer,
+# dim_supplier, orders_clean).
+name: silver_quality
+version: "1.0"
+description: "Silver defaults: quality tag"
+defaults:
+  write_actions:
+    streaming_table:
+      table_properties:
+        quality: "silver"

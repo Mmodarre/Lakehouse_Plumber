@@ -1,0 +1,9 @@
+from pyspark.sql import DataFrame
+
+
+def union_configured_tables(df: DataFrame, spark, parameters) -> DataFrame:
+    """Union the input view with every table named in parameters["tables"]."""
+    result = df
+    for t in parameters["tables"]:
+        result = result.unionByName(spark.read.table(t), allowMissingColumns=True)
+    return result

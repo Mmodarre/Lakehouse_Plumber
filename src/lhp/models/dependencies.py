@@ -1,11 +1,27 @@
 """Data models for dependency analysis in LakehousePlumber."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 import networkx as nx
 
 from ..errors import ErrorFactory, codes
+
+
+@dataclass(frozen=True)
+class DependencyWarning:
+    """Advisory record from dependency extraction (LHP-DEP-002 / LHP-DEP-003).
+
+    Warning-only: carried on analysis results for presentation, never raised.
+    """
+
+    code: str
+    message: str
+    flowgroup: str
+    action: str
+    suggestion: str
+    file_path: Optional[str] = None
+    line: Optional[int] = None
 
 
 @dataclass
@@ -14,6 +30,7 @@ class DependencyGraphs:
     flowgroup_graph: nx.DiGraph
     pipeline_graph: nx.DiGraph
     metadata: Dict[str, Any]
+    extraction_warnings: List[DependencyWarning] = field(default_factory=list)
 
     def get_graph_by_level(self, level: str) -> nx.DiGraph:
         level_map = {
@@ -52,6 +69,7 @@ class DependencyAnalysisResult:
     execution_stages: List[List[str]]
     circular_dependencies: List[List[str]]
     external_sources: List[str]
+    warnings: List[DependencyWarning] = field(default_factory=list)
 
     @property
     def total_pipelines(self) -> int:

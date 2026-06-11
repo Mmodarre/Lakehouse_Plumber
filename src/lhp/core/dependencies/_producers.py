@@ -27,7 +27,7 @@ writes:
 """
 
 from collections import defaultdict
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from lhp.models import ActionType, FlowGroup
 
@@ -146,12 +146,28 @@ def match_table_producers(
     table_producers: Dict[str, List[str]],
     table_short_to_catalogs: Dict[str, Dict[str, List[str]]],
 ) -> List[str]:
-    """Resolve a read ``source`` against the canonical global table index.
+    """Resolve a read ``source`` to its producing action ids.
 
     CHOKE POINT (ii) EDGE-MATCH LOOKUP (table path). The caller tries the
-    pipeline-scoped view index first and falls back here.
+    pipeline-scoped view index first and falls back here. Thin delegate: the
+    LOCKED 2-part<->3-part reconciliation rule lives in exactly one place,
+    :func:`match_produced_table`.
+    """
+    key = match_produced_table(source, table_producers, table_short_to_catalogs)
+    return table_producers.get(key, []) if key is not None else []
 
-    LOCKED 2-part<->3-part reconciliation rule:
+
+def match_produced_table(
+    source: str,
+    table_producers: Dict[str, List[str]],
+    table_short_to_catalogs: Dict[str, Dict[str, List[str]]],
+) -> Optional[str]:
+    """Resolve a read ``source`` to its canonical producer-index key.
+
+    Returns the ``table_producers`` key that ``source`` matches, or ``None``
+    when no producer matches (the read is external).
+
+    LOCKED 2-part<->3-part reconciliation rule (single implementation):
 
     - A 3-part ``catalog.schema.table`` source matches a 3-part producer by
       exact canonical equality.
@@ -172,31 +188,30 @@ def match_table_producers(
 
     if len(parts) == 3:
         canonical = ".".join(parts)
-        exact = table_producers.get(canonical)
-        if exact:
-            return exact
+        if table_producers.get(canonical):
+            return canonical
         # 3-part source, but the producer may have been registered 2-part
         # (empty catalog). Reconcile on the schema.table suffix + uniqueness.
-        short = ".".join(parts[1:])
-        return _unique_short_match(short, table_short_to_catalogs)
+        return _unique_short_key(".".join(parts[1:]), table_short_to_catalogs)
 
     if len(parts) == 2:
-        short = ".".join(parts)
-        return _unique_short_match(short, table_short_to_catalogs)
+        return _unique_short_key(".".join(parts), table_short_to_catalogs)
 
-    return []
+    return None
 
 
-def _unique_short_match(
+def _unique_short_key(
     short: str,
     table_short_to_catalogs: Dict[str, Dict[str, List[str]]],
-) -> List[str]:
-    """Return producers for ``short`` only when a single catalog claims it.
+) -> Optional[str]:
+    """Return the producer-index key for ``short`` when a single catalog claims it.
 
-    Multiple distinct catalogs => ambiguous => no match (external).
+    Multiple distinct catalogs => ambiguous => no match (external). A unique
+    EMPTY catalog means the producer itself was registered 2-part, so the
+    ``table_producers`` key is ``short`` itself.
     """
     by_catalog = table_short_to_catalogs.get(short)
-    if by_catalog and len(by_catalog) == 1:
-        (only_action_ids,) = by_catalog.values()
-        return only_action_ids
-    return []
+    if not by_catalog or len(by_catalog) != 1:
+        return None
+    (catalog,) = by_catalog
+    return f"{catalog}.{short}" if catalog else short

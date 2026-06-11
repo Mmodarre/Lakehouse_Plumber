@@ -3,6 +3,7 @@
 ## Table of Contents
 - [Project Structure](#project-structure)
 - [lhp.yaml](#lhpyaml)
+- [Sandbox Mode (.lhp/profile.yaml)](#sandbox-mode-lhpprofileyaml)
 - [pipeline_config.yaml — catalog and schema](#pipeline_configyaml--catalog-and-schema)
 - [Substitutions & Secrets](#substitutions--secrets)
 - [Local Variables](#local-variables)
@@ -82,6 +83,64 @@ opts into `packaging: wheel` (see the pipeline-config section).
 - Invalid `wheel` shape (not a mapping, or `artifact_volume` not a string) → `LHP-CFG-060`.
 - A pipeline set to `packaging: wheel` but `artifact_volume` missing/empty or resolving to a non-`/Volumes/` path → `LHP-CFG-061`.
 - Source: `src/lhp/models/_project.py:WheelConfig` / `ProjectConfig.wheel`; parser `src/lhp/core/loaders/_wheel_config_parser.py:parse_wheel_config` (CFG-060); resolver `src/lhp/bundle/manager.py:BundleManager._resolve_artifact_volume` (CFG-061).
+
+### `sandbox` block (team sandbox policy)
+
+Optional top-level `sandbox:` block in `lhp.yaml` — the committed team policy for
+`--sandbox` runs. When absent, team defaults apply: strategy `table`, pattern
+`{namespace}_{table}`, any env allowed. Personal scope lives separately in the
+gitignored `.lhp/profile.yaml` (see [Sandbox Mode](#sandbox-mode-lhpprofileyaml)).
+
+| key | type | default | notes |
+|-----|------|---------|-------|
+| `strategy` | `table` | `table` | v1 supports `table` only (renames the table leaf; schema/catalog strategies reserved). Any other value → `LHP-CFG-062`. |
+| `table_pattern` | str | `{namespace}_{table}` | Formats the table LEAF only (catalog/schema unchanged). Placeholders limited to `{namespace}` and `{table}` — BOTH required; no conversions (`!r`) or format specs (`:>10`); literal text `[A-Za-z0-9_]` only. Invalid → `LHP-CFG-063`. |
+| `allowed_envs` | list[str] | None | Envs where `--sandbox` may run. Absent = unrestricted. Empty list `[]` → `LHP-CFG-062`. Running a non-listed env → `LHP-CFG-065`. |
+
+```yaml
+sandbox:
+  strategy: table
+  table_pattern: "{namespace}__{table}"
+  allowed_envs: [dev]
+```
+
+- Block not a mapping or any non-`table_pattern` field invalid → `LHP-CFG-062`; bad `table_pattern` → `LHP-CFG-063`.
+- Source: `src/lhp/models/_sandbox.py:SandboxConfig`; parser `src/lhp/core/loaders/_sandbox_config_parser.py`.
+
+## Sandbox Mode (.lhp/profile.yaml)
+
+Personal, **gitignored** profile at `<project_root>/.lhp/profile.yaml` declaring a
+developer's sandbox identity and pipeline scope. Explicit opt-in — nothing is
+auto-detected. Semantics in one line: **read-shared / write-own** — tables produced
+by in-scope pipelines are renamed into the namespace (on writes and on every
+in-scope read); reads of out-of-scope shared tables are untouched.
+
+The payload nests under a top-level `sandbox:` key:
+
+| key | type | required | notes |
+|-----|------|----------|-------|
+| `namespace` | str | yes | Regex `^[a-z][a-z0-9_]{0,63}$` — lowercase letter first, then lowercase letters/digits/underscores, max 64 chars total. |
+| `pipelines` | list[str] | yes | Non-empty; exact pipeline names or case-sensitive `fnmatchcase` globs (`*` `?` `[`). An entry matching zero pipelines → `LHP-VAL-064`. |
+
+```yaml
+# .lhp/profile.yaml (gitignored)
+sandbox:
+  namespace: alice
+  pipelines:
+    - bronze_*
+    - silver_orders
+```
+
+```bash
+lhp generate -e dev --sandbox    # generate only the profile's pipelines, write targets namespaced
+lhp validate -e dev --sandbox
+```
+
+- `--sandbox` is mutually exclusive with `-p`/`--pipeline` (usage error, exit 2) — sandbox scope comes from the profile.
+- Missing profile → `LHP-IO-025`; invalid profile → `LHP-CFG-064`.
+- Only profile-matched pipelines are generated; `generated/<env>/` and `resources/lhp/` contain exactly them. Monitoring phase is skipped.
+
+Full details: [sandbox.md](sandbox.md)
 
 ## pipeline_config.yaml — catalog and schema
 

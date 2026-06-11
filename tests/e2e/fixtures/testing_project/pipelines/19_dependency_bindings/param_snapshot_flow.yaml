@@ -1,0 +1,35 @@
+# Parameter-bound snapshot CDC: the snapshot source table is declared in YAML
+# and bound to the source function's keyword-only argument (functools.partial).
+# The dependency analyzer resolves the read through that binding, so the edge
+# to the helper_imports pipeline (producer of
+# ${catalog}.${bronze_schema}.helper_snapshot_dim) lands without depends_on.
+pipeline: dep_bindings
+flowgroup: param_snapshot_flow
+#job_name: j_dep_bindings
+
+actions:
+  - name: load_param_snapshot_seed
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      database: "${catalog}.${raw_schema}"
+      table: dep_bindings_seed
+    target: v_param_snapshot_seed
+
+  - name: write_param_snapshot
+    type: write
+    source: v_param_snapshot_seed
+    write_target:
+      type: streaming_table
+      database: "${catalog}.${silver_schema}"
+      table: "param_snapshot_dim"
+      mode: "snapshot_cdc"
+      snapshot_cdc_config:
+        source_function:
+          file: "py_functions/dep_bindings_snapshot_func.py"
+          function: "next_param_snapshot"
+          parameters:
+            source_table: "${catalog}.${bronze_schema}.helper_snapshot_dim"
+        keys: ["id"]
+        stored_as_scd_type: 1

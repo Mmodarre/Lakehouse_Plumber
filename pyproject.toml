@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lakehouse-plumber"
-version = "0.9.0"
+version = "0.9.1"
 description = "A framework for building and managing enterprise Lakeflow Spark Declaritive Pipelines"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -42,6 +42,9 @@ dependencies = [
     # regenerate baselines with the new version.
     "ruff==0.13.3",
     "networkx>=3.6.0",
+    # Bounded ceiling: extracted SQL dependency edges feed hash-pinned e2e
+    # baselines; bumps must be deliberate (characterization diff + baseline regen).
+    "sqlglot>=26.0,<28",
 ]
 
 [project.optional-dependencies]
@@ -85,6 +88,7 @@ where = ["src"]
 "lhp.templates.bundle" = ["*.j2"]
 # triple glob defends against historical setuptools dotfile inclusion bug
 "lhp.templates.init" = ["**/*", ".*", "**/.*"]
+"lhp.templates.init_sample" = ["**/*", ".*", "**/.*"]
 "lhp.templates.load" = ["*.j2"]
 "lhp.templates.transform" = ["*.j2"]
 "lhp.templates.write" = ["*.j2"]
@@ -108,7 +112,11 @@ addopts = [
     "--strict-config",
 ]
 testpaths = ["tests"]
-norecursedirs = ["tests/baselines"]
+# Exclude fixture/baseline trees from collection: they contain files named
+# test_*.py that are fixture DATA (e.g. tests/e2e/fixtures/.../test_reporting_publisher.py),
+# not real tests — importing them during collection writes __pycache__/*.pyc into
+# the hash-stable fixture tree and pollutes e2e baseline directory comparisons.
+norecursedirs = ["tests/baselines", "tests/e2e/fixtures"]
 pythonpath = ["src", "."]  # "." needed so tests can `from tests.helpers import ...` / `from tests.fakes import ...`
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
@@ -179,6 +187,7 @@ extend-exclude = [
     "tests/e2e/fixtures",         # generated E2E baselines — NEVER format (hash-stable)
     "tests/baselines",            # generated DLT baselines (reference dp/spark globals → F821)
     "tests/performance/baselines",
+    "src/lhp/templates/init_sample",  # packaged sample-project data — notebook-source .py referencing spark/dbutils globals; never lint/format
 ]
 
 [tool.ruff.lint]
@@ -221,6 +230,9 @@ known-first-party = ["lhp"]
 
 [tool.mypy]
 python_version = "3.11"
+# Packaged sample-project template tree — package DATA (imports pyspark,
+# references Databricks-injected globals), never imported by LHP code.
+exclude = '^src/lhp/templates/init_sample/'
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -321,5 +333,6 @@ tests_dir = "tests/"
 # Dead-code detection. See vulture_whitelist.py for triaged false positives.
 # Run: vulture src/lhp/ vulture_whitelist.py --min-confidence 80
 paths = ["src/lhp/", "vulture_whitelist.py"]
+exclude = ["src/lhp/templates/init_sample/"]  # packaged sample-project data, never imported
 min_confidence = 80
 sort_by_size = true

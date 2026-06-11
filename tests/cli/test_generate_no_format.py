@@ -73,8 +73,11 @@ def _patch_worker_state_with_unformatted_codegen(monkeypatch) -> None:
 
     original = ActionOrchestrator._build_generate_worker_state
 
-    def _patched(self, env, include_tests):
-        state = original(self, env, include_tests)
+    def _patched(self, env, include_tests, **kwargs):
+        # ``**kwargs`` forwards builder keywords added after this shim was
+        # written (e.g. ``table_renames``) so the wrapper tracks the real
+        # signature (§6.2).
+        state = original(self, env, include_tests, **kwargs)
         return dataclasses.replace(
             state, code_generator=_UnformattedCodeGenerator(state.code_generator)
         )

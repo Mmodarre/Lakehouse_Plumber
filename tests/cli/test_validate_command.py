@@ -15,7 +15,9 @@ Validate REPORTS findings — every validation issue is folded into the terminal
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from click.testing import CliRunner
@@ -94,8 +96,11 @@ def test_clean_project_exits_zero_and_validates_pipelines(monkeypatch):
 
     assert result.exit_code == 0, result.stderr
     # The counts banner proves a non-empty worklist ran (not "0 validated").
-    assert "validated" in result.stderr
-    assert "0 validated" not in result.stderr
+    # Word-boundary match: a bare substring check would false-positive on
+    # multiples of ten ("20 validated" contains "0 validated").
+    counts = re.search(r"(\d+) validated", result.stderr)
+    assert counts is not None, result.stderr
+    assert int(counts.group(1)) > 0, result.stderr
 
 
 def test_known_validation_error_exits_one_with_attribution():
@@ -150,3 +155,76 @@ def test_pipeline_filter_validates_named_pipeline():
 
     assert result.exit_code == 1, result.stderr
     assert "LHP-VAL-007" in result.stderr
+
+
+def _mock_built_facade(monkeypatch: pytest.MonkeyPatch) -> "MagicMock":
+    """Patch ``build_facade`` in the command module with a MagicMock facade.
+
+    ``validation.validate_pipelines`` returns an empty event stream — ``drive``
+    tolerates it (no events, empty outcome, exit 0) — so the test can assert on
+    the exact kwargs the CLI forwarded without running a real validate.
+    """
+    facade = MagicMock()
+    facade.validation.validate_pipelines.return_value = iter(())
+    monkeypatch.setattr(
+        "lhp.cli.commands.validate_command.build_facade", lambda *a, **k: facade
+    )
+    return facade
+
+
+@pytest.mark.parametrize("pipeline_flag", ["-p", "--pipeline"])
+def test_sandbox_and_pipeline_are_mutually_exclusive(pipeline_flag: str) -> None:
+    """``--sandbox`` with ``-p``/``--pipeline`` is a Click usage error (exit 2):
+    sandbox scope comes from the profile, never from a CLI filter. The check
+    fires before any facade/project work, so no project dir is needed."""
+    result = CliRunner().invoke(
+        validate_command, ["--env", "dev", "--sandbox", pipeline_flag, "some_pipeline"]
+    )
+
+    assert result.exit_code == 2
+    assert "--sandbox cannot be combined with -p/--pipeline" in result.stderr
+
+
+def test_sandbox_flag_forwards_sandbox_true_to_facade(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``--sandbox`` alone reaches the facade as ``sandbox=True`` — the CLI's
+    only job (§9.11); profile loading happens behind the facade."""
+    facade = _mock_built_facade(monkeypatch)
+    _write(tmp_path / "lhp.yaml", 'name: sandbox_cli_test\nversion: "1.0"\n')
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(
+        validate_command,
+        ["--env", "dev", "--no-bundle", "--no-progress", "--sandbox"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.stderr
+    kwargs = facade.validation.validate_pipelines.call_args.kwargs
+    assert kwargs["sandbox"] is True
+
+
+def test_default_run_forwards_sandbox_false_to_facade(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without the flag the facade receives ``sandbox=False`` (never auto-on)."""
+    facade = _mock_built_facade(monkeypatch)
+    _write(tmp_path / "lhp.yaml", 'name: sandbox_cli_test\nversion: "1.0"\n')
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(
+        validate_command,
+        ["--env", "dev", "--no-bundle", "--no-progress"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0, result.stderr
+    kwargs = facade.validation.validate_pipelines.call_args.kwargs
+    assert kwargs["sandbox"] is False
+
+
+def test_help_documents_sandbox_flag() -> None:
+    """``lhp validate --help`` lists ``--sandbox`` (cheap drift regression)."""
+    result = CliRunner().invoke(validate_command, ["--help"])
+
+    assert result.exit_code == 0
+    assert "--sandbox" in result.output

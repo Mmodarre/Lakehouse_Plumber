@@ -31,16 +31,15 @@ the otherwise byte-identical baseline (the content hash stays exact).
 
 import hashlib
 import os
+import re
 import shutil
 from pathlib import Path
 
 import pytest
 import yaml
 from click.testing import CliRunner
-from packaging.version import Version
 
 from lhp.cli.main import cli
-from lhp.utils.version import get_version
 
 # The fixture pipeline converted to wheel mode by config/pipeline_config_wheel.yaml.
 WHEEL_PIPELINE = "sample_python_func_pipeline"
@@ -155,17 +154,18 @@ class TestWheelPackagingE2E:
         return ""
 
     def _normalize_wheel_version(self, text: str) -> str:
-        """Rewrite the live LHP tool version in any ``.whl`` filename to a fixed
-        placeholder, so the version token (the only environment-coupled part of
-        the wheel reference) does not make a byte-identical baseline false-fail.
+        """Rewrite ANY version token in a ``.whl`` filename to a fixed placeholder,
+        so a baseline frozen at any version compares equal to a freshly generated
+        reference at any other version while the content hash stays exact.
 
-        The version component is PEP 440-normalized (dots preserved, e.g.
-        ``0.9.0``), so it appears verbatim as the ``-<version>-py3-none-any.whl``
-        segment; the content hash and the rest of the reference stay untouched and
-        are still compared exactly.
+        PEP 440-normalized versions start with a digit and contain no hyphens, so
+        ``-\\d[^-]*-py3-none-any\\.whl`` matches exactly the
+        ``-<version>-py3-none-any.whl`` segment and cannot consume the preceding
+        content hash (no hyphens in the hash) or any other path component. The hash
+        and the rest of the reference remain in the normalized text and are still
+        compared byte-for-byte.
         """
-        live = str(Version(get_version()).public)
-        return text.replace(f"-{live}-py3-none-any.whl", "-VERSION-py3-none-any.whl")
+        return re.sub(r"-\d[^-]*-py3-none-any\.whl", "-VERSION-py3-none-any.whl", text)
 
     # ------------------------------------------------------------------ #
     # Runner-only pipeline dir + wheel artifact built off to the side      #

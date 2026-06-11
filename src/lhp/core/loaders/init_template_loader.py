@@ -11,13 +11,16 @@ from .init_template_context import InitTemplateContext
 
 
 class InitTemplateLoader:
-    def __init__(self):
+    def __init__(self, template_subpath: str = "templates/init") -> None:
         self.logger = logging.getLogger(__name__)
+        self._template_subpath = template_subpath
+        # Dotted form for importlib.resources, e.g. "lhp.templates.init_sample".
+        self._template_package = "lhp." + template_subpath.replace("/", ".")
 
         # PackageLoader uses importlib.util.find_spec (PEP 451) internally,
         # so it works identically for editable installs, wheels, and zipapps.
         self.jinja_env = Environment(  # nosec B701 — generates text, not HTML
-            loader=PackageLoader("lhp", "templates/init"),
+            loader=PackageLoader("lhp", template_subpath),
         )
 
     def load_template(self, template_path: str):
@@ -47,7 +50,7 @@ class InitTemplateLoader:
 
     def get_template_files(self, bundle_enabled: bool = False) -> List[str]:
         try:
-            package_files = files("lhp.templates.init")
+            package_files = files(self._template_package)
             template_files = []
 
             # Directories to exclude from initialization
@@ -86,6 +89,11 @@ class InitTemplateLoader:
 
         except Exception:
             self.logger.exception("Failed to discover template files")
+            if self._template_subpath != "templates/init":
+                # The hardcoded fallback lists plain-init filenames; silently
+                # using it for another template tree (e.g. the sample project)
+                # would scaffold the wrong files. Surface the discovery error.
+                raise
             # Fallback to basic files if discovery fails
             basic_files = [
                 "lhp.yaml.j2",
@@ -165,7 +173,7 @@ class InitTemplateLoader:
 
                     target_path.write_text(rendered_content, encoding="utf-8")
                 else:
-                    package_files = files("lhp.templates.init")
+                    package_files = files(self._template_package)
                     source_file = package_files / template_file
 
                     target_file = template_file

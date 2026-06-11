@@ -1,0 +1,51 @@
+# This is a Declarative Automation Bundles definition for {{ project_name }}.
+# See https://docs.databricks.com/dev-tools/bundles/index.html for documentation.
+bundle:
+  name: {{ project_name }}
+  uuid: {{ bundle_uuid }}
+
+include:
+  # User-managed resource files (shared across all environments)
+  - resources/*.yml
+  - resources/lhp/*.yml
+
+sync:
+  include:
+   - generated/${bundle.target}/**
+
+variables:
+  catalog:
+    description: "UC catalog the demo writes to (you need CREATE on it)"
+    default: main
+
+targets:
+  # ⚠️ IMPORTANT: Target names MUST match your LHP substitution environment names
+  # - Each target name should have a corresponding substitutions/{env}.yaml file
+  # LHP automatically adds environment-specific variables to each corresponding target below.
+  #
+  # Quickstart step 2: set the workspace host below AND the catalog — here
+  # (variables.catalog) and in substitutions/dev.yaml. The bundle variable
+  # drives the data-prep job parameter; the substitution drives LHP codegen.
+
+  dev:
+    # The default target uses 'mode: development' to create a development copy.
+    # - Deployed resources get prefixed with '[dev my_user_name]'
+    # - Any job schedules and triggers are paused by default.
+    # See also https://docs.databricks.com/dev-tools/bundles/deployment-modes.html.
+    mode: development
+    default: true
+    workspace:
+      host: https://<your-workspace>.cloud.databricks.com   # ← edit (quickstart step 2)
+      root_path: ~/.bundle/${bundle.name}/${bundle.target}
+
+  prod:
+    mode: production
+    workspace:
+      host: https://<your-workspace>.cloud.databricks.com
+      # We explicitly deploy to a fixed workspace path to make sure we only have a single copy.
+      root_path: /Workspace/<code_location>/.bundle/${bundle.name}/${bundle.target}
+    permissions:
+      - service_principal_name: <service_principal_id>
+        level: CAN_MANAGE
+    run_as:
+      service_principal_name: <service_principal_id>
