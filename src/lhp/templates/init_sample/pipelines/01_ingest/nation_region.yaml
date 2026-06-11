@@ -14,7 +14,7 @@ actions:
       catalog: samples                  # read-only sample catalog
       schema: tpch
       table: nation
-      readMode: batch
+      readMode: stream
     target: v_nation
   - name: write_nation
     type: write
@@ -31,7 +31,7 @@ actions:
       catalog: samples                  # read-only sample catalog
       schema: tpch
       table: region
-      readMode: batch
+      readMode: stream
     target: v_region
   - name: write_region
     type: write
