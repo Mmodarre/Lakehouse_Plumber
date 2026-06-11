@@ -7,8 +7,10 @@ independently.
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 
 from lhp.cli.commands.init_command import init
@@ -147,3 +149,43 @@ def test_init_existing_lhp_yaml_raises_io_007() -> None:
             f"exit {result.exit_code}; stdout:\n{result.stdout}"
         )
         assert "LHP-IO-007" in result.stderr
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
+def test_init_sample_initializes_git_repo() -> None:
+    """--sample -> a project-local git repo is created and reported."""
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        result = runner.invoke(init, ["--sample", "demo_project"])
+
+        assert result.exit_code == 0, (
+            f"exit {result.exit_code}; stderr:\n{result.stderr}"
+        )
+        assert Path(".git").is_dir()
+        assert "initialized git repository" in result.stdout.lower()
+
+
+def test_init_sample_no_git_skips_repo() -> None:
+    """--sample --no-git -> sample scaffolded, but no git repo created."""
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        result = runner.invoke(init, ["--sample", "--no-git", "demo_project"])
+
+        assert result.exit_code == 0, (
+            f"exit {result.exit_code}; stderr:\n{result.stderr}"
+        )
+        assert Path("lhp.yaml").exists()
+        assert not Path(".git").exists()
+        assert "initialized git repository" not in result.stdout.lower()
+
+
+def test_init_plain_does_not_initialize_git() -> None:
+    """Plain init (no --sample) -> git is never initialized, even by default."""
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        result = runner.invoke(init, ["demo_project"])
+
+        assert result.exit_code == 0, (
+            f"exit {result.exit_code}; stderr:\n{result.stderr}"
+        )
+        assert not Path(".git").exists()
