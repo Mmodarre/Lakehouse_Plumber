@@ -34,7 +34,7 @@ max_concurrent_runs: 1
 # Options:
 #   - STANDARD: cost-effective, slower cluster startup
 #   - PERFORMANCE_OPTIMIZED: faster startup, higher cost
-performance_target: STANDARD
+performance_target: PERFORMANCE_OPTIMIZED
 
 # Queue settings — let runs queue instead of being dropped.
 queue:
@@ -43,7 +43,7 @@ queue:
 # Tags for cost tracking and organization.
 tags:
   managed_by: lakehouse_plumber
-  environment: ${bundle_target}
+  environment: ${bundle.target}
   # project: my_project
   # team: data-platform
 
@@ -97,3 +97,4 @@ tags:
 #
 # For detailed documentation, see: docs/monitoring.rst
 # ==============================================================================
+

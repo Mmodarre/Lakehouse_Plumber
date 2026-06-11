@@ -27,3 +27,12 @@ operational_metadata:
       expression: "F.col('_metadata.file_size')"
       description: "Source file size in bytes (cloudfiles only)"
       applies_to: ["view"]
+
+event_log:
+  catalog: "${catalog}"
+  schema: _meta
+  name_suffix: "_event_log"
+
+monitoring:
+  checkpoint_path:  "/Volumes/${catalog}/_meta/checkpoints"
+  job_config_path: "config/monitoring_job_config.yaml"

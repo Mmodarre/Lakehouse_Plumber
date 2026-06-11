@@ -9,6 +9,10 @@ include:
   - resources/*.yml
   - resources/lhp/*.yml
 
+sync:
+  include:
+   - generated/${bundle.target}/**
+
 variables:
   catalog:
     description: "UC catalog the demo writes to (you need CREATE on it)"

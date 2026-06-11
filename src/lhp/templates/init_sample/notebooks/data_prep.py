@@ -103,11 +103,12 @@ def month_window(n):
 
 # COMMAND ----------
 
-for schema in (bronze_schema, silver_schema, gold_schema):
+for schema in (bronze_schema, silver_schema, gold_schema, _meta):
     spark.sql(f"CREATE SCHEMA IF NOT EXISTS `{catalog}`.`{schema}`")
 spark.sql(f"CREATE VOLUME IF NOT EXISTS `{catalog}`.`{bronze_schema}`.landing")
+spark.sql(f"CREATE VOLUME IF NOT EXISTS `{catalog}`.`_meta`.checkpoints")
 summary.append(
-    f"schemas {bronze_schema}/{silver_schema}/{gold_schema} + volume landing: ensured"
+    f"schemas {bronze_schema}/{silver_schema}/{gold_schema}/_meta + volume landing: ensured"
 )
 
 # COMMAND ----------
