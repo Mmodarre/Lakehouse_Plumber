@@ -337,7 +337,7 @@ class TestEmissionHelperDedupAndOrder:
     """The shared emission helper: union-dedup by ``(code, file)``, ordered.
 
     Both facade streams thread a SHARED ``(code, file)`` ``seen`` set through
-    :func:`lhp.api._converters_common._emit_deprecation_warnings` across the
+    :func:`lhp.api._converters_common._emit_warning_records` across the
     discover-phase (main) and generate/validate-phase (worker) emission points,
     so the union surfaces once, in deterministic caller-iteration order.
     """
@@ -352,7 +352,7 @@ class TestEmissionHelperDedupAndOrder:
     def test_same_code_file_from_two_flowgroups_dedups_to_one(self) -> None:
         """Two records sharing ``(code, file)`` (e.g. two flowgroups in one file)
         collapse to a single ``WarningEmitted``."""
-        from lhp.api._converters_common import _emit_deprecation_warnings
+        from lhp.api._converters_common import _emit_warning_records
 
         shared_file = Path("pipelines/p/shared.yaml")
         records = [
@@ -360,7 +360,7 @@ class TestEmissionHelperDedupAndOrder:
             self._record("LHP-DEPR-002", shared_file, "fg_b"),
         ]
         seen: set = set()
-        emitted = list(_emit_deprecation_warnings(records, seen=seen))
+        emitted = list(_emit_warning_records(records, seen=seen))
 
         assert len(emitted) == 1
         assert emitted[0].code == "LHP-DEPR-002"
@@ -370,19 +370,17 @@ class TestEmissionHelperDedupAndOrder:
 
     def test_union_dedup_across_two_emission_points(self) -> None:
         """A shared ``seen`` set dedups across the discover + worker calls."""
-        from lhp.api._converters_common import _emit_deprecation_warnings
+        from lhp.api._converters_common import _emit_warning_records
 
         f = Path("pipelines/p/fg.yaml")
         seen: set = set()
         main = list(
-            _emit_deprecation_warnings(
-                [self._record("LHP-DEPR-001", f, None)], seen=seen
-            )
+            _emit_warning_records([self._record("LHP-DEPR-001", f, None)], seen=seen)
         )
         # Worker-phase emission: a DISTINCT code on the same file survives, but a
         # repeat of the already-seen ``(LHP-DEPR-001, f)`` is suppressed.
         worker = list(
-            _emit_deprecation_warnings(
+            _emit_warning_records(
                 [
                     self._record("LHP-DEPR-001", f, "fg"),  # dup → suppressed
                     self._record("LHP-DEPR-002", f, "fg"),  # distinct code → kept
@@ -396,7 +394,7 @@ class TestEmissionHelperDedupAndOrder:
 
     def test_deterministic_first_seen_order_all_codes(self) -> None:
         """Emission order follows caller-iteration order across all four codes."""
-        from lhp.api._converters_common import _emit_deprecation_warnings
+        from lhp.api._converters_common import _emit_warning_records
 
         f = Path("pipelines/p/fg.yaml")
         records = [
@@ -406,7 +404,7 @@ class TestEmissionHelperDedupAndOrder:
             self._record("LHP-DEPR-004", f, "fg"),
         ]
         seen: set = set()
-        emitted = list(_emit_deprecation_warnings(records, seen=seen))
+        emitted = list(_emit_warning_records(records, seen=seen))
 
         assert [w.code for w in emitted] == [
             "LHP-DEPR-001",
@@ -416,6 +414,76 @@ class TestEmissionHelperDedupAndOrder:
         ]
         assert all(w.category == "deprecation" for w in emitted)
         assert all(w.file == f for w in emitted)
+
+    def _sandbox_record(self, code: str, file: Path | None, flowgroup: str | None):
+        from lhp.models.processing import SandboxWarningRecord
+
+        return SandboxWarningRecord(
+            code=code, message=f"msg for {code}", file=file, flowgroup=flowgroup
+        )
+
+    def test_sandbox_record_emits_sandbox_category(self) -> None:
+        """A ``SandboxWarningRecord`` surfaces as ``category='sandbox'`` with
+        code/message/file/flowgroup mapped verbatim."""
+        from lhp.api._converters_common import _emit_warning_records
+
+        f = Path("pipelines/p/fg.yaml")
+        rec = self._sandbox_record("LHP-VAL-065", f, "fg")
+        seen: set = set()
+        emitted = list(_emit_warning_records([rec], seen=seen))
+
+        assert len(emitted) == 1
+        assert emitted[0].category == "sandbox"
+        assert emitted[0].code == "LHP-VAL-065"
+        assert emitted[0].message == rec.message
+        assert emitted[0].file == f
+        assert emitted[0].flowgroup == "fg"
+
+    def test_mixed_records_emit_both_categories_in_order(self) -> None:
+        """A mixed deprecation + sandbox record list yields both categories,
+        each derived per record type, in caller-iteration order."""
+        from lhp.api._converters_common import _emit_warning_records
+
+        f = Path("pipelines/p/fg.yaml")
+        records = [
+            self._record("LHP-DEPR-002", f, "fg"),
+            self._sandbox_record("LHP-VAL-065", f, "fg"),
+            self._sandbox_record("LHP-VAL-066", f, "fg"),
+        ]
+        seen: set = set()
+        emitted = list(_emit_warning_records(records, seen=seen))
+
+        assert [(w.code, w.category) for w in emitted] == [
+            ("LHP-DEPR-002", "deprecation"),
+            ("LHP-VAL-065", "sandbox"),
+            ("LHP-VAL-066", "sandbox"),
+        ]
+
+    def test_dedup_is_per_code_file_across_record_types(self) -> None:
+        """The ``(code, file)`` dedup key spans record TYPES: a sandbox record
+        repeating an already-seen ``(code, file)`` is suppressed even though
+        the first emission came from a deprecation record."""
+        from lhp.api._converters_common import _emit_warning_records
+
+        f = Path("pipelines/p/fg.yaml")
+        seen: set = set()
+        first = list(
+            _emit_warning_records([self._record("LHP-VAL-065", f, "fg_a")], seen=seen)
+        )
+        second = list(
+            _emit_warning_records(
+                [
+                    self._sandbox_record("LHP-VAL-065", f, "fg_b"),  # dup → out
+                    self._sandbox_record("LHP-VAL-065", Path("other.yaml"), "fg_b"),
+                ],
+                seen=seen,
+            )
+        )
+
+        assert [w.code for w in first] == ["LHP-VAL-065"]
+        assert [(w.code, w.file) for w in second] == [
+            ("LHP-VAL-065", Path("other.yaml"))
+        ]
 
 
 @pytest.mark.unit

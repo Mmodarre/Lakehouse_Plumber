@@ -23,6 +23,7 @@ from typing import NoReturn
 
 from lhp.core.codegen.python_dependency_resolver import resolve_module_on_disk
 from lhp.errors import ErrorFactory, codes
+from lhp.utils.python_spans import apply_byte_edits, line_start_byte_offsets
 
 _CUSTOM_FUNCTIONS_PREFIX = "custom_python_functions"
 
@@ -61,33 +62,6 @@ def _raise_plain_dotted_local(dotted: str) -> NoReturn:
         suggestions=suggestions,
         context={"Plain-dotted local import": dotted},
     )
-
-
-def _line_start_byte_offsets(data: bytes) -> list[int]:
-    """Byte offset at which each 1-based source line begins (index 0 unused).
-
-    Splits only on the line terminators CPython's tokenizer honours — ``\\n``,
-    ``\\r``, ``\\r\\n`` — so the offsets line up exactly with AST ``lineno`` /
-    ``col_offset`` (which are UTF-8 *byte* columns). ``str.splitlines`` is NOT
-    used: it also breaks on ``\\x0b``/``\\x0c``/``\\x1c``-``\\x1e``/``\\u2028`` etc.,
-    which the tokenizer treats as ordinary characters, which would skew offsets.
-    """
-    offsets = [0, 0]
-    i = 0
-    n = len(data)
-    nl = ord("\n")
-    cr = ord("\r")
-    while i < n:
-        b = data[i]
-        if b == cr:
-            i += 2 if i + 1 < n and data[i + 1] == nl else 1
-            offsets.append(i)
-        elif b == nl:
-            i += 1
-            offsets.append(i)
-        else:
-            i += 1
-    return offsets
 
 
 def _rebuild_import_from(node: ast.ImportFrom, new_module: str) -> str:
@@ -149,7 +123,7 @@ def rewrite_local_imports(source: str, tree: ast.Module, root: Path) -> str:
         LHPValidationError: ``LHP-VAL-024`` for a plain-dotted local import.
     """
     data = source.encode("utf-8")
-    line_starts = _line_start_byte_offsets(data)
+    line_starts = line_start_byte_offsets(data)
     edits: list[tuple[int, int, bytes]] = []
 
     for node in ast.walk(tree):
@@ -177,7 +151,4 @@ def rewrite_local_imports(source: str, tree: ast.Module, root: Path) -> str:
     if not edits:
         return source
 
-    out = data
-    for start, end, replacement in sorted(edits, reverse=True):
-        out = out[:start] + replacement + out[end:]
-    return out.decode("utf-8")
+    return apply_byte_edits(data, edits).decode("utf-8")

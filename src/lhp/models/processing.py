@@ -66,6 +66,53 @@ class DeprecationWarningRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class SandboxRunConfig:
+    """Resolved per-run sandbox parameters (main thread → workers transport).
+
+    The merged, validated product of the team policy (``lhp.yaml``
+    ``sandbox:`` block) and the personal profile (``.lhp/profile.yaml``),
+    frozen once at run start. ``pipelines`` is the profile's scope list
+    (pipeline names or ``fnmatchcase`` globs), stored as a tuple for
+    immutability and hashability.
+
+    This is an **internal** transport record, not part of the public API
+    surface. ``frozen=True, slots=True`` for immutability across the spawn
+    boundary and a smaller per-instance footprint.
+    """
+
+    namespace: str
+    table_pattern: str
+    strategy: str
+    pipelines: Tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class SandboxWarningRecord:
+    """Worker → main-thread transport for ONE sandbox rewrite warning.
+
+    Same transport contract as :class:`DeprecationWarningRecord`: workers run
+    under a ``NullHandler``, so sandbox warnings (e.g. a mixed-producer
+    rewrite) ride back to the main thread as structured data on
+    :attr:`FlowgroupOutcome.warnings` for re-emission as public
+    :class:`~lhp.api.WarningEmitted` events. ``code`` is the **rendered**
+    error-code string; ``message`` is the human-facing warning text.
+
+    ``frozen=True, slots=True`` for immutability across the spawn boundary
+    and a smaller per-instance footprint (no per-instance ``__dict__``).
+    """
+
+    code: str
+    message: str
+    file: Optional[Path]
+    flowgroup: Optional[str]
+
+
+# Closed union of the warning records that may ride on
+# ``FlowgroupOutcome.warnings`` back to the main thread.
+RunWarningRecord = Union[DeprecationWarningRecord, SandboxWarningRecord]
+
+
+@dataclass(frozen=True, slots=True)
 class ValidationIssueRecord:
     """One validation finding with its per-issue source attribution.
 
@@ -260,8 +307,8 @@ class FlowgroupOutcome:
     ``(path, content)``): dropping it would silently lose the monitoring
     flowgroup's extra modules across the process boundary.
 
-    ``warnings`` is ``Tuple[DeprecationWarningRecord, ...]`` carrying the
-    deprecation warnings the worker would have logged. Workers run under a
+    ``warnings`` is ``Tuple[RunWarningRecord, ...]`` carrying the deprecation
+    and sandbox warnings the worker would have logged. Workers run under a
     ``NullHandler`` (their ``logger.warning`` calls are swallowed), so the
     warnings ride back here as structured data for the main thread to
     re-emit as :class:`~lhp.api.WarningEmitted` events. Defaults to ``()``.
@@ -280,7 +327,7 @@ class FlowgroupOutcome:
     formatted_code: Optional[str] = None
     auxiliary_files: Tuple[Tuple[str, str], ...] = ()
     copy_records: Tuple[CopiedModuleRecord, ...] = ()
-    warnings: Tuple[DeprecationWarningRecord, ...] = ()
+    warnings: Tuple[RunWarningRecord, ...] = ()
     lhp_error: Optional["LHPError"] = None
     errors: Tuple[str, ...] = ()
     perf: Optional[Dict[str, Any]] = None
@@ -295,13 +342,13 @@ class FlowgroupOutcome:
         formatted_code: Optional[str] = None,
         auxiliary_files: Sequence[Tuple[str, str]] = (),
         copy_records: Sequence[CopiedModuleRecord] = (),
-        warnings: Sequence[DeprecationWarningRecord] = (),
+        warnings: Sequence[RunWarningRecord] = (),
     ) -> "FlowgroupOutcome":
         """Build a success outcome.
 
         ``formatted_code`` is ``None`` for validate-mode runs (no code generated).
-        ``warnings`` defaults to ``()``; when given it carries deprecation warnings
-        for re-emission on the main thread.
+        ``warnings`` defaults to ``()``; when given it carries deprecation and
+        sandbox warnings for re-emission on the main thread.
         """
         return cls(
             pipeline=pipeline,
@@ -324,7 +371,7 @@ class FlowgroupOutcome:
         *,
         lhp_error: Optional["LHPError"] = None,
         errors: Optional[Sequence[str]] = None,
-        warnings: Sequence[DeprecationWarningRecord] = (),
+        warnings: Sequence[RunWarningRecord] = (),
     ) -> "FlowgroupOutcome":
         """Build a failure outcome. MUST be total — it NEVER raises.
 
@@ -341,8 +388,8 @@ class FlowgroupOutcome:
             ``("unknown error",)`` rather than raising.
 
         ``warnings`` defaults to ``()`` so existing callers are unaffected;
-        when given it carries any deprecation warnings the worker emitted
-        before failing, for re-emission on the main thread.
+        when given it carries any deprecation/sandbox warnings the worker
+        emitted before failing, for re-emission on the main thread.
         """
         error_strings = tuple(errors) if errors else ()
         if lhp_error is None and not error_strings:

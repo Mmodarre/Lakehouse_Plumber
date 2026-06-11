@@ -3,12 +3,12 @@
 :class:`ActionOrchestrator` is the composition root wiring eight
 ABC-typed collaborator services (discovery, flowgroup resolution,
 validation, code generation, dependency analysis, monitoring,
-execution, bootstrap) and exposing six public methods to callers
+execution, bootstrap) and exposing seven public methods to callers
 (CLI commands and :class:`LakehousePlumberApplicationFacade`).
 
 Per Target Architecture §4 (thin coordination layer), callers use the
 public services directly (``.bootstrap``, ``.discovery``,
-``.processing``, ``.codegen``); the orchestrator exposes only these six
+``.processing``, ``.codegen``); the orchestrator exposes only these seven
 methods, each the narrowest surface for its responsibility:
 ``discover_flowgroups`` (single-pipeline directory read);
 ``finalize_monitoring_artifacts`` (end-of-run notebook/job write);
@@ -19,7 +19,9 @@ hands to :class:`PipelineExecutionService`, does NOT format);
 ``format_output_tree`` (single terminal ``ruff format`` pass over the
 output tree — perf-wrapped delegate to ``codegen.formatter``);
 ``validate_pipelines`` (batch validate; hands to
-:class:`PipelineExecutionService`). The format primitive
+:class:`PipelineExecutionService`);
+``build_sandbox_rewrite_plan`` (``--sandbox`` pre-pass — thin
+delegate to ``coordination.sandbox_prepass``). The format primitive
 (``resolve_apply_formatting`` + ``format_output_tree``) lives here but is
 INVOKED by each caller AFTER it drains ``generate_pipelines``.
 """
@@ -47,7 +49,12 @@ from typing import (
 from lhp.models import FlowGroup
 
 if TYPE_CHECKING:
-    from ...models.processing import DeprecationWarningRecord, PipelineDelta
+    from ...models.processing import (
+        PipelineDelta,
+        RunWarningRecord,
+        SandboxRunConfig,
+    )
+    from ..sandbox import SandboxRewritePlan, SandboxTableRenames
 
 from ...parsers.blueprint_parser import BlueprintParser
 from ...parsers.yaml_parser import CachingYAMLParser, YAMLParser
@@ -85,6 +92,7 @@ from .executor import (
 )
 from .flowgroup_worklist_builder import build_flowgroup_worklist
 from .monitoring_service import MonitoringFinalizerService
+from .sandbox_prepass import build_sandbox_rewrite_plan as _build_sandbox_rewrite_plan
 
 
 def _auto_max_workers() -> int:
@@ -319,7 +327,8 @@ class ActionOrchestrator:
         packaging_modes: Optional[Mapping[str, str]] = None,
         on_total: Optional[Callable[[int], None]] = None,
         on_flowgroup_done: Optional[Callable[[str], None]] = None,
-    ) -> Generator["PipelineDelta", None, Tuple["DeprecationWarningRecord", ...]]:
+        sandbox_plan: Optional["SandboxRewritePlan"] = None,
+    ) -> Generator["PipelineDelta", None, Tuple["RunWarningRecord", ...]]:
         """Build the flat worklist, hand to PipelineExecutionService.run_generate.
 
         Exactly one of ``pipeline_filter`` (single pipeline by field) or
@@ -360,6 +369,13 @@ class ActionOrchestrator:
         A per-pipeline discovery failure (carried in the worklist's
         ``discovery_errors`` map) aborts the whole batch inside ``run_generate``
         — generate is all-or-nothing.
+
+        ``sandbox_plan`` is the ``--sandbox`` rewrite plan from
+        :meth:`build_sandbox_rewrite_plan`; its ``renames`` ride the worker
+        state across the spawn boundary so every worker applies the
+        table-rename hooks (structured pass on the resolved flowgroup +
+        text pass over the generated Python). ``None`` (the default) is the
+        legacy no-rewrite path, byte-identical to a run without the kwarg.
         """
         if pipeline_filter is not None and pipeline_fields is not None:
             raise ValueError(
@@ -399,7 +415,13 @@ class ActionOrchestrator:
             environment=env,
             include_tests=include_tests,
             validation_service=self.validation,
-            worker_state=self._build_generate_worker_state(env, include_tests),
+            worker_state=self._build_generate_worker_state(
+                env,
+                include_tests,
+                table_renames=(
+                    sandbox_plan.renames if sandbox_plan is not None else None
+                ),
+            ),
         )
         # The execution service writes UNFORMATTED source and does not format:
         # drain its delta-stream and RETURN. The single terminal ruff pass is NOT
@@ -487,10 +509,40 @@ class ActionOrchestrator:
         with perf_timer("format_tree", category="format_tree"):
             format_generated_tree(output_dir)
 
+    def build_sandbox_rewrite_plan(
+        self,
+        env: str,
+        run: "SandboxRunConfig",
+        flowgroups: List[FlowGroup],
+    ) -> "SandboxRewritePlan":
+        """Build the ``--sandbox`` table-rewrite plan (pre-pass).
+
+        Thin delegation seam to
+        :func:`.sandbox_prepass.build_sandbox_rewrite_plan`, mirroring the
+        :meth:`format_output_tree` precedent: the PRIMITIVE lives in its own
+        coordination module; the orchestrator (composition root) exposes the
+        single legal ``api → core`` seam and supplies the collaborators it
+        already owns (resolution service, bootstrap service, substitution
+        factory, project root). Main-thread only, after the discover phase:
+        ``flowgroups`` is the discovered (blueprint-expanded) set the caller
+        already holds; ``run.pipelines`` is the already-resolved concrete
+        scope.
+        """
+        return _build_sandbox_rewrite_plan(
+            processing=self.processing,
+            bootstrap=self.bootstrap,
+            orchestration_dependencies=self._orchestration_dependencies,
+            project_root=self.project_root,
+            env=env,
+            run=run,
+            flowgroups=flowgroups,
+        )
+
     def _build_generate_worker_state(
         self,
         env: str,
         include_tests: bool,
+        table_renames: Optional["SandboxTableRenames"] = None,
     ) -> _FlowgroupWorkerState:
         """Build the unified worker state for the flat engine (both modes).
 
@@ -505,6 +557,9 @@ class ActionOrchestrator:
         ``ast.parse``-validates; the single terminal ruff pass
         (:meth:`format_output_tree`) is driven by the caller — the generate event
         stream or the plan path — after :meth:`generate_pipelines` drains.
+        ``table_renames`` is the ``--sandbox`` rename set (``None`` outside
+        sandbox runs); it rides the state across the spawn boundary so each
+        worker can apply the D7 rewrite hooks.
         """
         return _FlowgroupWorkerState(
             processor=self.processing,
@@ -513,6 +568,7 @@ class ActionOrchestrator:
             code_generator=self.codegen,
             pipeline_output_dirs={},
             environment=env,
+            table_renames=table_renames,
         )
 
     def validate_pipelines(
@@ -526,9 +582,8 @@ class ActionOrchestrator:
         max_workers: Optional[int] = None,
         on_total: Optional[Callable[[int], None]] = None,
         on_flowgroup_done: Optional[Callable[[str], None]] = None,
-    ) -> Generator[
-        PipelineValidationOutcome, None, Tuple["DeprecationWarningRecord", ...]
-    ]:
+        sandbox_plan: Optional["SandboxRewritePlan"] = None,
+    ) -> Generator[PipelineValidationOutcome, None, Tuple["RunWarningRecord", ...]]:
         """Build the flat worklist, hand to PipelineExecutionService.run_validate.
 
         Exactly one of ``pipeline_filter`` (single pipeline by field) or
@@ -555,6 +610,13 @@ class ActionOrchestrator:
         terminal per outcome). Validate REPORTS findings — there is no
         gate/raise, so the stream simply runs to completion (a discovery failure
         folds to an unsuccessful outcome, not a batch abort — unlike generate).
+
+        ``sandbox_plan`` is the ``--sandbox`` rewrite plan from
+        :meth:`build_sandbox_rewrite_plan`; validate applies ONLY the
+        structured rewrite on each resolved flowgroup (no generated text to
+        rewrite, no ``LHP-VAL-066`` — a documented v1 limitation), so the
+        cross-flowgroup barrier and validation see the sandbox names.
+        ``None`` (the default) is the legacy no-rewrite path.
         """
         if pipeline_filter is not None and pipeline_fields is not None:
             raise ValueError(
@@ -588,7 +650,13 @@ class ActionOrchestrator:
             max_workers=max_workers if max_workers is not None else self.max_workers,
             include_tests=include_tests,
             validation_service=self.validation,
-            worker_state=self._build_validate_worker_state(env, include_tests),
+            worker_state=self._build_validate_worker_state(
+                env,
+                include_tests,
+                table_renames=(
+                    sandbox_plan.renames if sandbox_plan is not None else None
+                ),
+            ),
         )
         return (
             yield from self.execution.run_validate(
@@ -602,7 +670,10 @@ class ActionOrchestrator:
         )
 
     def _build_validate_worker_state(
-        self, env: str, include_tests: bool
+        self,
+        env: str,
+        include_tests: bool,
+        table_renames: Optional["SandboxTableRenames"] = None,
     ) -> _FlowgroupWorkerState:
         """Build the unified worker state for the flat-engine validate path.
 
@@ -611,4 +682,6 @@ class ActionOrchestrator:
         generate-only collaborators. Delegates to the single canonical builder
         rather than duplicate the constructor (constitution §4.1).
         """
-        return self._build_generate_worker_state(env, include_tests)
+        return self._build_generate_worker_state(
+            env, include_tests, table_renames=table_renames
+        )

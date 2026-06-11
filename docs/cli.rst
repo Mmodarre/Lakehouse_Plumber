@@ -208,6 +208,25 @@ wheel-level failure — the wheel is missing (``LHP-IO-022``), is not a wheel fi
 several wheels (``LHP-GEN-001``); or the ``--extract`` directory is not writable
 (``LHP-IO-005``).
 
+Generate in a sandbox
+---------------------
+
+``lhp generate -e <env> --sandbox`` and ``lhp validate -e <env> --sandbox``
+scope the run to the pipelines declared in your gitignored
+``.lhp/profile.yaml`` and rename every table those pipelines produce (default
+pattern ``{namespace}_{table}``), while reads of tables produced outside the
+scope keep pointing at the shared tables. ``--sandbox`` cannot be combined
+with ``-p``/``--pipeline`` (usage error, exit code 2).
+
+.. code-block:: bash
+
+   # Validate, then generate your namespaced slice of the project
+   lhp validate -e dev --sandbox
+   lhp generate -e dev --sandbox
+
+See :doc:`develop_in_a_sandbox` for the setup walkthrough and
+:doc:`sandbox_reference` for configuration keys and rename semantics.
+
 Skill Management
 ----------------
 

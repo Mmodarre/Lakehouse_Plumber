@@ -205,6 +205,8 @@ class TestBundleManagerEventLogInjection:
         manager = BundleManager.__new__(BundleManager)
         manager.project_config = project_config
         manager.logger = MagicMock()
+        # Mirrors the __init__ default; this helper bypasses __init__ via __new__.
+        manager._event_log_name_transform = None
         return manager
 
     def test_basic_injection(self):

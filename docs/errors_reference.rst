@@ -747,11 +747,175 @@ a valid ``/Volumes/...`` destination to resolve the wheel's install path.
    :doc:`package_pipelines_as_wheels` for the artifact-volume requirement and the
    per-environment ``packaging`` toggle.
 
+.. _lhp-cfg-062:
+
+LHP-CFG-062: Invalid Sandbox Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** The optional ``sandbox`` block in ``lhp.yaml`` is
+malformed. The block must be a mapping; ``strategy``, when present, must be
+``table`` (the only strategy supported in this release); and ``allowed_envs``,
+when present, must not be an empty list — an empty list would forbid sandbox
+mode in every environment, so LHP rejects it rather than silently disabling
+the feature.
+
+**Common causes:**
+
+- ``sandbox`` given a scalar or list instead of a mapping.
+- ``strategy`` set to an unsupported value such as ``schema`` or ``catalog``.
+- ``allowed_envs: []`` — omit the key entirely to allow every environment.
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-CFG-062)
+
+   # lhp.yaml
+   sandbox:
+     strategy: schema      # only "table" is supported
+     allowed_envs: []      # empty list forbids every environment
+
+.. code-block:: yaml
+   :caption: After (fixed)
+
+   # lhp.yaml
+   sandbox:
+     strategy: table
+     allowed_envs:
+       - dev
+
+.. seealso::
+
+   :doc:`sandbox_reference` for the full ``sandbox`` block schema and team
+   defaults, and :doc:`develop_in_a_sandbox` for the sandbox workflow.
+
+.. _lhp-cfg-063:
+
+LHP-CFG-063: Invalid Sandbox ``table_pattern``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** The ``table_pattern`` in the ``sandbox`` block of
+``lhp.yaml`` cannot produce a valid sandbox table name. The pattern formats
+the table leaf only, and it must use exactly the two placeholders
+``{namespace}`` and ``{table}`` — both required — with no conversions
+(``!r``) or format specs (``:>10``), and any literal text limited to letters,
+digits, and underscores (``[A-Za-z0-9_]``).
+
+**Common causes:**
+
+- A missing placeholder — for example ``"{namespace}_customer"`` omits the
+  required ``{table}``.
+- An unknown placeholder such as ``{env}`` or ``{user}``.
+- Literal characters outside ``[A-Za-z0-9_]``, such as a hyphen or a dot.
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-CFG-063)
+
+   # lhp.yaml
+   sandbox:
+     table_pattern: "{namespace}-{table}"   # hyphen is not a valid table character
+
+.. code-block:: yaml
+   :caption: After (fixed)
+
+   # lhp.yaml
+   sandbox:
+     table_pattern: "{namespace}_{table}"
+
+.. seealso::
+
+   :doc:`sandbox_reference` for the pattern rules and the default
+   ``{namespace}_{table}`` behavior.
+
+.. _lhp-cfg-064:
+
+LHP-CFG-064: Invalid Sandbox Profile
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** Your personal ``.lhp/profile.yaml`` exists but fails
+validation. The file must be valid YAML with a top-level ``sandbox:`` mapping;
+``namespace`` must match ``^[a-z][a-z0-9_]{0,63}$`` (a lowercase letter first,
+then lowercase letters, digits, or underscores, at most 64 characters total);
+and ``pipelines`` must be a non-empty list.
+
+**Common causes:**
+
+- A ``namespace`` that starts with an uppercase letter or a digit, or contains
+  a hyphen.
+- An empty or missing ``pipelines`` list.
+- The settings placed at the root of the file instead of under the
+  ``sandbox:`` key.
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-CFG-064)
+
+   # .lhp/profile.yaml
+   sandbox:
+     namespace: Alice-Dev    # uppercase and hyphen are not allowed
+     pipelines: []           # must list at least one pipeline
+
+.. code-block:: yaml
+   :caption: After (fixed)
+
+   # .lhp/profile.yaml
+   sandbox:
+     namespace: alice
+     pipelines:
+       - bronze_*
+       - silver_orders
+
+.. seealso::
+
+   :doc:`develop_in_a_sandbox` for creating your profile, and
+   :doc:`sandbox_reference` for the full profile schema.
+
+.. _lhp-cfg-065:
+
+LHP-CFG-065: Environment Not Sandbox-Enabled
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** You ran ``lhp generate --sandbox`` or
+``lhp validate --sandbox`` against an environment that is not listed in
+``sandbox.allowed_envs`` in ``lhp.yaml``. When ``allowed_envs`` is present, it
+restricts sandbox mode to exactly those environments; omitting the key allows
+sandbox mode in any environment.
+
+**Common causes:**
+
+- Running ``--sandbox`` against a shared or production environment that the
+  team policy deliberately excludes.
+- A new environment added to ``substitutions/`` but not yet to
+  ``allowed_envs``.
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-CFG-065 for "lhp generate --env tst --sandbox")
+
+   # lhp.yaml — only dev is sandbox-enabled
+   sandbox:
+     allowed_envs:
+       - dev
+
+.. code-block:: yaml
+   :caption: After (fixed) — extend the team policy
+
+   # lhp.yaml
+   sandbox:
+     allowed_envs:
+       - dev
+       - tst
+
+Alternatively, run the command against an environment that is already listed
+in ``allowed_envs``.
+
+.. seealso::
+
+   :doc:`sandbox_reference` for the ``allowed_envs`` gate and team defaults.
+
 Validation Errors (LHP-VAL)
 ----------------------------
 
 Validation errors indicate that your configuration is syntactically valid YAML but
 contains values that are structurally incorrect, missing, or incompatible.
+``LHP-VAL-065`` and ``LHP-VAL-066`` are the exception: they are sandbox
+**warnings**, not errors — the run continues unless you pass ``--strict``.
 
 LHP-VAL-001: Missing Required Field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1172,6 +1336,115 @@ string of at most three dot-separated parts
    :doc:`dependency_analysis` for when and how to use ``depends_on`` to declare
    edges the analyzer cannot parse from your sources.
 
+.. _lhp-val-064:
+
+LHP-VAL-064: Sandbox Profile Entry Matches No Pipelines
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** An entry in the ``pipelines`` list of your
+``.lhp/profile.yaml`` selects nothing. Each entry must be an exact pipeline
+name or a case-sensitive glob; any entry that matches zero pipelines fails the
+run, and the message lists every offending entry together with the available
+pipeline names. The same code is raised when an exact entry names the
+project's monitoring pipeline, which cannot be sandboxed (globs silently skip
+it).
+
+**Common causes:**
+
+- A typo in a pipeline name.
+- A glob that relies on case-insensitive matching — globs match
+  case-sensitively.
+- An exact entry naming the monitoring pipeline.
+
+.. code-block:: yaml
+   :caption: Before (triggers LHP-VAL-064)
+
+   # .lhp/profile.yaml
+   sandbox:
+     namespace: alice
+     pipelines:
+       - Bronze_*        # case-sensitive: no pipeline starts with "Bronze"
+       - silver_oders    # typo
+
+.. code-block:: yaml
+   :caption: After (fixed)
+
+   # .lhp/profile.yaml
+   sandbox:
+     namespace: alice
+     pipelines:
+       - bronze_*
+       - silver_orders
+
+.. seealso::
+
+   :doc:`develop_in_a_sandbox` for scoping your profile, and
+   :doc:`sandbox_reference` for the glob-matching rules.
+
+.. _lhp-val-065:
+
+LHP-VAL-065: Mixed-Producer Sandbox Sink
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Warning, not an error — the run continues and the table is renamed.**
+Passing ``--strict`` promotes warnings to failures.
+
+**When it occurs:** A table renamed by your sandbox scope is also produced by
+a pipeline outside that scope (a mixed-producer sink). LHP renames the table
+anyway — the in-scope write and every in-scope read of it move to your
+namespaced name, for example ``edw_bronze.customer`` becomes
+``edw_bronze.alice_customer`` — and folds all such findings into a single
+warning naming the out-of-scope producers.
+
+**Common causes:**
+
+- Your profile scope covers only some of the flowgroups that write to a
+  shared table — for example an append-flow target fed by several pipelines.
+- A glob in ``pipelines`` that selects a subset of a multi-pipeline producer
+  group.
+
+**Fix:** Widen your profile scope to include every producer of the table, or
+accept the split: your sandbox run writes its own copy while out-of-scope
+pipelines keep writing the shared table.
+
+.. seealso::
+
+   :doc:`develop_in_a_sandbox` for how sandbox scope determines which tables
+   are renamed.
+
+.. _lhp-val-066:
+
+LHP-VAL-066: Unrewritable In-Scope Table Read
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Warning, not an error — the run continues.** Passing ``--strict`` promotes
+warnings to failures. ``lhp generate --sandbox`` emits this warning;
+``lhp validate --sandbox`` does not surface it in this release.
+
+**When it occurs:** A Python file in your sandbox scope reads a table that
+your scope produces, but the reference is not a plain string literal — it is
+a variable, an f-string, a concatenation, or a ``.format(...)`` call — so the
+sandbox rewriter cannot rewrite it. The generated code keeps the shared table
+name for that read, while the in-scope producer writes the renamed sandbox
+table.
+
+**Common causes:**
+
+- A table name built dynamically, for example
+  ``spark.read.table(f"{schema}.{name}")`` or
+  ``spark.read.table(prefix + "customer")``.
+- A table name supplied through a variable rather than written at the read
+  site.
+
+**Fix:** Use a literal table name at the read site — for example
+``spark.read.table("edw_bronze.customer")``, which the rewriter renames to
+``edw_bronze.alice_customer`` — or accept that this read targets the shared
+table.
+
+.. seealso::
+
+   :doc:`sandbox_reference` for exactly which read sites the rewriter handles.
+
 I/O Errors (LHP-IO)
 --------------------
 
@@ -1344,6 +1617,40 @@ is not a valid zip archive, so it cannot be opened (a wheel is a zip file).
    LHP-built wheels are deterministic and content-addressed, so regenerating from
    the same YAML reproduces a byte-identical wheel. See
    :doc:`package_pipelines_as_wheels`.
+
+.. _lhp-io-025:
+
+LHP-IO-025: Sandbox Profile Not Found
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** You passed ``--sandbox`` to ``lhp generate`` or
+``lhp validate``, but the personal profile ``.lhp/profile.yaml`` does not
+exist at the project root. Sandbox mode is explicit opt-in: the profile
+declares your namespace and the pipelines you work on, and nothing is
+auto-detected. The error message prints the expected path and an example
+profile you can copy.
+
+**Common causes:**
+
+- First time using sandbox mode — the profile has not been created yet.
+- The ``.lhp/`` directory is gitignored, so a fresh clone does not include
+  your profile.
+- Running the command from a different project root than the one holding your
+  profile.
+
+.. code-block:: yaml
+   :caption: Fix — create .lhp/profile.yaml at the project root
+
+   sandbox:
+     namespace: alice
+     pipelines:
+       - bronze_*
+       - silver_orders
+
+.. seealso::
+
+   :doc:`develop_in_a_sandbox` for setting up your profile, and
+   :doc:`sandbox_reference` for the profile schema.
 
 Action Errors (LHP-ACT)
 ------------------------

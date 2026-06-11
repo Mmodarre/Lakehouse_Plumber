@@ -16,6 +16,7 @@ from ...models.dependencies import DependencyWarning
 from ._bindings import ParameterBindings
 from ._extraction_visitor import _TableExtractor
 from ._static_resolution import NameResolver, resolve_static_string_values
+from ._table_sites import PythonTableSitesResult
 
 # Spark DataFrameReader ``.format(...)`` values that denote a relational table
 # read (``spark.read.format(fmt).table/load("cat.sch.t")``). Anything outside
@@ -82,6 +83,43 @@ class PythonParser:
         return PythonExtractionResult(
             tables=sorted(extractor.tables), warnings=list(extractor.warnings)
         )
+
+    def collect_table_sites(
+        self,
+        python_code: str,
+        *,
+        bindings: Optional[ParameterBindings] = None,
+    ) -> PythonTableSitesResult:
+        """Record every recognized table-consuming call site with rewrite metadata.
+
+        Same recognition, scope resolution and ``bindings`` seeding as
+        :meth:`extract_tables_from_python`, but the source is parsed VERBATIM
+        — no dedent / strip normalization — so each recorded
+        :class:`~lhp.core.dependencies._table_sites.SourceSpan` indexes
+        byte-for-byte into ``python_code`` exactly as given, which is the
+        contract a rewriter needs. Consequence: indented snippets that only
+        parse after dedenting yield an empty result here while still
+        extracting via :meth:`extract_tables_from_python`.
+
+        Failure behavior mirrors :meth:`extract_tables_from_python`: empty /
+        non-string input and unparseable source degrade to an empty result
+        (the SyntaxError is logged as a warning, never raised).
+        """
+        if not python_code or not isinstance(python_code, str):
+            return PythonTableSitesResult(sites=())
+
+        try:
+            tree = ast.parse(python_code)
+        except SyntaxError as e:
+            self.logger.warning(f"Could not parse Python code: {e}")
+            return PythonTableSitesResult(sites=())
+        except Exception:
+            self.logger.exception("Error collecting table sites from Python")
+            return PythonTableSitesResult(sites=())
+
+        extractor = _TableExtractor(self, bindings=bindings)
+        extractor.visit(tree)
+        return PythonTableSitesResult(sites=tuple(extractor.sites))
 
     def extract_sql_from_python(self, python_code: str) -> List[str]:
         sql_queries = []
@@ -308,6 +346,21 @@ def extract_tables_from_python(
 ) -> PythonExtractionResult:
     parser = PythonParser()
     return parser.extract_tables_from_python(python_code, bindings=bindings)
+
+
+def collect_python_table_sites(
+    python_code: str,
+    *,
+    bindings: Optional[ParameterBindings] = None,
+) -> PythonTableSitesResult:
+    """Collect rewrite-oriented table-site records from a Python body.
+
+    See :meth:`PythonParser.collect_table_sites` for the span contract
+    (verbatim parse, AST coordinates with UTF-8 byte columns) and failure
+    behavior (unparseable / empty source degrades to an empty result).
+    """
+    parser = PythonParser()
+    return parser.collect_table_sites(python_code, bindings=bindings)
 
 
 def extract_sql_from_python(python_code: str) -> List[str]:

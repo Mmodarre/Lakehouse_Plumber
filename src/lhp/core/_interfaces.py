@@ -37,7 +37,7 @@ from typing import (
 
 from lhp.models import FlowGroup, FlowGroupContext
 
-from ..models.processing import CopiedModuleRecord, DeprecationWarningRecord
+from ..models.processing import CopiedModuleRecord, RunWarningRecord
 from .processing.substitution import EnhancedSubstitutionManager as SubstitutionManager
 
 
@@ -109,7 +109,7 @@ class BaseFlowgroupDiscoveryService(ABC):
     @abstractmethod
     def scan_deprecation_warnings(
         self, *, pipeline_filter: Optional[str] = None
-    ) -> Tuple[DeprecationWarningRecord, ...]:
+    ) -> Tuple[RunWarningRecord, ...]:
         """Detect deprecated bare-``{token}`` syntax (``LHP-DEPR-001``; use
         ``${token}`` — ``%{local_var}`` stays valid). Returns EXACTLY ONE
         :class:`DeprecationWarningRecord` per offending file (multiple bare
@@ -124,7 +124,10 @@ class BaseFlowgroupDiscoveryService(ABC):
         Main-thread warnings (read path precedes the worker pool), distinct
         from the worker-side warnings that ride back on
         ``FlowgroupOutcome.warnings``. The facade wrapper merges this tuple
-        into the event stream as ``WarningEmitted`` events.
+        into the event stream as ``WarningEmitted`` events. The declared
+        return type is the :data:`RunWarningRecord` union (the one shape every
+        warning carrier shares); today's scanner emits only
+        :class:`DeprecationWarningRecord` members.
         """
         raise NotImplementedError
 
@@ -246,7 +249,7 @@ class BasePipelineExecutionService(ABC):
         max_workers: Optional[int] = None,
         on_total: Optional[Callable[[int], None]] = None,
         on_flowgroup_done: Optional[Callable[[str], None]] = None,
-    ) -> Generator["PipelineDelta", None, Tuple[DeprecationWarningRecord, ...]]:
+    ) -> Generator["PipelineDelta", None, Tuple[RunWarningRecord, ...]]:
         """The flat four-map shape — produced by
         ``flowgroup_worklist_builder.build_flowgroup_worklist`` with a REAL
         ``output_dir`` (unlike validate's ``None``) — plus the generate-only
@@ -271,7 +274,8 @@ class BasePipelineExecutionService(ABC):
         stream drains cleanly.
 
         RETURNS (via ``StopIteration.value``, captured by a ``yield from``) the
-        batch's worker-attached deprecation warnings, merged + deduped by
+        batch's worker-attached warnings (deprecation AND sandbox
+        :data:`RunWarningRecord` members), merged + deduped by
         ``(code, file)``, for the facade to re-emit as
         :class:`~lhp.api.WarningEmitted` events. Not delivered on the
         gate-raise path (the §1.4 raise closes the stream).
@@ -291,9 +295,7 @@ class BasePipelineExecutionService(ABC):
         discovery_errors: Mapping[str, str],
         on_total: Optional[Callable[[int], None]] = None,
         on_flowgroup_done: Optional[Callable[[str], None]] = None,
-    ) -> Generator[
-        "PipelineValidationOutcome", None, Tuple[DeprecationWarningRecord, ...]
-    ]:
+    ) -> Generator["PipelineValidationOutcome", None, Tuple[RunWarningRecord, ...]]:
         """Flat four-map shape — produced by
         ``flowgroup_worklist_builder.build_flowgroup_worklist``:
         ``flowgroups_by_pipeline`` keyed in pipeline-input order, the
@@ -307,7 +309,8 @@ class BasePipelineExecutionService(ABC):
         completion.
 
         RETURNS (via ``StopIteration.value``, captured by a ``yield from``) the
-        batch's worker-attached deprecation warnings, merged + deduped by
+        batch's worker-attached warnings (deprecation AND sandbox
+        :data:`RunWarningRecord` members), merged + deduped by
         ``(code, file)``, for the facade to re-emit as
         :class:`~lhp.api.WarningEmitted` events.
         """

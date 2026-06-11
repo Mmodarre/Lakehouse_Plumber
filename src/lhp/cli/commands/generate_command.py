@@ -44,6 +44,15 @@ logger = logging.getLogger(__name__)
 @click.option("--include-tests", is_flag=True, help="Include test actions.")
 @click.option("--no-format", is_flag=True, help="Skip code formatting.")
 @click.option("-p", "--pipeline", default=None, help="Only the named pipeline.")
+@click.option(
+    "--sandbox",
+    is_flag=True,
+    help=(
+        "Developer sandbox mode: generate only the pipelines in your "
+        ".lhp/profile.yaml scope, renaming the tables they produce into your "
+        "namespace (reads of shared tables outside your scope are untouched)."
+    ),
+)
 @click.option("-o", "--output", default=None, help="Output dir override.")
 @click.option("-pc", "--pipeline-config", default=None, help="pipeline_config.yaml.")
 @click.option("--max-workers", type=int, default=None, help="Max parallel workers.")
@@ -58,12 +67,21 @@ def generate(
     include_tests: bool,
     no_format: bool,
     pipeline: Optional[str],
+    sandbox: bool,
     output: Optional[str],
     pipeline_config: Optional[str],
     max_workers: Optional[int],
     force: bool,
 ) -> None:
     """Generate Databricks pipeline code for ENV from the project's flowgroups."""
+    # D2: sandbox scope is profile-driven (.lhp/profile.yaml), so it cannot be
+    # narrowed with -p. Checked here so the failure is a native Click usage
+    # error (exit 2) raised before any facade work.
+    if sandbox and pipeline:
+        raise click.UsageError(
+            "--sandbox cannot be combined with -p/--pipeline: "
+            "sandbox scope comes from .lhp/profile.yaml"
+        )
     # Group-level ``lhp --no-progress generate`` falls through here: OR the
     # per-command flag with the group value stored in ``ctx.obj`` (main.py).
     no_progress = no_progress or bool(
@@ -95,6 +113,7 @@ def generate(
         pipeline_filter=pipeline,
         max_workers=max_workers,
         progress=progress,
+        sandbox=sandbox,
     )
 
     options = RenderOptions(show_details=show_details, strict=strict)

@@ -53,6 +53,15 @@ _WORKERS_HELP = "Max worker processes (default ~80%% of CPUs; 1 = sequential)."
 )
 @click.option("-p", "--pipeline", default=None, help="Validate a single pipeline only.")
 @click.option(
+    "--sandbox",
+    is_flag=True,
+    help=(
+        "Developer sandbox mode: validate only the pipelines in your "
+        ".lhp/profile.yaml scope, renaming the tables they produce into your "
+        "namespace (reads of shared tables outside your scope are untouched)."
+    ),
+)
+@click.option(
     "-pc", "--pipeline-config", default=None, help="Custom pipeline config path."
 )
 @click.option(
@@ -67,10 +76,19 @@ def validate_command(
     no_bundle: bool,
     include_tests: bool,
     pipeline: str | None,
+    sandbox: bool,
     pipeline_config: str | None,
     max_workers: int | None,
 ) -> None:
     """Validate pipeline configurations for ENV."""
+    # D2: sandbox scope is profile-driven (.lhp/profile.yaml), so it cannot be
+    # narrowed with -p. Checked here so the failure is a native Click usage
+    # error (exit 2) raised before any facade work.
+    if sandbox and pipeline:
+        raise click.UsageError(
+            "--sandbox cannot be combined with -p/--pipeline: "
+            "sandbox scope comes from .lhp/profile.yaml"
+        )
     # Group-level ``lhp --no-progress validate`` falls through here: OR the
     # per-command flag with the group value stored in ``ctx.obj`` (main.py).
     no_progress = no_progress or bool(
@@ -94,6 +112,7 @@ def validate_command(
         bundle_enabled=bundle_enabled,
         max_workers=max_workers,
         progress=progress,
+        sandbox=sandbox,
     )
     options = RenderOptions(show_details=show_details, strict=strict)
     started = perf_counter()

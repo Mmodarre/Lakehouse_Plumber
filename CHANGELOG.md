@@ -7,10 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.9.1] — 2026-06-10
 
-Dependency-extraction overhaul. SQL table extraction is now parser-based and
-byte-faithful to substitution tokens, Python reads declared through YAML
-parameters form real dependency edges, and unresolvable reads surface as
-actionable advisory warnings instead of silently missing edges.
+Developer sandbox mode plus a dependency-extraction overhaul.
+`lhp generate --sandbox` gives each developer a personal, namespaced copy of
+their slice of the project without touching shared tables. SQL table
+extraction is now parser-based and byte-faithful to substitution tokens,
+Python reads declared through YAML parameters form real dependency edges, and
+unresolvable reads surface as actionable advisory warnings instead of
+silently missing edges.
 
 ### Added
 
@@ -23,6 +26,50 @@ actionable advisory warnings instead of silently missing edges.
   Declarative Automation Bundles job. The project runs against the
   `samples.tpch` dataset available on any Unity Catalog workspace. `--sample`
   requires bundle support and cannot be combined with `--no-bundle`.
+- **Developer sandbox mode** — `lhp generate --sandbox` and
+  `lhp validate --sandbox` (mutually exclusive with `-p`/`--pipeline`). A
+  gitignored personal profile (`.lhp/profile.yaml`, `sandbox:` key) declares a
+  `namespace` and the `pipelines` in scope (exact names or globs); an optional
+  `sandbox:` block in `lhp.yaml` sets team policy — `strategy` (v1: `table`
+  only), `table_pattern` (default `{namespace}_{table}`), and `allowed_envs`.
+  Generation and validation are scoped to the profile's pipelines, and every
+  table produced in scope is renamed through the pattern — write targets,
+  delta-sink `tableName`, and in-scope reads, across structured fields, SQL
+  bodies in generated `spark.sql` literals, table literals in copied Python
+  modules, and table refs passed as YAML parameter values into user Python
+  code (python-transform `parameters`, python-load `source.parameters`, and
+  snapshot-CDC `source_function.parameters`, whole-value match only) — while
+  reads of tables produced outside the scope stay pointed at the shared tables
+  (read-shared / write-own). Bundle resource
+  files regenerate for the scoped pipelines only, the project event-log table
+  name is namespaced through the same pattern, and the monitoring phase is
+  skipped so shared monitoring artifacts are never clobbered. Deferred to a
+  follow-up (v1 limitations):
+  - `catalog` / `schema` rename strategies — v1 ships the `table` strategy
+    only (the strategy seam is in place).
+  - No sandbox teardown command — `bundle destroy` removes the sandbox
+    streaming tables and materialized views, but Delta-sink tables created by
+    sandbox runs are not auto-removed (manual cleanup; see the
+    "Develop in a sandbox" how-to).
+  - `lhp validate --sandbox` applies the structured renames but does not
+    surface Python unrewritable-read warnings — `LHP-VAL-066` is
+    generate-only in v1.
+  - Per-pipeline explicit `event_log:` dicts are not rewritten — only the
+    project-level composed event-log table name is namespaced.
+- **Sandbox warnings and errors.** `LHP-VAL-065` warns when a sandbox-renamed
+  sink table is also produced by out-of-scope pipelines (mixed producers; the
+  rewrite proceeds), and `LHP-VAL-066` warns when an in-scope read cannot be
+  rewritten (e.g. variable-bound or f-string table references in Python);
+  both ride the warning stream with category `sandbox` and never fail a run.
+  New errors `LHP-IO-025` (missing `.lhp/profile.yaml`), `LHP-CFG-062`
+  (invalid `sandbox:` block in `lhp.yaml`), `LHP-CFG-063` (invalid
+  `table_pattern`), `LHP-CFG-064` (invalid personal profile), `LHP-CFG-065`
+  (environment not sandbox-enabled), and `LHP-VAL-064` (a profile `pipelines`
+  entry matches no pipeline) cover the failure modes.
+- **Sandbox documentation** — a "Develop in a sandbox" how-to, a "Sandbox Mode
+  Reference" page, error-reference entries for all eight sandbox codes, and
+  AI-skill parity updates (new `sandbox.md` reference plus `project-config.md`
+  and `errors.md` additions).
 - **Parameter-bound Python dependency resolution.** Table reads built from
   YAML-declared parameters now form dependency edges, mirroring the generated
   code exactly: snapshot_cdc `source_function.parameters` (keyword-only
@@ -61,6 +108,11 @@ actionable advisory warnings instead of silently missing edges.
 
 ### Fixed
 
+- **`TemplateEngine` instances pickle with an empty compiled-template memo.**
+  The compiled-template cache is per-process state; previously a warm cache
+  made sandbox runs on template-using projects fail at the worker spawn
+  boundary (sandbox-specific: only the sandbox pre-pass warms the cache on
+  the main thread before the worker pool starts).
 - **Substitution tokens survive SQL extraction byte-for-byte.** The regex
   parser silently truncated mid-segment tokens (`FROM cat.sch.tbl${suffix}`
   was extracted as `cat.sch.tbl`), so suffix-carrying producers could never
