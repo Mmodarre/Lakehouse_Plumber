@@ -67,6 +67,7 @@ class GenerationFacade:
         pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
         max_workers: Optional[int] = None,
         progress: ProgressSink | None = None,
+        sandbox: bool = False,
     ) -> Iterator[LHPEvent]:
         """Stream-protocol wrapper around the FULL generate orchestration (§5.7).
 
@@ -152,12 +153,23 @@ class GenerationFacade:
         ``done`` fields while iterating the stream to drive a progress bar.
         ``None`` (the default) wires no progress callbacks.
 
+        ``sandbox`` switches the run to developer-sandbox mode: the pipeline
+        scope and namespace come from the personal ``.lhp/profile.yaml`` plus
+        the team ``sandbox:`` policy in ``lhp.yaml``, resolved by the sandbox
+        preflight at the start of the run. Because sandbox scope is
+        profile-driven, ``sandbox=True`` CANNOT be combined with
+        ``pipeline_filter`` / ``pipeline_fields``.
+
         The §5.7 stream body lives in :func:`lhp.api._generate_stream
         ._stream_pipeline_generation` (split out per §3.3 to keep this module
         lean, mirroring :mod:`lhp.api._plan_stream`); this method restates the
         canonical signature (§4.2) and forwards via ``yield from``.
 
         :stability: provisional
+        :raises ValueError: if ``sandbox=True`` is combined with
+            ``pipeline_filter`` or ``pipeline_fields`` — API misuse, no
+            structured ``LHP-*`` code (the codebase convention for
+            invalid-argument combinations).
         :raises lhp.errors.LHPError: ``LHP-VAL-*`` (config/action/schema
             validation), ``LHP-CFG-*`` (project config + substitution),
             ``LHP-FILE-*`` (missing files), ``LHP-MULT-*`` (multi-document
@@ -165,10 +177,21 @@ class GenerationFacade:
             per-pipeline workers, ``LHP-CFG-033`` / ``LHP-CFG-034`` from the
             format phase (ruff exits non-zero / ruff executable not found), and
             ``LHP-CFG-020`` from the bundle-sync phase
-            (:class:`~lhp.bundle.exceptions.BundleResourceError`). An
+            (:class:`~lhp.bundle.exceptions.BundleResourceError`); on a
+            ``sandbox=True`` run also the sandbox preflight errors
+            ``LHP-IO-025`` (missing ``.lhp/profile.yaml``), ``LHP-CFG-064``
+            (malformed profile), ``LHP-CFG-065`` (environment not
+            sandbox-enabled), and ``LHP-VAL-064`` (profile scope matched no
+            pipelines, or an exact entry names the monitoring pipeline). An
             :class:`ErrorEmitted` event is yielded before the exception
             escapes (§1.4 stream protocol).
         """
+        if sandbox and (pipeline_filter is not None or pipeline_fields):
+            raise ValueError(
+                "`sandbox` cannot be combined with `pipeline_filter` or "
+                "`pipeline_fields`: sandbox scope comes from the personal "
+                "profile (.lhp/profile.yaml)."
+            )
         # Deferred to keep ``import lhp.api`` from eagerly pulling the codegen
         # stack (and jinja2 via it); the stream body is needed only at call time.
         from lhp.api._generate_stream import _stream_pipeline_generation
@@ -188,6 +211,7 @@ class GenerationFacade:
                 pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
                 max_workers=max_workers,
                 progress=progress,
+                sandbox=sandbox,
             )
         )
 

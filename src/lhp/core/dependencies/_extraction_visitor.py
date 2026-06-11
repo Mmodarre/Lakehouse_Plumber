@@ -31,6 +31,7 @@ from ...errors.codes import DEP_002
 from ...models.dependencies import DependencyWarning
 from ._bindings import Bound, DictValue, ParameterBindings
 from ._static_resolution import resolve_static_list, resolve_static_string_values
+from ._table_sites import PythonTableSite, SiteKind, SourceSpan
 from .sql_extraction import extract_tables_from_sql
 
 if TYPE_CHECKING:
@@ -81,6 +82,7 @@ class _TableExtractor(ast.NodeVisitor):
         extractor = _TableExtractor(parser, bindings=bindings)
         extractor.visit(tree)
         tables, warnings = extractor.tables, extractor.warnings
+        sites = extractor.sites  # rewrite metadata, see _table_sites.py
     """
 
     def __init__(
@@ -94,6 +96,7 @@ class _TableExtractor(ast.NodeVisitor):
         self._scopes: List[_Scope] = [_Scope(kind="module")]
         self.tables: Set[str] = set()
         self.warnings: List[DependencyWarning] = []
+        self.sites: List[PythonTableSite] = []
 
     # ---- Scope management & parameter-binding seeding ----
 
@@ -257,6 +260,7 @@ class _TableExtractor(ast.NodeVisitor):
             )
             if matched and values:
                 self.tables.update(values)
+                self._record_site("table_read", node, values)
             elif matched:
                 self._warn_opaque(node)
         self.generic_visit(node)
@@ -288,11 +292,48 @@ class _TableExtractor(ast.NodeVisitor):
         if not sql_values:
             self._warn_opaque(node)
             return
+        site_tables: Set[str] = set()
         for sql_query in sql_values:
             result = extract_tables_from_sql(sql_query)
+            site_tables.update(result.tables)
             self.tables.update(result.tables)
             self.warnings.extend(
                 replace(warning, line=node.lineno) for warning in result.warnings
+            )
+        self._record_site("spark_sql", node, frozenset(site_tables))
+
+    def _record_site(
+        self, kind: SiteKind, node: ast.Call, resolved_values: FrozenSet[str]
+    ) -> None:
+        """Record one resolvable table-consuming call site (additive only).
+
+        Called exactly where extraction already succeeded, so recording can
+        never alter the ``tables`` / ``warnings`` outputs. A direct
+        ``ast.Constant`` string argument is REWRITABLE — its exact span and
+        literal value are captured; anything else that still resolved
+        statically is UNREWRITABLE-RESOLVED — only the candidate table names
+        and the call's line are captured. Opaque arguments never reach this
+        method (they take the ``_warn_opaque`` path instead).
+        """
+        arg = node.args[0] if node.args else None
+        if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+            self.sites.append(
+                PythonTableSite(
+                    kind=kind,
+                    rewritable=True,
+                    lineno=node.lineno,
+                    span=SourceSpan.of_node(arg),
+                    value=arg.value,
+                )
+            )
+        else:
+            self.sites.append(
+                PythonTableSite(
+                    kind=kind,
+                    rewritable=False,
+                    lineno=node.lineno,
+                    resolved_values=resolved_values,
+                )
             )
 
     def _warn_opaque(self, node: ast.Call) -> None:

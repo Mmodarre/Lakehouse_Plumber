@@ -5,7 +5,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from ..core.codegen.template_renderer import TemplateRenderer
 from ..core.coordination.monitoring_pipeline_builder import (
@@ -68,6 +68,7 @@ class BundleManager:
         project_root: Union[Path, str],
         pipeline_config_path: Optional[str] = None,
         project_config: Optional[Any] = None,
+        event_log_name_transform: Optional[Callable[[str], str]] = None,
     ):
         if project_root is None:
             raise ErrorFactory.config_error(
@@ -85,6 +86,10 @@ class BundleManager:
 
         self.project_root = project_root
         self.project_config = project_config
+        # Opaque transform applied to the composed project-level event-log
+        # table name (e.g. sandbox namespacing). BundleManager stays unaware
+        # of WHY the name changes — callers pass a plain str -> str callable.
+        self._event_log_name_transform = event_log_name_transform
         self.resources_dir = project_root / "resources" / "lhp"
         self.logger = logging.getLogger(__name__)
 
@@ -233,6 +238,10 @@ class BundleManager:
         event_log_name = (
             f"{event_log_cfg.name_prefix}{pipeline_name}{event_log_cfg.name_suffix}"
         )
+        # Project-level injection only: per-pipeline explicit event_log dicts
+        # returned above are NOT transformed (v1 limitation, locked).
+        if self._event_log_name_transform is not None:
+            event_log_name = self._event_log_name_transform(event_log_name)
         pipeline_config["event_log"] = {
             "name": event_log_name,
             "catalog": event_log_cfg.catalog,

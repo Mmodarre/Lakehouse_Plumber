@@ -45,12 +45,12 @@ import dataclasses
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, List, Literal, Mapping, Optional
+from typing import TYPE_CHECKING, Any, List, Literal, Mapping, Optional, Tuple
 
 from lhp.models import FlowGroupContext
 
 from ...models.deprecations import collect_deprecations, drain_deprecations
-from ...models.processing import FlowgroupOutcome
+from ...models.processing import FlowgroupOutcome, SandboxWarningRecord
 from ...utils.performance_timer import (
     enable_perf_timing,
     export_perf_for_merge,
@@ -61,6 +61,8 @@ from .._interfaces import BaseCodeGenerationService, BaseFlowgroupResolutionServ
 from ..codegen.formatter import assert_generated_python_valid
 
 if TYPE_CHECKING:
+    from lhp.core.sandbox import SandboxTableRenames, UnrewritableTableRead
+
     from ...models.processing import CopiedModuleRecord
     from ..processing.substitution import EnhancedSubstitutionManager
 
@@ -120,6 +122,10 @@ class _FlowgroupWorkerState:
       ruff pass runs on the coordinator over the committed tree.
     - ``include_tests`` — consumed in BOTH modes (filters test actions before
       validation).
+    - ``table_renames`` — both modes; the ``--sandbox`` rename set driving
+      the worker's D7 rewrite hooks. ``None`` (the default) outside sandbox
+      runs — the hooks are skipped entirely. Frozen and picklable, so it
+      crosses the spawn boundary on this carrier.
 
     ``project_config`` and ``project_root`` are deliberately absent — inputs
     to the per-pipeline commit/test-reporting step (coordinator's job, not
@@ -134,6 +140,9 @@ class _FlowgroupWorkerState:
     code_generator: BaseCodeGenerationService
     pipeline_output_dirs: Mapping[str, Optional[Path]]
     environment: str
+    # Trailing + defaulted so existing positional construction is unaffected
+    # (frozen+slots tolerates a defaulted append):
+    table_renames: Optional["SandboxTableRenames"] = None
 
 
 # Populated once per spawned worker by :func:`_init_flowgroup_worker`.
@@ -188,9 +197,11 @@ def _process_one_flowgroup(
         outcome = _process_one_flowgroup_impl(ctx, mode=mode)
     warnings = drain_deprecations(collector)
     if warnings:
-        # The impl never sets ``warnings`` itself (sites use the ambient
-        # scope), so replacing the default ``()`` is the whole attach.
-        outcome = dataclasses.replace(outcome, warnings=warnings)
+        # CONCATENATE, never replace: the impl may have attached sandbox
+        # warnings (LHP-VAL-066) already; drained deprecation records are
+        # appended after them. Outside sandbox runs ``outcome.warnings`` is
+        # always ``()``, so this is behavior-preserving.
+        outcome = dataclasses.replace(outcome, warnings=outcome.warnings + warnings)
     if perf_on:
         outcome = dataclasses.replace(outcome, perf=export_perf_for_merge())
     return outcome
@@ -230,6 +241,16 @@ def _process_one_flowgroup_impl(
             include_tests=state.include_tests,
         )
         resolved = ctx_out.flowgroup
+        if state.table_renames is not None:
+            # Sandbox hook 1 (D7, BOTH modes): structured rewrite of the
+            # RESOLVED flowgroup before any downstream use, so grouping,
+            # codegen, the cross-flowgroup barrier and validation all see
+            # the sandbox names. Validate mode returns this REWRITTEN
+            # flowgroup, which is its whole sandbox story (no text pass,
+            # no LHP-VAL-066 — a documented v1 limitation).
+            from lhp.core.sandbox import rewrite_flowgroup_tables
+
+            resolved = rewrite_flowgroup_tables(resolved, state.table_renames)
     except Exception as exc:
         return _to_failure(pipeline, flowgroup_name, exc, lhp_error_cls=LHPError)
 
@@ -244,6 +265,7 @@ def _process_one_flowgroup_impl(
         )
 
     # Generate mode: codegen + syntax guard (no formatting, no disk writes).
+    sandbox_warnings: Tuple[SandboxWarningRecord, ...] = ()
     try:
         # ``records`` is mutated in place by generate_flowgroup_code:
         # user-module copies are appended as CopiedModuleRecords instead
@@ -259,6 +281,22 @@ def _process_one_flowgroup_impl(
             phase_a_records=records,
             auxiliary_files=ctx_out.auxiliary_files,
         )
+        if state.table_renames is not None:
+            # Sandbox hook 2 (D7, generate only): text pass over the
+            # generated module + each copied user module BEFORE the syntax
+            # guard, folding any unrewritable in-scope reads into one
+            # LHP-VAL-066 record per file. The rewriter's internal
+            # ``ast.parse`` self-check ValueError propagates to the
+            # catch-all below → clean failure DTO → the all-or-nothing
+            # gate aborts the batch. ``auxiliary_files`` (monitoring-only)
+            # are deliberately NOT rewritten.
+            code, records, sandbox_warnings = _apply_sandbox_python_rewrites(
+                code,
+                records,
+                state.table_renames,
+                flowgroup_name=flowgroup_name,
+                output_dir=state.pipeline_output_dirs.get(pipeline),
+            )
         # Cheap (microsecond ast.parse) syntax guard: the worker ships the
         # UNFORMATTED ``code`` and only asserts it parses. A failed parse
         # raises LHP-CFG-031 — caught below and routed onto the failure DTO.
@@ -281,6 +319,98 @@ def _process_one_flowgroup_impl(
         formatted_code=code,
         auxiliary_files=tuple(ctx_out.auxiliary_files.items()),
         copy_records=tuple(records),
+        # Sandbox LHP-VAL-066 records (empty outside sandbox runs). The
+        # wrapper CONCATENATES its drained deprecation records after these.
+        warnings=sandbox_warnings,
+    )
+
+
+def _apply_sandbox_python_rewrites(
+    code: str,
+    records: List["CopiedModuleRecord"],
+    renames: "SandboxTableRenames",
+    *,
+    flowgroup_name: str,
+    output_dir: Optional[Path],
+) -> tuple[str, List["CopiedModuleRecord"], Tuple[SandboxWarningRecord, ...]]:
+    """Generate-mode sandbox TEXT pass (D7 hook 2) over the worker's Python.
+
+    Runs :func:`~lhp.core.sandbox.rewrite_python_table_literals` over the
+    flowgroup's generated module and over each
+    :class:`~lhp.models.processing.CopiedModuleRecord`'s content (records are
+    frozen — rewritten ones are rebuilt via :func:`dataclasses.replace`).
+    Returns ``(code, records, warnings)`` with one ``LHP-VAL-066``
+    :class:`~lhp.models.processing.SandboxWarningRecord` per FILE that still
+    holds in-scope reads the rewriter could not rename (the ``(code, file)``
+    dedup grain the merge chain uses).
+
+    File identity: the generated module is named exactly as the commit step
+    writes it (``<pipeline output dir>/<flowgroup_name>.py``; the bare
+    relative ``<flowgroup_name>.py`` when the pipeline has no output dir,
+    e.g. dry-run); a copied module is its ``record.dest_path``.
+
+    May raise ``ValueError`` — ONLY from the rewriter's internal
+    ``ast.parse`` self-check. The caller's catch-all converts it into a
+    failure DTO (never raises across the spawn boundary, §5.6), which the
+    all-or-nothing gate then surfaces.
+    """
+    from lhp.core.sandbox import rewrite_python_table_literals
+
+    warnings: List[SandboxWarningRecord] = []
+
+    generated_file = (
+        output_dir / f"{flowgroup_name}.py"
+        if output_dir is not None
+        else Path(f"{flowgroup_name}.py")
+    )
+    code, unrewritable = rewrite_python_table_literals(code, renames)
+    warning = _fold_unrewritable_reads(unrewritable, generated_file, flowgroup_name)
+    if warning is not None:
+        warnings.append(warning)
+
+    new_records: List["CopiedModuleRecord"] = []
+    for record in records:
+        content, unrewritable = rewrite_python_table_literals(record.content, renames)
+        if content != record.content:
+            record = dataclasses.replace(record, content=content)
+        new_records.append(record)
+        warning = _fold_unrewritable_reads(
+            unrewritable, record.dest_path, flowgroup_name
+        )
+        if warning is not None:
+            warnings.append(warning)
+
+    return code, new_records, tuple(warnings)
+
+
+def _fold_unrewritable_reads(
+    reads: "tuple[UnrewritableTableRead, ...]",
+    file: Path,
+    flowgroup_name: str,
+) -> Optional[SandboxWarningRecord]:
+    """Fold ONE file's unrewritable in-scope reads into ONE ``LHP-VAL-066``.
+
+    Returns ``None`` when the file has no such reads. Sites are deduped and
+    sorted by ``(lineno, table, kind)`` so the message is deterministic.
+    """
+    if not reads:
+        return None
+    from lhp.errors.codes import VAL_066
+
+    sites = sorted({(read.lineno, read.table, read.kind) for read in reads})
+    detail = "; ".join(
+        f"line {lineno}: {table} ({kind})" for lineno, table, kind in sites
+    )
+    message = (
+        f"Sandbox rewrite could not rename {len(sites)} in-scope table "
+        f"read(s) in {file.name}: {detail}. These sites still read the "
+        f"original (non-sandbox) table(s)."
+    )
+    return SandboxWarningRecord(
+        code=VAL_066.code,
+        message=message,
+        file=file,
+        flowgroup=flowgroup_name,
     )
 
 

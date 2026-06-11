@@ -1,7 +1,8 @@
-"""Deprecation-warning folding for the flat engine's two merge points.
+"""Worker-warning folding for the flat engine's two merge points.
 
 Two small, pure helpers that fold worker-attached
-:class:`~lhp.models.processing.DeprecationWarningRecord`s, deduped by
+:data:`~lhp.models.processing.RunWarningRecord`s (deprecation AND sandbox
+records), deduped by
 ``(code, file)`` in deterministic first-seen order:
 
 * :func:`merge_flowgroup_warnings` — the PER-PIPELINE fold, run inside the
@@ -23,7 +24,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Optional, Sequence, Tuple
 
-from ...models.processing import DeprecationWarningRecord
+from ...models.processing import RunWarningRecord
 
 if TYPE_CHECKING:
     from ...models.processing import FlowgroupOutcome
@@ -31,8 +32,8 @@ if TYPE_CHECKING:
 
 
 def _dedup_by_code_file(
-    records: Sequence[DeprecationWarningRecord],
-) -> Tuple[DeprecationWarningRecord, ...]:
+    records: Sequence[RunWarningRecord],
+) -> Tuple[RunWarningRecord, ...]:
     """Collapse records to the first-seen one per ``(code, file)`` key.
 
     A plain ``dict`` keyed by ``(code, file)`` preserves insertion order, so the
@@ -40,7 +41,7 @@ def _dedup_by_code_file(
     ``message`` / ``flowgroup`` are NOT part of the key: the first record's full
     payload is kept verbatim.
     """
-    deduped: Dict[Tuple[str, Optional[Path]], DeprecationWarningRecord] = {}
+    deduped: Dict[Tuple[str, Optional[Path]], RunWarningRecord] = {}
     for record in records:
         deduped.setdefault((record.code, record.file), record)
     return tuple(deduped.values())
@@ -48,11 +49,13 @@ def _dedup_by_code_file(
 
 def merge_flowgroup_warnings(
     outcomes: Sequence["FlowgroupOutcome"],
-) -> Tuple[DeprecationWarningRecord, ...]:
-    """Flatten + dedup a pipeline's per-flowgroup deprecation warnings.
+) -> Tuple[RunWarningRecord, ...]:
+    """Flatten + dedup a pipeline's per-flowgroup worker warnings.
 
-    Each worker attaches any deprecation warnings it would have logged (it runs
-    under a ``NullHandler``, so the logging channel is dead) to its
+    Each worker attaches any warnings it would have logged — deprecation AND
+    sandbox records, the :data:`~lhp.models.processing.RunWarningRecord`
+    union (it runs
+    under a ``NullHandler``, so the logging channel is dead) — to its
     :attr:`FlowgroupOutcome.warnings`. This folds them across the pipeline's
     flowgroup outcomes into ONE collection (deduped by ``(code, file)``) for the
     main thread to re-emit as :class:`~lhp.api.WarningEmitted` events — the SAME
@@ -66,7 +69,7 @@ def merge_flowgroup_warnings(
 
 def merge_pool_warnings(
     pool_results: Sequence["_PipelinePoolResult"],
-) -> Tuple[DeprecationWarningRecord, ...]:
+) -> Tuple[RunWarningRecord, ...]:
     """Merge + dedup the per-pipeline worker warnings across the whole batch.
 
     Each :attr:`_PipelinePoolResult.warnings` tuple is ALREADY deduped by

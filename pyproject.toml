@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lakehouse-plumber"
-version = "0.9.0"
+version = "0.9.1"
 description = "A framework for building and managing enterprise Lakeflow Spark Declaritive Pipelines"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -112,7 +112,11 @@ addopts = [
     "--strict-config",
 ]
 testpaths = ["tests"]
-norecursedirs = ["tests/baselines"]
+# Exclude fixture/baseline trees from collection: they contain files named
+# test_*.py that are fixture DATA (e.g. tests/e2e/fixtures/.../test_reporting_publisher.py),
+# not real tests — importing them during collection writes __pycache__/*.pyc into
+# the hash-stable fixture tree and pollutes e2e baseline directory comparisons.
+norecursedirs = ["tests/baselines", "tests/e2e/fixtures"]
 pythonpath = ["src", "."]  # "." needed so tests can `from tests.helpers import ...` / `from tests.fakes import ...`
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",

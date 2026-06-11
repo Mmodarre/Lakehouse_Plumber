@@ -26,9 +26,9 @@ skill`` command copies the bundle out of the Python package into
 - ``SKILL.md`` — the index that an AI agent loads first. It defines the
   skill's name, triggering description, core architecture summary, and a
   catalogue of the reference files.
-- ``references/`` — eleven topic-scoped Markdown files, each tuned to one
-  area of LHP. Agents load only the references they need for the task in
-  front of them.
+- ``references/`` — forty topic-scoped Markdown files — one leaf file per
+  action sub-type plus ten topic references — each tuned to one area of LHP.
+  Agents load only the references they need for the task in front of them.
 - ``.lhp_skill_version`` — a marker file written by ``lhp skill install`` that
   records which LHP version produced the installed bundle.
 
@@ -51,8 +51,8 @@ Who the skill is for
 An AI coding agent is the primary reader. When a developer asks Claude Code
 to "add a CDC silver layer" inside an LHP repository, the agent loads
 ``SKILL.md`` to orient, then pulls in ``references/cdc-patterns.md`` and
-``references/actions-write.md`` for the relevant syntax. The agent writes
-YAML based on that context.
+``references/actions-write-streaming-table-cdc.md`` for the relevant syntax.
+The agent writes YAML based on that context.
 
 Humans are a secondary reader. You can open the same Markdown directly,
 and the content is correct, but the prose is denser and more list-driven
@@ -77,7 +77,7 @@ An AI agent consumes Markdown differently. It loads a file into a context
 window with a strict token budget, parses headings as anchors, and rarely
 follows a link out. It prefers tables, dense field references, and short
 imperative rules. Narrative paragraphs that help a human reader inflate the
-token cost without improving the agent's output. The eleven files under
+token cost without improving the agent's output. The files under
 ``references/`` reflect that — each is a flat list of action sub-types,
 field tables, key-rule bullets, and minimal worked examples.
 
@@ -111,26 +111,29 @@ report it.
 Skill content overview
 ----------------------
 
-The references directory currently contains eleven files. Each maps to a
+The references directory currently contains forty files: thirty
+per-sub-type action references and ten topic references. Each maps to a
 domain the agent might be asked to work in:
 
-- ``actions-load.md`` — every Load action sub-type (``cloudfiles``,
-  ``delta``, ``sql``, ``jdbc``, ``python``, ``kafka``, ``custom_datasource``)
-  with required and optional fields.
-- ``actions-transform.md`` — Transform sub-types: ``sql``, ``python``,
-  ``schema``, ``data_quality``, ``temp_table``.
-- ``actions-write.md`` — write targets (``streaming_table``,
-  ``materialized_view``), CDC modes, and sinks.
-- ``actions-test.md`` — the nine test types and the ``--include-tests``
-  flag behaviour.
+- ``actions-<action>-<sub-type>.md`` — thirty leaf files, one per action
+  sub-type (for example ``actions-load-cloudfiles.md``,
+  ``actions-transform-sql.md``, ``actions-write-streaming-table-cdc.md``,
+  ``actions-test-uniqueness.md``), each with the sub-type's required and
+  optional fields.
 - ``cdc-patterns.md`` — CDC and SCD Type 2 patterns for Delta CDF,
   PostgreSQL Write-Ahead Log, and snapshot Change Data Capture (CDC)
   sources.
 - ``templates-presets.md`` — Template structure, parameter syntax, preset
   matching, and merge behaviour.
+- ``blueprints.md`` — whole-flowgroup patterns instantiated per site,
+  region, or tenant, and the ``use_blueprint:`` syntax.
+- ``quickstart.md`` — first-project setup, from ``lhp init`` through the
+  first validate and generate run.
 - ``project-config.md`` — ``lhp.yaml``, substitutions, local variables,
   operational metadata, and CLI commands.
-- ``advanced.md`` — Declarative Automation Bundles (DAB) integration, dependency
+- ``sandbox.md`` — developer sandbox mode (``--sandbox``): the personal
+  profile, team policy configuration, and table-rename semantics.
+- ``advanced.md`` — Declarative Automation Bundles integration, dependency
   analysis, multi-job orchestration, and Continuous Integration /
   Continuous Deployment (CI/CD) patterns.
 - ``monitoring.md`` — event log injection, monitoring pipeline, and the

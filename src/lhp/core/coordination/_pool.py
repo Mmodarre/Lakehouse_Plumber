@@ -59,8 +59,8 @@ from typing import (
 from lhp.models import FlowGroupContext
 
 from ...models.processing import (
-    DeprecationWarningRecord,
     FlowgroupOutcome,
+    RunWarningRecord,
     ValidationIssueRecord,
 )
 from ...utils.performance_timer import is_perf_enabled, merge_perf, perf_timer
@@ -96,14 +96,15 @@ logger = logging.getLogger(__name__)
 #     barrier on the RESOLVED set (§9.24), via build_cross_flowgroup_issues.
 #   - ``cross_fg_errors``  : degraded string errors for the defensive case
 #     where the barrier raises a NON-LHPError.
-#   - ``warnings``         : per-pipeline deprecation warnings, merged +
+#   - ``warnings``         : per-pipeline worker warnings (deprecation AND
+#     sandbox records), merged +
 #     deduped by ``(code, file)`` in deterministic first-seen order.
 class _PipelinePoolResult(NamedTuple):
     pipeline: str
     outcomes_in_order: Tuple[FlowgroupOutcome, ...]
     cross_fg_issues: Tuple["LHPError", ...]
     cross_fg_errors: Tuple[str, ...]
-    warnings: Tuple[DeprecationWarningRecord, ...] = ()
+    warnings: Tuple[RunWarningRecord, ...] = ()
 
 
 def _run_pipeline_cross_fg_barrier(
