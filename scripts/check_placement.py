@@ -48,6 +48,9 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC_ROOT = REPO_ROOT / "src" / "lhp"
+# Packaged sample-project template tree (`lhp init --sample`) — package
+# DATA shipped verbatim, never imported by LHP code; out of gate scope.
+INIT_SAMPLE_DIR = SRC_ROOT / "templates" / "init_sample"
 DOCS_ROOT = REPO_ROOT / "docs"
 LHP_API_DIR = SRC_ROOT / "api"
 LHP_CLI_DIR = SRC_ROOT / "cli"
@@ -144,6 +147,8 @@ def in_src(path: Path) -> bool:
     try:
         path.resolve().relative_to(SRC_ROOT.resolve())
     except ValueError:
+        return False
+    if is_under(path, INIT_SAMPLE_DIR):
         return False
     return path.suffix == ".py"
 

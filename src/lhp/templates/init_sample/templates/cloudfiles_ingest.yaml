@@ -1,0 +1,50 @@
+# Reusable cloudfiles → bronze ingestion template.
+#
+# Instantiated twice in pipelines/01_ingest/:
+#   - orders_ingest.yaml    (JSON, FILE-BASED schema hints — a path value)
+#   - lineitem_ingest.yaml  (CSV,  INLINE DDL schema hints — a DDL string)
+# cloudFiles.schemaHints auto-detects which form it was given: values ending
+# in .yaml/.yml/.json/.ddl/.sql (or containing a path separator) are loaded
+# as schema files; anything else is treated as inline DDL.
+#
+# LHP template files are plain YAML; Jinja2 ({{ }} parameters and expressions)
+# is rendered inside string values. The format_options value below uses a
+# conditional expression so CSV instantiations get a header option and JSON
+# instantiations get none.
+name: cloudfiles_ingest
+version: "1.0"
+description: "Parametrized cloudfiles ingestion into a bronze streaming table"
+presets:
+  - bronze_layer
+parameters:
+  - name: entity
+    required: true
+    description: "Entity name; drives the landing path, view names and the target table"
+  - name: file_format
+    required: true
+    description: "File format to ingest: json or csv"
+  - name: schema_hints
+    required: true
+    description: "cloudFiles.schemaHints — inline DDL string OR a schema file path"
+
+actions:
+  - name: "load_{{ entity }}_raw"
+    type: load
+    source:
+      type: cloudfiles
+      path: "${landing_volume}/{{ entity }}/"
+      format: "{{ file_format }}"
+      readMode: stream
+      options:
+        cloudFiles.inferColumnTypes: "true"
+        cloudFiles.schemaHints: "{{ schema_hints }}"
+      format_options: "{{ {'header': 'true'} if file_format == 'csv' else {} }}"
+    target: "v_{{ entity }}_raw"
+  - name: "write_{{ entity }}_bronze"
+    type: write
+    source: "v_{{ entity }}_raw"
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: "{{ entity }}_raw"

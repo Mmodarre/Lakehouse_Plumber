@@ -23,6 +23,7 @@ Exit codes:
 A file may be both >800 (hard) and lack a `# JUSTIFIED:` block; both
 findings are reported.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -31,6 +32,9 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC_ROOT = REPO_ROOT / "src" / "lhp"
+# Packaged sample-project template tree (`lhp init --sample`) — package
+# DATA shipped verbatim, never imported by LHP code; out of gate scope.
+INIT_SAMPLE_DIR = SRC_ROOT / "templates" / "init_sample"
 
 SOFT_CAP = 500
 HARD_CAP = 800
@@ -39,9 +43,12 @@ JUSTIFICATION_MARKER = "# JUSTIFIED:"
 
 
 def in_scope(path: Path) -> bool:
+    resolved = path.resolve()
     try:
-        path.resolve().relative_to(SRC_ROOT.resolve())
+        resolved.relative_to(SRC_ROOT.resolve())
     except ValueError:
+        return False
+    if resolved.is_relative_to(INIT_SAMPLE_DIR.resolve()):
         return False
     return path.suffix == ".py"
 
@@ -92,11 +99,7 @@ def check_file(path: Path) -> list[str]:
 def iter_all_files() -> list[Path]:
     if not SRC_ROOT.exists():
         return []
-    return sorted(
-        p
-        for p in SRC_ROOT.rglob("*.py")
-        if "__pycache__" not in p.parts
-    )
+    return sorted(p for p in SRC_ROOT.rglob("*.py") if "__pycache__" not in p.parts)
 
 
 def main(argv: list[str]) -> int:

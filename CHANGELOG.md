@@ -14,6 +14,15 @@ actionable advisory warnings instead of silently missing edges.
 
 ### Added
 
+- **`lhp init <name> --sample` — scaffold a complete, runnable sample
+  project.** The new flag generates a TPC-H medallion-architecture project:
+  bronze ingestion via `delta` and `cloudfiles` loads, silver CDC in both
+  flavors (streaming AUTO CDC with deletes, and snapshot CDC), a gold
+  materialized view, plus templates, presets, every substitution syntax,
+  operational metadata columns, a data-prep notebook, and a hand-authored
+  Declarative Automation Bundles job. The project runs against the
+  `samples.tpch` dataset available on any Unity Catalog workspace. `--sample`
+  requires bundle support and cannot be combined with `--no-bundle`.
 - **Parameter-bound Python dependency resolution.** Table reads built from
   YAML-declared parameters now form dependency edges, mirroring the generated
   code exactly: snapshot_cdc `source_function.parameters` (keyword-only
@@ -69,6 +78,14 @@ actionable advisory warnings instead of silently missing edges.
 
 - Add `sqlglot>=26.0,<28` as a runtime dep (parser-based SQL table extraction
   for dependency analysis).
+
+### Notes
+
+- **Sample-project live-workspace validation is deferred.** Offline validation
+  of the `--sample` project — init → validate → generate, plus an end-to-end
+  test — is covered in CI. Deploying the bundle and running the sample job
+  (rounds 1–2) on a real workspace is deliberately deferred to post-merge
+  manual verification.
 
 ## [0.9.0] — 2026-06-10
 

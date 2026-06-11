@@ -1,0 +1,44 @@
+# Streaming CDC → SCD2, all in one flowgroup (views are pipeline-scoped, so
+# the change-feed load must live here, next to its CDC write).
+#
+# The inline SQL filter drops 'update_preimage' rows: Delta CDF emits the
+# preimage and postimage of an update with the SAME _commit_version, which
+# AUTO CDC would reject as duplicate (key, sequence) pairs. Deletes are
+# routed through apply_as_deletes instead of being upserted.
+pipeline: sample_silver
+flowgroup: dim_customer
+presets:
+  - silver_quality
+actions:
+  - name: load_customer_changes
+    type: load
+    source:
+      type: delta
+      catalog: "${catalog}"             # fully qualified — a different pipeline wrote it
+      schema: "${bronze_schema}"
+      table: customer_cdf
+      readMode: stream
+      options:
+        readChangeFeed: "true"
+    target: v_customer_changes
+  - name: filter_change_rows
+    type: transform
+    transform_type: sql
+    source: v_customer_changes
+    sql: "SELECT * FROM stream(v_customer_changes) WHERE _change_type != 'update_preimage'"
+    target: v_customer_changes_clean
+  - name: write_dim_customer
+    type: write
+    source: v_customer_changes_clean
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
+      table: dim_customer
+      mode: cdc
+      cdc_config:
+        keys: [c_custkey]
+        sequence_by: _commit_version          # CDF metadata column
+        scd_type: 2
+        apply_as_deletes: "_change_type = 'delete'"
+        except_column_list: [_change_type, _commit_version, _commit_timestamp]

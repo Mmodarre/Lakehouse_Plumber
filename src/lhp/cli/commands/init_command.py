@@ -32,16 +32,33 @@ logger = logging.getLogger(__name__)
     is_flag=True,
     help="Skip Databricks Asset Bundle setup (bundle is enabled by default).",
 )
+@click.option(
+    "--sample",
+    is_flag=True,
+    help=(
+        "Scaffold the TPC-H sample quickstart project — a ready-to-run "
+        "Lakeflow Spark Declarative Pipelines demo. Requires bundle support "
+        "(incompatible with --no-bundle)."
+    ),
+)
 @cli_error_boundary("init")
-def init(name: str, no_bundle: bool) -> None:
+def init(name: str, no_bundle: bool, sample: bool) -> None:
     """Initialize a new LakehousePlumber project in the current directory.
 
     NAME is baked into template substitutions (bundle name, lhp.yaml). All
     files are created in the current working directory.
     """
+    if sample and no_bundle:
+        raise click.UsageError(
+            "--sample cannot be combined with --no-bundle: the sample "
+            "project requires Declarative Automation Bundles support."
+        )
     project_path = Path.cwd()
     bundle = not no_bundle
-    logger.info(f"Initializing project '{name}' in {project_path}, bundle={bundle}")
+    logger.info(
+        f"Initializing project '{name}' in {project_path}, "
+        f"bundle={bundle}, sample={sample}"
+    )
 
     # Refuse to clobber an existing project before any filesystem mutation.
     if (project_path / "lhp.yaml").exists():
@@ -57,7 +74,7 @@ def init(name: str, no_bundle: bool) -> None:
         )
 
     result = LakehousePlumberBootstrap().init_project(
-        project_path, bundle=bundle, project_name=name
+        project_path, bundle=bundle, project_name=name, sample_mode=sample
     )
     if not result.success:
         _raise_for_failure(result.error_code, result.error_message, project_path)
