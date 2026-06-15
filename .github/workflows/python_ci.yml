@@ -85,6 +85,12 @@ jobs:
         mypy --strict src/lhp/api/
       shell: bash
 
+    - name: Type-check webapp package (mypy)
+      run: |
+        pip install mypy
+        mypy src/lhp/webapp/
+      shell: bash
+
     # =========================================================================
     # Phase 6 skip-list — governed by §12bis of .claude/CODING_CONSTITUTION.md
     # (CI test-gate suspensions).
@@ -222,6 +228,22 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install build pytest
+      shell: bash
+
+    # The wheel-contents test builds a wheel via `python -m build`. The web IDE
+    # SPA assets (src/lhp/webapp/static/, gitignored) must be staged BEFORE that
+    # build so they ship in the wheel. build_webapp.sh is the single source of
+    # truth for the npm ci / npm run build / static-sync sequence.
+    - name: Set up Node.js
+      uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903  # v6.0.0
+      with:
+        node-version: "22"
+        cache: npm
+        cache-dependency-path: web_app/package-lock.json
+
+    - name: Build web IDE SPA and stage wheel assets
+      run: |
+        bash scripts/build_webapp.sh
       shell: bash
 
     - name: Run wheel-contents regression test

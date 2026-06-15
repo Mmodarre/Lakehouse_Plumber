@@ -58,7 +58,94 @@ if TYPE_CHECKING:
     _Orchestrator = Any
 
 
+def _write_target_as_dict(write_target: Any) -> Dict[str, Any]:
+    """Normalise a ``write_target`` (Pydantic model or raw dict) to a dict.
+
+    Resolved write actions reach the inspection converter with their
+    ``write_target`` still a raw dict (CDC keys such as ``mode`` /
+    ``cdc_config`` are not declared on the :class:`WriteTarget` model, so
+    they only survive as dict members). The model branch is kept for
+    robustness against callers that pass a coerced model.
+    """
+    if isinstance(write_target, dict):
+        return write_target
+    if hasattr(write_target, "model_dump"):
+        dumped = write_target.model_dump()
+        return dumped if isinstance(dumped, dict) else {}
+    return {}
+
+
+def _scd_type_from_write_target(wt: Dict[str, Any]) -> Optional[int]:
+    """Read the SCD type from a CDC or snapshot-CDC config, if present."""
+    for cfg_key in ("cdc_config", "snapshot_cdc_config"):
+        cfg = wt.get(cfg_key)
+        if isinstance(cfg, dict):
+            scd = cfg.get("scd_type")
+            if scd is None:
+                scd = cfg.get("stored_as_scd_type")
+            if isinstance(scd, int) and not isinstance(scd, bool):
+                return scd
+            if isinstance(scd, str):
+                try:
+                    return int(scd)
+                except ValueError:
+                    return None
+    return None
+
+
+def _full_name_from_write_target(wt: Dict[str, Any], action_name: str) -> str:
+    """Build the fully-qualified target name for a write target.
+
+    Sinks render as ``sink:<sink_type>/<id>``. Table targets prefer the
+    canonical ``catalog.schema.table`` (matching the dependency
+    producer index); they fall back to the deprecated ``database.table``
+    pairing, then the bare ``table``, then the action name. Substitution
+    tokens present in any field are passed through verbatim.
+    """
+    write_type = wt.get("type")
+    if write_type == "sink":
+        sink_type = wt.get("sink_type") or "unknown"
+        sink_id = wt.get("topic") or wt.get("sink_name") or "unnamed"
+        return f"sink:{sink_type}/{sink_id}"
+
+    catalog = wt.get("catalog") or ""
+    schema = wt.get("schema") or ""
+    database = wt.get("database") or ""
+    table = wt.get("table") or ""
+    if catalog and schema and table:
+        return f"{catalog}.{schema}.{table}"
+    if database and table:
+        return f"{database}.{table}"
+    return table or database or action_name
+
+
+def _write_metadata(
+    action: "Action",
+) -> tuple[Optional[str], Optional[int], Optional[str]]:
+    """Derive ``(write_mode, scd_type, target_full_name)`` for an action.
+
+    Returns ``(None, None, None)`` for non-write actions and for write
+    actions with no ``write_target``. The write mode defaults to
+    ``"standard"`` for table targets that omit ``mode`` (matching the
+    streaming-table generator); sink targets report no mode.
+    """
+    if action.type.value != "write" or action.write_target is None:
+        return None, None, None
+
+    wt = _write_target_as_dict(action.write_target)
+    write_type = wt.get("type")
+
+    write_mode = wt.get("mode")
+    if write_mode is None and write_type != "sink":
+        write_mode = "standard"
+
+    scd_type = _scd_type_from_write_target(wt)
+    target_full_name = _full_name_from_write_target(wt, action.name)
+    return write_mode, scd_type, target_full_name
+
+
 def _action_to_view(action: "Action") -> ActionView:
+    write_mode, scd_type, target_full_name = _write_metadata(action)
     return ActionView(
         name=action.name,
         action_type=action.type.value,
@@ -66,6 +153,9 @@ def _action_to_view(action: "Action") -> ActionView:
         description=action.description,
         transform_type=action.transform_type,
         test_type=action.test_type,
+        write_mode=write_mode,
+        scd_type=scd_type,
+        target_full_name=target_full_name,
     )
 
 
