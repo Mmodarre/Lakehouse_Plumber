@@ -73,6 +73,9 @@ EXPECTED_GENERATED_LAYOUT = {
     "sample_ingest": ["nation_region.py", "orders_ingest.py", "lineitem_ingest.py"],
     "sample_silver": ["dim_customer.py", "dim_supplier.py", "orders_clean.py"],
     "sample_gold": ["sales_by_nation.py"],
+    # Synthesized by generate from lhp.yaml's operational_metadata block (§4.1),
+    # not a scaffolded source flowgroup — hence absent from EXPECTED_SCAFFOLD_FILES.
+    "sample_demo_event_log_monitoring": ["monitoring.py"],
 }
 
 
@@ -160,7 +163,7 @@ class TestInitSampleE2E:
         assert leaked_tmpl == [], f".tmpl files leaked into scaffold: {leaked_tmpl}"
 
         # lhp.yaml rendered with the project name + §4.1 op-metadata block.
-        lhp_yaml = (self.project_root / "lhp.yaml").read_text()
+        lhp_yaml = (self.project_root / "lhp.yaml").read_text(encoding="utf-8")
         assert "name: sample_demo" in lhp_yaml, (
             f"lhp.yaml must carry the rendered project name. Got:\n{lhp_yaml[:400]}"
         )
@@ -170,7 +173,9 @@ class TestInitSampleE2E:
         )
 
         # databricks.yml: bundle name rendered + the §4.10 catalog variable.
-        databricks_yml = (self.project_root / "databricks.yml").read_text()
+        databricks_yml = (self.project_root / "databricks.yml").read_text(
+            encoding="utf-8"
+        )
         assert "sample_demo" in databricks_yml, (
             "databricks.yml must carry the rendered bundle name. "
             f"Got:\n{databricks_yml[:400]}"
@@ -195,8 +200,9 @@ class TestInitSampleE2E:
         """``lhp generate --env dev`` emits the §3/§7 output structure.
 
         One ``.py`` per flowgroup under ``generated/dev/<pipeline>/``,
-        exactly the three spec pipelines, one bundle resource YAML per
-        pipeline under ``resources/lhp/``, and the hand-authored
+        exactly the four spec pipelines (the three medallion pipelines plus
+        the synthesized event-log monitoring pipeline), one bundle resource
+        YAML per pipeline under ``resources/lhp/``, and the hand-authored
         ``resources/sample_job.yml`` untouched (§7 — LHP wipes only
         ``resources/lhp/``).
         """
@@ -208,13 +214,13 @@ class TestInitSampleE2E:
             f"got exit {exit_code}:\n{output[-3000:]}"
         )
 
-        # generated/dev/: exactly the three spec pipelines.
+        # generated/dev/: exactly the four spec pipelines.
         assert self.generated_dir.is_dir(), "generated/dev/ must exist"
         pipeline_dirs = sorted(
             p.name for p in self.generated_dir.iterdir() if p.is_dir()
         )
         assert pipeline_dirs == sorted(EXPECTED_GENERATED_LAYOUT), (
-            f"generated/dev/ must contain exactly the three sample pipelines, "
+            f"generated/dev/ must contain exactly the four sample pipelines, "
             f"got: {pipeline_dirs}"
         )
 
@@ -246,7 +252,7 @@ class TestInitSampleE2E:
         # Spot content: §11-verified codegen facts.
         dim_customer = (
             self.generated_dir / "sample_silver" / "dim_customer.py"
-        ).read_text()
+        ).read_text(encoding="utf-8")
         assert "dp.create_auto_cdc_flow(" in dim_customer, (
             "dim_customer must use AUTO CDC "
             "(§4.4; templates/write/streaming_table.py.j2:45)"
@@ -261,7 +267,7 @@ class TestInitSampleE2E:
 
         dim_supplier = (
             self.generated_dir / "sample_silver" / "dim_supplier.py"
-        ).read_text()
+        ).read_text(encoding="utf-8")
         assert "dp.create_auto_cdc_from_snapshot_flow(" in dim_supplier, (
             "dim_supplier must use snapshot AUTO CDC "
             "(§4.5; templates/write/streaming_table.py.j2:114)"
@@ -269,7 +275,7 @@ class TestInitSampleE2E:
 
         sales_by_nation = (
             self.generated_dir / "sample_gold" / "sales_by_nation.py"
-        ).read_text()
+        ).read_text(encoding="utf-8")
         assert "@dp.materialized_view(" in sales_by_nation, (
             "sales_by_nation must be a materialized view "
             "(§4.8; templates/write/materialized_view.py.j2:1)"
@@ -281,7 +287,7 @@ class TestInitSampleE2E:
 
         lineitem = (
             self.generated_dir / "sample_ingest" / "lineitem_ingest.py"
-        ).read_text()
+        ).read_text(encoding="utf-8")
         assert '.option("csv.header", "true")' in lineitem, (
             "lineitem CSV ingest must set the header reader option — "
             "format_options keys are prefixed with '<format>.' "

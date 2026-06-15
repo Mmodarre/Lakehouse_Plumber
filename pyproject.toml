@@ -73,6 +73,7 @@ dev = [
     "cloudpickle>=3.0.0",  # used by the pickle-by-value round-trip test; the upstream lib pyspark vendors for register_pickle_by_value
     "fastapi>=0.115",  # webapp backend — present in dev so mypy/CI can resolve imports
     "uvicorn>=0.34",  # webapp ASGI server — present in dev so mypy/CI can resolve imports
+    "httpx>=0.27.0",  # transport for fastapi/starlette TestClient — tests/webapp/conftest.py imports it at collection time; NOT a webapp runtime dep
 ]
 
 [project.urls]
