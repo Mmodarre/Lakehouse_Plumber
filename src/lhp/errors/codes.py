@@ -103,6 +103,10 @@ IO_024 = ErrorCode(ErrorCategory.IO, "024")
 # IO_025: sandbox mode requires a personal profile — raised by the sandbox
 # profile loader when ``.lhp/profile.yaml`` is missing.
 IO_025 = ErrorCode(ErrorCategory.IO, "025")
+# IO_026: the optional webapp dependencies (fastapi / uvicorn) are not
+# installed — raised by the ``lhp web`` command when ``importlib.util.find_spec``
+# cannot locate one of them; suggests ``pip install lakehouse-plumber[webapp]``.
+IO_026 = ErrorCode(ErrorCategory.IO, "026")
 
 CFG_001 = ErrorCode(ErrorCategory.CONFIG, "001")
 CFG_002 = ErrorCode(ErrorCategory.CONFIG, "002")
@@ -255,6 +259,7 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     IO_023,
     IO_024,
     IO_025,
+    IO_026,
     CFG_001,
     CFG_002,
     CFG_003,
@@ -395,6 +400,7 @@ __all__ = [
     "IO_023",
     "IO_024",
     "IO_025",
+    "IO_026",
     "VAL_001",
     "VAL_002",
     "VAL_003",

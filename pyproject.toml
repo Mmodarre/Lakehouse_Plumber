@@ -48,6 +48,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Plain `uvicorn` (NOT uvicorn[standard]): uvloop/httptools/websockets/watchfiles
+# are unneeded for a localhost single-user dev server (documented spec deviation).
+webapp = [
+    "fastapi>=0.115",
+    "uvicorn>=0.34",
+]
 dev = [
     "pytest>=9.0.0",
     "pytest-cov>=4.0.0",
@@ -57,6 +63,7 @@ dev = [
     "import-linter>=2.11",  # §5 boundary contracts (configured in [tool.importlinter])
     "vulture>=2.16",  # dead-code gate (configured in [tool.vulture])
     "mypy>=1.0.0",
+    "types-PyYAML",  # PyYAML type stubs — webapp services/file_io.py imports yaml; needed by mypy/CI
     "requests>=2.32.0",
     "pip-audit>=2.7.0",
     "bandit[sarif]>=1.7.0",
@@ -64,6 +71,8 @@ dev = [
     "pre-commit>=3.0.0",
     "build>=1.0",  # used by tests/test_packaging.py to build a wheel for package-data assertions
     "cloudpickle>=3.0.0",  # used by the pickle-by-value round-trip test; the upstream lib pyspark vendors for register_pickle_by_value
+    "fastapi>=0.115",  # webapp backend — present in dev so mypy/CI can resolve imports
+    "uvicorn>=0.34",  # webapp ASGI server — present in dev so mypy/CI can resolve imports
 ]
 
 [project.urls]
@@ -101,6 +110,11 @@ where = ["src"]
 "lhp.templates.packaging" = ["*.j2"]
 "lhp.resources.skills.lhp" = ["*.md"]
 "lhp.resources.skills.lhp.references" = ["*.md"]
+# Built SPA assets (gitignored, generated at build time). static/ has no
+# __init__.py, so it is NOT a discovered package — the key must attach to the
+# parent ``lhp.webapp`` package with a static/ glob prefix (triple glob defends
+# against the historical setuptools dotfile inclusion bug).
+"lhp.webapp" = ["static/**/*", "static/.*", "static/**/.*"]
 
 
 
@@ -124,6 +138,7 @@ markers = [
     "unit: marks tests as unit tests",
     "e2e: marks tests as end-to-end tests",
     "performance: marks tests as performance tests (skipped in CI, run locally with '-m performance')",
+    "webapp: Webapp (FastAPI backend) tests",
 ]
 filterwarnings = [
     # Phase 1 deprecation shims (architecture streamline). Removable after the
@@ -218,6 +233,19 @@ allowed-confusables = ["×"]
 [tool.ruff.lint.mccabe]
 max-complexity = 40   # RATCHET — target 10; lower as functions are refactored (see CHANGELOG)
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's canonical DI pattern puts ``Depends(...)`` / ``Query(...)`` etc. in
+# argument defaults, which B008 (function-call-in-default-argument) flags. These
+# calls are sentinels, not mutable defaults — exempt them. (webapp routers.)
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Header",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.File",
+]
+
 [tool.ruff.lint.isort]
 known-first-party = ["lhp"]
 
@@ -255,7 +283,7 @@ root_packages = ["lhp"]
 [[tool.importlinter.contracts]]
 name = "Public API and internal modules must not import from CLI"
 type = "forbidden"
-source_modules = ["lhp.api", "lhp.core", "lhp.parsers", "lhp.generators", "lhp.bundle", "lhp.utils", "lhp.models"]
+source_modules = ["lhp.api", "lhp.core", "lhp.parsers", "lhp.generators", "lhp.bundle", "lhp.utils", "lhp.models", "lhp.webapp"]
 forbidden_modules = ["lhp.cli"]
 
 [[tool.importlinter.contracts]]
@@ -272,6 +300,17 @@ forbidden_modules = [
 # Only flag DIRECT imports — transitive chains through ``lhp.api``
 # are by design (the public API is the one allowed bridge into
 # domain modules per §5.3).
+allow_indirect_imports = "true"
+
+[[tool.importlinter.contracts]]
+name = "webapp-uses-public-api"
+type = "forbidden"
+source_modules = ["lhp.webapp"]
+forbidden_modules = ["lhp.core", "lhp.parsers", "lhp.generators", "lhp.bundle", "lhp.models", "lhp.presets", "lhp.utils", "lhp.cli"]
+# Only flag DIRECT imports — transitive chains through ``lhp.api`` are by
+# design (the public API is the one allowed bridge into domain modules per
+# §5.3). ``lhp.webapp`` imports ``lhp.api`` / ``lhp.errors`` directly; the
+# domain modules it reaches are all behind that public surface.
 allow_indirect_imports = "true"
 
 # LHP top-down layering. ``generators`` sits ABOVE ``core`` because the
@@ -293,6 +332,7 @@ name = "LHP top-down layering"
 type = "layers"
 layers = [
     "lhp.cli",
+    "lhp.webapp",
     "lhp.api",
     "lhp.bundle",
     "lhp.generators",

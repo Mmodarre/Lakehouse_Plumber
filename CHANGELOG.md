@@ -17,6 +17,43 @@ silently missing edges.
 
 ### Added
 
+- **`lhp web` — a single-user, localhost-only in-project Web IDE.** A new
+  optional extra `lakehouse-plumber[webapp]` (FastAPI + plain `uvicorn` —
+  deliberately not `uvicorn[standard]`, since uvloop/httptools/websockets/
+  watchfiles are unnecessary for a localhost single-user server) serves a
+  browser IDE bound to `127.0.0.1`. The React SPA is pre-built at CI/release
+  time and vendored into the wheel, so users never need Node. The IDE browses
+  the project, pipelines, flowgroups, tables, and the dependency graph; edits
+  YAML in Monaco with canonical JSON-schema validation (served from the
+  packaged schemas via `GET /api/schemas/{kind}`); creates, edits, and deletes
+  files behind a path-traversal guard with write-protected paths (`.git/`,
+  `generated/`, `.lhp/logs/`, `.lhp/dependencies/`); streams `validate`/
+  `generate` runs live over NDJSON with progress and a Problems panel; and
+  auto-validates YAML on save with inline syntax markers (saves persist; `PUT`
+  returns the YAML syntax position). Flags: `--port`, `--no-open`, `--reload`.
+  A missing extra surfaces as a friendly `LHP-IO-026` error.
+  - Dropped relative to the experimental `feature/lhp-web-app` branch (cut, not
+    deferred): authentication & `/me`, workspace mode, git integration, the
+    AI/MCP chat assistant, state/staleness tracking, structured YAML CRUD
+    endpoints, `PUT` project/pipeline config, dependencies export, the generate
+    plan/preview/single-flowgroup/browse endpoints, `/validate/yaml` and
+    flowgroup preview-yaml, and the visual flowgroup builder.
+  - Deferred (returns in a later version):
+    - Full multi-level dependency-graph DTO with per-level drill — v1 is
+      pipeline-level only; needs a public graph DTO → v2.
+    - Preset detail resolved-chain view — no public preset-resolution surface
+      yet → v2.
+    - Semantic per-field YAML diagnostics in the editor — v1 has syntax-level
+      markers plus JSON-schema validation → v2.
+    - Related-files for template-driven flowgroups — raw-YAML walking cannot
+      see template-side file references.
+    - Structured YAML CRUD — returns behind the planned `AuthoringFacade` → v2.
+    - Table metadata: the materialized-view vs streaming-table distinction is
+      not surfaced — the public `ActionView` carries no target-type
+      discriminator, so the tables page reports `streaming_table`/`sink`.
+    - Generation/validation streams run with bundle support disabled — bundle
+      preflight needs a pipeline config, which is not applicable to the IDE
+      preview flow.
 - **`lhp init <name> --sample` — scaffold a complete, runnable sample
   project.** The new flag generates a TPC-H medallion-architecture project:
   bronze ingestion via `delta` and `cloudfiles` loads, silver CDC in both

@@ -81,6 +81,9 @@ web_app/dist
 web_app/dist-ssr
 web_app/*.local
 
+# Built SPA assets — generated at wheel-build time, shipped as package-data
+src/lhp/webapp/static/
+
 web_app/# Editor directories and files
 web_app/.vscode/*
 web_app/!.vscode/extensions.json
