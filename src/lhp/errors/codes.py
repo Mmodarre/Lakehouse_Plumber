@@ -136,6 +136,13 @@ CFG_060 = ErrorCode(ErrorCategory.CONFIG, "060")
 # absent/empty or does not start with ``/Volumes/`` (serverless installs custom
 # wheels only from a UC volume).
 CFG_061 = ErrorCode(ErrorCategory.CONFIG, "061")
+# CFG_062: an ODCS data contract under ``contracts/`` is not valid — raised by
+# lhp.parsers.odcs_parser.OdcsParser.parse when the file fails ODCS JSON-Schema
+# validation (carries the underlying jsonschema message).
+CFG_062 = ErrorCode(ErrorCategory.CONFIG, "062")
+# CFG_063: an ODCS schema property has a type that cannot be mapped to a Spark
+# DDL type — raised by lhp.utils.odcs_type_mapper.odcs_type_to_spark.
+CFG_063 = ErrorCode(ErrorCategory.CONFIG, "063")
 
 DEP_001 = ErrorCode(ErrorCategory.DEPENDENCY, "001")
 DEP_022 = ErrorCode(ErrorCategory.DEPENDENCY, "022")

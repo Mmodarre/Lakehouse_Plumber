@@ -111,6 +111,16 @@ class LakehousePlumberApplicationFacade:
 
         register_all()
 
+        # Translate ODCS contracts under ``contracts/`` into ``.lhp/contracts/schemas/``
+        # before any discovery/validation/generation. No-op when ``contracts/``
+        # is absent. Lazy import to respect layering and keep ``import lhp``
+        # light.
+        from lhp.core.coordination.contract_translation_service import (
+            ContractTranslationService,
+        )
+
+        ContractTranslationService(project_root).translate()
+
         orchestrator = build_facade_orchestrator(
             project_root,
             pipeline_config_path=pipeline_config_path,
