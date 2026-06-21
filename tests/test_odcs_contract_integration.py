@@ -63,25 +63,21 @@ CONTRACT_YAML = textwrap.dedent(
 
 
 class TestFacadeInvokesContractTranslation:
-    """``for_project`` translates ``contracts/`` into ``contracts/lhp/schemas/``.
+    """``for_project(translate_contracts=True)`` translates ``contracts/``.
 
     Seam chosen: the *public* construction entry point
-    ``LakehousePlumberApplicationFacade.for_project`` (which the plan
-    wires ``ContractTranslationService.translate()`` into, directly or
-    via ``build_facade_orchestrator`` in
-    ``lhp/core/coordination/layers.py``). Asserting on the observable
-    side effect (emitted schema files) rather than the internal call
-    keeps the test agnostic to *which* of those two functions the
-    implementer wires it into — both satisfy the plan.
+    ``LakehousePlumberApplicationFacade.for_project``, which wires
+    ``ContractTranslationService.translate()`` in. Asserting on the observable
+    side effect (emitted schema files) rather than the internal call keeps the
+    test agnostic to the exact wiring point.
 
-    A minimal-but-valid LHP project (``lhp.yaml`` with just ``name`` +
-    ``version``, plus ``contracts/sales.yaml``) is built in ``tmp_path``;
+    ``translate_contracts`` defaults to ``False`` on the facade; the CLI
+    ``generate`` / ``validate`` commands pass ``not no_contracts`` to opt in.
+    This test opts in explicitly.
+
+    A minimal-but-valid LHP project (``lhp.yaml`` with just ``name`` + ``version``,
+    plus ``contracts/sales.yaml``) is built in ``tmp_path``;
     ``enforce_version=False`` avoids version-pinning friction.
-
-    RED today because translation is not invoked during construction, so
-    ``contracts/lhp/schemas/`` is never created. The facade itself constructs
-    fine (verified), so this fails on the missing-file assertion, NOT on
-    import/collection.
     """
 
     def _build_minimal_project(self, root: Path) -> None:
@@ -95,9 +91,9 @@ class TestFacadeInvokesContractTranslation:
     def test_for_project_translates_contracts_into_lhp_schemas(self, tmp_path):
         self._build_minimal_project(tmp_path)
 
-        # Constructing the facade must trigger contract translation.
+        # Opting in (as the CLI does) must trigger contract translation.
         LakehousePlumberApplicationFacade.for_project(
-            tmp_path, enforce_version=False
+            tmp_path, enforce_version=False, translate_contracts=True
         )
 
         schemas_dir = tmp_path / "contracts" / "lhp" / "schemas"
@@ -108,6 +104,20 @@ class TestFacadeInvokesContractTranslation:
         assert (schemas_dir / "sales.customers_schema.yaml").exists(), (
             "for_project should translate contracts/sales.yaml -> "
             "contracts/lhp/schemas/sales.customers_schema.yaml during construction"
+        )
+
+    def test_translate_contracts_false_opts_out(self, tmp_path):
+        # The --no-contracts opt-out (translate_contracts=False) must skip
+        # translation entirely: no contracts/lhp/ output is created.
+        self._build_minimal_project(tmp_path)
+
+        LakehousePlumberApplicationFacade.for_project(
+            tmp_path, enforce_version=False, translate_contracts=False
+        )
+
+        assert not (tmp_path / "contracts" / "lhp").exists(), (
+            "translate_contracts=False (--no-contracts) must not translate "
+            "contracts or create contracts/lhp/"
         )
 
 

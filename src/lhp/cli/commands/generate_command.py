@@ -41,6 +41,9 @@ logger = logging.getLogger(__name__)
 @click.option("--strict", is_flag=True, help="Treat warnings as failures.")
 @click.option("--no-progress", is_flag=True, help="Disable the live display.")
 @click.option("--no-bundle", is_flag=True, help="Skip Asset Bundle sync.")
+@click.option(
+    "--no-contracts", is_flag=True, help="Skip ODCS data-contract translation."
+)
 @click.option("--include-tests", is_flag=True, help="Include test actions.")
 @click.option("--no-format", is_flag=True, help="Skip code formatting.")
 @click.option("-p", "--pipeline", default=None, help="Only the named pipeline.")
@@ -55,6 +58,7 @@ def generate(
     strict: bool,
     no_progress: bool,
     no_bundle: bool,
+    no_contracts: bool,
     include_tests: bool,
     no_format: bool,
     pipeline: Optional[str],
@@ -75,7 +79,10 @@ def generate(
 
     project_root = resolve_project_root()
     facade = build_facade(
-        project_root, pipeline_config=pipeline_config, max_workers=max_workers
+        project_root,
+        pipeline_config=pipeline_config,
+        max_workers=max_workers,
+        translate_contracts=not no_contracts,
     )
 
     bundle_enabled = should_enable_bundle_support(project_root, cli_no_bundle=no_bundle)
