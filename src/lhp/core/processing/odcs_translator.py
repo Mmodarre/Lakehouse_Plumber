@@ -24,7 +24,7 @@ def _slug(name: str) -> str:
 
 @dataclass
 class SchemaArtifact:
-    """A single translated LHP schema, ready to write under ``.lhp/contracts/schemas/``.
+    """A single translated LHP schema, ready to write under ``contracts/lhp/schemas/``.
 
     :param object_name: the ODCS schema object's ``name``.
     :param file_name: output filename ``<contract-stem>.<object>_schema.yaml``.

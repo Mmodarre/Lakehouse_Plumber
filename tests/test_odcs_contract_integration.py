@@ -6,16 +6,13 @@ These pin the two integration seams the unit tests in
 1. ``LakehousePlumberApplicationFacade.for_project(...)`` must invoke
    ``ContractTranslationService.translate()`` during facade construction,
    so that merely building the facade for a project with a ``contracts/``
-   directory materialises ``.lhp/contracts/schemas/<stem>.<object>_schema.yaml`` files.
+   directory materialises ``contracts/lhp/schemas/<stem>.<object>_schema.yaml`` files.
 
 2. ``LakehousePlumberBootstrap.init_project(...)`` must scaffold a
    ``contracts/`` directory (alongside the existing ``schemas/``,
-   ``expectations/`` etc.) and gitignore the translated-schema output.
-
-Both are written against the documented public surface while the wiring
-is not yet implemented; they are expected to be RED until the feature is
-wired (NOT failing on import/collection). RED reason for each is noted
-inline.
+   ``expectations/`` etc.). The translated output lives under
+   ``contracts/lhp/`` and is version-controlled (mirroring generated DAB
+   ``resources/lhp/``), so it must NOT be gitignored.
 """
 
 import textwrap
@@ -66,7 +63,7 @@ CONTRACT_YAML = textwrap.dedent(
 
 
 class TestFacadeInvokesContractTranslation:
-    """``for_project`` translates ``contracts/`` into ``.lhp/contracts/schemas/``.
+    """``for_project`` translates ``contracts/`` into ``contracts/lhp/schemas/``.
 
     Seam chosen: the *public* construction entry point
     ``LakehousePlumberApplicationFacade.for_project`` (which the plan
@@ -82,7 +79,7 @@ class TestFacadeInvokesContractTranslation:
     ``enforce_version=False`` avoids version-pinning friction.
 
     RED today because translation is not invoked during construction, so
-    ``.lhp/contracts/schemas/`` is never created. The facade itself constructs
+    ``contracts/lhp/schemas/`` is never created. The facade itself constructs
     fine (verified), so this fails on the missing-file assertion, NOT on
     import/collection.
     """
@@ -103,37 +100,33 @@ class TestFacadeInvokesContractTranslation:
             tmp_path, enforce_version=False
         )
 
-        schemas_dir = tmp_path / ".lhp" / "contracts" / "schemas"
+        schemas_dir = tmp_path / "contracts" / "lhp" / "schemas"
         assert (schemas_dir / "sales.orders_schema.yaml").exists(), (
             "for_project should translate contracts/sales.yaml -> "
-            ".lhp/contracts/schemas/sales.orders_schema.yaml during construction"
+            "contracts/lhp/schemas/sales.orders_schema.yaml during construction"
         )
         assert (schemas_dir / "sales.customers_schema.yaml").exists(), (
             "for_project should translate contracts/sales.yaml -> "
-            ".lhp/contracts/schemas/sales.customers_schema.yaml during construction"
+            "contracts/lhp/schemas/sales.customers_schema.yaml during construction"
         )
 
 
 # ---------------------------------------------------------------------------
-# Seam 2: project init scaffolds contracts/ and gitignores translated output
+# Seam 2: project init scaffolds contracts/ (translated output is tracked)
 # ---------------------------------------------------------------------------
 
 
 class TestInitScaffoldsContractsDir:
-    """``init_project`` creates ``contracts/`` and ignores ``.lhp/`` output.
+    """``init_project`` creates ``contracts/``; translated output is tracked.
 
     Exercised through the public ``LakehousePlumberBootstrap`` (the same
     entry point ``lhp init`` routes to, per
     ``tests/test_cli_main_coverage.py``).
 
-    NOTE on the gitignore assertion: the generated ``.gitignore``
-    (``src/lhp/templates/init/.gitignore.j2``) ALREADY ignores all of
-    ``.lhp/`` broadly, which subsumes the plan's ``.lhp/contracts/schemas/`` intent
-    — so asserting any ``.lhp/`` entry is already GREEN and would not
-    pin new behaviour. The RED-able part of seam 2 is therefore the
-    ``contracts/`` directory, which init does NOT yet create. We assert
-    that (RED now, GREEN once ``_create_directory_tree`` adds it) and
-    also assert the ``.lhp/`` ignore stays present as a regression guard.
+    The translated schemas live under ``contracts/lhp/schemas/`` and are
+    version-controlled (mirroring generated DAB ``resources/lhp/``), so the
+    generated ``.gitignore`` must NOT exclude ``contracts/lhp/``. The ``.lhp/``
+    state/logs directory stays ignored independently.
     """
 
     def test_init_creates_contracts_directory(self, tmp_path):
@@ -153,7 +146,7 @@ class TestInitScaffoldsContractsDir:
             "data contracts"
         )
 
-    def test_init_gitignores_translated_schema_output(self, tmp_path):
+    def test_init_does_not_gitignore_translated_schema_output(self, tmp_path):
         target = tmp_path / "proj"
         result = LakehousePlumberBootstrap().init_project(
             target, bundle=False, project_name="proj"
@@ -161,7 +154,9 @@ class TestInitScaffoldsContractsDir:
         assert result.success, result.error_message
 
         gitignore = (target / ".gitignore").read_text(encoding="utf-8")
-        # ``.lhp/`` is already broadly ignored, which covers the
-        # translated ``.lhp/contracts/schemas/`` output the plan intends to keep
-        # out of version control. Regression guard, not the RED pin.
+        # ``.lhp/`` (state/logs) stays ignored ...
         assert ".lhp/" in gitignore
+        # ... but the translated schema output under ``contracts/lhp/`` is
+        # version-controlled like generated DAB resources, so it must not be
+        # excluded.
+        assert "contracts/lhp" not in gitignore

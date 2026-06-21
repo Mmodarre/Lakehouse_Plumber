@@ -111,7 +111,7 @@ class LakehousePlumberApplicationFacade:
 
         register_all()
 
-        # Translate ODCS contracts under ``contracts/`` into ``.lhp/contracts/schemas/``
+        # Translate ODCS contracts under ``contracts/`` into ``contracts/lhp/schemas/``
         # before any discovery/validation/generation. No-op when ``contracts/``
         # is absent. Lazy import to respect layering and keep ``import lhp``
         # light.

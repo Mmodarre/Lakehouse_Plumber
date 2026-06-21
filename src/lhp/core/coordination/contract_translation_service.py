@@ -1,8 +1,11 @@
-"""Pre-generation step: translate ODCS contracts into LHP ``.lhp/`` artifacts.
+"""Pre-generation step: translate ODCS contracts into LHP ``contracts/lhp/`` artifacts.
 
 Runs before discovery/validation/generation (invoked from the facade
-composition root). Slice 1 emits only schema files under ``.lhp/contracts/schemas/``.
-The step is opt-in by folder presence: a no-op when ``contracts/`` is absent.
+composition root). Slice 1 emits only schema files under ``contracts/lhp/schemas/``.
+Output lives beside the source contracts (mirroring how generated Databricks
+Asset Bundle resources are stored under ``resources/lhp/``) and is intended to be
+version-controlled, not gitignored. The step is opt-in by folder presence: a
+no-op when ``contracts/`` is absent.
 """
 
 from __future__ import annotations
@@ -17,7 +20,7 @@ from typing import List, Optional
 class TranslationResult:
     """Outcome of a contract-translation pass.
 
-    :param schema_files: absolute paths written under ``.lhp/contracts/schemas/``.
+    :param schema_files: absolute paths written under ``contracts/lhp/schemas/``.
     :param contracts_processed: number of contract files parsed.
     """
 
@@ -26,7 +29,7 @@ class TranslationResult:
 
 
 class ContractTranslationService:
-    """Translate ``contracts/*.yaml`` ODCS files into ``.lhp/contracts/schemas/`` files."""
+    """Translate ``contracts/*.yaml`` ODCS files into ``contracts/lhp/schemas/`` files."""
 
     def __init__(
         self, project_root: Path, logger: Optional[logging.Logger] = None
@@ -34,18 +37,18 @@ class ContractTranslationService:
         self.project_root = Path(project_root)
         self.logger = logger or logging.getLogger(__name__)
         self.contracts_dir = self.project_root / "contracts"
-        self.schemas_out_dir = self.project_root / ".lhp" / "contracts" / "schemas"
+        self.schemas_out_dir = self.project_root / "contracts" / "lhp" / "schemas"
 
     def translate(self) -> TranslationResult:
         """Parse every ODCS contract and write equivalent LHP schema files.
 
         No-op (empty result) when ``contracts/`` does not exist. Otherwise, for
         each ``contracts/*.{yaml,yml}`` (sorted): parse + validate, translate
-        each schema object, and write ``.lhp/contracts/schemas/<stem>.<object>_schema.yaml`` via
+        each schema object, and write
+        ``contracts/lhp/schemas/<stem>.<object>_schema.yaml`` via
         :func:`lhp.utils.file_header.write_normalized`. The output is a
         deterministic function of the input, so re-running on unchanged contracts
-        rewrites byte-identical files (the ``.lhp/contracts/schemas/`` tree is gitignored
-        and not state-tracked, so the rewrite is harmless).
+        rewrites byte-identical files (a harmless no-op diff).
 
         :raises lhp.errors.LHPError: ``LHP-CFG-062`` / ``LHP-CFG-063`` on invalid
             contracts or unmappable types.

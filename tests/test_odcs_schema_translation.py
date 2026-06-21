@@ -423,7 +423,7 @@ class TestContractTranslationService:
     def test_attributes_point_to_expected_dirs(self, tmp_path):
         svc = ContractTranslationService(tmp_path)
         assert svc.contracts_dir == tmp_path / "contracts"
-        assert svc.schemas_out_dir == tmp_path / ".lhp" / "contracts" / "schemas"
+        assert svc.schemas_out_dir == tmp_path / "contracts" / "lhp" / "schemas"
 
     def test_no_contracts_dir_is_noop(self, tmp_path):
         svc = ContractTranslationService(tmp_path)
@@ -432,7 +432,7 @@ class TestContractTranslationService:
         assert result.schema_files == []
         assert result.contracts_processed == 0
         # Must NOT create the output directory when there is nothing to do.
-        assert not (tmp_path / ".lhp" / "contracts" / "schemas").exists()
+        assert not (tmp_path / "contracts" / "lhp" / "schemas").exists()
 
     def test_translate_writes_schema_files(self, tmp_path):
         _write_contract(tmp_path / "contracts", "sales.yaml", VALID_CONTRACT_YAML)
@@ -442,7 +442,7 @@ class TestContractTranslationService:
         assert result.contracts_processed == 1
         assert len(result.schema_files) == 2
 
-        out_dir = tmp_path / ".lhp" / "contracts" / "schemas"
+        out_dir = tmp_path / "contracts" / "lhp" / "schemas"
         written = {p.name for p in result.schema_files}
         assert written == {
             "sales.orders_schema.yaml",
@@ -457,7 +457,7 @@ class TestContractTranslationService:
         svc = ContractTranslationService(tmp_path)
         svc.translate()
 
-        orders_file = tmp_path / ".lhp" / "contracts" / "schemas" / "sales.orders_schema.yaml"
+        orders_file = tmp_path / "contracts" / "lhp" / "schemas" / "sales.orders_schema.yaml"
         data = yaml.safe_load(orders_file.read_text())
         assert data["name"] == "orders"
         col_names = [c["name"] for c in data["columns"]]
@@ -489,7 +489,7 @@ class TestContractTranslationService:
         svc = ContractTranslationService(tmp_path)
 
         svc.translate()
-        orders_file = tmp_path / ".lhp" / "contracts" / "schemas" / "sales.orders_schema.yaml"
+        orders_file = tmp_path / "contracts" / "lhp" / "schemas" / "sales.orders_schema.yaml"
         first_content = orders_file.read_text()
 
         # A second run on unchanged input must not raise and must leave the
@@ -525,7 +525,7 @@ class TestSchemaHintsRoundTrip:
         svc = ContractTranslationService(tmp_path)
         svc.translate()
 
-        events_file = tmp_path / ".lhp" / "contracts" / "schemas" / "single.events_schema.yaml"
+        events_file = tmp_path / "contracts" / "lhp" / "schemas" / "single.events_schema.yaml"
         schema_dict = yaml.safe_load(events_file.read_text())
 
         hints = SchemaParser().to_schema_hints(schema_dict)
