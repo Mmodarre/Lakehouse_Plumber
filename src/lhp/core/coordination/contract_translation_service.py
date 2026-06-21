@@ -15,6 +15,21 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
 
+import yaml
+
+
+class _IndentedSafeDumper(yaml.SafeDumper):
+    """SafeDumper that indents block sequences under their parent key.
+
+    PyYAML's default renders list items flush with their key
+    (``columns:\\n- name: ...``); LHP convention indents them
+    (``columns:\\n  - name: ...``, as in hand-authored ``contracts/*.yaml``).
+    Forcing ``indentless=False`` produces the indented style.
+    """
+
+    def increase_indent(self, flow: bool = False, indentless: bool = False):
+        return super().increase_indent(flow, indentless=False)
+
 
 @dataclass
 class TranslationResult:
@@ -53,8 +68,6 @@ class ContractTranslationService:
         :raises lhp.errors.LHPError: ``LHP-CFG-062`` / ``LHP-CFG-063`` on invalid
             contracts or unmappable types.
         """
-        import yaml
-
         from ...parsers.odcs_parser import OdcsParser
         from ...utils.file_header import write_normalized
         from ..processing.odcs_translator import OdcsTranslator
@@ -86,7 +99,13 @@ class ContractTranslationService:
 
             for artifact in artifacts:
                 out_path = self.schemas_out_dir / artifact.file_name
-                content = yaml.safe_dump(artifact.schema_dict, sort_keys=False)
+                content = yaml.dump(
+                    artifact.schema_dict,
+                    Dumper=_IndentedSafeDumper,
+                    default_flow_style=False,
+                    sort_keys=False,
+                    indent=2,
+                )
                 write_normalized(out_path, content)
                 result.schema_files.append(out_path)
 

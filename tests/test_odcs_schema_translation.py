@@ -463,6 +463,21 @@ class TestContractTranslationService:
         col_names = [c["name"] for c in data["columns"]]
         assert col_names == ["order_id", "amount", "status"]
 
+    def test_written_file_indents_list_items(self, tmp_path):
+        # LHP convention indents block-sequence items under their key
+        # (``columns:\n  - name: ...``), matching hand-authored contracts —
+        # not PyYAML's default flush-left style (``columns:\n- name: ...``).
+        _write_contract(tmp_path / "contracts", "sales.yaml", VALID_CONTRACT_YAML)
+        ContractTranslationService(tmp_path).translate()
+
+        text = (
+            tmp_path / "contracts" / "lhp" / "schemas" / "sales.orders_schema.yaml"
+        ).read_text()
+        # Indented list items present; no flush-left list items.
+        assert "\n  - name: order_id" in text
+        assert "\n  - order_id" in text  # primary_key scalar list item
+        assert "\n- " not in text
+
     def test_multiple_contracts_processed(self, tmp_path):
         _write_contract(tmp_path / "contracts", "sales.yaml", VALID_CONTRACT_YAML)
         _write_contract(
