@@ -109,14 +109,14 @@ byte-identical file. Contracts coexist with hand-authored ``schemas/`` files —
 ``contracts/`` folder is an additional source, not a replacement.
 
 Use the generated schema
--------------------------
+------------------------
 
 A generated schema file is a standard LHP schema file, so reference it anywhere LHP
 accepts a schema file — by its path under ``contracts/lhp/schemas/``. Columns marked
 ``nullable: false`` emit ``NOT NULL`` in the generated DDL.
 
 In a load action
-~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~
 
 A ``cloudfiles`` load action consumes it in either of the two ways covered in
 :doc:`ingest_with_autoloader`. Point ``cloudFiles.schemaHints`` at the file to pin
@@ -158,7 +158,7 @@ accepts exactly the declared columns and rejects everything else:
        target: v_customer_raw
 
 In a write action
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
 
 A write target's ``table_schema`` accepts the same schema file (see
 :doc:`actions/write_actions`), so the contract defines the table's columns and types
