@@ -11,8 +11,6 @@ into the artifacts it generates pipelines from. This feature currently covers
 **schemas** — LHP translates each contract's schema into a standard LHP schema file
 you can reference from any action that accepts one, on both the load and write side.
 
-.. versionadded:: 0.9.0
-
 Add a contract to ``contracts/``
 --------------------------------
 
