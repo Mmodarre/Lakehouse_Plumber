@@ -8,9 +8,8 @@ Data Contracts (ODCS)
 is a YAML format for declaring a dataset's schema and data-quality rules. Place ODCS
 contracts into a ``contracts/`` folder and Lakehouse Plumber (LHP) translates them
 into the artifacts it generates pipelines from. This feature currently covers
-**schemas** — LHP translates each contract's schema into an LHP schema file you point
-a ``cloudfiles`` load action at, to guide Auto Loader's schema inference or to enforce
-the full schema.
+**schemas** — LHP translates each contract's schema into a standard LHP schema file
+you can reference from any action that accepts one, on both the load and write side.
 
 .. versionadded:: 0.9.0
 
@@ -111,14 +110,19 @@ Translation is deterministic: re-running on an unchanged contract rewrites a
 byte-identical file. Contracts coexist with hand-authored ``schemas/`` files — the
 ``contracts/`` folder is an additional source, not a replacement.
 
-Use the generated schema in a load action
------------------------------------------
+Use the generated schema
+-------------------------
 
-A generated schema file is an ordinary LHP schema file, so a ``cloudfiles`` load
-action consumes it in either of the two ways covered in :doc:`ingest_with_autoloader`.
+A generated schema file is a standard LHP schema file, so reference it anywhere LHP
+accepts a schema file — by its path under ``contracts/lhp/schemas/``. Columns marked
+``nullable: false`` emit ``NOT NULL`` in the generated DDL.
 
-Point ``cloudFiles.schemaHints`` at the file to pin types while Auto Loader infers the
-rest. The ``nullable: false`` columns emit ``NOT NULL`` in the generated DDL:
+In a load action
+~~~~~~~~~~~~~~~~~
+
+A ``cloudfiles`` load action consumes it in either of the two ways covered in
+:doc:`ingest_with_autoloader`. Point ``cloudFiles.schemaHints`` at the file to pin
+types while Auto Loader infers the rest:
 
 .. code-block:: yaml
    :caption: pipelines/bronze/customer.yaml
@@ -155,6 +159,26 @@ accepts exactly the declared columns and rejects everything else:
            cloudFiles.format: csv
        target: v_customer_raw
 
+In a write action
+~~~~~~~~~~~~~~~~~~
+
+A write target's ``table_schema`` accepts the same schema file (see
+:doc:`actions/write_actions`), so the contract defines the table's columns and types
+on the streaming-table or materialized-view side too:
+
+.. code-block:: yaml
+   :caption: pipelines/silver/customer.yaml
+
+   actions:
+     - name: write_customer
+       type: write
+       source: v_customer_clean
+       write_target:
+         type: streaming_table
+         database: "${silver_schema}"
+         table: customer
+         table_schema: "contracts/lhp/schemas/customer.contract.customer_schema.yaml"
+
 Translate a multi-table contract
 --------------------------------
 
@@ -168,11 +192,13 @@ contract filename so names never collide across contracts:
    →  contracts/lhp/schemas/sales.orders_schema.yaml
    →  contracts/lhp/schemas/sales.order_line_items_schema.yaml
 
-Reference each generated file from the load action for its table.
+Reference each generated file from the load or write action for its table.
 
 .. seealso::
 
    - :doc:`ingest_with_autoloader` — full reference for ``cloudFiles.schemaHints``
      and ``source.schema`` on a ``cloudfiles`` load action.
+   - :doc:`actions/write_actions` — full reference for ``table_schema`` on a write
+     target.
    - `Open Data Contract Standard <https://bitol.io/open-data-contract-standard/>`_ —
      the ODCS specification.
