@@ -12,6 +12,7 @@ from .blueprint_expander import BlueprintExpander
 from .dqe import DQEParser
 from .local_variables import LocalVariableResolver
 from .namespace_normalizer import normalize_namespace_fields
+from .odcs_translator import OdcsTranslator, SchemaArtifact
 from .substitution import EnhancedSubstitutionManager, SecretReference
 from .template_engine import TemplateEngine
 
@@ -24,6 +25,8 @@ __all__ = [
     "EnhancedSubstitutionManager",
     "FlowgroupResolutionService",
     "LocalVariableResolver",
+    "OdcsTranslator",
+    "SchemaArtifact",
     "SecretReference",
     "TemplateEngine",
     "normalize_namespace_fields",

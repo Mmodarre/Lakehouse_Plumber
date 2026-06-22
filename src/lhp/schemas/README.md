@@ -116,6 +116,19 @@ Schema for environment substitution files with:
 - Database and storage configuration
 - Custom token definitions
 
+### odcs.schema.json
+The Open Data Contract Standard (ODCS) JSON Schema, used at runtime to validate
+ODCS data-contract files placed in a project's `contracts/` folder. Unlike the other files here, this schema is **not**
+LHP-authored — it is **vendored verbatim** from the upstream
+[bitol-io/open-data-contract-standard](https://github.com/bitol-io/open-data-contract-standard)
+project (`schema/odcs-json-schema-latest.json` on `main`).
+
+**Keeping it current:** LHP maintainers re-vendor this file by copying the latest
+`odcs-json-schema-latest.json` from the upstream repository (no local edits), and
+bump it when adopting newer ODCS `apiVersion`s. Because it is vendored, do not
+hand-edit it — update it only by re-pulling from upstream so it stays an exact
+copy of the published standard.
+
 ## Usage Examples
 
 ### Project Configuration with Include Patterns
@@ -271,4 +284,6 @@ To improve the schemas:
 3. Update this README with new features
 4. Submit a pull request
 
-The schemas are generated based on the Pydantic models in `src/lhp/models/config.py`. 
+Most schemas are generated based on the Pydantic models in `src/lhp/models/config.py`.
+The exception is `odcs.schema.json`, which is vendored from upstream (see above) and
+updated by re-pulling the published ODCS standard rather than by editing.

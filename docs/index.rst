@@ -108,6 +108,7 @@ want to understand the execution model first, read :doc:`architecture`.
    how_to_index
    decisions
    ingest_with_autoloader
+   data_contracts
    pipeline_patterns
    multi_flowgroup_guide
    dynamic_templates_guide

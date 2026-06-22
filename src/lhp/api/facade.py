@@ -81,6 +81,7 @@ class LakehousePlumberApplicationFacade:
         pipeline_config_path: Optional[str] = None,
         enforce_version: bool = True,
         max_workers: Optional[int] = None,
+        translate_contracts: bool = False,
     ) -> "LakehousePlumberApplicationFacade":
         """Construct a fully-wired facade from a project root.
 
@@ -88,6 +89,9 @@ class LakehousePlumberApplicationFacade:
         into another's private attributes; builds the single
         ``ConfigValidator`` that threads through validation and
         flowgroup-resolution (closes the §9.24 leak).
+
+        ``translate_contracts`` (default ``False``) runs the ODCS
+        contract-to-schema translation step before composition.
 
         :stability: provisional
         :raises lhp.errors.LHPError: ``LHP-CFG-*`` if ``lhp.yaml`` is
@@ -110,6 +114,17 @@ class LakehousePlumberApplicationFacade:
         from lhp.generators.registration import register_all
 
         register_all()
+
+        # Translate ODCS contracts under ``contracts/`` into ``contracts/lhp/schemas/``
+        # before any discovery/validation/generation. No-op when ``contracts/``
+        # is absent, or when the caller opts out via ``--no-contracts``. Lazy
+        # import to respect layering and keep ``import lhp`` light.
+        if translate_contracts:
+            from lhp.core.coordination.contract_translation_service import (
+                ContractTranslationService,
+            )
+
+            ContractTranslationService(project_root).translate()
 
         orchestrator = build_facade_orchestrator(
             project_root,

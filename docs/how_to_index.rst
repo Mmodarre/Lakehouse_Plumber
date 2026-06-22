@@ -18,6 +18,8 @@ Ingest data
 
 * :doc:`ingest_with_autoloader` — Stream files from cloud object storage with
   Auto Loader (CloudFiles).
+* :doc:`data_contracts` — Drive table schemas from Open Data Contract Standard
+  (ODCS) YAML files placed in a ``contracts/`` folder.
 * :doc:`pipeline_patterns` — Apply multi-source fan-in, path filtering, and other
   recipes from the patterns cookbook.
 
