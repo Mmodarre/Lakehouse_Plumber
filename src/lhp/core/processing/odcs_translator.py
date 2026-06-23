@@ -1,8 +1,10 @@
-"""Translate ODCS contracts into LHP schema artifacts (slice 1).
+"""Translate ODCS contracts into LHP artifacts.
 
 Each object in an ODCS contract's ``schema`` array becomes one
-:class:`SchemaArtifact`, whose ``schema_dict`` matches the LHP schema format
-consumed by :class:`lhp.parsers.schema_parser.SchemaParser`.
+:class:`SchemaArtifact` (LHP schema format consumed by
+:class:`lhp.parsers.schema_parser.SchemaParser`) and, when it has row-level
+property constraints, one :class:`ExpectationsArtifact` (the dict format
+consumed by the ``data_quality`` transform).
 """
 
 from __future__ import annotations
@@ -12,7 +14,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
-from ...utils.odcs_type_mapper import odcs_type_to_spark
+from ...utils.odcs_mapper import odcs_property_to_constraints, odcs_type_to_spark
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +39,23 @@ class SchemaArtifact:
     schema_dict: Dict[str, Any]
 
 
+@dataclass
+class ExpectationsArtifact:
+    """A single translated LHP expectations file, ready to write under ``contracts/lhp/expectations/``.
+
+    :param object_name: the ODCS schema object's ``name``.
+    :param file_name: output filename ``<contract-stem>.<object>_expectations.yaml``.
+    :param expectations_dict: LHP expectations in the new dict format —
+        ``{<constraint sql>: {"action": <warn|drop|fail>, "name": <slug>}}``.
+    """
+
+    object_name: str
+    file_name: str
+    expectations_dict: Dict[str, Dict[str, str]]
+
+
 class OdcsTranslator:
-    """Translate a parsed ODCS contract into LHP schema artifacts."""
+    """Translate a parsed ODCS contract into LHP schema and expectations artifacts."""
 
     def translate_schemas(
         self, contract: Dict[str, Any], *, contract_stem: str
@@ -87,6 +104,43 @@ class OdcsTranslator:
                     object_name=object_name,
                     file_name=file_name,
                     schema_dict=schema_dict,
+                )
+            )
+
+        return artifacts
+
+    def translate_expectations(
+        self, contract: Dict[str, Any], *, contract_stem: str
+    ) -> List[ExpectationsArtifact]:
+        """Translate row-level property constraints into expectations artifacts.
+
+        One :class:`ExpectationsArtifact` per schema object that has at least one
+        derivable constraint; objects yielding no constraints are skipped (no
+        empty files). Each property's predicates (from
+        :func:`lhp.utils.odcs_mapper.odcs_property_to_constraints`)
+        become entries in the new dict format, with ``action`` resolved per
+        property from ``criticalDataElement`` (``true`` → ``fail`` else ``warn``).
+        ``file_name`` is ``<contract-stem>.<object>_expectations.yaml``.
+        """
+        artifacts: List[ExpectationsArtifact] = []
+
+        for obj in contract.get("schema", []) or []:
+            expectations_dict: Dict[str, Dict[str, str]] = {}
+            for prop in obj.get("properties", []) or []:
+                action = "fail" if prop.get("criticalDataElement") else "warn"
+                for predicate, name in odcs_property_to_constraints(prop):
+                    expectations_dict[predicate] = {"action": action, "name": name}
+
+            if not expectations_dict:
+                continue
+
+            object_name = obj["name"]
+            file_name = f"{contract_stem}.{_slug(object_name)}_expectations.yaml"
+            artifacts.append(
+                ExpectationsArtifact(
+                    object_name=object_name,
+                    file_name=file_name,
+                    expectations_dict=expectations_dict,
                 )
             )
 
