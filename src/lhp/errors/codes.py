@@ -141,7 +141,7 @@ CFG_061 = ErrorCode(ErrorCategory.CONFIG, "061")
 # validation (carries the underlying jsonschema message).
 CFG_062 = ErrorCode(ErrorCategory.CONFIG, "062")
 # CFG_063: an ODCS schema property has a type that cannot be mapped to a Spark
-# DDL type — raised by lhp.utils.odcs_type_mapper.odcs_type_to_spark.
+# DDL type — raised by lhp.utils.odcs_mapper.odcs_type_to_spark.
 CFG_063 = ErrorCode(ErrorCategory.CONFIG, "063")
 
 DEP_001 = ErrorCode(ErrorCategory.DEPENDENCY, "001")

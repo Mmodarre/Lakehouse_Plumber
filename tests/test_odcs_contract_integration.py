@@ -10,9 +10,8 @@ These pin the two integration seams the unit tests in
 
 2. ``LakehousePlumberBootstrap.init_project(...)`` must scaffold a
    ``contracts/`` directory (alongside the existing ``schemas/``,
-   ``expectations/`` etc.). The translated output lives under
-   ``contracts/lhp/`` and is version-controlled (mirroring generated DAB
-   ``resources/lhp/``), so it must NOT be gitignored.
+   ``expectations/`` etc.). The translated output lives under ``contracts/lhp/``,
+   is regenerated each run, and is gitignored (commit ``50981ee``).
 """
 
 import textwrap
@@ -40,12 +39,15 @@ CONTRACT_YAML = textwrap.dedent(
             logicalType: integer
             physicalType: BIGINT
             required: true
+            criticalDataElement: true
             primaryKey: true
             primaryKeyPosition: 1
             description: Unique order id
           - name: amount
             logicalType: number
             physicalType: DECIMAL(18,2)
+            logicalTypeOptions:
+              minimum: 0
           - name: status
             logicalType: string
       - name: customers
@@ -106,6 +108,29 @@ class TestFacadeInvokesContractTranslation:
             "contracts/lhp/schemas/sales.customers_schema.yaml during construction"
         )
 
+    def test_for_project_translates_contracts_into_lhp_expectations(self, tmp_path):
+        # The constrained ``orders`` object (criticalDataElement order_id +
+        # amount minimum) must also emit an expectations file alongside schemas.
+        self._build_minimal_project(tmp_path)
+
+        LakehousePlumberApplicationFacade.for_project(
+            tmp_path, enforce_version=False, translate_contracts=True
+        )
+
+        exp_dir = tmp_path / "contracts" / "lhp" / "expectations"
+        orders_exp = exp_dir / "sales.orders_expectations.yaml"
+        assert orders_exp.exists(), (
+            "for_project should translate constrained contract object orders -> "
+            "contracts/lhp/expectations/sales.orders_expectations.yaml"
+        )
+        # customers has only a bare ``required`` constraint -> it DOES yield an
+        # expectations file; but the constraint-free shape would not. The
+        # orders file is the load-bearing assertion here.
+        # Schemas must still be emitted (Slice 1 unaffected).
+        assert (
+            tmp_path / "contracts" / "lhp" / "schemas" / "sales.orders_schema.yaml"
+        ).exists()
+
     def test_translate_contracts_false_opts_out(self, tmp_path):
         # The --no-contracts opt-out (translate_contracts=False) must skip
         # translation entirely: no contracts/lhp/ output is created.
@@ -122,21 +147,21 @@ class TestFacadeInvokesContractTranslation:
 
 
 # ---------------------------------------------------------------------------
-# Seam 2: project init scaffolds contracts/ (translated output is tracked)
+# Seam 2: project init scaffolds contracts/ and gitignores translated output
 # ---------------------------------------------------------------------------
 
 
 class TestInitScaffoldsContractsDir:
-    """``init_project`` creates ``contracts/``; translated output is tracked.
+    """``init_project`` creates ``contracts/``; translated output is gitignored.
 
     Exercised through the public ``LakehousePlumberBootstrap`` (the same
     entry point ``lhp init`` routes to, per
     ``tests/test_cli_main_coverage.py``).
 
-    The translated schemas live under ``contracts/lhp/schemas/`` and are
-    version-controlled (mirroring generated DAB ``resources/lhp/``), so the
-    generated ``.gitignore`` must NOT exclude ``contracts/lhp/``. The ``.lhp/``
-    state/logs directory stays ignored independently.
+    Source contracts live in ``contracts/``; the translated artifacts under
+    ``contracts/lhp/`` are regenerated on every run and gitignored (commit
+    ``50981ee``), so the generated ``.gitignore`` excludes ``contracts/lhp/``.
+    The ``.lhp/`` state/logs directory stays ignored independently.
     """
 
     def test_init_creates_contracts_directory(self, tmp_path):
@@ -156,7 +181,7 @@ class TestInitScaffoldsContractsDir:
             "data contracts"
         )
 
-    def test_init_does_not_gitignore_translated_schema_output(self, tmp_path):
+    def test_init_gitignores_translated_output(self, tmp_path):
         target = tmp_path / "proj"
         result = LakehousePlumberBootstrap().init_project(
             target, bundle=False, project_name="proj"
@@ -164,9 +189,8 @@ class TestInitScaffoldsContractsDir:
         assert result.success, result.error_message
 
         gitignore = (target / ".gitignore").read_text(encoding="utf-8")
-        # ``.lhp/`` (state/logs) stays ignored ...
+        # ``.lhp/`` (state/logs) is ignored ...
         assert ".lhp/" in gitignore
-        # ... but the translated schema output under ``contracts/lhp/`` is
-        # version-controlled like generated DAB resources, so it must not be
-        # excluded.
-        assert "contracts/lhp" not in gitignore
+        # ... and the regenerated translation output under ``contracts/lhp/``
+        # is ignored too (it is rebuilt from the source contracts each run).
+        assert "contracts/lhp/" in gitignore

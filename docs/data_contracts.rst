@@ -2,14 +2,15 @@ Data Contracts (ODCS)
 =====================
 
 .. meta::
-   :description: How to use Open Data Contract Standard (ODCS) YAML files in a contracts/ folder to drive Lakehouse Plumber — starting with table schemas for Auto Loader schema hints and full schema enforcement.
+   :description: How to use Open Data Contract Standard (ODCS) YAML files in a contracts/ folder to drive Lakehouse Plumber — table schemas (Auto Loader schema hints / enforcement / write table_schema) and data-quality expectations.
 
 `Open Data Contract Standard <https://bitol.io/open-data-contract-standard/>`_ (ODCS)
 is a YAML format for declaring a dataset's schema and data-quality rules. Place ODCS
 contracts into a ``contracts/`` folder and Lakehouse Plumber (LHP) translates them
-into the artifacts it generates pipelines from. This feature currently covers
-**schemas** — LHP translates each contract's schema into a standard LHP schema file
-you can reference from any action that accepts one, on both the load and write side.
+into the artifacts it generates pipelines from. This feature covers **schemas** (a
+standard LHP schema file referenced from any load or write action) and **expectations**
+(row-level data-quality rules derived from each property's constraints, consumed by a
+``data_quality`` transform).
 
 Add a contract to ``contracts/``
 --------------------------------
@@ -77,9 +78,10 @@ For each schema object in each contract, LHP writes one LHP schema file to
        └── schemas/
            └── customer.contract.customer_schema.yaml      # generated
 
-The output sits beside the source contracts — mirroring how generated Databricks
-Asset Bundle resources live under ``resources/lhp/`` — and is version-controlled, not
-gitignored. The translated file is the standard LHP schema format:
+The output sits beside the source contracts under ``contracts/lhp/``. It is regenerated
+on every run and gitignored (``lhp init`` adds ``contracts/lhp/`` to ``.gitignore``) —
+commit your source ``contracts/``, not the generated ``contracts/lhp/``. The translated
+file is the standard LHP schema format:
 
 .. code-block:: yaml
    :caption: contracts/lhp/schemas/customer.contract.customer_schema.yaml
@@ -88,21 +90,21 @@ gitignored. The translated file is the standard LHP schema format:
    version: 1.0.0
    description: One row per customer
    columns:
-   - name: customer_id
-     type: BIGINT
-     nullable: false
-     comment: Surrogate key for the customer
-   - name: full_name
-     type: STRING
-     nullable: false
-   - name: lifetime_value
-     type: DECIMAL(18,2)
-     nullable: true
-   - name: is_active
-     type: BOOLEAN
-     nullable: false
+     - name: customer_id
+       type: BIGINT
+       nullable: false
+       comment: Surrogate key for the customer
+     - name: full_name
+       type: STRING
+       nullable: false
+     - name: lifetime_value
+       type: DECIMAL(18,2)
+       nullable: true
+     - name: is_active
+       type: BOOLEAN
+       nullable: false
    primary_key:
-   - customer_id
+     - customer_id
 
 Translation is deterministic: re-running on an unchanged contract rewrites a
 byte-identical file. Contracts coexist with hand-authored ``schemas/`` files — the
@@ -192,11 +194,73 @@ contract filename so names never collide across contracts:
 
 Reference each generated file from the load or write action for its table.
 
+Expectations
+------------
+
+Alongside each schema, LHP derives **data-quality expectations** from each property's
+``logicalTypeOptions`` and writes them to
+``contracts/lhp/expectations/<stem>.<object>_expectations.yaml`` (only for objects that
+have at least one such constraint). Reference that file from a ``data_quality`` transform —
+no other config needed:
+
+.. code-block:: yaml
+   :caption: pipelines/silver/customer.yaml
+
+   actions:
+     - name: customer_dq
+       type: transform
+       transform_type: data_quality
+       source: v_customer_clean
+       target: v_customer_dq
+       expectations_file: "contracts/lhp/expectations/customer.contract.customer_expectations.yaml"
+
+**What becomes an expectation.** Each property contributes row-level checks derived from
+its ``logicalTypeOptions``:
+
+- string ``minLength`` / ``maxLength`` / ``pattern`` → ``length(<col>) >= n`` /
+  ``length(<col>) <= n`` / ``<col> RLIKE '...'``
+- integer/number ``minimum`` / ``maximum`` / ``exclusiveMinimum`` / ``exclusiveMaximum``
+  / ``multipleOf`` → the matching comparison / ``<col> % n = 0``
+- date/timestamp/time ``minimum`` / ``maximum`` (and exclusive variants) → quoted-literal
+  comparisons
+- array ``minItems`` / ``maxItems`` / ``uniqueItems`` → ``size(<col>) ...`` /
+  ``size(<col>) = size(array_distinct(<col>))``
+- object ``required: [field]`` → ``<col>.<field> IS NOT NULL``
+
+**Severity comes from** ``criticalDataElement``. A property marked
+``criticalDataElement: true`` produces expectations with action ``fail`` (a violating row
+fails the pipeline); otherwise the action is ``warn`` (violations are logged, rows pass).
+
+.. code-block:: yaml
+   :caption: contracts/customer.contract.yaml (excerpt)
+
+   - name: lifetime_value
+     logicalType: number
+     criticalDataElement: true        # → action: fail
+     logicalTypeOptions:
+       minimum: 0
+   - name: email
+     logicalType: string
+     logicalTypeOptions:
+       minLength: 3                    # → action: warn
+
+.. code-block:: yaml
+   :caption: contracts/lhp/expectations/customer.contract.customer_expectations.yaml (generated)
+
+   lifetime_value >= 0:
+     action: fail
+     name: lifetime_value_min
+   length(email) >= 3:
+     action: warn
+     name: email_min_length
+
 .. seealso::
 
    - :doc:`ingest_with_autoloader` — full reference for ``cloudFiles.schemaHints``
      and ``source.schema`` on a ``cloudfiles`` load action.
    - :doc:`actions/write_actions` — full reference for ``table_schema`` on a write
      target.
+   - :doc:`actions/transform_actions` — the ``data_quality`` transform that consumes
+     an ``expectations_file``.
    - `Open Data Contract Standard <https://bitol.io/open-data-contract-standard/>`_ —
      the ODCS specification.

@@ -1,11 +1,11 @@
 """Pre-generation step: translate ODCS contracts into LHP ``contracts/lhp/`` artifacts.
 
 Runs before discovery/validation/generation (invoked from the facade
-composition root). Slice 1 emits only schema files under ``contracts/lhp/schemas/``.
-Output lives beside the source contracts (mirroring how generated Databricks
-Asset Bundle resources are stored under ``resources/lhp/``) and is intended to be
-version-controlled, not gitignored. The step is opt-in by folder presence: a
-no-op when ``contracts/`` is absent.
+composition root). Emits schema files under ``contracts/lhp/schemas/`` and, for
+objects with row-level property constraints, expectations files under
+``contracts/lhp/expectations/``. The ``contracts/lhp/`` tree is regenerated each
+run and gitignored (``lhp init`` adds ``contracts/lhp/``). The step is opt-in by
+folder presence: a no-op when ``contracts/`` is absent.
 """
 
 from __future__ import annotations
@@ -36,15 +36,17 @@ class TranslationResult:
     """Outcome of a contract-translation pass.
 
     :param schema_files: absolute paths written under ``contracts/lhp/schemas/``.
+    :param expectation_files: absolute paths written under ``contracts/lhp/expectations/``.
     :param contracts_processed: number of contract files parsed.
     """
 
     schema_files: List[Path] = field(default_factory=list)
+    expectation_files: List[Path] = field(default_factory=list)
     contracts_processed: int = 0
 
 
 class ContractTranslationService:
-    """Translate ``contracts/*.yaml`` ODCS files into ``contracts/lhp/schemas/`` files."""
+    """Translate ``contracts/*.yaml`` ODCS files into ``contracts/lhp/`` schema and expectations files."""
 
     def __init__(
         self, project_root: Path, logger: Optional[logging.Logger] = None
@@ -53,15 +55,19 @@ class ContractTranslationService:
         self.logger = logger or logging.getLogger(__name__)
         self.contracts_dir = self.project_root / "contracts"
         self.schemas_out_dir = self.project_root / "contracts" / "lhp" / "schemas"
+        self.expectations_out_dir = (
+            self.project_root / "contracts" / "lhp" / "expectations"
+        )
 
     def translate(self) -> TranslationResult:
-        """Parse every ODCS contract and write equivalent LHP schema files.
+        """Parse every ODCS contract and write equivalent LHP schema + expectations files.
 
         No-op (empty result) when ``contracts/`` does not exist. Otherwise, for
-        each ``contracts/*.{yaml,yml}`` (sorted): parse + validate, translate
-        each schema object, and write
-        ``contracts/lhp/schemas/<stem>.<object>_schema.yaml`` via
-        :func:`lhp.utils.file_header.write_normalized`. The output is a
+        each ``contracts/*.{yaml,yml}`` (sorted): parse + validate, then write
+        ``contracts/lhp/schemas/<stem>.<object>_schema.yaml`` for every object and
+        ``contracts/lhp/expectations/<stem>.<object>_expectations.yaml`` for every
+        object with row-level constraints (via
+        :func:`lhp.utils.file_header.write_normalized`). The output is a
         deterministic function of the input, so re-running on unchanged contracts
         rewrites byte-identical files (a harmless no-op diff).
 
@@ -108,5 +114,22 @@ class ContractTranslationService:
                 )
                 write_normalized(out_path, content)
                 result.schema_files.append(out_path)
+
+            expectation_artifacts = translator.translate_expectations(
+                contract, contract_stem=contract_file.stem
+            )
+            if expectation_artifacts:
+                self.expectations_out_dir.mkdir(parents=True, exist_ok=True)
+                for artifact in expectation_artifacts:
+                    out_path = self.expectations_out_dir / artifact.file_name
+                    content = yaml.dump(
+                        artifact.expectations_dict,
+                        Dumper=_IndentedSafeDumper,
+                        default_flow_style=False,
+                        sort_keys=False,
+                        indent=2,
+                    )
+                    write_normalized(out_path, content)
+                    result.expectation_files.append(out_path)
 
         return result

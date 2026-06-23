@@ -1,7 +1,7 @@
 """Tests for ODCS contract -> LHP schema translation (Slice 1).
 
 Covers:
-  * ``lhp.utils.odcs_type_mapper.odcs_type_to_spark`` (type-mapping table)
+  * ``lhp.utils.odcs_mapper.odcs_type_to_spark`` (type-mapping table)
   * ``lhp.parsers.odcs_parser.OdcsParser`` (validate + parse)
   * ``lhp.core.processing.odcs_translator.OdcsTranslator`` (object -> artifact)
   * ``lhp.core.coordination.contract_translation_service.ContractTranslationService``
@@ -22,7 +22,7 @@ from lhp.core.processing.odcs_translator import OdcsTranslator, SchemaArtifact
 from lhp.errors import LHPError
 from lhp.parsers.odcs_parser import OdcsParser
 from lhp.parsers.schema_parser import SchemaParser
-from lhp.utils.odcs_type_mapper import odcs_type_to_spark
+from lhp.utils.odcs_mapper import odcs_type_to_spark
 
 # ---------------------------------------------------------------------------
 # Fixture helpers
