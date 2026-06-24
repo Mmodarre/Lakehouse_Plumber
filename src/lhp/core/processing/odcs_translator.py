@@ -83,6 +83,8 @@ class OdcsTranslator:
                 }
                 if "description" in prop:
                     column["comment"] = prop["description"]
+                if prop.get("physicalName"):
+                    column["physical_name"] = prop["physicalName"]
                 columns.append(column)
 
             schema_dict: Dict[str, Any] = {

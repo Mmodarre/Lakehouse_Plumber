@@ -388,6 +388,36 @@ class TestOdcsTranslator:
         # status has no description -> no comment key
         assert "comment" not in cols["status"]
 
+    def test_physical_name_captured_on_column_when_present(self):
+        contract = {
+            "version": "1.0.0",
+            "apiVersion": "v3.0.2",
+            "kind": "DataContract",
+            "id": "id",
+            "status": "active",
+            "schema": [
+                {
+                    "name": "orders",
+                    "properties": [
+                        {
+                            "name": "order_id",
+                            "physicalName": "ord_id",
+                            "logicalType": "integer",
+                            "physicalType": "BIGINT",
+                        },
+                        {"name": "status", "logicalType": "string"},
+                    ],
+                }
+            ],
+        }
+        artifacts = OdcsTranslator().translate_schemas(contract, contract_stem="c")
+        cols = {c["name"]: c for c in artifacts[0].schema_dict["columns"]}
+
+        # physicalName present and differing -> captured under ``physical_name``.
+        assert cols["order_id"]["physical_name"] == "ord_id"
+        # No physicalName -> key omitted entirely.
+        assert "physical_name" not in cols["status"]
+
     def test_unmappable_column_raises_cfg_063(self):
         contract = {
             "version": "1.0.0",

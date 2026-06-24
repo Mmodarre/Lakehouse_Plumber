@@ -539,6 +539,62 @@ class TestHelperSkips:
         assert odcs_quality_to_tests(obj, source=SOURCE) == []
 
 
+class TestHelperNamelessRules:
+    """A rule with no ``name`` gets a derived slug (no ``base_None`` action name)."""
+
+    def test_nameless_dataset_rule_uses_metric_slug(self):
+        obj = _entity(
+            quality=[{"type": "library", "metric": "rowCount", "mustBeGreaterThan": 0}]
+        )
+        test = _only(odcs_quality_to_tests(obj, source=SOURCE))
+        assert test["name"] == "rowcount"  # derived slug is lower-cased
+        assert "test_id" not in test  # no rule name → no test_id
+        assert test["expectations"][0]["name"] == "rowcount"
+
+    def test_nameless_property_rule_uses_column_and_metric_slug(self):
+        obj = _entity(
+            properties=[
+                _prop(
+                    "order_id",
+                    quality=[
+                        {"type": "library", "metric": "duplicateValues", "mustBe": 0}
+                    ],
+                )
+            ]
+        )
+        test = _only(odcs_quality_to_tests(obj, source=SOURCE))
+        assert test["name"] == "order_id_duplicatevalues"
+        assert "test_id" not in test
+
+    def test_nameless_rule_yields_non_none_action_name_via_resolver(
+        self, tmp_path, resolver
+    ):
+        contract = textwrap.dedent(
+            """
+            version: "1.0.0"
+            apiVersion: v3.0.2
+            kind: DataContract
+            id: 55555555-5555-5555-5555-555555555555
+            status: active
+            name: nameless-contract
+            schema:
+              - name: orders
+                quality:
+                  - type: library
+                    metric: rowCount
+                    mustBeGreaterThan: 0
+            """
+        ).strip()
+        _write_contract(tmp_path, contract)
+        fg = _flowgroup(_test_action())
+
+        result = resolver.resolve(fg, project_root=tmp_path)
+
+        names = [a["name"] for a in result["actions"]]
+        assert names == ["orders_contract_tests_rowcount"]
+        assert "None" not in names[0]
+
+
 # ---------------------------------------------------------------------------
 # Resolver expansion (1 → N) — the worked example
 # ---------------------------------------------------------------------------
@@ -592,7 +648,7 @@ WORKED_CONTRACT = textwrap.dedent(
     """
 ).strip()
 
-# A multi-object variant (orders + customers) — entity_name required. The
+# A multi-object variant (orders + customers) — object required. The
 # customers block is indented to sit under ``schema:`` as a sibling of orders.
 WORKED_MULTI_CONTRACT = (
     WORKED_CONTRACT
@@ -737,9 +793,9 @@ class TestResolverExpansion:
         # The 4 expanded actions follow the plain one.
         assert len(result["actions"]) == 5
 
-    def test_multi_object_with_entity_name_selects_orders(self, tmp_path, resolver):
+    def test_multi_object_with_object_selects_orders(self, tmp_path, resolver):
         _write_contract(tmp_path, WORKED_MULTI_CONTRACT)
-        fg = _flowgroup(_test_action(entity_name="orders"))
+        fg = _flowgroup(_test_action(object="orders"))
 
         result = resolver.resolve(fg, project_root=tmp_path)
 
@@ -839,7 +895,7 @@ class TestExpansionErrorCases:
             resolver.resolve(fg, project_root=tmp_path)
         assert exc.value.code == "LHP-CFG-064"
 
-    def test_multi_object_without_entity_name_raises(self, tmp_path, resolver):
+    def test_multi_object_without_object_raises(self, tmp_path, resolver):
         _write_contract(tmp_path, WORKED_MULTI_CONTRACT)
         fg = _flowgroup(_test_action())  # ambiguous: two schema objects
 
@@ -847,9 +903,9 @@ class TestExpansionErrorCases:
             resolver.resolve(fg, project_root=tmp_path)
         assert exc.value.code == "LHP-CFG-064"
 
-    def test_unknown_entity_name_raises(self, tmp_path, resolver):
+    def test_unknown_object_raises(self, tmp_path, resolver):
         _write_contract(tmp_path, WORKED_MULTI_CONTRACT)
-        fg = _flowgroup(_test_action(entity_name="does_not_exist"))
+        fg = _flowgroup(_test_action(object="does_not_exist"))
 
         with pytest.raises(LHPError) as exc:
             resolver.resolve(fg, project_root=tmp_path)
@@ -871,7 +927,7 @@ INTEGRATION_FLOWGROUP = textwrap.dedent(
         contract:
           file: contracts/orders.odcs.yaml
           type: odcs
-          entity_name: orders
+          object: orders
     """
 ).strip()
 

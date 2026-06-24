@@ -53,6 +53,12 @@ resolved relative to the project root.
      - name: customer
        physicalType: table
        description: One row per customer
+       quality:                          # dataset-level rule → a custom_sql test
+         - name: customer_row_count
+           type: library
+           metric: rowCount
+           mustBeGreaterThan: 0
+           severity: warning
        properties:
          - name: customer_id
            logicalType: integer
@@ -61,6 +67,12 @@ resolved relative to the project root.
            criticalDataElement: true
            primaryKey: true
            primaryKeyPosition: 1
+           quality:                      # column-level rule → a uniqueness test
+             - name: customer_id_unique
+               type: library
+               metric: duplicateValues
+               mustBe: 0
+               severity: error
          - name: full_name
            logicalType: string
            required: true
@@ -95,7 +107,7 @@ else is optional and tunes resolution.
    * - ``type``
      - ``odcs``
      - Contract format. Only ``odcs`` is supported.
-   * - ``entity_name``
+   * - ``object``
      - sole object
      - Which schema object (table) to resolve. Optional when the contract has a single
        object; **required** when it has more than one.
@@ -141,6 +153,14 @@ infers the schema while the hints pin the contract's declared types. No enforced
          file: contracts/customer.odcs.yaml
          schema_hints: true
 
+**Where ``physicalName`` is used.** The cloudfiles **read** schema (``source.schema`` and
+``cloudFiles.schemaHints``) reads the raw source files, so it uses each column's
+``physicalName`` where present (falling back to ``name``). The ``schema`` transform then
+renames those physical names to the contract ``name`` (above). The write ``table_schema``
+defines the target table and **always** uses the contract ``name``. So a typical flow is:
+cloudfiles load (physical names) → ``schema`` transform (rename + cast to contract names) →
+write (contract names).
+
 In a write action
 ~~~~~~~~~~~~~~~~~~
 
@@ -164,9 +184,12 @@ A contract on a ``streaming_table`` or ``materialized_view`` write injects
 In a ``schema`` transform
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-A contract on a ``schema`` transform injects ``schema_inline`` as **cast-only** entries
-(one ``<col>: <type>`` per contract column — types only, no renames). The source view is
-assumed to already use the contract's column names:
+A contract on a ``schema`` transform injects ``schema_inline``, one entry per contract
+column. By default each entry is **cast-only** (``<name>: <type>``), assuming the source
+view already uses the contract's column names. When a property declares an ODCS
+``physicalName`` that differs from its ``name``, the entry becomes a **rename + cast**
+(``<physicalName> -> <name>: <type>``) so the transform conforms a source column to the
+contract's name:
 
 .. code-block:: yaml
 
@@ -177,6 +200,10 @@ assumed to already use the contract's column names:
        target: v_customer_typed
        contract:
          file: contracts/customer.odcs.yaml
+
+For example, a property ``{name: customer_id, physicalName: cust_id, physicalType: BIGINT}``
+generates ``cust_id -> customer_id: BIGINT`` → ``df.withColumnRenamed("cust_id",
+"customer_id")`` then a cast.
 
 In a ``data_quality`` transform
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -276,16 +303,16 @@ Multi-table contracts
 ----------------------
 
 An ODCS contract's top-level ``schema`` is a list of objects, so one file can describe
-several tables. When a contract has more than one object, set ``entity_name`` to pick the
+several tables. When a contract has more than one object, set ``object`` to pick the
 one an action resolves against:
 
 .. code-block:: yaml
 
    contract:
      file: contracts/sales.odcs.yaml
-     entity_name: orders
+     object: orders
 
-Omitting ``entity_name`` against a multi-object contract raises ``LHP-CFG-064``; so does
+Omitting ``object`` against a multi-object contract raises ``LHP-CFG-064``; so does
 naming an object the contract does not define.
 
 How resolution works
@@ -295,7 +322,7 @@ On every ``lhp validate`` / ``lhp generate`` run, after substitution and before 
 generation, LHP rewrites each contract-bearing action:
 
 1. Validate the ``contract`` options and parse the referenced contract.
-2. Select the entity object (``entity_name`` or the sole object).
+2. Select the entity object (``object`` or the sole object).
 3. Inject the resolved artifact inline for the action's type (see the table above).
 4. Strip the ``contract`` field so generators only ever see resolved config.
 

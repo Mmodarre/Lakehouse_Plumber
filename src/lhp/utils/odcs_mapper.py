@@ -312,12 +312,30 @@ def _metric_expression(rule: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-def _base_test(rule: Dict[str, Any], source: str, on_violation: str) -> Dict[str, Any]:
+def _rule_slug(rule: Dict[str, Any], column: Optional[str]) -> str:
+    """Name for the emitted test (used as the action-name suffix).
+
+    Uses the rule's ``name`` verbatim when present; otherwise derives a
+    lower-cased fallback from the bound column (when any) and the metric / rule
+    type, e.g. ``rowcount`` or ``order_id_duplicatevalues`` — never ``None``.
+    """
+    name = rule.get("name")
+    if name:
+        return name
+    kind = rule.get("metric") if rule.get("type") == "library" else rule.get("type")
+    kind = kind or "check"
+    col = _resolve_column(rule, column)
+    return (f"{col}_{kind}" if col else kind).lower()
+
+
+def _base_test(
+    rule: Dict[str, Any], source: str, on_violation: str, slug: str
+) -> Dict[str, Any]:
     """Build the common fields shared by every emitted test dict."""
     test: Dict[str, Any] = {
         "source": source,
         "on_violation": on_violation,
-        "name": rule.get("name"),
+        "name": slug,
     }
     if rule.get("name"):
         test["test_id"] = rule["name"]
@@ -325,15 +343,15 @@ def _base_test(rule: Dict[str, Any], source: str, on_violation: str) -> Dict[str
 
 
 def _custom_sql_test(
-    rule: Dict[str, Any], source: str, on_violation: str, sql: str
+    rule: Dict[str, Any], source: str, on_violation: str, sql: str, slug: str
 ) -> Dict[str, Any]:
     """Build a ``custom_sql`` test dict with a single metric expectation."""
-    test = _base_test(rule, source, on_violation)
+    test = _base_test(rule, source, on_violation, slug)
     test["test_type"] = "custom_sql"
     test["sql"] = sql
     test["expectations"] = [
         {
-            "name": rule.get("name"),
+            "name": slug,
             "expression": _metric_expression(rule),
             "on_violation": on_violation,
         }
@@ -388,6 +406,7 @@ def _quality_rule_to_test(
     """Map a single ODCS quality rule to a partial test dict (or ``None``)."""
     rule_type = rule.get("type")
     on_violation = _severity_to_on_violation(rule)
+    slug = _rule_slug(rule, column)
 
     if rule_type == "sql":
         query = rule.get("query", "")
@@ -395,21 +414,21 @@ def _quality_rule_to_test(
         if column is not None:
             substituted = substituted.replace("${column}", column)
         sql = f"SELECT ({substituted}) AS metric"
-        return _custom_sql_test(rule, source, on_violation, sql)
+        return _custom_sql_test(rule, source, on_violation, sql, slug)
 
     if rule_type == "library":
         metric = rule.get("metric")
 
         if metric == "rowCount":
             sql = f"SELECT COUNT(*) AS metric FROM {source}"
-            return _custom_sql_test(rule, source, on_violation, sql)
+            return _custom_sql_test(rule, source, on_violation, sql, slug)
 
         if metric == "duplicateValues":
             if _is_must_be_zero(rule):
                 columns = _resolve_columns(rule, column)
                 if columns is None:
                     return None
-                test = _base_test(rule, source, on_violation)
+                test = _base_test(rule, source, on_violation, slug)
                 test["test_type"] = "uniqueness"
                 test["columns"] = columns
                 return test
@@ -421,14 +440,14 @@ def _quality_rule_to_test(
                 f"(SELECT {resolved} FROM {source} "
                 f"GROUP BY {resolved} HAVING COUNT(*) > 1)"
             )
-            return _custom_sql_test(rule, source, on_violation, sql)
+            return _custom_sql_test(rule, source, on_violation, sql, slug)
 
         if metric in ("nullValues", "missingValues"):
             resolved = _resolve_column(rule, column)
             if resolved is None:
                 return None
             if _is_must_be_zero(rule):
-                test = _base_test(rule, source, on_violation)
+                test = _base_test(rule, source, on_violation, slug)
                 test["test_type"] = "completeness"
                 test["required_columns"] = [resolved]
                 return test
@@ -436,7 +455,7 @@ def _quality_rule_to_test(
                 f"SELECT COUNT(*) AS metric FROM {source} "
                 f"WHERE {resolved} IS NULL"
             )
-            return _custom_sql_test(rule, source, on_violation, sql)
+            return _custom_sql_test(rule, source, on_violation, sql, slug)
 
         if metric == "invalidValues":
             resolved = _resolve_column(rule, column)
@@ -451,7 +470,7 @@ def _quality_rule_to_test(
                 f"SELECT COUNT(*) AS metric FROM {source} "
                 f"WHERE {resolved} NOT IN ({rendered})"
             )
-            return _custom_sql_test(rule, source, on_violation, sql)
+            return _custom_sql_test(rule, source, on_violation, sql, slug)
 
     # custom / text / unknown rule types and unmappable metrics are skipped.
     return None
