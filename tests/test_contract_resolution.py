@@ -61,7 +61,7 @@ SINGLE_OBJECT_CONTRACT = textwrap.dedent(
     """
 ).strip()
 
-# A multi-object contract (``orders`` + ``customers``) — entity_name required.
+# A multi-object contract (``orders`` + ``customers``) — object required.
 MULTI_OBJECT_CONTRACT = textwrap.dedent(
     """
     version: "1.0.0"
@@ -424,25 +424,25 @@ class TestDataQualityResolution:
 
 
 class TestEntitySelection:
-    def test_single_object_contract_resolves_sole_object_without_entity_name(
+    def test_single_object_contract_resolves_sole_object_without_object(
         self, tmp_path, resolver
     ):
         _write_contract(tmp_path)  # single-object contract
-        fg = _flowgroup(_cloudfiles_action())  # no entity_name
+        fg = _flowgroup(_cloudfiles_action())  # no object
 
         result = resolver.resolve(fg, project_root=tmp_path)
 
         assert result["actions"][0]["source"]["schema"] == EXPECTED_DDL
 
-    def test_explicit_entity_name_selects_named_object(self, tmp_path, resolver):
+    def test_explicit_object_selects_named_object(self, tmp_path, resolver):
         _write_contract(tmp_path, MULTI_OBJECT_CONTRACT)
-        fg = _flowgroup(_cloudfiles_action(entity_name="orders"))
+        fg = _flowgroup(_cloudfiles_action(object="orders"))
 
         result = resolver.resolve(fg, project_root=tmp_path)
 
         assert result["actions"][0]["source"]["schema"] == EXPECTED_DDL
 
-    def test_multi_object_without_entity_name_raises(self, tmp_path, resolver):
+    def test_multi_object_without_object_raises(self, tmp_path, resolver):
         _write_contract(tmp_path, MULTI_OBJECT_CONTRACT)
         fg = _flowgroup(_cloudfiles_action())  # ambiguous
 
@@ -450,9 +450,9 @@ class TestEntitySelection:
             resolver.resolve(fg, project_root=tmp_path)
         assert exc.value.code == "LHP-CFG-064"
 
-    def test_unknown_entity_name_raises(self, tmp_path, resolver):
+    def test_unknown_object_raises(self, tmp_path, resolver):
         _write_contract(tmp_path, MULTI_OBJECT_CONTRACT)
-        fg = _flowgroup(_cloudfiles_action(entity_name="does_not_exist"))
+        fg = _flowgroup(_cloudfiles_action(object="does_not_exist"))
 
         with pytest.raises(LHPError) as exc:
             resolver.resolve(fg, project_root=tmp_path)

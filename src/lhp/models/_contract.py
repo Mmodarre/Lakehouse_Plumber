@@ -17,7 +17,7 @@ class ContractConfig(BaseModel):
 
     file: str = Field(..., description="Path to the contract file, relative to project root.")
     type: str = Field("odcs", description="Contract format; only 'odcs' is supported.")
-    entity_name: Optional[str] = Field(
+    object: Optional[str] = Field(
         None,
         description=(
             "Schema object within the contract to use. Defaults to the contract's "

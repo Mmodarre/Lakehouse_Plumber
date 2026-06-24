@@ -143,7 +143,7 @@ class ContractResolver:
 
         # 3. Select the entity object.
         obj = self._select_entity(
-            contract_dict, contract.get("entity_name"), action_name, file_ref
+            contract_dict, contract.get("object"), action_name, file_ref
         )
 
         # 4. Inject by action type.
@@ -226,7 +226,7 @@ class ContractResolver:
 
         # 3. Select the entity object.
         obj = self._select_entity(
-            contract_dict, contract.get("entity_name"), action_name, file_ref
+            contract_dict, contract.get("object"), action_name, file_ref
         )
 
         # 4. Map the entity's quality rules to partial test dicts.
@@ -315,20 +315,20 @@ class ContractResolver:
     def _select_entity(
         self,
         contract_dict: Dict[str, Any],
-        entity_name: Optional[str],
+        object_name: Optional[str],
         action_name: str,
         file_ref: str,
     ) -> Dict[str, Any]:
         objects = contract_dict.get("schema", []) or []
 
-        if entity_name is not None:
+        if object_name is not None:
             for obj in objects:
-                if obj.get("name") == entity_name:
+                if obj.get("name") == object_name:
                     return obj
             raise self._error(
                 action_name,
-                f"Entity {entity_name!r} not found in contract {file_ref}.",
-                "Set 'contract.entity_name' to one of the contract's schema "
+                f"Object {object_name!r} not found in contract {file_ref}.",
+                "Set 'contract.object' to one of the contract's schema "
                 "object names.",
             )
 
@@ -338,8 +338,8 @@ class ContractResolver:
         raise self._error(
             action_name,
             f"Contract {file_ref} has {len(objects)} schema objects; "
-            "'entity_name' is required to select one.",
-            "Set 'contract.entity_name' to the schema object to resolve.",
+            "'object' is required to select one.",
+            "Set 'contract.object' to the schema object to resolve.",
         )
 
     # ------------------------------------------------------------------

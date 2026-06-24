@@ -53,6 +53,12 @@ resolved relative to the project root.
      - name: customer
        physicalType: table
        description: One row per customer
+       quality:                          # dataset-level rule → a custom_sql test
+         - name: customer_row_count
+           type: library
+           metric: rowCount
+           mustBeGreaterThan: 0
+           severity: warning
        properties:
          - name: customer_id
            logicalType: integer
@@ -61,6 +67,12 @@ resolved relative to the project root.
            criticalDataElement: true
            primaryKey: true
            primaryKeyPosition: 1
+           quality:                      # column-level rule → a uniqueness test
+             - name: customer_id_unique
+               type: library
+               metric: duplicateValues
+               mustBe: 0
+               severity: error
          - name: full_name
            logicalType: string
            required: true
@@ -95,7 +107,7 @@ else is optional and tunes resolution.
    * - ``type``
      - ``odcs``
      - Contract format. Only ``odcs`` is supported.
-   * - ``entity_name``
+   * - ``object``
      - sole object
      - Which schema object (table) to resolve. Optional when the contract has a single
        object; **required** when it has more than one.
@@ -291,16 +303,16 @@ Multi-table contracts
 ----------------------
 
 An ODCS contract's top-level ``schema`` is a list of objects, so one file can describe
-several tables. When a contract has more than one object, set ``entity_name`` to pick the
+several tables. When a contract has more than one object, set ``object`` to pick the
 one an action resolves against:
 
 .. code-block:: yaml
 
    contract:
      file: contracts/sales.odcs.yaml
-     entity_name: orders
+     object: orders
 
-Omitting ``entity_name`` against a multi-object contract raises ``LHP-CFG-064``; so does
+Omitting ``object`` against a multi-object contract raises ``LHP-CFG-064``; so does
 naming an object the contract does not define.
 
 How resolution works
@@ -310,7 +322,7 @@ On every ``lhp validate`` / ``lhp generate`` run, after substitution and before 
 generation, LHP rewrites each contract-bearing action:
 
 1. Validate the ``contract`` options and parse the referenced contract.
-2. Select the entity object (``entity_name`` or the sole object).
+2. Select the entity object (``object`` or the sole object).
 3. Inject the resolved artifact inline for the action's type (see the table above).
 4. Strip the ``contract`` field so generators only ever see resolved config.
 

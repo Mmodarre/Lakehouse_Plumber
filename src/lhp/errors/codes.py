@@ -145,7 +145,7 @@ CFG_062 = ErrorCode(ErrorCategory.CONFIG, "062")
 CFG_063 = ErrorCode(ErrorCategory.CONFIG, "063")
 # CFG_064: an action's ``contract`` reference cannot be resolved — raised by
 # lhp.core.processing.contract_resolver.ContractResolver: missing/invalid file,
-# unsupported ``type``, unresolved or ambiguous ``entity_name``, the contract on
+# unsupported ``type``, unresolved or ambiguous ``object``, the contract on
 # an unsupported action type, or a conflict with an already-set target field.
 CFG_064 = ErrorCode(ErrorCategory.CONFIG, "064")
 
