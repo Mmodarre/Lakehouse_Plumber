@@ -345,12 +345,29 @@ class ContractResolver:
     # ------------------------------------------------------------------
     # Injection by action type
     # ------------------------------------------------------------------
-    def _entity_ddl(self, obj: Dict[str, Any], contract_stem: str) -> str:
-        """Build the schema-hints DDL string for the selected entity object."""
+    def _entity_ddl(
+        self, obj: Dict[str, Any], contract_stem: str, *, physical: bool = False
+    ) -> str:
+        """Build the schema-hints DDL string for the selected entity object.
+
+        When ``physical`` is set (the cloudfiles **read** schema, which reads raw
+        source files), each column uses its ODCS ``physicalName`` where provided,
+        falling back to the contract ``name``. Otherwise (write ``table_schema``)
+        the contract ``name`` is always used.
+        """
         artifacts = self._translator.translate_schemas(
             {"schema": [obj]}, contract_stem=contract_stem
         )
-        return self._schema_parser.to_schema_hints(artifacts[0].schema_dict)
+        schema_dict = artifacts[0].schema_dict
+        if physical:
+            schema_dict = {
+                **schema_dict,
+                "columns": [
+                    {**col, "name": col.get("physical_name") or col["name"]}
+                    for col in schema_dict.get("columns", [])
+                ],
+            }
+        return self._schema_parser.to_schema_hints(schema_dict)
 
     def _inject_cloudfiles(
         self,
@@ -361,7 +378,7 @@ class ContractResolver:
         action_name: str,
     ) -> None:
         source = action.setdefault("source", {})
-        ddl = self._entity_ddl(obj, contract_stem)
+        ddl = self._entity_ddl(obj, contract_stem, physical=True)
 
         if schema_hints:
             # Hints-only: emit ``cloudFiles.schemaHints`` and NEVER an enforced
@@ -400,7 +417,13 @@ class ContractResolver:
             {"schema": [obj]}, contract_stem="contract"
         )
         schema_columns = artifacts[0].schema_dict.get("columns", [])
-        entries = [f"{col['name']}: {col['type']}" for col in schema_columns]
+        entries = []
+        for col in schema_columns:
+            src = col.get("physical_name")
+            if src and src != col["name"]:
+                entries.append(f"{src} -> {col['name']}: {col['type']}")
+            else:
+                entries.append(f"{col['name']}: {col['type']}")
         action["schema_inline"] = "\n".join(entries)
 
     def _inject_data_quality(

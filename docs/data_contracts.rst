@@ -141,6 +141,14 @@ infers the schema while the hints pin the contract's declared types. No enforced
          file: contracts/customer.odcs.yaml
          schema_hints: true
 
+**Where ``physicalName`` is used.** The cloudfiles **read** schema (``source.schema`` and
+``cloudFiles.schemaHints``) reads the raw source files, so it uses each column's
+``physicalName`` where present (falling back to ``name``). The ``schema`` transform then
+renames those physical names to the contract ``name`` (above). The write ``table_schema``
+defines the target table and **always** uses the contract ``name``. So a typical flow is:
+cloudfiles load (physical names) → ``schema`` transform (rename + cast to contract names) →
+write (contract names).
+
 In a write action
 ~~~~~~~~~~~~~~~~~~
 
@@ -164,9 +172,12 @@ A contract on a ``streaming_table`` or ``materialized_view`` write injects
 In a ``schema`` transform
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-A contract on a ``schema`` transform injects ``schema_inline`` as **cast-only** entries
-(one ``<col>: <type>`` per contract column — types only, no renames). The source view is
-assumed to already use the contract's column names:
+A contract on a ``schema`` transform injects ``schema_inline``, one entry per contract
+column. By default each entry is **cast-only** (``<name>: <type>``), assuming the source
+view already uses the contract's column names. When a property declares an ODCS
+``physicalName`` that differs from its ``name``, the entry becomes a **rename + cast**
+(``<physicalName> -> <name>: <type>``) so the transform conforms a source column to the
+contract's name:
 
 .. code-block:: yaml
 
@@ -177,6 +188,10 @@ assumed to already use the contract's column names:
        target: v_customer_typed
        contract:
          file: contracts/customer.odcs.yaml
+
+For example, a property ``{name: customer_id, physicalName: cust_id, physicalType: BIGINT}``
+generates ``cust_id -> customer_id: BIGINT`` → ``df.withColumnRenamed("cust_id",
+"customer_id")`` then a cast.
 
 In a ``data_quality`` transform
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

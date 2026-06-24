@@ -93,6 +93,56 @@ MULTI_OBJECT_CONTRACT = textwrap.dedent(
 ).strip()
 
 
+# A single-object ``orders`` contract where ``order_id`` carries a differing
+# ``physicalName`` (source column ``ord_id``) and ``status`` carries none. The
+# resolver must emit the arrow rename form for ``order_id`` and stay cast-only
+# for ``status``.
+RENAME_CONTRACT = textwrap.dedent(
+    """
+    version: "1.0.0"
+    apiVersion: v3.0.2
+    kind: DataContract
+    id: 33333333-3333-3333-3333-333333333333
+    status: active
+    name: rename-contract
+    schema:
+      - name: orders
+        physicalType: table
+        properties:
+          - name: order_id
+            physicalName: ord_id
+            logicalType: integer
+            physicalType: BIGINT
+            required: true
+          - name: status
+            logicalType: string
+    """
+).strip()
+
+
+# A single-object ``orders`` contract where ``order_id``'s ``physicalName``
+# equals its ``name`` — must stay cast-only (no arrow rename).
+SAME_PHYSICAL_NAME_CONTRACT = textwrap.dedent(
+    """
+    version: "1.0.0"
+    apiVersion: v3.0.2
+    kind: DataContract
+    id: 44444444-4444-4444-4444-444444444444
+    status: active
+    name: same-name-contract
+    schema:
+      - name: orders
+        physicalType: table
+        properties:
+          - name: order_id
+            physicalName: order_id
+            logicalType: integer
+            physicalType: BIGINT
+            required: true
+    """
+).strip()
+
+
 def _write_contract(root: Path, content: str = SINGLE_OBJECT_CONTRACT) -> Path:
     """Write the contract under ``<root>/contracts/sales.odcs.yaml`` and return it."""
     contracts_dir = root / "contracts"
@@ -219,6 +269,29 @@ class TestCloudfilesLoadResolution:
         assert "schema" not in action["source"]
         assert "contract" not in action
 
+    def test_read_schema_uses_physical_name_when_present(self, tmp_path, resolver):
+        # The cloudFiles read schema reads raw source files, so it uses the
+        # column's physicalName (ord_id) where provided, falling back to name.
+        _write_contract(tmp_path, RENAME_CONTRACT)
+        fg = _flowgroup(_cloudfiles_action())
+
+        result = resolver.resolve(fg, project_root=tmp_path)
+
+        action = result["actions"][0]
+        assert action["source"]["schema"] == "ord_id BIGINT NOT NULL, status STRING"
+
+    def test_schema_hints_use_physical_name_when_present(self, tmp_path, resolver):
+        _write_contract(tmp_path, RENAME_CONTRACT)
+        fg = _flowgroup(_cloudfiles_action(schema_hints=True))
+
+        result = resolver.resolve(fg, project_root=tmp_path)
+
+        action = result["actions"][0]
+        assert (
+            action["source"]["options"]["cloudFiles.schemaHints"]
+            == "ord_id BIGINT NOT NULL, status STRING"
+        )
+
 
 class TestWriteResolution:
     def test_injects_table_schema_into_write_target(self, tmp_path, resolver):
@@ -243,6 +316,22 @@ class TestWriteResolution:
         assert out["write_target"]["table_schema"] == EXPECTED_DDL
         assert "contract" not in out
 
+    def test_table_schema_always_uses_contract_name_not_physical(
+        self, tmp_path, resolver
+    ):
+        # The write target defines the table, so table_schema stays on the
+        # contract `name` even when a property carries a differing physicalName.
+        _write_contract(tmp_path, RENAME_CONTRACT)
+        fg = _flowgroup(_write_action())
+
+        result = resolver.resolve(fg, project_root=tmp_path)
+
+        action = result["actions"][0]
+        assert (
+            action["write_target"]["table_schema"]
+            == "order_id BIGINT NOT NULL, status STRING"
+        )
+
 
 class TestSchemaTransformResolution:
     def test_injects_cast_only_schema_inline(self, tmp_path, resolver):
@@ -254,6 +343,31 @@ class TestSchemaTransformResolution:
         action = result["actions"][0]
         # Cast-only: type only, NO ``NOT NULL``; newline-joined.
         assert action["schema_inline"] == "order_id: BIGINT\nstatus: STRING"
+        assert "contract" not in action
+
+    def test_injects_arrow_rename_for_differing_physical_name(
+        self, tmp_path, resolver
+    ):
+        _write_contract(tmp_path, RENAME_CONTRACT)
+        fg = _flowgroup(_schema_transform_action())
+
+        result = resolver.resolve(fg, project_root=tmp_path)
+
+        action = result["actions"][0]
+        # order_id has physicalName ``ord_id`` (differs) -> arrow rename + cast;
+        # status has no physicalName -> cast-only.
+        assert action["schema_inline"] == "ord_id -> order_id: BIGINT\nstatus: STRING"
+        assert "contract" not in action
+
+    def test_physical_name_equal_to_name_stays_cast_only(self, tmp_path, resolver):
+        _write_contract(tmp_path, SAME_PHYSICAL_NAME_CONTRACT)
+        fg = _flowgroup(_schema_transform_action())
+
+        result = resolver.resolve(fg, project_root=tmp_path)
+
+        action = result["actions"][0]
+        # physicalName == name -> no arrow rename, plain cast-only entry.
+        assert action["schema_inline"] == "order_id: BIGINT"
         assert "contract" not in action
 
 
