@@ -88,10 +88,15 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
 
         if explicit_schema:
             if isinstance(explicit_schema, str):
-                # Schema file path
-                schema_variable, schema_code_lines = self._process_schema_file(
-                    explicit_schema, context.get("spec_dir")
-                )
+                if is_file_path(explicit_schema):
+                    # Schema file path
+                    schema_variable, schema_code_lines = self._process_schema_file(
+                        explicit_schema, context.get("spec_dir")
+                    )
+                else:
+                    # Inline DDL string (e.g. injected by the contract resolver).
+                    schema_variable = f"{action.target}_schema"
+                    schema_code_lines = [f'{schema_variable} = "{explicit_schema}"']
             elif isinstance(explicit_schema, dict) and "file" in explicit_schema:
                 # Schema object with file
                 schema_variable, schema_code_lines = self._process_schema_file(

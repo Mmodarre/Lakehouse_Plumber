@@ -4,8 +4,7 @@ Covers:
   * ``lhp.utils.odcs_mapper.odcs_type_to_spark`` (type-mapping table)
   * ``lhp.parsers.odcs_parser.OdcsParser`` (validate + parse)
   * ``lhp.core.processing.odcs_translator.OdcsTranslator`` (object -> artifact)
-  * ``lhp.core.coordination.contract_translation_service.ContractTranslationService``
-  * round-trip of an emitted schema through ``SchemaParser.to_schema_hints``
+  * round-trip of a translated schema through ``SchemaParser.to_schema_hints``
 """
 
 import textwrap
@@ -14,10 +13,6 @@ from pathlib import Path
 import pytest
 import yaml
 
-from lhp.core.coordination.contract_translation_service import (
-    ContractTranslationService,
-    TranslationResult,
-)
 from lhp.core.processing.odcs_translator import OdcsTranslator, SchemaArtifact
 from lhp.errors import LHPError
 from lhp.parsers.odcs_parser import OdcsParser
@@ -415,107 +410,6 @@ class TestOdcsTranslator:
 
 
 # ---------------------------------------------------------------------------
-# ContractTranslationService
-# ---------------------------------------------------------------------------
-
-
-class TestContractTranslationService:
-    def test_attributes_point_to_expected_dirs(self, tmp_path):
-        svc = ContractTranslationService(tmp_path)
-        assert svc.contracts_dir == tmp_path / "contracts"
-        assert svc.schemas_out_dir == tmp_path / "contracts" / "lhp" / "schemas"
-
-    def test_no_contracts_dir_is_noop(self, tmp_path):
-        svc = ContractTranslationService(tmp_path)
-        result = svc.translate()
-        assert isinstance(result, TranslationResult)
-        assert result.schema_files == []
-        assert result.contracts_processed == 0
-        # Must NOT create the output directory when there is nothing to do.
-        assert not (tmp_path / "contracts" / "lhp" / "schemas").exists()
-
-    def test_translate_writes_schema_files(self, tmp_path):
-        _write_contract(tmp_path / "contracts", "sales.yaml", VALID_CONTRACT_YAML)
-        svc = ContractTranslationService(tmp_path)
-        result = svc.translate()
-
-        assert result.contracts_processed == 1
-        assert len(result.schema_files) == 2
-
-        out_dir = tmp_path / "contracts" / "lhp" / "schemas"
-        written = {p.name for p in result.schema_files}
-        assert written == {
-            "sales.orders_schema.yaml",
-            "sales.customers_schema.yaml",
-        }
-        for p in result.schema_files:
-            assert p.exists()
-            assert p.parent == out_dir
-
-    def test_written_file_has_valid_lhp_schema_content(self, tmp_path):
-        _write_contract(tmp_path / "contracts", "sales.yaml", VALID_CONTRACT_YAML)
-        svc = ContractTranslationService(tmp_path)
-        svc.translate()
-
-        orders_file = tmp_path / "contracts" / "lhp" / "schemas" / "sales.orders_schema.yaml"
-        data = yaml.safe_load(orders_file.read_text())
-        assert data["name"] == "orders"
-        col_names = [c["name"] for c in data["columns"]]
-        assert col_names == ["order_id", "amount", "status"]
-
-    def test_written_file_indents_list_items(self, tmp_path):
-        # LHP convention indents block-sequence items under their key
-        # (``columns:\n  - name: ...``), matching hand-authored contracts —
-        # not PyYAML's default flush-left style (``columns:\n- name: ...``).
-        _write_contract(tmp_path / "contracts", "sales.yaml", VALID_CONTRACT_YAML)
-        ContractTranslationService(tmp_path).translate()
-
-        text = (
-            tmp_path / "contracts" / "lhp" / "schemas" / "sales.orders_schema.yaml"
-        ).read_text()
-        # Indented list items present; no flush-left list items.
-        assert "\n  - name: order_id" in text
-        assert "\n  - order_id" in text  # primary_key scalar list item
-        assert "\n- " not in text
-
-    def test_multiple_contracts_processed(self, tmp_path):
-        _write_contract(tmp_path / "contracts", "sales.yaml", VALID_CONTRACT_YAML)
-        _write_contract(
-            tmp_path / "contracts", "single.yaml", SINGLE_OBJECT_CONTRACT_YAML
-        )
-        svc = ContractTranslationService(tmp_path)
-        result = svc.translate()
-
-        assert result.contracts_processed == 2
-        written = {p.name for p in result.schema_files}
-        assert "sales.orders_schema.yaml" in written
-        assert "sales.customers_schema.yaml" in written
-        assert "single.events_schema.yaml" in written
-
-    def test_invalid_contract_raises_cfg_062(self, tmp_path):
-        _write_contract(tmp_path / "contracts", "broken.yaml", INVALID_CONTRACT_YAML)
-        svc = ContractTranslationService(tmp_path)
-        with pytest.raises(LHPError) as excinfo:
-            svc.translate()
-        assert excinfo.value.code == "LHP-CFG-062"
-
-    def test_translate_is_idempotent(self, tmp_path):
-        _write_contract(tmp_path / "contracts", "sales.yaml", VALID_CONTRACT_YAML)
-        svc = ContractTranslationService(tmp_path)
-
-        svc.translate()
-        orders_file = tmp_path / "contracts" / "lhp" / "schemas" / "sales.orders_schema.yaml"
-        first_content = orders_file.read_text()
-
-        # A second run on unchanged input must not raise and must leave the
-        # emitted files present with identical content (checksum-skip).
-        result2 = svc.translate()
-        assert isinstance(result2, TranslationResult)
-        assert orders_file.exists()
-        assert orders_file.read_text() == first_content
-
-
-# ---------------------------------------------------------------------------
 # Round-trip through SchemaParser.to_schema_hints (consumption compatibility)
 # ---------------------------------------------------------------------------
 
@@ -532,16 +426,3 @@ class TestSchemaHintsRoundTrip:
         assert hints == (
             "order_id BIGINT NOT NULL, amount DECIMAL(18,2), status STRING"
         )
-
-    def test_emitted_file_round_trips_to_schema_hints(self, tmp_path):
-        _write_contract(
-            tmp_path / "contracts", "single.yaml", SINGLE_OBJECT_CONTRACT_YAML
-        )
-        svc = ContractTranslationService(tmp_path)
-        svc.translate()
-
-        events_file = tmp_path / "contracts" / "lhp" / "schemas" / "single.events_schema.yaml"
-        schema_dict = yaml.safe_load(events_file.read_text())
-
-        hints = SchemaParser().to_schema_hints(schema_dict)
-        assert hints == "event_id BIGINT NOT NULL, payload STRING"

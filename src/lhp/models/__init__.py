@@ -21,6 +21,7 @@ from ._blueprint import (  # noqa: E402
     BlueprintInstance,
     BlueprintParameter,
 )
+from ._contract import ContractConfig  # noqa: E402
 from ._enums import (  # noqa: E402
     ActionType,
     DQMode,
@@ -54,6 +55,7 @@ __all__ = [
     "BlueprintFlowgroupSpec",
     "BlueprintInstance",
     "BlueprintParameter",
+    "ContractConfig",
     "DQMode",
     "EventLogConfig",
     "FlowGroup",

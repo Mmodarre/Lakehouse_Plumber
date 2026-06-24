@@ -34,8 +34,12 @@ class DataQualityTransformGenerator(BaseActionGenerator):
                 valid_modes=["stream"],
             )
 
+        # Expectations may be supplied either via an external ``expectations_file``
+        # or inline as ``expectations`` (e.g. injected by the contract-resolution
+        # pass). Require at least one of the two.
+        has_inline = bool(getattr(action, "expectations", None))
         expectations_file = action.expectations_file
-        if not expectations_file:
+        if not expectations_file and not has_inline:
             raise ErrorFactory.missing_required_field(
                 field_name="expectations_file",
                 component_type="Data quality transform action",

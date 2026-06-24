@@ -37,11 +37,13 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
         preset_manager=None,
         config_validator=None,
         secret_validator=None,
+        project_root=None,
     ):
         self.template_engine = template_engine
         self.preset_manager = preset_manager
         self.config_validator = config_validator
         self.secret_validator = secret_validator
+        self.project_root = project_root
         self.logger = logging.getLogger(__name__)
 
     def resolve(
@@ -187,6 +189,17 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
             from .namespace_normalizer import normalize_namespace_fields
 
             substituted_dict = normalize_namespace_fields(substituted_dict)
+
+        # Resolve ``contract`` action fields into inline schema / expectations
+        # before model construction & validation, so contract-derived fields
+        # (e.g. data_quality ``expectations``) are present when the flowgroup
+        # is validated and generated.
+        with perf_timer(f"contract_resolve [{fg}]", category="contract_resolve"):
+            from .contract_resolver import ContractResolver
+
+            substituted_dict = ContractResolver().resolve(
+                substituted_dict, project_root=self.project_root
+            )
 
         processed_flowgroup = FlowGroup(**substituted_dict)
 
