@@ -243,26 +243,6 @@ field a contract would inject — ``source.schema``, ``cloudFiles.schemaHints``,
 ``write_target.table_schema``, ``schema_inline``, or ``expectations`` /
 ``expectations_file`` — LHP raises ``LHP-CFG-064`` rather than silently replacing it.
 
-Errors
-------
-
-.. list-table::
-   :header-rows: 1
-   :widths: 22 78
-
-   * - Code
-     - Raised when
-   * - ``LHP-CFG-062``
-     - The referenced file is not a valid ODCS contract.
-   * - ``LHP-CFG-063``
-     - A property type cannot be mapped to a Spark type.
-   * - ``LHP-CFG-064``
-     - Contract resolution fails: missing ``file``; ``type`` other than ``odcs``;
-       ``schema_hints`` off a cloudfiles load; ``expectations_action`` off a
-       data_quality transform; a ``contract`` on an unsupported action type; a missing
-       contract file; an unknown or ambiguous ``entity_name``; or a conflict with a
-       field already set on the action.
-
 .. seealso::
 
    - :doc:`ingest_with_autoloader` — full reference for ``cloudFiles.schemaHints``
