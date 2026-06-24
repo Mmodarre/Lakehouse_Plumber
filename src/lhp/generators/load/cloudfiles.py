@@ -351,6 +351,8 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             schema_sources.append("schema_file")
         if source_config.get("schema"):
             schema_sources.append("schema")
+        if "cloudFiles.schemaHints" in options:
+            schema_sources.append("options.cloudFiles.schemaHints")
 
         if len(schema_sources) > 1:
             conflicts.append(
