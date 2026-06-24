@@ -26,6 +26,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import yaml
+
 from ...errors import ErrorFactory, LHPError, codes
 from ...parsers.odcs_parser import OdcsParser
 from ...parsers.schema_parser import SchemaParser
@@ -417,14 +419,26 @@ class ContractResolver:
             {"schema": [obj]}, contract_stem="contract"
         )
         schema_columns = artifacts[0].schema_dict.get("columns", [])
-        entries = []
+
+        # Emit the legacy ``column_mapping`` / ``type_casting`` dict form rather than
+        # the arrow mini-language: source names go in as YAML keys, so any name —
+        # including ones with spaces or other non-identifier characters — works.
+        # Rename (column_mapping) only when a property's physicalName differs from
+        # its contract name; cast (type_casting) every column to its contract type.
+        column_mapping: Dict[str, str] = {}
+        type_casting: Dict[str, str] = {}
         for col in schema_columns:
+            name = col["name"]
             src = col.get("physical_name")
-            if src and src != col["name"]:
-                entries.append(f"{src} -> {col['name']}: {col['type']}")
-            else:
-                entries.append(f"{col['name']}: {col['type']}")
-        action["schema_inline"] = "\n".join(entries)
+            if src and src != name:
+                column_mapping[src] = name
+            type_casting[name] = col["type"]
+
+        inline: Dict[str, Any] = {}
+        if column_mapping:
+            inline["column_mapping"] = column_mapping
+        inline["type_casting"] = type_casting
+        action["schema_inline"] = yaml.safe_dump(inline, sort_keys=False).strip()
 
     def _inject_data_quality(
         self,

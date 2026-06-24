@@ -456,3 +456,19 @@ class TestSchemaHintsRoundTrip:
         assert hints == (
             "order_id BIGINT NOT NULL, amount DECIMAL(18,2), status STRING"
         )
+
+    def test_backtick_quotes_non_identifier_column_names(self):
+        # Column names with spaces (or other non-identifier chars) must be
+        # backtick-quoted so the emitted DDL is valid Spark; plain identifiers
+        # are left unquoted.
+        schema = {
+            "name": "x",
+            "columns": [
+                {"name": "customer id", "type": "BIGINT", "nullable": False},
+                {"name": "full_name", "type": "STRING", "nullable": True},
+                {"name": "DEM SLS $", "type": "INT", "nullable": True},
+            ],
+        }
+        assert SchemaParser().to_schema_hints(schema) == (
+            "`customer id` BIGINT NOT NULL, full_name STRING, `DEM SLS $` INT"
+        )
