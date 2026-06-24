@@ -78,11 +78,7 @@ def validate_command(
     )
     logger.debug(f"Validate request: env={env}, pipeline={pipeline}")
     project_root = resolve_project_root()
-    facade = build_facade(
-        project_root,
-        pipeline_config=pipeline_config,
-        max_workers=max_workers,
-    )
+    facade = build_facade(project_root, pipeline_config=pipeline_config, max_workers=max_workers)
     bundle_enabled = should_enable_bundle_support(project_root, cli_no_bundle=no_bundle)
 
     header = RunHeader("validate", env)
