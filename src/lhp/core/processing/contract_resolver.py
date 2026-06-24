@@ -29,7 +29,7 @@ from typing import Any, Dict, List, Optional
 from ...errors import ErrorFactory, LHPError, codes
 from ...parsers.odcs_parser import OdcsParser
 from ...parsers.schema_parser import SchemaParser
-from ...utils.odcs_mapper import odcs_property_to_constraints
+from ...utils.odcs_mapper import odcs_property_to_constraints, odcs_quality_to_tests
 from .odcs_translator import OdcsTranslator
 
 logger = logging.getLogger(__name__)
@@ -65,11 +65,23 @@ class ContractResolver:
         if not any(isinstance(a, dict) and a.get("contract") for a in actions):
             return flowgroup_dict
 
+        root = Path(project_root)
+        # Rebuild the actions list: most contract actions resolve 1:1 (mutated in
+        # place), but a ``test`` action expands 1→N (one action per quality rule).
+        new_actions: list = []
         for action in actions:
             if not isinstance(action, dict) or not action.get("contract"):
+                new_actions.append(action)
                 continue
-            self._resolve_action(action, project_root=Path(project_root))
+            if self._action_kind(action) == "test_expand":
+                new_actions.extend(
+                    self._expand_test_action(action, project_root=root)
+                )
+            else:
+                self._resolve_action(action, project_root=root)
+                new_actions.append(action)
 
+        flowgroup_dict["actions"] = new_actions
         return flowgroup_dict
 
     # ------------------------------------------------------------------
@@ -156,6 +168,90 @@ class ContractResolver:
         action.pop("contract", None)
 
     # ------------------------------------------------------------------
+    # Test-action expansion (1 → N)
+    # ------------------------------------------------------------------
+    def _expand_test_action(
+        self, action: Dict[str, Any], *, project_root: Path
+    ) -> List[Dict[str, Any]]:
+        """Expand a ``contract``-bearing ``test`` action into many test actions.
+
+        One concrete LHP test action is produced per mappable ODCS ``quality``
+        rule (dataset-level and property-level) on the selected entity; each
+        carries the original ``source`` (the single table under test), a unique
+        ``name``, a resolved ``test_type`` + fields, and ``on_violation`` derived
+        from the rule ``severity``. The ``contract`` field is dropped.
+
+        :raises lhp.errors.LHPError: invalid/missing contract file, unknown
+            ``type``, unresolved/unknown entity, a missing ``source``, or an
+            explicit ``test_type`` (mutually exclusive with ``contract``).
+        """
+        contract = action["contract"]
+        action_name = action.get("name", "<unnamed>")
+
+        # 1. Validate basic contract options.
+        file_ref = contract.get("file")
+        if not file_ref:
+            raise self._error(
+                action_name,
+                "Contract reference is missing a 'file'.",
+                "Set 'contract.file' to a path (relative to the project root).",
+            )
+
+        contract_type = contract.get("type", "odcs")
+        if contract_type != "odcs":
+            raise self._error(
+                action_name,
+                f"Unsupported contract type {contract_type!r}.",
+                "Only 'odcs' contracts are supported (contract.type: odcs).",
+            )
+
+        if action.get("test_type") is not None:
+            raise self._error(
+                action_name,
+                "'test_type' is mutually exclusive with a 'contract' on a test "
+                "action.",
+                "Remove 'test_type' to expand the contract's quality rules, or "
+                "remove the 'contract' reference.",
+            )
+
+        if not action.get("source"):
+            raise self._error(
+                action_name,
+                "A contract-bearing test action is missing a 'source'.",
+                "Set 'source' to the single table the quality rules run against.",
+            )
+
+        # 2. Parse the contract.
+        contract_dict = self._parse_contract(file_ref, action_name, project_root)
+
+        # 3. Select the entity object.
+        obj = self._select_entity(
+            contract_dict, contract.get("entity_name"), action_name, file_ref
+        )
+
+        # 4. Map the entity's quality rules to partial test dicts.
+        tests = odcs_quality_to_tests(obj, source=action["source"])
+
+        # 5. Finalise each emitted dict into a concrete test action.
+        base = action["name"]
+        used_names: set = set()
+        expanded: List[Dict[str, Any]] = []
+        for partial in tests:
+            partial["type"] = "test"
+            name = f"{base}_{partial['name']}"
+            unique = name
+            index = 1
+            while unique in used_names:
+                index += 1
+                unique = f"{name}_{index}"
+            used_names.add(unique)
+            partial["name"] = unique
+            partial.pop("contract", None)
+            expanded.append(partial)
+
+        return expanded
+
+    # ------------------------------------------------------------------
     # Action-type classification
     # ------------------------------------------------------------------
     @staticmethod
@@ -181,6 +277,9 @@ class ContractResolver:
             if transform_type == "data_quality":
                 return "data_quality"
             return "unsupported"
+        if action_type == "test":
+            # A contract on a test action expands 1→N into concrete test actions.
+            return "test_expand"
         return "unsupported"
 
     # ------------------------------------------------------------------

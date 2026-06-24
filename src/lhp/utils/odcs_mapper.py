@@ -13,7 +13,7 @@ Two pure functions, each operating on a single ODCS schema *property* dict:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from ..errors import ErrorFactory, codes
 
@@ -237,3 +237,221 @@ def odcs_property_to_constraints(prop: Dict[str, Any]) -> List[Tuple[str, str]]:
     # boolean / unknown logicalType / unique / primaryKey / quality /
     # relationships -> nothing.
     return constraints
+
+
+def odcs_quality_to_tests(obj: Dict[str, Any], *, source: str) -> List[Dict[str, Any]]:
+    """Map an ODCS schema object's ``quality`` rules to LHP test-action dicts.
+
+    Walks **both** the object's dataset-level ``quality`` array and each
+    property's ``quality`` array (binding the property as the column), and
+    returns a list of partial LHP ``test`` action dicts — each with a
+    ``test_type`` (``uniqueness`` / ``completeness`` / ``custom_sql``), the
+    type-specific fields, ``on_violation`` (from rule ``severity``), and an
+    optional ``test_id`` (from the rule ``name``/``id``). ``source`` is the
+    single table under test, threaded onto every emitted dict.
+
+    Library metrics map by ``metric`` + operator; ``sql`` rules map to
+    ``custom_sql``; ``custom`` / ``text`` rules (and column-bound metrics with no
+    resolvable column) are skipped (logged), returning no test for that rule.
+    """
+    tests: List[Dict[str, Any]] = []
+
+    # Dataset-level rules (no enclosing property → column comes from arguments).
+    for rule in obj.get("quality", []) or []:
+        emitted = _quality_rule_to_test(rule, column=None, source=source)
+        if emitted is not None:
+            tests.append(emitted)
+
+    # Property-level rules (the enclosing property is the bound column).
+    for prop in obj.get("properties", []) or []:
+        column = prop.get("name")
+        for rule in prop.get("quality", []) or []:
+            emitted = _quality_rule_to_test(rule, column=column, source=source)
+            if emitted is not None:
+                tests.append(emitted)
+
+    return tests
+
+
+# Operator -> comparison symbol for scalar metric expressions.
+_OPERATOR_SYMBOLS = {
+    "mustBe": "=",
+    "mustNotBe": "!=",
+    "mustBeGreaterThan": ">",
+    "mustBeGreaterOrEqualTo": ">=",
+    "mustBeLessThan": "<",
+    "mustBeLessOrEqualTo": "<=",
+}
+
+
+def _severity_to_on_violation(rule: Dict[str, Any]) -> str:
+    """Map an ODCS rule ``severity`` to an LHP ``on_violation`` value."""
+    severity = rule.get("severity")
+    if severity == "error":
+        return "fail"
+    if severity in ("warning", "info"):
+        return "warn"
+    # Absent (or anything unrecognised) defaults to fail.
+    return "fail"
+
+
+def _metric_expression(rule: Dict[str, Any]) -> Optional[str]:
+    """Build the ``metric <op> <value>`` expression from a rule's operator.
+
+    Returns ``None`` when the rule carries no recognised operator.
+    """
+    for operator, symbol in _OPERATOR_SYMBOLS.items():
+        if operator in rule:
+            return f"metric {symbol} {_num(rule[operator])}"
+    if "mustBeBetween" in rule:
+        low, high = rule["mustBeBetween"]
+        return f"metric BETWEEN {_num(low)} AND {_num(high)}"
+    if "mustNotBeBetween" in rule:
+        low, high = rule["mustNotBeBetween"]
+        return f"metric NOT BETWEEN {_num(low)} AND {_num(high)}"
+    return None
+
+
+def _base_test(rule: Dict[str, Any], source: str, on_violation: str) -> Dict[str, Any]:
+    """Build the common fields shared by every emitted test dict."""
+    test: Dict[str, Any] = {
+        "source": source,
+        "on_violation": on_violation,
+        "name": rule.get("name"),
+    }
+    if rule.get("name"):
+        test["test_id"] = rule["name"]
+    return test
+
+
+def _custom_sql_test(
+    rule: Dict[str, Any], source: str, on_violation: str, sql: str
+) -> Dict[str, Any]:
+    """Build a ``custom_sql`` test dict with a single metric expectation."""
+    test = _base_test(rule, source, on_violation)
+    test["test_type"] = "custom_sql"
+    test["sql"] = sql
+    test["expectations"] = [
+        {
+            "name": rule.get("name"),
+            "expression": _metric_expression(rule),
+            "on_violation": on_violation,
+        }
+    ]
+    return test
+
+
+def _resolve_column(rule: Dict[str, Any], column: Optional[str]) -> Optional[str]:
+    """Resolve the single column a metric is bound to.
+
+    Property-level rules use the enclosing ``column``; dataset-level rules fall
+    back to ``arguments.column`` (single) or the first of ``arguments.columns``.
+    Returns ``None`` when no column can be resolved.
+    """
+    if column is not None:
+        return column
+    arguments = rule.get("arguments") or {}
+    if arguments.get("column"):
+        return arguments["column"]
+    columns = arguments.get("columns")
+    if columns:
+        return columns[0]
+    return None
+
+
+def _resolve_columns(rule: Dict[str, Any], column: Optional[str]) -> Optional[List[str]]:
+    """Resolve the column list for a uniqueness metric.
+
+    Property-level rules bind the single enclosing ``column``; dataset-level
+    rules use ``arguments.columns`` (list) or ``arguments.column`` (single).
+    Returns ``None`` when no column can be resolved.
+    """
+    if column is not None:
+        return [column]
+    arguments = rule.get("arguments") or {}
+    columns = arguments.get("columns")
+    if columns:
+        return list(columns)
+    if arguments.get("column"):
+        return [arguments["column"]]
+    return None
+
+
+def _is_must_be_zero(rule: Dict[str, Any]) -> bool:
+    """True when the rule's operator is exactly ``mustBe: 0``."""
+    return rule.get("mustBe") == 0
+
+
+def _quality_rule_to_test(
+    rule: Dict[str, Any], *, column: Optional[str], source: str
+) -> Optional[Dict[str, Any]]:
+    """Map a single ODCS quality rule to a partial test dict (or ``None``)."""
+    rule_type = rule.get("type")
+    on_violation = _severity_to_on_violation(rule)
+
+    if rule_type == "sql":
+        query = rule.get("query", "")
+        substituted = query.replace("${table}", source)
+        if column is not None:
+            substituted = substituted.replace("${column}", column)
+        sql = f"SELECT ({substituted}) AS metric"
+        return _custom_sql_test(rule, source, on_violation, sql)
+
+    if rule_type == "library":
+        metric = rule.get("metric")
+
+        if metric == "rowCount":
+            sql = f"SELECT COUNT(*) AS metric FROM {source}"
+            return _custom_sql_test(rule, source, on_violation, sql)
+
+        if metric == "duplicateValues":
+            if _is_must_be_zero(rule):
+                columns = _resolve_columns(rule, column)
+                if columns is None:
+                    return None
+                test = _base_test(rule, source, on_violation)
+                test["test_type"] = "uniqueness"
+                test["columns"] = columns
+                return test
+            resolved = _resolve_column(rule, column)
+            if resolved is None:
+                return None
+            sql = (
+                f"SELECT COUNT(*) AS metric FROM "
+                f"(SELECT {resolved} FROM {source} "
+                f"GROUP BY {resolved} HAVING COUNT(*) > 1)"
+            )
+            return _custom_sql_test(rule, source, on_violation, sql)
+
+        if metric in ("nullValues", "missingValues"):
+            resolved = _resolve_column(rule, column)
+            if resolved is None:
+                return None
+            if _is_must_be_zero(rule):
+                test = _base_test(rule, source, on_violation)
+                test["test_type"] = "completeness"
+                test["required_columns"] = [resolved]
+                return test
+            sql = (
+                f"SELECT COUNT(*) AS metric FROM {source} "
+                f"WHERE {resolved} IS NULL"
+            )
+            return _custom_sql_test(rule, source, on_violation, sql)
+
+        if metric == "invalidValues":
+            resolved = _resolve_column(rule, column)
+            if resolved is None:
+                return None
+            arguments = rule.get("arguments") or {}
+            valid_values = arguments.get("validValues")
+            if not valid_values:
+                return None
+            rendered = ", ".join(f"'{value}'" for value in valid_values)
+            sql = (
+                f"SELECT COUNT(*) AS metric FROM {source} "
+                f"WHERE {resolved} NOT IN ({rendered})"
+            )
+            return _custom_sql_test(rule, source, on_violation, sql)
+
+    # custom / text / unknown rule types and unmappable metrics are skipped.
+    return None
