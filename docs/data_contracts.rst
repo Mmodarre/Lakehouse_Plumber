@@ -30,6 +30,8 @@ What a contract drives is **implicit from the action type**:
      - ``schema_inline`` (cast-only ``<col>: <type>`` entries)
    * - ``data_quality`` **transform**
      - inline ``expectations`` (list form)
+   * - ``test`` (no ``test_type``)
+     - **expands 1→N** into concrete ``test`` actions, one per ODCS ``quality`` rule
 
 Add a contract
 --------------
@@ -213,6 +215,62 @@ its ``logicalTypeOptions``:
 Otherwise it comes from ``criticalDataElement``: a property marked
 ``criticalDataElement: true`` produces ``fail`` expectations (a violating row fails the
 pipeline); otherwise ``warn`` (violations are logged, rows pass).
+
+In a ``test`` action (contract-driven tests)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A contract on a ``type: test`` action with **no** ``test_type`` is **expanded into many
+test actions** — one per ODCS ``quality`` rule (both dataset-level ``schema[].quality`` and
+property-level ``schema[].properties[].quality``) on the selected entity. Set ``source`` to
+the single table the rules run against; the resolver fills in each ``test_type``:
+
+.. code-block:: yaml
+   :caption: pipelines/tests/orders_tests.yaml
+
+   actions:
+     - name: orders_contract_tests
+       type: test
+       source: "${catalog}.${bronze_schema}.orders"
+       contract:
+         file: contracts/orders.odcs.yaml
+       # NO test_type — supplying one alongside a contract raises LHP-CFG-064
+
+Each ``quality`` rule maps to a single-table test:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 48 24 28
+
+   * - ODCS ``quality`` rule
+     - LHP ``test_type``
+     - Notes
+   * - ``library`` ``duplicateValues`` with ``mustBe: 0``
+     - ``uniqueness``
+     - on the bound column(s)
+   * - ``library`` ``nullValues`` / ``missingValues`` with ``mustBe: 0``
+     - ``completeness``
+     - column must be ``NOT NULL``
+   * - ``library`` ``rowCount`` (any operator)
+     - ``custom_sql``
+     - ``COUNT(*)`` vs the operator
+   * - ``library`` ``nullValues`` / ``missingValues`` / ``duplicateValues`` (other operators)
+     - ``custom_sql``
+     - count + threshold from the operator
+   * - ``library`` ``invalidValues`` with ``arguments.validValues``
+     - ``custom_sql``
+     - ``... NOT IN (…)`` count
+   * - ``sql`` rule (``query`` + operator)
+     - ``custom_sql``
+     - ``${table}`` / ``${column}`` substituted
+   * - ``custom`` / ``text`` rules
+     - *(skipped, logged)*
+     - not translatable here
+
+The rule ``severity`` sets ``on_violation`` (``error`` → ``fail``; ``warning`` / ``info`` →
+``warn``; absent → ``fail``). The rule ``name`` becomes the test's ``test_id`` and part of its
+action name. **Scope (first cut):** only the ``quality`` array drives tests, against a single
+``source`` table; Contract-driven tests, like all test actions, only materialise with
+``lhp generate --include-tests``.
 
 Multi-table contracts
 ----------------------
