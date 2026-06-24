@@ -21,8 +21,9 @@ What a contract drives is **implicit from the action type**:
    * - Action
      - What the contract injects
    * - ``cloudfiles`` **load**
-     - ``source.schema`` (read schema, inline DDL); also ``cloudFiles.schemaHints``
-       when ``schema_hints: true``
+     - ``source.schema`` (enforced read schema, inline DDL) — or
+       ``cloudFiles.schemaHints`` **instead** when ``schema_hints: true``
+       (hints-only; never both)
    * - **write** (``streaming_table`` / ``materialized_view``)
      - ``write_target.table_schema`` (inline DDL)
    * - ``schema`` **transform**
@@ -98,8 +99,9 @@ else is optional and tunes resolution.
        object; **required** when it has more than one.
    * - ``schema_hints``
      - ``false``
-     - ``cloudfiles`` load only. When ``true``, also emit ``cloudFiles.schemaHints``
-       (in addition to the read schema).
+     - ``cloudfiles`` load only. When ``true``, emit ``cloudFiles.schemaHints``
+       **instead of** an enforced ``source.schema`` — Auto Loader infers the schema
+       and the hints pin the contract's declared types. Never both.
    * - ``expectations_action``
      - per-property
      - ``data_quality`` only. One of ``warn`` / ``drop`` / ``fail``, applied to every
@@ -127,8 +129,9 @@ accepts exactly the declared columns:
        contract:
          file: contracts/customer.odcs.yaml
 
-Set ``schema_hints: true`` to *also* emit ``cloudFiles.schemaHints`` — pinning the
-declared types while Auto Loader infers any remaining columns:
+Set ``schema_hints: true`` to emit ``cloudFiles.schemaHints`` **instead** — Auto Loader
+infers the schema while the hints pin the contract's declared types. No enforced
+``source.schema`` is emitted (the two are mutually exclusive):
 
 .. code-block:: yaml
 

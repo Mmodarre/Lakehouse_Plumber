@@ -330,64 +330,19 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             ) from e
 
     def _process_inline_ddl(self, ddl: str, target_view: str) -> Tuple[str, List[str]]:
-        """Build a read ``StructType`` from an inline DDL string.
+        """Emit a read schema from an inline DDL string.
 
-        Accepts a comma-separated DDL string such as
-        ``"order_id BIGINT NOT NULL, status STRING"`` (as injected by the
-        contract-resolution pass). ``NOT NULL`` is parsed into the field's
-        ``nullable`` flag and stripped from the type — the enforcement of
-        nullability is handled by Spark's nullable column flag, not the DDL
-        type literal which Spark's emitter does not accept.
+        ``DataStreamReader.schema()`` / ``DataFrameReader.schema()`` accept a
+        DDL-formatted string directly, so we hand the DDL (e.g.
+        ``"order_id BIGINT NOT NULL, tags ARRAY<STRING>"``, as injected by the
+        contract-resolution pass) straight to Spark rather than parsing it into a
+        ``StructType`` ourselves. Spark's own parser then handles every type —
+        including complex types like ``ARRAY<…>`` / ``STRUCT<…>`` and ``NOT NULL``
+        constraints — with no type-mapping gaps.
         """
         clean_target = target_view.replace("v_", "").replace("_raw", "")
-        columns: List[Dict[str, Any]] = []
-
-        # Split on commas at paren depth 0 so types like DECIMAL(18,2) survive.
-        parts: List[str] = []
-        current = ""
-        depth = 0
-        for char in ddl:
-            if char == "(":
-                depth += 1
-            elif char == ")":
-                depth -= 1
-            elif char == "," and depth == 0:
-                if current.strip():
-                    parts.append(current.strip())
-                current = ""
-                continue
-            current += char
-        if current.strip():
-            parts.append(current.strip())
-
-        for part in parts:
-            tokens = part.split()
-            if not tokens:
-                continue
-            name = tokens[0]
-            rest = " ".join(tokens[1:])
-            nullable = True
-            upper = rest.upper()
-            if upper.endswith("NOT NULL"):
-                nullable = False
-                rest = rest[: -len("NOT NULL")].rstrip()
-            columns.append({"name": name, "type": rest, "nullable": nullable})
-
-        schema_data = {"name": clean_target, "columns": columns}
-        variable_name, code_lines = emit_struct_type_code(schema_data)
-
-        for line in code_lines:
-            if line.startswith("from pyspark.sql.types import"):
-                self.add_import(line)
-                break
-
-        schema_def_lines = [
-            line
-            for line in code_lines
-            if not line.startswith("from pyspark.sql.types import") and line.strip()
-        ]
-
-        return variable_name, schema_def_lines
+        variable_name = f"{clean_target}_schema"
+        return variable_name, [f'{variable_name} = "{ddl}"']
 
     def _check_conflicts(self, source_config: Dict[str, Any], action_name: str):
         """Check for conflicts between old and new configuration approaches."""

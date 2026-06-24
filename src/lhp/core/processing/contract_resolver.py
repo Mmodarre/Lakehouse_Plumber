@@ -7,7 +7,9 @@ entity, and rewrite the action so it carries the resolved artifact **inline** �
 then strip the ``contract`` field. No files are written.
 
 Injection is implicit by action type:
-  - cloudfiles **load**        → ``source.schema`` (inline DDL); ``cloudFiles.schemaHints`` too if ``schema_hints``
+  - cloudfiles **load**        → ``source.schema`` (enforced read schema, inline DDL);
+    or, when ``schema_hints`` is set, ``cloudFiles.schemaHints`` **instead** (hints-only,
+    never both)
   - **write** (streaming_table / materialized_view) → ``write_target.table_schema`` (inline DDL)
   - **schema** transform       → ``schema_inline`` (cast-only ``<col>: <type>`` entries)
   - **data_quality** transform → inline ``expectations`` (list form), action from
@@ -260,15 +262,21 @@ class ContractResolver:
         action_name: str,
     ) -> None:
         source = action.setdefault("source", {})
-        if source.get("schema"):
-            raise self._conflict(action_name, "source.schema")
-
         ddl = self._entity_ddl(obj, contract_stem)
-        source["schema"] = ddl
 
         if schema_hints:
+            # Hints-only: emit ``cloudFiles.schemaHints`` and NEVER an enforced
+            # read schema — the two are mutually exclusive. Auto Loader infers
+            # the schema and the hints pin the contract's declared types.
             options = source.setdefault("options", {})
+            if options.get("cloudFiles.schemaHints"):
+                raise self._conflict(action_name, "cloudFiles.schemaHints")
             options["cloudFiles.schemaHints"] = ddl
+        else:
+            # Default: inject the full enforced read schema.
+            if source.get("schema"):
+                raise self._conflict(action_name, "source.schema")
+            source["schema"] = ddl
 
     def _inject_write(
         self,

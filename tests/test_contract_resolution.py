@@ -205,15 +205,18 @@ class TestCloudfilesLoadResolution:
         options = action["source"].get("options", {})
         assert "cloudFiles.schemaHints" not in options
 
-    def test_schema_hints_true_also_adds_hints_option(self, tmp_path, resolver):
+    def test_schema_hints_true_emits_hints_only_not_enforced_schema(
+        self, tmp_path, resolver
+    ):
         _write_contract(tmp_path)
         fg = _flowgroup(_cloudfiles_action(schema_hints=True))
 
         result = resolver.resolve(fg, project_root=tmp_path)
 
         action = result["actions"][0]
-        assert action["source"]["schema"] == EXPECTED_DDL
+        # schema_hints: true emits ONLY the hints — never an enforced read schema.
         assert action["source"]["options"]["cloudFiles.schemaHints"] == EXPECTED_DDL
+        assert "schema" not in action["source"]
         assert "contract" not in action
 
 
