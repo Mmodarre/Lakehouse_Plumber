@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ._contract import ContractConfig
 from ._enums import ActionType, TransformType, WriteTargetType
 from ._quarantine import QuarantineConfig
 
@@ -90,6 +91,8 @@ class Action(BaseModel):
     )
     schema_file: Optional[str] = None
     enforcement: Optional[str] = None  # Schema enforcement mode: strict or permissive
+    # ODCS data-contract reference (resolved + stripped before code generation).
+    contract: Optional[ContractConfig] = None
     # Python transform specific fields
     module_path: Optional[str] = (
         None  # Path to Python module (relative to project root)

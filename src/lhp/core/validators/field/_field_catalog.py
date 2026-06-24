@@ -138,6 +138,7 @@ ACTION_FIELDS = {
     "schema_inline",
     "schema_file",
     "enforcement",
+    "contract",
     "test_type",
     "on_violation",
     "tolerance",

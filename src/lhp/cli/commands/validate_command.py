@@ -49,9 +49,6 @@ _WORKERS_HELP = "Max worker processes (default ~80%% of CPUs; 1 = sequential)."
 @click.option("--no-progress", is_flag=True, help="Disable the live progress display.")
 @click.option("--no-bundle", is_flag=True, help="Disable bundle support.")
 @click.option(
-    "--no-contracts", is_flag=True, help="Skip ODCS data-contract translation."
-)
-@click.option(
     "--include-tests", is_flag=True, help="Include test actions in validation."
 )
 @click.option("-p", "--pipeline", default=None, help="Validate a single pipeline only.")
@@ -68,7 +65,6 @@ def validate_command(
     strict: bool,
     no_progress: bool,
     no_bundle: bool,
-    no_contracts: bool,
     include_tests: bool,
     pipeline: str | None,
     pipeline_config: str | None,
@@ -86,7 +82,6 @@ def validate_command(
         project_root,
         pipeline_config=pipeline_config,
         max_workers=max_workers,
-        translate_contracts=not no_contracts,
     )
     bundle_enabled = should_enable_bundle_support(project_root, cli_no_bundle=no_bundle)
 

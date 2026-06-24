@@ -120,6 +120,7 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
             preset_manager,
             cfg_validator,
             secret_validator,
+            project_root=project_root,
         )
 
         # View-mode controls: set via `set_blueprint_view_mode` and consumed

@@ -5,40 +5,21 @@ Covers:
     (per-property ``(predicate, name)`` derivation)
   * ``lhp.core.processing.odcs_translator.OdcsTranslator.translate_expectations``
     (object -> ExpectationsArtifact, new dict format, action resolution)
-  * ``lhp.core.coordination.contract_translation_service.ContractTranslationService``
-    (writes expectations files + populates ``expectation_files``)
-  * round-trip of an emitted expectations file through the real
-    ``DataQualityTransformGenerator`` (consumption compatibility)
 """
 
 import textwrap
-from pathlib import Path
 
 import yaml
 
-from lhp.core.coordination.contract_translation_service import (
-    ContractTranslationService,
-    TranslationResult,
-)
 from lhp.core.processing.odcs_translator import (
     ExpectationsArtifact,
     OdcsTranslator,
-    SchemaArtifact,
 )
-from lhp.generators.transform import DataQualityTransformGenerator
-from lhp.models import Action, ActionType, TransformType
 from lhp.utils.odcs_mapper import odcs_property_to_constraints
 
 # ---------------------------------------------------------------------------
 # Fixture helpers
 # ---------------------------------------------------------------------------
-
-
-def _write_contract(directory: Path, name: str, content: str) -> Path:
-    directory.mkdir(parents=True, exist_ok=True)
-    path = directory / name
-    path.write_text(content, encoding="utf-8")
-    return path
 
 
 def _contract(schema_yaml: str) -> str:
@@ -560,205 +541,3 @@ class TestTranslateExpectations:
             },
             "amount >= 0": {"action": "warn", "name": "amount_min"},
         }
-
-
-# ---------------------------------------------------------------------------
-# ContractTranslationService (writes expectations files)
-# ---------------------------------------------------------------------------
-
-
-CONSTRAINED_CONTRACT_YAML = textwrap.dedent(
-    """
-    version: "1.0.0"
-    apiVersion: v3.0.2
-    kind: DataContract
-    id: 11111111-1111-1111-1111-111111111111
-    status: active
-    name: sales-contract
-    schema:
-      - name: orders
-        physicalType: table
-        properties:
-          - name: order_id
-            logicalType: integer
-            physicalType: BIGINT
-            required: true
-            criticalDataElement: true
-            logicalTypeOptions:
-              minimum: 1
-          - name: amount
-            logicalType: number
-            physicalType: DECIMAL(18,2)
-            logicalTypeOptions:
-              minimum: 0
-      - name: lookups
-        properties:
-          - name: code
-            logicalType: string
-    """
-).strip()
-
-
-# A contract with NO derivable constraints (type-only props).
-UNCONSTRAINED_CONTRACT_YAML = textwrap.dedent(
-    """
-    version: "1.0.0"
-    apiVersion: v3.0.2
-    kind: DataContract
-    id: 22222222-2222-2222-2222-222222222222
-    status: active
-    name: plain-contract
-    schema:
-      - name: events
-        properties:
-          - name: event_id
-            logicalType: integer
-          - name: payload
-            logicalType: string
-    """
-).strip()
-
-
-class TestContractTranslationServiceExpectations:
-    def test_expectations_out_dir_attribute(self, tmp_path):
-        svc = ContractTranslationService(tmp_path)
-        assert svc.expectations_out_dir == (
-            tmp_path / "contracts" / "lhp" / "expectations"
-        )
-
-    def test_translate_writes_expectations_files(self, tmp_path):
-        _write_contract(tmp_path / "contracts", "sales.yaml", CONSTRAINED_CONTRACT_YAML)
-        svc = ContractTranslationService(tmp_path)
-        result = svc.translate()
-
-        assert isinstance(result, TranslationResult)
-        # Only the constrained object ('orders') yields an expectations file.
-        written = {p.name for p in result.expectation_files}
-        assert written == {"sales.orders_expectations.yaml"}
-
-        exp_dir = tmp_path / "contracts" / "lhp" / "expectations"
-        for p in result.expectation_files:
-            assert p.exists()
-            assert p.parent == exp_dir
-
-    def test_expectations_file_content_is_new_dict_format(self, tmp_path):
-        _write_contract(tmp_path / "contracts", "sales.yaml", CONSTRAINED_CONTRACT_YAML)
-        ContractTranslationService(tmp_path).translate()
-
-        orders_file = (
-            tmp_path
-            / "contracts"
-            / "lhp"
-            / "expectations"
-            / "sales.orders_expectations.yaml"
-        )
-        data = yaml.safe_load(orders_file.read_text())
-        assert data == {
-            "order_id >= 1": {
-                "action": "fail",
-                "name": "order_id_min",
-            },
-            "amount >= 0": {
-                "action": "warn",
-                "name": "amount_min",
-            },
-        }
-
-    def test_schemas_still_written_alongside_expectations(self, tmp_path):
-        # Slice 1 behaviour must not break: schema files are still emitted.
-        _write_contract(tmp_path / "contracts", "sales.yaml", CONSTRAINED_CONTRACT_YAML)
-        result = ContractTranslationService(tmp_path).translate()
-
-        schema_names = {p.name for p in result.schema_files}
-        assert schema_names == {
-            "sales.orders_schema.yaml",
-            "sales.lookups_schema.yaml",
-        }
-
-    def test_no_constraints_no_expectations_dir(self, tmp_path):
-        _write_contract(
-            tmp_path / "contracts", "plain.yaml", UNCONSTRAINED_CONTRACT_YAML
-        )
-        result = ContractTranslationService(tmp_path).translate()
-
-        assert result.expectation_files == []
-        # The dir is only created when >=1 expectations artifact is produced.
-        assert not (tmp_path / "contracts" / "lhp" / "expectations").exists()
-        # Schemas are still produced though.
-        assert len(result.schema_files) == 1
-
-    def test_no_contracts_dir_expectation_files_empty(self, tmp_path):
-        result = ContractTranslationService(tmp_path).translate()
-        assert result.expectation_files == []
-        assert not (tmp_path / "contracts" / "lhp" / "expectations").exists()
-
-
-# ---------------------------------------------------------------------------
-# Round-trip: emitted expectations file -> real data_quality consumer
-# ---------------------------------------------------------------------------
-
-
-ROUNDTRIP_CONTRACT_YAML = textwrap.dedent(
-    """
-    version: "1.0.0"
-    apiVersion: v3.0.2
-    kind: DataContract
-    id: 33333333-3333-3333-3333-333333333333
-    status: active
-    name: rt-contract
-    schema:
-      - name: orders
-        physicalType: table
-        properties:
-          - name: order_id
-            logicalType: integer
-            physicalType: BIGINT
-            required: true
-            criticalDataElement: true
-            logicalTypeOptions:
-              minimum: 1
-          - name: amount
-            logicalType: number
-            physicalType: DECIMAL(18,2)
-            logicalTypeOptions:
-              minimum: 0
-    """
-).strip()
-
-
-class TestExpectationsRoundTrip:
-    def test_emitted_file_is_consumable_by_data_quality_transform(self, tmp_path):
-        # 1. Write + translate a contract.
-        _write_contract(tmp_path / "contracts", "rt.yaml", ROUNDTRIP_CONTRACT_YAML)
-        result = ContractTranslationService(tmp_path).translate()
-
-        exp_file = next(
-            p
-            for p in result.expectation_files
-            if p.name == "rt.orders_expectations.yaml"
-        )
-        assert exp_file.exists()
-
-        # 2. Feed the emitted file into the real data_quality consumer.
-        action = Action(
-            name="validate_orders",
-            type=ActionType.TRANSFORM,
-            transform_type=TransformType.DATA_QUALITY,
-            source="v_orders_clean",
-            target="v_orders_validated",
-            readMode="stream",
-            expectations_file=str(exp_file),
-        )
-        code = DataQualityTransformGenerator().generate(
-            action,
-            {"spec_dir": tmp_path, "project_root": tmp_path},
-        )
-
-        # 3. Both action buckets are present, and the constraint strings flow through.
-        assert "@dp.expect_all_or_fail" in code  # the criticalDataElement -> fail
-        assert "@dp.expect_all" in code  # the non-CDE -> warn
-
-        # fail bucket: order_id minimum (criticalDataElement) — scalar, unguarded
-        assert '"order_id_min": "order_id >= 1"' in code
-        # warn bucket: amount minimum (non-CDE) — scalar, unguarded
-        assert '"amount_min": "amount >= 0"' in code

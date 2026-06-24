@@ -143,6 +143,11 @@ CFG_062 = ErrorCode(ErrorCategory.CONFIG, "062")
 # CFG_063: an ODCS schema property has a type that cannot be mapped to a Spark
 # DDL type — raised by lhp.utils.odcs_mapper.odcs_type_to_spark.
 CFG_063 = ErrorCode(ErrorCategory.CONFIG, "063")
+# CFG_064: an action's ``contract`` reference cannot be resolved — raised by
+# lhp.core.processing.contract_resolver.ContractResolver: missing/invalid file,
+# unsupported ``type``, unresolved or ambiguous ``entity_name``, the contract on
+# an unsupported action type, or a conflict with an already-set target field.
+CFG_064 = ErrorCode(ErrorCategory.CONFIG, "064")
 
 DEP_001 = ErrorCode(ErrorCategory.DEPENDENCY, "001")
 DEP_022 = ErrorCode(ErrorCategory.DEPENDENCY, "022")

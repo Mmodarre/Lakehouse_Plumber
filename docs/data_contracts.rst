@@ -2,25 +2,43 @@ Data Contracts (ODCS)
 =====================
 
 .. meta::
-   :description: How to use Open Data Contract Standard (ODCS) YAML files in a contracts/ folder to drive Lakehouse Plumber — table schemas (Auto Loader schema hints / enforcement / write table_schema) and data-quality expectations.
+   :description: How to drive Lakehouse Plumber from Open Data Contract Standard (ODCS) YAML contracts using a single `contract` action field — schemas (Auto Loader read schema / hints, write table_schema, schema-transform casts) and data-quality expectations are resolved inline before code generation.
 
 `Open Data Contract Standard <https://bitol.io/open-data-contract-standard/>`_ (ODCS)
-is a YAML format for declaring a dataset's schema and data-quality rules. Place ODCS
-contracts into a ``contracts/`` folder and Lakehouse Plumber (LHP) translates them
-into the artifacts it generates pipelines from. This feature covers **schemas** (a
-standard LHP schema file referenced from any load or write action) and **expectations**
-(row-level data-quality rules derived from each property's constraints, consumed by a
-``data_quality`` transform).
+is a YAML format for declaring a dataset's schema and data-quality rules. Lakehouse
+Plumber (LHP) lets an action **reference** a contract via a single ``contract`` field;
+a resolution pass then rewrites that action **before code generation** so it carries the
+resolved schema or expectations **inline**. No intermediate files are written — the
+contract is the source of truth, resolved in memory on every ``lhp validate`` / ``lhp
+generate`` run.
 
-Add a contract to ``contracts/``
---------------------------------
+What a contract drives is **implicit from the action type**:
 
-Place an ODCS contract YAML in the project's ``contracts/`` directory. ``lhp init``
-scaffolds this folder; create it yourself in an existing project. The feature is
-opt-in by folder presence — with no ``contracts/`` directory, nothing changes.
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Action
+     - What the contract injects
+   * - ``cloudfiles`` **load**
+     - ``source.schema`` (read schema, inline DDL); also ``cloudFiles.schemaHints``
+       when ``schema_hints: true``
+   * - **write** (``streaming_table`` / ``materialized_view``)
+     - ``write_target.table_schema`` (inline DDL)
+   * - ``schema`` **transform**
+     - ``schema_inline`` (cast-only ``<col>: <type>`` entries)
+   * - ``data_quality`` **transform**
+     - inline ``expectations`` (list form)
+
+Add a contract
+--------------
+
+Place an ODCS contract YAML anywhere in the project (``lhp init`` scaffolds a
+``contracts/`` folder for this purpose; any path works). The ``contract.file`` path is
+resolved relative to the project root.
 
 .. code-block:: yaml
-   :caption: contracts/customer.contract.yaml
+   :caption: contracts/customer.odcs.yaml
 
    version: "1.0.0"
    apiVersion: v3.0.2
@@ -37,92 +55,62 @@ opt-in by folder presence — with no ``contracts/`` directory, nothing changes.
            logicalType: integer
            physicalType: BIGINT
            required: true
+           criticalDataElement: true
            primaryKey: true
            primaryKeyPosition: 1
-           description: Surrogate key for the customer
          - name: full_name
            logicalType: string
            required: true
+           logicalTypeOptions:
+             minLength: 1
          - name: lifetime_value
            logicalType: number
            physicalType: DECIMAL(18,2)
-         - name: is_active
-           logicalType: boolean
-           required: true
+           logicalTypeOptions:
+             minimum: 0
 
 The top-level ``version``, ``apiVersion``, ``kind``, ``id``, and ``status`` fields are
 required by the ODCS specification. LHP validates every contract against the bundled
 ODCS JSON Schema and raises ``LHP-CFG-062`` if a file is not a valid contract.
 
-Generate the schema files
--------------------------
+Reference it from an action
+---------------------------
 
-LHP translates contracts at the start of every ``lhp validate`` and ``lhp generate``
-run, before discovery and code generation. No separate command is needed:
+Attach a ``contract`` block to an action. The only required key is ``file``; everything
+else is optional and tunes resolution.
 
-.. code-block:: bash
+.. list-table:: ``contract`` fields
+   :header-rows: 1
+   :widths: 22 18 60
 
-   lhp generate --env dev
+   * - Field
+     - Default
+     - Meaning
+   * - ``file``
+     - *(required)*
+     - Path to the ODCS contract, relative to the project root.
+   * - ``type``
+     - ``odcs``
+     - Contract format. Only ``odcs`` is supported.
+   * - ``entity_name``
+     - sole object
+     - Which schema object (table) to resolve. Optional when the contract has a single
+       object; **required** when it has more than one.
+   * - ``schema_hints``
+     - ``false``
+     - ``cloudfiles`` load only. When ``true``, also emit ``cloudFiles.schemaHints``
+       (in addition to the read schema).
+   * - ``expectations_action``
+     - per-property
+     - ``data_quality`` only. One of ``warn`` / ``drop`` / ``fail``, applied to every
+       expectation. When omitted, each property's action is derived from its
+       ``criticalDataElement`` flag.
 
-Pass ``--no-contracts`` to ``lhp generate`` or ``lhp validate`` to skip translation
-for that run.
+In a ``cloudfiles`` load
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-For each schema object in each contract, LHP writes one LHP schema file to
-``contracts/lhp/schemas/``, named ``<contract-file-stem>.<object>_schema.yaml``:
-
-.. code-block:: text
-
-   contracts/
-   ├── customer.contract.yaml                              # your ODCS source
-   └── lhp/
-       └── schemas/
-           └── customer.contract.customer_schema.yaml      # generated
-
-The output sits beside the source contracts under ``contracts/lhp/``. It is regenerated
-on every run and gitignored (``lhp init`` adds ``contracts/lhp/`` to ``.gitignore``) —
-commit your source ``contracts/``, not the generated ``contracts/lhp/``. The translated
-file is the standard LHP schema format:
-
-.. code-block:: yaml
-   :caption: contracts/lhp/schemas/customer.contract.customer_schema.yaml
-
-   name: customer
-   version: 1.0.0
-   description: One row per customer
-   columns:
-     - name: customer_id
-       type: BIGINT
-       nullable: false
-       comment: Surrogate key for the customer
-     - name: full_name
-       type: STRING
-       nullable: false
-     - name: lifetime_value
-       type: DECIMAL(18,2)
-       nullable: true
-     - name: is_active
-       type: BOOLEAN
-       nullable: false
-   primary_key:
-     - customer_id
-
-Translation is deterministic: re-running on an unchanged contract rewrites a
-byte-identical file. Contracts coexist with hand-authored ``schemas/`` files — the
-``contracts/`` folder is an additional source, not a replacement.
-
-Use the generated schema
-------------------------
-
-A generated schema file is a standard LHP schema file, so reference it anywhere LHP
-accepts a schema file — by its path under ``contracts/lhp/schemas/``. Columns marked
-``nullable: false`` emit ``NOT NULL`` in the generated DDL.
-
-In a load action
-~~~~~~~~~~~~~~~~
-
-A ``cloudfiles`` load action consumes it in either of the two ways covered in
-:doc:`ingest_with_autoloader`. Point ``cloudFiles.schemaHints`` at the file to pin
-types while Auto Loader infers the rest:
+Attaching a contract injects ``source.schema`` (the full read schema) so Auto Loader
+accepts exactly the declared columns:
 
 .. code-block:: yaml
    :caption: pipelines/bronze/customer.yaml
@@ -135,36 +123,24 @@ types while Auto Loader infers the rest:
          type: cloudfiles
          path: "${landing_volume}/customer/*.csv"
          format: csv
-         options:
-           cloudFiles.format: csv
-           cloudFiles.schemaHints: "contracts/lhp/schemas/customer.contract.customer_schema.yaml"
        target: v_customer_raw
+       contract:
+         file: contracts/customer.odcs.yaml
 
-Set ``source.schema`` instead to enforce the contract as the full schema — Auto Loader
-accepts exactly the declared columns and rejects everything else:
+Set ``schema_hints: true`` to *also* emit ``cloudFiles.schemaHints`` — pinning the
+declared types while Auto Loader infers any remaining columns:
 
 .. code-block:: yaml
-   :caption: pipelines/bronze/customer.yaml
 
-   actions:
-     - name: load_customer
-       type: load
-       readMode: stream
-       source:
-         type: cloudfiles
-         path: "${landing_volume}/customer/*.csv"
-         format: csv
-         schema: "contracts/lhp/schemas/customer.contract.customer_schema.yaml"
-         options:
-           cloudFiles.format: csv
-       target: v_customer_raw
+       contract:
+         file: contracts/customer.odcs.yaml
+         schema_hints: true
 
 In a write action
-~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~
 
-A write target's ``table_schema`` accepts the same schema file (see
-:doc:`actions/write_actions`), so the contract defines the table's columns and types
-on the streaming-table or materialized-view side too:
+A contract on a ``streaming_table`` or ``materialized_view`` write injects
+``write_target.table_schema``, so the contract defines the table's columns and types:
 
 .. code-block:: yaml
    :caption: pipelines/silver/customer.yaml
@@ -177,31 +153,31 @@ on the streaming-table or materialized-view side too:
          type: streaming_table
          database: "${silver_schema}"
          table: customer
-         table_schema: "contracts/lhp/schemas/customer.contract.customer_schema.yaml"
+       contract:
+         file: contracts/customer.odcs.yaml
 
-Translate a multi-table contract
---------------------------------
+In a ``schema`` transform
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-An ODCS contract's top-level ``schema`` is a list of objects, so one contract file can
-describe several tables. LHP writes one schema file per object, each prefixed with the
-contract filename so names never collide across contracts:
+A contract on a ``schema`` transform injects ``schema_inline`` as **cast-only** entries
+(one ``<col>: <type>`` per contract column — types only, no renames). The source view is
+assumed to already use the contract's column names:
 
-.. code-block:: text
+.. code-block:: yaml
 
-   contracts/sales.yaml          # schema: [orders, order_line_items]
-   →  contracts/lhp/schemas/sales.orders_schema.yaml
-   →  contracts/lhp/schemas/sales.order_line_items_schema.yaml
+     - name: cast_customer
+       type: transform
+       transform_type: schema
+       source: v_customer_raw
+       target: v_customer_typed
+       contract:
+         file: contracts/customer.odcs.yaml
 
-Reference each generated file from the load or write action for its table.
+In a ``data_quality`` transform
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Expectations
-------------
-
-Alongside each schema, LHP derives **data-quality expectations** from each property's
-``logicalTypeOptions`` and writes them to
-``contracts/lhp/expectations/<stem>.<object>_expectations.yaml`` (only for objects that
-have at least one such constraint). Reference that file from a ``data_quality`` transform —
-no other config needed:
+A contract on a ``data_quality`` transform injects inline ``expectations`` derived from
+each property's ``logicalTypeOptions``:
 
 .. code-block:: yaml
    :caption: pipelines/silver/customer.yaml
@@ -212,7 +188,10 @@ no other config needed:
        transform_type: data_quality
        source: v_customer_clean
        target: v_customer_dq
-       expectations_file: "contracts/lhp/expectations/customer.contract.customer_expectations.yaml"
+       readMode: stream
+       contract:
+         file: contracts/customer.odcs.yaml
+         expectations_action: fail   # optional; else per-property criticalDataElement
 
 **What becomes an expectation.** Each property contributes row-level checks derived from
 its ``logicalTypeOptions``:
@@ -227,32 +206,62 @@ its ``logicalTypeOptions``:
   ``size(<col>) = size(array_distinct(<col>))``
 - object ``required: [field]`` → ``<col>.<field> IS NOT NULL``
 
-**Severity comes from** ``criticalDataElement``. A property marked
-``criticalDataElement: true`` produces expectations with action ``fail`` (a violating row
-fails the pipeline); otherwise the action is ``warn`` (violations are logged, rows pass).
+**Severity.** With ``expectations_action`` set, every expectation uses that action.
+Otherwise it comes from ``criticalDataElement``: a property marked
+``criticalDataElement: true`` produces ``fail`` expectations (a violating row fails the
+pipeline); otherwise ``warn`` (violations are logged, rows pass).
+
+Multi-table contracts
+----------------------
+
+An ODCS contract's top-level ``schema`` is a list of objects, so one file can describe
+several tables. When a contract has more than one object, set ``entity_name`` to pick the
+one an action resolves against:
 
 .. code-block:: yaml
-   :caption: contracts/customer.contract.yaml (excerpt)
 
-   - name: lifetime_value
-     logicalType: number
-     criticalDataElement: true        # → action: fail
-     logicalTypeOptions:
-       minimum: 0
-   - name: email
-     logicalType: string
-     logicalTypeOptions:
-       minLength: 3                    # → action: warn
+   contract:
+     file: contracts/sales.odcs.yaml
+     entity_name: orders
 
-.. code-block:: yaml
-   :caption: contracts/lhp/expectations/customer.contract.customer_expectations.yaml (generated)
+Omitting ``entity_name`` against a multi-object contract raises ``LHP-CFG-064``; so does
+naming an object the contract does not define.
 
-   lifetime_value >= 0:
-     action: fail
-     name: lifetime_value_min
-   length(email) >= 3:
-     action: warn
-     name: email_min_length
+How resolution works
+---------------------
+
+On every ``lhp validate`` / ``lhp generate`` run, after substitution and before code
+generation, LHP rewrites each contract-bearing action:
+
+1. Validate the ``contract`` options and parse the referenced contract.
+2. Select the entity object (``entity_name`` or the sole object).
+3. Inject the resolved artifact inline for the action's type (see the table above).
+4. Strip the ``contract`` field so generators only ever see resolved config.
+
+Resolution **never overwrites** config you set by hand. If an action already declares the
+field a contract would inject — ``source.schema``, ``cloudFiles.schemaHints``,
+``write_target.table_schema``, ``schema_inline``, or ``expectations`` /
+``expectations_file`` — LHP raises ``LHP-CFG-064`` rather than silently replacing it.
+
+Errors
+------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 78
+
+   * - Code
+     - Raised when
+   * - ``LHP-CFG-062``
+     - The referenced file is not a valid ODCS contract.
+   * - ``LHP-CFG-063``
+     - A property type cannot be mapped to a Spark type.
+   * - ``LHP-CFG-064``
+     - Contract resolution fails: missing ``file``; ``type`` other than ``odcs``;
+       ``schema_hints`` off a cloudfiles load; ``expectations_action`` off a
+       data_quality transform; a ``contract`` on an unsupported action type; a missing
+       contract file; an unknown or ambiguous ``entity_name``; or a conflict with a
+       field already set on the action.
 
 .. seealso::
 
@@ -260,7 +269,6 @@ fails the pipeline); otherwise the action is ``warn`` (violations are logged, ro
      and ``source.schema`` on a ``cloudfiles`` load action.
    - :doc:`actions/write_actions` — full reference for ``table_schema`` on a write
      target.
-   - :doc:`actions/transform_actions` — the ``data_quality`` transform that consumes
-     an ``expectations_file``.
+   - :doc:`actions/transform_actions` — the ``schema`` and ``data_quality`` transforms.
    - `Open Data Contract Standard <https://bitol.io/open-data-contract-standard/>`_ —
      the ODCS specification.

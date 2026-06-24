@@ -88,10 +88,16 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
 
         if explicit_schema:
             if isinstance(explicit_schema, str):
-                # Schema file path
-                schema_variable, schema_code_lines = self._process_schema_file(
-                    explicit_schema, context.get("spec_dir")
-                )
+                if is_file_path(explicit_schema):
+                    # Schema file path
+                    schema_variable, schema_code_lines = self._process_schema_file(
+                        explicit_schema, context.get("spec_dir")
+                    )
+                else:
+                    # Inline DDL string (e.g. injected from a resolved contract).
+                    schema_variable, schema_code_lines = self._process_inline_ddl(
+                        explicit_schema, action.target
+                    )
             elif isinstance(explicit_schema, dict) and "file" in explicit_schema:
                 # Schema object with file
                 schema_variable, schema_code_lines = self._process_schema_file(
@@ -323,6 +329,66 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
                 context={"Schema File": str(schema_file_path)},
             ) from e
 
+    def _process_inline_ddl(self, ddl: str, target_view: str) -> Tuple[str, List[str]]:
+        """Build a read ``StructType`` from an inline DDL string.
+
+        Accepts a comma-separated DDL string such as
+        ``"order_id BIGINT NOT NULL, status STRING"`` (as injected by the
+        contract-resolution pass). ``NOT NULL`` is parsed into the field's
+        ``nullable`` flag and stripped from the type — the enforcement of
+        nullability is handled by Spark's nullable column flag, not the DDL
+        type literal which Spark's emitter does not accept.
+        """
+        clean_target = target_view.replace("v_", "").replace("_raw", "")
+        columns: List[Dict[str, Any]] = []
+
+        # Split on commas at paren depth 0 so types like DECIMAL(18,2) survive.
+        parts: List[str] = []
+        current = ""
+        depth = 0
+        for char in ddl:
+            if char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+            elif char == "," and depth == 0:
+                if current.strip():
+                    parts.append(current.strip())
+                current = ""
+                continue
+            current += char
+        if current.strip():
+            parts.append(current.strip())
+
+        for part in parts:
+            tokens = part.split()
+            if not tokens:
+                continue
+            name = tokens[0]
+            rest = " ".join(tokens[1:])
+            nullable = True
+            upper = rest.upper()
+            if upper.endswith("NOT NULL"):
+                nullable = False
+                rest = rest[: -len("NOT NULL")].rstrip()
+            columns.append({"name": name, "type": rest, "nullable": nullable})
+
+        schema_data = {"name": clean_target, "columns": columns}
+        variable_name, code_lines = emit_struct_type_code(schema_data)
+
+        for line in code_lines:
+            if line.startswith("from pyspark.sql.types import"):
+                self.add_import(line)
+                break
+
+        schema_def_lines = [
+            line
+            for line in code_lines
+            if not line.startswith("from pyspark.sql.types import") and line.strip()
+        ]
+
+        return variable_name, schema_def_lines
+
     def _check_conflicts(self, source_config: Dict[str, Any], action_name: str):
         """Check for conflicts between old and new configuration approaches."""
         options = source_config.get("options", {})
@@ -341,17 +407,19 @@ class CloudFilesLoadGenerator(BaseActionGenerator):
             if source_config.get(legacy_key) is not None and new_key in options:
                 conflicts.append(f"Both '{legacy_key}' and '{new_key}' specified")
 
-        schema_sources = []
+        # ``schema`` and ``schema_file`` are mutually-exclusive *read* schema
+        # sources. ``cloudFiles.schemaHints`` is an Auto Loader inference hint,
+        # not a read schema, so it may legitimately accompany an explicit
+        # read schema (e.g. a resolved contract injects both).
+        read_schema_sources = []
         if source_config.get("schema_file"):
-            schema_sources.append("schema_file")
+            read_schema_sources.append("schema_file")
         if source_config.get("schema"):
-            schema_sources.append("schema")
-        if "cloudFiles.schemaHints" in options:
-            schema_sources.append("options.cloudFiles.schemaHints")
+            read_schema_sources.append("schema")
 
-        if len(schema_sources) > 1:
+        if len(read_schema_sources) > 1:
             conflicts.append(
-                f"Multiple schema sources specified: {', '.join(schema_sources)}"
+                f"Multiple schema sources specified: {', '.join(read_schema_sources)}"
             )
 
         if conflicts:
