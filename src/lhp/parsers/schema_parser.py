@@ -1,9 +1,25 @@
 import logging
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Union
 
 from ..errors import ErrorFactory, LHPError, codes
 from ..parsers.yaml_parser import YAMLParser
+
+_PLAIN_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+def _ddl_identifier(name: str) -> str:
+    """Return a column name safe for a Spark DDL string.
+
+    Plain identifiers (letters/digits/underscore, not starting with a digit) are
+    returned as-is; anything else — spaces, ``$``, ``-``, leading digits, etc. —
+    is backtick-quoted (a literal backtick is escaped by doubling), so the emitted
+    DDL parses correctly.
+    """
+    if _PLAIN_IDENTIFIER.fullmatch(name):
+        return name
+    return "`" + name.replace("`", "``") + "`"
 
 
 class SchemaParser:
@@ -60,7 +76,7 @@ class SchemaParser:
 
         hints = []
         for column in schema_data["columns"]:
-            name = column["name"]
+            name = _ddl_identifier(column["name"])
             col_type = column["type"]
             nullable = column.get("nullable", True)
 

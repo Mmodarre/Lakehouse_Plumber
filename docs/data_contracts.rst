@@ -184,12 +184,10 @@ A contract on a ``streaming_table`` or ``materialized_view`` write injects
 In a ``schema`` transform
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-A contract on a ``schema`` transform injects ``schema_inline``, one entry per contract
-column. By default each entry is **cast-only** (``<name>: <type>``), assuming the source
-view already uses the contract's column names. When a property declares an ODCS
-``physicalName`` that differs from its ``name``, the entry becomes a **rename + cast**
-(``<physicalName> -> <name>: <type>``) so the transform conforms a source column to the
-contract's name:
+A contract on a ``schema`` transform injects ``schema_inline`` as a ``type_casting`` map
+(every contract column → its type). When a property declares an ODCS ``physicalName`` that
+differs from its ``name``, a ``column_mapping`` entry (``physicalName`` → ``name``) is also
+added so the transform renames that source column to the contract's name:
 
 .. code-block:: yaml
 
@@ -201,9 +199,9 @@ contract's name:
        contract:
          file: contracts/customer.odcs.yaml
 
-For example, a property ``{name: customer_id, physicalName: cust_id, physicalType: BIGINT}``
-generates ``cust_id -> customer_id: BIGINT`` → ``df.withColumnRenamed("cust_id",
-"customer_id")`` then a cast.
+For example, a property ``{name: customer_id, physicalName: cust id, physicalType: BIGINT}``
+generates ``column_mapping: {"cust id": customer_id}`` + ``type_casting: {customer_id: BIGINT}``
+→ ``df.withColumnRenamed("cust id", "customer_id")`` then a cast.
 
 In a ``data_quality`` transform
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

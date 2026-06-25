@@ -21,6 +21,7 @@ import textwrap
 from pathlib import Path
 
 import pytest
+import yaml
 
 from lhp.api import collect_response
 from lhp.api.facade import LakehousePlumberApplicationFacade
@@ -139,6 +140,32 @@ SAME_PHYSICAL_NAME_CONTRACT = textwrap.dedent(
             logicalType: integer
             physicalType: BIGINT
             required: true
+    """
+).strip()
+
+
+# A contract whose ``physicalName`` contains a SPACE (raw source column "ord id").
+# Such names can't be expressed in the arrow mini-language; the resolver emits the
+# column_mapping/type_casting dict form, where any name works as a YAML key.
+SPACED_PHYSICAL_NAME_CONTRACT = textwrap.dedent(
+    """
+    version: "1.0.0"
+    apiVersion: v3.0.2
+    kind: DataContract
+    id: 66666666-6666-6666-6666-666666666666
+    status: active
+    name: spaced-name-contract
+    schema:
+      - name: orders
+        physicalType: table
+        properties:
+          - name: order_id
+            physicalName: ord id
+            logicalType: integer
+            physicalType: BIGINT
+            required: true
+          - name: status
+            logicalType: string
     """
 ).strip()
 
@@ -292,6 +319,29 @@ class TestCloudfilesLoadResolution:
             == "ord_id BIGINT NOT NULL, status STRING"
         )
 
+    def test_read_schema_backtick_quotes_name_with_space(self, tmp_path, resolver):
+        # A physicalName with a space must be backtick-quoted in the read-schema
+        # DDL, else Spark can't parse it (`ord id` BIGINT, not ord id BIGINT).
+        _write_contract(tmp_path, SPACED_PHYSICAL_NAME_CONTRACT)
+        fg = _flowgroup(_cloudfiles_action())
+
+        result = resolver.resolve(fg, project_root=tmp_path)
+
+        action = result["actions"][0]
+        assert action["source"]["schema"] == "`ord id` BIGINT NOT NULL, status STRING"
+
+    def test_schema_hints_backtick_quotes_name_with_space(self, tmp_path, resolver):
+        _write_contract(tmp_path, SPACED_PHYSICAL_NAME_CONTRACT)
+        fg = _flowgroup(_cloudfiles_action(schema_hints=True))
+
+        result = resolver.resolve(fg, project_root=tmp_path)
+
+        action = result["actions"][0]
+        assert (
+            action["source"]["options"]["cloudFiles.schemaHints"]
+            == "`ord id` BIGINT NOT NULL, status STRING"
+        )
+
 
 class TestWriteResolution:
     def test_injects_table_schema_into_write_target(self, tmp_path, resolver):
@@ -334,18 +384,23 @@ class TestWriteResolution:
 
 
 class TestSchemaTransformResolution:
-    def test_injects_cast_only_schema_inline(self, tmp_path, resolver):
+    # The resolver emits ``schema_inline`` in the legacy ``column_mapping`` /
+    # ``type_casting`` dict form (not the arrow mini-language) so any source
+    # column name — including ones with spaces — works as a YAML key.
+    def test_injects_cast_only_type_casting(self, tmp_path, resolver):
         _write_contract(tmp_path)
         fg = _flowgroup(_schema_transform_action())
 
         result = resolver.resolve(fg, project_root=tmp_path)
 
         action = result["actions"][0]
-        # Cast-only: type only, NO ``NOT NULL``; newline-joined.
-        assert action["schema_inline"] == "order_id: BIGINT\nstatus: STRING"
+        # Cast-only (no differing physicalName) → type_casting only, no column_mapping.
+        assert yaml.safe_load(action["schema_inline"]) == {
+            "type_casting": {"order_id": "BIGINT", "status": "STRING"}
+        }
         assert "contract" not in action
 
-    def test_injects_arrow_rename_for_differing_physical_name(
+    def test_injects_column_mapping_for_differing_physical_name(
         self, tmp_path, resolver
     ):
         _write_contract(tmp_path, RENAME_CONTRACT)
@@ -354,20 +409,39 @@ class TestSchemaTransformResolution:
         result = resolver.resolve(fg, project_root=tmp_path)
 
         action = result["actions"][0]
-        # order_id has physicalName ``ord_id`` (differs) -> arrow rename + cast;
-        # status has no physicalName -> cast-only.
-        assert action["schema_inline"] == "ord_id -> order_id: BIGINT\nstatus: STRING"
+        # order_id has physicalName ``ord_id`` (differs) → renamed via column_mapping;
+        # status has no physicalName → cast only.
+        assert yaml.safe_load(action["schema_inline"]) == {
+            "column_mapping": {"ord_id": "order_id"},
+            "type_casting": {"order_id": "BIGINT", "status": "STRING"},
+        }
         assert "contract" not in action
 
-    def test_physical_name_equal_to_name_stays_cast_only(self, tmp_path, resolver):
+    def test_physical_name_equal_to_name_has_no_mapping(self, tmp_path, resolver):
         _write_contract(tmp_path, SAME_PHYSICAL_NAME_CONTRACT)
         fg = _flowgroup(_schema_transform_action())
 
         result = resolver.resolve(fg, project_root=tmp_path)
 
         action = result["actions"][0]
-        # physicalName == name -> no arrow rename, plain cast-only entry.
-        assert action["schema_inline"] == "order_id: BIGINT"
+        # physicalName == name → no rename; just a cast.
+        assert yaml.safe_load(action["schema_inline"]) == {
+            "type_casting": {"order_id": "BIGINT"}
+        }
+        assert "contract" not in action
+
+    def test_physical_name_with_space_maps_via_yaml_key(self, tmp_path, resolver):
+        _write_contract(tmp_path, SPACED_PHYSICAL_NAME_CONTRACT)
+        fg = _flowgroup(_schema_transform_action())
+
+        result = resolver.resolve(fg, project_root=tmp_path)
+
+        action = result["actions"][0]
+        # A space in the source name is fine — it's just a YAML mapping key.
+        assert yaml.safe_load(action["schema_inline"]) == {
+            "column_mapping": {"ord id": "order_id"},
+            "type_casting": {"order_id": "BIGINT", "status": "STRING"},
+        }
         assert "contract" not in action
 
 
