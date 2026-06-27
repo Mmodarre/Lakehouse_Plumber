@@ -682,6 +682,33 @@ class TestConfigValidator:
         errors = validator.validate_action(action, 0)
         assert any("cluster_columns" in error and "list" in error for error in errors)
 
+    def test_uc_tags_validation(self):
+        validator = ConfigValidator()
+
+        def _validate(tags):
+            action = Action(
+                name="write_with_tags",
+                type=ActionType.WRITE,
+                source="v_data",
+                write_target={
+                    "type": "streaming_table",
+                    "catalog": "test_cat",
+                    "schema": "silver",
+                    "table": "my_table",
+                    "tags": tags,
+                },
+            )
+            return validator.validate_action(action, 0)
+
+        # Valid: key-value, key-only (empty string / None), and non-string scalar value
+        assert _validate({"team": "data-eng", "pii": "", "certified": None, "n": 1}) == []
+        # Valid: explicit empty dict (managed-with-empty-set signal)
+        assert _validate({}) == []
+
+        # Invalid: not a dictionary
+        errors = _validate("invalid")
+        assert any("tags" in e and "dictionary" in e for e in errors)
+
     def test_snapshot_cdc_validation(self):
         validator = ConfigValidator()
 

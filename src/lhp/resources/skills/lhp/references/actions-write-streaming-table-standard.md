@@ -15,6 +15,7 @@
 | `temporary` | bool | `false` | — |
 | `comment` | string | — | — |
 | `table_properties` | dict | — | — |
+| `tags` | dict | — | UC tags `{key: value}`; value `""`/`~`/null = key-only. Applied post-flow-completion via a generated `_tagging_hook.py` (REST API), not in the table DDL. Gated by `uc_tagging` in `lhp.yaml` (default on). Column tags live in a YAML/JSON `table_schema`. |
 | `spark_conf` | dict | — | — |
 | `table_schema` | string | — | Inline schema or schema-file path. |
 | `row_filter` | string | — | — |

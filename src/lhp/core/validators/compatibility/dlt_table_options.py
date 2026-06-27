@@ -16,6 +16,7 @@ class DltTableOptionsValidator:
 
         errors.extend(self._validate_spark_conf(action, prefix))
         errors.extend(self._validate_table_properties(action, prefix))
+        errors.extend(self._validate_tags(action, prefix))
         errors.extend(self._validate_schema_options(action, prefix))
         errors.extend(self._validate_column_options(action, prefix))
         errors.extend(self._validate_refresh_options(action, prefix))
@@ -50,6 +51,32 @@ class DltTableOptionsValidator:
                     if not isinstance(key, str):
                         errors.append(
                             f"{prefix}: table_properties key '{key}' must be a string"
+                        )
+
+        return errors
+
+    def _validate_tags(self, action: Action, prefix: str) -> List[str]:
+        """Validate Unity Catalog ``tags``.
+
+        ``tags`` absent (None) means the entity is unmanaged; an explicit empty
+        ``{}`` is a valid managed-with-empty-set signal — both pass here. Keys
+        must be strings; values must be strings or None (key-only tags).
+        """
+        errors = []
+        tags = action.write_target.get("tags")
+
+        if tags is not None:
+            if not isinstance(tags, dict):
+                errors.append(f"{prefix}: 'tags' must be a dictionary")
+            else:
+                for key, value in tags.items():
+                    if not isinstance(key, str):
+                        errors.append(f"{prefix}: tags key '{key}' must be a string")
+                    elif not key.strip():
+                        errors.append(f"{prefix}: tags key must not be empty")
+                    if value is not None and not isinstance(value, (str, int, float, bool)):
+                        errors.append(
+                            f"{prefix}: tags value for '{key}' must be a scalar or null"
                         )
 
         return errors

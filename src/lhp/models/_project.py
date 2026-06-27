@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from ._monitoring import EventLogConfig, MonitoringConfig
 from ._operational_metadata import ProjectOperationalMetadataConfig
 from ._test_reporting import TestReportingConfig
+from ._uc_tagging import UCTaggingConfig
 
 
 class WheelConfig(BaseModel):
@@ -31,6 +32,7 @@ class ProjectConfig(BaseModel):
     monitoring: Optional[MonitoringConfig] = None
     required_lhp_version: Optional[str] = None
     test_reporting: Optional[TestReportingConfig] = None
+    uc_tagging: Optional[UCTaggingConfig] = None
     wheel: Optional[WheelConfig] = None
     apply_formatting: bool = Field(
         True,

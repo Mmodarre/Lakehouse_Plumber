@@ -1,0 +1,157 @@
+"""Unit tests for the UC tagging hook generator."""
+
+import pytest
+
+from lhp.core.codegen.tagging import build_tagging_hook_files
+from lhp.core.codegen.tagging_hook_generator import HOOK_FILENAME, TaggingHookGenerator
+from lhp.models import Action, ActionType, FlowGroup, ProjectConfig, UCTaggingConfig
+
+
+def _config(uc_tagging=None):
+    return ProjectConfig(name="test_project", uc_tagging=uc_tagging)
+
+
+def _flowgroup(actions, pipeline="p1", name="fg1"):
+    return FlowGroup(pipeline=pipeline, flowgroup=name, actions=actions)
+
+
+def _write_action(name="w", write_target=None):
+    return Action(
+        name=name,
+        type=ActionType.WRITE,
+        source="v_src",
+        write_target=write_target or {},
+    )
+
+
+def _st_target(table="orders", **extra):
+    base = {
+        "type": "streaming_table",
+        "catalog": "prod",
+        "schema": "sales",
+        "table": table,
+        "create_table": True,
+    }
+    base.update(extra)
+    return base
+
+
+def _build(actions, uc_tagging=None, root=None):
+    return build_tagging_hook_files(
+        pipeline_name="p1",
+        flowgroups=[_flowgroup(actions)],
+        project_config=_config(uc_tagging),
+        project_root=root,
+    )
+
+
+@pytest.mark.unit
+class TestTaggingHookGenerator:
+    def test_disabled_returns_none(self, tmp_path):
+        action = _write_action(write_target=_st_target(tags={"team": "x"}))
+        result = _build([action], uc_tagging=UCTaggingConfig(enabled=False), root=tmp_path)
+        assert result is None
+
+    def test_absent_config_behaves_enabled(self, tmp_path):
+        action = _write_action(write_target=_st_target(tags={"team": "x"}))
+        result = _build([action], uc_tagging=None, root=tmp_path)
+        assert result is not None
+        assert HOOK_FILENAME in result
+
+    def test_no_tags_returns_none(self, tmp_path):
+        action = _write_action(write_target=_st_target())
+        assert _build([action], root=tmp_path) is None
+
+    def test_table_tags_embedded_with_key_only(self, tmp_path):
+        action = _write_action(
+            write_target=_st_target(tags={"team": "data-eng", "pii": None, "n": 1})
+        )
+        content = _build([action], root=tmp_path)[HOOK_FILENAME]
+        assert "'prod.sales.orders'" in content
+        assert "'team': 'data-eng'" in content
+        assert "'pii': ''" in content  # key-only normalized to empty string
+        assert "'n': '1'" in content  # non-string coerced
+
+    def test_create_table_false_excluded(self, tmp_path):
+        action = _write_action(
+            write_target=_st_target(create_table=False, tags={"team": "x"})
+        )
+        assert _build([action], root=tmp_path) is None
+
+    def test_temporary_excluded(self, tmp_path):
+        action = _write_action(
+            write_target=_st_target(temporary=True, tags={"team": "x"})
+        )
+        assert _build([action], root=tmp_path) is None
+
+    def test_sink_excluded(self, tmp_path):
+        action = _write_action(
+            write_target={"type": "sink", "sink_type": "delta", "tags": {"a": "b"}}
+        )
+        assert _build([action], root=tmp_path) is None
+
+    def test_empty_tags_dropped_when_additive(self, tmp_path):
+        action = _write_action(write_target=_st_target(tags={}))
+        assert _build([action], uc_tagging=UCTaggingConfig(), root=tmp_path) is None
+
+    def test_empty_tags_kept_when_reconciling(self, tmp_path):
+        action = _write_action(write_target=_st_target(tags={}))
+        result = _build(
+            [action],
+            uc_tagging=UCTaggingConfig(remove_undeclared_tags=True),
+            root=tmp_path,
+        )
+        assert result is not None
+        content = result[HOOK_FILENAME]
+        assert "'prod.sales.orders': {}" in content
+        assert "_REMOVE_UNDECLARED_TAGS = True" in content
+
+    def test_remove_undeclared_false_by_default(self, tmp_path):
+        action = _write_action(write_target=_st_target(tags={"team": "x"}))
+        content = _build([action], root=tmp_path)[HOOK_FILENAME]
+        assert "_REMOVE_UNDECLARED_TAGS = False" in content
+
+    def test_hook_structure(self, tmp_path):
+        action = _write_action(write_target=_st_target(tags={"team": "x"}))
+        content = _build([action], root=tmp_path)[HOOK_FILENAME]
+        assert "@dp.on_event_hook" in content
+        assert 'event_type") != "flow_progress"' in content
+        assert '"COMPLETED"' in content
+        assert "json.loads" in content
+        assert "from databricks.sdk import WorkspaceClient" in content
+        assert "/api/2.1/unity-catalog/entity-tag-assignments" in content
+        assert "ThreadPoolExecutor" in content
+        assert "os.cpu_count()" in content
+        # No SQL ALTER path
+        assert "ALTER TABLE" not in content
+        assert "spark.sql" not in content
+
+    def test_column_tags_from_yaml_schema(self, tmp_path):
+        schema_file = tmp_path / "schemas" / "orders.yaml"
+        schema_file.parent.mkdir(parents=True)
+        schema_file.write_text(
+            "name: orders\n"
+            "columns:\n"
+            "  - name: id\n"
+            "    type: BIGINT\n"
+            "  - name: email\n"
+            "    type: STRING\n"
+            "    tags:\n"
+            "      classification: pii\n"
+        )
+        action = _write_action(
+            write_target=_st_target(table_schema="schemas/orders.yaml")
+        )
+        result = _build([action], root=tmp_path)
+        assert result is not None
+        content = result[HOOK_FILENAME]
+        assert "'prod.sales.orders'" in content
+        assert "'email'" in content
+        assert "'classification': 'pii'" in content
+
+    def test_column_tags_ignored_for_inline_ddl(self, tmp_path):
+        action = _write_action(
+            write_target=_st_target(table_schema="id BIGINT, email STRING")
+        )
+        # Inline DDL carries no column tags, and no table tags here -> nothing to do
+        assert _build([action], root=tmp_path) is None

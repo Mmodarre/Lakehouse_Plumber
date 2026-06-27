@@ -11,6 +11,7 @@
 | `sql_path` | string | — | External query file. |
 | `refresh_schedule` | string | — | Cron / schedule. |
 | `table_properties` | dict | `{}` | — |
+| `tags` | dict | — | UC tags `{key: value}`; value `""`/`~`/null = key-only. Applied post-flow-completion via a generated `_tagging_hook.py` (REST API), not in the view DDL. Gated by `uc_tagging` in `lhp.yaml` (default on). |
 | `spark_conf` | dict | `{}` | — |
 | `table_schema` | string | — | Inline or file. |
 | `row_filter` | string | — | — |

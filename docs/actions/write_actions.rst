@@ -104,6 +104,10 @@ Standard mode appends rows from one or more source views via
           delta.enableChangeDataFeed: "true"
           delta.autoOptimize.optimizeWrite: "true"
           quality: "bronze"
+        tags:
+          team: data-eng
+          data_layer: bronze
+          pii: ""          # key-only tag (empty value)
         partition_columns: ["region", "year"]
         cluster_columns: ["customer_id"]
         #spark_conf:
@@ -131,6 +135,7 @@ Standard mode appends rows from one or more source views via
       - **table**: Target table name
       - **create_table**: Whether to create the table (true) or append to existing (false)
       - **table_properties**: Delta table properties for optimization and metadata
+      - **tags**: Unity Catalog table tags (see `Unity Catalog tagging`_ below). Applied after the table builds, via a generated event hook — not part of the table DDL.
       - **partition_columns**: Columns to partition the table by
       - **cluster_columns**: Columns to cluster/z-order the table by
       - **cluster_by_auto**: Boolean — enable automatic liquid clustering (Databricks selects and evolves the clustering keys). Renders ``cluster_by_auto=True``; omitted when ``false`` or unset. Mutually exclusive with ``cluster_columns``.
@@ -212,6 +217,87 @@ The ``table_schema`` option supports two formats, automatically detected by the 
       # Streaming flow
       df = spark.readStream.table("v_customer_cleansed")
       return df
+
+Unity Catalog tagging
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Streaming-table and materialized-view write actions can declare Unity Catalog
+**tags** at the table level (a ``tags`` mapping on ``write_target``) and at the
+column level (a ``tags`` mapping on columns of a YAML/JSON schema file referenced
+by ``table_schema``).
+
+Because Spark Declarative Pipelines cannot set UC tags as part of table creation
+(and ``ALTER TABLE ... SET TAGS`` SQL is rejected inside pipeline execution), LHP
+collects all declared tags and emits a single per-pipeline ``_tagging_hook.py``.
+The hook runs as a ``@dp.on_event_hook``: when each table's flow reaches
+``COMPLETED``, it applies that table's (and its columns') tags via the Unity
+Catalog *Entity Tag Assignments* REST API, in parallel across the driver's vCPUs.
+
+**Table tags**
+
+.. code-block:: yaml
+
+  write_target:
+    type: streaming_table
+    catalog: "${catalog}"
+    schema: "${bronze_schema}"
+    table: customer
+    tags:
+      team: data-eng       # key-value tag
+      cost_center: "1234"  # key-value tag
+      pii: ""              # key-only tag (empty string)
+      certified: ~         # key-only tag (YAML null)
+
+Key-only tags use an empty string ``""``, ``~``, or an omitted value — all
+normalize to an empty tag value.
+
+**Column tags** are declared in a YAML/JSON schema file referenced by
+``table_schema`` (they are *not* supported for ``.sql``/``.ddl`` files or inline
+DDL):
+
+.. code-block:: yaml
+
+  # schemas/customer.yaml
+  name: customer
+  columns:
+    - name: customer_id
+      type: BIGINT
+    - name: email
+      type: STRING
+      tags:
+        classification: pii
+        masked: ""
+
+**Enabling and configuring** (``lhp.yaml``) — tagging is on by default; the
+``uc_tagging`` block is optional:
+
+.. code-block:: yaml
+
+  uc_tagging:
+    enabled: true                  # default true — set false to disable the hook entirely
+    remove_undeclared_tags: false  # default false — additive only
+
+- With ``remove_undeclared_tags: false`` (default), tagging is **additive**: tags
+  are created/updated to match the declared set and never removed.
+- With ``remove_undeclared_tags: true``, the hook also **deletes** any existing
+  tag whose key is not in the declared set (reconcile to the declared state). This
+  can remove tags applied by other tools, which is why it is off by default.
+
+Tagging is scoped to entities you actually declare tags for: a table with no
+``tags`` (and no tagged columns) is never touched. An explicit empty ``tags: {}``
+means "managed with an empty set" — with ``remove_undeclared_tags: true`` this
+clears all tags from that entity.
+
+.. note::
+
+   - Only the table-creating action is tagged (``create_table: true``, the
+     default); temporary tables and sinks are excluded.
+   - The pipeline's run-as identity needs permission to assign/remove UC tags
+     (``APPLY TAG`` on the table and ``ASSIGN`` on governed tags).
+   - Event hooks run asynchronously from the pipeline update and **cannot fail the
+     run** — tagging failures are logged but do not fail the pipeline.
+   - In continuous pipelines a streaming flow may only reach ``COMPLETED`` when the
+     pipeline stops, so tagging effectively occurs at the end of the run.
 
 CDC mode
 ~~~~~~~~
@@ -847,6 +933,7 @@ Minimum example:
       - **sql**: Inline SQL query to define the view (alternative to source or sql_path)
       - **sql_path**: Path to external SQL file to define the view (alternative to source or sql)
       - **table_properties**: Delta table properties for optimization
+      - **tags**: Unity Catalog table tags (see `Unity Catalog tagging`_). Applied after the view builds, via a generated event hook.
       - **partition_columns**: Columns to partition the view by
       - **cluster_columns**: Columns to cluster/z-order the view by
       - **cluster_by_auto**: Boolean — enable automatic liquid clustering (Databricks selects and evolves the clustering keys). Renders ``cluster_by_auto=True``; omitted when ``false`` or unset. Mutually exclusive with ``cluster_columns``.

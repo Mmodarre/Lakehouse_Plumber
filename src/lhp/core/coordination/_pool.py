@@ -253,6 +253,10 @@ def _run_flowgroup_pool_core(
     # alone retains a SUPERSET of the cases the hook needs — never releasing
     # something it would read — at the cost of retaining when tests are on but
     # no reporting provider is configured. Output is unaffected.)
+    # ... with one exception: a flowgroup that may carry UC tags is RETAINED so
+    # the commit-time tagging hook can scan it (tagging works regardless of
+    # ``include_tests``). ``flowgroup_has_uc_tags`` is conservative and imports
+    # nothing heavy. Over-retention is bounded to tag-bearing flowgroups.
     release_resolved = mode == "generate" and not worker_state.include_tests
 
     def _finalize(pipeline: str, outcomes: List[FlowgroupOutcome]) -> None:
@@ -265,10 +269,15 @@ def _run_flowgroup_pool_core(
         # first-seen order stable regardless of pool completion order.
         warnings = merge_flowgroup_warnings(ordered)
         if release_resolved:
+            from ..codegen.tagging import flowgroup_has_uc_tags
+
             ordered = tuple(
                 (
                     dataclasses.replace(o, resolved_flowgroup=None)
-                    if o.resolved_flowgroup is not None
+                    if (
+                        o.resolved_flowgroup is not None
+                        and not flowgroup_has_uc_tags(o.resolved_flowgroup)
+                    )
                     else o
                 )
                 for o in ordered

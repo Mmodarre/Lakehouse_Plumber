@@ -26,6 +26,10 @@ from ...utils.file_header import write_normalized
 from ...utils.performance_timer import perf_timer
 from ...utils.version import get_version
 from ..codegen.python_file_copier import PythonFileCopier
+from ..codegen.tagging import (
+    build_tagging_hook_files,
+    generate_tagging_hook,
+)
 from ..codegen.test_reporting import (
     build_test_reporting_hook_files,
     generate_test_reporting_hook,
@@ -173,6 +177,32 @@ def _generate_test_hook(
     )
 
 
+def _generate_tagging_hook(
+    pipeline: str,
+    resolved_flowgroups: List["FlowGroup"],
+    *,
+    output_dir: Optional[Path],
+    project_config: Optional["ProjectConfig"],
+    project_root: Path,
+    substitution_mgr: Optional["EnhancedSubstitutionManager"],
+) -> int:
+    """Emit the per-pipeline UC tagging hook when tags are declared.
+
+    Returns the artifact count written (0 when ``uc_tagging`` is disabled or no
+    UC tags are declared). Dry-run (``output_dir is None``) emits nothing.
+    """
+    if output_dir is None:
+        return 0
+    return generate_tagging_hook(
+        pipeline_name=pipeline,
+        flowgroups=resolved_flowgroups,
+        output_dir=output_dir,
+        project_config=project_config,
+        project_root=project_root,
+        substitution_mgr=substitution_mgr,
+    )
+
+
 def _split_hook_files(
     hook_files: Optional[Dict[str, str]],
 ) -> tuple[Dict[str, str], Dict[str, str]]:
@@ -234,6 +264,19 @@ def _commit_wheel_pipeline(
         substitution_mgr=substitution_mgr,
     )
     extra_package_modules, extra_toplevel_files = _split_hook_files(hook_files)
+
+    # The UC tagging hook is a single top-level module shipped under the
+    # flowgroup package (no provider split), discovered by DLT like the
+    # test-reporting hook.
+    tagging_hook_files = build_tagging_hook_files(
+        pipeline_name=pipeline,
+        flowgroups=resolved_flowgroups,
+        project_config=project_config,
+        project_root=project_root,
+        substitution_mgr=substitution_mgr,
+    )
+    if tagging_hook_files:
+        extra_package_modules.update(tagging_hook_files)
 
     result = PipelinePackager().package(
         outcomes,
@@ -324,6 +367,14 @@ def commit_pipeline(
             project_config=project_config,
             project_root=project_root,
             include_tests=include_tests,
+            substitution_mgr=substitution_mgr,
+        )
+        artifacts_count += _generate_tagging_hook(
+            pipeline,
+            resolved_flowgroups,
+            output_dir=output_dir,
+            project_config=project_config,
+            project_root=project_root,
             substitution_mgr=substitution_mgr,
         )
 
