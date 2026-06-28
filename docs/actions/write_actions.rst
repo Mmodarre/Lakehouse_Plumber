@@ -230,10 +230,10 @@ Because Spark Declarative Pipelines cannot set UC tags as part of table creation
 (and ``ALTER TABLE ... SET TAGS`` SQL is rejected inside pipeline execution), LHP
 collects all declared tags and emits a single per-pipeline ``_uc_tagging_hook.py``.
 The hook runs as a ``@dp.on_event_hook`` and applies tags via the Unity Catalog
-*Entity Tag Assignments* REST API. It tags **during and at the end of the pipeline
-update** - during pipeline updates, **tag-write failures surface as event-log warnings**
-(a tagging failure can leave a sensitive column unmasked under tag-based ABAC, so it
-should be visible).
+*Entity Tag Assignments* REST API. It tags **during and at the end of a pipeline
+update**, with all **tag-write failures surfacing as event-log warnings**
+(a tagging failure can leave a sensitive column unmasked under tag-based ABAC, so
+failures should be visible).
 
 The current tag state for all managed tables/columns is read **once at pipeline
 initialization** with a single cheap ``system.information_schema`` query (``table_tags``
@@ -307,17 +307,15 @@ with ``remove_undeclared_tags: true`` this clears all tags from that entity.
    - Only the table-creating action is tagged (``create_table: true``, the
      default); temporary tables and sinks are excluded.
    - The pipeline's run-as identity needs permission to assign/remove UC tags
-     (``APPLY TAG`` on the table and ``ASSIGN`` on required governed tags). ``SELECT``
-     on ``system.information_schema`` is also required (read once at import for the
-     existing tag state); without it the hook logs a warning during the run and
-     still attempts to create all declared tags rather than failing.
+     (``APPLY TAG`` on the table and ``ASSIGN`` on required governed tags). ``USE CATALOG``,
+     ``USE SCHEMA`` and ``SELECT`` on ``system.information_schema`` are also required
+     (read once at import for the existing tag state); without it the hook logs a warning
+     during the run and still attempts to create all declared tags rather than failing.
    - Tags are applied during the run: streaming tables and existing materialized views
      on ``update_progress`` ``RUNNING`` and newly-created materialized views on the
-     terminal state. Tagging on ``RUNNING`` keeps failures visible (the event log stops
-     capturing once the update terminates), so failures for newly-created MVs may only
-     appear in driver logs on the initial run, but will surface as an event log `warning`
-     on following runs. Also, any broad permission problems will surface as warnings for
-     any existing MVs and streaming tables at ``RUNNING``.
+     terminal state. Tagging on ``RUNNING`` makes most failures immediately visible,
+     but failures for newly-created MVs will only appear as event-log warnings some
+     time after pipeline termination.
    - In **continuous** pipelines a streaming flow only reaches a terminal state at
      stop, and ``update_progress`` stays ``RUNNING`` — tables existing at
      ``RUNNING`` are still tagged; anything materializing later is tagged at stop.
