@@ -11,7 +11,7 @@
 | `sql_path` | string | — | External query file. |
 | `refresh_schedule` | string | — | Cron / schedule. |
 | `table_properties` | dict | `{}` | — |
-| `tags` | dict | — | UC tags `{key: value}`; value `""`/`~`/null = key-only. Applied post-flow-completion via a generated `_tagging_hook.py` (REST API), not in the view DDL. Gated by `uc_tagging` in `lhp.yaml` (default on). |
+| `tags` | dict | — | UC tags `{key: value}`; value `""`/`~`/null = key-only. Applied to all managed tables/columns in one pass when the pipeline reaches a terminal state (update_progress) by a generated `_uc_tagging_hook.py` (REST API; existing state read once from `system.information_schema`), not in the view DDL. Failures raise into the pipeline event log. **On by default** — declaring `tags` opts in; set `uc_tagging.enabled: false` in `lhp.yaml` to disable. `tag_update_concurrency` (default 16) tunes the thread pool. |
 | `spark_conf` | dict | `{}` | — |
 | `table_schema` | string | — | Inline or file. |
 | `row_filter` | string | — | — |

@@ -1,6 +1,6 @@
 """Generator for the Unity Catalog tagging event hook.
 
-Produces a single ``_tagging_hook.py`` per pipeline that uses
+Produces a single ``_uc_tagging_hook.py`` per pipeline that uses
 ``@dp.on_event_hook`` to apply UC tags to each table (and its columns) as soon
 as that table's flow reaches ``COMPLETED``. Tags are applied via the Entity Tag
 Assignments REST API (``ALTER TABLE SET TAGS`` is rejected inside pipelines).
@@ -28,7 +28,7 @@ from .template_renderer import get_lhp_template_loader
 
 logger = logging.getLogger(__name__)
 
-HOOK_FILENAME = "_tagging_hook.py"
+HOOK_FILENAME = "_uc_tagging_hook.py"
 
 _TAGGABLE_SUBTYPES = {"streaming_table", "materialized_view"}
 _SCHEMA_FILE_EXTS = {".yaml", ".yml", ".json"}
@@ -39,8 +39,8 @@ TableTags = Dict[str, Dict[str, str]]
 ColumnTags = Dict[str, Dict[str, Dict[str, str]]]
 
 
-class TaggingHookGenerator:
-    """Generates ``_tagging_hook.py`` per pipeline."""
+class UCTaggingHookGenerator:
+    """Generates ``_uc_tagging_hook.py`` per pipeline."""
 
     def __init__(
         self, project_config: Optional[ProjectConfig], project_root: Path
@@ -55,7 +55,13 @@ class TaggingHookGenerator:
 
     @property
     def uc_tagging_config(self) -> UCTaggingConfig:
-        """Resolved config; an absent block behaves as defaults (enabled)."""
+        """Resolved ``uc_tagging`` config; an absent block defaults to enabled.
+
+        The feature is **on by default**: a missing ``uc_tagging`` block behaves as
+        ``UCTaggingConfig()`` (enabled). Auto-detection still gates emission — the
+        hook is only written when some table/column declares ``tags``. Set
+        ``uc_tagging.enabled: false`` in lhp.yaml to disable.
+        """
         if self.project_config is None or self.project_config.uc_tagging is None:
             return UCTaggingConfig()
         return self.project_config.uc_tagging
@@ -88,12 +94,13 @@ class TaggingHookGenerator:
             )
             return None
 
-        template = self._jinja_env.get_template("tagging/hook.py.j2")
+        template = self._jinja_env.get_template("uc_tagging/hook.py.j2")
         hook_content = template.render(
             pipeline_name=pipeline_name,
             table_tags_repr=repr(table_tags),
             column_tags_repr=repr(column_tags),
             remove_undeclared_tags=config.remove_undeclared_tags,
+            tag_update_concurrency=config.tag_update_concurrency,
         )
 
         return {HOOK_FILENAME: hook_content}

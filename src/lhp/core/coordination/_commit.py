@@ -26,13 +26,13 @@ from ...utils.file_header import write_normalized
 from ...utils.performance_timer import perf_timer
 from ...utils.version import get_version
 from ..codegen.python_file_copier import PythonFileCopier
-from ..codegen.tagging import (
-    build_tagging_hook_files,
-    generate_tagging_hook,
-)
 from ..codegen.test_reporting import (
     build_test_reporting_hook_files,
     generate_test_reporting_hook,
+)
+from ..codegen.uc_tagging import (
+    build_uc_tagging_hook_files,
+    generate_uc_tagging_hook,
 )
 from ..packaging import PipelinePackager
 
@@ -177,7 +177,7 @@ def _generate_test_hook(
     )
 
 
-def _generate_tagging_hook(
+def _generate_uc_tagging_hook(
     pipeline: str,
     resolved_flowgroups: List["FlowGroup"],
     *,
@@ -193,7 +193,7 @@ def _generate_tagging_hook(
     """
     if output_dir is None:
         return 0
-    return generate_tagging_hook(
+    return generate_uc_tagging_hook(
         pipeline_name=pipeline,
         flowgroups=resolved_flowgroups,
         output_dir=output_dir,
@@ -268,15 +268,15 @@ def _commit_wheel_pipeline(
     # The UC tagging hook is a single top-level module shipped under the
     # flowgroup package (no provider split), discovered by DLT like the
     # test-reporting hook.
-    tagging_hook_files = build_tagging_hook_files(
+    uc_tagging_hook_files = build_uc_tagging_hook_files(
         pipeline_name=pipeline,
         flowgroups=resolved_flowgroups,
         project_config=project_config,
         project_root=project_root,
         substitution_mgr=substitution_mgr,
     )
-    if tagging_hook_files:
-        extra_package_modules.update(tagging_hook_files)
+    if uc_tagging_hook_files:
+        extra_package_modules.update(uc_tagging_hook_files)
 
     result = PipelinePackager().package(
         outcomes,
@@ -369,7 +369,7 @@ def commit_pipeline(
             include_tests=include_tests,
             substitution_mgr=substitution_mgr,
         )
-        artifacts_count += _generate_tagging_hook(
+        artifacts_count += _generate_uc_tagging_hook(
             pipeline,
             resolved_flowgroups,
             output_dir=output_dir,

@@ -48,7 +48,7 @@ def flowgroup_has_uc_tags(flowgroup: "FlowGroup") -> bool:
     return False
 
 
-def build_tagging_hook_files(
+def build_uc_tagging_hook_files(
     *,
     pipeline_name: str,
     flowgroups: List["FlowGroup"],
@@ -58,13 +58,13 @@ def build_tagging_hook_files(
 ) -> Optional[Dict[str, str]]:
     """Build the per-pipeline tagging hook's files IN MEMORY, if applicable.
 
-    Returns ``{"_tagging_hook.py": <content>}`` or ``None`` when ``uc_tagging``
+    Returns ``{"_uc_tagging_hook.py": <content>}`` or ``None`` when ``uc_tagging``
     is disabled or no UC tags are declared. Does NOT touch disk.
     """
     # Deferred import: pulls in Jinja machinery callers without tags never need.
-    from .tagging_hook_generator import TaggingHookGenerator
+    from .uc_tagging_hook_generator import UCTaggingHookGenerator
 
-    generator = TaggingHookGenerator(project_config, project_root)
+    generator = UCTaggingHookGenerator(project_config, project_root)
     return generator.build_hook_files(
         processed_flowgroups=flowgroups,
         pipeline_name=pipeline_name,
@@ -72,7 +72,7 @@ def build_tagging_hook_files(
     )
 
 
-def generate_tagging_hook(
+def generate_uc_tagging_hook(
     *,
     pipeline_name: str,
     flowgroups: List["FlowGroup"],
@@ -86,9 +86,9 @@ def generate_tagging_hook(
     Returns the number of artifacts written (0 when ``uc_tagging`` is disabled or
     no UC tags are declared, 1 when the hook is written).
     """
-    from .tagging_hook_generator import TaggingHookGenerator
+    from .uc_tagging_hook_generator import UCTaggingHookGenerator
 
-    generator = TaggingHookGenerator(project_config, project_root)
+    generator = UCTaggingHookGenerator(project_config, project_root)
     content = generator.generate(
         processed_flowgroups=flowgroups,
         pipeline_name=pipeline_name,

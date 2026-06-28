@@ -70,7 +70,7 @@ def _generate(root: Path):
             output_dir=root / "generated",
         )
     )
-    return root / "generated" / "tagging_pipe" / "_tagging_hook.py"
+    return root / "generated" / "tagging_pipe" / "_uc_tagging_hook.py"
 
 
 @pytest.fixture
@@ -85,11 +85,11 @@ def project_dir():
 
 
 @pytest.mark.e2e
-def test_tagging_hook_emitted_with_substituted_names(project_dir):
-    _write_project(project_dir)
+def test_uc_tagging_hook_emitted_with_substituted_names(project_dir):
+    _write_project(project_dir, uc_tagging_block="uc_tagging:\n  enabled: true\n")
     hook = _generate(project_dir)
 
-    assert hook.exists(), "expected _tagging_hook.py to be generated"
+    assert hook.exists(), "expected _uc_tagging_hook.py to be generated"
     content = hook.read_text()
 
     # Substituted, fully-qualified table name embedded (no {catalog} token left).
@@ -102,6 +102,12 @@ def test_tagging_hook_emitted_with_substituted_names(project_dir):
     # REST-based, additive by default
     assert "/api/2.1/unity-catalog/entity-tag-assignments" in content
     assert "_REMOVE_UNDECLARED_TAGS = False" in content
+    # Trigger on update_progress pipeline-terminal states; existing state read once
+    # from information_schema; 16-thread pool (default).
+    assert 'event_type") != "update_progress"' in content
+    assert "_TERMINAL_PIPELINE_STATES" in content
+    assert "system.information_schema.table_tags" in content
+    assert "ThreadPoolExecutor(max_workers=16)" in content
 
 
 @pytest.mark.e2e
@@ -111,3 +117,11 @@ def test_no_hook_when_uc_tagging_disabled(project_dir):
     )
     hook = _generate(project_dir)
     assert not hook.exists()
+
+
+@pytest.mark.e2e
+def test_hook_emitted_when_block_absent(project_dir):
+    # On by default: tags declared with no uc_tagging block → hook IS generated.
+    _write_project(project_dir)  # default: no uc_tagging block
+    hook = _generate(project_dir)
+    assert hook.exists()

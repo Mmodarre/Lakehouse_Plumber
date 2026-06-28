@@ -228,10 +228,19 @@ by ``table_schema``).
 
 Because Spark Declarative Pipelines cannot set UC tags as part of table creation
 (and ``ALTER TABLE ... SET TAGS`` SQL is rejected inside pipeline execution), LHP
-collects all declared tags and emits a single per-pipeline ``_tagging_hook.py``.
-The hook runs as a ``@dp.on_event_hook``: when each table's flow reaches
-``COMPLETED``, it applies that table's (and its columns') tags via the Unity
-Catalog *Entity Tag Assignments* REST API, in parallel across the driver's vCPUs.
+collects all declared tags and emits a single per-pipeline ``_uc_tagging_hook.py``.
+The hook runs as a ``@dp.on_event_hook``: when the pipeline reaches a terminal state
+(``update_progress`` state ``COMPLETED``/``FAILED``/``CANCELED``/``STOPPING``), it
+applies **all** declared table/column tags in a single pass via the Unity Catalog
+*Entity Tag Assignments* REST API, fanning every entity across ``tag_update_concurrency``
+threads (default 16). Tagging at pipeline end is reliable across all tables. The current
+tag state for all managed tables/columns is read **once** at pipeline initialization
+with a single ``system.information_schema`` query (``table_tags`` ``UNION ALL``
+``column_tags``), so the hook never lists tags per entity. If that read fails (e.g.
+the run-as identity lacks ``SELECT`` on ``system.information_schema``), pipeline
+initialization fails with a clear, actionable error rather than silently degrading.
+If any tag operation for a table fails, the hook raises after attempting the rest,
+so the error surfaces in the pipeline event log.
 
 **Table tags**
 
@@ -268,14 +277,19 @@ DDL):
         classification: pii
         masked: ""
 
-**Enabling and configuring** (``lhp.yaml``) — tagging is on by default; the
-``uc_tagging`` block is optional:
+**Enabling and configuring** (``lhp.yaml``) — tagging is **on by default**. You opt
+in simply by declaring ``tags`` on a table/column (the hook is generated only when
+some table or column has ``tags``); the ``uc_tagging`` block is optional and only
+needed to disable the feature or tune it. Set ``uc_tagging.enabled: false`` to turn
+it off entirely. (Any pipeline that declares ``tags`` therefore needs the ``SELECT``
+grant below; a pipeline with no ``tags`` generates no hook and is unaffected.)
 
 .. code-block:: yaml
 
   uc_tagging:
-    enabled: true                  # default true — set false to disable the hook entirely
+    enabled: true                  # default true — set false to disable the feature
     remove_undeclared_tags: false  # default false — additive only
+    tag_update_concurrency: 16     # default 16 — max concurrent tag operations
 
 - With ``remove_undeclared_tags: false`` (default), tagging is **additive**: tags
   are created/updated to match the declared set and never removed.
@@ -293,11 +307,15 @@ clears all tags from that entity.
    - Only the table-creating action is tagged (``create_table: true``, the
      default); temporary tables and sinks are excluded.
    - The pipeline's run-as identity needs permission to assign/remove UC tags
-     (``APPLY TAG`` on the table and ``ASSIGN`` on governed tags).
-   - Event hooks run asynchronously from the pipeline update and **cannot fail the
-     run** — tagging failures are logged but do not fail the pipeline.
-   - In continuous pipelines a streaming flow may only reach ``COMPLETED`` when the
-     pipeline stops, so tagging effectively occurs at the end of the run.
+     (``APPLY TAG`` on the table and ``ASSIGN`` on governed tags) and ``SELECT`` on
+     ``system.information_schema`` (read once at init for the existing tag state).
+   - All tags are applied in one pass when the pipeline update reaches a terminal
+     state, so tagging covers every table reliably regardless of per-flow events.
+     (Tables must exist by then — true on ``COMPLETED``; on an early ``FAILED`` a
+     not-yet-created table's tag write will fail and surface as a hook error.)
+   - On a tag failure the hook raises, surfacing the error in the pipeline event
+     log; repeated consecutive failures eventually disable the hook
+     (``max_allowable_consecutive_failures``).
 
 CDC mode
 ~~~~~~~~

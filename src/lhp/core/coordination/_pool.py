@@ -269,7 +269,7 @@ def _run_flowgroup_pool_core(
         # first-seen order stable regardless of pool completion order.
         warnings = merge_flowgroup_warnings(ordered)
         if release_resolved:
-            from ..codegen.tagging import flowgroup_has_uc_tags
+            from ..codegen.uc_tagging import flowgroup_has_uc_tags
 
             ordered = tuple(
                 (

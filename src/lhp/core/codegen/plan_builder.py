@@ -77,7 +77,7 @@ logger = logging.getLogger(__name__)
 # (§4.8 Literal). Kept as a core-local Literal so this module owns no
 # dependency on the API layer; the API converter maps these strings 1:1.
 ArtifactKind = Literal[
-    "flowgroup", "aux", "helper", "test_hook", "tagging_hook", "monitoring"
+    "flowgroup", "aux", "helper", "test_hook", "uc_tagging_hook", "monitoring"
 ]
 
 # Fixed landing sub-paths of the per-pipeline output dir, from the commit step:
@@ -86,13 +86,13 @@ ArtifactKind = Literal[
 #     prefix constant ``custom_python_functions`` pins the dir name).
 #   * test-reporting hook     → ``<pipeline>/_test_reporting_hook.py`` and
 #     ``<pipeline>/test_reporting_providers/...`` (``generate_test_reporting_hook``).
-#   * UC tagging hook          → ``<pipeline>/_tagging_hook.py`` (``generate_tagging_hook``).
+#   * UC tagging hook          → ``<pipeline>/_uc_tagging_hook.py`` (``generate_uc_tagging_hook``).
 #   * synthetic monitoring    → ``<pipeline>/monitoring.py`` carrying the
 #     ``FLOWGROUP_ID = "monitoring"`` marker the monitoring builder emits.
 _HELPER_DIR = "custom_python_functions"
 _TEST_PROVIDERS_DIR = "test_reporting_providers"
 _TEST_HOOK_FILE = "_test_reporting_hook.py"
-_TAGGING_HOOK_FILE = "_tagging_hook.py"
+_UC_TAGGING_HOOK_FILE = "_uc_tagging_hook.py"
 _MONITORING_FILE = "monitoring.py"
 _MONITORING_MARKER = 'FLOWGROUP_ID = "monitoring"'
 
@@ -163,7 +163,7 @@ def _classify_artifact(
        its synthesized package ``__init__.py``).
     2. ``_test_reporting_hook.py`` at the top level, or anything under
        ``test_reporting_providers/`` → ``test_hook``.
-    2b. top-level ``_tagging_hook.py`` → ``tagging_hook`` (the per-pipeline UC
+    2b. top-level ``_uc_tagging_hook.py`` → ``uc_tagging_hook`` (the per-pipeline UC
        tagging event hook).
     3. top-level ``monitoring.py`` carrying the ``FLOWGROUP_ID = "monitoring"``
        marker → ``monitoring`` (the synthetic monitoring pipeline file; the
@@ -180,8 +180,8 @@ def _classify_artifact(
         return "test_hook"
     if tail == (_TEST_HOOK_FILE,):
         return "test_hook"
-    if tail == (_TAGGING_HOOK_FILE,):
-        return "tagging_hook"
+    if tail == (_UC_TAGGING_HOOK_FILE,):
+        return "uc_tagging_hook"
     if tail == (_MONITORING_FILE,) and _MONITORING_MARKER in content:
         return "monitoring"
     if len(tail) == 1 and tail[0] in flowgroup_filenames:
