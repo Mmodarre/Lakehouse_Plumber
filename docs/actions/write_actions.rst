@@ -250,6 +250,8 @@ as warnings.
     catalog: "${catalog}"
     schema: "${bronze_schema}"
     table: customer
+    table_schema: schemas/customer.yaml
+    comment: "Customer table"
     tags:
       team: data-eng       # key-value tag
       cost_center: "1234"  # key-value tag
