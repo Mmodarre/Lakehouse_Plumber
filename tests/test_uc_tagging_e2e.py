@@ -102,12 +102,17 @@ def test_uc_tagging_hook_emitted_with_substituted_names(project_dir):
     # REST-based, additive by default
     assert "/api/2.1/unity-catalog/entity-tag-assignments" in content
     assert "_REMOVE_UNDECLARED_TAGS = False" in content
-    # Trigger on update_progress pipeline-terminal states; existing state read once
-    # from information_schema; 16-thread pool (default).
+    # Tag during the run on update_progress RUNNING + terminal states; per-entity
+    # tracking; snapshot read once at module import; 16-thread pool (default).
     assert 'event_type") != "update_progress"' in content
+    assert '"RUNNING"' in content
     assert "_TERMINAL_PIPELINE_STATES" in content
+    assert "_update_terminated" in content
     assert "system.information_schema.table_tags" in content
     assert "ThreadPoolExecutor(max_workers=16)" in content
+    # New log prefix everywhere.
+    assert "[LHP UC Tagging]" in content
+    assert "[LHP Tagging]" not in content
 
 
 @pytest.mark.e2e

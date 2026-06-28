@@ -229,18 +229,27 @@ by ``table_schema``).
 Because Spark Declarative Pipelines cannot set UC tags as part of table creation
 (and ``ALTER TABLE ... SET TAGS`` SQL is rejected inside pipeline execution), LHP
 collects all declared tags and emits a single per-pipeline ``_uc_tagging_hook.py``.
-The hook runs as a ``@dp.on_event_hook``: when the pipeline reaches a terminal state
-(``update_progress`` state ``COMPLETED``/``FAILED``/``CANCELED``/``STOPPING``), it
-applies **all** declared table/column tags in a single pass via the Unity Catalog
-*Entity Tag Assignments* REST API, fanning every entity across ``tag_update_concurrency``
-threads (default 16). Tagging at pipeline end is reliable across all tables. The current
-tag state for all managed tables/columns is read **once** at pipeline initialization
+The hook runs as a ``@dp.on_event_hook`` and applies tags via the Unity Catalog
+*Entity Tag Assignments* REST API, fanning entities across ``tag_update_concurrency``
+threads (default 16). It tags **during the pipeline update** — on ``update_progress``
+``RUNNING`` (streaming tables, which exist by then) and again on the terminal state
+(``COMPLETED``/``FAILED``/``CANCELED``/``STOPPING``) for materialized views, which
+materialize later. Each entity is reconciled at most once (tracked per entity), so a
+table tagged at ``RUNNING`` is not retried at terminal. Tagging on ``RUNNING`` matters
+because the event log is still capturing then, so **tag-write failures surface as event-log
+warnings while the run is live** (a tagging failure can leave a sensitive column unmasked
+under tag-based ABAC, so it should be visible). A "table does not exist" during ``RUNNING``
+is expected for not-yet-materialized views and is suppressed (retried at terminal).
+
+The current tag state for all managed tables/columns is read **once at module import**
 with a single ``system.information_schema`` query (``table_tags`` ``UNION ALL``
-``column_tags``), so the hook never lists tags per entity. If that read fails (e.g.
-the run-as identity lacks ``SELECT`` on ``system.information_schema``), pipeline
-initialization fails with a clear, actionable error rather than silently degrading.
-If any tag operation for a table fails, the hook raises after attempting the rest,
-so the error surfaces in the pipeline event log.
+``column_tags``), so the hook never lists tags per entity. The read runs at import — not
+inside the decorated hook — to avoid the ``DataFrame.collect`` restriction. If it fails
+(e.g. the run-as identity lacks ``SELECT`` on ``system.information_schema``), the failure
+is **caught** (it never crashes pipeline initialization) and **re-raised by the hook on the
+first** ``RUNNING`` **event as a warning**, then tagging proceeds create-only (it just can't
+detect which tags already exist). Tagging is best-effort and **never fails the pipeline** —
+event hooks cannot — but failures are raised so they appear as event-log warnings.
 
 **Table tags**
 
@@ -307,15 +316,21 @@ clears all tags from that entity.
    - Only the table-creating action is tagged (``create_table: true``, the
      default); temporary tables and sinks are excluded.
    - The pipeline's run-as identity needs permission to assign/remove UC tags
-     (``APPLY TAG`` on the table and ``ASSIGN`` on governed tags) and ``SELECT`` on
-     ``system.information_schema`` (read once at init for the existing tag state).
-   - All tags are applied in one pass when the pipeline update reaches a terminal
-     state, so tagging covers every table reliably regardless of per-flow events.
-     (Tables must exist by then — true on ``COMPLETED``; on an early ``FAILED`` a
-     not-yet-created table's tag write will fail and surface as a hook error.)
-   - On a tag failure the hook raises, surfacing the error in the pipeline event
-     log; repeated consecutive failures eventually disable the hook
-     (``max_allowable_consecutive_failures``).
+     (``APPLY TAG`` on the table and ``ASSIGN`` on governed tags). ``SELECT`` on
+     ``system.information_schema`` is recommended (read once at import for the
+     existing tag state); without it the hook logs a warning during the run and
+     still creates all declared tags rather than failing.
+   - Tags are applied during the run: streaming tables on ``update_progress``
+     ``RUNNING`` and materialized views on the terminal state. Tagging on
+     ``RUNNING`` keeps failures visible (the event log stops capturing once the
+     update terminates), so MV-only failures may only appear in driver logs — but
+     a genuine permission problem also surfaces for streaming tables at ``RUNNING``.
+   - In **continuous** pipelines a streaming flow only reaches a terminal state at
+     stop, and ``update_progress`` stays ``RUNNING`` — tables existing at
+     ``RUNNING`` are still tagged; anything materializing later is tagged at stop.
+   - On a tag failure the hook raises, surfacing the error as an event-log warning;
+     it **never fails the pipeline** (event hooks cannot). The error is non-blocking
+     and best-effort.
 
 CDC mode
 ~~~~~~~~

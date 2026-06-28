@@ -1,9 +1,12 @@
 """Generator for the Unity Catalog tagging event hook.
 
 Produces a single ``_uc_tagging_hook.py`` per pipeline that uses
-``@dp.on_event_hook`` to apply UC tags to each table (and its columns) as soon
-as that table's flow reaches ``COMPLETED``. Tags are applied via the Entity Tag
-Assignments REST API (``ALTER TABLE SET TAGS`` is rejected inside pipelines).
+``@dp.on_event_hook`` to apply UC tags to managed tables (and their columns)
+during the pipeline update — on ``update_progress`` ``RUNNING`` (streaming tables)
+and the terminal states (materialized views, which materialise later) — so
+tag-write failures surface as event-log warnings while the run is live. Tags are
+applied via the Entity Tag Assignments REST API (``ALTER TABLE SET TAGS`` is
+rejected inside pipelines).
 
 This mirrors :mod:`lhp.core.codegen.tst_reporting_hook_generator`.
 """

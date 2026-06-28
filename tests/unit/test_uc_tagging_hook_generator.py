@@ -1,9 +1,16 @@
 """Unit tests for the UC tagging hook generator."""
 
+import sys
+import types
+from contextlib import contextmanager
+
 import pytest
 
 from lhp.core.codegen.uc_tagging import build_uc_tagging_hook_files
-from lhp.core.codegen.uc_tagging_hook_generator import HOOK_FILENAME, UCTaggingHookGenerator
+from lhp.core.codegen.uc_tagging_hook_generator import (
+    HOOK_FILENAME,
+    UCTaggingHookGenerator,
+)
 from lhp.models import Action, ActionType, FlowGroup, ProjectConfig, UCTaggingConfig
 
 
@@ -121,11 +128,17 @@ class TestUCTaggingHookGenerator:
         action = _write_action(write_target=_st_target(tags={"team": "x"}))
         content = _build([action], root=tmp_path)[HOOK_FILENAME]
         assert "@dp.on_event_hook" in content
-        # Trigger: tag everything once the pipeline reaches a terminal state.
+        # Trigger: tag during the run on update_progress RUNNING + terminal states.
         assert 'event_type") != "update_progress"' in content
+        assert '"RUNNING"' in content
         assert "_TERMINAL_PIPELINE_STATES" in content
         for state in ("COMPLETED", "FAILED", "CANCELED"):
             assert state in content
+        # Per-entity tracking + single terminal pass (no pipeline-level _applied).
+        assert "_tagged" in content
+        assert "_update_terminated" in content
+        assert "_applied" not in content
+        assert "_match_fqn" not in content
         assert "json.loads" in content  # details may arrive as a JSON string
         # Existing tag state read once from information_schema (no per-entity LIST),
         # aggregated to one row per entity (tags map) and filtered by table name only.
@@ -145,11 +158,24 @@ class TestUCTaggingHookGenerator:
         assert "from databricks.sdk import WorkspaceClient" in content
         # Thread pool sized by tag_update_concurrency (default 16).
         assert "ThreadPoolExecutor(max_workers=16)" in content
-        # Failures raise so they surface in the pipeline event log.
+        # Snapshot read at MODULE IMPORT (not in a decorated fn → no collect warning);
+        # a read failure is CAUGHT and stashed, then re-raised by the hook as a warning.
+        assert "_snapshot_error = str(e)" in content
+        assert "_existing_tags = _fetch_existing_tags()" in content
+        # The import-time call must NOT be inside _ensure_snapshot_loaded (removed).
+        assert "_ensure_snapshot_loaded" not in content
+        # "does not exist" during RUNNING is suppressed (table not materialised yet).
+        assert "_ABSENT_MARKERS" in content
+        assert "does not exist" in content
+        # Failures surface as non-blocking event-log warnings during the run.
         assert "raise RuntimeError" in content
-        # An information_schema read failure raises with remediation guidance
-        # (no silent degrade to create-only).
-        assert "Failed to read existing tag state from" in content
+        assert "[LHP UC Tagging] WARNING:" in content
+        assert "[LHP UC Tagging] ERROR:" in content
+        # A fixed, small consecutive-failure budget (one combined RUNNING raise + one
+        # terminal raise per run; counter resets each update).
+        assert "max_allowable_consecutive_failures=3)" in content
+        # New prefix everywhere; old prefix gone.
+        assert "[LHP Tagging]" not in content
         assert "SELECT on system.information_schema" in content
         # No SQL tag DDL path.
         assert "ALTER TABLE" not in content
@@ -195,3 +221,190 @@ class TestUCTaggingHookGenerator:
         )
         # Inline DDL carries no column tags, and no table tags here -> nothing to do
         assert _build([action], root=tmp_path) is None
+
+
+@contextmanager
+def _fake_pyspark_and_sdk(collect_result=None, collect_error=None, do_handler=None):
+    """Inject fake pyspark.pipelines / pyspark.sql / databricks.sdk so the rendered
+    hook can be exec()'d and driven without a real Spark/SDK.
+
+    Yields a state dict: ``hooks`` (registered @dp.on_event_hook fns) and ``calls``
+    (recorded api_client.do invocations). ``collect_error`` makes the snapshot read
+    raise; ``do_handler(method, path, body)`` may raise to simulate a tag failure.
+    """
+    state = {"hooks": [], "calls": []}
+
+    pipelines_mod = types.ModuleType("pyspark.pipelines")
+
+    def on_event_hook(max_allowable_consecutive_failures=None):
+        def deco(fn):
+            state["hooks"].append(fn)
+            return fn
+
+        return deco
+
+    pipelines_mod.on_event_hook = on_event_hook
+
+    sql_mod = types.ModuleType("pyspark.sql")
+
+    class _DF:
+        def collect(self):
+            if collect_error is not None:
+                raise collect_error
+            return collect_result or []
+
+    class _Builder:
+        def getOrCreate(self):
+            return self
+
+        def sql(self, _query):
+            return _DF()
+
+    class SparkSession:
+        builder = _Builder()
+
+    sql_mod.SparkSession = SparkSession
+
+    pyspark_mod = types.ModuleType("pyspark")
+    pyspark_mod.pipelines = pipelines_mod
+    pyspark_mod.sql = sql_mod
+
+    sdk_mod = types.ModuleType("databricks.sdk")
+
+    class _Api:
+        def do(self, method, path, body=None, query=None):
+            state["calls"].append({"method": method, "path": path, "body": body})
+            if do_handler is not None:
+                do_handler(method, path, body)
+
+    class WorkspaceClient:
+        def __init__(self):
+            self.api_client = _Api()
+
+    sdk_mod.WorkspaceClient = WorkspaceClient
+    databricks_mod = types.ModuleType("databricks")
+    databricks_mod.sdk = sdk_mod
+
+    keys = ("pyspark", "pyspark.pipelines", "pyspark.sql", "databricks", "databricks.sdk")
+    saved = {k: sys.modules.get(k) for k in keys}
+    sys.modules.update(
+        {
+            "pyspark": pyspark_mod,
+            "pyspark.pipelines": pipelines_mod,
+            "pyspark.sql": sql_mod,
+            "databricks": databricks_mod,
+            "databricks.sdk": sdk_mod,
+        }
+    )
+    try:
+        yield state
+    finally:
+        for k, v in saved.items():
+            if v is None:
+                sys.modules.pop(k, None)
+            else:
+                sys.modules[k] = v
+
+
+def _exec_hook(content):
+    ns = {}
+    exec(compile(content, "_uc_tagging_hook.py", "exec"), ns)
+    return ns
+
+
+def _evt(state):
+    return {"event_type": "update_progress", "details": {"update_progress": {"state": state}}}
+
+
+@pytest.mark.unit
+class TestUCTaggingHookRuntime:
+    """Exercise the rendered hook's RUNTIME behavior with fake spark + SDK."""
+
+    def test_snapshot_failure_is_nonblocking_then_warns_on_running(self, tmp_path):
+        action = _write_action(write_target=_st_target(tags={"team": "x"}))
+        content = _build([action], root=tmp_path)[HOOK_FILENAME]
+
+        with _fake_pyspark_and_sdk(collect_error=RuntimeError("no SELECT grant")) as st:
+            ns = _exec_hook(content)  # import must NOT raise despite the failed read
+            assert ns["_snapshot_error"] is not None
+            hook = st["hooks"][0]
+
+            # RUNNING: create-only tagging happens AND the snapshot failure is raised
+            # as a during-run WARNING.
+            with pytest.raises(RuntimeError) as exc:
+                hook(_evt("RUNNING"))
+            assert "WARNING" in str(exc.value)
+            assert "could not read existing tag state" in str(exc.value)
+            assert any(c["method"] == "POST" for c in st["calls"])  # created the tag
+            assert "prod.sales.orders" in ns["_tagged"]
+
+            # Second RUNNING: already warned + already tagged -> no new work, no raise.
+            before = len(st["calls"])
+            hook(_evt("RUNNING"))
+            assert len(st["calls"]) == before
+
+    def test_running_suppresses_absent_then_terminal_tags_it(self, tmp_path):
+        a1 = _write_action(
+            name="w_orders", write_target=_st_target(table="orders", tags={"team": "x"})
+        )
+        a2 = _write_action(
+            name="w_cust",
+            write_target=_st_target(table="customers", tags={"team": "y"}),
+        )
+        content = _build([a1, a2], root=tmp_path)[HOOK_FILENAME]
+
+        materialized = {"customers": False}
+
+        def do_handler(method, path, body):
+            target = ((body or {}).get("entity_name", "")) or path
+            if "customers" in target and not materialized["customers"]:
+                raise RuntimeError(f"Table '{target}' does not exist")
+
+        with _fake_pyspark_and_sdk(collect_result=[], do_handler=do_handler) as st:
+            ns = _exec_hook(content)
+            assert ns["_snapshot_error"] is None
+            hook = st["hooks"][0]
+
+            # RUNNING: orders tagged; customers "does not exist" -> suppressed (no raise).
+            hook(_evt("RUNNING"))
+            assert "prod.sales.orders" in ns["_tagged"]
+            assert "prod.sales.customers" not in ns["_tagged"]
+
+            # customers materializes; first terminal event tags it.
+            materialized["customers"] = True
+            hook(_evt("COMPLETED"))
+            assert "prod.sales.customers" in ns["_tagged"]
+            assert ns["_update_terminated"] is True
+
+            # Second terminal event is a no-op (single terminal pass).
+            before = len(st["calls"])
+            hook(_evt("FAILED"))
+            assert len(st["calls"]) == before
+
+    def test_real_error_raises_warning_on_running(self, tmp_path):
+        action = _write_action(write_target=_st_target(tags={"team": "x"}))
+        content = _build([action], root=tmp_path)[HOOK_FILENAME]
+
+        def do_handler(method, path, body):
+            raise RuntimeError("PERMISSION_DENIED: APPLY TAG")
+
+        with _fake_pyspark_and_sdk(collect_result=[], do_handler=do_handler) as st:
+            ns = _exec_hook(content)
+            hook = st["hooks"][0]
+            with pytest.raises(RuntimeError) as exc:
+                hook(_evt("RUNNING"))
+            assert "tag operation(s) failed" in str(exc.value)
+            assert "PERMISSION_DENIED" in str(exc.value)
+            # A real (non-absent) error is NOT marked tagged -> retried at terminal.
+            assert "prod.sales.orders" not in ns["_tagged"]
+
+    def test_ignores_non_update_progress_and_non_running_states(self, tmp_path):
+        action = _write_action(write_target=_st_target(tags={"team": "x"}))
+        content = _build([action], root=tmp_path)[HOOK_FILENAME]
+        with _fake_pyspark_and_sdk(collect_result=[]) as st:
+            _exec_hook(content)
+            hook = st["hooks"][0]
+            hook({"event_type": "flow_progress", "details": {}})
+            hook(_evt("INITIALIZING"))
+            hook(_evt("WAITING_FOR_RESOURCES"))
+            assert st["calls"] == []  # nothing tagged on these

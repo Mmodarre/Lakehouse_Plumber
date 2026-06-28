@@ -2,6 +2,7 @@
 
 import pytest
 
+from lhp.errors import LHPError
 from lhp.parsers.schema_parser import SchemaParser
 
 
@@ -40,6 +41,19 @@ class TestToColumnTags:
 
     def test_no_columns_returns_empty(self):
         assert self.parser.to_column_tags({"name": "s"}) == {}
+
+    def test_non_dict_tags_raise_clean_error(self):
+        # A malformed `tags` (non-mapping) must raise a clean LHPError at
+        # generation time, not an AttributeError from `.items()`.
+        schema = {
+            "name": "s",
+            "columns": [{"name": "email", "type": "STRING", "tags": "pii"}],
+        }
+        with pytest.raises(LHPError) as exc_info:
+            self.parser.to_column_tags(schema)
+        message = str(exc_info.value)
+        assert "email" in message
+        assert "mapping" in message
 
 
 @pytest.mark.unit

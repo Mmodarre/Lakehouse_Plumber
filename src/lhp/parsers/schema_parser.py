@@ -87,7 +87,39 @@ class SchemaParser:
         for column in schema_data.get("columns", []) or []:
             if not isinstance(column, dict) or "tags" not in column:
                 continue
-            raw = column["tags"] or {}
+            raw = column["tags"]
+            # A present-but-empty/None `tags` is the managed-with-empty-set signal;
+            # anything else must be a mapping. Reject non-mappings with a clean
+            # validation error rather than letting `.items()` raise AttributeError.
+            if raw is None:
+                raw = {}
+            elif not isinstance(raw, dict):
+                raise ErrorFactory.validation_error(
+                    codes.VAL_016,
+                    title="Invalid column 'tags'",
+                    details=(
+                        f"Column '{column.get('name', '<unknown>')}' in schema "
+                        f"'{schema_data.get('name', '<unknown>')}' has 'tags' of type "
+                        f"{type(raw).__name__}; 'tags' must be a mapping of "
+                        f"tag key to tag value."
+                    ),
+                    suggestions=[
+                        "Define column tags as a mapping (key: value)",
+                        "Use an empty value ('', ~, or omitted) for a key-only tag",
+                    ],
+                    example=(
+                        "columns:\n"
+                        "  - name: email\n"
+                        "    type: STRING\n"
+                        "    tags:\n"
+                        "      classification: pii\n"
+                        "      masked: ~"
+                    ),
+                    context={
+                        "schema": str(schema_data.get("name", "<unknown>")),
+                        "column": str(column.get("name", "<unknown>")),
+                    },
+                )
             column_tags[column["name"]] = {
                 str(key): "" if value is None else str(value)
                 for key, value in raw.items()
