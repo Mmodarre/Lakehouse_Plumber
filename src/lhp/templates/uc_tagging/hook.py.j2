@@ -5,8 +5,8 @@
 #
 # Applies UC tags to every managed table (and its columns) via the Entity Tag
 # Assignments REST API, called through the Databricks SDK's raw api_client.do()
-# interface (version-independent). SQL tag-setting DDL is rejected inside pipeline
-# execution, so the REST API is the only option.
+# interface (version-independent), because SQL tag-setting DDL is rejected inside
+# pipeline execution.
 #
 # Tagging runs DURING the pipeline update (the event hook fires on update_progress
 # RUNNING as well as the terminal states), so tag-write failures surface as pipeline
