@@ -230,24 +230,16 @@ Because Spark Declarative Pipelines cannot set UC tags as part of table creation
 (and ``ALTER TABLE ... SET TAGS`` SQL is rejected inside pipeline execution), LHP
 collects all declared tags and emits a single per-pipeline ``_uc_tagging_hook.py``.
 The hook runs as a ``@dp.on_event_hook`` and applies tags via the Unity Catalog
-*Entity Tag Assignments* REST API, fanning entities across ``tag_update_concurrency``
-threads (default 16). It tags **during the pipeline update** — on ``update_progress``
-``RUNNING`` (streaming tables, which exist by then) and again on the terminal state
-(``COMPLETED``/``FAILED``/``CANCELED``/``STOPPING``) for materialized views, which
-materialize later. Tagging on ``RUNNING`` matters because the event log is still capturing 
-then, so **tag-write failures surface as event-log warnings while the run is live**
+*Entity Tag Assignments* REST API. It tags **during and at the end of the pipeline
+update** - during pipeline updates, **tag-write failures surface as event-log warnings**
 (a tagging failure can leave a sensitive column unmasked under tag-based ABAC, so it
-should be visible). A "table does not exist" during ``RUNNING`` is expected for
-not-yet-materialized views and is suppressed (retried at pipeline update termination).
+should be visible).
 
-The current tag state for all managed tables/columns is read **once at module import**
-with a single ``system.information_schema`` query (``table_tags`` ``UNION ALL``
-``column_tags``), so the hook never needs to lists tags per entity. If it fails
-(e.g. the run-as identity lacks ``SELECT`` on ``system.information_schema``), the failure
-is **caught** (it never crashes pipeline initialization) and **re-raised by the hook on the
-first** ``RUNNING`` **event as a warning**, then tagging proceeds create-only (it just can't
-detect which tags already exist). Tagging is best-effort and **never fails the pipeline** —
-event hooks cannot — but failures are raised so they appear as event-log warnings.
+The current tag state for all managed tables/columns is read **once at pipeline
+initialization** with a single cheap ``system.information_schema`` query (``table_tags``
+``UNION ALL`` ``column_tags``), so the hook never needs to lists tags per entity. Tagging
+is best-effort and **never fails the pipeline** — event hooks cannot — but are raised
+as warnings.
 
 **Table tags**
 
@@ -289,7 +281,7 @@ in simply by declaring ``tags`` on a table/column (the hook is generated only wh
 some table or column has ``tags``); the ``uc_tagging`` block is optional and only
 needed to disable the feature or tune it. Set ``uc_tagging.enabled: false`` to turn
 it off entirely. (Any pipeline that declares ``tags`` therefore needs ``SELECT``
-gon ``system.information_schema``; a pipeline with no ``tags`` generates no hook
+on ``system.information_schema``; a pipeline with no ``tags`` generates no event hook
 and is unaffected.)
 
 .. code-block:: yaml
