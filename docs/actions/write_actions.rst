@@ -234,17 +234,15 @@ The hook runs as a ``@dp.on_event_hook`` and applies tags via the Unity Catalog
 threads (default 16). It tags **during the pipeline update** — on ``update_progress``
 ``RUNNING`` (streaming tables, which exist by then) and again on the terminal state
 (``COMPLETED``/``FAILED``/``CANCELED``/``STOPPING``) for materialized views, which
-materialize later. Each entity is reconciled at most once (tracked per entity), so a
-table tagged at ``RUNNING`` is not retried at terminal. Tagging on ``RUNNING`` matters
-because the event log is still capturing then, so **tag-write failures surface as event-log
-warnings while the run is live** (a tagging failure can leave a sensitive column unmasked
-under tag-based ABAC, so it should be visible). A "table does not exist" during ``RUNNING``
-is expected for not-yet-materialized views and is suppressed (retried at terminal).
+materialize later. Tagging on ``RUNNING`` matters because the event log is still capturing 
+then, so **tag-write failures surface as event-log warnings while the run is live**
+(a tagging failure can leave a sensitive column unmasked under tag-based ABAC, so it
+should be visible). A "table does not exist" during ``RUNNING`` is expected for
+not-yet-materialized views and is suppressed (retried at pipeline update termination).
 
 The current tag state for all managed tables/columns is read **once at module import**
 with a single ``system.information_schema`` query (``table_tags`` ``UNION ALL``
-``column_tags``), so the hook never lists tags per entity. The read runs at import — not
-inside the decorated hook — to avoid the ``DataFrame.collect`` restriction. If it fails
+``column_tags``), so the hook never needs to lists tags per entity. If it fails
 (e.g. the run-as identity lacks ``SELECT`` on ``system.information_schema``), the failure
 is **caught** (it never crashes pipeline initialization) and **re-raised by the hook on the
 first** ``RUNNING`` **event as a warning**, then tagging proceeds create-only (it just can't
@@ -290,8 +288,9 @@ DDL):
 in simply by declaring ``tags`` on a table/column (the hook is generated only when
 some table or column has ``tags``); the ``uc_tagging`` block is optional and only
 needed to disable the feature or tune it. Set ``uc_tagging.enabled: false`` to turn
-it off entirely. (Any pipeline that declares ``tags`` therefore needs the ``SELECT``
-grant below; a pipeline with no ``tags`` generates no hook and is unaffected.)
+it off entirely. (Any pipeline that declares ``tags`` therefore needs ``SELECT``
+gon ``system.information_schema``; a pipeline with no ``tags`` generates no hook
+and is unaffected.)
 
 .. code-block:: yaml
 
@@ -306,25 +305,27 @@ grant below; a pipeline with no ``tags`` generates no hook and is unaffected.)
   tag whose key is not in the declared set (reconcile to the declared state). This
   can remove tags applied by other tools, which is why it is off by default.
 
-Tagging is scoped to entities you actually declare tags for: a table with no
-``tags`` (and no tagged columns) is never touched. An explicit empty ``tags: {}``
-means "managed with an empty set" — with ``remove_undeclared_tags: true`` this
-clears all tags from that entity.
+Tagging is only ever scoped to entities you actually declare tags for: a table with
+no ``tags`` (and no tagged columns) is never touched, even when ``remove_undeclared_tags``
+is set to ``true``. An explicit empty ``tags: {}`` means "managed with an empty set" —
+with ``remove_undeclared_tags: true`` this clears all tags from that entity.
 
 .. note::
 
    - Only the table-creating action is tagged (``create_table: true``, the
      default); temporary tables and sinks are excluded.
    - The pipeline's run-as identity needs permission to assign/remove UC tags
-     (``APPLY TAG`` on the table and ``ASSIGN`` on governed tags). ``SELECT`` on
-     ``system.information_schema`` is recommended (read once at import for the
+     (``APPLY TAG`` on the table and ``ASSIGN`` on required governed tags). ``SELECT``
+     on ``system.information_schema`` is also required (read once at import for the
      existing tag state); without it the hook logs a warning during the run and
-     still creates all declared tags rather than failing.
-   - Tags are applied during the run: streaming tables on ``update_progress``
-     ``RUNNING`` and materialized views on the terminal state. Tagging on
-     ``RUNNING`` keeps failures visible (the event log stops capturing once the
-     update terminates), so MV-only failures may only appear in driver logs — but
-     a genuine permission problem also surfaces for streaming tables at ``RUNNING``.
+     still attempts to create all declared tags rather than failing.
+   - Tags are applied during the run: streaming tables and existing materialized views
+     on ``update_progress`` ``RUNNING`` and newly-created materialized views on the
+     terminal state. Tagging on ``RUNNING`` keeps failures visible (the event log stops
+     capturing once the update terminates), so failures for newly-created MVs may only
+     appear in driver logs on the initial run, but will surface as an event log `warning`
+     on following runs. Also, any broad permission problems will surface as warnings for
+     any existing MVs and streaming tables at ``RUNNING``.
    - In **continuous** pipelines a streaming flow only reaches a terminal state at
      stop, and ``update_progress`` stays ``RUNNING`` — tables existing at
      ``RUNNING`` are still tagged; anything materializing later is tagged at stop.

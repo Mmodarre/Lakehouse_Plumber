@@ -139,48 +139,29 @@ class UCTaggingHookGenerator:
     # Internals
     # ------------------------------------------------------------------ #
 
-    def _build_tag_maps(
-        self,
-        processed_flowgroups,
-        remove_undeclared_tags: bool,
-        substitution_mgr: Optional[EnhancedSubstitutionManager],
-    ) -> Tuple[TableTags, ColumnTags]:
-        table_tags: TableTags = {}
-        column_tags: ColumnTags = {}
+    @staticmethod
+    def _wt_getter(write_target):
+        """Return a ``get(key, default=None)`` over a dict or WriteTarget model."""
+        if isinstance(write_target, dict):
+            return lambda key, default=None: write_target.get(key, default)
+        return lambda key, default=None: getattr(write_target, key, default)
 
-        for flowgroup in processed_flowgroups:
-            for action in getattr(flowgroup, "actions", None) or []:
-                if action.type != ActionType.WRITE or not action.write_target:
-                    continue
+    @staticmethod
+    def _sub(text: str, substitution_mgr: Optional[EnhancedSubstitutionManager]) -> str:
+        if substitution_mgr and isinstance(text, str) and "${" in text:
+            return substitution_mgr._process_string(text)
+        return text
 
-                wt = self._wt_getter(action.write_target)
-                if wt("type") not in _TAGGABLE_SUBTYPES:
-                    continue
-                if not action_creates_table(action) or wt("temporary", False):
-                    continue
-
-                catalog, schema, table = wt("catalog"), wt("schema"), wt("table")
-                if not (catalog and schema and table):
-                    continue
-                fqn = self._sub(f"{catalog}.{schema}.{table}", substitution_mgr)
-
-                raw_table_tags = wt("tags")
-                if raw_table_tags is not None:
-                    normalized = self._normalize_tags(raw_table_tags, substitution_mgr)
-                    if normalized or remove_undeclared_tags:
-                        table_tags[fqn] = normalized
-
-                cols = self._load_column_tags(wt("table_schema"))
-                if cols:
-                    kept = {}
-                    for col, tags in cols.items():
-                        normalized = self._normalize_tags(tags, substitution_mgr)
-                        if normalized or remove_undeclared_tags:
-                            kept[col] = normalized
-                    if kept:
-                        column_tags[fqn] = kept
-
-        return table_tags, column_tags
+    def _normalize_tags(
+        self, raw, substitution_mgr: Optional[EnhancedSubstitutionManager]
+    ) -> Dict[str, str]:
+        """Coerce a tag dict to ``{str: str}`` (None -> ""), applying substitution."""
+        result: Dict[str, str] = {}
+        for key, value in (raw or {}).items():
+            k = self._sub(str(key), substitution_mgr)
+            v = "" if value is None else self._sub(str(value), substitution_mgr)
+            result[k] = v
+        return result
 
     def _load_column_tags(self, table_schema) -> Dict[str, Dict[str, str]]:
         """Load column tags from a YAML/JSON ``table_schema`` file, else ``{}``.
@@ -202,26 +183,69 @@ class UCTaggingHookGenerator:
         schema_data = self._schema_parser.parse_schema_file(resolved)
         return self._schema_parser.to_column_tags(schema_data)
 
-    def _normalize_tags(
-        self, raw, substitution_mgr: Optional[EnhancedSubstitutionManager]
-    ) -> Dict[str, str]:
-        """Coerce a tag dict to ``{str: str}`` (None -> ""), applying substitution."""
-        result: Dict[str, str] = {}
-        for key, value in (raw or {}).items():
-            k = self._sub(str(key), substitution_mgr)
-            v = "" if value is None else self._sub(str(value), substitution_mgr)
-            result[k] = v
-        return result
+    def _iter_taggable_writes(self, processed_flowgroups, substitution_mgr):
+        """Yield ``(write_target_getter, fqn)`` for each WRITE action that creates a
+        taggable (streaming_table / materialized_view), non-temporary table with a
+        fully-qualified name.
+        """
+        for flowgroup in processed_flowgroups:
+            for action in getattr(flowgroup, "actions", None) or []:
+                if action.type != ActionType.WRITE or not action.write_target:
+                    continue
 
-    @staticmethod
-    def _sub(text: str, substitution_mgr: Optional[EnhancedSubstitutionManager]) -> str:
-        if substitution_mgr and isinstance(text, str) and "${" in text:
-            return substitution_mgr._process_string(text)
-        return text
+                wt = self._wt_getter(action.write_target)
+                if wt("type") not in _TAGGABLE_SUBTYPES:
+                    continue
+                if not action_creates_table(action) or wt("temporary", False):
+                    continue
 
-    @staticmethod
-    def _wt_getter(write_target):
-        """Return a ``get(key, default=None)`` over a dict or WriteTarget model."""
-        if isinstance(write_target, dict):
-            return lambda key, default=None: write_target.get(key, default)
-        return lambda key, default=None: getattr(write_target, key, default)
+                catalog, schema, table = wt("catalog"), wt("schema"), wt("table")
+                if not (catalog and schema and table):
+                    continue
+
+                yield wt, self._sub(f"{catalog}.{schema}.{table}", substitution_mgr)
+
+    def _collect_table_tags(self, wt, remove_undeclared_tags, substitution_mgr):
+        """Normalized table tags to embed, or ``None`` to omit the table.
+
+        Returns ``{}`` (kept) for an explicit empty ``tags`` under reconcile mode;
+        ``None`` when ``tags`` is absent, or empty-and-additive (nothing to do).
+        """
+        raw = wt("tags")
+        if raw is None:
+            return None
+        normalized = self._normalize_tags(raw, substitution_mgr)
+        if normalized or remove_undeclared_tags:
+            return normalized
+        return None
+
+    def _collect_column_tags(self, wt, remove_undeclared_tags, substitution_mgr):
+        """Normalized ``{column: {k: v}}`` for the action's schema file; columns are
+        kept only when they have tags (or under reconcile mode, an empty set).
+        """
+        kept: Dict[str, Dict[str, str]] = {}
+        for col, tags in self._load_column_tags(wt("table_schema")).items():
+            normalized = self._normalize_tags(tags, substitution_mgr)
+            if normalized or remove_undeclared_tags:
+                kept[col] = normalized
+        return kept
+
+    def _build_tag_maps(
+        self,
+        processed_flowgroups,
+        remove_undeclared_tags: bool,
+        substitution_mgr: Optional[EnhancedSubstitutionManager],
+    ) -> Tuple[TableTags, ColumnTags]:
+        table_tags: TableTags = {}
+        column_tags: ColumnTags = {}
+
+        for wt, fqn in self._iter_taggable_writes(processed_flowgroups, substitution_mgr):
+            tbl = self._collect_table_tags(wt, remove_undeclared_tags, substitution_mgr)
+            if tbl is not None:
+                table_tags[fqn] = tbl
+
+            cols = self._collect_column_tags(wt, remove_undeclared_tags, substitution_mgr)
+            if cols:
+                column_tags[fqn] = cols
+
+        return table_tags, column_tags

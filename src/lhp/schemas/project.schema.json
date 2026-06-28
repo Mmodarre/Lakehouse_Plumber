@@ -244,7 +244,7 @@
         },
         "uc_tagging": {
             "type": "object",
-            "description": "Unity Catalog tagging configuration. On by default — this block is optional and only needed to disable the feature or tune it. Users opt in by declaring 'tags' on a table/column; the generated per-pipeline _uc_tagging_hook.py then applies them via the Entity Tag Assignments REST API on pipeline update termination.",
+            "description": "Unity Catalog tagging configuration. On by default — this block is optional and only needed to disable the feature or tune it. Users opt in by declaring 'tags' on a table/column; the generated per-pipeline _uc_tagging_hook.py then applies them via the Entity Tag Assignments REST API on pipeline update progress events.",
             "properties": {
                 "enabled": {
                     "type": "boolean",

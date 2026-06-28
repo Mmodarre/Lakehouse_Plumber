@@ -69,6 +69,42 @@ class SchemaParser:
 
         return ", ".join(hints)
 
+    @staticmethod
+    def _require_tag_mapping(raw, column, schema_name) -> Dict[str, Any]:
+        """Return ``raw`` as a tag mapping; a present-but-``None`` ``tags`` becomes
+        ``{}`` (the managed-with-empty-set signal). Raise a clean ``LHPError`` if it
+        is neither ``None`` nor a dict, rather than letting ``.items()`` blow up with
+        an ``AttributeError`` during generation.
+        """
+        if raw is None:
+            return {}
+        if isinstance(raw, dict):
+            return raw
+
+        column_name = column.get("name", "<unknown>")
+        raise ErrorFactory.validation_error(
+            codes.VAL_016,
+            title="Invalid column 'tags'",
+            details=(
+                f"Column '{column_name}' in schema '{schema_name}' has 'tags' of "
+                f"type {type(raw).__name__}; 'tags' must be a mapping of tag key to "
+                f"tag value."
+            ),
+            suggestions=[
+                "Define column tags as a mapping (key: value)",
+                "Use an empty value ('', ~, or omitted) for a key-only tag",
+            ],
+            example=(
+                "columns:\n"
+                "  - name: email\n"
+                "    type: STRING\n"
+                "    tags:\n"
+                "      classification: pii\n"
+                "      masked: ~"
+            ),
+            context={"schema": str(schema_name), "column": str(column_name)},
+        )
+
     def to_column_tags(
         self, schema_data: Dict[str, Any]
     ) -> Dict[str, Dict[str, str]]:
@@ -83,49 +119,33 @@ class SchemaParser:
         ``""`` (key-only tags); non-string scalars are coerced via ``str()``.
         """
         column_tags: Dict[str, Dict[str, str]] = {}
+        schema_name = schema_data.get("name", "<unknown>")
 
         for column in schema_data.get("columns", []) or []:
             if not isinstance(column, dict) or "tags" not in column:
                 continue
-            raw = column["tags"]
-            # A present-but-empty/None `tags` is the managed-with-empty-set signal;
-            # anything else must be a mapping. Reject non-mappings with a clean
-            # validation error rather than letting `.items()` raise AttributeError.
-            if raw is None:
-                raw = {}
-            elif not isinstance(raw, dict):
-                raise ErrorFactory.validation_error(
-                    codes.VAL_016,
-                    title="Invalid column 'tags'",
-                    details=(
-                        f"Column '{column.get('name', '<unknown>')}' in schema "
-                        f"'{schema_data.get('name', '<unknown>')}' has 'tags' of type "
-                        f"{type(raw).__name__}; 'tags' must be a mapping of "
-                        f"tag key to tag value."
-                    ),
-                    suggestions=[
-                        "Define column tags as a mapping (key: value)",
-                        "Use an empty value ('', ~, or omitted) for a key-only tag",
-                    ],
-                    example=(
-                        "columns:\n"
-                        "  - name: email\n"
-                        "    type: STRING\n"
-                        "    tags:\n"
-                        "      classification: pii\n"
-                        "      masked: ~"
-                    ),
-                    context={
-                        "schema": str(schema_data.get("name", "<unknown>")),
-                        "column": str(column.get("name", "<unknown>")),
-                    },
-                )
+            raw = self._require_tag_mapping(column["tags"], column, schema_name)
             column_tags[column["name"]] = {
                 str(key): "" if value is None else str(value)
                 for key, value in raw.items()
             }
 
         return column_tags
+
+    @staticmethod
+    def _validate_column_tags(index: int, tags: Any) -> List[str]:
+        """Validation messages for a column's ``tags``. ``None`` is allowed
+        (managed-with-empty-set); otherwise it must be a dict with string keys.
+        """
+        if tags is None:
+            return []
+        if not isinstance(tags, dict):
+            return [f"Column {index} 'tags' must be a mapping"]
+        return [
+            f"Column {index} tags key '{key}' must be a string"
+            for key in tags
+            if not isinstance(key, str)
+        ]
 
     def validate_schema(
         self, schema_data: Dict[str, Any]
@@ -161,14 +181,6 @@ class SchemaParser:
                 errors.append(f"Column {i} 'nullable' must be boolean")
 
             if "tags" in column:
-                tags = column["tags"]
-                if tags is not None and not isinstance(tags, dict):
-                    errors.append(f"Column {i} 'tags' must be a mapping")
-                elif isinstance(tags, dict):
-                    for key in tags:
-                        if not isinstance(key, str):
-                            errors.append(
-                                f"Column {i} tags key '{key}' must be a string"
-                            )
+                errors.extend(self._validate_column_tags(i, column["tags"]))
 
         return errors

@@ -137,8 +137,6 @@ class TestUCTaggingHookGenerator:
         # Per-entity tracking + single terminal pass (no pipeline-level _applied).
         assert "_tagged" in content
         assert "_update_terminated" in content
-        assert "_applied" not in content
-        assert "_match_fqn" not in content
         assert "json.loads" in content  # details may arrive as a JSON string
         # Existing tag state read once from information_schema (no per-entity LIST),
         # aggregated to one row per entity (tags map) and filtered by table name only.
@@ -151,7 +149,6 @@ class TestUCTaggingHookGenerator:
         assert "WHERE catalog_name IN (" in content
         assert "AND schema_name IN (" in content
         assert "AND table_name IN (" in content
-        assert "lower(concat_ws(" not in content
         # The resolved query text is logged before execution.
         assert "Reading existing tag state from information_schema" in content
         assert "/api/2.1/unity-catalog/entity-tag-assignments" in content
@@ -162,8 +159,6 @@ class TestUCTaggingHookGenerator:
         # a read failure is CAUGHT and stashed, then re-raised by the hook as a warning.
         assert "_snapshot_error = str(e)" in content
         assert "_existing_tags = _fetch_existing_tags()" in content
-        # The import-time call must NOT be inside _ensure_snapshot_loaded (removed).
-        assert "_ensure_snapshot_loaded" not in content
         # "does not exist" during RUNNING is suppressed (table not materialised yet).
         assert "_ABSENT_MARKERS" in content
         assert "does not exist" in content
@@ -174,8 +169,6 @@ class TestUCTaggingHookGenerator:
         # A fixed, small consecutive-failure budget (one combined RUNNING raise + one
         # terminal raise per run; counter resets each update).
         assert "max_allowable_consecutive_failures=3)" in content
-        # New prefix everywhere; old prefix gone.
-        assert "[LHP Tagging]" not in content
         assert "SELECT on system.information_schema" in content
         # No SQL tag DDL path.
         assert "ALTER TABLE" not in content

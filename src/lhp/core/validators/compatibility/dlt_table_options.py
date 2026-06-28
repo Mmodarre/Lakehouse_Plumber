@@ -55,6 +55,20 @@ class DltTableOptionsValidator:
 
         return errors
 
+    @staticmethod
+    def _validate_tag_entry(prefix: str, key, value) -> List[str]:
+        """Validation messages for one tag: key must be a non-empty string; value
+        must be a scalar (str/int/float/bool) or None (key-only tag).
+        """
+        errors = []
+        if not isinstance(key, str):
+            errors.append(f"{prefix}: tags key '{key}' must be a string")
+        elif not key.strip():
+            errors.append(f"{prefix}: tags key must not be empty")
+        if value is not None and not isinstance(value, (str, int, float, bool)):
+            errors.append(f"{prefix}: tags value for '{key}' must be a scalar or null")
+        return errors
+
     def _validate_tags(self, action: Action, prefix: str) -> List[str]:
         """Validate Unity Catalog ``tags``.
 
@@ -62,23 +76,16 @@ class DltTableOptionsValidator:
         ``{}`` is a valid managed-with-empty-set signal — both pass here. Keys
         must be strings; values must be strings or None (key-only tags).
         """
-        errors = []
         tags = action.write_target.get("tags")
 
-        if tags is not None:
-            if not isinstance(tags, dict):
-                errors.append(f"{prefix}: 'tags' must be a dictionary")
-            else:
-                for key, value in tags.items():
-                    if not isinstance(key, str):
-                        errors.append(f"{prefix}: tags key '{key}' must be a string")
-                    elif not key.strip():
-                        errors.append(f"{prefix}: tags key must not be empty")
-                    if value is not None and not isinstance(value, (str, int, float, bool)):
-                        errors.append(
-                            f"{prefix}: tags value for '{key}' must be a scalar or null"
-                        )
+        if tags is None:
+            return []  # unmanaged
+        if not isinstance(tags, dict):
+            return [f"{prefix}: 'tags' must be a dictionary"]
 
+        errors = []
+        for key, value in tags.items():
+            errors.extend(self._validate_tag_entry(prefix, key, value))
         return errors
 
     def _validate_schema_options(self, action: Action, prefix: str) -> List[str]:

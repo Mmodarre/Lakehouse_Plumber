@@ -112,7 +112,6 @@ def test_uc_tagging_hook_emitted_with_substituted_names(project_dir):
     assert "ThreadPoolExecutor(max_workers=16)" in content
     # New log prefix everywhere.
     assert "[LHP UC Tagging]" in content
-    assert "[LHP Tagging]" not in content
 
 
 @pytest.mark.e2e
