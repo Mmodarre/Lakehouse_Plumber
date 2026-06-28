@@ -116,9 +116,7 @@ def test_uc_tagging_hook_emitted_with_substituted_names(project_dir):
 
 @pytest.mark.e2e
 def test_no_hook_when_uc_tagging_disabled(project_dir):
-    _write_project(
-        project_dir, uc_tagging_block="uc_tagging:\n  enabled: false\n"
-    )
+    _write_project(project_dir, uc_tagging_block="uc_tagging:\n  enabled: false\n")
     hook = _generate(project_dir)
     assert not hook.exists()
 
@@ -129,3 +127,15 @@ def test_hook_emitted_when_block_absent(project_dir):
     _write_project(project_dir)  # default: no uc_tagging block
     hook = _generate(project_dir)
     assert hook.exists()
+
+
+@pytest.mark.e2e
+def test_uc_tagging_hook_golden(project_dir, golden):
+    """Byte-exact golden of the fully-generated, ruff-formatted, substitution-resolved
+    hook (locks the real generate path + commit wiring + format pass). Author/update:
+        pytest -k uc_tagging --update-baselines
+    """
+    _write_project(project_dir, uc_tagging_block="uc_tagging:\n  enabled: true\n")
+    hook = _generate(project_dir)
+    assert hook.exists(), "expected _uc_tagging_hook.py to be generated"
+    golden(hook.read_text(), "uc_tagging/e2e_generated_hook")

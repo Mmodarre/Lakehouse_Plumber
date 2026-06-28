@@ -61,7 +61,9 @@ def _build(actions, uc_tagging=_ENABLED, root=None):
 class TestUCTaggingHookGenerator:
     def test_disabled_returns_none(self, tmp_path):
         action = _write_action(write_target=_st_target(tags={"team": "x"}))
-        result = _build([action], uc_tagging=UCTaggingConfig(enabled=False), root=tmp_path)
+        result = _build(
+            [action], uc_tagging=UCTaggingConfig(enabled=False), root=tmp_path
+        )
         assert result is None
 
     def test_absent_block_enabled_by_default(self, tmp_path):
@@ -135,7 +137,8 @@ class TestUCTaggingHookGenerator:
         for state in ("COMPLETED", "FAILED", "CANCELED"):
             assert state in content
         # Per-entity tracking + single terminal pass (no pipeline-level _applied).
-        assert "_tagged" in content
+        assert "_processed" in content
+        assert "_tagged" not in content  # renamed to _processed
         assert "_update_terminated" in content
         assert "json.loads" in content  # details may arrive as a JSON string
         # Existing tag state read once from information_schema (no per-entity LIST),
@@ -175,7 +178,9 @@ class TestUCTaggingHookGenerator:
 
     def test_thread_pool_concurrency_default_and_override(self, tmp_path):
         action = _write_action(write_target=_st_target(tags={"team": "x"}))
-        default = _build([action], uc_tagging=UCTaggingConfig(), root=tmp_path)[HOOK_FILENAME]
+        default = _build([action], uc_tagging=UCTaggingConfig(), root=tmp_path)[
+            HOOK_FILENAME
+        ]
         assert "ThreadPoolExecutor(max_workers=16)" in default
 
         custom = _build(
@@ -214,6 +219,48 @@ class TestUCTaggingHookGenerator:
         )
         # Inline DDL carries no column tags, and no table tags here -> nothing to do
         assert _build([action], root=tmp_path) is None
+
+
+@pytest.mark.unit
+class TestUCTaggingHookGolden:
+    """Byte-exact golden coverage of the full rendered hook (raw template render).
+
+    Locks the whole generated file so any unintended template/generator change is
+    caught in one diff. Author/update the baselines with:
+        pytest -k uc_tagging --update-baselines
+    """
+
+    def test_additive_table_and_column(self, tmp_path, golden):
+        schema_file = tmp_path / "schemas" / "orders.yaml"
+        schema_file.parent.mkdir(parents=True)
+        schema_file.write_text(
+            "name: orders\n"
+            "columns:\n"
+            "  - name: id\n"
+            "    type: BIGINT\n"
+            "  - name: email\n"
+            "    type: STRING\n"
+            "    tags:\n"
+            "      classification: pii\n"
+            "      masked: ''\n"
+        )
+        action = _write_action(
+            write_target=_st_target(
+                tags={"team": "data-eng", "pii": ""},
+                table_schema="schemas/orders.yaml",
+            )
+        )
+        content = _build([action], root=tmp_path)[HOOK_FILENAME]
+        golden(content, "uc_tagging/additive_table_and_column")
+
+    def test_reconcile_with_empty_set(self, tmp_path, golden):
+        action = _write_action(write_target=_st_target(tags={}))
+        content = _build(
+            [action],
+            uc_tagging=UCTaggingConfig(remove_undeclared_tags=True),
+            root=tmp_path,
+        )[HOOK_FILENAME]
+        golden(content, "uc_tagging/reconcile_with_empty_set")
 
 
 @contextmanager
@@ -278,7 +325,13 @@ def _fake_pyspark_and_sdk(collect_result=None, collect_error=None, do_handler=No
     databricks_mod = types.ModuleType("databricks")
     databricks_mod.sdk = sdk_mod
 
-    keys = ("pyspark", "pyspark.pipelines", "pyspark.sql", "databricks", "databricks.sdk")
+    keys = (
+        "pyspark",
+        "pyspark.pipelines",
+        "pyspark.sql",
+        "databricks",
+        "databricks.sdk",
+    )
     saved = {k: sys.modules.get(k) for k in keys}
     sys.modules.update(
         {
@@ -306,7 +359,10 @@ def _exec_hook(content):
 
 
 def _evt(state):
-    return {"event_type": "update_progress", "details": {"update_progress": {"state": state}}}
+    return {
+        "event_type": "update_progress",
+        "details": {"update_progress": {"state": state}},
+    }
 
 
 @pytest.mark.unit
@@ -329,7 +385,7 @@ class TestUCTaggingHookRuntime:
             assert "WARNING" in str(exc.value)
             assert "could not read existing tag state" in str(exc.value)
             assert any(c["method"] == "POST" for c in st["calls"])  # created the tag
-            assert "prod.sales.orders" in ns["_tagged"]
+            assert "prod.sales.orders" in ns["_processed"]
 
             # Second RUNNING: already warned + already tagged -> no new work, no raise.
             before = len(st["calls"])
@@ -360,13 +416,13 @@ class TestUCTaggingHookRuntime:
 
             # RUNNING: orders tagged; customers "does not exist" -> suppressed (no raise).
             hook(_evt("RUNNING"))
-            assert "prod.sales.orders" in ns["_tagged"]
-            assert "prod.sales.customers" not in ns["_tagged"]
+            assert "prod.sales.orders" in ns["_processed"]
+            assert "prod.sales.customers" not in ns["_processed"]
 
             # customers materializes; first terminal event tags it.
             materialized["customers"] = True
             hook(_evt("COMPLETED"))
-            assert "prod.sales.customers" in ns["_tagged"]
+            assert "prod.sales.customers" in ns["_processed"]
             assert ns["_update_terminated"] is True
 
             # Second terminal event is a no-op (single terminal pass).
@@ -374,7 +430,10 @@ class TestUCTaggingHookRuntime:
             hook(_evt("FAILED"))
             assert len(st["calls"]) == before
 
-    def test_real_error_raises_warning_on_running(self, tmp_path):
+    def test_real_error_warns_once_then_terminal_is_silent(self, tmp_path):
+        # A real (non-absent) failure must warn ONCE on RUNNING and then be marked
+        # _processed, so the terminal pass does not re-attempt it and emit a duplicate
+        # event-log warning.
         action = _write_action(write_target=_st_target(tags={"team": "x"}))
         content = _build([action], root=tmp_path)[HOOK_FILENAME]
 
@@ -384,12 +443,19 @@ class TestUCTaggingHookRuntime:
         with _fake_pyspark_and_sdk(collect_result=[], do_handler=do_handler) as st:
             ns = _exec_hook(content)
             hook = st["hooks"][0]
+
+            # RUNNING: warns once, and the entity is marked processed despite failing.
             with pytest.raises(RuntimeError) as exc:
                 hook(_evt("RUNNING"))
             assert "tag operation(s) failed" in str(exc.value)
             assert "PERMISSION_DENIED" in str(exc.value)
-            # A real (non-absent) error is NOT marked tagged -> retried at terminal.
-            assert "prod.sales.orders" not in ns["_tagged"]
+            assert "prod.sales.orders" in ns["_processed"]
+
+            # Terminal: the failed-but-processed entity is NOT retried → no REST calls,
+            # no second raise (no duplicate warning).
+            before = len(st["calls"])
+            hook(_evt("COMPLETED"))  # must not raise
+            assert len(st["calls"]) == before
 
     def test_ignores_non_update_progress_and_non_running_states(self, tmp_path):
         action = _write_action(write_target=_st_target(tags={"team": "x"}))

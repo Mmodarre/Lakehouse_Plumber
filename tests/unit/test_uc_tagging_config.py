@@ -120,9 +120,7 @@ class TestProjectConfigLoaderUCTagging:
 
     def test_rejects_non_bool_field(self, tmp_path):
         lhp_yaml = tmp_path / "lhp.yaml"
-        lhp_yaml.write_text(
-            "name: test_project\nuc_tagging:\n  enabled: maybe\n"
-        )
+        lhp_yaml.write_text("name: test_project\nuc_tagging:\n  enabled: maybe\n")
         from lhp.core.loaders import ProjectConfigLoader
         from lhp.errors import LHPError
 

@@ -105,9 +105,7 @@ class SchemaParser:
             context={"schema": str(schema_name), "column": str(column_name)},
         )
 
-    def to_column_tags(
-        self, schema_data: Dict[str, Any]
-    ) -> Dict[str, Dict[str, str]]:
+    def to_column_tags(self, schema_data: Dict[str, Any]) -> Dict[str, Dict[str, str]]:
         """Extract Unity Catalog column-level tags from a parsed schema.
 
         Returns ``{column_name: {tag_key: tag_value}}`` for every column whose

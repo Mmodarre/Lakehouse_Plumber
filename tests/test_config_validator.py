@@ -701,7 +701,9 @@ class TestConfigValidator:
             return validator.validate_action(action, 0)
 
         # Valid: key-value, key-only (empty string / None), and non-string scalar value
-        assert _validate({"team": "data-eng", "pii": "", "certified": None, "n": 1}) == []
+        assert (
+            _validate({"team": "data-eng", "pii": "", "certified": None, "n": 1}) == []
+        )
         # Valid: explicit empty dict (managed-with-empty-set signal)
         assert _validate({}) == []
 

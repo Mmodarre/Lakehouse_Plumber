@@ -50,7 +50,11 @@ def parse_uc_tagging_config(uc_tagging_data: Any) -> UCTaggingConfig:
 
     concurrency = uc_tagging_data.get("tag_update_concurrency", 16)
     # bool is an int subclass — reject it explicitly.
-    if not isinstance(concurrency, int) or isinstance(concurrency, bool) or concurrency < 1:
+    if (
+        not isinstance(concurrency, int)
+        or isinstance(concurrency, bool)
+        or concurrency < 1
+    ):
         raise ErrorFactory.config_error(
             codes.CFG_009,
             title="Invalid uc_tagging configuration",

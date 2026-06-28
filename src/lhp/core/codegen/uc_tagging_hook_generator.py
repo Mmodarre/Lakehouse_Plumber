@@ -239,12 +239,16 @@ class UCTaggingHookGenerator:
         table_tags: TableTags = {}
         column_tags: ColumnTags = {}
 
-        for wt, fqn in self._iter_taggable_writes(processed_flowgroups, substitution_mgr):
+        for wt, fqn in self._iter_taggable_writes(
+            processed_flowgroups, substitution_mgr
+        ):
             tbl = self._collect_table_tags(wt, remove_undeclared_tags, substitution_mgr)
             if tbl is not None:
                 table_tags[fqn] = tbl
 
-            cols = self._collect_column_tags(wt, remove_undeclared_tags, substitution_mgr)
+            cols = self._collect_column_tags(
+                wt, remove_undeclared_tags, substitution_mgr
+            )
             if cols:
                 column_tags[fqn] = cols
 
