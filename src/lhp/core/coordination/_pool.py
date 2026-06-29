@@ -239,24 +239,13 @@ def _run_flowgroup_pool_core(
 
     results_by_pipeline: Dict[str, _PipelinePoolResult] = {}
 
-    # Resolved-FlowGroup release: once the cross-fg barrier has
-    # consumed the resolved set, the only remaining generate consumer is the
-    # commit step — which needs ONLY formatted_code / auxiliary_files /
-    # copy_records (NOT the resolved FlowGroup). Dropping it here bounds memory
-    # on 6000+-flowgroup projects (no resolved graph is held while the whole
-    # pool drains). It is released ONLY in generate mode (validate's
-    # assemble_validate_outcomes reads neither it nor formatted_code) and ONLY
-    # when ``include_tests`` is False: the per-pipeline test-reporting hook
-    # walks the resolved flowgroups for their test_ids, so when tests are
-    # emitted the resolved set is retained for commit's hook. (The engine
-    # cannot see ``project_config.test_reporting``; gating on ``include_tests``
-    # alone retains a SUPERSET of the cases the hook needs — never releasing
-    # something it would read — at the cost of retaining when tests are on but
-    # no reporting provider is configured. Output is unaffected.)
-    # ... with one exception: a flowgroup that may carry UC tags is RETAINED so
-    # the commit-time tagging hook can scan it (tagging works regardless of
-    # ``include_tests``). ``flowgroup_has_uc_tags`` is conservative and imports
-    # nothing heavy. Over-retention is bounded to tag-bearing flowgroups.
+    # Resolved-FlowGroup release: drop resolved FlowGroups after the cross-fg
+    # barrier; commit step needs ONLY formatted_code/auxiliary_files/copy_records.
+    # Released in generate mode only; retain when ``include_tests``
+    # (test-reporting hook reads test_ids) or UC tags exist (tagging hook).
+    # Gating on ``include_tests`` alone means we retain potentially more than
+    # necessary, but ensures that test-reporting always has what it needs;
+    # UC tags check is conservative and cheap.
     release_resolved = mode == "generate" and not worker_state.include_tests
 
     def _finalize(pipeline: str, outcomes: List[FlowgroupOutcome]) -> None:

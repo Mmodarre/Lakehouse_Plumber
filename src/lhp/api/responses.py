@@ -388,7 +388,9 @@ class PlannedFileView:
     path: Path
     content: str
     pipeline: str
-    kind: Literal["flowgroup", "aux", "helper", "test_hook", "monitoring"]
+    kind: Literal[
+        "flowgroup", "aux", "helper", "test_hook", "uc_tagging_hook", "monitoring"
+    ]
 
 
 @dataclass(frozen=True)
