@@ -20,6 +20,8 @@ from __future__ import annotations
 import inspect
 from typing import Any
 
+import pytest
+
 from lhp.api.facade import (
     GenerationFacade,
     LakehousePlumberApplicationFacade,
@@ -80,3 +82,86 @@ def test_validate_pipelines_shortcut_has_no_var_keyword() -> None:
         "validate_pipelines must not use **kwargs (§4.2). Found: "
         f"{[p.name for p in var_kw]}"
     )
+
+
+def test_sandbox_param_present_with_default_false_on_all_four_methods() -> None:
+    """Every generate/validate surface accepts ``sandbox`` (default False).
+
+    Keyword-only, defaulting to ``False`` so existing callers are unchanged
+    (provisional stability permits the additive kwarg, §1.13).
+    """
+    methods = [
+        GenerationFacade.generate_pipelines,
+        ValidationFacade.validate_pipelines,
+        LakehousePlumberApplicationFacade.generate_pipelines,
+        LakehousePlumberApplicationFacade.validate_pipelines,
+    ]
+    for method in methods:
+        params = inspect.signature(method).parameters
+        assert "sandbox" in params, f"{method.__qualname__} is missing `sandbox`"
+        param = params["sandbox"]
+        assert param.kind == inspect.Parameter.KEYWORD_ONLY, (
+            f"{method.__qualname__}: `sandbox` must be keyword-only"
+        )
+        assert param.default is False, (
+            f"{method.__qualname__}: `sandbox` must default to False"
+        )
+
+
+class TestSandboxPipelineSelectionMutex:
+    """``sandbox=True`` cannot be combined with a caller-supplied worklist.
+
+    Sandbox scope comes from the personal profile, so
+    ``pipeline_filter`` / ``pipeline_fields`` alongside ``sandbox=True`` is
+    API misuse → plain :class:`ValueError` (no structured ``LHP-*`` code),
+    raised on first iteration, before the orchestrator is touched (the
+    dummy ``object()`` orchestrator below would explode on any attribute
+    access). The shortcut methods delegate to these canonical sub-facade
+    methods, so the enforcement covers all four surfaces.
+    """
+
+    def test_generate_sandbox_with_pipeline_filter_raises(self) -> None:
+        facade = GenerationFacade(object())
+        with pytest.raises(ValueError, match="sandbox"):
+            next(
+                facade.generate_pipelines(
+                    pipeline_filter="some_pipeline",
+                    env="dev",
+                    output_dir=None,
+                    sandbox=True,
+                )
+            )
+
+    def test_generate_sandbox_with_pipeline_fields_raises(self) -> None:
+        facade = GenerationFacade(object())
+        with pytest.raises(ValueError, match="sandbox"):
+            next(
+                facade.generate_pipelines(
+                    pipeline_fields=["p1", "p2"],
+                    env="dev",
+                    output_dir=None,
+                    sandbox=True,
+                )
+            )
+
+    def test_validate_sandbox_with_pipeline_filter_raises(self) -> None:
+        facade = ValidationFacade(object())
+        with pytest.raises(ValueError, match="sandbox"):
+            next(
+                facade.validate_pipelines(
+                    pipeline_filter="some_pipeline",
+                    env="dev",
+                    sandbox=True,
+                )
+            )
+
+    def test_validate_sandbox_with_pipeline_fields_raises(self) -> None:
+        facade = ValidationFacade(object())
+        with pytest.raises(ValueError, match="sandbox"):
+            next(
+                facade.validate_pipelines(
+                    pipeline_fields=["p1"],
+                    env="dev",
+                    sandbox=True,
+                )
+            )

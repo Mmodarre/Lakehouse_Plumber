@@ -72,6 +72,20 @@ jobs:
         find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
         find . -name "*.pyc" -delete 2>/dev/null || true
 
+    # Stage the web IDE SPA assets (src/lhp/webapp/static/, gitignored) into the
+    # tree BEFORE `python -m build` so they ship in the published wheel.
+    # build_webapp.sh is the single source of truth for the build/sync sequence.
+    - name: Set up Node.js
+      uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903  # v6.0.0
+      with:
+        node-version: "22"
+        cache: npm
+        cache-dependency-path: web_app/package-lock.json
+
+    - name: Build web IDE SPA and stage wheel assets
+      run: |
+        bash scripts/build_webapp.sh
+
     - name: Build package (reproducible)
       run: |
         SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct) python -m build

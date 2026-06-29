@@ -87,6 +87,11 @@ resources:
             - task_key: acmi_edw_raw_pipeline
           pipeline_task:
             pipeline_id: ${resources.pipelines.uc_tagging_none_pipeline.id}
+        - task_key: dep_bindings_pipeline
+          depends_on:
+            - task_key: helper_imports_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.dep_bindings_pipeline.id}
             full_refresh: false
         - task_key: acmi_edw_silver_pipeline
           depends_on:

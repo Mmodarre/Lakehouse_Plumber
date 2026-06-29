@@ -1,0 +1,67 @@
+# All four transform types in one chain: sql → schema → data_quality → python.
+# Also demonstrates %{entity} local variables.
+#
+# The bronze source lives in the sample_ingest pipeline, so the load must use
+# the fully qualified table (catalog/schema/table) — bare dataset names only
+# resolve within the same pipeline. Every flowgroup opens with a load action;
+# the transform chain then works on the loaded view.
+#
+# Ordering matters: the schema transform RENAMES columns (o_totalprice →
+# total_price, ...), so everything downstream of it — the expectations file,
+# the python transform, the gold SQL — uses the post-rename names.
+pipeline: sample_silver
+flowgroup: orders_clean
+presets:
+  - silver_quality
+operational_metadata: ["_processing_timestamp"]
+variables:
+  entity: orders
+actions:
+  - name: "load_%{entity}_bronze"
+    type: load
+    source:
+      type: delta
+      catalog: "${catalog}"             # fully qualified — a different pipeline wrote it
+      schema: "${bronze_schema}"
+      table: orders_raw
+      readMode: stream
+    target: "v_%{entity}_bronze"
+  - name: "sql_filter_%{entity}"
+    type: transform
+    transform_type: sql
+    source: "v_%{entity}_bronze"
+    sql: "SELECT * FROM stream(v_%{entity}_bronze) WHERE o_totalprice > 0"
+    target: "v_%{entity}_filtered"
+  - name: "schema_%{entity}"
+    type: transform
+    transform_type: schema
+    source: "v_%{entity}_filtered"
+    schema_file: schema_transforms/orders_typed.yaml
+    enforcement: permissive
+    target: "v_%{entity}_typed"
+  - name: "dq_%{entity}"
+    type: transform
+    transform_type: data_quality
+    source: "v_%{entity}_typed"
+    expectations_file: expectations/orders.yaml
+    mode: dqe                                  # default mode; alternative: quarantine
+    readMode: stream
+    target: "v_%{entity}_validated"
+  - name: "py_localize_%{entity}"
+    type: transform
+    transform_type: python
+    source: "v_%{entity}_validated"
+    module_path: transforms/normalize_tz.py
+    function_name: normalize_timestamps
+    readMode: stream                           # the whole chain is streaming
+    parameters:
+      target_tz: "${target_tz}"
+    target: "v_%{entity}_localized"
+  - name: "write_%{entity}_silver"
+    type: write
+    source: "v_%{entity}_localized"
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
+      table: orders

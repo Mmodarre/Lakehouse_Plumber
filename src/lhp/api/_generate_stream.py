@@ -44,6 +44,7 @@ from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Any,
+    Callable,
     Dict,
     Generator,
     Iterator,
@@ -57,7 +58,7 @@ from typing import (
 from lhp.api._bundle_facade import _wipe_resources_lhp
 from lhp.api._converters_common import (
     _derive_worklist_fields,
-    _emit_deprecation_warnings,
+    _emit_warning_records,
     _issue_view_to_lhp_error,
 )
 from lhp.api._generation_converters import (
@@ -83,8 +84,9 @@ from lhp.utils.performance_timer import perf_timer
 if TYPE_CHECKING:
     from lhp.api._progress import ProgressSink
     from lhp.api.responses import BatchGenerationResponse, GenerationResponse
+    from lhp.core.sandbox import SandboxRewritePlan
     from lhp.models import FlowGroup
-    from lhp.models.processing import DeprecationWarningRecord
+    from lhp.models.processing import RunWarningRecord, SandboxRunConfig
 
     # Internal orchestrator type, referenced only as a quoted annotation
     # (§1.10, §9.13) — never named directly in the public API surface.
@@ -96,6 +98,7 @@ def _run_bundle_sync(
     *,
     env: str,
     output_dir: Path,
+    sandbox_plan: Optional["SandboxRewritePlan"] = None,
 ) -> Tuple[int, int]:
     """Wipe ``resources/lhp/`` and sync bundle resources; return ``(synced, deleted)``.
 
@@ -117,11 +120,32 @@ def _run_bundle_sync(
     :class:`BundleConfigurationError` both render as ``LHP-CFG-020``; there is
     no dedicated bundle error category.)
 
+    ``sandbox_plan``: on a ``--sandbox`` run the project-level event-log
+    table name is namespaced like any produced table — the composed
+    ``{prefix}{pipeline}{suffix}`` is treated as the table LEAF and routed
+    through the single :func:`~lhp.core.sandbox.rename_parts` choke point as a
+    plain ``str -> str`` closure on :class:`BundleManager`'s
+    ``event_log_name_transform`` seam. ``None`` (non-sandbox) constructs the
+    manager without a transform — byte-identical to the pre-sandbox behavior.
+
     NOT routed through the orchestrator: that would create a forbidden
     ``core → bundle`` import edge (the orchestrator is ``core``; ``bundle`` sits
     above it).
     """
     from lhp.bundle.manager import BundleManager
+
+    event_log_name_transform: Optional[Callable[[str], str]] = None
+    if sandbox_plan is not None:
+        # Deferred like the BundleManager import above: core must not ride on
+        # ``import lhp.api`` import time.
+        from lhp.core.sandbox import rename_parts
+
+        strategy = sandbox_plan.renames.strategy
+
+        def _rename_event_log_leaf(name: str) -> str:
+            return rename_parts(strategy, None, None, name)[2]
+
+        event_log_name_transform = _rename_event_log_leaf
 
     project_root = orchestrator.project_root
     with perf_timer("facade.generate.bundle_sync"):
@@ -130,6 +154,7 @@ def _run_bundle_sync(
             project_root,
             orchestrator.pipeline_config_path,
             project_config=orchestrator.project_config,
+            event_log_name_transform=event_log_name_transform,
         )
         synced_count = bundle_manager.sync_resources_with_generated_files(
             output_dir, env
@@ -151,10 +176,11 @@ def _consume_generate_stream(
     pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
     max_workers: Optional[int] = None,
     progress: ProgressSink | None = None,
+    sandbox_plan: Optional["SandboxRewritePlan"] = None,
 ) -> Generator[
     LHPEvent,
     None,
-    Tuple["BatchGenerationResponse", Tuple["DeprecationWarningRecord", ...]],
+    Tuple["BatchGenerationResponse", Tuple["RunWarningRecord", ...]],
 ]:
     """Consume the orchestrator delta-stream; yield per-pipeline events.
 
@@ -190,7 +216,8 @@ def _consume_generate_stream(
         intentional, documented degradation (commit is a non-transactional
         multi-file write; a partial tree may remain), NOT a §1.4 gap.
 
-    * **warnings** — the batch's merged + deduped worker deprecation warnings.
+    * **warnings** — the batch's merged + deduped worker warning records
+      (deprecations, plus sandbox rewrite warnings on a ``sandbox_plan`` run).
       The CALLER (:func:`_stream_pipeline_generation`) emits these as
       :class:`WarningEmitted` events in/after the generate phase; this body
       never emits them itself (the caller owns the shared ``(code, file)`` dedup
@@ -212,7 +239,7 @@ def _consume_generate_stream(
     forwarded as-is and the engine writes nothing.
     """
     pipeline_responses: Dict[str, "GenerationResponse"] = {}
-    warnings: Tuple["DeprecationWarningRecord", ...] = ()
+    warnings: Tuple["RunWarningRecord", ...] = ()
     try:
         with perf_timer(f"facade.generate_pipelines [{len(pipeline_fields)}]"):
             delta_stream = orchestrator.generate_pipelines(
@@ -230,6 +257,9 @@ def _consume_generate_stream(
                 # no Protocol/ABC — a concrete sink suffices for one consumer).
                 on_total=None if progress is None else progress.on_total,
                 on_flowgroup_done=None if progress is None else progress.on_advance,
+                # The --sandbox rewrite plan; None is the legacy no-rewrite
+                # path, byte-identical to a run without the kwarg.
+                sandbox_plan=sandbox_plan,
             )
             # Drive explicitly (not ``yield from``) to capture ``StopIteration.value``
             # (merged worker warnings) while transforming deltas into §5.7 events.
@@ -292,8 +322,24 @@ def _stream_pipeline_generation(
     pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
     max_workers: Optional[int] = None,
     progress: ProgressSink | None = None,
+    sandbox: bool = False,
 ) -> Iterator[LHPEvent]:
     """Yield the full §5.7 progress stream for the full generation path.
+
+    ``sandbox`` switches the run to developer-sandbox mode: AFTER the discover
+    phase (and the empty-project guard) the sandbox pre-pass resolves the
+    frozen per-run config off the personal profile + team policy
+    (:func:`lhp.api._sandbox_run._resolve_sandbox_run`; a structured failure
+    performs the §1.4 ``ErrorEmitted`` + raise rendezvous), the profile scope
+    becomes the worklist (D6 — only in-scope pipelines are generated; the
+    bundle sync runs unchanged and falls out via wipe-and-regenerate), and the
+    table-rewrite plan from ``orchestrator.build_sandbox_rewrite_plan`` is
+    threaded into the generate phase. The ``monitoring`` phase is SKIPPED on a
+    sandbox run (no PhaseStarted — ``finalize_monitoring_artifacts`` would
+    clobber the shared committed ``monitoring/<env>`` artifacts with a
+    worklist a sandbox run never generates), and the bundle sync namespaces
+    the project-level event-log table name. With ``sandbox=False`` (the
+    default) the stream is byte-identical to the pre-sandbox behavior.
 
     Implements :meth:`lhp.api.GenerationFacade.generate_pipelines` (see its
     docstring for the public contract). Consolidates the FULL generate
@@ -329,9 +375,9 @@ def _stream_pipeline_generation(
        through ``orchestrator.format_output_tree`` (a legal ``api → core`` edge).
        A structured formatter failure (``LHP-CFG-033`` / ``LHP-CFG-034``) RAISES
        via the same in-stream rendezvous as ``bundle_sync``.
-    6. ``monitoring`` phase pair (skipped on dry-run / on a degraded generate)
-       — wraps ``orchestrator.finalize_monitoring_artifacts`` (a legal
-       ``api → core`` edge).
+    6. ``monitoring`` phase pair (skipped on dry-run / on a degraded generate /
+       on a sandbox run) — wraps ``orchestrator.finalize_monitoring_artifacts``
+       (a legal ``api → core`` edge).
     7. ``bundle_sync`` phase pair, ONLY when ``bundle_enabled`` and the
        generate succeeded and this is not a dry-run — composes the ``bundle``
        layer directly (see :func:`_run_bundle_sync`).
@@ -393,6 +439,37 @@ def _stream_pipeline_generation(
         yield ErrorEmitted(lhp_error=empty_project_error)
         raise empty_project_error
 
+    # Sandbox pre-pass (runs AFTER the discover phase — the resolver needs the
+    # discovered pipeline set — and BEFORE the worklist derivation so the
+    # profile scope BECOMES the worklist; D6: only in-scope pipelines are
+    # generated). Resolves the frozen per-run config off the personal profile
+    # (.lhp/profile.yaml) + the team policy (lhp.yaml ``sandbox:`` block),
+    # then builds the table-rewrite plan over the discovered flowgroups via
+    # the orchestrator seam. The resolver raises structured LHPErrors
+    # (LHP-IO-025 / LHP-CFG-064 / LHP-CFG-065 / LHP-VAL-064); §1.4 rendezvous
+    # HERE: exactly one ErrorEmitted then re-raise (bare ``raise`` keeps the
+    # cause chain, B904), mirroring the empty-project guard above.
+    sandbox_run: Optional["SandboxRunConfig"] = None
+    sandbox_plan: Optional["SandboxRewritePlan"] = None
+    if sandbox:
+        # Deferred: the helper imports lhp.core at module level, so it is
+        # imported LAZILY at call time (the same discipline the facade applies
+        # to this stream module) — never on ``import lhp.api``.
+        from lhp.api._sandbox_run import _resolve_sandbox_run
+
+        try:
+            sandbox_run = _resolve_sandbox_run(orchestrator, env, resolved_flowgroups)
+        except LHPError as exc:
+            yield ErrorEmitted(lhp_error=exc)
+            raise
+        # The profile's resolved concrete scope is the worklist, through the
+        # EXISTING pipeline_fields mechanism (the facade already rejects a
+        # sandbox=True run combined with pipeline_filter/pipeline_fields).
+        pipeline_fields = sandbox_run.pipelines
+        sandbox_plan = orchestrator.build_sandbox_rewrite_plan(
+            env, sandbox_run, list(resolved_flowgroups)
+        )
+
     # Auto-derive the all-pipelines worklist from the just-discovered set when
     # the caller supplied no worklist, so passing NEITHER a ``pipeline_filter``
     # NOR a ``pipeline_fields`` batch generates the WHOLE project. A supplied
@@ -403,7 +480,7 @@ def _stream_pipeline_generation(
 
     # LHP-DEPR-001 warnings: scanned on the main thread before the worker pool,
     # seeding the shared dedup set.
-    yield from _emit_deprecation_warnings(
+    yield from _emit_warning_records(
         orchestrator.discovery.scan_deprecation_warnings(
             pipeline_filter=pipeline_filter
         ),
@@ -455,14 +532,24 @@ def _stream_pipeline_generation(
         pre_discovered_all_flowgroups=resolved_flowgroups,
         max_workers=max_workers,
         progress=progress,
+        sandbox_plan=sandbox_plan,
     )
     yield PhaseCompleted(
         phase="generate",
         duration_s=time.perf_counter() - generate_start,
         success=response.success,
     )
-    # LHP-DEPR-002/003/004 worker warnings, deduped against the discover-phase set.
-    yield from _emit_deprecation_warnings(worker_warnings, seen=warnings_seen)
+    # LHP-DEPR-002/003/004 worker warnings — prefixed, on a sandbox run, by
+    # the pre-pass plan warnings (mixed-producer sink LHP-VAL-065) so BOTH
+    # sources join the run's single (code, file)-deduped WarningEmitted
+    # sequence; worker sandbox warnings (LHP-VAL-066) already arrive in
+    # ``worker_warnings`` via StopIteration.value.
+    after_generate_warnings: Sequence["RunWarningRecord"] = (
+        (*sandbox_plan.warnings, *worker_warnings)
+        if sandbox_plan is not None
+        else worker_warnings
+    )
+    yield from _emit_warning_records(after_generate_warnings, seen=warnings_seen)
 
     # Phase: format. The single terminal ``ruff format`` pass over the whole
     # ``generated/<env>`` tree, surfaced as a §5.7 phase HERE — the stream owns
@@ -503,10 +590,14 @@ def _stream_pipeline_generation(
             success=True,
         )
 
-    # Phase: monitoring. Skipped on dry-run (no real tree to reconcile) and on a
-    # degraded generate (mirrors CLI behavior). Routed through the orchestrator
-    # (api → core) — MonitoringFinalizerService must stay below api.
-    if output_dir is not None and response.success:
+    # Phase: monitoring. Skipped on dry-run (no real tree to reconcile), on a
+    # degraded generate (mirrors CLI behavior), and on a SANDBOX run — the
+    # finalizer wipes monitoring/<env>/ + the monitoring resources/*.job.yml
+    # and rewrites them referencing ALL pipelines plus a monitoring pipeline a
+    # sandbox run never generates, which would clobber shared committed
+    # artifacts. Routed through the orchestrator (api → core) —
+    # MonitoringFinalizerService must stay below api.
+    if output_dir is not None and response.success and sandbox_run is None:
         monitoring_start = time.perf_counter()
         yield PhaseStarted(phase="monitoring")
         orchestrator.finalize_monitoring_artifacts(env, output_dir)
@@ -525,7 +616,10 @@ def _stream_pipeline_generation(
         yield PhaseStarted(phase="bundle_sync")
         try:
             synced_count, deleted_count = _run_bundle_sync(
-                orchestrator, env=env, output_dir=output_dir
+                orchestrator,
+                env=env,
+                output_dir=output_dir,
+                sandbox_plan=sandbox_plan,
             )
         except LHPError as exc:
             yield PhaseCompleted(

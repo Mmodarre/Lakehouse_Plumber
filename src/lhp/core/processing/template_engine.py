@@ -34,6 +34,22 @@ class TemplateEngine:
         if templates_dir and templates_dir.exists():
             self._discover_template_files()
 
+    def __getstate__(self) -> Dict[str, Any]:
+        """Drop the compiled-template memo when pickling (spawn boundary).
+
+        ``_compiled`` holds ``jinja2.environment.Template`` objects whose
+        ``root_render_func`` is dynamically compiled and therefore not
+        picklable. The memo is a pure per-process cache — ``_compile``
+        rebuilds any entry lazily from its source string — so shipping an
+        EMPTY memo is lossless. Without this, a main-thread resolution pass
+        that touches any template (e.g. the ``--sandbox`` pre-pass) poisons
+        the engine instance that later rides to the worker pool via
+        ``ProcessPoolExecutor`` initargs, failing every submit.
+        """
+        state = self.__dict__.copy()
+        state["_compiled"] = {}
+        return state
+
     def _discover_template_files(self):
         """Lazy-loading optimisation: populate names without parsing YAML upfront."""
         if not self.templates_dir:

@@ -44,6 +44,7 @@ from ._operational_metadata import (  # noqa: E402
 )
 from ._project import ProjectConfig, WheelConfig  # noqa: E402
 from ._quarantine import QuarantineConfig  # noqa: E402
+from ._sandbox import SandboxConfig, SandboxProfile  # noqa: E402
 from ._template import Preset, Template  # noqa: E402
 from ._test_reporting import TestReportingConfig  # noqa: E402
 from ._uc_tagging import UCTaggingConfig  # noqa: E402
@@ -69,6 +70,8 @@ __all__ = [
     "ProjectConfig",
     "ProjectOperationalMetadataConfig",
     "QuarantineConfig",
+    "SandboxConfig",
+    "SandboxProfile",
     "Template",
     "TestActionType",
     "TestReportingConfig",

@@ -1,0 +1,31 @@
+# Pipeline configuration for the sample quickstart — READY TO USE.
+#
+# Because this project is bundle-enabled (databricks.yml is present), every
+# `lhp validate` / `lhp generate` run needs this file passed explicitly:
+#
+#   lhp validate --env dev -pc config/pipeline_config.yaml
+#   lhp generate --env dev -pc config/pipeline_config.yaml
+#
+# It sets the catalog/schema and compute for the generated pipeline resources
+# under resources/lhp/. Multi-document YAML: the first document is
+# project_defaults (applies to ALL pipelines), each following document
+# overrides settings for one pipeline. The ${...} tokens resolve from
+# substitutions/<env>.yaml, so the catalog edit in quickstart step 1 flows
+# through here automatically — nothing to change in this file.
+#
+# Full reference (clusters, notifications, tags, event log, permissions, ...):
+# docs/databricks_bundles.rst and docs/configure_catalog_schema.rst.
+
+project_defaults:
+  serverless: true                # all three sample pipelines run serverless
+  channel: CURRENT
+  catalog: "${catalog}"           # from substitutions/<env>.yaml
+  schema: "${bronze_schema}"      # default schema; overridden per pipeline below
+
+---
+pipeline: sample_silver
+schema: "${silver_schema}"
+
+---
+pipeline: sample_gold
+schema: "${gold_schema}"

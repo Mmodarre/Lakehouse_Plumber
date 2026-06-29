@@ -133,6 +133,7 @@ class LakehousePlumberApplicationFacade:
         pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
         max_workers: Optional[int] = None,
         progress: ProgressSink | None = None,
+        sandbox: bool = False,
     ) -> Iterator[LHPEvent]:
         """Shortcut for ``self.generation.generate_pipelines(...)``.
 
@@ -148,10 +149,20 @@ class LakehousePlumberApplicationFacade:
         advances as flowgroups complete; read its ``total`` / ``done``
         fields while iterating the stream to observe live progress.
 
+        ``sandbox`` switches the run to developer-sandbox mode: scope and
+        namespace come from the personal ``.lhp/profile.yaml`` plus the
+        team ``sandbox:`` policy in ``lhp.yaml``. CANNOT be combined with
+        ``pipeline_filter`` / ``pipeline_fields``.
+
         :stability: provisional
+        :raises ValueError: if ``sandbox=True`` is combined with
+            ``pipeline_filter`` or ``pipeline_fields`` (API misuse).
         :raises lhp.errors.LHPError: same families as
             :meth:`GenerationFacade.generate_pipelines` — ``LHP-VAL-*``,
-            ``LHP-CFG-*``, ``LHP-FILE-*``, ``LHP-MULT-*``, ``LHP-TPL-*``.
+            ``LHP-CFG-*``, ``LHP-FILE-*``, ``LHP-MULT-*``, ``LHP-TPL-*``;
+            plus the sandbox preflight errors on a ``sandbox=True`` run —
+            ``LHP-IO-025``, ``LHP-CFG-064``, ``LHP-CFG-065``,
+            ``LHP-VAL-064``.
         """
         yield from self.generation.generate_pipelines(
             pipeline_filter=pipeline_filter,
@@ -165,6 +176,7 @@ class LakehousePlumberApplicationFacade:
             pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
             max_workers=max_workers,
             progress=progress,
+            sandbox=sandbox,
         )
 
     def validate_pipelines(
@@ -178,6 +190,7 @@ class LakehousePlumberApplicationFacade:
         bundle_enabled: bool = False,
         pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
         progress: ProgressSink | None = None,
+        sandbox: bool = False,
     ) -> Iterator[LHPEvent]:
         """Shortcut for ``self.validation.validate_pipelines(...)``.
 
@@ -188,10 +201,20 @@ class LakehousePlumberApplicationFacade:
         advances as flowgroups complete; read its ``total`` / ``done``
         fields while iterating the stream to observe live progress.
 
+        ``sandbox`` switches the run to developer-sandbox mode: scope and
+        namespace come from the personal ``.lhp/profile.yaml`` plus the
+        team ``sandbox:`` policy in ``lhp.yaml``. CANNOT be combined with
+        ``pipeline_filter`` / ``pipeline_fields``.
+
         :stability: provisional
+        :raises ValueError: if ``sandbox=True`` is combined with
+            ``pipeline_filter`` or ``pipeline_fields`` (API misuse).
         :raises lhp.errors.LHPError: same families as
             :meth:`ValidationFacade.validate_pipelines` — ``LHP-VAL-*``,
-            ``LHP-CFG-*``, ``LHP-FILE-*``, ``LHP-MULT-*``, ``LHP-TPL-*``.
+            ``LHP-CFG-*``, ``LHP-FILE-*``, ``LHP-MULT-*``, ``LHP-TPL-*``;
+            plus the sandbox preflight errors on a ``sandbox=True`` run —
+            ``LHP-IO-025``, ``LHP-CFG-064``, ``LHP-CFG-065``,
+            ``LHP-VAL-064``.
         """
         yield from self.validation.validate_pipelines(
             pipeline_filter=pipeline_filter,
@@ -202,4 +225,5 @@ class LakehousePlumberApplicationFacade:
             bundle_enabled=bundle_enabled,
             pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
             progress=progress,
+            sandbox=sandbox,
         )

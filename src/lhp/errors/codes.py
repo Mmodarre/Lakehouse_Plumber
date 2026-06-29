@@ -72,6 +72,19 @@ VAL_062 = ErrorCode(ErrorCategory.VALIDATION, "062")
 # (a well-formed catalog.schema.table / schema.table / table reference is
 # required).
 VAL_063 = ErrorCode(ErrorCategory.VALIDATION, "063")
+# VAL_064: a sandbox profile ``pipelines`` entry matches zero pipelines in the
+# project — raised by sandbox scope resolution when a profile pattern selects
+# nothing.
+VAL_064 = ErrorCode(ErrorCategory.VALIDATION, "064")
+# VAL_065: WARNING code — a sandbox-rewritten sink is also produced by an
+# out-of-scope pipeline (mixed-producer sink; the sink is rewritten anyway);
+# stamped by the sandbox engine on SandboxWarningRecord (rides WarningEmitted,
+# category="sandbox"), never raised as an error.
+VAL_065 = ErrorCode(ErrorCategory.VALIDATION, "065")
+# VAL_066: WARNING code — an in-scope read could not be rewritten to its
+# sandbox table name (indirect Python reference); stamped by the sandbox
+# engine, never raised as an error.
+VAL_066 = ErrorCode(ErrorCategory.VALIDATION, "066")
 VAL_902 = ErrorCode(ErrorCategory.VALIDATION, "902")
 VAL_DUPFG = ErrorCode(ErrorCategory.VALIDATION, "DUPFG")
 
@@ -87,6 +100,13 @@ IO_021 = ErrorCode(ErrorCategory.IO, "021")
 IO_022 = ErrorCode(ErrorCategory.IO, "022")
 IO_023 = ErrorCode(ErrorCategory.IO, "023")
 IO_024 = ErrorCode(ErrorCategory.IO, "024")
+# IO_025: sandbox mode requires a personal profile — raised by the sandbox
+# profile loader when ``.lhp/profile.yaml`` is missing.
+IO_025 = ErrorCode(ErrorCategory.IO, "025")
+# IO_026: the optional webapp dependencies (fastapi / uvicorn) are not
+# installed — raised by the ``lhp web`` command when ``importlib.util.find_spec``
+# cannot locate one of them; suggests ``pip install lakehouse-plumber[webapp]``.
+IO_026 = ErrorCode(ErrorCategory.IO, "026")
 
 CFG_001 = ErrorCode(ErrorCategory.CONFIG, "001")
 CFG_002 = ErrorCode(ErrorCategory.CONFIG, "002")
@@ -136,8 +156,29 @@ CFG_060 = ErrorCode(ErrorCategory.CONFIG, "060")
 # absent/empty or does not start with ``/Volumes/`` (serverless installs custom
 # wheels only from a UC volume).
 CFG_061 = ErrorCode(ErrorCategory.CONFIG, "061")
+# CFG_062: the ``sandbox:`` block in lhp.yaml is invalid — raised by the
+# sandbox config loader when the block is not a mapping, names an unknown
+# strategy, or declares an empty ``allowed_envs``.
+CFG_062 = ErrorCode(ErrorCategory.CONFIG, "062")
+# CFG_063: the sandbox ``table_pattern`` is invalid — raised by the sandbox
+# config loader when the pattern cannot produce a valid sandbox table name.
+CFG_063 = ErrorCode(ErrorCategory.CONFIG, "063")
+# CFG_064: the personal sandbox profile (``.lhp/profile.yaml``) is invalid —
+# raised by the sandbox profile loader when ``namespace`` fails the identifier
+# regex or ``pipelines`` is empty.
+CFG_064 = ErrorCode(ErrorCategory.CONFIG, "064")
+# CFG_065: the requested environment is not sandbox-enabled — raised when
+# ``--sandbox`` targets an env absent from ``sandbox.allowed_envs``.
+CFG_065 = ErrorCode(ErrorCategory.CONFIG, "065")
 
 DEP_001 = ErrorCode(ErrorCategory.DEPENDENCY, "001")
+# DEP_002: dependency extraction found a recognized table-read in Python code
+# whose argument could not be statically resolved (opaque read) — warning-only
+# advisory carried on ``DependencyWarning`` records, never raised as an error.
+DEP_002 = ErrorCode(ErrorCategory.DEPENDENCY, "002")
+# DEP_003: a SQL source could not be parsed for table extraction — warning-only
+# advisory carried on ``DependencyWarning`` records, never raised as an error.
+DEP_003 = ErrorCode(ErrorCategory.DEPENDENCY, "003")
 DEP_022 = ErrorCode(ErrorCategory.DEPENDENCY, "022")
 
 ACT_001 = ErrorCode(ErrorCategory.ACTION, "001")
@@ -200,6 +241,9 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     VAL_061,
     VAL_062,
     VAL_063,
+    VAL_064,
+    VAL_065,
+    VAL_066,
     VAL_902,
     VAL_DUPFG,
     IO_001,
@@ -214,6 +258,8 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     IO_022,
     IO_023,
     IO_024,
+    IO_025,
+    IO_026,
     CFG_001,
     CFG_002,
     CFG_003,
@@ -258,7 +304,13 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     CFG_059,
     CFG_060,
     CFG_061,
+    CFG_062,
+    CFG_063,
+    CFG_064,
+    CFG_065,
     DEP_001,
+    DEP_002,
+    DEP_003,
     DEP_022,
     ACT_001,
     ACT_002,
@@ -320,11 +372,17 @@ __all__ = [
     "CFG_059",
     "CFG_060",
     "CFG_061",
+    "CFG_062",
+    "CFG_063",
+    "CFG_064",
+    "CFG_065",
     "DEPR_001",
     "DEPR_002",
     "DEPR_003",
     "DEPR_004",
     "DEP_001",
+    "DEP_002",
+    "DEP_003",
     "DEP_022",
     "GEN_001",
     "GEN_901",
@@ -341,6 +399,8 @@ __all__ = [
     "IO_022",
     "IO_023",
     "IO_024",
+    "IO_025",
+    "IO_026",
     "VAL_001",
     "VAL_002",
     "VAL_003",
@@ -376,6 +436,10 @@ __all__ = [
     "VAL_055",
     "VAL_061",
     "VAL_062",
+    "VAL_063",
+    "VAL_064",
+    "VAL_065",
+    "VAL_066",
     "VAL_902",
     "VAL_DUPFG",
     "ErrorCode",

@@ -320,3 +320,122 @@ class TestDepsExtraction:
             "Explicit source dropped; union semantics regressed. "
             f"external_sources: {external_sources}"
         )
+
+    def test_deps_sql_mid_segment_token_read_round_trips_byte_exactly(self):
+        """A SQL read whose table name carries a MID-SEGMENT substitution token
+        (``...orders${order_suffix}``) must surface with its token bytes intact.
+
+        This pins the byte-fidelity contract the legacy regex parser broke: it
+        silently truncated ``FROM cat.sch.tbl${suffix}`` to ``cat.sch.tbl``, so
+        suffixed readers could never match suffix-carrying producers.
+        """
+        sql_dir = self.project_root / "sql" / "gold"
+        sql_dir.mkdir(parents=True, exist_ok=True)
+        sql_file = sql_dir / "e2e_suffixed_read.sql"
+        sql_file.write_text(
+            "SELECT order_year, COUNT(*) AS n\n"
+            "FROM {catalog}.{silver_schema}.orders${order_suffix}\n"
+            "GROUP BY order_year\n",
+            encoding="utf-8",
+        )
+
+        gold_yaml = self.project_root / "pipelines" / "04_gold" / "e2e_suffixed_mv.yaml"
+        gold_yaml.write_text(
+            textwrap.dedent("""\
+                pipeline: gold_load
+                flowgroup: e2e_suffixed_mv
+                actions:
+                  - name: write_e2e_suffixed_mv
+                    type: write
+                    write_target:
+                      type: materialized_view
+                      database: "{catalog}.{gold_schema}"
+                      table: e2e_suffixed_mv
+                      sql_path: "sql/gold/e2e_suffixed_read.sql"
+                """),
+            encoding="utf-8",
+        )
+
+        exit_code, output = self.run_dag_command("--format", "json")
+        assert exit_code == 0, f"lhp dag failed: {output}"
+
+        data = self._load_json_output()
+        gold = data["pipelines"].get("gold_load")
+        assert gold is not None
+
+        external_sources = set(gold["external_sources"])
+        assert "{catalog}.{silver_schema}.orders${order_suffix}" in external_sources, (
+            "Mid-segment token bytes must round-trip exactly through SQL "
+            f"extraction. Actual external_sources: {external_sources}"
+        )
+        # The truncated form must NOT appear — that was the legacy bug.
+        assert "{catalog}.{silver_schema}.orders" not in external_sources, (
+            "Truncated table name resurfaced — token masking regressed"
+        )
+
+    def test_deps_parameter_bound_reads_and_extraction_warnings(self):
+        """The shared fixture pipeline ``19_dependency_bindings`` pins the
+        dependency-extraction overhaul end-to-end:
+
+        * ``param_snapshot_flow`` — a snapshot_cdc ``source_function`` whose
+          keyword-only ``source_table`` parameter carries ``${token}`` bytes
+          naming a table the ``helper_imports`` pipeline produces with the
+          same spelling → INTERNAL pipeline edge, no ``depends_on`` needed.
+        * ``configured_union_flow`` — a python transform looping over
+          ``parameters["tables"]``; static loop unrolling yields one read per
+          element, token bytes preserved exactly.
+        * ``opaque_read_flow`` — a read routed through a helper call; the
+          analyzer does not follow helper calls, so it emits exactly one
+          LHP-DEP-002 warning with stamped context instead of a silent
+          missing edge.
+        """
+        exit_code, output = self.run_dag_command("--format", "json")
+        assert exit_code == 0, f"lhp dag failed: {output}"
+
+        data = self._load_json_output()
+        dep = data["pipelines"].get("dep_bindings")
+        assert dep is not None, "dep_bindings pipeline missing from deps output"
+
+        # (i) kwonly snapshot parameter forms an internal edge: the producing
+        # pipeline appears in depends_on and the token-qualified table does
+        # NOT leak into external_sources.
+        assert "helper_imports" in set(dep["depends_on"]), (
+            "Parameter-bound snapshot read failed to form the internal edge "
+            f"to helper_imports. depends_on: {dep['depends_on']}"
+        )
+        external_sources = set(dep["external_sources"])
+        assert (
+            "${catalog}.${bronze_schema}.helper_snapshot_dim" not in external_sources
+        ), "Internally-matched snapshot table leaked into external_sources"
+
+        # (ii) loop unrolling: one read per parameters["tables"] element,
+        # token bytes byte-exact.
+        assert "${catalog}.${bronze_schema}.dep_loop_alpha" in external_sources, (
+            f"Loop element alpha missing. external_sources: {external_sources}"
+        )
+        assert "${catalog}.${bronze_schema}.dep_loop_beta" in external_sources, (
+            f"Loop element beta missing. external_sources: {external_sources}"
+        )
+
+        # (iii) opaque helper-routed read → exactly one stamped LHP-DEP-002.
+        warnings = data["warnings"]
+        assert data["metadata"]["total_warnings"] == len(warnings)
+        opaque = [
+            w
+            for w in warnings
+            if w["code"] == "LHP-DEP-002" and w["flowgroup"] == "opaque_read_flow"
+        ]
+        assert len(opaque) == 1, (
+            f"Expected exactly one DEP-002 for opaque_read_flow, got: {opaque}"
+        )
+        warning = opaque[0]
+        assert warning["action"] == "opaque_union_lookup"
+        assert warning["file_path"], "warning must carry the originating file"
+        assert "\\" not in warning["file_path"], (
+            "warning file_path must use POSIX separators in JSON output"
+        )
+        assert warning["file_path"].endswith(
+            "py_functions/dep_bindings_opaque_transform.py"
+        )
+        assert isinstance(warning["line"], int)
+        assert "depends_on" in warning["suggestion"]

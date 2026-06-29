@@ -1,11 +1,14 @@
 """Tests for dependency models."""
 
+import dataclasses
+
 import networkx as nx
 import pytest
 
 from lhp.models.dependencies import (
     DependencyAnalysisResult,
     DependencyGraphs,
+    DependencyWarning,
     PipelineDependency,
 )
 
@@ -302,3 +305,90 @@ def test_dependency_analysis_result_total_external_sources(external_count, expec
     )
 
     assert result.total_external_sources == expected
+
+
+class TestDependencyWarning:
+    def test_initialization_complete(self):
+        warning = DependencyWarning(
+            code="LHP-DEP-002",
+            message="Opaque table read in Python source",
+            flowgroup="fg1",
+            action="load_data",
+            suggestion="Add an explicit depends_on entry",
+            file_path="pipelines/fg1.py",
+            line=42,
+        )
+
+        assert warning.code == "LHP-DEP-002"
+        assert warning.message == "Opaque table read in Python source"
+        assert warning.flowgroup == "fg1"
+        assert warning.action == "load_data"
+        assert warning.suggestion == "Add an explicit depends_on entry"
+        assert warning.file_path == "pipelines/fg1.py"
+        assert warning.line == 42
+
+    def test_optional_fields_default_to_none(self):
+        warning = DependencyWarning(
+            code="LHP-DEP-003",
+            message="SQL source could not be parsed",
+            flowgroup="fg2",
+            action="transform_data",
+            suggestion="Check the SQL syntax",
+        )
+
+        assert warning.file_path is None
+        assert warning.line is None
+
+    def test_frozen(self):
+        warning = DependencyWarning(
+            code="LHP-DEP-002",
+            message="msg",
+            flowgroup="fg",
+            action="act",
+            suggestion="sug",
+        )
+
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            warning.code = "LHP-DEP-003"
+
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            warning.line = 7
+
+
+class TestWarningFieldDefaults:
+    def test_dependency_graphs_extraction_warnings_defaults_empty(self):
+        graphs = DependencyGraphs(
+            action_graph=nx.DiGraph(),
+            flowgroup_graph=nx.DiGraph(),
+            pipeline_graph=nx.DiGraph(),
+            metadata={},
+        )
+
+        assert graphs.extraction_warnings == []
+
+    def test_dependency_graphs_extraction_warnings_not_shared(self):
+        graphs_a = DependencyGraphs(nx.DiGraph(), nx.DiGraph(), nx.DiGraph(), {})
+        graphs_b = DependencyGraphs(nx.DiGraph(), nx.DiGraph(), nx.DiGraph(), {})
+
+        graphs_a.extraction_warnings.append(
+            DependencyWarning(
+                code="LHP-DEP-002",
+                message="msg",
+                flowgroup="fg",
+                action="act",
+                suggestion="sug",
+            )
+        )
+
+        assert graphs_b.extraction_warnings == []
+
+    def test_dependency_analysis_result_warnings_defaults_empty(self):
+        result = DependencyAnalysisResult(
+            graphs=DependencyGraphs(nx.DiGraph(), nx.DiGraph(), nx.DiGraph(), {}),
+            pipeline_dependencies={},
+            execution_stages=[],
+            circular_dependencies=[],
+            external_sources=[],
+        )
+
+        assert result.warnings == []

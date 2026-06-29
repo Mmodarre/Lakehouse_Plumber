@@ -1,0 +1,12 @@
+# Preset applied to every bronze (ingest) streaming-table write — via the
+# cloudfiles_ingest template and the nation_region flowgroup.
+# Presets deep-merge defaults into matching actions; explicit config wins.
+name: bronze_layer
+version: "1.0"
+description: "Bronze defaults: change data feed enabled, quality tag"
+defaults:
+  write_actions:
+    streaming_table:
+      table_properties:
+        delta.enableChangeDataFeed: "true"     # string value — lets the demo be extended to feed off bronze later
+        quality: "bronze"

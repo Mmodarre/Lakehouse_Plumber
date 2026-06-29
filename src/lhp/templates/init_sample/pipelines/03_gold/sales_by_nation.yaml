@@ -1,0 +1,14 @@
+# Gold materialized view — aggregation defined in an EXTERNAL SQL file
+# (sql_path showcase; pairs with the inline sql: transforms in 02_silver).
+pipeline: sample_gold
+flowgroup: sales_by_nation
+operational_metadata: ["_processing_timestamp"]
+actions:
+  - name: mv_sales_by_nation
+    type: write
+    write_target:
+      type: materialized_view
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
+      table: sales_by_nation
+      sql_path: sql/sales_by_nation.sql          # external SQL file (sql_path showcase)

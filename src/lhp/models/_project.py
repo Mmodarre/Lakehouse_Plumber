@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from ._monitoring import EventLogConfig, MonitoringConfig
 from ._operational_metadata import ProjectOperationalMetadataConfig
+from ._sandbox import SandboxConfig
 from ._test_reporting import TestReportingConfig
 from ._uc_tagging import UCTaggingConfig
 
@@ -34,6 +35,7 @@ class ProjectConfig(BaseModel):
     test_reporting: Optional[TestReportingConfig] = None
     uc_tagging: Optional[UCTaggingConfig] = None
     wheel: Optional[WheelConfig] = None
+    sandbox: Optional[SandboxConfig] = None
     apply_formatting: bool = Field(
         True,
         description=(

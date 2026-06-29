@@ -14,6 +14,16 @@ remains here is the per-method delegation surface for validation.
 :stability: internal
 """
 
+# JUSTIFIED: This module deliberately pairs the ValidationFacade's
+# delegation surface with its long-running §5.7 validate event stream —
+# discover (+ DEPR-001 scan), sandbox pre-pass, preflight, validate — in
+# ONE module. The phase machinery and its single shared event/warning
+# state (the §1.4 ErrorEmitted+raise rendezvous, the discover-phase
+# warning dedup) are one cohesive responsibility; splitting facade from
+# stream (as the generate side does with `_generate_stream`) is the known
+# decomposition, but it slices that rendezvous state across modules for
+# ~50 lines of relief at 558. Under §9.3's 800-line hard cap.
+
 from __future__ import annotations
 
 import logging
@@ -33,7 +43,7 @@ from typing import (
 
 from lhp.api._converters_common import (
     _derive_worklist_fields,
-    _emit_deprecation_warnings,
+    _emit_warning_records,
 )
 from lhp.api._preflight import _run_project_preflight
 from lhp.api._stream_guard import _cap_event_stream
@@ -62,8 +72,9 @@ from lhp.utils.performance_timer import perf_timer
 
 if TYPE_CHECKING:
     from lhp.api._progress import ProgressSink
+    from lhp.core.sandbox import SandboxRewritePlan
     from lhp.models import FlowGroup
-    from lhp.models.processing import DeprecationWarningRecord
+    from lhp.models.processing import RunWarningRecord, SandboxWarningRecord
 
     # Internal orchestrator type, referenced only as a quoted annotation
     # below; never named directly in the public API surface (§1.10,
@@ -89,6 +100,7 @@ class ValidationFacade:
         bundle_enabled: bool = False,
         pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
         progress: ProgressSink | None = None,
+        sandbox: bool = False,
     ) -> Iterator[LHPEvent]:
         """Stream-protocol wrapper around batch pipeline validation (§5.7).
 
@@ -121,8 +133,7 @@ class ValidationFacade:
         5. Terminal :class:`ValidationCompleted` carrying the
            :class:`BatchValidationResponse`.
 
-        Discover phase (D3): the discover phase is no longer a no-op
-        placeholder. It resolves the project-wide flowgroup set EXACTLY ONCE
+        Discover phase: it resolves the project-wide flowgroup set EXACTLY ONCE
         and threads the SAME list into both the preflight phase (so
         :func:`_run_project_preflight` does not re-discover) and the validate
         phase (so the orchestrator's worklist builder does not re-discover):
@@ -176,19 +187,42 @@ class ValidationFacade:
         ``done`` fields while iterating the stream to drive a progress bar.
         ``None`` (the default) wires no progress callbacks.
 
+        ``sandbox`` switches the run to developer-sandbox mode: the pipeline
+        scope and namespace come from the personal ``.lhp/profile.yaml`` plus
+        the team ``sandbox:`` policy in ``lhp.yaml``, resolved by the sandbox
+        preflight at the start of the run. Because sandbox scope is
+        profile-driven, ``sandbox=True`` CANNOT be combined with
+        ``pipeline_filter`` / ``pipeline_fields``.
+
         The §5.7 stream body lives in :meth:`_validate_pipelines_stream`;
         this method restates the canonical signature (§4.2) and forwards it
         through :func:`lhp.api._stream_guard._cap_event_stream` (the §13.4
         event-buffer soft cap) via ``yield from``.
 
         :stability: provisional
+        :raises ValueError: if ``sandbox=True`` is combined with
+            ``pipeline_filter`` or ``pipeline_fields`` — API misuse, no
+            structured ``LHP-*`` code (the codebase convention for
+            invalid-argument combinations).
         :raises lhp.errors.LHPError: ``LHP-VAL-*`` (config/action/schema
             validation), ``LHP-CFG-*`` (project config + substitution),
             ``LHP-FILE-*`` (missing files), ``LHP-MULT-*`` (multi-document
             YAML), and ``LHP-TPL-*`` (template expansion) propagated from
-            the per-pipeline workers. An :class:`ErrorEmitted` event is
-            yielded before the exception escapes (§1.4 stream protocol).
+            the per-pipeline workers; on a ``sandbox=True`` run also the
+            sandbox preflight errors ``LHP-IO-025`` (missing
+            ``.lhp/profile.yaml``), ``LHP-CFG-064`` (malformed profile),
+            ``LHP-CFG-065`` (environment not sandbox-enabled), and
+            ``LHP-VAL-064`` (profile scope matched no pipelines, or an
+            exact entry names the monitoring pipeline). An
+            :class:`ErrorEmitted` event is yielded before the exception
+            escapes (§1.4 stream protocol).
         """
+        if sandbox and (pipeline_filter is not None or pipeline_fields):
+            raise ValueError(
+                "`sandbox` cannot be combined with `pipeline_filter` or "
+                "`pipeline_fields`: sandbox scope comes from the personal "
+                "profile (.lhp/profile.yaml)."
+            )
         yield from _cap_event_stream(
             self._validate_pipelines_stream(
                 pipeline_filter=pipeline_filter,
@@ -199,6 +233,7 @@ class ValidationFacade:
                 bundle_enabled=bundle_enabled,
                 pre_discovered_all_flowgroups=pre_discovered_all_flowgroups,
                 progress=progress,
+                sandbox=sandbox,
             )
         )
 
@@ -213,11 +248,31 @@ class ValidationFacade:
         bundle_enabled: bool = False,
         pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
         progress: ProgressSink | None = None,
+        sandbox: bool = False,
     ) -> Iterator[LHPEvent]:
         """Yield the full §5.7 validate progress stream (the stream body).
 
         Private generator so the public method can route through
         :func:`lhp.api._stream_guard._cap_event_stream` (§13.4 event-buffer soft cap).
+
+        ``sandbox`` runs the sandbox pre-pass between the discover phase
+        (+ its DEPR-001 scan) and the preflight phase, mirroring the
+        generate stream: resolve the frozen
+        :class:`~lhp.models.processing.SandboxRunConfig` off the personal
+        profile + team policy
+        (:func:`lhp.api._sandbox_run._resolve_sandbox_run`), scope the
+        worklist to the profile's resolved pipelines, and build the
+        rewrite plan via the orchestrator seam
+        (:meth:`build_sandbox_rewrite_plan`) so the validate workers apply
+        the STRUCTURED rewrite and cross-flowgroup validation sees the
+        sandbox names. A pre-pass :class:`~lhp.errors.LHPError` is a MODE
+        error, not a pipeline finding: §1.4 ``ErrorEmitted`` + raise — it
+        never folds into the terminal :class:`BatchValidationResponse`. The
+        plan's carried warnings (e.g. mixed-producer ``LHP-VAL-065``) join
+        the post-validate-phase warning slot; the generate-only
+        ``LHP-VAL-066`` text pass does not run here (documented v1
+        limitation). With ``sandbox=False`` (the default) the stream is
+        byte-identical to the pre-sandbox behavior.
 
         :stability: internal
         """
@@ -248,12 +303,38 @@ class ValidationFacade:
             success=True,
         )
         # Main-thread LHP-DEPR-001 warnings, seeding the shared dedup set.
-        yield from _emit_deprecation_warnings(
+        yield from _emit_warning_records(
             self._orchestrator.discovery.scan_deprecation_warnings(
                 pipeline_filter=pipeline_filter
             ),
             seen=warnings_seen,
         )
+
+        # Sandbox pre-pass (D1: --sandbox covers validate too), mirroring the
+        # generate stream: after discover + DEPR-001, before preflight. A
+        # failing pre-pass is a MODE error, not a pipeline finding — §1.4
+        # ErrorEmitted + raise, never a BatchValidationResponse.
+        sandbox_plan: Optional[SandboxRewritePlan] = None
+        sandbox_warnings: Tuple[SandboxWarningRecord, ...] = ()
+        if sandbox:
+            # Lazy import (that module's contract): _sandbox_run pulls
+            # lhp.core at module level and must not load at api-import time.
+            from lhp.api._sandbox_run import _resolve_sandbox_run
+
+            try:
+                sandbox_run = _resolve_sandbox_run(
+                    self._orchestrator, env, resolved_flowgroups
+                )
+                sandbox_plan = self._orchestrator.build_sandbox_rewrite_plan(
+                    env, sandbox_run, list(resolved_flowgroups)
+                )
+            except LHPError as exc:
+                yield ErrorEmitted(lhp_error=exc)
+                raise
+            # Profile-driven scope (D5/D6): the resolved concrete pipeline
+            # set REPLACES the derived all-pipelines worklist.
+            effective_pipeline_fields = sandbox_run.pipelines
+            sandbox_warnings = sandbox_plan.warnings
 
         preflight_start = time.perf_counter()
         yield PhaseStarted(phase="preflight")
@@ -293,6 +374,7 @@ class ValidationFacade:
                 include_tests=include_tests,
                 pre_discovered_all_flowgroups=resolved_flowgroups,
                 progress=progress,
+                sandbox_plan=sandbox_plan,
             )
         except LHPError as exc:
             yield PhaseCompleted(
@@ -307,8 +389,12 @@ class ValidationFacade:
             duration_s=time.perf_counter() - validate_start,
             success=response.success,
         )
-        # Worker LHP-DEPR-002/003/004 warnings, deduped against the main-thread set.
-        yield from _emit_deprecation_warnings(worker_warnings, seen=warnings_seen)
+        # Worker LHP-DEPR-002/003/004 warnings plus the sandbox plan's carried
+        # warnings (LHP-VAL-065), concatenated BEFORE the shared dedup so the
+        # union surfaces once.
+        yield from _emit_warning_records(
+            sandbox_warnings + worker_warnings, seen=warnings_seen
+        )
         yield ValidationCompleted(response=response)
 
     def _consume_validate_stream(
@@ -321,10 +407,11 @@ class ValidationFacade:
         include_tests: bool = True,
         pre_discovered_all_flowgroups: Optional[Sequence["FlowGroup"]] = None,
         progress: ProgressSink | None = None,
+        sandbox_plan: Optional["SandboxRewritePlan"] = None,
     ) -> Generator[
         LHPEvent,
         None,
-        Tuple["BatchValidationResponse", Tuple["DeprecationWarningRecord", ...]],
+        Tuple["BatchValidationResponse", Tuple["RunWarningRecord", ...]],
     ]:
         """Consume the orchestrator outcome-stream; yield per-pipeline events.
 
@@ -368,18 +455,24 @@ class ValidationFacade:
             everything else folds into the DTO so the CLI gets a terminal DTO
             with a code rather than a live exception.
 
-        * **warnings** — the batch's merged + deduped worker deprecation
-          warnings; the CALLER (:meth:`validate_pipelines`) emits these as
-          :class:`WarningEmitted` events in/after the validate phase, deduped
-          against the discover-phase main-thread warnings via a shared
+        * **warnings** — the batch's merged + deduped worker warning records
+          (deprecation and sandbox); the CALLER (:meth:`validate_pipelines`)
+          emits these as :class:`WarningEmitted` events in/after the validate
+          phase — concatenated after the sandbox plan's carried warnings —
+          deduped against the discover-phase main-thread warnings via a shared
           ``(code, file)`` set. Empty on the LHPError re-raise path and the
           non-LHP-degradation path.
+
+        ``sandbox_plan`` is the ``--sandbox`` structured-rewrite plan built by
+        the stream's sandbox pre-pass (``None`` outside sandbox runs),
+        threaded verbatim into ``orchestrator.validate_pipelines`` so the
+        workers apply the rewrite before validation.
 
         ``files_written`` on the per-pipeline :class:`PipelineCompleted` is
         always ``0``: validate writes nothing.
         """
         pipeline_responses: Dict[str, "ValidationResponse"] = {}
-        warnings: Tuple["DeprecationWarningRecord", ...] = ()
+        warnings: Tuple["RunWarningRecord", ...] = ()
         try:
             with perf_timer(f"facade.validate_pipelines [{len(pipeline_fields)}]"):
                 outcome_stream = self._orchestrator.validate_pipelines(
@@ -397,6 +490,10 @@ class ValidationFacade:
                     on_flowgroup_done=(
                         None if progress is None else progress.on_advance
                     ),
+                    # --sandbox structured-rewrite plan (None outside sandbox
+                    # runs): the workers rewrite the resolved flowgroups so
+                    # cross-flowgroup validation sees the sandbox names.
+                    sandbox_plan=sandbox_plan,
                 )
                 # Drive the outcome-generator explicitly so its
                 # ``StopIteration.value`` (the merged worker warnings) is captured

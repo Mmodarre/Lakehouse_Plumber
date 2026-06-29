@@ -7,6 +7,13 @@ created_date: "2026-04-08"
 required_lhp_version: ">=0.5.0,<0.10.0"
 wheel:
   artifact_volume: "/Volumes/perf_test_wheels/a/b/c"
+
+# Team sandbox policy for `lhp generate|validate --sandbox`.
+# Each developer declares their personal scope in gitignored .lhp/profile.yaml.
+sandbox:
+  strategy: table                       # v1: table renames only
+  table_pattern: "{table}_{namespace}"  # str.format placeholders, not ${tokens}
+  allowed_envs: [dev, tst]              # --sandbox refused on prod (LHP-CFG-065)
 # Use include patterns to select subsets for targeted testing
 # Uncomment specific patterns to test with smaller subsets:
 

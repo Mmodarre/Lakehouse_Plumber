@@ -1,0 +1,18 @@
+# ⚠️ IMPORTANT: Environment name 'prod' must match databricks.yml target name 'prod'
+# This file: substitutions/prod.yaml → databricks.yml target: prod
+# LHP generates resources under: resources/lhp/
+
+prod:
+  catalog: main                    # ← edit: the production catalog
+  bronze_schema: sample_bronze
+  silver_schema: sample_silver
+  gold_schema: sample_gold
+  landing_volume: /Volumes/main/sample_bronze/landing   # keep in sync with catalog/bronze_schema above
+  target_tz: America/New_York      # consumed by the python timezone transform
+
+# Secret scope configuration — only needed if you activate
+# examples_optional/jdbc_with_secret.yaml.txt (see README).
+# secrets:
+#   default_scope: sample-secrets
+#   scopes:
+#     db_secrets: my-db-secret-scope
