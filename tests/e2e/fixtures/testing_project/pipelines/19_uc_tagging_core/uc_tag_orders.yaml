@@ -1,0 +1,29 @@
+# UC tagging E2E — table tags only + value coercions (normal / empty / null).
+# Uses the combined `database:` form (normalized to catalog/schema before the
+# tagging hook sees it).
+pipeline: uc_tagging_core
+flowgroup: uc_tag_orders
+#job_name: j_two
+actions:
+  - name: load_orders
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      database: "{catalog}.{raw_schema}"
+      table: orders_raw
+    target: v_uc_orders
+
+  - name: write_orders
+    type: write
+    source: v_uc_orders
+    write_target:
+      type: streaming_table
+      create_table: true
+      database: "{catalog}.{bronze_schema}"
+      table: uc_orders
+      table_schema: schemas/uc_orders.yaml
+      tags:
+        team: data-eng
+        pii: ''
+        owner:

@@ -1,0 +1,24 @@
+# UC tagging E2E — column tags only, explicit catalog/schema form (no write_target tags).
+pipeline: uc_tagging_core
+flowgroup: uc_tag_customers
+#job_name: j_two
+actions:
+  - name: load_customers
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      database: "{catalog}.{raw_schema}"
+      table: customer_raw
+    target: v_uc_cust
+
+  - name: write_customers
+    type: write
+    source: v_uc_cust
+    write_target:
+      type: streaming_table
+      create_table: true
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: uc_customers
+      table_schema: schemas/uc_customers.yaml

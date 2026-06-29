@@ -222,15 +222,16 @@ class TestUCTaggingHookGenerator:
 
 
 @pytest.mark.unit
-class TestUCTaggingHookGolden:
-    """Byte-exact golden coverage of the full rendered hook (raw template render).
+class TestUCTaggingHookContent:
+    """Targeted delta coverage of the rendered tag-data literals.
 
-    Locks the whole generated file so any unintended template/generator change is
-    caught in one diff. Author/update the baselines with:
-        pytest -k uc_tagging --update-baselines
+    Full-fidelity coverage of the additive case now lives in the e2e suite
+    (tests/e2e/test_uc_tagging_e2e.py, Pipeline A). Reconcile is excluded from
+    e2e by scope, so it is kept here. These assert the raw-render single-quoted
+    repr() literals (no ruff-format pass, unlike the e2e baselines).
     """
 
-    def test_additive_table_and_column(self, tmp_path, golden):
+    def test_additive_table_and_column(self, tmp_path):
         schema_file = tmp_path / "schemas" / "orders.yaml"
         schema_file.parent.mkdir(parents=True)
         schema_file.write_text(
@@ -251,16 +252,29 @@ class TestUCTaggingHookGolden:
             )
         )
         content = _build([action], root=tmp_path)[HOOK_FILENAME]
-        golden(content, "uc_tagging/additive_table_and_column")
+        # Table tags (key-only -> ''), column tags (incl. empty-string value),
+        # additive mode. Raw render -> single-quoted repr() literals.
+        assert (
+            "_TABLE_TAGS = {'prod.sales.orders': {'team': 'data-eng', 'pii': ''}}"
+            in content
+        )
+        assert (
+            "_COLUMN_TAGS = {'prod.sales.orders': "
+            "{'email': {'classification': 'pii', 'masked': ''}}}" in content
+        )
+        assert "_REMOVE_UNDECLARED_TAGS = False" in content
 
-    def test_reconcile_with_empty_set(self, tmp_path, golden):
+    def test_reconcile_with_empty_set(self, tmp_path):
         action = _write_action(write_target=_st_target(tags={}))
         content = _build(
             [action],
             uc_tagging=UCTaggingConfig(remove_undeclared_tags=True),
             root=tmp_path,
         )[HOOK_FILENAME]
-        golden(content, "uc_tagging/reconcile_with_empty_set")
+        # Reconcile keeps the empty tag dict (additive mode would drop the entity).
+        assert "_TABLE_TAGS = {'prod.sales.orders': {}}" in content
+        assert "_COLUMN_TAGS = {}" in content
+        assert "_REMOVE_UNDECLARED_TAGS = True" in content
 
 
 @contextmanager

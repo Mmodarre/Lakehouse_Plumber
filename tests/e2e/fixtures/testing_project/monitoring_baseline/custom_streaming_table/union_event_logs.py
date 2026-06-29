@@ -36,6 +36,9 @@ SOURCES = [
     ("kafka_sample_pipeline", "acme_edw_dev._meta.kafka_sample_pipeline_event_log"),
     ("namespace_validation", "acme_edw_dev._meta.namespace_validation_event_log"),
     ("sample_python_func_pipeline", "acme_edw_dev._meta.sample_python_func_pipeline_event_log"),
+    ("uc_tagging_core", "acme_edw_dev._meta.uc_tagging_core_event_log"),
+    ("uc_tagging_mv", "acme_edw_dev._meta.uc_tagging_mv_event_log"),
+    ("uc_tagging_none", "acme_edw_dev._meta.uc_tagging_none_event_log"),
 ]
 
 
