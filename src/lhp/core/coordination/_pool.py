@@ -1,3 +1,11 @@
+# JUSTIFIED: this is the single flat per-flowgroup fan-out engine — one module
+# owning the whole parallel pipeline (fan-out → bucket → cross-flowgroup
+# barrier → finalize → resolved-FlowGroup release) for BOTH validate and
+# generate, with ``mode`` as the only fork (§4.6). Splitting the driver would
+# scatter the parallelism and resolved-release invariants across files for no
+# cohesion gain. It sits just over the §3.3 line cap; the cleanest reduction is
+# to lift the resolved-release transform in ``_finalize`` into its own module.
+# TODO(coordination): extract resolved-release into core/coordination/_resolved_release.py
 """Flat per-flowgroup fan-out engine for the consolidated execution surface.
 
 This module is the coordinator-side driver for the flat
