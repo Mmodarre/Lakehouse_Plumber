@@ -405,6 +405,7 @@ class PlannedFileView:
     - ``"aux"`` — an auxiliary file (e.g. ``__init__.py``).
     - ``"helper"`` — a copied transitive helper module.
     - ``"test_hook"`` — a generated test-action hook file.
+    - ``"uc_tagging_hook"`` — a generated per-pipeline UC tagging hook file.
     - ``"monitoring"`` — a synthetic monitoring-pipeline file.
 
     Immutable and JSON-shape-compatible (§4.8): ``path`` serialises to
@@ -416,7 +417,9 @@ class PlannedFileView:
     path: Path
     content: str
     pipeline: str
-    kind: Literal["flowgroup", "aux", "helper", "test_hook", "monitoring"]
+    kind: Literal[
+        "flowgroup", "aux", "helper", "test_hook", "uc_tagging_hook", "monitoring"
+    ]
 
 
 @dataclass(frozen=True)
