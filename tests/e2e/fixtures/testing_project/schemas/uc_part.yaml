@@ -1,0 +1,21 @@
+# Schema for the uc_part_summary materialized view — per-column UC tags, used to
+# prove table + column tags can share one FQN.
+name: uc_part
+version: "1.0"
+description: "UC tagging E2E — part summary (column tags present)"
+
+columns:
+  - name: p_partkey
+    type: BIGINT
+    nullable: false
+    comment: "Part key - primary identifier"
+  - name: p_name
+    type: STRING
+    nullable: true
+    comment: "Part name"
+    tags:
+      classification: confidential
+  - name: p_size
+    type: INT
+    nullable: true
+    comment: "Part size"

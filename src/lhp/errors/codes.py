@@ -170,6 +170,15 @@ CFG_064 = ErrorCode(ErrorCategory.CONFIG, "064")
 # CFG_065: the requested environment is not sandbox-enabled — raised when
 # ``--sandbox`` targets an env absent from ``sandbox.allowed_envs``.
 CFG_065 = ErrorCode(ErrorCategory.CONFIG, "065")
+# CFG_066: a declared UC tag key or value is illegal under Unity Catalog's
+# charset/length rules — raised at generation time when a tag key or value
+# contains a prohibited character, has leading/trailing whitespace, or exceeds
+# 256 characters. Raised via ``ErrorFactory.config_error`` with title
+# "Illegal UC tag key/value" and a ``details`` template threading the context
+# label (table FQN or ``fqn.column``), which part is offending ("key"/"value"),
+# the offending text, and the specific reason, e.g.:
+#   f"UC tag {part} {value!r} on {context} is illegal: {reason}."
+CFG_066 = ErrorCode(ErrorCategory.CONFIG, "066")
 
 DEP_001 = ErrorCode(ErrorCategory.DEPENDENCY, "001")
 # DEP_002: dependency extraction found a recognized table-read in Python code
@@ -308,6 +317,7 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     CFG_063,
     CFG_064,
     CFG_065,
+    CFG_066,
     DEP_001,
     DEP_002,
     DEP_003,
@@ -376,6 +386,7 @@ __all__ = [
     "CFG_063",
     "CFG_064",
     "CFG_065",
+    "CFG_066",
     "DEPR_001",
     "DEPR_002",
     "DEPR_003",

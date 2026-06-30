@@ -15,6 +15,7 @@
 | `temporary` | bool | `false` | — |
 | `comment` | string | — | — |
 | `table_properties` | dict | — | — |
+| `tags` | dict | — | UC tags `{key: value}`; value `""`/`~`/null = key-only. Applied during the run by a generated `_uc_tagging_hook.py` (REST API, not the table DDL) |
 | `spark_conf` | dict | — | — |
 | `table_schema` | string | — | Inline schema or schema-file path. |
 | `row_filter` | string | — | — |

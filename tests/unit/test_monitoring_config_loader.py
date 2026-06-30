@@ -147,6 +147,34 @@ class TestParseMonitoringConfig:
                 {"materialized_views": ["not_a_dict"]}, event_log
             )
 
+    def test_max_concurrent_streams_above_upper_bound_raises(self, loader):
+        """Loader path rejects out-of-range max_concurrent_streams with a clean CFG_008."""
+        event_log = EventLogConfig(enabled=True, catalog="cat", schema="_meta")
+        with pytest.raises(
+            LHPError, match=r"max_concurrent_streams must be in the range 1\.\.20"
+        ):
+            loader._parse_monitoring_config(
+                {
+                    "checkpoint_path": "/mnt/cp",
+                    "job_config_path": JOB_CFG_REL,
+                    "max_concurrent_streams": 21,
+                },
+                event_log,
+            )
+
+    def test_max_concurrent_streams_non_int_raises(self, loader):
+        """Loader path rejects non-integer max_concurrent_streams (incl. bool)."""
+        event_log = EventLogConfig(enabled=True, catalog="cat", schema="_meta")
+        with pytest.raises(LHPError, match="max_concurrent_streams must be an integer"):
+            loader._parse_monitoring_config(
+                {
+                    "checkpoint_path": "/mnt/cp",
+                    "job_config_path": JOB_CFG_REL,
+                    "max_concurrent_streams": True,
+                },
+                event_log,
+            )
+
 
 @pytest.mark.unit
 class TestValidateMonitoringConfig:

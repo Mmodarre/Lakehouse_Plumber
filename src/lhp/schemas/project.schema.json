@@ -211,6 +211,7 @@
                     "type": "integer",
                     "default": 10,
                     "minimum": 1,
+                    "maximum": 20,
                     "description": "Maximum number of concurrent streaming queries in the union notebook (ThreadPoolExecutor max_workers)"
                 },
                 "materialized_views": {
@@ -239,6 +240,29 @@
                     "type": "boolean",
                     "default": false,
                     "description": "Enable job monitoring via Databricks SDK (adds jobs_stats materialized view)"
+                }
+            }
+        },
+        "uc_tagging": {
+            "type": "object",
+            "description": "Unity Catalog tagging configuration. On by default — this block is optional and only needed to disable the feature or tune it. Users opt in by declaring 'tags' on a table/column; the generated per-pipeline _uc_tagging_hook.py then applies them via the Entity Tag Assignments REST API on pipeline update progress events.",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Whether UC tagging is enabled. Defaults to true (on by default, even with no uc_tagging block). Set false to disable the feature entirely."
+                },
+                "remove_undeclared_tags": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "When true, reconcile to the declared tag set: existing tags whose keys are not declared in LHP are deleted from managed entities (can remove tags set by other tools). When false (default), tagging is additive only."
+                },
+                "tag_update_concurrency": {
+                    "type": "integer",
+                    "default": 16,
+                    "minimum": 1,
+                    "maximum": 20,
+                    "description": "Maximum concurrent tag operations (the hook's ThreadPoolExecutor max_workers for the one-shot pass over all tables/columns)."
                 }
             }
         }

@@ -1,3 +1,11 @@
+# JUSTIFIED: this is the single flat per-flowgroup fan-out engine — one module
+# owning the whole parallel pipeline (fan-out → bucket → cross-flowgroup
+# barrier → finalize → resolved-FlowGroup release) for BOTH validate and
+# generate, with ``mode`` as the only fork (§4.6). Splitting the driver would
+# scatter the parallelism and resolved-release invariants across files for no
+# cohesion gain. It sits just over the §3.3 line cap; the cleanest reduction is
+# to lift the resolved-release transform in ``_finalize`` into its own module.
+# TODO(coordination): extract resolved-release into core/coordination/_resolved_release.py
 """Flat per-flowgroup fan-out engine for the consolidated execution surface.
 
 This module is the coordinator-side driver for the flat
@@ -254,6 +262,10 @@ def _run_flowgroup_pool_core(
     # alone retains a SUPERSET of the cases the hook needs — never releasing
     # something it would read — at the cost of retaining when tests are on but
     # no reporting provider is configured. Output is unaffected.)
+    # ... with one exception: a flowgroup that may carry UC tags is RETAINED so
+    # the commit-time tagging hook can scan it (tagging works regardless of
+    # ``include_tests``). ``flowgroup_has_uc_tags`` is conservative and imports
+    # nothing heavy. Over-retention is bounded to tag-bearing flowgroups.
     release_resolved = mode == "generate" and not worker_state.include_tests
 
     def _finalize(pipeline: str, outcomes: List[FlowgroupOutcome]) -> None:
@@ -266,10 +278,15 @@ def _run_flowgroup_pool_core(
         # first-seen order stable regardless of pool completion order.
         warnings = merge_flowgroup_warnings(ordered)
         if release_resolved:
+            from ..codegen.uc_tagging import flowgroup_has_uc_tags
+
             ordered = tuple(
                 (
                     dataclasses.replace(o, resolved_flowgroup=None)
-                    if o.resolved_flowgroup is not None
+                    if (
+                        o.resolved_flowgroup is not None
+                        and not flowgroup_has_uc_tags(o.resolved_flowgroup)
+                    )
                     else o
                 )
                 for o in ordered

@@ -1,0 +1,24 @@
+# Schema for the uc_customers streaming table — exercises per-column UC tags
+# (including an empty-string tag value).
+name: uc_customers
+version: "1.0"
+description: "UC tagging E2E — customers table (column tags present)"
+
+columns:
+  - name: c_custkey
+    type: BIGINT
+    nullable: false
+    comment: "Customer key - primary identifier"
+  - name: c_name
+    type: STRING
+    nullable: true
+    comment: "Customer name"
+  - name: c_email
+    type: STRING
+    nullable: true
+    comment: "Customer email"
+    tags:
+      classification: pii
+      masked: ''
+
+primary_key: [c_custkey]

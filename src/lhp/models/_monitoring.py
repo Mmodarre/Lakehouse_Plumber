@@ -48,6 +48,8 @@ class MonitoringConfig(BaseModel):
     job_config_path: Optional[str] = (
         None  # relative path to monitoring job config YAML (required when enabled)
     )
-    max_concurrent_streams: int = 10  # ThreadPoolExecutor max_workers
+    max_concurrent_streams: int = Field(
+        10, ge=1, le=20
+    )  # ThreadPoolExecutor max_workers
     materialized_views: Optional[List[MonitoringMaterializedViewConfig]] = None
     enable_job_monitoring: bool = False

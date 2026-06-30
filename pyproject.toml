@@ -105,6 +105,7 @@ where = ["src"]
 "lhp.templates.write.sinks" = ["*.j2"]
 "lhp.templates.test" = ["*.j2"]
 "lhp.templates.test_reporting" = ["*.j2"]
+"lhp.templates.uc_tagging" = ["*.j2"]
 "lhp.templates.monitoring" = ["*.py", "*.j2"]
 # runner body is a *.j2 template (constitution §2.10/§9.14); ships as
 # package-data so the BUILT wheel's PackageLoader can find it (not just editable)
