@@ -21,6 +21,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from click.testing import CliRunner
+from conftest import strip_ansi
 
 from lhp.cli.commands.validate_command import validate_command
 
@@ -182,7 +183,10 @@ def test_sandbox_and_pipeline_are_mutually_exclusive(pipeline_flag: str) -> None
     )
 
     assert result.exit_code == 2
-    assert "--sandbox cannot be combined with -p/--pipeline" in result.stderr
+    # rich-click colorizes the UsageError panel under GITHUB_ACTIONS (set in
+    # CI), so strip ANSI and flatten the panel before matching the message.
+    flat_stderr = " ".join(strip_ansi(result.stderr).replace("│", " ").split())
+    assert "--sandbox cannot be combined with -p/--pipeline" in flat_stderr
 
 
 def test_sandbox_flag_forwards_sandbox_true_to_facade(

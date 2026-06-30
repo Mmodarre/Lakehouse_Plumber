@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from conftest import strip_ansi
 
 from lhp.cli.commands.init_command import init
 
@@ -71,7 +72,7 @@ def test_init_sample_with_no_bundle_is_usage_error() -> None:
         assert result.exit_code == 2, (
             f"exit {result.exit_code}; stdout:\n{result.stdout}"
         )
-        flat_stderr = " ".join(result.stderr.replace("│", " ").split())
+        flat_stderr = " ".join(strip_ansi(result.stderr).replace("│", " ").split())
         assert "--sample cannot be combined with --no-bundle" in flat_stderr
         assert "requires Declarative Automation Bundles support" in flat_stderr
         # Fail-fast: the guard fires before any facade call / filesystem write.
