@@ -58,8 +58,10 @@ class SchemaParser:
                 context={"schema": str(schema_data.get("name", "<unknown>"))},
             )
 
+        schema_name = schema_data.get("name", "<unknown>")
         hints = []
         for column in schema_data["columns"]:
+            self._require_column_fields(column, schema_name, require_type=True)
             name = column["name"]
             col_type = column["type"]
             nullable = column.get("nullable", True)
@@ -105,6 +107,44 @@ class SchemaParser:
             context={"schema": str(schema_name), "column": str(column_name)},
         )
 
+    @staticmethod
+    def _require_column_fields(column, schema_name, *, require_type: bool) -> None:
+        """Guard that ``column`` carries the fields needed to consume it. A
+        column always needs ``name``; ``to_schema_hints`` additionally needs
+        ``type``. Raise a clean ``LHPError`` if a required field is missing,
+        rather than letting subscript access blow up with a ``KeyError`` during
+        generation.
+        """
+        missing = [
+            f
+            for f in (("name", "type") if require_type else ("name",))
+            if f not in column
+        ]
+        if not missing:
+            return
+
+        column_name = column.get("name", "<unknown>")
+        raise ErrorFactory.validation_error(
+            codes.VAL_016,
+            title="Invalid column definition",
+            details=(
+                f"Column '{column_name}' in schema '{schema_name}' is missing "
+                f"required field(s): {', '.join(missing)}."
+            ),
+            suggestions=[
+                "Give every column a 'name'",
+                "Give every column a 'type' (e.g. STRING, BIGINT)",
+            ],
+            example=(
+                "columns:\n"
+                "  - name: id\n"
+                "    type: BIGINT\n"
+                "  - name: email\n"
+                "    type: STRING"
+            ),
+            context={"schema": str(schema_name), "column": str(column_name)},
+        )
+
     def to_column_tags(self, schema_data: Dict[str, Any]) -> Dict[str, Dict[str, str]]:
         """Extract Unity Catalog column-level tags from a parsed schema.
 
@@ -122,6 +162,7 @@ class SchemaParser:
         for column in schema_data.get("columns", []) or []:
             if not isinstance(column, dict) or "tags" not in column:
                 continue
+            self._require_column_fields(column, schema_name, require_type=False)
             raw = self._require_tag_mapping(column["tags"], column, schema_name)
             column_tags[column["name"]] = {
                 str(key): "" if value is None else str(value)

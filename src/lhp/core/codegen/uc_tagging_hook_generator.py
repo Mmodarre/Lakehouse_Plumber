@@ -23,6 +23,7 @@ from ...core.loaders.external_file_loader import (
     is_file_path,
     resolve_external_file_path,
 )
+from ...errors import ErrorFactory, codes
 from ...parsers.schema_parser import SchemaParser
 from ...utils.file_header import write_normalized
 from ..processing.substitution import EnhancedSubstitutionManager
@@ -152,16 +153,74 @@ class UCTaggingHookGenerator:
             return substitution_mgr._process_string(text)
         return text
 
+    # UC tag KEYS may not contain any of these six characters.
+    _KEY_PROHIBITED_CHARS = ".,-=/:"
+    _TAG_MAX_LEN = 256
+
     def _normalize_tags(
-        self, raw, substitution_mgr: Optional[EnhancedSubstitutionManager]
+        self,
+        raw,
+        substitution_mgr: Optional[EnhancedSubstitutionManager],
+        context: Optional[str] = None,
     ) -> Dict[str, str]:
-        """Coerce a tag dict to ``{str: str}`` (None -> ""), applying substitution."""
+        """Coerce a tag dict to ``{str: str}`` (None -> ""), applying substitution.
+
+        The materialized (post-substitution, post-coercion) key/value of every tag
+        is validated against Unity Catalog's charset/length rules; an illegal tag
+        raises ``LHP-CFG-066``. ``context`` labels the offending entity in the
+        message (table FQN or ``fqn.column``); it degrades to ``"<unknown>"`` when
+        absent so other callers keep working.
+        """
+        label = context or "<unknown>"
         result: Dict[str, str] = {}
         for key, value in (raw or {}).items():
             k = self._sub(str(key), substitution_mgr)
             v = "" if value is None else self._sub(str(value), substitution_mgr)
+            self._validate_tag(k, v, label)
             result[k] = v
         return result
+
+    @classmethod
+    def _validate_tag(cls, key: str, value: str, context: str) -> None:
+        """Reject a materialized tag key/value that violates UC's rules.
+
+        KEY: illegal if it contains any of ``. , - = / :``, has leading/trailing
+        whitespace, or exceeds 256 characters. VALUE: illegal if it has
+        leading/trailing whitespace or exceeds 256 characters (charset is
+        unrestricted). Raises ``LHP-CFG-066`` on the first violation found.
+        """
+        key_reason = cls._tag_violation(key, check_charset=True)
+        if key_reason is not None:
+            cls._raise_illegal_tag("key", key, context, key_reason)
+
+        value_reason = cls._tag_violation(value, check_charset=False)
+        if value_reason is not None:
+            cls._raise_illegal_tag("value", value, context, value_reason)
+
+    @classmethod
+    def _tag_violation(cls, text: str, *, check_charset: bool) -> Optional[str]:
+        """Return the reason ``text`` is an illegal tag key/value, else ``None``."""
+        if check_charset:
+            for char in text:
+                if char in cls._KEY_PROHIBITED_CHARS:
+                    return f"contains the prohibited character {char!r}"
+        if text != text.strip():
+            return "has leading or trailing whitespace"
+        if len(text) > cls._TAG_MAX_LEN:
+            return "exceeds 256 characters"
+        return None
+
+    @staticmethod
+    def _raise_illegal_tag(part: str, value: str, context: str, reason: str):
+        raise ErrorFactory.config_error(
+            codes.CFG_066,
+            title="Illegal UC tag key/value",
+            details=f"UC tag {part} {value!r} on {context} is illegal: {reason}.",
+            suggestions=[
+                "UC tag keys may not contain any of: . , - = / :",
+                "Keep keys and values <= 256 chars with no leading/trailing whitespace",
+            ],
+        )
 
     def _load_column_tags(self, table_schema) -> Dict[str, Dict[str, str]]:
         """Load column tags from a YAML/JSON ``table_schema`` file, else ``{}``.
@@ -205,7 +264,7 @@ class UCTaggingHookGenerator:
 
                 yield wt, self._sub(f"{catalog}.{schema}.{table}", substitution_mgr)
 
-    def _collect_table_tags(self, wt, remove_undeclared_tags, substitution_mgr):
+    def _collect_table_tags(self, wt, remove_undeclared_tags, substitution_mgr, fqn):
         """Normalized table tags to embed, or ``None`` to omit the table.
 
         Returns ``{}`` (kept) for an explicit empty ``tags`` under reconcile mode;
@@ -214,18 +273,20 @@ class UCTaggingHookGenerator:
         raw = wt("tags")
         if raw is None:
             return None
-        normalized = self._normalize_tags(raw, substitution_mgr)
+        normalized = self._normalize_tags(raw, substitution_mgr, context=fqn)
         if normalized or remove_undeclared_tags:
             return normalized
         return None
 
-    def _collect_column_tags(self, wt, remove_undeclared_tags, substitution_mgr):
+    def _collect_column_tags(self, wt, remove_undeclared_tags, substitution_mgr, fqn):
         """Normalized ``{column: {k: v}}`` for the action's schema file; columns are
         kept only when they have tags (or under reconcile mode, an empty set).
         """
         kept: Dict[str, Dict[str, str]] = {}
         for col, tags in self._load_column_tags(wt("table_schema")).items():
-            normalized = self._normalize_tags(tags, substitution_mgr)
+            normalized = self._normalize_tags(
+                tags, substitution_mgr, context=f"{fqn}.{col}"
+            )
             if normalized or remove_undeclared_tags:
                 kept[col] = normalized
         return kept
@@ -242,12 +303,14 @@ class UCTaggingHookGenerator:
         for wt, fqn in self._iter_taggable_writes(
             processed_flowgroups, substitution_mgr
         ):
-            tbl = self._collect_table_tags(wt, remove_undeclared_tags, substitution_mgr)
+            tbl = self._collect_table_tags(
+                wt, remove_undeclared_tags, substitution_mgr, fqn
+            )
             if tbl is not None:
                 table_tags[fqn] = tbl
 
             cols = self._collect_column_tags(
-                wt, remove_undeclared_tags, substitution_mgr
+                wt, remove_undeclared_tags, substitution_mgr, fqn
             )
             if cols:
                 column_tags[fqn] = cols

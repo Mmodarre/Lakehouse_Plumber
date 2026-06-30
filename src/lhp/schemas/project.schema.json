@@ -211,6 +211,7 @@
                     "type": "integer",
                     "default": 10,
                     "minimum": 1,
+                    "maximum": 20,
                     "description": "Maximum number of concurrent streaming queries in the union notebook (ThreadPoolExecutor max_workers)"
                 },
                 "materialized_views": {
@@ -260,6 +261,7 @@
                     "type": "integer",
                     "default": 16,
                     "minimum": 1,
+                    "maximum": 20,
                     "description": "Maximum concurrent tag operations (the hook's ThreadPoolExecutor max_workers for the one-shot pass over all tables/columns)."
                 }
             }

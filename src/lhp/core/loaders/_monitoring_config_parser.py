@@ -71,6 +71,35 @@ def parse_monitoring_config(
                 )
             )
 
+    max_streams = monitoring_data.get("max_concurrent_streams", 10)
+    if isinstance(max_streams, bool) or not isinstance(max_streams, int):
+        raise ErrorFactory.config_error(
+            codes.CFG_008,
+            title="Invalid monitoring max_concurrent_streams",
+            details=(
+                f"max_concurrent_streams must be an integer in the range 1..20, "
+                f"got {type(max_streams).__name__}: {max_streams!r}"
+            ),
+            suggestions=[
+                "Set max_concurrent_streams to an integer between 1 and 20",
+                "Example:\n  monitoring:\n    max_concurrent_streams: 10",
+            ],
+        )
+    if max_streams < 1 or max_streams > 20:
+        raise ErrorFactory.config_error(
+            codes.CFG_008,
+            title="Invalid monitoring max_concurrent_streams",
+            details=(
+                f"max_concurrent_streams must be in the range 1..20, got {max_streams}"
+            ),
+            suggestions=[
+                "Set max_concurrent_streams to an integer between 1 and 20",
+                "The upper bound matches the databricks-sdk default connection-pool "
+                "size; beyond it, extra worker threads only block",
+                "Example:\n  monitoring:\n    max_concurrent_streams: 10",
+            ],
+        )
+
     try:
         config = MonitoringConfig(
             enabled=monitoring_data.get("enabled", True),

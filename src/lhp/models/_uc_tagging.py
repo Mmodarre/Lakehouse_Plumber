@@ -1,6 +1,6 @@
 """Unity Catalog tagging configuration."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class UCTaggingConfig(BaseModel):
@@ -24,4 +24,4 @@ class UCTaggingConfig(BaseModel):
 
     enabled: bool = True
     remove_undeclared_tags: bool = False
-    tag_update_concurrency: int = 16
+    tag_update_concurrency: int = Field(16, ge=1, le=20)

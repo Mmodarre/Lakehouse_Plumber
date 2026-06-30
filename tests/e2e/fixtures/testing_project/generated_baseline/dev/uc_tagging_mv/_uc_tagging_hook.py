@@ -22,6 +22,8 @@
 # missing snapshot degrades to create-only.
 
 import json
+import time
+import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 
 from pyspark import pipelines as dp
@@ -167,6 +169,41 @@ _snapshot_warned = False
 # Set by the first terminal event so exactly one terminal pass runs.
 _update_terminated = False
 
+# Transient-error markers (case-insensitive substring match) that mean the REST call
+# should be retried with backoff rather than reported as a tag failure.
+_TRANSIENT_MARKERS = (
+    "429",
+    "too many requests",
+    "rate limit",
+    "throttl",
+    "503",
+    "service unavailable",
+)
+_MAX_TAG_ATTEMPTS = 4
+
+
+def _do_with_retry(w, method, path, **kwargs):
+    """Issue a single Entity-Tag REST call with bounded retry on TRANSIENT errors.
+
+    Rate-limit (429) / service-unavailable (503) / throttling responses are retried up
+    to ``_MAX_TAG_ATTEMPTS`` times with backoff (the server's ``retry_after_secs`` when
+    present, else exponential, capped at 30s). NON-transient errors — including the
+    "does not exist" absent markers and real permission failures — are re-raised
+    immediately so the caller's existing handling is unchanged; the last transient
+    error is re-raised once the attempt budget is exhausted.
+    """
+    for attempt in range(_MAX_TAG_ATTEMPTS):
+        try:
+            return w.api_client.do(method, path, **kwargs)
+        except Exception as e:
+            retry_after = getattr(e, "retry_after_secs", None)
+            transient = retry_after is not None or any(
+                m in str(e).lower() for m in _TRANSIENT_MARKERS
+            )
+            if not transient or attempt == _MAX_TAG_ATTEMPTS - 1:
+                raise
+            time.sleep(retry_after if retry_after is not None else min(2**attempt, 30))
+
 
 def _reconcile_tags(w, entity_type, entity_name, existing, desired):
     """Create/update declared tags against the pre-fetched ``existing`` snapshot;
@@ -178,7 +215,8 @@ def _reconcile_tags(w, entity_type, entity_name, existing, desired):
     rest_type = entity_type + "s"
     for key, value in desired.items():
         if key not in existing:
-            w.api_client.do(
+            _do_with_retry(
+                w,
                 "POST",
                 _TAG_BASE,
                 body={
@@ -189,9 +227,12 @@ def _reconcile_tags(w, entity_type, entity_name, existing, desired):
                 },
             )
         elif existing[key] != value:
-            w.api_client.do(
+            _do_with_retry(
+                w,
                 "PATCH",
-                f"{_TAG_BASE}/{rest_type}/{entity_name}/tags/{key}",
+                f"{_TAG_BASE}/{rest_type}/"
+                f"{urllib.parse.quote(entity_name, safe='')}/tags/"
+                f"{urllib.parse.quote(key, safe='')}",
                 query={"update_mask": "tag_value"},
                 body={
                     "entity_type": rest_type,
@@ -204,9 +245,12 @@ def _reconcile_tags(w, entity_type, entity_name, existing, desired):
     if _REMOVE_UNDECLARED_TAGS:
         for key in existing:
             if key not in desired:
-                w.api_client.do(
+                _do_with_retry(
+                    w,
                     "DELETE",
-                    f"{_TAG_BASE}/{rest_type}/{entity_name}/tags/{key}",
+                    f"{_TAG_BASE}/{rest_type}/"
+                    f"{urllib.parse.quote(entity_name, safe='')}/tags/"
+                    f"{urllib.parse.quote(key, safe='')}",
                 )
 
 
@@ -225,9 +269,10 @@ def _apply(w, suppress_absent):
     errors = []
 
     def _do(item):
-        entity_type, entity_name, desired = item
-        existing = _existing_tags.get((entity_type, entity_name.lower()), {})
+        entity_name = "<unknown>"  # fallback if the item itself is malformed
         try:
+            entity_type, entity_name, desired = item
+            existing = _existing_tags.get((entity_type, entity_name.lower()), {})
             _reconcile_tags(w, entity_type, entity_name, existing, desired)
         except Exception as e:  # noqa: BLE001 — collect real errors; handle "absent"
             if any(m in str(e).lower() for m in _ABSENT_MARKERS):
@@ -244,8 +289,11 @@ def _apply(w, suppress_absent):
             return
         _processed.add(entity_name)  # success
 
-    with ThreadPoolExecutor(max_workers=16) as executor:
-        list(executor.map(_do, pending))
+    try:
+        with ThreadPoolExecutor(max_workers=16) as executor:
+            list(executor.map(_do, pending))
+    except Exception as e:  # noqa: BLE001 — pool-level failure degrades to a warning
+        errors.append(("<thread-pool>", e))
 
     return errors
 

@@ -54,16 +54,19 @@ def parse_uc_tagging_config(uc_tagging_data: Any) -> UCTaggingConfig:
         not isinstance(concurrency, int)
         or isinstance(concurrency, bool)
         or concurrency < 1
+        or concurrency > 20
     ):
         raise ErrorFactory.config_error(
             codes.CFG_009,
             title="Invalid uc_tagging configuration",
             details=(
-                f"uc_tagging.tag_update_concurrency must be a positive integer, got "
-                f"{concurrency!r}"
+                f"uc_tagging.tag_update_concurrency must be a positive integer in the "
+                f"range 1..20, got {concurrency!r}"
             ),
             suggestions=[
-                "Set uc_tagging.tag_update_concurrency to a positive integer (e.g. 8)",
+                "Set uc_tagging.tag_update_concurrency to an integer between 1 and 20",
+                "The upper bound matches the databricks-sdk default connection-pool "
+                "size; beyond it, extra worker threads only block",
             ],
         )
 

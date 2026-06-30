@@ -80,24 +80,46 @@ class TestProjectConfigLoaderUCTagging:
     def test_parses_tag_update_concurrency(self, tmp_path):
         lhp_yaml = tmp_path / "lhp.yaml"
         lhp_yaml.write_text(
-            "name: test_project\nuc_tagging:\n  tag_update_concurrency: 32\n"
+            "name: test_project\nuc_tagging:\n  tag_update_concurrency: 8\n"
         )
         from lhp.core.loaders import ProjectConfigLoader
 
         config = ProjectConfigLoader(tmp_path).load_project_config()
-        assert config.uc_tagging.tag_update_concurrency == 32
+        assert config.uc_tagging.tag_update_concurrency == 8
 
     def test_rejects_invalid_concurrency(self, tmp_path):
         from lhp.core.loaders import ProjectConfigLoader
         from lhp.errors import LHPError
 
-        for bad in ("0", "-1", "true", "eight"):
+        # 21 is over the [1, 20] cap; the rest are floor/type rejections.
+        for bad in ("0", "-1", "21", "true", "eight"):
             lhp_yaml = tmp_path / "lhp.yaml"
             lhp_yaml.write_text(
                 f"name: test_project\nuc_tagging:\n  tag_update_concurrency: {bad}\n"
             )
-            with pytest.raises(LHPError, match="positive integer"):
+            with pytest.raises(LHPError, match="LHP-CFG-009") as exc_info:
                 ProjectConfigLoader(tmp_path).load_project_config()
+            assert exc_info.value.code == "LHP-CFG-009"
+
+    def test_accepts_max_concurrency(self, tmp_path):
+        # 20 is the upper bound and must be accepted.
+        lhp_yaml = tmp_path / "lhp.yaml"
+        lhp_yaml.write_text(
+            "name: test_project\nuc_tagging:\n  tag_update_concurrency: 20\n"
+        )
+        from lhp.core.loaders import ProjectConfigLoader
+
+        config = ProjectConfigLoader(tmp_path).load_project_config()
+        assert config.uc_tagging.tag_update_concurrency == 20
+
+    def test_model_rejects_out_of_range_concurrency(self):
+        # Direct construction must also enforce the [1, 20] bounds.
+        import pydantic
+
+        with pytest.raises(pydantic.ValidationError):
+            UCTaggingConfig(tag_update_concurrency=0)
+        with pytest.raises(pydantic.ValidationError):
+            UCTaggingConfig(tag_update_concurrency=21)
 
     def test_parses_without_uc_tagging(self, tmp_path):
         lhp_yaml = tmp_path / "lhp.yaml"

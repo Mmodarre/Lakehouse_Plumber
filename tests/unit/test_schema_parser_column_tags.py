@@ -55,6 +55,17 @@ class TestToColumnTags:
         assert "email" in message
         assert "mapping" in message
 
+    def test_tagged_column_without_name_raises_clean_error(self):
+        # S-4: a column that carries `tags` but lacks `name` must raise a clean
+        # LHPError, not a bare KeyError from `column["name"]`.
+        schema = {
+            "name": "s",
+            "columns": [{"type": "STRING", "tags": {"classification": "pii"}}],
+        }
+        with pytest.raises(LHPError) as exc_info:
+            self.parser.to_column_tags(schema)
+        assert "name" in str(exc_info.value)
+
 
 @pytest.mark.unit
 class TestValidateSchemaColumnTags:
@@ -75,3 +86,38 @@ class TestValidateSchemaColumnTags:
         }
         errors = self.parser.validate_schema(schema)
         assert any("tags" in e and "mapping" in e for e in errors)
+
+
+@pytest.mark.unit
+class TestToSchemaHints:
+    def setup_method(self):
+        self.parser = SchemaParser()
+
+    def test_valid_column_produces_hint(self):
+        schema = {
+            "name": "s",
+            "columns": [{"name": "id", "type": "BIGINT", "nullable": False}],
+        }
+        assert self.parser.to_schema_hints(schema) == "id BIGINT NOT NULL"
+
+    def test_column_without_name_raises_clean_error(self):
+        # E-4: a column missing `name` must raise a clean LHPError, not a bare
+        # KeyError from `column["name"]`.
+        schema = {
+            "name": "s",
+            "columns": [{"type": "STRING"}],
+        }
+        with pytest.raises(LHPError) as exc_info:
+            self.parser.to_schema_hints(schema)
+        assert "name" in str(exc_info.value)
+
+    def test_column_without_type_raises_clean_error(self):
+        # E-4: a column missing `type` must raise a clean LHPError, not a bare
+        # KeyError from `column["type"]`.
+        schema = {
+            "name": "s",
+            "columns": [{"name": "id"}],
+        }
+        with pytest.raises(LHPError) as exc_info:
+            self.parser.to_schema_hints(schema)
+        assert "type" in str(exc_info.value)

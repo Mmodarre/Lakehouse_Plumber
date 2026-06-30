@@ -11,6 +11,7 @@ from lhp.core.codegen.uc_tagging_hook_generator import (
     HOOK_FILENAME,
     UCTaggingHookGenerator,
 )
+from lhp.errors import LHPError
 from lhp.models import Action, ActionType, FlowGroup, ProjectConfig, UCTaggingConfig
 
 
@@ -156,8 +157,28 @@ class TestUCTaggingHookGenerator:
         assert "Reading existing tag state from information_schema" in content
         assert "/api/2.1/unity-catalog/entity-tag-assignments" in content
         assert "from databricks.sdk import WorkspaceClient" in content
+        # S-1: path segments are URL-encoded (entity_name + key) on both the PATCH and
+        # DELETE tag URLs, so FQNs/keys with special chars can't break out of the path.
+        assert "import urllib.parse" in content
+        assert "urllib.parse.quote(entity_name, safe='')" in content
+        assert "urllib.parse.quote(key, safe='')" in content
+        # PATCH wraps both segments, DELETE wraps both → 4 quote() calls total.
+        assert content.count("quote(") == 4
+        # S-2: transient REST errors (429/503/throttle) are retried with backoff via
+        # _do_with_retry; reconcile's POST/PATCH/DELETE all route through it, so the
+        # only raw api_client.do() call left is the one inside the helper.
+        assert "import time" in content
+        assert "def _do_with_retry(w, method, path, **kwargs):" in content
+        assert "_TRANSIENT_MARKERS" in content
+        assert "time.sleep(" in content
+        assert content.count("_do_with_retry(") == 4  # 1 def + 3 reconcile call-sites
+        assert content.count("w.api_client.do(") == 1  # only inside _do_with_retry
         # Thread pool sized by tag_update_concurrency (default 16).
         assert "ThreadPoolExecutor(max_workers=16)" in content
+        # S-3: the ThreadPoolExecutor block body is inside a try, so a pool-level
+        # failure degrades to the clean WARNING path instead of escaping as a traceback.
+        assert "    try:\n        with ThreadPoolExecutor(" in content
+        assert 'errors.append(("<thread-pool>", e))' in content
         # Snapshot read at MODULE IMPORT (not in a decorated fn → no collect warning);
         # a read failure is CAUGHT and stashed, then re-raised by the hook as a warning.
         assert "_snapshot_error = str(e)" in content
@@ -185,10 +206,10 @@ class TestUCTaggingHookGenerator:
 
         custom = _build(
             [action],
-            uc_tagging=UCTaggingConfig(tag_update_concurrency=32),
+            uc_tagging=UCTaggingConfig(tag_update_concurrency=20),
             root=tmp_path,
         )[HOOK_FILENAME]
-        assert "ThreadPoolExecutor(max_workers=32)" in custom
+        assert "ThreadPoolExecutor(max_workers=20)" in custom
 
     def test_column_tags_from_yaml_schema(self, tmp_path):
         schema_file = tmp_path / "schemas" / "orders.yaml"
@@ -277,6 +298,33 @@ class TestUCTaggingHookContent:
         assert "_REMOVE_UNDECLARED_TAGS = True" in content
 
 
+@pytest.mark.unit
+class TestUCTaggingTagValidation:
+    """E-2: the materialized (post-substitution) tag key/value is validated against
+    Unity Catalog's charset/length rules at the ``_normalize_tags`` chokepoint; an
+    illegal tag raises ``LHP-CFG-066`` at generation time.
+    """
+
+    @pytest.mark.parametrize("key", ["cost:center", "cost-center"])
+    def test_key_with_prohibited_char_raises(self, tmp_path, key):
+        action = _write_action(write_target=_st_target(tags={key: "x"}))
+        with pytest.raises(LHPError) as exc_info:
+            _build([action], root=tmp_path)
+        assert exc_info.value.code == "LHP-CFG-066"
+
+    def test_value_with_leading_space_raises(self, tmp_path):
+        action = _write_action(write_target=_st_target(tags={"team": " data-eng"}))
+        with pytest.raises(LHPError) as exc_info:
+            _build([action], root=tmp_path)
+        assert exc_info.value.code == "LHP-CFG-066"
+
+    def test_overlong_key_raises(self, tmp_path):
+        action = _write_action(write_target=_st_target(tags={"k" * 257: "x"}))
+        with pytest.raises(LHPError) as exc_info:
+            _build([action], root=tmp_path)
+        assert exc_info.value.code == "LHP-CFG-066"
+
+
 @contextmanager
 def _fake_pyspark_and_sdk(collect_result=None, collect_error=None, do_handler=None):
     """Inject fake pyspark.pipelines / pyspark.sql / databricks.sdk so the rendered
@@ -327,7 +375,9 @@ def _fake_pyspark_and_sdk(collect_result=None, collect_error=None, do_handler=No
 
     class _Api:
         def do(self, method, path, body=None, query=None):
-            state["calls"].append({"method": method, "path": path, "body": body})
+            state["calls"].append(
+                {"method": method, "path": path, "body": body, "query": query}
+            )
             if do_handler is not None:
                 do_handler(method, path, body)
 
@@ -481,3 +531,188 @@ class TestUCTaggingHookRuntime:
             hook(_evt("INITIALIZING"))
             hook(_evt("WAITING_FOR_RESOURCES"))
             assert st["calls"] == []  # nothing tagged on these
+
+    def test_transient_error_is_retried_then_succeeds(self, tmp_path):
+        # S-2: a transient REST error (429) is retried with backoff and eventually
+        # succeeds, so the entity ends up _processed with NO event-log warning. Backoff
+        # sleeps are neutralized by swapping the hook's `time` global for a no-op stub.
+        action = _write_action(write_target=_st_target(tags={"team": "x"}))
+        content = _build([action], root=tmp_path)[HOOK_FILENAME]
+
+        attempts = {"n": 0}
+
+        def do_handler(method, path, body):
+            attempts["n"] += 1
+            if attempts["n"] == 1:
+                raise RuntimeError("429 Too Many Requests")
+            # subsequent calls succeed
+
+        slept = {"n": 0}
+
+        class _SleepStub:
+            @staticmethod
+            def sleep(_secs):
+                slept["n"] += 1
+
+        with _fake_pyspark_and_sdk(collect_result=[], do_handler=do_handler) as st:
+            ns = _exec_hook(content)
+            # Neutralize backoff: the hook's _do_with_retry calls `time.sleep(...)`;
+            # `time` resolves in the exec namespace, so override it there.
+            assert "time" in ns  # the rendered hook does `import time`
+            ns["time"] = _SleepStub
+            hook = st["hooks"][0]
+
+            # RUNNING: the POST 429s once, is retried, and succeeds -> no raise.
+            hook(_evt("RUNNING"))  # must NOT raise
+            assert "prod.sales.orders" in ns["_processed"]
+            # Two recorded calls: the failed attempt + the retried success (the harness
+            # records the call BEFORE invoking do_handler, so a retried op = 2 calls).
+            assert len(st["calls"]) == 2
+            # The backoff sleep was taken exactly once (proving the stub was wired in).
+            assert slept["n"] == 1
+
+    def test_nontransient_error_is_not_retried_and_warns_once(self, tmp_path):
+        # Companion to the retry test: a NON-transient error (500, no transient marker,
+        # no retry_after_secs) is re-raised immediately by _do_with_retry -> NOT retried
+        # (exactly one recorded call) and still surfaces as a single WARNING.
+        action = _write_action(write_target=_st_target(tags={"team": "x"}))
+        content = _build([action], root=tmp_path)[HOOK_FILENAME]
+
+        def do_handler(method, path, body):
+            raise RuntimeError("500 Internal Server Error")
+
+        slept = {"n": 0}
+
+        class _SleepStub:
+            @staticmethod
+            def sleep(_secs):
+                slept["n"] += 1
+
+        with _fake_pyspark_and_sdk(collect_result=[], do_handler=do_handler) as st:
+            ns = _exec_hook(content)
+            ns["time"] = _SleepStub
+            hook = st["hooks"][0]
+
+            with pytest.raises(RuntimeError) as exc:
+                hook(_evt("RUNNING"))
+            assert "[LHP UC Tagging] WARNING:" in str(exc.value)
+            assert "tag operation(s) failed" in str(exc.value)
+            assert "500 Internal Server Error" in str(exc.value)
+            # Not retried: exactly one recorded call, and no backoff sleep.
+            assert len(st["calls"]) == 1
+            assert slept["n"] == 0
+            # Marked processed despite failing, so the terminal pass does not re-attempt
+            # it and emit a duplicate warning (matches the existing real-error contract).
+            assert "prod.sales.orders" in ns["_processed"]
+            before = len(st["calls"])
+            hook(_evt("COMPLETED"))  # must not raise
+            assert len(st["calls"]) == before
+
+    # ── S-5: populated existing-tags snapshot drives the destructive paths ──────
+    # Every test above runs with an EMPTY snapshot, so only the create (POST) branch
+    # ever fires. These four populate `_existing_tags` (via `collect_result`) so the
+    # PATCH (value-change) and DELETE (undeclared) branches of _reconcile_tags run.
+    # The snapshot row shape the parser expects (hook._fetch_existing_tags): each row
+    # supports row["entity_type"] (singular "table"/"column"), row["entity_name"]
+    # (lowercased FQN), row["tags"] (a {tag_name: tag_value} map). A plain dict row
+    # satisfies that subscript access, so collect_result is a list of such dicts.
+
+    @staticmethod
+    def _row(entity_type, entity_name, tags):
+        return {"entity_type": entity_type, "entity_name": entity_name, "tags": tags}
+
+    def test_value_change_emits_single_patch(self, tmp_path):
+        from urllib.parse import quote
+
+        fqn = "prod.sales.orders"
+        # Desired value differs from the live value → PATCH, not POST/DELETE.
+        action = _write_action(write_target=_st_target(tags={"team": "new"}))
+        content = _build([action], root=tmp_path)[HOOK_FILENAME]
+
+        snapshot = [self._row("table", fqn, {"team": "old"})]
+        with _fake_pyspark_and_sdk(collect_result=snapshot) as st:
+            ns = _exec_hook(content)
+            assert ns["_snapshot_error"] is None
+            st["hooks"][0](_evt("RUNNING"))
+
+            patches = [c for c in st["calls"] if c["method"] == "PATCH"]
+            assert len(patches) == 1
+            assert sum(c["method"] == "POST" for c in st["calls"]) == 0
+            assert sum(c["method"] == "DELETE" for c in st["calls"]) == 0
+            expected = (
+                f"{ns['_TAG_BASE']}/tables/{quote(fqn, safe='')}"
+                f"/tags/{quote('team', safe='')}"
+            )
+            assert patches[0]["path"] == expected
+            # query is now recorded by _Api.do (T7 harness extension).
+            assert patches[0]["query"] == {"update_mask": "tag_value"}
+            assert "prod.sales.orders" in ns["_processed"]
+
+    def test_remove_undeclared_emits_single_delete(self, tmp_path):
+        from urllib.parse import quote
+
+        fqn = "prod.sales.orders"
+        # Desired declares only k1 (already live, same value → no PATCH). The live
+        # k_foreign is undeclared, so with remove_undeclared_tags it is DELETEd.
+        action = _write_action(write_target=_st_target(tags={"k1": "v1"}))
+        content = _build(
+            [action],
+            uc_tagging=UCTaggingConfig(remove_undeclared_tags=True),
+            root=tmp_path,
+        )[HOOK_FILENAME]
+
+        snapshot = [self._row("table", fqn, {"k1": "v1", "k_foreign": "vf"})]
+        with _fake_pyspark_and_sdk(collect_result=snapshot) as st:
+            ns = _exec_hook(content)
+            assert ns["_snapshot_error"] is None
+            st["hooks"][0](_evt("RUNNING"))
+
+            deletes = [c for c in st["calls"] if c["method"] == "DELETE"]
+            assert len(deletes) == 1
+            expected = (
+                f"{ns['_TAG_BASE']}/tables/{quote(fqn, safe='')}"
+                f"/tags/{quote('k_foreign', safe='')}"
+            )
+            assert deletes[0]["path"] == expected
+            # k1 (declared, unchanged) is neither PATCHed nor DELETEd.
+            assert sum(c["method"] == "POST" for c in st["calls"]) == 0
+            assert sum(c["method"] == "PATCH" for c in st["calls"]) == 0
+
+    def test_default_keeps_undeclared_tags_no_delete(self, tmp_path):
+        # Safety invariant: remove_undeclared_tags defaults to False, so a foreign live
+        # tag is NEVER removed. Same snapshot as the DELETE test, default config.
+        fqn = "prod.sales.orders"
+        action = _write_action(write_target=_st_target(tags={"k1": "v1"}))
+        content = _build([action], root=tmp_path)[HOOK_FILENAME]
+        assert "_REMOVE_UNDECLARED_TAGS = False" in content
+
+        snapshot = [self._row("table", fqn, {"k1": "v1", "k_foreign": "vf"})]
+        with _fake_pyspark_and_sdk(collect_result=snapshot) as st:
+            ns = _exec_hook(content)
+            st["hooks"][0](_evt("RUNNING"))
+            assert sum(c["method"] == "DELETE" for c in st["calls"]) == 0
+
+    def test_awkward_key_is_percent_encoded_on_patch(self, tmp_path):
+        # S-1 regression lock. Key "a b" is E-2-legal (only an internal space) yet
+        # REQUIRES encoding. Value change → PATCH; the path segment must be 'a%20b',
+        # never a raw space. Without T6a's quote() this test is RED.
+        from urllib.parse import quote
+
+        fqn = "prod.sales.orders"
+        action = _write_action(write_target=_st_target(tags={"a b": "new"}))
+        content = _build([action], root=tmp_path)[HOOK_FILENAME]
+
+        snapshot = [self._row("table", fqn, {"a b": "old"})]
+        with _fake_pyspark_and_sdk(collect_result=snapshot) as st:
+            ns = _exec_hook(content)
+            st["hooks"][0](_evt("RUNNING"))
+
+            patches = [c for c in st["calls"] if c["method"] == "PATCH"]
+            assert len(patches) == 1
+            expected = (
+                f"{ns['_TAG_BASE']}/tables/{quote(fqn, safe='')}"
+                f"/tags/{quote('a b', safe='')}"
+            )
+            assert patches[0]["path"] == expected
+            assert "a%20b" in patches[0]["path"]
+            assert "a b" not in patches[0]["path"]  # no raw space leaked through
