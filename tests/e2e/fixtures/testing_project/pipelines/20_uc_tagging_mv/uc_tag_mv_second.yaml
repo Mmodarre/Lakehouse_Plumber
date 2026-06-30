@@ -1,0 +1,26 @@
+# UC tagging E2E — second flowgroup in the pipeline (drives hook aggregation);
+# plain streaming_table with a single tag.
+pipeline: uc_tagging_mv
+flowgroup: uc_tag_mv_second
+#job_name: j_two
+actions:
+  - name: load_nation
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      database: "{catalog}.{raw_schema}"
+      table: nation_raw
+    target: v_uc_nation
+
+  - name: write_nation
+    type: write
+    source: v_uc_nation
+    write_target:
+      type: streaming_table
+      create_table: true
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
+      table: uc_nation
+      tags:
+        classification: internal
