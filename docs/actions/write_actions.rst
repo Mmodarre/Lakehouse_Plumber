@@ -163,17 +163,7 @@ The ``table_schema`` option supports three formats, automatically detected by th
     _source_file_path STRING,
     _processing_timestamp TIMESTAMP
 
-**Option 2: External DDL/SQL File**
-
-.. code-block:: yaml
-
-  table_schema: "schemas/customer_table.ddl"
-  # or
-  table_schema: "schemas/customer_table.sql"
-  # or
-  table_schema: "schemas/customer_table.yaml"
-
-**Option 3: Inline Structured YAML Schema**
+**Option 2: Inline Structured YAML Schema**
 
 Author the schema directly under ``table_schema`` as a mapping with a ``columns`` list. This uses
 the same structure as an external YAML schema file, so the two are interchangeable. Columns are
@@ -190,6 +180,16 @@ converted to schema hints; ``nullable: false`` appends ``NOT NULL``.
         type: STRING
       - name: registration_date
         type: DATE
+
+**Option 3: External DDL/SQL File**
+
+.. code-block:: yaml
+
+  table_schema: "schemas/customer_table.ddl"
+  # or
+  table_schema: "schemas/customer_table.sql"
+  # or
+  table_schema: "schemas/customer_table.yaml"
 
 **External Schema Files**: Schema files can be organized in subdirectories relative to your project root (e.g., ``"schemas/bronze/customer_table.ddl"``). The framework automatically detects file paths based on file extensions (``.ddl``, ``.sql``, ``.yaml``, ``.yml``, ``.json``) or path separators. A value that is a mapping (rather than a string) is treated as an inline structured schema.
 
@@ -1006,17 +1006,7 @@ The ``table_schema`` option supports three formats, automatically detected by th
 
   table_schema: "product_id BIGINT, name STRING, price DECIMAL(10,2), category STRING"
 
-**Option 2: External DDL/SQL File**
-
-.. code-block:: yaml
-
-  table_schema: "schemas/product_view_schema.ddl"
-  # or
-  table_schema: "schemas/gold/product_view_schema.sql"
-  # or
-  table_schema: "schemas/product_view_schema.yaml"
-
-**Option 3: Inline Structured YAML Schema**
+**Option 2: Inline Structured YAML Schema**
 
 .. code-block:: yaml
 
@@ -1029,6 +1019,16 @@ The ``table_schema`` option supports three formats, automatically detected by th
         type: STRING
       - name: price
         type: DECIMAL(10,2)
+
+**Option 3: External DDL/SQL File**
+
+.. code-block:: yaml
+
+  table_schema: "schemas/product_view_schema.ddl"
+  # or
+  table_schema: "schemas/gold/product_view_schema.sql"
+  # or
+  table_schema: "schemas/product_view_schema.yaml"
 
 **External Schema Files**: Schema files can be organized in subdirectories relative to your project root. The framework automatically detects file paths based on file extensions (``.ddl``, ``.sql``, ``.yaml``, ``.yml``, ``.json``) or path separators. A value that is a mapping (rather than a string) is treated as an inline structured schema.
 
