@@ -166,8 +166,7 @@ The ``table_schema`` option supports three formats, automatically detected by th
 **Option 2: Inline Structured YAML Schema**
 
 Author the schema directly under ``table_schema`` as a mapping with a ``columns`` list. This uses
-the same structure as an external YAML schema file, so the two are interchangeable. Columns are
-converted to schema hints; ``nullable: false`` appends ``NOT NULL``.
+the same structure as an external YAML schema file, so the two are interchangeable.
 
 .. code-block:: yaml
 
