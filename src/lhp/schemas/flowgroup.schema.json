@@ -501,8 +501,43 @@
                     "description": "Spark configuration"
                 },
                 "table_schema": {
-                    "type": "string",
-                    "description": "Table schema definition (DDL string or external file path)"
+                    "description": "Table schema definition: an inline DDL string, an external file path (.yaml/.yml/.json/.ddl/.sql), or an inline structured schema object with a 'columns' list",
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "type": "object",
+                            "required": ["columns"],
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Optional schema name"
+                                },
+                                "columns": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "required": ["name", "type"],
+                                        "properties": {
+                                            "name": {
+                                                "type": "string"
+                                            },
+                                            "type": {
+                                                "type": "string"
+                                            },
+                                            "nullable": {
+                                                "type": "boolean"
+                                            },
+                                            "comment": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    ]
                 },
                 "row_filter": {
                     "type": "string",

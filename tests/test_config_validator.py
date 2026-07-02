@@ -602,7 +602,7 @@ class TestConfigValidator:
             "table_properties" in error and "dictionary" in error for error in errors
         )
 
-        # Invalid table_schema (not a string)
+        # Invalid table_schema dict (missing required 'columns')
         action = Action(
             name="write_invalid_schema",
             type=ActionType.WRITE,
@@ -616,7 +616,7 @@ class TestConfigValidator:
             },
         )
         errors = validator.validate_action(action, 0)
-        assert any("schema" in error and "string" in error for error in errors)
+        assert any("columns" in error for error in errors)
 
         # Invalid row_filter (not a string)
         action = Action(
@@ -681,6 +681,74 @@ class TestConfigValidator:
         )
         errors = validator.validate_action(action, 0)
         assert any("cluster_columns" in error and "list" in error for error in errors)
+
+    def test_inline_dict_table_schema_valid_passes(self):
+        """A write action with a valid inline dict table_schema passes validation.
+
+        A dict with a 'columns' list is accepted (validated via SchemaParser.validate_schema)
+        rather than rejected with the "must be a string" message that applies to other
+        non-string values.
+        """
+        validator = ConfigValidator()
+        action = Action(
+            name="write_with_inline_dict_schema",
+            type=ActionType.WRITE,
+            source="v_data",
+            write_target={
+                "type": "streaming_table",
+                "catalog": "test_cat",
+                "schema": "silver",
+                "table": "my_table",
+                "table_schema": {
+                    "columns": [
+                        {"name": "customer_id", "type": "BIGINT", "nullable": False},
+                        {"name": "name", "type": "STRING"},
+                    ]
+                },
+            },
+        )
+        errors = validator.validate_action(action, 0)
+        assert not any("table_schema" in error for error in errors)
+
+    def test_inline_dict_table_schema_missing_columns_errors(self):
+        """An inline dict table_schema missing 'columns' produces a validation error."""
+        validator = ConfigValidator()
+        action = Action(
+            name="write_with_bad_inline_schema",
+            type=ActionType.WRITE,
+            source="v_data",
+            write_target={
+                "type": "streaming_table",
+                "catalog": "test_cat",
+                "schema": "silver",
+                "table": "my_table",
+                "table_schema": {"not_columns": "oops"},
+            },
+        )
+        errors = validator.validate_action(action, 0)
+        assert any("columns" in error for error in errors)
+
+    def test_inline_dict_table_schema_non_bool_nullable_errors(self):
+        """An inline dict table_schema with a non-bool 'nullable' produces a validation error."""
+        validator = ConfigValidator()
+        action = Action(
+            name="write_with_bad_nullable_schema",
+            type=ActionType.WRITE,
+            source="v_data",
+            write_target={
+                "type": "streaming_table",
+                "catalog": "test_cat",
+                "schema": "silver",
+                "table": "my_table",
+                "table_schema": {
+                    "columns": [
+                        {"name": "customer_id", "type": "BIGINT", "nullable": "false"},
+                    ]
+                },
+            },
+        )
+        errors = validator.validate_action(action, 0)
+        assert any("nullable" in error for error in errors)
 
     def test_snapshot_cdc_validation(self):
         validator = ConfigValidator()

@@ -2,6 +2,7 @@ import logging
 from typing import List
 
 from lhp.models import Action
+from lhp.parsers import SchemaParser
 
 logger = logging.getLogger(__name__)
 
@@ -59,9 +60,21 @@ class DltTableOptionsValidator:
 
         schema = action.write_target.get("table_schema")
         if schema is not None:
-            if not isinstance(schema, str):
+            if isinstance(schema, str):
+                # A string is a valid SQL DDL / StructType schema.
+                pass
+            elif isinstance(schema, dict):
+                # Validators are stateless (§3.5): instantiate locally.
+                # An inline dict table_schema needs only a 'columns' list; a
+                # top-level 'name' is not required (unlike a separate schema
+                # file), so inject a placeholder before validating.
+                schema_to_validate = {"name": "<inline>", **schema}
+                for err in SchemaParser().validate_schema(schema_to_validate):
+                    errors.append(f"{prefix}: table_schema {err}")
+            else:
                 errors.append(
-                    f"{prefix}: 'table_schema' must be a string (SQL DDL or StructType)"
+                    f"{prefix}: 'table_schema' must be a string (SQL DDL or "
+                    f"StructType) or a structured schema object"
                 )
 
         row_filter = action.write_target.get("row_filter")

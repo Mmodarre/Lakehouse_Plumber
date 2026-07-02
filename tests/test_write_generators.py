@@ -1542,6 +1542,169 @@ columns:
         assert "last_order_date DATE" in code
 
 
+def test_streaming_table_table_schema_from_inline_dict():
+    """Streaming table with an INLINE DICT table_schema produces the same DDL as the equivalent YAML file.
+
+    Mirrors ``test_streaming_table_table_schema_from_yaml_file`` (same columns) to prove
+    parity: the inline dict is converted via SchemaParser.to_schema_hints (the same
+    conversion the referenced-YAML-file path uses) and rendered as a triple-quoted
+    schema kwarg. nullable: false -> " NOT NULL"; default nullable -> no suffix.
+    """
+    generator = StreamingTableWriteGenerator()
+    action = Action(
+        name="write_customers_stream",
+        type=ActionType.WRITE,
+        source="v_customers_raw",
+        write_target={
+            "type": "streaming_table",
+            "catalog": "bronze_cat",
+            "schema": "bronze_sch",
+            "table": "customers",
+            "table_schema": {
+                "columns": [
+                    {"name": "customer_id", "type": "BIGINT", "nullable": False},
+                    {"name": "customer_name", "type": "STRING", "nullable": True},
+                    {"name": "email", "type": "STRING"},
+                    {"name": "signup_date", "type": "DATE", "nullable": False},
+                ]
+            },
+        },
+    )
+
+    # No project_root needed: an inline dict is not a file path.
+    code = generator.generate(action, {})
+
+    # Same DDL substrings as the equivalent YAML-file test.
+    assert "customer_id BIGINT NOT NULL" in code
+    assert "customer_name STRING" in code
+    assert "email STRING" in code
+    assert "signup_date DATE NOT NULL" in code
+
+    # Rendered as a triple-quoted schema kwarg, single-line comma-joined DDL.
+    assert (
+        'schema="""customer_id BIGINT NOT NULL, customer_name STRING, '
+        'email STRING, signup_date DATE NOT NULL"""' in code
+    )
+
+
+def test_materialized_view_table_schema_from_inline_dict():
+    """Materialized view with an INLINE DICT table_schema produces the expected DDL.
+
+    Mirrors ``test_materialized_view_table_schema_from_yaml_file`` (same columns). The
+    materialized view renders the DDL as a single-quoted, single-line ``schema="..."`` kwarg.
+    """
+    generator = MaterializedViewWriteGenerator()
+    action = Action(
+        name="create_orders_aggregate_mv",
+        type=ActionType.WRITE,
+        source="v_orders_summary",
+        write_target={
+            "type": "materialized_view",
+            "catalog": "gold_cat",
+            "schema": "gold_sch",
+            "table": "orders_aggregate",
+            "table_schema": {
+                "columns": [
+                    {"name": "customer_id", "type": "BIGINT", "nullable": False},
+                    {"name": "total_orders", "type": "INT", "nullable": False},
+                    {"name": "total_amount", "type": "DECIMAL(18,2)", "nullable": False},
+                    {"name": "last_order_date", "type": "DATE", "nullable": True},
+                ]
+            },
+        },
+    )
+
+    code = generator.generate(action, {})
+
+    assert "customer_id BIGINT NOT NULL" in code
+    assert "total_orders INT NOT NULL" in code
+    assert "total_amount DECIMAL(18,2) NOT NULL" in code
+    assert "last_order_date DATE" in code
+
+    # Single-quoted, single-line schema kwarg for materialized views.
+    assert (
+        "schema=\"customer_id BIGINT NOT NULL, total_orders INT NOT NULL, "
+        "total_amount DECIMAL(18,2) NOT NULL, last_order_date DATE\"" in code
+    )
+
+
+def test_streaming_table_inline_dict_matches_yaml_file():
+    """Parity: DDL from an inline dict equals DDL from the equivalent separate YAML file.
+
+    Builds both an inline-dict action and a referenced-YAML-file action with identical
+    column definitions, extracts the triple-quoted schema DDL from each generated result,
+    and asserts the two DDL strings are identical.
+    """
+    import re
+    import tempfile
+    from pathlib import Path
+
+    def extract_schema_ddl(code: str) -> str:
+        match = re.search(r'schema="""(.*?)"""', code, re.DOTALL)
+        assert match is not None, "expected a triple-quoted schema kwarg in generated code"
+        return match.group(1)
+
+    columns = [
+        {"name": "customer_id", "type": "BIGINT", "nullable": False},
+        {"name": "customer_name", "type": "STRING", "nullable": True},
+        {"name": "email", "type": "STRING"},
+        {"name": "signup_date", "type": "DATE", "nullable": False},
+    ]
+
+    generator = StreamingTableWriteGenerator()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        project_root = Path(tmpdir)
+        schema_dir = project_root / "schemas"
+        schema_dir.mkdir()
+        schema_file = schema_dir / "customer_table.yaml"
+        schema_file.write_text("""name: customer_table
+version: "1.0"
+columns:
+  - name: customer_id
+    type: BIGINT
+    nullable: false
+  - name: customer_name
+    type: STRING
+    nullable: true
+  - name: email
+    type: STRING
+  - name: signup_date
+    type: DATE
+    nullable: false
+""")
+
+        action_file = Action(
+            name="write_customers_file",
+            type=ActionType.WRITE,
+            source="v_customers_raw",
+            write_target={
+                "type": "streaming_table",
+                "catalog": "bronze_cat",
+                "schema": "bronze_sch",
+                "table": "customers",
+                "table_schema": "schemas/customer_table.yaml",
+            },
+        )
+        code_file = generator.generate(action_file, {"project_root": project_root})
+
+    action_inline = Action(
+        name="write_customers_inline",
+        type=ActionType.WRITE,
+        source="v_customers_raw",
+        write_target={
+            "type": "streaming_table",
+            "catalog": "bronze_cat",
+            "schema": "bronze_sch",
+            "table": "customers",
+            "table_schema": {"columns": columns},
+        },
+    )
+    code_inline = generator.generate(action_inline, {})
+
+    assert extract_schema_ddl(code_inline) == extract_schema_ddl(code_file)
+
+
 def test_write_generator_imports():
     """Test that write generators manage imports correctly."""
     mv_gen = MaterializedViewWriteGenerator()

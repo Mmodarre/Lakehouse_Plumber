@@ -57,11 +57,13 @@ class TestConfigValidatorDltCdc:
                 "catalog": "test_cat",
                 "schema": "test",
                 "table": "test",
-                "table_schema": {"invalid": "object"},  # Should be string
+                # An inline dict table_schema is now accepted, but must be a
+                # structured schema with a 'columns' list.
+                "table_schema": {"invalid": "object"},
             },
         )
         errors = validator.validate_action(action, 0)
-        assert any("'table_schema' must be a string" in error for error in errors)
+        assert any("columns" in error for error in errors)
 
         action = Action(
             name="test_invalid_row_filter_type",

@@ -10,6 +10,7 @@ from .init_template_loader import InitTemplateLoader
 from .job_config_loader import JobConfigLoader
 from .pipeline_config_loader import PipelineConfigLoader
 from .project_config_loader import ProjectConfigLoader
+from .table_schema_resolver import resolve_table_schema
 from .version_enforcement import enforce_version_requirements
 
 __all__ = [
@@ -22,4 +23,5 @@ __all__ = [
     "is_file_path",
     "load_external_file_text",
     "resolve_external_file_path",
+    "resolve_table_schema",
 ]

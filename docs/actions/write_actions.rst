@@ -135,7 +135,7 @@ Standard mode appends rows from one or more source views via
       - **cluster_columns**: Columns to cluster/z-order the table by
       - **cluster_by_auto**: Boolean — enable automatic liquid clustering (Databricks selects and evolves the clustering keys). Renders ``cluster_by_auto=True``; omitted when ``false`` or unset. Mutually exclusive with ``cluster_columns``.
       - **spark_conf**: Streaming-specific Spark configuration
-      - **table_schema**: DDL schema definition for the table (supports inline DDL or external file - see below)
+      - **table_schema**: Schema definition for the table (supports inline DDL, an inline structured YAML schema, or an external file - see below)
       - **row_filter**: Row-level security filter using SQL UDF (format: "ROW FILTER function_name ON (column_names)")
       - **comment**: Table comment for documentation
       - **mode**: Streaming mode - "standard" (default), "cdc", or "snapshot_cdc"
@@ -143,7 +143,7 @@ Standard mode appends rows from one or more source views via
 
 **table_schema Format Options**
 
-The ``table_schema`` option supports two formats, automatically detected by the framework:
+The ``table_schema`` option supports three formats, automatically detected by the framework:
 
 **Option 1: Inline DDL** (multiline string)
 
@@ -168,7 +168,25 @@ The ``table_schema`` option supports two formats, automatically detected by the 
   # or
   table_schema: "schemas/customer_table.yaml"
 
-**External Schema Files**: Schema files can be organized in subdirectories relative to your project root (e.g., ``"schemas/bronze/customer_table.ddl"``). The framework automatically detects file paths based on file extensions (``.ddl``, ``.sql``, ``.yaml``, ``.yml``, ``.json``) or path separators.
+**Option 3: Inline Structured YAML Schema**
+
+Author the schema directly under ``table_schema`` as a mapping with a ``columns`` list. This uses
+the same structure as an external YAML schema file, so the two are interchangeable. Columns are
+converted to schema hints; ``nullable: false`` appends ``NOT NULL``.
+
+.. code-block:: yaml
+
+  table_schema:
+    columns:
+      - name: customer_id
+        type: BIGINT
+        nullable: false
+      - name: name
+        type: STRING
+      - name: registration_date
+        type: DATE
+
+**External Schema Files**: Schema files can be organized in subdirectories relative to your project root (e.g., ``"schemas/bronze/customer_table.ddl"``). The framework automatically detects file paths based on file extensions (``.ddl``, ``.sql``, ``.yaml``, ``.yml``, ``.json``) or path separators. A value that is a mapping (rather than a string) is treated as an inline structured schema.
 
 **The above YAML translates to the following PySpark code**
 
@@ -851,7 +869,7 @@ Minimum example:
       - **cluster_columns**: Columns to cluster/z-order the view by
       - **cluster_by_auto**: Boolean — enable automatic liquid clustering (Databricks selects and evolves the clustering keys). Renders ``cluster_by_auto=True``; omitted when ``false`` or unset. Mutually exclusive with ``cluster_columns``.
       - **refresh_policy**: String — refresh strategy for the materialized view. One of ``"auto"``, ``"incremental"``, ``"incremental_strict"``, or ``"full"`` (e.g. ``"incremental"``); any other value is rejected at validation. Renders ``refresh_policy="incremental"``. Materialized-view only.
-      - **table_schema**: DDL schema definition for the view (supports inline DDL or external file - see below)
+      - **table_schema**: Schema definition for the view (supports inline DDL, an inline structured YAML schema, or an external file - see below)
       - **row_filter**: Row-level security filter using SQL UDF (format: "ROW FILTER function_name ON (column_names)")
       - **comment**: Table comment for documentation
 - **description**: Optional documentation for the action
@@ -867,7 +885,7 @@ and can be organized in subdirectories (e.g., ``"sql/gold/aggregations/sales_sum
 
 **table_schema Format Options**
 
-The ``table_schema`` option supports two formats, automatically detected by the framework:
+The ``table_schema`` option supports three formats, automatically detected by the framework:
 
 **Option 1: Inline DDL**
 
@@ -885,7 +903,21 @@ The ``table_schema`` option supports two formats, automatically detected by the 
   # or
   table_schema: "schemas/product_view_schema.yaml"
 
-**External Schema Files**: Schema files can be organized in subdirectories relative to your project root. The framework automatically detects file paths based on file extensions (``.ddl``, ``.sql``, ``.yaml``, ``.yml``, ``.json``) or path separators.
+**Option 3: Inline Structured YAML Schema**
+
+.. code-block:: yaml
+
+  table_schema:
+    columns:
+      - name: product_id
+        type: BIGINT
+        nullable: false
+      - name: name
+        type: STRING
+      - name: price
+        type: DECIMAL(10,2)
+
+**External Schema Files**: Schema files can be organized in subdirectories relative to your project root. The framework automatically detects file paths based on file extensions (``.ddl``, ``.sql``, ``.yaml``, ``.yml``, ``.json``) or path separators. A value that is a mapping (rather than a string) is treated as an inline structured schema.
 
 **The above YAML examples translate to the following PySpark code**
 

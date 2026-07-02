@@ -771,3 +771,42 @@ class TestCdcSchemaValidatorDirect:
         )
         errors = self.validator.validate(action, self.prefix)
         assert len(errors) == 2
+
+    def test_validate_inline_dict_schema_missing_cdc_columns(self):
+        """An inline dict table_schema omitting __START_AT/__END_AT still triggers the CDC error.
+
+        The dict is converted to hints (via SchemaParser.to_schema_hints) before the
+        __START_AT / __END_AT presence check runs, so a dict lacking those columns must
+        produce both CDC errors.
+        """
+        action = self._make_action(
+            write_target={
+                "type": "streaming_table",
+                "table_schema": {
+                    "columns": [
+                        {"name": "id", "type": "INT"},
+                        {"name": "name", "type": "STRING"},
+                    ]
+                },
+            }
+        )
+        errors = self.validator.validate(action, self.prefix)
+        assert any("__START_AT" in e for e in errors)
+        assert any("__END_AT" in e for e in errors)
+
+    def test_validate_inline_dict_schema_with_cdc_columns_passes(self):
+        """An inline dict table_schema including __START_AT/__END_AT columns passes."""
+        action = self._make_action(
+            write_target={
+                "type": "streaming_table",
+                "table_schema": {
+                    "columns": [
+                        {"name": "id", "type": "INT"},
+                        {"name": "__START_AT", "type": "TIMESTAMP"},
+                        {"name": "__END_AT", "type": "TIMESTAMP"},
+                    ]
+                },
+            }
+        )
+        errors = self.validator.validate(action, self.prefix)
+        assert errors == []

@@ -1,6 +1,7 @@
 from typing import List
 
 from lhp.models import Action
+from lhp.parsers import SchemaParser
 
 
 class CdcSchemaValidator:
@@ -13,6 +14,19 @@ class CdcSchemaValidator:
         schema = action.write_target.get("table_schema")
         if not schema:
             return errors
+
+        # An inline dict schema stores column names inside 'columns', so a
+        # substring check against the dict would inspect its keys, not the
+        # columns. Convert it to the DDL hint string first (§3.5: stateless,
+        # instantiate locally) so the __START_AT / __END_AT checks below run
+        # against the actual column names.
+        if isinstance(schema, dict):
+            if "columns" not in schema:
+                # A structurally invalid inline schema (missing 'columns') is
+                # reported by the table-options validator; with no columns there
+                # is nothing to check for __START_AT / __END_AT here.
+                return errors
+            schema = SchemaParser().to_schema_hints(schema)
 
         if "__START_AT" not in schema:
             errors.append(

@@ -29,7 +29,7 @@ class WriteTarget(BaseModel):
     cluster_columns: Optional[List[str]] = None
     cluster_by_auto: Optional[bool] = None
     spark_conf: Optional[Dict[str, Any]] = None
-    table_schema: Optional[str] = None
+    table_schema: Optional[Union[str, Dict[str, Any]]] = None
     row_filter: Optional[str] = None
     temporary: bool = False
     path: Optional[str] = None

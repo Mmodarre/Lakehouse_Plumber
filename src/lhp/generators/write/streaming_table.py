@@ -7,11 +7,7 @@ from typing import Any, Dict, List
 from lhp.models import Action
 
 from ...core.codegen import copy_user_module_for_pipeline
-from ...core.loaders.external_file_loader import (
-    is_file_path,
-    load_external_file_text,
-    resolve_external_file_path,
-)
+from ...core.loaders import resolve_table_schema
 from ...core.processing.dqe import DQEParser
 from ...core.registry import BaseActionGenerator
 from ...errors import ErrorFactory
@@ -80,22 +76,10 @@ class StreamingTableWriteGenerator(BaseActionGenerator):
         schema = None
 
         if schema_value:
-            if is_file_path(schema_value):
-                project_root = context.get("project_root", Path.cwd())
-                file_ext = Path(schema_value).suffix.lower()
-
-                if file_ext in [".yaml", ".yml", ".json"]:
-                    resolved_path = resolve_external_file_path(
-                        schema_value, project_root, file_type="table schema file"
-                    )
-                    schema_data = self.schema_parser.parse_schema_file(resolved_path)
-                    schema = self.schema_parser.to_schema_hints(schema_data)
-                else:
-                    schema = load_external_file_text(
-                        schema_value, project_root, file_type="table schema file"
-                    ).strip()
-            else:
-                schema = schema_value
+            project_root = context.get("project_root", Path.cwd())
+            schema = resolve_table_schema(
+                schema_value, project_root, self.schema_parser
+            )
 
         row_filter = target_config.get("row_filter")
         temporary = target_config.get("temporary", False)
