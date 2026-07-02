@@ -3,6 +3,7 @@
 import contextlib
 import io
 import logging
+import re
 import shutil
 import sys
 import tempfile
@@ -27,6 +28,23 @@ except ImportError:
     Console = None  # type: ignore[assignment,misc]
     _lhp_console_module = None  # type: ignore[assignment]
     _RICH_AVAILABLE = False
+
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
+
+
+def strip_ansi(text: str) -> str:
+    """Remove ANSI escape sequences (CSI, including SGR color) from ``text``.
+
+    ``click.UsageError`` panels are rendered by rich-click's OWN stderr
+    console, whose ``force_terminal_default()`` forces color whenever
+    ``FORCE_COLOR``, ``PY_COLORS``, or ``GITHUB_ACTIONS`` is set — and GitHub
+    Actions always sets the last, so CI colorizes these panels while a local
+    shell does not. The autouse ``_isolate_lhp_console`` fixture only de-colors
+    LHP's consoles, not rich-click's, so assertions on usage-error text must
+    strip ANSI to stay color- (and TTY-) agnostic.
+    """
+    return _ANSI_RE.sub("", text)
 
 
 @contextlib.contextmanager

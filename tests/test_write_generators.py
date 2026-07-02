@@ -42,6 +42,29 @@ class TestWriteGenerators:
         assert "silver_cat.silver_sch.customers" in code
         assert "spark.readStream.table" in code
 
+    def test_tags_do_not_leak_into_generated_code(self):
+        """UC tags are applied via the tagging hook, never emitted into the table DDL."""
+        generator = StreamingTableWriteGenerator()
+        action = Action(
+            name="write_customers",
+            type=ActionType.WRITE,
+            source="v_customers_final",
+            write_target={
+                "type": "streaming_table",
+                "catalog": "silver_cat",
+                "schema": "silver_sch",
+                "table": "customers",
+                "create_table": True,
+                "tags": {"team": "data-eng", "pii": ""},
+            },
+        )
+
+        code = generator.generate(action, {})
+
+        assert "dp.create_streaming_table" in code
+        assert "tags" not in code
+        assert "data-eng" not in code
+
     def test_materialized_view_generator(self):
         """Test materialized view write generator."""
         generator = MaterializedViewWriteGenerator()

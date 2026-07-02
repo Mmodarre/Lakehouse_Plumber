@@ -6,8 +6,8 @@ External callers MUST NOT import from here.
 Holds the cross-direction error-conversion helpers used by both the
 generation and validation converter modules (and by the project
 preflight): the :class:`LHPError` <-> :class:`ValidationIssueView`
-projection pair, plus the shared deprecation-warning emission helper
-used by the generate and validate streams.
+projection pair, plus the shared warning-record emission helper
+(deprecation + sandbox) used by the generate and validate streams.
 
 :stability: internal
 """
@@ -23,7 +23,7 @@ from lhp.api.views import ValidationIssueView
 if TYPE_CHECKING:
     from lhp.errors import LHPError
     from lhp.models import FlowGroup
-    from lhp.models.processing import DeprecationWarningRecord
+    from lhp.models.processing import RunWarningRecord
 
 
 def _derive_worklist_fields(
@@ -127,24 +127,31 @@ def _issue_view_to_lhp_error(issue: ValidationIssueView) -> "LHPError":
     )
 
 
-def _emit_deprecation_warnings(
-    records: Sequence["DeprecationWarningRecord"],
+def _emit_warning_records(
+    records: Sequence["RunWarningRecord"],
     *,
     seen: Set[Tuple[str, Optional[Path]]],
 ) -> Iterator[WarningEmitted]:
-    """Yield :class:`WarningEmitted` for each not-yet-seen deprecation record.
+    """Yield :class:`WarningEmitted` for each not-yet-seen warning record.
 
     Shared by the generate stream (:mod:`lhp.api._generate_stream`) and the
-    validate facade (:mod:`lhp.api._validation_facade`) to surface the two
-    deprecation-warning sources as public §5.7 stream events:
+    validate facade (:mod:`lhp.api._validation_facade`) to surface the
+    warning-record sources as public §5.7 stream events:
 
     * the MAIN-THREAD bare-``{token}`` scan
       (``orchestrator.discovery.scan_deprecation_warnings()`` →
       ``LHP-DEPR-001``), emitted in/after the ``discover`` phase, and
-    * the WORKER warnings merged off the engine's per-pipeline results
-      (``database`` / ``database_suffix`` / schema-transform ``enforcement`` →
-      ``LHP-DEPR-002/003/004``), emitted in/after the ``generate`` /
+    * the WORKER warnings merged off the engine's per-pipeline results —
+      deprecations (``database`` / ``database_suffix`` / schema-transform
+      ``enforcement`` → ``LHP-DEPR-002/003/004``) and sandbox rewrite
+      warnings (mixed-producer sink ``LHP-VAL-065`` / unrewritable indirect
+      read ``LHP-VAL-066``) — emitted in/after the ``generate`` /
       ``validate`` phase.
+
+    The event ``category`` is derived from the record type:
+    :class:`~lhp.models.processing.SandboxWarningRecord` → ``"sandbox"``,
+    :class:`~lhp.models.processing.DeprecationWarningRecord` →
+    ``"deprecation"``.
 
     ``seen`` is the SHARED ``(code, file)`` dedup set the caller threads across
     both emission points: a record whose key is already in ``seen`` is skipped,
@@ -154,18 +161,26 @@ def _emit_deprecation_warnings(
     worker), emitted in caller-iteration order (discover-phase records first,
     then the deterministic engine-merge order). Each record's
     :meth:`~lhp.api.WarningEmitted` carries ``message`` positionally and
-    ``code`` / ``file`` / ``flowgroup`` as structured context, with
-    ``category="deprecation"`` (§13.4 locked field order).
+    ``code`` / ``file`` / ``flowgroup`` as structured context (§13.4 locked
+    field order).
     """
+    # Deferred: this module loads eagerly with ``import lhp.api``, which must
+    # not pull ``lhp.models`` (and pydantic via its package init) at import
+    # time. By the time records exist, their defining module is loaded.
+    from lhp.models.processing import SandboxWarningRecord
+
     for record in records:
         key = (record.code, record.file)
         if key in seen:
             continue
         seen.add(key)
+        category = (
+            "sandbox" if isinstance(record, SandboxWarningRecord) else "deprecation"
+        )
         yield WarningEmitted(
             record.message,
             code=record.code,
-            category="deprecation",
+            category=category,
             file=record.file,
             flowgroup=record.flowgroup,
         )

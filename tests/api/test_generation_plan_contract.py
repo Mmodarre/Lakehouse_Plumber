@@ -305,6 +305,7 @@ class TestFieldTypeContract:
             "aux",
             "helper",
             "test_hook",
+            "uc_tagging_hook",
             "monitoring",
         }
 

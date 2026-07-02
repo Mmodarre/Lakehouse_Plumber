@@ -6,10 +6,12 @@ from unittest.mock import Mock, mock_open, patch
 import networkx as nx
 import pytest
 
+from lhp.core.dependencies.output import export_to_json, export_to_text
 from lhp.core.dependencies.output_writer import DependencyOutputWriter
 from lhp.models.dependencies import (
     DependencyAnalysisResult,
     DependencyGraphs,
+    DependencyWarning,
     PipelineDependency,
 )
 
@@ -232,6 +234,9 @@ class TestDependencyOutputWriter:
         assert saved["execution_stages"] == [["pipeline1"], ["pipeline2"]]
         assert saved["external_sources"] == ["external.source1"]
         assert saved["circular_dependencies"] == []
+        # Warnings key is ALWAYS present (stable schema), empty when none.
+        assert saved["warnings"] == []
+        assert saved["metadata"]["total_warnings"] == 0
 
     def test_save_text_format(self):
         result = self.create_mock_analysis_result()
@@ -758,3 +763,141 @@ class TestAllFormatExpansion:
             )
 
         assert captured_formats["expanded"] == ["dot", "json", "text", "job"]
+
+
+def _make_warning(index: int = 0, *, file_path=None, line=None) -> DependencyWarning:
+    """Synthetic extraction warning (emitters land in later tasks)."""
+    return DependencyWarning(
+        code="LHP-DEP-002",
+        message=f"could not resolve source table for read {index}",
+        flowgroup=f"fg{index}",
+        action=f"load_{index}",
+        suggestion="Add an explicit depends_on declaration",
+        file_path=file_path,
+        line=line,
+    )
+
+
+class TestDependencyWarningsInOutputs:
+    """Warnings surfacing in JSON/text exports; DOT and job stay byte-stable."""
+
+    def test_export_to_json_warnings_key_always_present_when_empty(self):
+        """A warning-free result still carries ``warnings: []`` and the
+        ``total_warnings`` metadata counter (stable schema)."""
+        result = create_test_dependency_result()
+
+        data = export_to_json(result)
+
+        assert data["warnings"] == []
+        assert data["metadata"]["total_warnings"] == 0
+        # Round-trips through json.dumps (JSON-ready, no stray objects).
+        json.loads(json.dumps(data))
+
+    def test_export_to_json_carries_warnings_with_all_seven_fields(self):
+        result = create_test_dependency_result()
+        result.warnings = [
+            _make_warning(0, file_path="pipelines/fg0.yaml", line=12),
+            _make_warning(1),
+        ]
+
+        data = export_to_json(result)
+
+        assert data["metadata"]["total_warnings"] == 2
+        assert data["warnings"] == [
+            {
+                "code": "LHP-DEP-002",
+                "message": "could not resolve source table for read 0",
+                "flowgroup": "fg0",
+                "action": "load_0",
+                "suggestion": "Add an explicit depends_on declaration",
+                "file_path": "pipelines/fg0.yaml",
+                "line": 12,
+            },
+            {
+                "code": "LHP-DEP-002",
+                "message": "could not resolve source table for read 1",
+                "flowgroup": "fg1",
+                "action": "load_1",
+                "suggestion": "Add an explicit depends_on declaration",
+                "file_path": None,
+                "line": None,
+            },
+        ]
+        json.loads(json.dumps(data))
+
+    def test_export_to_text_renders_warnings_section(self):
+        """Text export lists code, fg.action, location, message, suggestion;
+        location adapts (file:line / file-only / omitted)."""
+        result = create_test_dependency_result()
+        result.warnings = [
+            _make_warning(0, file_path="pipelines/fg0.yaml", line=12),
+            _make_warning(1, file_path="pipelines/fg1.yaml"),
+            _make_warning(2),
+        ]
+
+        content = export_to_text(result)
+
+        assert "DEPENDENCY EXTRACTION WARNINGS" in content
+        assert "  LHP-DEP-002 fg0.load_0 (pipelines/fg0.yaml:12)" in content
+        assert "  LHP-DEP-002 fg1.load_1 (pipelines/fg1.yaml)" in content
+        # No location -> bare code + fg.action line, no parens.
+        assert "\n  LHP-DEP-002 fg2.load_2\n" in content
+        assert "    could not resolve source table for read 0" in content
+        assert "    Suggestion: Add an explicit depends_on declaration" in content
+
+    def test_export_to_text_omits_section_when_no_warnings(self):
+        """Pin the convention: empty warnings -> no section header at all."""
+        result = create_test_dependency_result()
+
+        content = export_to_text(result)
+
+        assert "DEPENDENCY EXTRACTION WARNINGS" not in content
+        assert "LHP-DEP-" not in content
+
+    def test_dot_output_byte_identical_for_warning_bearing_result(self, tmp_path):
+        """DOT bytes are IDENTICAL between a warning-free and a warning-bearing
+        copy of the same result — warnings must not leak into DOT."""
+        output_manager = DependencyOutputWriter()
+        analyzer = Mock()
+
+        plain = create_test_dependency_result()
+        warned = create_test_dependency_result()
+        warned.warnings = [
+            _make_warning(i, file_path=f"pipelines/fg{i}.yaml", line=i)
+            for i in range(3)
+        ]
+
+        files_plain = output_manager.save_outputs(
+            analyzer, plain, ["dot"], tmp_path / "plain"
+        )
+        files_warned = output_manager.save_outputs(
+            analyzer, warned, ["dot"], tmp_path / "warned"
+        )
+
+        assert files_plain["dot"].read_bytes() == files_warned["dot"].read_bytes()
+
+    def test_job_output_byte_identical_for_warning_bearing_result(self, tmp_path):
+        """Job/orchestration YAML is unchanged when the result carries warnings."""
+        output_manager = DependencyOutputWriter()
+
+        plain = create_test_dependency_result()
+        warned = create_test_dependency_result()
+        warned.warnings = [
+            _make_warning(i, file_path=f"pipelines/fg{i}.yaml", line=i)
+            for i in range(3)
+        ]
+
+        job_bytes = {}
+        for label, result in (("plain", plain), ("warned", warned)):
+            analyzer = Mock()
+            analyzer.project_root = tmp_path / "project"
+            analyzer.get_project_name.return_value = "test_project"
+            analyzer.analyze_dependencies_by_job.return_value = ({}, result)
+
+            files = output_manager.save_outputs(
+                analyzer, result, ["job"], tmp_path / label
+            )
+            job_bytes[label] = files["job"].read_bytes()
+            assert files["job"].name.endswith(".job.yml")
+
+        assert job_bytes["plain"] == job_bytes["warned"]

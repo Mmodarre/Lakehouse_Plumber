@@ -42,14 +42,14 @@ repos:
         entry: python scripts/check_file_sizes.py
         language: system
         files: \.py$
-        exclude: ^(tests/e2e/fixtures/|src/lhp/resources/|.*\.jinja2$)
+        exclude: ^(tests/e2e/fixtures/|src/lhp/resources/|src/lhp/templates/init_sample/|.*\.jinja2$)
 
       - id: check-placement
         name: Constitution §2/§9 — placement rules (validators, utils, CLI imports, facade reach-through, _by_field)
         entry: python scripts/check_placement.py
         language: system
         files: \.py$
-        exclude: ^(tests/e2e/fixtures/|src/lhp/resources/)
+        exclude: ^(tests/e2e/fixtures/|src/lhp/resources/|src/lhp/templates/init_sample/)
 
       - id: check-codegen-inline
         name: Constitution §9.14 — no inline f-string codegen >20 lines in generators/

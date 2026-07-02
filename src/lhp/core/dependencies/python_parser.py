@@ -1,12 +1,22 @@
-"""Python parser utility for extracting Spark table references from Python code."""
+"""Python parser utility for extracting Spark table references from Python code.
+
+Owns the read-API allowlist (which calls count as internal-table reads) and
+the extraction entry points. The scope-aware AST traversal — variable
+bindings, YAML parameter-binding seeding, static loop unrolling, ``spark.sql``
+resolution and the LHP-DEP-002 opaque-read advisories — lives in
+:mod:`lhp.core.dependencies._extraction_visitor`.
+"""
 
 import ast
 import logging
-from dataclasses import dataclass, field
-from typing import Callable, FrozenSet, List, Literal, Optional, Set
+from dataclasses import dataclass
+from typing import FrozenSet, List, Optional, Tuple
 
-from ...utils.sql_parser import extract_tables_from_sql
-from ._static_resolution import resolve_static_string_values
+from ...models.dependencies import DependencyWarning
+from ._bindings import ParameterBindings
+from ._extraction_visitor import _TableExtractor
+from ._static_resolution import NameResolver, resolve_static_string_values
+from ._table_sites import PythonTableSitesResult
 
 # Spark DataFrameReader ``.format(...)`` values that denote a relational table
 # read (``spark.read.format(fmt).table/load("cat.sch.t")``). Anything outside
@@ -20,181 +30,96 @@ _INTERNAL_TABLE_FORMATS: FrozenSet[str] = frozenset(
 
 
 @dataclass(frozen=True)
-class _Binding:
-    """A resolved value for a variable within a scope.
+class PythonExtractionResult:
+    """Result of table extraction from one Python body.
 
-    ``values`` is a frozenset because a single name may map to multiple
-    literals when the user reassigns or conditionally branches::
-
-        tbl = "a"                 # values = {"a"}
-        tbl = "b"                 # values = {"a", "b"}  (union)
-        if cond:
-            tbl = "c"             # values = {"a", "b", "c"}
+    ``tables`` is deduplicated and sorted.
+    ``warnings`` carries LHP-DEP-002 advisories for recognized read calls
+    whose table argument is only known at runtime; ``flowgroup`` / ``action``
+    are blank here and stamped later by the source parser.
     """
 
-    values: FrozenSet[str]
-
-
-@dataclass
-class _Scope:
-    """A lexical scope: module body, function body, or class body."""
-
-    kind: Literal["module", "function", "class"]
-    bindings: dict = field(default_factory=dict)
-
-    def bind(self, name: str, new_values: FrozenSet[str]) -> None:
-        """Merge ``new_values`` into the binding for ``name`` (union semantics)."""
-        existing = self.bindings.get(name)
-        merged = (existing.values | new_values) if existing else new_values
-        self.bindings[name] = _Binding(values=merged)
-
-
-class _TableExtractor(ast.NodeVisitor):
-    """Scope-aware AST visitor that collects Spark table references.
-
-    Resolves variable-bound names against a lexical scope stack (module +
-    nested function scopes). Class bodies push a scope but that scope is not
-    visible to methods inside the class — this mirrors Python's actual
-    scoping rules (methods see enclosing function/module scopes but not the
-    class body scope).
-
-    Usage::
-
-        tree = ast.parse(code)
-        extractor = _TableExtractor(parser)
-        extractor.visit(tree)
-        tables = extractor.tables
-    """
-
-    def __init__(self, parser: "PythonParser") -> None:
-        self._parser = parser
-        # Seeded with a module-level scope.
-        self._scopes: List[_Scope] = [_Scope(kind="module")]
-        self.tables: Set[str] = set()
-
-    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
-        self._in_scope("function", node)
-
-    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
-        self._in_scope("function", node)
-
-    def visit_ClassDef(self, node: ast.ClassDef) -> None:
-        self._in_scope("class", node)
-
-    def _in_scope(self, kind: str, node: ast.AST) -> None:
-        self._scopes.append(_Scope(kind=kind))
-        self.generic_visit(node)
-        self._scopes.pop()
-
-    def visit_Assign(self, node: ast.Assign) -> None:
-        """Collect bindings from ``a = "x"``, ``a = b = "x"``, ``a, b = "x", "y"``."""
-        rhs_values = self._evaluate_rhs(node.value)
-
-        for target in node.targets:
-            # Tuple / list unpacking with parallel literal RHS.
-            if (
-                isinstance(target, (ast.Tuple, ast.List))
-                and isinstance(node.value, (ast.Tuple, ast.List))
-                and len(target.elts) == len(node.value.elts)
-            ):
-                for sub_target, sub_value in zip(
-                    target.elts, node.value.elts, strict=False
-                ):
-                    sub_values = self._evaluate_rhs(sub_value)
-                    if sub_values and isinstance(sub_target, ast.Name):
-                        self._current_scope().bind(sub_target.id, sub_values)
-            elif rhs_values:
-                self._bind_target(target, rhs_values)
-
-        self.generic_visit(node)
-
-    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
-        """Collect bindings from ``a: str = "x"`` (annotation-only skipped)."""
-        if node.value is None:
-            self.generic_visit(node)
-            return
-
-        rhs_values = self._evaluate_rhs(node.value)
-        if rhs_values:
-            self._bind_target(node.target, rhs_values)
-        self.generic_visit(node)
-
-    def _bind_target(self, target: ast.expr, values: FrozenSet[str]) -> None:
-        """Bind ``values`` to ``target`` when it's a simple name.
-
-        Non-``Name`` targets (attribute assignments, subscript assignments,
-        unmatched tuple unpacking) are intentionally dropped — tracking those
-        would require tracking object shape, which is out of scope.
-        """
-        if isinstance(target, ast.Name):
-            self._current_scope().bind(target.id, values)
-
-    def _evaluate_rhs(self, node: ast.expr) -> FrozenSet[str]:
-        """Return the set of literal string values ``node`` could be.
-
-        Delegates to :func:`resolve_static_string_values`, which handles the
-        forms the parser can reason about statically:
-          - ``"literal"`` (ast.Constant with str value)
-          - ``f"..."`` (ast.JoinedStr — rendered via render_f_string)
-          - ``"a" + "b"`` (ast.BinOp string concatenation, all operands static)
-          - ``"{}.{}".format(a, b)`` (.format() chains, all operands static)
-          - a previously bound ``ast.Name`` (resolved through the scope stack)
-
-        Returns an empty set for anything else (function calls returning
-        unknowns, subscripts). The extractor never speculates past what's
-        literally visible in the source: if any operand is dynamic, the whole
-        expression is left unresolved.
-        """
-        return resolve_static_string_values(node, name_resolver=self._resolve_name)
-
-    def visit_Call(self, node: ast.Call) -> None:
-        values = self._parser._extract_table_from_call(
-            node, name_resolver=self._resolve_name
-        )
-        if values:
-            self.tables.update(values)
-        self.generic_visit(node)
-
-    def _resolve_name(self, name: str) -> FrozenSet[str]:
-        """Walk the scope stack innermost → outermost, skipping class scopes.
-
-        Class bodies exist on the stack for correctness of scope push/pop,
-        but methods cannot transparently see class-body bindings — this
-        matches Python's lexical rules.
-        """
-        for scope in reversed(self._scopes):
-            if scope.kind == "class":
-                continue
-            if name in scope.bindings:
-                return scope.bindings[name].values
-        return frozenset()
-
-    def _current_scope(self) -> _Scope:
-        return self._scopes[-1]
+    tables: List[str]
+    warnings: List[DependencyWarning]
 
 
 class PythonParser:
-    def __init__(self):
+    def __init__(self) -> None:
         self.logger = logging.getLogger(__name__)
 
-    def extract_tables_from_python(self, python_code: str) -> List[str]:
+    def extract_tables_from_python(
+        self,
+        python_code: str,
+        *,
+        bindings: Optional[ParameterBindings] = None,
+    ) -> PythonExtractionResult:
+        """Extract internal-table references from a Python body.
+
+        ``bindings`` optionally seeds the scope of one module-level function
+        with the statically-known YAML parameter values codegen would apply
+        at runtime (see :class:`~lhp.core.dependencies._bindings.ParameterBindings`).
+        """
         if not python_code or not isinstance(python_code, str):
-            return []
+            return PythonExtractionResult(tables=[], warnings=[])
 
         self.logger.debug(
             f"Extracting table references from Python code ({len(python_code)} chars)"
         )
-        tables = set()
+        try:
+            tree = ast.parse(self._normalize_python_code(python_code))
+        except SyntaxError as e:
+            self.logger.warning(f"Could not parse Python code: {e}")
+            return PythonExtractionResult(tables=[], warnings=[])
+        except Exception:
+            self.logger.exception("Error extracting table references from Python")
+            return PythonExtractionResult(tables=[], warnings=[])
 
-        sql_queries = self.extract_sql_from_python(python_code)
-        for sql_query in sql_queries:
-            tables.update(extract_tables_from_sql(sql_query))
+        extractor = _TableExtractor(self, bindings=bindings)
+        extractor.visit(tree)
 
-        direct_tables = self._extract_direct_table_references(python_code)
-        tables.update(direct_tables)
+        self.logger.debug(
+            f"Found {len(extractor.tables)} table reference(s) in Python code"
+        )
+        return PythonExtractionResult(
+            tables=sorted(extractor.tables), warnings=list(extractor.warnings)
+        )
 
-        self.logger.debug(f"Found {len(tables)} table reference(s) in Python code")
-        return sorted(tables)
+    def collect_table_sites(
+        self,
+        python_code: str,
+        *,
+        bindings: Optional[ParameterBindings] = None,
+    ) -> PythonTableSitesResult:
+        """Record every recognized table-consuming call site with rewrite metadata.
+
+        Same recognition, scope resolution and ``bindings`` seeding as
+        :meth:`extract_tables_from_python`, but the source is parsed VERBATIM
+        — no dedent / strip normalization — so each recorded
+        :class:`~lhp.core.dependencies._table_sites.SourceSpan` indexes
+        byte-for-byte into ``python_code`` exactly as given, which is the
+        contract a rewriter needs. Consequence: indented snippets that only
+        parse after dedenting yield an empty result here while still
+        extracting via :meth:`extract_tables_from_python`.
+
+        Failure behavior mirrors :meth:`extract_tables_from_python`: empty /
+        non-string input and unparseable source degrade to an empty result
+        (the SyntaxError is logged as a warning, never raised).
+        """
+        if not python_code or not isinstance(python_code, str):
+            return PythonTableSitesResult(sites=())
+
+        try:
+            tree = ast.parse(python_code)
+        except SyntaxError as e:
+            self.logger.warning(f"Could not parse Python code: {e}")
+            return PythonTableSitesResult(sites=())
+        except Exception:
+            self.logger.exception("Error collecting table sites from Python")
+            return PythonTableSitesResult(sites=())
+
+        extractor = _TableExtractor(self, bindings=bindings)
+        extractor.visit(tree)
+        return PythonTableSitesResult(sites=tuple(extractor.sites))
 
     def extract_sql_from_python(self, python_code: str) -> List[str]:
         sql_queries = []
@@ -216,22 +141,7 @@ class PythonParser:
 
         return sql_queries
 
-    def _extract_direct_table_references(self, python_code: str) -> Set[str]:
-        """Scope-aware traversal: variable bindings are tracked through the scope stack
-        so that patterns like ``tbl = "cat.sch.t"; spark.read.table(tbl)`` resolve correctly.
-        """
-        try:
-            normalized_code = self._normalize_python_code(python_code)
-            tree = ast.parse(normalized_code)
-        except Exception:
-            self.logger.exception("Error extracting direct table references")
-            return set()
-
-        extractor = _TableExtractor(self)
-        extractor.visit(tree)
-        return extractor.tables
-
-    def _extract_sql_from_call(self, node: ast.Call) -> str:
+    def _extract_sql_from_call(self, node: ast.Call) -> Optional[str]:
         if (
             isinstance(node.func, ast.Attribute)
             and node.func.attr == "sql"
@@ -239,26 +149,22 @@ class PythonParser:
         ):
             return self._get_string_argument(node, 0)
 
-        if isinstance(node.func, ast.Attribute) and node.func.attr in [
-            "createOrReplaceTempView",
-            "createGlobalTempView",
-        ]:
-            pass
-
         return None
 
     def _extract_table_from_call(
         self,
         node: ast.Call,
-        name_resolver: Optional[Callable[[str], FrozenSet[str]]] = None,
-    ) -> FrozenSet[str]:
-        """Extract table reference(s) from a function call node.
+        name_resolver: NameResolver = None,
+    ) -> Tuple[bool, FrozenSet[str]]:
+        """Recognize a Spark read call and extract its table reference(s).
 
-        Returns a frozenset of possible table names (empty when the call is
-        not a recognized Spark table reference or the argument can't be
-        resolved). A set is used because variable-bound arguments can carry
-        multiple possible values when the user reassigns or conditionally
-        branches.
+        Returns ``(matched, values)``. ``matched`` is True when the call is a
+        recognized internal-table read API; ``values`` is the set of possible
+        table names (multi-valued when a variable-bound argument carries
+        several candidates). ``(True, frozenset())`` means "read API matched
+        but the argument is opaque" — the visitor turns that into an
+        LHP-DEP-002 advisory — whereas ``(False, frozenset())`` is simply
+        "not a read API at all".
         """
         # ``spark.table(...)`` — bare table accessor on the spark session.
         if (
@@ -266,7 +172,7 @@ class PythonParser:
             and node.func.attr == "table"
             and self._is_spark_object(node.func.value)
         ):
-            return self._get_string_argument_values(node, 0, name_resolver)
+            return True, self._get_string_argument_values(node, 0, name_resolver)
 
         # ``spark.read.table(...)`` and ``spark.readStream.table(...)`` — the
         # ``.table`` accessor on a DataFrameReader / DataStreamReader. Also
@@ -279,15 +185,17 @@ class PythonParser:
             and node.func.value.attr in ("read", "readStream")
             and self._is_spark_object(node.func.value.value)
         ):
-            return self._get_string_argument_values(node, 0, name_resolver)
+            return True, self._get_string_argument_values(node, 0, name_resolver)
 
         # ``spark.read.format(fmt).table/load(...)`` and the ``readStream``
         # variant. Only matches when ``fmt`` is a recognized relational-table
         # format (see ``_INTERNAL_TABLE_FORMATS``); ``cloudFiles`` and custom
         # DataSource names fall through and stay external.
-        format_chain_values = self._extract_table_from_format_chain(node, name_resolver)
-        if format_chain_values:
-            return format_chain_values
+        matched, format_chain_values = self._extract_table_from_format_chain(
+            node, name_resolver
+        )
+        if matched:
+            return True, format_chain_values
 
         if (
             isinstance(node.func, ast.Attribute)
@@ -296,30 +204,32 @@ class PythonParser:
             and self._is_spark_object(node.func.value.value)
             and node.func.attr in ["tableExists", "dropTempView"]
         ):
-            return self._get_string_argument_values(node, 0, name_resolver)
+            return True, self._get_string_argument_values(node, 0, name_resolver)
 
-        return frozenset()
+        return False, frozenset()
 
     def _extract_table_from_format_chain(
         self,
         node: ast.Call,
-        name_resolver: Optional[Callable[[str], FrozenSet[str]]] = None,
-    ) -> FrozenSet[str]:
+        name_resolver: NameResolver = None,
+    ) -> Tuple[bool, FrozenSet[str]]:
         """Recognize ``spark.read.format(fmt).table/load("c.s.t")`` chains.
 
-        Handles both ``read`` and ``readStream`` receivers. Returns the
-        resolved table reference(s) only when ``fmt`` statically resolves to a
-        single value in :data:`_INTERNAL_TABLE_FORMATS` (case-insensitive) and
-        the terminal ``.table()`` / ``.load()`` argument is itself statically
-        resolvable. ``cloudFiles`` (Auto Loader) and custom DataSource names
-        are not in the allowlist, so those reads return ``frozenset()`` and
-        remain external — preserving the prior behavior.
+        Handles both ``read`` and ``readStream`` receivers. The chain only
+        *matches* when ``fmt`` statically resolves to a single value in
+        :data:`_INTERNAL_TABLE_FORMATS` (case-insensitive) — ``cloudFiles``
+        (Auto Loader), custom DataSource names, file formats, and dynamic
+        format values are NOT matched, so those reads remain external (no
+        table, no advisory) — preserving the prior behavior. A matched chain
+        whose terminal ``.table()`` / ``.load()`` argument cannot be resolved
+        (including a bare ``.load()``) returns ``(True, frozenset())`` —
+        opaque.
         """
         # Terminal accessor: ``.table(arg)`` or ``.load(arg)``.
         if not (
             isinstance(node.func, ast.Attribute) and node.func.attr in ("table", "load")
         ):
-            return frozenset()
+            return False, frozenset()
 
         # Receiver must be a ``.format(fmt)`` call.
         format_call = node.func.value
@@ -328,7 +238,7 @@ class PythonParser:
             and isinstance(format_call.func, ast.Attribute)
             and format_call.func.attr == "format"
         ):
-            return frozenset()
+            return False, frozenset()
 
         # The ``.format`` receiver must be ``spark.read`` or ``spark.readStream``.
         reader = format_call.func.value
@@ -337,7 +247,7 @@ class PythonParser:
             and reader.attr in ("read", "readStream")
             and self._is_spark_object(reader.value)
         ):
-            return frozenset()
+            return False, frozenset()
 
         # The format string must statically resolve to a single allowlisted
         # relational-table format. Anything else (cloudFiles, custom DataSource
@@ -347,10 +257,9 @@ class PythonParser:
             len(format_values) == 1
             and next(iter(format_values)).lower() in _INTERNAL_TABLE_FORMATS
         ):
-            return frozenset()
+            return False, frozenset()
 
-        # ``.load()`` with no argument (custom DataSource style) yields nothing.
-        return self._get_string_argument_values(node, 0, name_resolver)
+        return True, self._get_string_argument_values(node, 0, name_resolver)
 
     def _is_spark_object(self, node: ast.AST) -> bool:
         """Check if an AST node represents a spark object."""
@@ -364,7 +273,7 @@ class PythonParser:
         self,
         node: ast.Call,
         arg_index: int,
-        name_resolver: Optional[Callable[[str], FrozenSet[str]]] = None,
+        name_resolver: NameResolver = None,
     ) -> Optional[str]:
         """Extract a string argument from a function call at ``arg_index``.
 
@@ -390,7 +299,7 @@ class PythonParser:
         self,
         node: ast.Call,
         arg_index: int,
-        name_resolver: Optional[Callable[[str], FrozenSet[str]]] = None,
+        name_resolver: NameResolver = None,
     ) -> FrozenSet[str]:
         """Extract all possible string values for the ``arg_index`` argument.
 
@@ -430,9 +339,28 @@ class PythonParser:
         return textwrap.dedent(python_code).strip()
 
 
-def extract_tables_from_python(python_code: str) -> List[str]:
+def extract_tables_from_python(
+    python_code: str,
+    *,
+    bindings: Optional[ParameterBindings] = None,
+) -> PythonExtractionResult:
     parser = PythonParser()
-    return parser.extract_tables_from_python(python_code)
+    return parser.extract_tables_from_python(python_code, bindings=bindings)
+
+
+def collect_python_table_sites(
+    python_code: str,
+    *,
+    bindings: Optional[ParameterBindings] = None,
+) -> PythonTableSitesResult:
+    """Collect rewrite-oriented table-site records from a Python body.
+
+    See :meth:`PythonParser.collect_table_sites` for the span contract
+    (verbatim parse, AST coordinates with UTF-8 byte columns) and failure
+    behavior (unparseable / empty source degrades to an empty result).
+    """
+    parser = PythonParser()
+    return parser.collect_table_sites(python_code, bindings=bindings)
 
 
 def extract_sql_from_python(python_code: str) -> List[str]:

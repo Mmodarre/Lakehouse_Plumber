@@ -1,0 +1,21 @@
+# Schema for the uc_orders streaming table — table-level tags only (NO column tags),
+# so this pipeline proves the table-tags-only path.
+name: uc_orders
+version: "1.0"
+description: "UC tagging E2E — orders table (no column tags)"
+
+columns:
+  - name: o_orderkey
+    type: BIGINT
+    nullable: false
+    comment: "Order key - primary identifier"
+  - name: o_custkey
+    type: BIGINT
+    nullable: false
+    comment: "Customer key"
+  - name: o_totalprice
+    type: DECIMAL(18,2)
+    nullable: true
+    comment: "Total order price"
+
+primary_key: [o_orderkey]

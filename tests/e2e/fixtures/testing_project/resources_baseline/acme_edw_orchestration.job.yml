@@ -70,6 +70,30 @@ resources:
           pipeline_task:
             pipeline_id: ${resources.pipelines.acmi_edw_bronze_pipeline.id}
             full_refresh: false
+        - task_key: dep_bindings_pipeline
+          depends_on:
+            - task_key: helper_imports_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.dep_bindings_pipeline.id}
+            full_refresh: false
+        - task_key: uc_tagging_core_pipeline
+          depends_on:
+            - task_key: acmi_edw_raw_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.uc_tagging_core_pipeline.id}
+            full_refresh: false
+        - task_key: uc_tagging_mv_pipeline
+          depends_on:
+            - task_key: acmi_edw_raw_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.uc_tagging_mv_pipeline.id}
+            full_refresh: false
+        - task_key: uc_tagging_none_pipeline
+          depends_on:
+            - task_key: acmi_edw_raw_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.uc_tagging_none_pipeline.id}
+            full_refresh: false
         - task_key: acmi_edw_silver_pipeline
           depends_on:
             - task_key: acmi_edw_bronze_pipeline

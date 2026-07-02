@@ -11,6 +11,7 @@
 | `sql_path` | string | — | External query file. |
 | `refresh_schedule` | string | — | Cron / schedule. |
 | `table_properties` | dict | `{}` | — |
+| `tags` | dict | — | UC tags `{key: value}`; value `""`/`~`/null = key-only. Applied during the run by a generated `_uc_tagging_hook.py` (REST API, not the view DDL): on `update_progress` `RUNNING` (streaming tables) and on the terminal state (materialized views, which materialize later — so MVs are tagged on the terminal pass), each entity tagged at most once. Tagging on `RUNNING` keeps tag-write failures visible as event-log warnings while the run is live; it never fails the pipeline. Existing tag state is read once at module import from `system.information_schema` (best-effort — a read failure is re-raised as a warning on the first `RUNNING` event, then tagging proceeds create-only; no init crash). **On by default** — declaring `tags` opts in; set `uc_tagging.enabled: false` in `lhp.yaml` to disable. `tag_update_concurrency` (default 16) tunes the thread pool. |
 | `spark_conf` | dict | `{}` | — |
 | `table_schema` | string | — | Inline or file. |
 | `row_filter` | string | — | — |

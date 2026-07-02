@@ -136,6 +136,23 @@ lhp dag --expand-blueprints                 # One node per blueprint instance
 | `job` | Databricks job YAML |
 | `all` | All formats |
 
+### What Extraction Resolves
+
+- **SQL** (sqlglot, Databricks dialect; multi-statement): `FROM`/`JOIN` reads incl. inside `MERGE`/`INSERT`/CTAS (write targets excluded — reads only), `stream()`/`live()`/`snapshot()` wrappers unwrapped, CTE names excluded, quoted identifiers output unquoted, string literals containing `FROM` never mis-extracted. The SQL-transform `$source` placeholder is excluded (the action's declared `source:` view carries that edge). Substitution tokens (`${token}`, `${secret:scope/key}`, legacy `{token}`) survive byte-for-byte, even mid-segment: `FROM cat.sch.tbl${suffix}` extracts `cat.sch.tbl${suffix}`. Unparseable body → zero edges + ONE `LHP-DEP-003` advisory (never an error).
+- **Python**: recognized Spark reads (`spark.table`, `spark.read`/`readStream.table`, `spark.read.format("delta"|"iceberg"|"hive"|"unity_catalog").table`/`.load`, `spark.catalog.tableExists`/`.dropTempView`, `spark.sql`) resolve through literals, module constants, conditional reassignment (union), `+`/`"{}.{}".format(...)`, string methods (`.replace`/`.upper`/`.lower`/`.strip`/`.lstrip`/`.rstrip`/`sep.join`), f-strings over bound values, and `for`-loops over statically-known string lists (unrolled — one read per element).
+- **YAML parameters resolve like codegen applies them** (entry function looked up at module top level by name; signature mismatch binds nothing): python transform `parameters:` dict passed positionally (3rd arg with ≥1 source view, 2nd with none); python load `source.parameters` dict as 2nd arg (`function_name` default `get_df`); snapshot_cdc `source_function.parameters` bound as keyword-only kwargs via `functools.partial`. `parameters["k"]` and `parameters.get("k", default)` resolve.
+- **Not followed (by design):** helper/function call results (`spark.read.table(helper(x))` is opaque), function args not bound from YAML, class attributes, runtime-only values → `LHP-DEP-002` advisory; declare the edge with `depends_on`.
+- **Token byte-fidelity:** `${...}` tokens are never resolved at dag time; matching canonicalizes ONLY lowercase + backtick/whitespace stripping. Producer and consumer must use identical token bytes — `${catalog}.x` does not match `{catalog}.x` (`${token}` recommended; `{token}` deprecated).
+
+### Extraction Warnings (advisory — never errors, never fail a run)
+
+| Code | Meaning | Fix |
+|------|---------|-----|
+| `LHP-DEP-002` | Recognized Python table-read whose argument is not statically resolvable | `depends_on` on the action (entries validated by `LHP-VAL-063`) |
+| `LHP-DEP-003` | SQL body could not be parsed (one per body; zero edges from it) | Fix the SQL, or `depends_on` |
+
+Surfaces (default-on): `lhp dag` stderr summary (count header, up to 10 detail lines `LHP-DEP-00x fg.action (file:line): message`, overflow `... and N more (see JSON output)`, one `depends_on` hint); JSON output (top-level `warnings` array always present + `metadata.total_warnings`; entries carry `code`/`message`/`flowgroup`/`action`/`suggestion`/`file_path`/`line`); text report (`DEPENDENCY EXTRACTION WARNINGS` section). NOT in DOT output or job YAML. Public API: `lhp.api.DependencyWarningView` (provisional) on `DependencyAnalysisResult.warnings`.
+
 ### Execution Stages
 
 Pipelines in the same stage run in parallel:

@@ -104,6 +104,10 @@ Standard mode appends rows from one or more source views via
           delta.enableChangeDataFeed: "true"
           delta.autoOptimize.optimizeWrite: "true"
           quality: "bronze"
+        tags:
+          team: data-eng
+          data_layer: bronze
+          pii: ""          # key-only tag (empty value)
         partition_columns: ["region", "year"]
         cluster_columns: ["customer_id"]
         #spark_conf:
@@ -131,6 +135,7 @@ Standard mode appends rows from one or more source views via
       - **table**: Target table name
       - **create_table**: Whether to create the table (true) or append to existing (false)
       - **table_properties**: Delta table properties for optimization and metadata
+      - **tags**: Unity Catalog table tags (see `Unity Catalog tagging`_ below). Applied after the table builds, via a generated event hook — not part of the table DDL.
       - **partition_columns**: Columns to partition the table by
       - **cluster_columns**: Columns to cluster/z-order the table by
       - **cluster_by_auto**: Boolean — enable automatic liquid clustering (Databricks selects and evolves the clustering keys). Renders ``cluster_by_auto=True``; omitted when ``false`` or unset. Mutually exclusive with ``cluster_columns``.
@@ -230,6 +235,113 @@ converted to schema hints; ``nullable: false`` appends ``NOT NULL``.
       # Streaming flow
       df = spark.readStream.table("v_customer_cleansed")
       return df
+
+Unity Catalog tagging
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Streaming-table and materialized-view write actions can declare Unity Catalog
+**tags** at the table level (a ``tags`` mapping on ``write_target``) and at the
+column level (a ``tags`` mapping on columns of a YAML/JSON schema file referenced
+by ``table_schema``).
+
+Because Spark Declarative Pipelines cannot set UC tags as part of table creation
+(and ``ALTER TABLE ... SET TAGS`` SQL is rejected inside pipeline execution), LHP
+collects all declared tags and emits a single per-pipeline ``_uc_tagging_hook.py``.
+The hook runs as a ``@dp.on_event_hook`` and applies tags via the Unity Catalog
+*Entity Tag Assignments* REST API. It tags **during and at the end of a pipeline
+update**, with all **tag-write failures surfacing as event-log warnings**
+(a tagging failure can leave a sensitive column unmasked under tag-based ABAC, so
+failures should be visible).
+
+The current tag state for all managed tables/columns is read **once at pipeline
+initialization** with a single cheap ``system.information_schema`` query (``table_tags``
+``UNION ALL`` ``column_tags``), so the hook never needs to lists tags per entity. Tagging
+is best-effort and **never fails the pipeline** — event hooks cannot — but are raised
+as warnings.
+
+**Table tags**
+
+.. code-block:: yaml
+
+  write_target:
+    type: streaming_table
+    catalog: "${catalog}"
+    schema: "${bronze_schema}"
+    table: customer
+    table_schema: schemas/customer.yaml
+    comment: "Customer table"
+    tags:
+      team: data-eng       # key-value tag
+      cost_center: "1234"  # key-value tag
+      pii: ""              # key-only tag (empty string)
+      certified: ~         # key-only tag (YAML null)
+
+Key-only tags use an empty string ``""``, ``~``, or an omitted value — all
+normalize to an empty tag value.
+
+**Column tags** are declared in a YAML/JSON schema file referenced by
+``table_schema`` (they are *not* supported for ``.sql``/``.ddl`` files or inline
+DDL):
+
+.. code-block:: yaml
+
+  # schemas/customer.yaml
+  name: customer
+  columns:
+    - name: customer_id
+      type: BIGINT
+    - name: email
+      type: STRING
+      tags:
+        classification: pii
+        masked: ""
+
+**Enabling and configuring** (``lhp.yaml``) — tagging is **on by default**. You opt
+in simply by declaring ``tags`` on a table/column (the hook is generated only when
+some table or column has ``tags``); the ``uc_tagging`` block is optional and only
+needed to disable the feature or tune it. Set ``uc_tagging.enabled: false`` to turn
+it off entirely. (Any pipeline that declares ``tags`` therefore needs ``SELECT``
+on ``system.information_schema``; a pipeline with no ``tags`` generates no event hook
+and is unaffected.)
+
+.. code-block:: yaml
+
+  uc_tagging:
+    enabled: true                  # default true — set false to disable the feature
+    remove_undeclared_tags: false  # default false — additive only
+    tag_update_concurrency: 16     # default 16 — max concurrent tag operations
+
+- With ``remove_undeclared_tags: false`` (default), tagging is **additive**: tags
+  are created/updated to match the declared set and never removed.
+- With ``remove_undeclared_tags: true``, the hook also **deletes** any existing
+  tag whose key is not in the declared set (reconcile to the declared state). This
+  can remove tags applied by other tools, which is why it is off by default.
+
+Tagging is only ever scoped to entities you actually declare tags for: a table with
+no ``tags`` (and no tagged columns) is never touched, even when ``remove_undeclared_tags``
+is set to ``true``. An explicit empty ``tags: {}`` means "managed with an empty set" —
+with ``remove_undeclared_tags: true`` this clears all tags from that entity.
+
+.. note::
+
+   - Only the table-creating action is tagged (``create_table: true``, the
+     default); temporary tables and sinks are excluded.
+   - The pipeline's run-as identity needs permission to assign/remove UC tags
+     (``APPLY TAG`` on the table and ``ASSIGN`` on required governed tags). ``USE CATALOG``,
+     ``USE SCHEMA`` and ``SELECT`` on ``system.information_schema`` are also required
+     (read once at import for the existing tag state); without it the hook logs a warning
+     during the run and still attempts to create all declared tags rather than failing.
+   - Tags are applied during the run: streaming tables and existing materialized views
+     on ``update_progress`` ``RUNNING`` and newly-created materialized views on the
+     terminal state. Tagging on ``RUNNING`` makes most failures immediately visible,
+     but failures for newly-created MVs will only appear as event-log warnings some
+     time after pipeline termination.
+   - In **continuous** pipelines a streaming flow only reaches a terminal state at
+     stop, and ``update_progress`` stays ``RUNNING`` — tables existing at
+     ``RUNNING`` are still tagged; anything materializing later is tagged at stop.
+   - On a tag failure the hook raises, surfacing the error as an event-log warning;
+     it **never fails the pipeline** (event hooks cannot). The error is non-blocking
+     and best-effort.
 
 CDC mode
 ~~~~~~~~
@@ -865,6 +977,7 @@ Minimum example:
       - **sql**: Inline SQL query to define the view (alternative to source or sql_path)
       - **sql_path**: Path to external SQL file to define the view (alternative to source or sql)
       - **table_properties**: Delta table properties for optimization
+      - **tags**: Unity Catalog table tags (see `Unity Catalog tagging`_). Applied after the view builds, via a generated event hook.
       - **partition_columns**: Columns to partition the view by
       - **cluster_columns**: Columns to cluster/z-order the view by
       - **cluster_by_auto**: Boolean — enable automatic liquid clustering (Databricks selects and evolves the clustering keys). Renders ``cluster_by_auto=True``; omitted when ``false`` or unset. Mutually exclusive with ``cluster_columns``.

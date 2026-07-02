@@ -8,6 +8,8 @@ Rules checked, with their finding codes:
   LHP-9.1   §2.1 / §9.1   Validator outside core/validators/
   LHP-9.2   §2.2 / §9.2   Domain types in utils/
   LHP-9.7   §5.3 / §9.7   CLI imports from internal domain modules
+  LHP-9.7   §1.1 / §5.3   webapp imports from internal domain modules
+                          (lhp.webapp may reach only lhp.api / lhp.errors)
   LHP-9.4   §4.1 / §9.4   `_by_field` / `_by_fields` / `_v<N>` method variants
   LHP-9.13  §1.10 / §9.13 `ActionOrchestrator` name in lhp/api/
   LHP-9.13-docs §1.10 / §9.13 `ActionOrchestrator` / dead
@@ -48,9 +50,13 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SRC_ROOT = REPO_ROOT / "src" / "lhp"
+# Packaged sample-project template tree (`lhp init --sample`) — package
+# DATA shipped verbatim, never imported by LHP code; out of gate scope.
+INIT_SAMPLE_DIR = SRC_ROOT / "templates" / "init_sample"
 DOCS_ROOT = REPO_ROOT / "docs"
 LHP_API_DIR = SRC_ROOT / "api"
 LHP_CLI_DIR = SRC_ROOT / "cli"
+LHP_WEBAPP_DIR = SRC_ROOT / "webapp"
 LHP_CORE_VALIDATORS_DIR = SRC_ROOT / "core" / "validators"
 LHP_UTILS_DIR = SRC_ROOT / "utils"
 
@@ -85,6 +91,44 @@ DOMAIN_PKG_SHORTNAMES = ("core", "parsers", "generators", "bundle", "models")
 # ensures `from .core_helpers` (if such a module existed) is NOT flagged.
 RE_CLI_RELATIVE_DOMAIN_IMPORT = re.compile(
     r"^\s*from\s+\.+(" + "|".join(DOMAIN_PKG_SHORTNAMES) + r")\b"
+)
+
+# §1.1 / §5.3 — `lhp.webapp` (future WebUI integration, §1.1.b) is a
+# CONSUMER of the public API, like the CLI: it may reach only `lhp.api`,
+# `lhp.errors`, and `lhp.webapp` itself.  Every other domain-internal
+# package is banned — including `lhp.schemas` as a MODULE import (webapp
+# loads schema JSON via `importlib.resources` on the package-name STRING,
+# which is not an import statement, so this never blocks legitimate use).
+DOMAIN_PKGS_BANNED_FROM_WEBAPP = (
+    "lhp.core",
+    "lhp.parsers",
+    "lhp.generators",
+    "lhp.bundle",
+    "lhp.models",
+    "lhp.presets",
+    "lhp.utils",
+    "lhp.cli",
+    "lhp.schemas",
+)
+
+# Relative imports inside webapp/ that reach a SIBLING domain package.
+# Only TWO-or-more leading dots can escape `lhp.webapp` into `lhp.<pkg>`;
+# a single leading dot (`from .schemas`, `from .services`) stays inside
+# `lhp.webapp` and is always allowed.  Word boundary ensures a prefix
+# match like `from ..core_helpers` (if it existed) is NOT flagged.
+DOMAIN_PKG_SHORTNAMES_BANNED_FROM_WEBAPP = (
+    "core",
+    "parsers",
+    "generators",
+    "bundle",
+    "models",
+    "presets",
+    "utils",
+    "cli",
+    "schemas",
+)
+RE_WEBAPP_RELATIVE_DOMAIN_IMPORT = re.compile(
+    r"^\s*from\s+\.\.+(" + "|".join(DOMAIN_PKG_SHORTNAMES_BANNED_FROM_WEBAPP) + r")\b"
 )
 
 # §9.4 — these stems cannot appear as method-name suffixes on new code.
@@ -144,6 +188,8 @@ def in_src(path: Path) -> bool:
     try:
         path.resolve().relative_to(SRC_ROOT.resolve())
     except ValueError:
+        return False
+    if is_under(path, INIT_SAMPLE_DIR):
         return False
     return path.suffix == ".py"
 
@@ -283,6 +329,44 @@ def check_cli_imports(path: Path) -> list[str]:
                 f"{rel(path)}:{line_no}: LHP-9.7 CLI imports from internal "
                 f"domain module `lhp.{short}` via relative import (§5.3) — "
                 f"go through lhp.api"
+            )
+    return findings
+
+
+def check_webapp_imports(path: Path) -> list[str]:
+    findings: list[str] = []
+    if not is_under(path, LHP_WEBAPP_DIR):
+        return findings
+    text = read_text(path)
+    if not text:
+        return findings
+    for line_no, line in enumerate(text.splitlines(), start=1):
+        stripped = line.lstrip()
+        if not (stripped.startswith("from ") or stripped.startswith("import ")):
+            continue
+        absolute_hit: str | None = None
+        for pkg in DOMAIN_PKGS_BANNED_FROM_WEBAPP:
+            if (
+                f"from {pkg}" in stripped
+                or stripped.startswith(f"import {pkg}")
+                or stripped.startswith(f"{pkg} ")
+            ):
+                absolute_hit = pkg
+                break
+        relative_match = RE_WEBAPP_RELATIVE_DOMAIN_IMPORT.match(stripped)
+        if absolute_hit is not None:
+            findings.append(
+                f"{rel(path)}:{line_no}: LHP-9.7 webapp imports from internal "
+                f"domain module `{absolute_hit}` (§5.3) — lhp.webapp may reach "
+                f"only lhp.api / lhp.errors; go through lhp.api"
+            )
+        elif relative_match is not None:
+            short = relative_match.group(1)
+            findings.append(
+                f"{rel(path)}:{line_no}: LHP-9.7 webapp imports from internal "
+                f"domain module `lhp.{short}` via relative import (§5.3) — "
+                f"lhp.webapp may reach only lhp.api / lhp.errors; go through "
+                f"lhp.api"
             )
     return findings
 
@@ -442,6 +526,7 @@ CHECKS = (
     check_validator_directory_membership,
     check_utils_domain_types,
     check_cli_imports,
+    check_webapp_imports,
     check_method_variants,
     check_facade_reach_through,
     check_facade_internal_reach_through,

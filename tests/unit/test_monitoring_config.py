@@ -105,6 +105,23 @@ class TestMonitoringConfig:
         assert config.catalog == "${catalog}"
         assert config.schema_ == "${schema}"
 
+    def test_max_concurrent_streams_default(self):
+        assert MonitoringConfig().max_concurrent_streams == 10
+
+    def test_max_concurrent_streams_rejects_zero(self):
+        with pytest.raises(ValidationError):
+            MonitoringConfig(max_concurrent_streams=0)
+
+    def test_max_concurrent_streams_rejects_above_upper_bound(self):
+        with pytest.raises(ValidationError):
+            MonitoringConfig(max_concurrent_streams=21)
+
+    def test_max_concurrent_streams_accepts_lower_bound(self):
+        assert MonitoringConfig(max_concurrent_streams=1).max_concurrent_streams == 1
+
+    def test_max_concurrent_streams_accepts_upper_bound(self):
+        assert MonitoringConfig(max_concurrent_streams=20).max_concurrent_streams == 20
+
 
 @pytest.mark.unit
 class TestProjectConfigWithMonitoring:

@@ -1,0 +1,11 @@
+# Cloudfiles ingestion (CSV) via the cloudfiles_ingest template.
+# schema_hints is an INLINE DDL string (auto-detected by LHP); the template
+# adds the csv header option for this file format.
+pipeline: sample_ingest
+flowgroup: lineitem_ingest
+use_template: cloudfiles_ingest
+operational_metadata: ["_processing_timestamp", "_source_file_path", "_source_file_size"]
+template_parameters:
+  entity: lineitem
+  file_format: csv
+  schema_hints: "l_quantity DECIMAL(15,2), l_extendedprice DECIMAL(15,2), l_discount DECIMAL(15,2), l_tax DECIMAL(15,2), l_shipdate DATE, l_commitdate DATE, l_receiptdate DATE"

@@ -88,10 +88,20 @@ import pytest
 from lhp.errors.categories import ErrorCategory
 from lhp.errors.codes import (
     ALL_CODES,
+    CFG_062,
+    CFG_063,
+    CFG_064,
+    CFG_065,
+    DEP_002,
+    DEP_003,
     DEPR_001,
     DEPR_002,
     DEPR_003,
     DEPR_004,
+    IO_025,
+    VAL_064,
+    VAL_065,
+    VAL_066,
 )
 from lhp.errors.factory import ErrorFactory
 from lhp.errors.types import LHPError
@@ -397,6 +407,69 @@ def test_deprecation_category_and_codes():
     }
     for code, rendered in expected.items():
         assert code.category is ErrorCategory.DEPRECATION
+        assert code.code == rendered
+        assert code in ALL_CODES
+
+
+@pytest.mark.unit
+def test_dependency_extraction_warning_codes():
+    """Freeze the DEP extraction-warning slots: category, rendered codes, registry.
+
+    ``LHP-DEP-002`` (opaque Python table read) and ``LHP-DEP-003``
+    (unparseable SQL source) are warning-only advisories carried on
+    :class:`DependencyWarning` records — they are registered here but
+    never raised as errors, which the superset scan permits.
+    """
+    expected = {
+        DEP_002: "LHP-DEP-002",
+        DEP_003: "LHP-DEP-003",
+    }
+    for code, rendered in expected.items():
+        assert code.category is ErrorCategory.DEPENDENCY
+        assert code.code == rendered
+        assert code in ALL_CODES
+
+
+@pytest.mark.unit
+def test_sandbox_error_codes():
+    """Freeze the sandbox-mode error slots: category, rendered codes, registry.
+
+    The developer-sandbox (``--sandbox``) configuration / scope errors:
+    ``LHP-IO-025`` (missing ``.lhp/profile.yaml``), ``LHP-CFG-062`` (invalid
+    ``sandbox:`` block), ``LHP-CFG-063`` (invalid ``table_pattern``),
+    ``LHP-CFG-064`` (invalid personal profile), ``LHP-CFG-065`` (env not in
+    ``allowed_envs``) and ``LHP-VAL-064`` (profile entry matches zero
+    pipelines).
+    """
+    expected = {
+        IO_025: (ErrorCategory.IO, "LHP-IO-025"),
+        CFG_062: (ErrorCategory.CONFIG, "LHP-CFG-062"),
+        CFG_063: (ErrorCategory.CONFIG, "LHP-CFG-063"),
+        CFG_064: (ErrorCategory.CONFIG, "LHP-CFG-064"),
+        CFG_065: (ErrorCategory.CONFIG, "LHP-CFG-065"),
+        VAL_064: (ErrorCategory.VALIDATION, "LHP-VAL-064"),
+    }
+    for code, (category, rendered) in expected.items():
+        assert code.category is category
+        assert code.code == rendered
+        assert code in ALL_CODES
+
+
+@pytest.mark.unit
+def test_sandbox_warning_codes():
+    """Freeze the sandbox WARNING slots: category, rendered codes, registry.
+
+    ``LHP-VAL-065`` (mixed-producer sink) and ``LHP-VAL-066`` (in-scope read
+    not rewritable) are warning-only advisories stamped by the sandbox engine
+    on SandboxWarningRecord — registered here but never raised as errors,
+    which the superset scan permits.
+    """
+    expected = {
+        VAL_065: "LHP-VAL-065",
+        VAL_066: "LHP-VAL-066",
+    }
+    for code, rendered in expected.items():
+        assert code.category is ErrorCategory.VALIDATION
         assert code.code == rendered
         assert code in ALL_CODES
 

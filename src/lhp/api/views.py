@@ -88,6 +88,24 @@ class ActionView:
     rich per-type subfields (CDC details, expectations payload, etc.)
     are intentionally omitted.
 
+    For *write* actions, three optional write-metadata fields are
+    populated from the resolved ``write_target`` (all ``None`` for
+    non-write actions and when not derivable):
+
+    - ``write_mode`` — the streaming-table write mode
+      (``"standard"`` / ``"cdc"`` / ``"snapshot_cdc"``); defaults to
+      ``"standard"`` when a streaming-table target omits ``mode``.
+      :stability: provisional
+    - ``scd_type`` — the SCD type (``1`` / ``2``) read from the CDC or
+      snapshot-CDC config; ``None`` outside CDC modes.
+      :stability: provisional
+    - ``target_full_name`` — the fully-qualified target name. For
+      table targets this is ``catalog.schema.table`` (falling back to
+      ``database.table`` or the bare ``table``); for sink targets it is
+      ``sink:<sink_type>/<id>``. Any unresolved substitution tokens are
+      passed through verbatim — the converter never resolves them.
+      :stability: provisional
+
     :stability: provisional
     """
 
@@ -97,6 +115,9 @@ class ActionView:
     description: Optional[str] = None
     transform_type: Optional[str] = None
     test_type: Optional[str] = None
+    write_mode: Optional[str] = None
+    scd_type: Optional[int] = None
+    target_full_name: Optional[str] = None
 
 
 @dataclass(frozen=True)

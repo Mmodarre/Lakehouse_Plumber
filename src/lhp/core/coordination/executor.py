@@ -41,8 +41,8 @@ from typing import (
 from lhp.models import FlowGroupContext
 
 from ...models.processing import (
-    DeprecationWarningRecord,
     PipelineDelta,
+    RunWarningRecord,
 )
 from .._interfaces import BasePipelineExecutionService
 from ._commit import commit_generate_results
@@ -130,7 +130,7 @@ class PipelineExecutionService(BasePipelineExecutionService):
         max_workers: Optional[int] = None,
         on_total: Optional[Callable[[int], None]] = None,
         on_flowgroup_done: Optional[Callable[[str], None]] = None,
-    ) -> Generator[PipelineDelta, None, Tuple[DeprecationWarningRecord, ...]]:
+    ) -> Generator[PipelineDelta, None, Tuple[RunWarningRecord, ...]]:
         """Run generate through the unified flat engine and YIELD deltas.
 
         Non-empty ``discovery_errors`` aborts the WHOLE batch before the engine
@@ -212,9 +212,7 @@ class PipelineExecutionService(BasePipelineExecutionService):
         discovery_errors: Mapping[str, str],
         on_total: Optional[Callable[[int], None]] = None,
         on_flowgroup_done: Optional[Callable[[str], None]] = None,
-    ) -> Generator[
-        PipelineValidationOutcome, None, Tuple[DeprecationWarningRecord, ...]
-    ]:
+    ) -> Generator[PipelineValidationOutcome, None, Tuple[RunWarningRecord, ...]]:
         """Run validate through the unified flat engine and YIELD outcomes.
 
         Validate REPORTS, never raising on findings. Derives the
@@ -268,9 +266,7 @@ class PipelineExecutionService(BasePipelineExecutionService):
         source_paths: Optional[Mapping[Tuple[str, str], Path]] = None,
         on_total: Optional[Callable[[int], None]] = None,
         on_flowgroup_done: Optional[Callable[[str], None]] = None,
-    ) -> Generator[
-        PipelineValidationOutcome, None, Tuple[DeprecationWarningRecord, ...]
-    ]:
+    ) -> Generator[PipelineValidationOutcome, None, Tuple[RunWarningRecord, ...]]:
         """Run the flat engine in validate mode and YIELD per-pipeline outcomes.
 
         No gate — validate REPORTS findings, never raises on them; this
@@ -313,7 +309,7 @@ class PipelineExecutionService(BasePipelineExecutionService):
         max_workers: Optional[int] = None,
         on_total: Optional[Callable[[int], None]] = None,
         on_flowgroup_done: Optional[Callable[[str], None]] = None,
-    ) -> Generator[PipelineDelta, None, Tuple[DeprecationWarningRecord, ...]]:
+    ) -> Generator[PipelineDelta, None, Tuple[RunWarningRecord, ...]]:
         """Run the flat engine in generate mode and YIELD per-pipeline deltas.
 
         Per §1.4: every failure delta is yielded BEFORE the gate raises, so the

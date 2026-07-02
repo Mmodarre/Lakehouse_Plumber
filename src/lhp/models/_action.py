@@ -25,6 +25,7 @@ class WriteTarget(BaseModel):
     create_table: bool = True
     comment: Optional[str] = None
     table_properties: Optional[Dict[str, Any]] = None
+    tags: Optional[Dict[str, Optional[str]]] = None
     partition_columns: Optional[List[str]] = None
     cluster_columns: Optional[List[str]] = None
     cluster_by_auto: Optional[bool] = None

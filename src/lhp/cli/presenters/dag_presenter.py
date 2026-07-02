@@ -36,8 +36,9 @@ def render_analysis(
 
     Sections render in this order: a counts header, the execution-stage
     table (one row per pipeline; parallel stages are flagged), the dependency
-    adjacency, cycle status, and external sources. Each section is suppressed
-    when it carries no data so a clean acyclic graph stays terse.
+    adjacency, cycle status, external sources, and extraction warnings. Each
+    section is suppressed when it carries no data so a clean acyclic graph
+    stays terse.
     """
     logger.debug(
         "Rendering dependency analysis: %d pipelines, %d stages, cycles=%s",
@@ -55,6 +56,7 @@ def render_analysis(
     _render_dependencies(result, console=console)
     _render_cycles(result, console=console)
     _render_external_sources(result, console=console)
+    _render_warnings(result, console=console)
 
 
 def _render_execution_stages(
@@ -147,3 +149,50 @@ def _render_external_sources(
             f"  {result.total_external_sources} sources "
             "(see generated files for the full list)."
         )
+
+
+_MAX_WARNING_LINES = 10
+
+
+def _render_warnings(
+    result: "DependencyAnalysisResult",
+    *,
+    console: "Console",
+) -> None:
+    """Render extraction warnings when present (silent otherwise).
+
+    Shows a count header, up to :data:`_MAX_WARNING_LINES` detail lines
+    (``code flowgroup.action (file:line): message`` — the location part is
+    omitted or shortened when the warning carries no file/line), an overflow
+    line pointing at the JSON output, and one trailing ``depends_on`` hint.
+    """
+    if not result.warnings:
+        return
+
+    console.print(
+        Text(
+            f"{len(result.warnings)} dependency extraction warning(s):",
+            style="bold yellow",
+        )
+    )
+    for warning in result.warnings[:_MAX_WARNING_LINES]:
+        location = ""
+        if warning.file_path and warning.line is not None:
+            location = f" ({warning.file_path}:{warning.line})"
+        elif warning.file_path:
+            location = f" ({warning.file_path})"
+        console.print(
+            Text(
+                f"  {warning.code} {warning.flowgroup}.{warning.action}"
+                f"{location}: {warning.message}"
+            )
+        )
+    overflow = len(result.warnings) - _MAX_WARNING_LINES
+    if overflow > 0:
+        console.print(Text(f"  ... and {overflow} more (see JSON output)", style="dim"))
+    console.print(
+        Text(
+            "  Declare explicit 'depends_on' for reads LHP cannot resolve.",
+            style="yellow",
+        )
+    )
