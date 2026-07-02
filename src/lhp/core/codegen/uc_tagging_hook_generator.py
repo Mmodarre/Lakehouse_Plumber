@@ -223,13 +223,18 @@ class UCTaggingHookGenerator:
         )
 
     def _load_column_tags(self, table_schema) -> Dict[str, Dict[str, str]]:
-        """Load column tags from a YAML/JSON ``table_schema`` file, else ``{}``.
+        """Load column tags from a YAML/JSON ``table_schema`` file or inline dict.
 
-        Column tags are only honored for structured schema files (.yaml/.yml/
-        .json); ``.sql``/``.ddl`` files and inline DDL strings carry no per-column
-        tag structure and are skipped.
+        An inline dict ``table_schema`` (columns already in memory) is passed
+        straight to the schema parser. Otherwise, column tags are only honored
+        for structured schema files (.yaml/.yml/.json); ``.sql``/``.ddl`` files
+        and inline DDL strings carry no per-column tag structure and are skipped.
         """
-        if not table_schema or not isinstance(table_schema, str):
+        if not table_schema:
+            return {}
+        if isinstance(table_schema, dict):
+            return self._schema_parser.to_column_tags(table_schema)
+        if not isinstance(table_schema, str):
             return {}
         if not is_file_path(table_schema):
             return {}

@@ -6,7 +6,10 @@ from contextlib import contextmanager
 
 import pytest
 
-from lhp.core.codegen.uc_tagging import build_uc_tagging_hook_files
+from lhp.core.codegen.uc_tagging import (
+    build_uc_tagging_hook_files,
+    flowgroup_has_uc_tags,
+)
 from lhp.core.codegen.uc_tagging_hook_generator import (
     HOOK_FILENAME,
     UCTaggingHookGenerator,
@@ -241,6 +244,45 @@ class TestUCTaggingHookGenerator:
         # Inline DDL carries no column tags, and no table tags here -> nothing to do
         assert _build([action], root=tmp_path) is None
 
+    def test_inline_dict_schema_without_tags_returns_none(self, tmp_path):
+        # An inline structured dict schema with columns but NO column tags and no
+        # table-level tags has nothing to tag -> None (mirrors inline-DDL case).
+        action = _write_action(
+            write_target=_st_target(
+                table_schema={
+                    "columns": [
+                        {"name": "id", "type": "BIGINT"},
+                        {"name": "email", "type": "STRING"},
+                    ]
+                }
+            )
+        )
+        assert _build([action], root=tmp_path) is None
+
+    def test_column_tags_from_inline_dict_schema(self, tmp_path):
+        # Parity with test_column_tags_from_yaml_schema: an inline structured dict
+        # `table_schema` with a per-column `tags` must flow into the hook.
+        action = _write_action(
+            write_target=_st_target(
+                table_schema={
+                    "columns": [
+                        {"name": "id", "type": "BIGINT"},
+                        {
+                            "name": "email",
+                            "type": "STRING",
+                            "tags": {"classification": "pii"},
+                        },
+                    ]
+                }
+            )
+        )
+        result = _build([action], root=tmp_path)
+        assert result is not None
+        content = result[HOOK_FILENAME]
+        assert "'prod.sales.orders'" in content
+        assert "'email'" in content
+        assert "'classification': 'pii'" in content
+
 
 @pytest.mark.unit
 class TestUCTaggingHookContent:
@@ -296,6 +338,134 @@ class TestUCTaggingHookContent:
         assert "_TABLE_TAGS = {'prod.sales.orders': {}}" in content
         assert "_COLUMN_TAGS = {}" in content
         assert "_REMOVE_UNDECLARED_TAGS = True" in content
+
+    def test_inline_dict_column_tags_literal(self, tmp_path):
+        # Inline structured dict `table_schema` with per-column tags (incl. an
+        # empty-string value) -> the exact _COLUMN_TAGS literal, mirroring
+        # test_additive_table_and_column but with an inline dict instead of a file.
+        action = _write_action(
+            write_target=_st_target(
+                table_schema={
+                    "columns": [
+                        {"name": "id", "type": "BIGINT"},
+                        {
+                            "name": "email",
+                            "type": "STRING",
+                            "tags": {"classification": "pii", "masked": ""},
+                        },
+                    ]
+                }
+            )
+        )
+        content = _build([action], root=tmp_path)[HOOK_FILENAME]
+        # No table-level tags declared -> empty table map, populated column map.
+        assert "_TABLE_TAGS = {}" in content
+        assert (
+            "_COLUMN_TAGS = {'prod.sales.orders': "
+            "{'email': {'classification': 'pii', 'masked': ''}}}" in content
+        )
+        assert "_REMOVE_UNDECLARED_TAGS = False" in content
+
+    def test_inline_dict_and_table_tags_together(self, tmp_path):
+        # Both _TABLE_TAGS (from write-target `tags`) and _COLUMN_TAGS (from the
+        # inline dict schema's per-column `tags`) must be populated together.
+        action = _write_action(
+            write_target=_st_target(
+                tags={"team": "data-eng", "pii": ""},
+                table_schema={
+                    "columns": [
+                        {"name": "id", "type": "BIGINT"},
+                        {
+                            "name": "email",
+                            "type": "STRING",
+                            "tags": {"classification": "pii", "masked": ""},
+                        },
+                    ]
+                },
+            )
+        )
+        content = _build([action], root=tmp_path)[HOOK_FILENAME]
+        assert (
+            "_TABLE_TAGS = {'prod.sales.orders': {'team': 'data-eng', 'pii': ''}}"
+            in content
+        )
+        assert (
+            "_COLUMN_TAGS = {'prod.sales.orders': "
+            "{'email': {'classification': 'pii', 'masked': ''}}}" in content
+        )
+
+    def test_inline_dict_output_equals_yaml_file_output(self, tmp_path):
+        # Parity: an inline dict schema and the equivalent YAML file must render
+        # byte-identical hook content.
+        schema_file = tmp_path / "schemas" / "orders.yaml"
+        schema_file.parent.mkdir(parents=True)
+        schema_file.write_text(
+            "name: orders\n"
+            "columns:\n"
+            "  - name: id\n"
+            "    type: BIGINT\n"
+            "  - name: email\n"
+            "    type: STRING\n"
+            "    tags:\n"
+            "      classification: pii\n"
+            "      masked: ''\n"
+        )
+        file_action = _write_action(
+            write_target=_st_target(table_schema="schemas/orders.yaml")
+        )
+        inline_action = _write_action(
+            write_target=_st_target(
+                table_schema={
+                    "columns": [
+                        {"name": "id", "type": "BIGINT"},
+                        {
+                            "name": "email",
+                            "type": "STRING",
+                            "tags": {"classification": "pii", "masked": ""},
+                        },
+                    ]
+                }
+            )
+        )
+        file_content = _build([file_action], root=tmp_path)[HOOK_FILENAME]
+        inline_content = _build([inline_action], root=tmp_path)[HOOK_FILENAME]
+        assert inline_content == file_content
+
+
+@pytest.mark.unit
+class TestFlowgroupHasUCTags:
+    """`flowgroup_has_uc_tags` gates whether the pool retains a flowgroup for the
+    commit-time tagging hook; it must detect inline-dict column tags too."""
+
+    def test_true_for_inline_dict_with_column_tags(self):
+        action = _write_action(
+            write_target=_st_target(
+                table_schema={
+                    "columns": [
+                        {"name": "id", "type": "BIGINT"},
+                        {
+                            "name": "email",
+                            "type": "STRING",
+                            "tags": {"classification": "pii"},
+                        },
+                    ]
+                }
+            )
+        )
+        assert flowgroup_has_uc_tags(_flowgroup([action])) is True
+
+    def test_false_for_inline_dict_without_tags(self):
+        action = _write_action(
+            write_target=_st_target(
+                table_schema={
+                    "columns": [
+                        {"name": "id", "type": "BIGINT"},
+                        {"name": "email", "type": "STRING"},
+                    ]
+                }
+            )
+        )
+        assert flowgroup_has_uc_tags(_flowgroup([action])) is False
 
 
 @pytest.mark.unit

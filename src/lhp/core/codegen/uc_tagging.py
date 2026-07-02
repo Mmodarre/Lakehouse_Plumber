@@ -22,10 +22,11 @@ def flowgroup_has_uc_tags(flowgroup: "FlowGroup") -> bool:
 
     Conservative by design: returns True when a streaming-table / MV write
     target declares ``tags`` OR references a structured (YAML/JSON) ``table_schema``
-    that could hold column tags. Used by the pool to decide whether to retain a
-    resolved flowgroup for the commit-time tagging hook (so tagging works even
-    when ``include_tests`` is False). Imports nothing heavy, so it is safe to
-    call across the worker spawn boundary.
+    file OR carries an inline-dict ``table_schema`` with at least one column that
+    has a ``tags`` key. Used by the pool to decide whether to retain a resolved
+    flowgroup for the commit-time tagging hook (so tagging works even when
+    ``include_tests`` is False). Imports nothing heavy, so it is safe to call
+    across the worker spawn boundary.
     """
     from lhp.models import ActionType
 
@@ -41,6 +42,10 @@ def flowgroup_has_uc_tags(flowgroup: "FlowGroup") -> bool:
         if _get(wt, "tags") is not None:
             return True
         table_schema = _get(wt, "table_schema")
+        if isinstance(table_schema, dict):
+            columns = table_schema.get("columns") or []
+            if any(isinstance(c, dict) and "tags" in c for c in columns):
+                return True
         if isinstance(table_schema, str) and table_schema.lower().endswith(
             _SCHEMA_FILE_SUFFIXES
         ):

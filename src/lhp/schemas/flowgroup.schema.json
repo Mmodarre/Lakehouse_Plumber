@@ -531,6 +531,13 @@
                                             },
                                             "comment": {
                                                 "type": "string"
+                                            },
+                                            "tags": {
+                                                "type": "object",
+                                                "description": "Unity Catalog column-level tags (key -> value; value may be null for key-only tags)",
+                                                "additionalProperties": {
+                                                    "type": ["string", "null"]
+                                                }
                                             }
                                         }
                                     }

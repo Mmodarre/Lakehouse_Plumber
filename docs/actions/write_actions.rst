@@ -279,13 +279,15 @@ as warnings.
 Key-only tags use an empty string ``""``, ``~``, or an omitted value — all
 normalize to an empty tag value.
 
-**Column tags** are declared in a YAML/JSON schema file referenced by
-``table_schema`` (they are *not* supported for ``.sql``/``.ddl`` files or inline
-DDL):
+**Column tags** are declared on a column in a structured schema — either a
+YAML/JSON schema file referenced by ``table_schema`` or an inline structured YAML
+schema (``table_schema`` as a mapping with ``columns``). They are *not* supported
+for ``.sql``/``.ddl`` files or an inline DDL string, which carry no per-column
+tag structure.
 
 .. code-block:: yaml
 
-  # schemas/customer.yaml
+  # schemas/customer.yaml (external file)
   name: customer
   columns:
     - name: customer_id
@@ -295,6 +297,28 @@ DDL):
       tags:
         classification: pii
         masked: ""
+
+Equivalently, inline under the write target:
+
+.. code-block:: yaml
+
+  write_target:
+    type: streaming_table
+    catalog: "${catalog}"
+    schema: "${bronze_schema}"
+    table: customer
+    table_schema:
+      columns:
+        - name: customer_id
+          type: BIGINT
+        - name: email
+          type: STRING
+          tags:
+            classification: pii
+            masked: ""
+
+Both forms feed the same UC tagging workflow, producing identical column-tag
+assignments.
 
 **Enabling and configuring** (``lhp.yaml``) — tagging is **on by default**. You opt
 in simply by declaring ``tags`` on a table/column (the hook is generated only when
