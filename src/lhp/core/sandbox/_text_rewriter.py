@@ -56,6 +56,25 @@ _SQL_MASK_RE = re.compile(
     re.DOTALL,
 )
 
+# Two Spark SQL constructs put a table REFERENCE inside a single-quoted string
+# rather than string DATA: `table_changes('cat.sch.tbl', 0)` (CDF read, first
+# argument) and `IDENTIFIER('cat.sch.tbl')` (identifier substitution, sole
+# argument). Their argument string is un-masked (see :func:`_masked_spans`) so
+# the leaf still gets rewritten. `_GUARD_BEFORE` keeps `my_table_changes(` and
+# `a.identifier(` out; `\s*` tolerates whitespace/newlines before the paren and
+# the string; IGNORECASE covers `TABLE_CHANGES` / `Identifier`.
+_TABLE_REF_ARG_RE = re.compile(
+    rf"{_GUARD_BEFORE}(?:table_changes|identifier)\s*\(\s*",
+    re.IGNORECASE,
+)
+
+# The literal qualifies only as a CLEAN argument: its closing quote is followed
+# by the argument separator (`,` — table_changes' remaining args) or the call's
+# `)` (IDENTIFIER's sole argument). A concatenated identifier such as
+# `IDENTIFIER('cat.sch' || suffix)` fails this and stays masked — the literal
+# is a name fragment there, not a whole table reference.
+_ARG_CLOSE_RE = re.compile(r"\s*[,)]")
+
 # (start, end, qualifier prefix as matched, leaf as matched) — spans in `text`.
 _Candidate = tuple[int, int, str, str]
 
@@ -78,7 +97,9 @@ def rewrite_table_refs_in_text(
 
     With ``mask_sql_literals=True``, refs inside SQL single-quoted strings and
     ``--`` / ``/* */`` comments are left alone (span exclusion — offsets stay
-    stable, the text is never mutated for masking).
+    stable, the text is never mutated for masking); the sole exception is a
+    literal that IS a table reference — the argument of ``table_changes`` /
+    ``IDENTIFIER`` — which is un-masked so its leaf still rewrites.
     """
     # Bare (dotless) keys are never text-rewritten: a lone word like `events`
     # is far too common in SQL/prose to swap on sight; the structured pass
@@ -187,5 +208,23 @@ def _renamed_leaf(leaf: str, renames: SandboxTableRenames) -> str:
 
 
 def _masked_spans(text: str) -> list[tuple[int, int]]:
-    """Spans of SQL string literals and comments (rewrite-exempt zones)."""
-    return [match.span() for match in _SQL_MASK_RE.finditer(text)]
+    """Spans of SQL string literals and comments (rewrite-exempt zones).
+
+    A single-quoted string that is the table-reference argument of
+    ``table_changes`` / ``IDENTIFIER`` is deliberately NOT masked: its content
+    is a table name to rewrite, not opaque string data. Every other literal
+    and every comment stays masked (a ``table_changes(`` token that lives
+    inside a comment or another string never opens a separate literal span at
+    the un-mask offset, so it cannot leak the exemption).
+    """
+    arg_starts = {match.end() for match in _TABLE_REF_ARG_RE.finditer(text)}
+    spans: list[tuple[int, int]] = []
+    for match in _SQL_MASK_RE.finditer(text):
+        if (
+            match.group(0).startswith("'")
+            and match.start() in arg_starts
+            and _ARG_CLOSE_RE.match(text, match.end())
+        ):
+            continue
+        spans.append(match.span())
+    return spans

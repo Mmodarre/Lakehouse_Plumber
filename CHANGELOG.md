@@ -72,15 +72,19 @@ silently missing edges.
   Generation and validation are scoped to the profile's pipelines, and every
   table produced in scope is renamed through the pattern — write targets,
   delta-sink `tableName`, and in-scope reads, across structured fields, SQL
-  bodies in generated `spark.sql` literals, table literals in copied Python
-  modules, and table refs passed as YAML parameter values into user Python
-  code (python-transform `parameters`, python-load `source.parameters`, and
-  snapshot-CDC `source_function.parameters`, whole-value match only) — while
-  reads of tables produced outside the scope stay pointed at the shared tables
-  (read-shared / write-own). Bundle resource
-  files regenerate for the scoped pipelines only, the project event-log table
-  name is namespaced through the same pattern, and the monitoring phase is
-  skipped so shared monitoring artifacts are never clobbered. Deferred to a
+  bodies in generated `spark.sql` literals (including single-quoted table
+  arguments to `table_changes(...)` and `IDENTIFIER(...)`), table literals and
+  f-string SQL literal segments in copied Python modules, and table refs passed
+  as YAML parameter values into user Python code (python-transform
+  `parameters`, python-load `source.parameters`, and snapshot-CDC
+  `source_function.parameters`, whole-value match only) — while reads of tables
+  produced outside the scope stay pointed at the shared tables (read-shared /
+  write-own). A recognized Python table read whose name argument is only known
+  at runtime is wrapped in a generated `__lhp_sandbox_table(...)` helper that
+  applies the same rename at execution time. Bundle resource files regenerate
+  for the scoped pipelines only, the project event-log table name is namespaced
+  through the same pattern, and the monitoring phase is skipped so shared
+  monitoring artifacts are never clobbered. Deferred to a
   follow-up (v1 limitations):
   - `catalog` / `schema` rename strategies — v1 ships the `table` strategy
     only (the strategy seam is in place).
@@ -89,22 +93,31 @@ silently missing edges.
     sandbox runs are not auto-removed (manual cleanup; see the
     "Develop in a sandbox" how-to).
   - `lhp validate --sandbox` applies the structured renames but does not
-    surface Python unrewritable-read warnings — `LHP-VAL-066` is
-    generate-only in v1.
+    surface the Python unrewritable-read warnings or wrap opaque reads —
+    `LHP-VAL-066`, `LHP-VAL-067`, and the runtime shim are generate-only in
+    v1.
   - Per-pipeline explicit `event_log:` dicts are not rewritten — only the
     project-level composed event-log table name is namespaced.
 - **Sandbox warnings and errors.** `LHP-VAL-065` warns when a sandbox-renamed
   sink table is also produced by out-of-scope pipelines (mixed producers; the
-  rewrite proceeds), and `LHP-VAL-066` warns when an in-scope read cannot be
-  rewritten (e.g. variable-bound or f-string table references in Python);
-  both ride the warning stream with category `sandbox` and never fail a run.
-  New errors `LHP-IO-025` (missing `.lhp/profile.yaml`), `LHP-CFG-062`
+  rewrite proceeds); `LHP-VAL-066` warns when an in-scope Python read that
+  statically resolves to an in-scope table cannot be rewritten because its
+  argument is not a plain string literal (a bound variable, static
+  concatenation, `.format(...)`, resolved f-string, or constant-key container
+  subscript); and the new `LHP-VAL-067` warns when a `spark.sql(...)` body
+  names tables only known at runtime (an opaque argument, or an f-string with
+  two or more interpolated name parts) so it can be neither verified nor
+  rewritten. An opaque table *read* whose name argument is runtime-only is
+  wrapped in the `__lhp_sandbox_table(...)` runtime shim instead, with no
+  warning. All three ride the warning stream with category `sandbox` and never
+  fail a run; `LHP-VAL-066` and `LHP-VAL-067` are emitted by `lhp generate`
+  only. New errors `LHP-IO-025` (missing `.lhp/profile.yaml`), `LHP-CFG-062`
   (invalid `sandbox:` block in `lhp.yaml`), `LHP-CFG-063` (invalid
   `table_pattern`), `LHP-CFG-064` (invalid personal profile), `LHP-CFG-065`
   (environment not sandbox-enabled), and `LHP-VAL-064` (a profile `pipelines`
   entry matches no pipeline) cover the failure modes.
 - **Sandbox documentation** — a "Develop in a sandbox" how-to, a "Sandbox Mode
-  Reference" page, error-reference entries for all eight sandbox codes, and
+  Reference" page, error-reference entries for all nine sandbox codes, and
   AI-skill parity updates (new `sandbox.md` reference plus `project-config.md`
   and `errors.md` additions).
 - **Parameter-bound Python dependency resolution.** Table reads built from

@@ -158,17 +158,19 @@ each code in context.
   ``allowed_envs``.
 * ``LHP-VAL-064`` — a profile ``pipelines`` entry matched no pipeline, or an
   exact entry names the monitoring pipeline.
-* ``LHP-VAL-065`` / ``LHP-VAL-066`` — warnings with category ``sandbox``; the
-  run still succeeds. ``LHP-VAL-065``: a renamed table is also produced by an
-  out-of-scope pipeline. ``LHP-VAL-066``: an in-scope read inside a Python
-  file could not be rewritten (an indirect reference), so that file still
-  references the shared name; ``lhp generate`` reports it, ``lhp validate``
-  does not.
+* ``LHP-VAL-065`` / ``LHP-VAL-066`` / ``LHP-VAL-067`` — warnings with category
+  ``sandbox``; the run still succeeds. ``LHP-VAL-065``: a renamed table is also
+  produced by an out-of-scope pipeline. ``LHP-VAL-066``: an in-scope read
+  inside a Python file could not be rewritten (an indirect reference), so that
+  file still references the shared name. ``LHP-VAL-067``: a ``spark.sql(...)``
+  body names tables only known at runtime, so it cannot be verified or
+  rewritten. ``LHP-VAL-066`` and ``LHP-VAL-067`` are reported by ``lhp
+  generate`` only, not ``lhp validate``.
 
 .. tip::
-   Pass ``--strict`` to promote warnings — including ``LHP-VAL-065`` and
-   ``LHP-VAL-066`` — to failures, so a sandbox build with an unrewritten read
-   does not slip through.
+   Pass ``--strict`` to promote warnings — including ``LHP-VAL-065``,
+   ``LHP-VAL-066``, and ``LHP-VAL-067`` — to failures, so a sandbox build with
+   an unrewritten read does not slip through.
 
 Related articles
 ----------------

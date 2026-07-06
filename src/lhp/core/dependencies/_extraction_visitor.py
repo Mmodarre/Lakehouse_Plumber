@@ -30,7 +30,11 @@ from typing import TYPE_CHECKING, Dict, FrozenSet, List, Literal, Optional, Set
 from ...errors.codes import DEP_002
 from ...models.dependencies import DependencyWarning
 from ._bindings import Bound, DictValue, ParameterBindings
-from ._static_resolution import resolve_static_list, resolve_static_string_values
+from ._static_resolution import (
+    resolve_static_bound,
+    resolve_static_list,
+    resolve_static_string_values,
+)
 from ._table_sites import PythonTableSite, SiteKind, SourceSpan
 from .sql_extraction import extract_tables_from_sql
 
@@ -174,8 +178,8 @@ class _TableExtractor(ast.NodeVisitor):
     # ---- Variable bindings ----
 
     def visit_Assign(self, node: ast.Assign) -> None:
-        """Collect bindings from ``a = "x"``, ``a = b = "x"``, ``a, b = "x", "y"``."""
-        rhs_values = self._evaluate_rhs(node.value)
+        """Bind ``a = "x"``, ``a = {...}`` / ``[...]``, ``a = b = ...``, ``a, b = "x", "y"``."""
+        rhs_bound = self._evaluate_rhs_bound(node.value)
 
         for target in node.targets:
             # Tuple / list unpacking with parallel literal RHS.
@@ -190,8 +194,8 @@ class _TableExtractor(ast.NodeVisitor):
                     sub_values = self._evaluate_rhs(sub_value)
                     if sub_values and isinstance(sub_target, ast.Name):
                         self._current_scope().bind(sub_target.id, sub_values)
-            elif rhs_values:
-                self._bind_target(target, rhs_values)
+            elif rhs_bound is not None:
+                self._bind_target(target, rhs_bound)
 
         self.generic_visit(node)
 
@@ -201,9 +205,9 @@ class _TableExtractor(ast.NodeVisitor):
             self.generic_visit(node)
             return
 
-        rhs_values = self._evaluate_rhs(node.value)
-        if rhs_values:
-            self._bind_target(node.target, rhs_values)
+        rhs_bound = self._evaluate_rhs_bound(node.value)
+        if rhs_bound is not None:
+            self._bind_target(node.target, rhs_bound)
         self.generic_visit(node)
 
     def visit_For(self, node: ast.For) -> None:
@@ -220,15 +224,15 @@ class _TableExtractor(ast.NodeVisitor):
             self._current_scope().bind(node.target.id, frozenset(items.items))
         self.generic_visit(node)
 
-    def _bind_target(self, target: ast.expr, values: FrozenSet[str]) -> None:
-        """Bind ``values`` to ``target`` when it's a simple name.
+    def _bind_target(self, target: ast.expr, value: Bound) -> None:
+        """Bind ``value`` to ``target`` when it's a simple name.
 
         Non-``Name`` targets (attribute assignments, subscript assignments,
         unmatched tuple unpacking) are intentionally dropped — tracking those
         would require tracking object shape, which is out of scope.
         """
         if isinstance(target, ast.Name):
-            self._current_scope().bind(target.id, values)
+            self._current_scope().bind(target.id, value)
 
     def _evaluate_rhs(self, node: ast.expr) -> FrozenSet[str]:
         """Return the set of literal string values ``node`` could be.
@@ -249,6 +253,17 @@ class _TableExtractor(ast.NodeVisitor):
         """
         return resolve_static_string_values(node, name_resolver=self._resolve_name)
 
+    def _evaluate_rhs_bound(self, node: ast.expr) -> Optional[Bound]:
+        """Return the :data:`Bound` a name-assignment target should carry.
+
+        Extends :meth:`_evaluate_rhs` (string sets only) to the container
+        literals codegen also binds: a dict literal → ``DictValue`` and a
+        list/tuple literal → ``ListValue``, so subscript / iteration reads over
+        the bound name resolve exactly as they do for a YAML-seeded binding.
+        Returns ``None`` when nothing static is visible.
+        """
+        return resolve_static_bound(node, name_resolver=self._resolve_name)
+
     # ---- Call extraction ----
 
     def visit_Call(self, node: ast.Call) -> None:
@@ -263,6 +278,7 @@ class _TableExtractor(ast.NodeVisitor):
                 self._record_site("table_read", node, values)
             elif matched:
                 self._warn_opaque(node)
+                self._record_opaque_table_read_site(node)
         self.generic_visit(node)
 
     def _is_spark_sql_call(self, node: ast.Call) -> bool:
@@ -291,6 +307,11 @@ class _TableExtractor(ast.NodeVisitor):
         )
         if not sql_values:
             self._warn_opaque(node)
+            arg = node.args[0] if node.args else None
+            if isinstance(arg, ast.JoinedStr):
+                self._record_dynamic_fstring_site(node)
+            else:
+                self._record_opaque_spark_sql_site(node)
             return
         site_tables: Set[str] = set()
         for sql_query in sql_values:
@@ -335,6 +356,78 @@ class _TableExtractor(ast.NodeVisitor):
                     resolved_values=resolved_values,
                 )
             )
+
+    def _record_dynamic_fstring_site(self, node: ast.Call) -> None:
+        """Record a dynamic ``spark.sql(f"...")`` body as a rewrite site.
+
+        Fires only for an ``ast.JoinedStr`` argument that did NOT statically
+        resolve — its literal segments may still name in-scope tables the
+        sandbox rewriter can rename in place. Purely additive: the caller has
+        already emitted the LHP-DEP-002 advisory and no table was extracted,
+        so the dependency outputs (``tables`` / ``warnings``) are unchanged;
+        only ``sites`` (read solely by the sandbox path) grows. Other opaque
+        forms (calls, bare names) carry no literal text and are not recorded.
+        """
+        arg = node.args[0] if node.args else None
+        if isinstance(arg, ast.JoinedStr):
+            self.sites.append(
+                PythonTableSite(
+                    kind="spark_sql",
+                    rewritable=False,
+                    lineno=node.lineno,
+                    span=SourceSpan.of_node(arg),
+                    fstring=True,
+                )
+            )
+
+    def _record_opaque_table_read_site(self, node: ast.Call) -> None:
+        """Record a recognized-but-opaque table read as a shimmable site.
+
+        Fires for a recognized read API whose table argument neither is a plain
+        literal nor statically resolves (a bare name, call result, or subscript
+        on a dynamic key). The sandbox pass wraps such a site in the runtime
+        ``__lhp_sandbox_table(...)`` shim, so the ARGUMENT node's outer span is
+        captured. Purely additive: the caller has already emitted the
+        LHP-DEP-002 advisory and no table was extracted, so the dependency
+        outputs (``tables`` / ``warnings``) are unchanged; only ``sites`` grows.
+        A call with no positional argument (e.g. a keyword-passed name or a bare
+        ``.load()``) has nothing to wrap and is not recorded.
+        """
+        if not node.args:
+            return
+        self.sites.append(
+            PythonTableSite(
+                kind="table_read",
+                rewritable=False,
+                lineno=node.lineno,
+                span=SourceSpan.of_node(node.args[0]),
+                opaque=True,
+            )
+        )
+
+    def _record_opaque_spark_sql_site(self, node: ast.Call) -> None:
+        """Record a non-f-string opaque ``spark.sql(...)`` as an advisory site.
+
+        Fires when the argument is neither statically resolvable nor an
+        ``ast.JoinedStr`` (a bare name, call result, or unresolved
+        concatenation): its SQL — and any table it names — is only known at
+        runtime, so the sandbox pass can neither rewrite nor verify it and emits
+        an LHP-VAL-067 advisory. Purely additive: LHP-DEP-002 was already
+        emitted and no table extracted, so dependency outputs are unchanged;
+        only ``sites`` grows. A ``spark.sql()`` with no argument is not recorded
+        (nothing to advise on). No span is captured — the opaque SQL text is not
+        a rewritable name argument.
+        """
+        if not node.args:
+            return
+        self.sites.append(
+            PythonTableSite(
+                kind="spark_sql",
+                rewritable=False,
+                lineno=node.lineno,
+                opaque=True,
+            )
+        )
 
     def _warn_opaque(self, node: ast.Call) -> None:
         """Record an LHP-DEP-002 advisory for a recognized-but-opaque read."""

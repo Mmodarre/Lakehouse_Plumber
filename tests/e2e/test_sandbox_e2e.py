@@ -31,10 +31,14 @@ function transforms, Python helper-module closures, Python custom data
 sources, Python loads, delta/kafka/foreachbatch sinks, blueprint-expanded
 pipelines (``acme_edw_bp_raw`` is deliberately OUT of scope so the
 blueprint-sibling read stays unrenamed), snapshot-CDC parameter bindings,
-and inline-SQL bodies. The event-log leaf is routed through the suffix
-pattern (``<pipeline>_event_log_bob``), and rename semantics are probed one
-carrier at a time against ``generated_baseline_sandbox_complex/dev`` (57
-files) and ``resources_baseline_sandbox_complex/lhp`` (10 files).
+and inline-SQL bodies. ``dep_bindings`` additionally carries the dynamic-SQL
+probes: an inline-SQL ``table_changes()`` CDF read, an f-string ``spark.sql``
+rewrite, a name-bound container read (``LHP-VAL-066``), the runtime
+table-read shim, and an opaque ``spark.sql`` advisory (``LHP-VAL-067``). The
+event-log leaf is routed through the suffix pattern
+(``<pipeline>_event_log_bob``), and rename semantics are probed one carrier
+at a time against ``generated_baseline_sandbox_complex/dev`` (58 files) and
+``resources_baseline_sandbox_complex/lhp`` (10 files).
 """
 
 import hashlib
@@ -315,9 +319,13 @@ class TestSandboxComplexE2E:
     exercises Python function transforms, Python helper-module closures,
     Python custom data sources, Python loads, delta/kafka/foreachbatch sinks,
     blueprint-expanded pipelines (``acme_edw_bp_raw`` out of scope),
-    snapshot-CDC parameter bindings, and inline-SQL bodies. Output is checked
-    against the hand-written ``generated_baseline_sandbox_complex/dev`` (57
-    files) and ``resources_baseline_sandbox_complex/lhp`` (10 files).
+    snapshot-CDC parameter bindings, inline-SQL bodies, and — on
+    ``dep_bindings`` — the dynamic-SQL probes (``table_changes()`` CDF read,
+    f-string ``spark.sql`` rewrite, name-bound container read / ``LHP-VAL-066``,
+    runtime table-read shim, and opaque ``spark.sql`` / ``LHP-VAL-067``). Output
+    is checked against the hand-written
+    ``generated_baseline_sandbox_complex/dev`` (58 files) and
+    ``resources_baseline_sandbox_complex/lhp`` (10 files).
     """
 
     @pytest.fixture(autouse=True)
@@ -618,3 +626,149 @@ class TestSandboxComplexE2E:
         assert (
             'spark.readStream.table("acme_edw_dev.edw_bronze.customer")' in silver_dim
         ), "Read of customer must stay unrenamed (acmi_edw_bronze out of scope)"
+
+    def test_sandbox_complex_table_changes_and_identifier_rewrite(self):
+        """Feature 1: the single-quoted in-scope FQN inside both
+        ``IDENTIFIER(...)`` and ``table_changes(...)`` is text-rewritten to the
+        producer's namespaced leaf.
+
+        ``cdf_probe_flow`` reads ``helper_snapshot_dim`` (produced by the
+        in-scope ``helper_imports`` pipeline) through both constructs; each
+        single-quoted FQN carries the ``_bob`` suffix, and the in-scope write
+        target is namespaced too. The unrenamed FQN (``helper_snapshot_dim'``,
+        which ``helper_snapshot_dim_bob'`` never matches) is gone.
+        """
+        exit_code, output = self.run_sandbox_generate()
+        assert exit_code == 0, f"Sandbox generation should succeed: {output}"
+
+        cdf = (self.generated_dir / "dep_bindings" / "cdf_probe_flow.py").read_text()
+        assert "IDENTIFIER('acme_edw_dev.edw_bronze.helper_snapshot_dim_bob')" in cdf, (
+            "The in-scope FQN inside IDENTIFIER() must be rewritten to the _bob leaf"
+        )
+        assert (
+            "table_changes('acme_edw_dev.edw_bronze.helper_snapshot_dim_bob', 0)" in cdf
+        ), "The in-scope FQN inside table_changes() must be rewritten to the _bob leaf"
+        assert "helper_snapshot_dim'" not in cdf, (
+            "No unrenamed single-quoted FQN may remain in either construct"
+        )
+        assert 'name="acme_edw_dev.edw_silver.cdf_probe_out_bob"' in cdf, (
+            "The in-scope CDF write target must carry the _bob suffix"
+        )
+
+    def test_sandbox_complex_python_read_carriers(self):
+        """Features 2-5 on one copied module (``dep_bindings_union_transform.py``).
+
+        A single module exercises four carriers at once:
+
+        * opaque loop read -> wrapped by the runtime shim (feature 4);
+        * f-string ``spark.sql`` with the in-scope FQN fully inside the literal
+          segment -> rewritten, the ``{run_id}`` interpolation preserved
+          (feature 2);
+        * name-bound dict read -> left untouched, ``LHP-VAL-066`` (feature 3);
+        * opaque ``spark.sql(query)`` -> left unchanged, ``LHP-VAL-067``
+          (feature 5).
+        """
+        exit_code, output = self.run_sandbox_generate()
+        assert exit_code == 0, f"Sandbox generation should succeed: {output}"
+
+        mod = (
+            self.generated_dir
+            / "dep_bindings"
+            / "custom_python_functions"
+            / "dep_bindings_union_transform.py"
+        ).read_text()
+
+        # Feature 4: the runtime shim is emitted exactly once and wraps the
+        # fully-opaque loop read.
+        assert mod.count("def __lhp_sandbox_table(") == 1, (
+            "The runtime shim helper must be emitted exactly once per module"
+        )
+        assert "spark.read.table(__lhp_sandbox_table(t))" in mod, (
+            "The opaque loop read must be wrapped by the runtime shim"
+        )
+
+        # Feature 2: the in-scope FQN in the f-string literal segment is
+        # rewritten; the {run_id} interpolation is preserved verbatim.
+        assert (
+            'f"SELECT * FROM acme_edw_dev.edw_bronze.helper_snapshot_dim_bob '
+            'WHERE v = {run_id}"' in mod
+        ), "The in-scope FQN in the f-string literal segment must be rewritten"
+
+        # Feature 3: the name-bound dict read is left untouched (VAL-066) — the
+        # dict literal keeps the original FQN and the read is NOT shim-wrapped.
+        assert (
+            'sources = {"helper": "acme_edw_dev.edw_bronze.helper_snapshot_dim"}' in mod
+        ), "The dict-bound FQN must stay the original (non-sandbox) name"
+        assert 'spark.read.table(sources["helper"])' in mod, (
+            "The name-bound container read must stay bare (VAL-066, no rewrite)"
+        )
+        assert "__lhp_sandbox_table(sources" not in mod, (
+            "The VAL-066 container read must NOT be wrapped by the runtime shim"
+        )
+
+        # Feature 5: the opaque spark.sql body is left unchanged (VAL-067).
+        assert "spark.sql(query)" in mod, (
+            "The opaque spark.sql(query) body must be left unchanged"
+        )
+
+    def _collect_sandbox_warnings(self):
+        """Drive the real generation stream and return its sandbox warnings.
+
+        Uses the public facade plus the ``warnings_sink`` recovery path so the
+        assertion is on structured, uncolored :class:`WarningEmitted` records
+        rather than the width-wrapped, ANSI-styled renderer text.
+        """
+        from lhp.api import (
+            LakehousePlumberApplicationFacade,
+            ProgressSink,
+            collect_response,
+            should_enable_bundle_support,
+        )
+
+        facade = LakehousePlumberApplicationFacade.for_project(
+            self.project_root, pipeline_config_path="config/pipeline_config.yaml"
+        )
+        events = facade.generation.generate_pipelines(
+            env="dev",
+            output_dir=self.generated_dir,
+            bundle_enabled=should_enable_bundle_support(
+                self.project_root, cli_no_bundle=False
+            ),
+            sandbox=True,
+            progress=ProgressSink(),
+        )
+        sink = []
+        collect_response(events, warnings_sink=sink)
+        return [w for w in sink if w.code in ("LHP-VAL-066", "LHP-VAL-067")]
+
+    def test_sandbox_complex_warning_stream_val066_val067(self):
+        """The container (``LHP-VAL-066``) and opaque-SQL (``LHP-VAL-067``)
+        advisories surface on the generate warning stream, folded per file.
+
+        ``LHP-VAL-066`` folds once for the dict-bound read in
+        ``dep_bindings_union_transform.py``. ``LHP-VAL-067`` folds once per file
+        across the two opaque-SQL carriers: the same module's
+        ``spark.sql(query)`` and the existing
+        ``supplier_param_snapshot_func.py`` fully-interpolated f-string window.
+        """
+        warnings = self._collect_sandbox_warnings()
+        val_066 = [w for w in warnings if w.code == "LHP-VAL-066"]
+        val_067 = [w for w in warnings if w.code == "LHP-VAL-067"]
+
+        assert len(val_066) == 1, (
+            f"Expected exactly one LHP-VAL-066 fold, got "
+            f"{[(w.code, w.file) for w in val_066]}"
+        )
+        assert val_066[0].category == "sandbox"
+        assert val_066[0].file is not None
+        assert val_066[0].file.name == "dep_bindings_union_transform.py"
+
+        assert len(val_067) == 2, (
+            f"Expected exactly two LHP-VAL-067 folds, got "
+            f"{[(w.code, w.file) for w in val_067]}"
+        )
+        assert all(w.category == "sandbox" for w in val_067)
+        assert {w.file.name for w in val_067 if w.file} == {
+            "dep_bindings_union_transform.py",
+            "supplier_param_snapshot_func.py",
+        }

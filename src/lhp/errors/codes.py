@@ -85,6 +85,14 @@ VAL_065 = ErrorCode(ErrorCategory.VALIDATION, "065")
 # sandbox table name (indirect Python reference); stamped by the sandbox
 # engine, never raised as an error.
 VAL_066 = ErrorCode(ErrorCategory.VALIDATION, "066")
+# VAL_067: WARNING code — a sandbox run found dynamic SQL (a ``spark.sql(...)``
+# body whose table references are only known at runtime) that could not be
+# verified or rewritten to sandbox table names; stamped by the sandbox engine
+# on SandboxWarningRecord (rides WarningEmitted, category="sandbox"), never
+# raised as an error. Distinct from VAL_066 (a statically-resolved in-scope read
+# left untouched) and from the runtime table-read shim (opaque reads are wrapped
+# in __lhp_sandbox_table(...), not warned).
+VAL_067 = ErrorCode(ErrorCategory.VALIDATION, "067")
 VAL_902 = ErrorCode(ErrorCategory.VALIDATION, "902")
 VAL_DUPFG = ErrorCode(ErrorCategory.VALIDATION, "DUPFG")
 
@@ -253,6 +261,7 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     VAL_064,
     VAL_065,
     VAL_066,
+    VAL_067,
     VAL_902,
     VAL_DUPFG,
     IO_001,
@@ -451,6 +460,7 @@ __all__ = [
     "VAL_064",
     "VAL_065",
     "VAL_066",
+    "VAL_067",
     "VAL_902",
     "VAL_DUPFG",
     "ErrorCode",

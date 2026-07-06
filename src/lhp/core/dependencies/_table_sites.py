@@ -70,18 +70,34 @@ class PythonTableSite:
       literal. ``span`` locates the literal in the source as parsed;
       ``value`` is the literal's value (the table name for ``table_read``,
       the SQL text for ``spark_sql``); ``resolved_values`` is empty.
-    - ``rewritable=False`` — the argument is not a plain constant but
-      resolved statically (variable, YAML parameter binding, f-string,
-      concatenation, conditional union). ``span`` / ``value`` are ``None``;
-      ``resolved_values`` carries the candidate TABLE NAMES — for
-      ``spark_sql`` sites these are the tables extracted from each resolved
-      SQL text, so matching semantics are uniform across kinds.
-
-    Opaque arguments (static resolution returned nothing) are never recorded
-    — those are LHP-DEP-002 advisory territory, not rewrite candidates.
+    - ``rewritable=False`` and ``fstring=False`` — the argument is not a plain
+      constant but resolved statically (variable, YAML parameter binding,
+      fully-resolved f-string, concatenation, conditional union). ``span`` /
+      ``value`` are ``None``; ``resolved_values`` carries the candidate TABLE
+      NAMES — for ``spark_sql`` sites these are the tables extracted from each
+      resolved SQL text, so matching semantics are uniform across kinds.
+    - ``fstring=True`` — a ``spark_sql`` argument that is an ``ast.JoinedStr``
+      whose value did NOT statically resolve (a dynamic f-string body).
+      ``span`` covers the whole f-string node (its outer coordinates are
+      reliable across Python versions, unlike positions of pieces INSIDE it);
+      ``value`` / ``resolved_values`` are empty. The sandbox rewriter does a
+      text-level analysis of the span to rewrite in-scope refs sitting in the
+      literal (non-interpolated) segments, falling back to LHP-VAL-066 where
+      interpolation makes matching ambiguous, or LHP-VAL-067 where the ref's
+      identity is purely runtime-determined. Dependency extraction ignores
+      these sites (the LHP-DEP-002 advisory already covers the dynamic read).
+    - ``opaque=True`` — the argument neither is a plain literal nor statically
+      resolves to anything (a bare name, call result, subscript on a dynamic
+      key). For a ``table_read`` site ``span`` covers the ARGUMENT node so the
+      sandbox pass can wrap it in the runtime ``__lhp_sandbox_table(...)`` shim;
+      for a ``spark_sql`` site ``span`` is ``None`` (the SQL text is opaque, not
+      a name argument) and the sandbox pass emits an LHP-VAL-067 advisory.
+      ``value`` / ``resolved_values`` are empty. Dependency extraction ignores
+      these sites (LHP-DEP-002 already covers the opaque read). A call with no
+      positional argument is never recorded — there is nothing to wrap.
 
     ``lineno`` is the 1-based line of the call expression itself and is
-    present for both classifications.
+    present for every classification.
     """
 
     kind: SiteKind
@@ -90,6 +106,8 @@ class PythonTableSite:
     span: Optional[SourceSpan] = None
     value: Optional[str] = None
     resolved_values: FrozenSet[str] = frozenset()
+    fstring: bool = False
+    opaque: bool = False
 
 
 @dataclass(frozen=True)

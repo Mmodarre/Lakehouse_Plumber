@@ -310,6 +310,130 @@ class TestSqlMasking:
 
 
 @pytest.mark.unit
+class TestTableRefFunctionArgs:
+    """`table_changes(...)` / `IDENTIFIER(...)` hold a table ref in a quoted
+    literal; masking un-masks that one argument so its leaf still rewrites."""
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            # table_changes: first arg, 3-part and its unique 2-part spelling.
+            (
+                "SELECT * FROM table_changes('dev.silver.orders', 0)",
+                "SELECT * FROM table_changes('dev.silver.alice_orders', 0)",
+            ),
+            (
+                "SELECT * FROM table_changes('silver.orders', 0)",
+                "SELECT * FROM table_changes('silver.alice_orders', 0)",
+            ),
+            # 2-part sink key.
+            (
+                "SELECT * FROM table_changes('stg.events', 0)",
+                "SELECT * FROM table_changes('stg.alice_events', 0)",
+            ),
+            # Double-quoted first arg: never masked, so it rewrites regardless.
+            (
+                'SELECT * FROM table_changes("dev.silver.orders", 0)',
+                'SELECT * FROM table_changes("dev.silver.alice_orders", 0)',
+            ),
+            # Function-name case variants + table-name casing preserved.
+            (
+                "SELECT * FROM TABLE_CHANGES('DEV.SILVER.ORDERS', 0)",
+                "SELECT * FROM TABLE_CHANGES('DEV.SILVER.alice_ORDERS', 0)",
+            ),
+            (
+                "SELECT * FROM Table_Changes('dev.silver.orders', 0)",
+                "SELECT * FROM Table_Changes('dev.silver.alice_orders', 0)",
+            ),
+            # Whitespace/newlines between name, paren, and the string.
+            (
+                "SELECT * FROM table_changes\n(\n  'dev.silver.orders' , 0)",
+                "SELECT * FROM table_changes\n(\n  'dev.silver.alice_orders' , 0)",
+            ),
+            # Backticked parts inside the quotes: leaf re-wrapped.
+            (
+                "SELECT * FROM table_changes('`dev`.`silver`.`orders`', 0)",
+                "SELECT * FROM table_changes('`dev`.`silver`.`alice_orders`', 0)",
+            ),
+            (
+                "SELECT * FROM table_changes('dev.silver.`orders`', 0)",
+                "SELECT * FROM table_changes('dev.silver.`alice_orders`', 0)",
+            ),
+            # IDENTIFIER in a FROM position (sole argument, followed by `)`).
+            (
+                "SELECT * FROM IDENTIFIER('dev.silver.orders')",
+                "SELECT * FROM IDENTIFIER('dev.silver.alice_orders')",
+            ),
+            # IDENTIFIER in an INSERT INTO position, case-varied name.
+            (
+                "INSERT INTO Identifier('dev.silver.orders') SELECT * FROM src",
+                "INSERT INTO Identifier('dev.silver.alice_orders') SELECT * FROM src",
+            ),
+            # IDENTIFIER 2-part sink key.
+            (
+                "INSERT INTO IDENTIFIER('stg.events') SELECT * FROM src",
+                "INSERT INTO IDENTIFIER('stg.alice_events') SELECT * FROM src",
+            ),
+        ],
+    )
+    def test_construct_arg_rewritten_under_masking(self, text: str, expected: str):
+        assert (
+            rewrite_table_refs_in_text(text, _renames(), mask_sql_literals=True)
+            == expected
+        )
+
+    def test_only_first_table_changes_arg_unmasks(self):
+        # The first arg is a table ref (rewrites); an ordinary literal elsewhere
+        # that merely LOOKS like a ref stays masked.
+        text = (
+            "SELECT * FROM table_changes('dev.silver.orders', 0) "
+            "WHERE note = 'silver.orders'"
+        )
+
+        assert rewrite_table_refs_in_text(text, _renames(), mask_sql_literals=True) == (
+            "SELECT * FROM table_changes('dev.silver.alice_orders', 0) "
+            "WHERE note = 'silver.orders'"
+        )
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            # Non-matching table name in the construct: untouched.
+            "SELECT * FROM table_changes('other.schema.table', 0)",
+            # A user function whose name merely ends in `table_changes`: the
+            # guard rejects it, so its literal stays masked.
+            "SELECT * FROM my_table_changes('dev.silver.orders', 0)",
+            # Not the sole IDENTIFIER argument (concatenated fragment): masked.
+            "SELECT * FROM IDENTIFIER('dev.silver.orders' || suffix)",
+            # `table_changes(` inside a line comment: the whole line is masked,
+            # so the exemption never opens.
+            "-- table_changes('dev.silver.orders', 0)\nSELECT 1",
+            # `table_changes(` inside a block comment: same.
+            "/* table_changes('dev.silver.orders', 0) */ SELECT 1",
+        ],
+    )
+    def test_negative_cases_stay_masked(self, text: str):
+        assert rewrite_table_refs_in_text(text, _renames(), mask_sql_literals=True) == (
+            text
+        )
+
+    def test_idempotent_under_masking(self):
+        text = (
+            "SELECT * FROM table_changes('dev.silver.orders', 0)\n"
+            "UNION ALL SELECT * FROM IDENTIFIER('stg.events')"
+        )
+
+        once = rewrite_table_refs_in_text(text, _renames(), mask_sql_literals=True)
+        twice = rewrite_table_refs_in_text(once, _renames(), mask_sql_literals=True)
+
+        assert once == (
+            "SELECT * FROM table_changes('dev.silver.alice_orders', 0)\n"
+            "UNION ALL SELECT * FROM IDENTIFIER('stg.alice_events')"
+        )
+        assert twice == once
+
+
+@pytest.mark.unit
 class TestIdempotency:
     def test_double_rewrite_equals_single(self):
         renames = _renames()

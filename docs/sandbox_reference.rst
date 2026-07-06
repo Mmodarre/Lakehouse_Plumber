@@ -49,8 +49,8 @@ only. It is not available on any other command.
      - Supported. Reports what a sandbox generate would produce without
        writing files.
    * - ``--sandbox`` with ``--strict``
-     - Supported. The sandbox warning codes ``LHP-VAL-065`` and
-       ``LHP-VAL-066`` become failures.
+     - Supported. The sandbox warning codes ``LHP-VAL-065``,
+       ``LHP-VAL-066``, and ``LHP-VAL-067`` become failures.
 
 Team Policy (``lhp.yaml``)
 --------------------------
@@ -188,11 +188,13 @@ site, so the author's casing survives inside the new name.
          only).
        * ``source`` entries (string or list) that match the rename set.
        * Test-action ``reference`` and ``lookup_table`` fields.
-       * SQL bodies inside generated ``spark.sql`` string literals (table
-         references inside SQL-quoted strings and SQL comments are exempt).
-       * Table string literals in copied Python modules (custom data source
-         and Python transform files), including ``spark.sql(...)`` constant
-         bodies.
+       * SQL bodies inside generated ``spark.sql`` string literals. Table
+         references inside SQL-quoted strings and SQL comments are exempt,
+         except that a single-quoted in-scope table argument to
+         ``table_changes(...)`` or ``IDENTIFIER(...)`` is rewritten.
+       * Table references in copied Python modules (custom data source and
+         Python transform files) — resolved per read site; see the
+         `Python table-reference contract`_ below.
        * Table references passed as YAML parameter values into user Python
          code — the python-transform ``parameters`` dict, the python-load
          ``source.parameters`` dict, and the snapshot-CDC
@@ -208,6 +210,45 @@ site, so the author's casing survives inside the new name.
          three-part names).
        * Per-pipeline explicit ``event_log:`` dicts (only the project-level
          event-log table name is namespaced).
+
+Python table-reference contract
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Copied Python modules (custom data source and Python transform files) are
+rewritten per read site. Every table reference resolves to exactly one of
+these outcomes:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Site
+     - Outcome
+   * - Plain string literal — ``spark.read.table("edw_bronze.customer")``, a
+       ``spark.sql`` constant body, or an f-string literal segment that holds a
+       full in-scope table name.
+     - Rewritten to the sandbox name.
+   * - Statically resolvable to an in-scope table but not a plain literal — a
+       bound variable, static concatenation, ``.format(...)``, a fully resolved
+       f-string, a container read through a constant key
+       (``T = {...}; spark.table(T["orders"])``), or an ambiguous f-string
+       ``spark.sql`` body where an in-scope table is still identifiable (the
+       name spans an interpolation, the SQL quote state depends on interpolated
+       content, or the f-string is raw or escaped).
+     - Left untouched and reported as :ref:`LHP-VAL-066 <lhp-val-066>`
+       (warn-only). The read keeps the shared table name.
+   * - Opaque table-name argument — the name is only known at runtime: a bare
+       name, a call result, or a container read through a dynamic key, for
+       example ``spark.read.table(fetch_name())``.
+     - Wrapped in the generated ``__lhp_sandbox_table(...)`` runtime shim, which
+       applies the same rename at execution time. No warning.
+   * - Opaque SQL — a ``spark.sql(...)`` body that is a variable or call
+       result, or an f-string with two or more interpolated name parts in a
+       dotted table reference.
+     - Left untouched and reported as :ref:`LHP-VAL-067 <lhp-val-067>`
+       (warn-only). It can be neither verified nor rewritten.
+   * - Any reference to a table produced outside the sandbox scope.
+     - Untouched (read-shared).
 
 Run Behavior
 ------------
@@ -269,10 +310,16 @@ Warnings and Errors
    * - :ref:`LHP-VAL-066 <lhp-val-066>`
      - Warning
      - An in-scope read in a copied Python module could not be rewritten
-       because the table reference is not a plain string literal. Emitted by
-       ``lhp generate`` only.
+       because the table reference, while statically resolvable to an in-scope
+       table, is not a plain string literal. Emitted by ``lhp generate`` only.
+   * - :ref:`LHP-VAL-067 <lhp-val-067>`
+     - Warning
+     - An opaque ``spark.sql(...)`` body in a copied Python module names tables
+       only known at runtime, so it can be neither verified nor rewritten.
+       (An opaque table *read* is wrapped in the runtime shim instead — no
+       warning.) Emitted by ``lhp generate`` only.
 
-The two warning codes carry the warning category ``sandbox`` and never fail a
+These warning codes carry the warning category ``sandbox`` and never fail a
 run on their own; ``--strict`` promotes them to failures. For the full
 catalog, see :doc:`errors_reference`.
 
@@ -295,7 +342,8 @@ v1 Limitations
        cleanup.
    * - Validate-mode Python warnings
      - ``lhp validate --sandbox`` applies the structured renames but does not
-       emit :ref:`LHP-VAL-066 <lhp-val-066>`.
+       emit :ref:`LHP-VAL-066 <lhp-val-066>` or
+       :ref:`LHP-VAL-067 <lhp-val-067>`, and performs no runtime-shim wrapping.
 
 See also
 --------

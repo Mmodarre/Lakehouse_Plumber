@@ -914,8 +914,9 @@ Validation Errors (LHP-VAL)
 
 Validation errors indicate that your configuration is syntactically valid YAML but
 contains values that are structurally incorrect, missing, or incompatible.
-``LHP-VAL-065`` and ``LHP-VAL-066`` are the exception: they are sandbox
-**warnings**, not errors — the run continues unless you pass ``--strict``.
+``LHP-VAL-065``, ``LHP-VAL-066``, and ``LHP-VAL-067`` are the exception: they
+are sandbox **warnings**, not errors — the run continues unless you pass
+``--strict``.
 
 LHP-VAL-001: Missing Required Field
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1422,24 +1423,71 @@ warnings to failures. ``lhp generate --sandbox`` emits this warning;
 ``lhp validate --sandbox`` does not surface it in this release.
 
 **When it occurs:** A Python file in your sandbox scope reads a table that
-your scope produces, but the reference is not a plain string literal — it is
-a variable, an f-string, a concatenation, or a ``.format(...)`` call — so the
-sandbox rewriter cannot rewrite it. The generated code keeps the shared table
-name for that read, while the in-scope producer writes the renamed sandbox
-table.
+your scope produces, but the reference is not a plain string literal — it is a
+variable, an f-string, a concatenation, a ``.format(...)`` call, or a container
+read through a constant key whose value LHP can resolve statically to an
+in-scope table. The sandbox rewriter leaves the read untouched, so the
+generated code keeps the shared table name for that read while the in-scope
+producer writes the renamed sandbox table. (A read whose name is only known at
+runtime is handled differently — see the note on the runtime shim below.)
 
 **Common causes:**
 
-- A table name built dynamically, for example
-  ``spark.read.table(f"{schema}.{name}")`` or
-  ``spark.read.table(prefix + "customer")``.
-- A table name supplied through a variable rather than written at the read
-  site.
+- A table name built from a bound variable, for example
+  ``tbl = "edw_bronze.customer"`` then ``spark.read.table(tbl)``.
+- A table name assembled from static parts, for example
+  ``spark.read.table(f"{schema}.customer")`` where ``schema`` resolves to an
+  in-scope value.
+- A table name read from a constant-key container, for example
+  ``T = {"orders": "edw_bronze.customer"}`` then ``spark.table(T["orders"])``.
 
 **Fix:** Use a literal table name at the read site — for example
 ``spark.read.table("edw_bronze.customer")``, which the rewriter renames to
 ``edw_bronze.alice_customer`` — or accept that this read targets the shared
 table.
+
+.. seealso::
+
+   :doc:`sandbox_reference` for exactly which read sites the rewriter handles.
+
+.. _lhp-val-067:
+
+LHP-VAL-067: Unverifiable Dynamic SQL in Sandbox Scope
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Warning, not an error — the run continues.** Passing ``--strict`` promotes
+warnings to failures. ``lhp generate --sandbox`` emits this advisory;
+``lhp validate --sandbox`` does not surface it in this release.
+
+**When it occurs:** A Python file in your sandbox scope calls ``spark.sql(...)``
+with a body whose table references are only known at runtime — the argument is
+a variable or a call result, or an f-string with two or more interpolated name
+parts in a dotted table reference (for example
+``f"{catalog}.{schema}.customer"``). LHP cannot analyse the SQL text to verify
+or rewrite it, so the statement runs against whatever tables it names at
+runtime.
+
+**Common causes:**
+
+- SQL assembled at runtime, for example ``spark.sql(build_query())``.
+- A fully interpolated table reference inside an f-string SQL body where the
+  catalog and schema (or schema and table) are both interpolations.
+
+**Fix:** Reference in-scope tables with a literal (or statically resolvable)
+name in the SQL body so the rewriter can rename them, or accept that the
+statement reads the shared tables. Reads whose *name argument* (not SQL text)
+is runtime-determined are handled automatically by the runtime shim (see the
+note below); this advisory is specific to opaque ``spark.sql`` bodies.
+
+.. note::
+
+   **Runtime shim for opaque reads.** A recognized table read whose name
+   argument is only known at runtime — for example
+   ``spark.read.table(fetch_name())`` — is neither warned nor left on the
+   shared table. LHP wraps the argument in a generated ``__lhp_sandbox_table``
+   helper that applies the same rename at execution time, so the read resolves
+   to your sandbox table when the name matches an in-scope produced table and
+   is left unchanged otherwise. No warning is emitted for these sites.
 
 .. seealso::
 

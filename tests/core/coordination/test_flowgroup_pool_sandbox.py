@@ -41,7 +41,10 @@ def read_orders(df, spark, parameters):
     renamable = spark.table("dev_catalog.bronze.orders")
     bound = "dev_catalog.bronze.orders"
     unrenamable = spark.read.table(bound)
-    return renamable.union(unrenamable)
+    runtime_name = fetch_table_name()
+    shimmed = spark.read.table(runtime_name)
+    dynamic = spark.sql(build_query())
+    return renamable.union(unrenamable).union(shimmed).union(dynamic)
 '''
 
 
@@ -238,6 +241,43 @@ def test_generate_with_sandbox_plan_rewrites_committed_output(tmp_path):
     assert record.file is not None and record.file.name == "orders_reader.py"
     assert ORDERS in record.message
     assert "table_read" in record.message
+
+
+@pytest.mark.integration
+def test_generate_with_sandbox_plan_shims_and_advises(tmp_path):
+    """Opaque reads are shim-wrapped on disk; opaque spark.sql rides VAL-067.
+
+    Same REAL spawn pool as the VAL-066 smoke: the mixed rewriter warning
+    stream (UnrewritableTableRead + UnverifiableSqlRead) pickles back and folds
+    per-file into the two distinct codes.
+    """
+    project_root = _build_project(tmp_path)
+    orchestrator = build_facade_orchestrator(project_root, enforce_version=False)
+    plan = _build_plan(orchestrator, project_root)
+    output_dir = tmp_path / "generated"
+
+    deltas, warnings = _generate(orchestrator, output_dir, sandbox_plan=plan)
+    assert all(d.success for d in deltas)
+
+    module_text = next(output_dir.rglob("orders_reader.py")).read_text()
+    # Opaque runtime read wrapped in the shim; ONE helper for the module.
+    assert "spark.read.table(__lhp_sandbox_table(runtime_name))" in module_text
+    assert module_text.count("def __lhp_sandbox_table(") == 1
+    # Opaque spark.sql is SQL text, not a name argument — never wrapped.
+    assert "spark.sql(build_query())" in module_text
+    # The variable-bound in-scope read is still the untouched VAL-066 site.
+    assert "spark.read.table(bound)" in module_text
+
+    # Opaque spark.sql folds into ONE LHP-VAL-067 advisory for the file; the
+    # VAL-066 site rides alongside it (distinct (code, file) keys).
+    val_067 = [w for w in warnings if w.code == "LHP-VAL-067"]
+    assert len(val_067) == 1
+    record = val_067[0]
+    assert isinstance(record, SandboxWarningRecord)
+    assert record.flowgroup == "consumer_fg"
+    assert record.file is not None and record.file.name == "orders_reader.py"
+    assert "runtime" in record.message
+    assert any(w.code == "LHP-VAL-066" for w in warnings)
 
 
 @pytest.mark.integration

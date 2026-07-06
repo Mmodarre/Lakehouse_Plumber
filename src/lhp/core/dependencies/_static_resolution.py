@@ -26,7 +26,7 @@ Spark read calls (``spark.read.format("delta").table(name)``).
 
 import ast
 from itertools import product
-from typing import Callable, FrozenSet, List, Optional
+from typing import Callable, Dict, FrozenSet, List, Optional
 
 from ._bindings import Bound, DictValue, ListValue
 
@@ -138,6 +138,62 @@ def resolve_static_list(
     return bound if isinstance(bound, ListValue) else None
 
 
+def resolve_static_dict(
+    node: ast.expr,
+    name_resolver: NameResolver = None,
+) -> Optional[DictValue]:
+    """Resolve ``node`` to a string-keyed mapping of bound values, or ``None``.
+
+    Recognized forms (anything else yields ``None``):
+
+      - ``{"k": <expr>, ...}`` — a dict literal. Keys must be constant strings;
+        each value resolves via :func:`resolve_static_bound`. Mirroring
+        :func:`~lhp.core.dependencies._bindings.bound_from_yaml`: an entry
+        whose value is unbindable — or whose key is not a constant string, and
+        any ``**spread`` — is DROPPED; the remaining entries still bind.
+      - an ``ast.Name`` / subscript / ``.get`` chain bound to a
+        :class:`~lhp.core.dependencies._bindings.DictValue`.
+    """
+    if isinstance(node, ast.Dict):
+        entries: Dict[str, Bound] = {}
+        for key_node, value_node in zip(node.keys, node.values, strict=False):
+            if not (
+                isinstance(key_node, ast.Constant) and isinstance(key_node.value, str)
+            ):
+                continue
+            bound = resolve_static_bound(value_node, name_resolver)
+            if bound is not None:
+                entries[key_node.value] = bound
+        return DictValue(entries)
+
+    bound = _resolve_bound(node, name_resolver)
+    return bound if isinstance(bound, DictValue) else None
+
+
+def resolve_static_bound(
+    node: ast.expr,
+    name_resolver: NameResolver = None,
+) -> Optional[Bound]:
+    """Resolve an assignment RHS to a :data:`Bound` of any shape, or ``None``.
+
+    Mirrors :func:`~lhp.core.dependencies._bindings.bound_from_yaml` over the
+    AST so a Python-side ``X = {...}`` / ``X = [...]`` binds the same shape a
+    YAML-seeded parameter would: a dict literal → :class:`DictValue`, a
+    list/tuple literal of single-valued string elements → :class:`ListValue`
+    (all-or-nothing), and any statically-known string expression → a string
+    set. A name / subscript / ``.get`` chain resolves to whatever bound it
+    already carries. Returns ``None`` when nothing static is visible.
+    """
+    if isinstance(node, ast.Dict):
+        return resolve_static_dict(node, name_resolver)
+    if isinstance(node, (ast.List, ast.Tuple)):
+        return resolve_static_list(node, name_resolver)
+    strings = resolve_static_string_values(node, name_resolver)
+    if strings:
+        return strings
+    return _resolve_bound(node, name_resolver)
+
+
 def render_f_string(
     node: ast.JoinedStr,
     name_resolver: NameResolver = None,
@@ -210,16 +266,59 @@ def _resolve_bound(
 
     if isinstance(node, ast.Subscript):
         base = _resolve_bound(node.value, name_resolver)
-        if not isinstance(base, DictValue):
+        if isinstance(base, DictValue):
+            key = node.slice
+            if isinstance(key, ast.Constant) and isinstance(key.value, str):
+                return base.entries.get(key.value)
             return None
-        key = node.slice
-        if isinstance(key, ast.Constant) and isinstance(key.value, str):
-            return base.entries.get(key.value)
+        if isinstance(base, ListValue):
+            return _index_list_value(base, node.slice)
         return None
 
     if isinstance(node, ast.Call):
         return _resolve_get_call(node, name_resolver)
 
+    return None
+
+
+def _index_list_value(base: ListValue, index: ast.expr) -> Optional[Bound]:
+    """Resolve ``list_bound[index]`` to the element(s) it could be.
+
+    A constant integer index (Python bounds and negative indices apply; an
+    out-of-range index is unresolved) yields that single element; any other
+    slice — a variable, a slice object, a non-int constant — yields the union
+    of all elements, matching the union-over-binding philosophy for an index
+    only known at runtime.
+    """
+    idx = _constant_int(index)
+    if idx is None:
+        return frozenset(base.items)
+    if -len(base.items) <= idx < len(base.items):
+        return frozenset({base.items[idx]})
+    return None
+
+
+def _constant_int(node: ast.expr) -> Optional[int]:
+    """The int value of a constant index node, or ``None``.
+
+    Recognizes both the positive ``ast.Constant`` and the negative-literal
+    shape ``ast.UnaryOp(USub, Constant)`` the parser emits for ``-1``.
+    Booleans are excluded — ``True`` / ``False`` are not list indices here.
+    """
+    if (
+        isinstance(node, ast.UnaryOp)
+        and isinstance(node.op, ast.USub)
+        and isinstance(node.operand, ast.Constant)
+        and isinstance(node.operand.value, int)
+        and not isinstance(node.operand.value, bool)
+    ):
+        return -node.operand.value
+    if (
+        isinstance(node, ast.Constant)
+        and isinstance(node.value, int)
+        and not isinstance(node.value, bool)
+    ):
+        return node.value
     return None
 
 
@@ -252,27 +351,8 @@ def _resolve_get_call(
     if key.value in base.entries:
         return base.entries[key.value]
     if len(node.args) == 2:
-        return _resolve_value_bound(node.args[1], name_resolver)
+        return resolve_static_bound(node.args[1], name_resolver)
     return None
-
-
-def _resolve_value_bound(
-    node: ast.expr,
-    name_resolver: NameResolver = None,
-) -> Optional[Bound]:
-    """Resolve an arbitrary expression to a bound value of any shape.
-
-    Used for ``.get`` defaults: a list/tuple literal becomes a
-    :class:`~lhp.core.dependencies._bindings.ListValue`, a statically-known
-    string expression becomes a string set, and a name / subscript / ``.get``
-    chain yields whatever bound it carries.
-    """
-    if isinstance(node, (ast.List, ast.Tuple)):
-        return resolve_static_list(node, name_resolver)
-    strings = resolve_static_string_values(node, name_resolver)
-    if strings:
-        return strings
-    return _resolve_bound(node, name_resolver)
 
 
 def _resolve_method_call(
