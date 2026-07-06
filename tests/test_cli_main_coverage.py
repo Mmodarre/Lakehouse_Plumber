@@ -222,15 +222,16 @@ class TestCommandRouting:
                         cli, ["deps", "--format", "json"], catch_exceptions=False
                     )
                     assert result.exit_code == 0, result.stderr
-                    mock_analyze.assert_called_once_with(
-                        expand_blueprints=False, blueprint_filter=None
-                    )
+                    mock_analyze.assert_called_once_with(blueprint_filter=None)
                     assert mock_save.call_count == 1
                     assert mock_save.call_args.kwargs["formats"] == ["json"]
+                    assert "expand_blueprints" not in mock_save.call_args.kwargs
 
     def test_deps_command_all_options(self, runner):
         # The dag option set replaces the old deps flags: ``--pipeline`` is
         # gone and ``--verbose`` is a global option (not a dag option).
+        # ``--expand-blueprints`` is a deprecated no-op: accepted, never
+        # forwarded to the facade, and announced with a dim stderr notice.
         with runner.isolated_filesystem():
             self._make_project(Path.cwd())
             Path("cfg.yaml").write_text("{}\n")
@@ -260,17 +261,16 @@ class TestCommandRouting:
                         catch_exceptions=False,
                     )
                     assert result.exit_code == 0, result.stderr
-                    mock_analyze.assert_called_once_with(
-                        expand_blueprints=True, blueprint_filter="mybp"
-                    )
+                    mock_analyze.assert_called_once_with(blueprint_filter="mybp")
                     save_kwargs = mock_save.call_args.kwargs
                     assert save_kwargs["formats"] == ["job"]
                     assert save_kwargs["output_dir"] == Path("out_dir")
                     assert save_kwargs["job_name"] == "my_job"
                     assert save_kwargs["job_config_path"] == "cfg.yaml"
                     assert save_kwargs["bundle_output"] is True
-                    assert save_kwargs["expand_blueprints"] is True
+                    assert "expand_blueprints" not in save_kwargs
                     assert save_kwargs["blueprint_filter"] == "mybp"
+                    assert "'--expand-blueprints' is deprecated" in result.stderr
 
 
 @pytest.mark.unit

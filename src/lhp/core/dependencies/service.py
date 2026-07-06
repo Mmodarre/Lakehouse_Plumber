@@ -13,7 +13,6 @@ from typing import (
     Literal,
     Optional,
     Sequence,
-    Set,
     Tuple,
 )
 
@@ -52,19 +51,25 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
     # This class exposes 9 public methods (within the constitution §3.2 cap of
     # 10). It is the single composition root for the whole dependency subsystem
     # and owns four distinct concerns that share the cached `_flowgroups` /
-    # `_flowgroup_file_paths` / `_blueprint_*` state:
-    #   - discovery + processing + blueprint view-mode (`get_flowgroups`,
-    #     `set_blueprint_view_mode`) — owned here so the builder can be a pure
-    #     `(flowgroups, file_paths) -> graphs` function;
-    #   - the ABC-required graph verbs (`build_graphs`, `analyze`, `export`);
+    # `_flowgroup_file_paths` / `_blueprint_provenance` state:
+    #   - discovery + processing (`get_flowgroups`, with optional pipeline /
+    #     blueprint filters) — owned here so the builder can be a pure
+    #     `(flowgroups, file_paths) -> graphs` function. Blueprint expansion
+    #     is ALWAYS full: one flowgroup per (blueprint x instance x spec);
+    #     there is no dedup view (a blueprint that parameterizes `pipeline:`
+    #     per instance would silently lose pipelines from the graph);
+    #   - the ABC-required graph verbs (`build_graphs`, `analyze`, `export`)
+    #     plus the memoized `analyze_project` entry point (one build+analyze
+    #     per `(pipeline_filter, blueprint_filter)` per service instance —
+    #     the `dag` command's analyze and save paths share one analysis);
     #   - graph-derived queries (`get_execution_order`,
     #     `detect_circular_dependencies`);
     #   - job-level orchestration (`analyze_dependencies_by_job`) plus
     #     `get_project_name`.
     # `analyze_dependencies_by_job` is the single validated entry point for job
-    # orchestration: it validates job_name usage, runs one global analyze pass,
-    # and partitions per job_name (delegating to the analyzer's internal
-    # `partition_result_by_job`). The output writer drives the live
+    # orchestration: it validates job_name usage, reuses the memoized global
+    # analyze pass, and partitions per job_name (delegating to the analyzer's
+    # internal `partition_result_by_job`). The output writer drives the live
     # `dag --format job` path through it.
 
     def __init__(
@@ -122,13 +127,10 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
             secret_validator,
         )
 
-        # View-mode controls: set via `set_blueprint_view_mode` and consumed
-        # in get_flowgroups. Defaults to dedupe ON (one representative per
-        # spec + count annotation) to keep 32k-flowgroup output usable.
-        self._expand_blueprints_view: bool = False
-        self._blueprint_filter: Optional[str] = None
-
         self._flowgroups: Optional[List[FlowGroup]] = None
+        self._analysis_memo: Dict[
+            Tuple[Optional[str], Optional[str]], DependencyAnalysisResult
+        ] = {}
         self._flowgroup_file_paths: Dict[str, Path] = {}
         self._blueprint_provenance: Dict[Tuple[str, str], BlueprintProvenance] = {}
 
@@ -178,7 +180,7 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
     ) -> Tuple[Dict[str, DependencyAnalysisResult], DependencyAnalysisResult]:
         """Perform dependency analysis grouped by ``job_name``.
 
-        First analyzes all flowgroups together (global view), then
+        Reuses the memoized global analysis (``analyze_project``), then
         partitions the global result by ``job_name``. Returns the tuple
         ``(job_results, global_result)``.
         """
@@ -207,8 +209,7 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
 
         if not has_job_name:
             self.logger.info("No job_name defined - performing single-job analysis")
-            graphs = self.build_graphs(flowgroups)
-            result = self._analyzer.analyze(graphs)
+            result = self.analyze_project()
             project_name = self.get_project_name()
             job_results = {f"{project_name}_orchestration": result}
             return job_results, result
@@ -226,8 +227,7 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         )
 
         self.logger.info("Step 1: Analyzing all flowgroups together (global view)")
-        global_graphs = self.build_graphs(flowgroups)
-        global_result = self._analyzer.analyze(global_graphs)
+        global_result = self.analyze_project()
 
         self.logger.info(
             f"Step 2: Partitioning global result by {len(job_groups)} job group(s)"
@@ -241,13 +241,20 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
 
         return job_results, global_result
 
-    def get_flowgroups(self, pipeline_filter: Optional[str] = None) -> List[FlowGroup]:
-        """Get flowgroups, optionally filtered by pipeline.
+    def get_flowgroups(
+        self,
+        pipeline_filter: Optional[str] = None,
+        blueprint_filter: Optional[str] = None,
+    ) -> List[FlowGroup]:
+        """Get flowgroups, optionally filtered by pipeline and/or blueprint.
 
-        Includes synthetic flowgroups expanded from blueprints, deduplicated
-        by `(blueprint_name, spec_index)` unless `set_blueprint_view_mode(
-        expand=True)` was called. With a blueprint filter, only synthetics
-        from that blueprint are emitted (and on-disk flowgroups are excluded).
+        Synthetic flowgroups expanded from blueprints are ALWAYS fully
+        included — one per (blueprint x instance x spec). There is no dedup
+        view: collapsing synthetics to one representative per spec silently
+        dropped every other instance's pipeline from the graph whenever a
+        blueprint parameterizes ``pipeline:`` per instance. With
+        ``blueprint_filter``, only synthetics from that blueprint are
+        emitted (and on-disk flowgroups are excluded).
 
         Populates ``self._flowgroup_file_paths`` as a side effect (mapping each
         flowgroup to its source YAML); ``build_graphs`` threads that index into
@@ -259,35 +266,41 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
 
         flowgroups = self._flowgroups
 
-        if self._blueprint_filter is not None:
+        if blueprint_filter is not None:
             allowed_keys = {
                 key
                 for key, prov in self._blueprint_provenance.items()
-                if prov.blueprint_name == self._blueprint_filter
+                if prov.blueprint_name == blueprint_filter
             }
             flowgroups = [
                 fg for fg in flowgroups if (fg.pipeline, fg.flowgroup) in allowed_keys
             ]
-        elif not self._expand_blueprints_view and self._blueprint_provenance:
-            # Dedupe synthetics by (blueprint_name, spec_index); first wins.
-            # Non-synthetic flowgroups pass through.
-            seen_specs: Set[Tuple[str, int]] = set()
-            deduped: List[FlowGroup] = []
-            for fg in flowgroups:
-                prov = self._blueprint_provenance.get((fg.pipeline, fg.flowgroup))
-                if prov is None:
-                    deduped.append(fg)
-                    continue
-                spec_key = (prov.blueprint_name, prov.spec_index)
-                if spec_key in seen_specs:
-                    continue
-                seen_specs.add(spec_key)
-                deduped.append(fg)
-            flowgroups = deduped
 
         if pipeline_filter:
             return [fg for fg in flowgroups if fg.pipeline == pipeline_filter]
         return flowgroups
+
+    def analyze_project(
+        self,
+        pipeline_filter: Optional[str] = None,
+        blueprint_filter: Optional[str] = None,
+    ) -> DependencyAnalysisResult:
+        """Discover, build and analyze — once per filter pair, memoized.
+
+        The single entry point the facade routes through: the ``dag``
+        command's analyze and save paths (and the job-orchestration global
+        pass) all share ONE discovery + graph build + analysis per service
+        instance and filter combination.
+        """
+        key = (pipeline_filter, blueprint_filter)
+        if key not in self._analysis_memo:
+            flowgroups = self.get_flowgroups(
+                pipeline_filter=pipeline_filter, blueprint_filter=blueprint_filter
+            )
+            self._analysis_memo[key] = self._analyzer.analyze(
+                self.build_graphs(flowgroups)
+            )
+        return self._analysis_memo[key]
 
     def _discover_and_process_all_flowgroups(self) -> List[FlowGroup]:
         """Discover flowgroups (on-disk + synthetic) and process them once.
@@ -354,30 +367,6 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
             self.logger.warning(f"Could not process flowgroup {fg.flowgroup}: {e}")
             self._flowgroup_file_paths[fg.flowgroup] = file_path
             return fg
-
-    def set_blueprint_view_mode(
-        self,
-        expand_blueprints: bool = False,
-        blueprint: Optional[str] = None,
-    ) -> None:
-        """Configure how synthetic flowgroups are surfaced in the deps graph.
-
-        Args:
-            expand_blueprints: When True, emit one flowgroup per (blueprint x
-                instance x spec) — the literal expansion. Default False
-                dedupes by (blueprint_name, spec_index) for readable graphs at
-                32k-flowgroup scale.
-            blueprint: When set, restrict the graph to the named blueprint's
-                flowgroups (still deduped unless expand_blueprints=True).
-        """
-        self._expand_blueprints_view = expand_blueprints
-        self._blueprint_filter = blueprint
-        # Invalidate cached flowgroup list so the new view is rebuilt next call
-        # (cheap because the underlying discovery/expansion is also cached on
-        # the discoverer's side — the cache invalidation here only affects the
-        # processed/filtered list assembled in get_flowgroups).
-        self._flowgroups = None
-        self._flowgroup_file_paths = {}
 
     def get_execution_order(self, graphs: DependencyGraphs) -> List[List[str]]:
         return self._analyzer.get_execution_order(graphs)

@@ -560,6 +560,8 @@ spark.read.table(b)
     # ---- Scope handling ----
 
     def test_local_scope_does_not_leak_to_sibling_function(self):
+        """Still holds post-interprocedural-resolution: ``tbl`` is neither in
+        ``two()``'s scope nor a parameter of ``two()``, so nothing resolves it."""
         code = """
 def one():
     tbl = "cat.sch.inner"
@@ -614,6 +616,8 @@ def f():
     # ---- Negative cases (parser limits) ----
 
     def test_function_parameter_not_resolved(self):
+        """Still holds post-interprocedural-resolution: ``f`` has no call site,
+        so the parameter's cross-call-site union is empty → unresolved."""
         code = """
 def f(tbl):
     spark.table(tbl)
@@ -627,6 +631,8 @@ def f(tbl):
         assert result.warnings[0].code == "LHP-DEP-002"
 
     def test_function_return_value_not_resolved(self):
+        """Still holds post-interprocedural-resolution: ``get_name`` is not
+        defined in the module, so return-value folding cannot apply."""
         code = """
 tbl = get_name()
 spark.table(tbl)

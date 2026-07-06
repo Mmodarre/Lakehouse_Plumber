@@ -8,7 +8,9 @@ exactly the way codegen applies them at runtime:
 - python transform ``parameters: {tables: [a, b]}`` looped over -> one edge per element,
 - python LOAD ``source.parameters`` naming a produced table -> INTERNAL edge,
 - opaque helper-routed read -> stamped LHP-DEP-002 on ``graphs.extraction_warnings``, NO edge,
-- duplicate identical warnings from one action dedupe to one.
+- warnings aggregate per SITE (code/file/line/message): duplicates from one
+  action collapse to one record, and a shared helper referenced by many
+  flowgroups collapses to one record enumerating the affected actions.
 """
 
 from __future__ import annotations
@@ -226,8 +228,9 @@ class TestExtractionWarningThreading:
         assert graphs.action_graph.in_degree("opaque_fg.opaque_act") == 0
 
     def test_duplicate_identical_warnings_dedupe_to_one(self, tmp_path):
-        # Two identical opaque reads on the SAME line: identical records
-        # (code/message/file/line) collapse via the builder's ordered dedup.
+        # Two identical opaque reads on the SAME line share one warning SITE
+        # (code/message/file/line), so the builder's site aggregation folds
+        # them into a single record with one affected action.
         _write_module(
             tmp_path,
             "transforms/dup.py",
@@ -253,4 +256,60 @@ class TestExtractionWarningThreading:
         graphs = _build(tmp_path, [consumer])
 
         assert len(graphs.extraction_warnings) == 1
-        assert graphs.extraction_warnings[0].code == DEP_002_CODE
+        [warning] = graphs.extraction_warnings
+        assert warning.code == DEP_002_CODE
+        assert warning.affected_count == 1
+        assert [(a.flowgroup, a.action) for a in warning.affected_actions] == [
+            ("dup_fg", "dup_act")
+        ]
+
+    def test_shared_helper_site_aggregates_across_flowgroups(self, tmp_path):
+        """Three flowgroups routing through ONE opaque helper site collapse
+        to a single aggregated record: affected actions sorted by
+        flowgroup/action, the first sorted pair as the representative, each
+        pair stamped with its own flowgroup YAML as the depends_on edit
+        path, and ``affected_count`` counting the distinct actions."""
+        _write_module(
+            tmp_path,
+            "transforms/shared.py",
+            "def do_it(df, spark, parameters):\n"
+            "    return spark.read.table(helper())\n",
+        )
+
+        def consumer(idx: int) -> FlowGroup:
+            return _flowgroup(
+                f"fg_{idx}",
+                "p2",
+                [
+                    Action(
+                        name=f"act_{idx}",
+                        type=ActionType.TRANSFORM,
+                        transform_type="python",
+                        module_path="transforms/shared.py",
+                        function_name="do_it",
+                        source="v_in",
+                        target="v_out",
+                    )
+                ],
+            )
+
+        # Deliberately out-of-order input to prove the sorted representative.
+        flowgroups = [consumer(2), consumer(0), consumer(1)]
+        file_paths = {f"fg_{i}": tmp_path / f"pipelines/fg_{i}.yaml" for i in range(3)}
+
+        builder = DependencyGraphBuilder(project_root=tmp_path)
+        graphs = builder.build_from_flowgroups(flowgroups, file_paths=file_paths)
+
+        [warning] = graphs.extraction_warnings
+        assert warning.code == DEP_002_CODE
+        assert warning.affected_count == 3
+        assert [(a.flowgroup, a.action) for a in warning.affected_actions] == [
+            ("fg_0", "act_0"),
+            ("fg_1", "act_1"),
+            ("fg_2", "act_2"),
+        ]
+        assert (warning.flowgroup, warning.action) == ("fg_0", "act_0")
+        assert warning.edit_yaml_path == (tmp_path / "pipelines/fg_0.yaml").as_posix()
+        for i, affected in enumerate(warning.affected_actions):
+            expected = (tmp_path / f"pipelines/fg_{i}.yaml").as_posix()
+            assert affected.edit_yaml_path == expected

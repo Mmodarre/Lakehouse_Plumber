@@ -92,8 +92,9 @@ parameters:
 ```bash
 lhp list blueprints                 # list discovered blueprints (param + instance counts)
 lhp list blueprints --instances     # also show each instance and the pipelines it resolves to
-lhp dag --expand-blueprints         # one node per instance (default dedupes by blueprint spec)
+lhp dag                             # dep analysis; blueprint synthetics ALWAYS fully expanded (one node/instance)
 lhp dag --blueprint erp_ingestion   # restrict dependency analysis to one blueprint
+# --expand-blueprints is a deprecated, ignored no-op (expansion is always full; dropping it lost per-instance pipeline: values)
 lhp validate --env dev              # discovers, expands, and validates synthetic flowgroups
 lhp generate --env dev              # expands blueprints into generated code
 ```

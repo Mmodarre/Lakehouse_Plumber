@@ -13,7 +13,12 @@ compose them. No file I/O lives here.
 from datetime import datetime
 from typing import Any, Dict, List
 
-from ...models.dependencies import DependencyAnalysisResult, DependencyGraphs
+from ...models.dependencies import (
+    AffectedAction,
+    DependencyAnalysisResult,
+    DependencyGraphs,
+    DependencyWarning,
+)
 
 
 def export_to_dot(graphs: DependencyGraphs, level: str = "pipeline") -> str:
@@ -62,6 +67,10 @@ def export_to_json(result: DependencyAnalysisResult) -> Dict[str, Any]:
         Structured dictionary suitable for ``json.dump``. The top-level
         ``"warnings"`` key is always present (empty list when no extraction
         warnings were recorded) so the schema stays stable for consumers.
+        Warnings are aggregated per unresolved read SITE:
+        ``metadata.total_warnings`` counts distinct sites while
+        ``metadata.total_warning_occurrences`` counts (site × affected
+        action) pairs — the pre-aggregation total.
     """
     return {
         "metadata": {
@@ -70,6 +79,9 @@ def export_to_json(result: DependencyAnalysisResult) -> Dict[str, Any]:
             "total_stages": len(result.execution_stages),
             "has_circular_dependencies": len(result.circular_dependencies) > 0,
             "total_warnings": len(result.warnings),
+            "total_warning_occurrences": sum(
+                warning.affected_count for warning in result.warnings
+            ),
         },
         "pipelines": {
             name: {
@@ -94,6 +106,16 @@ def export_to_json(result: DependencyAnalysisResult) -> Dict[str, Any]:
                 "suggestion": warning.suggestion,
                 "file_path": warning.file_path,
                 "line": warning.line,
+                "edit_yaml_path": warning.edit_yaml_path,
+                "affected_actions": [
+                    {
+                        "flowgroup": affected.flowgroup,
+                        "action": affected.action,
+                        "edit_yaml_path": affected.edit_yaml_path,
+                    }
+                    for affected in warning.affected_actions
+                ],
+                "affected_count": warning.affected_count,
             }
             for warning in result.warnings
         ],
@@ -182,17 +204,15 @@ def _generate_text_representation(result: DependencyAnalysisResult) -> str:
         lines.append("")
 
     if result.warnings:
+        total_occurrences = sum(w.affected_count for w in result.warnings)
         lines.append("DEPENDENCY EXTRACTION WARNINGS")
         lines.append("-" * 40)
+        lines.append(
+            f"{len(result.warnings)} unresolved site(s) affecting "
+            f"{total_occurrences} action(s)"
+        )
         for warning in result.warnings:
-            header = f"  {warning.code} {warning.flowgroup}.{warning.action}"
-            if warning.file_path and warning.line is not None:
-                header += f" ({warning.file_path}:{warning.line})"
-            elif warning.file_path:
-                header += f" ({warning.file_path})"
-            lines.append(header)
-            lines.append(f"    {warning.message}")
-            lines.append(f"    Suggestion: {warning.suggestion}")
+            lines.extend(_warning_site_lines(warning))
         lines.append("")
 
     lines.append("DEPENDENCY TREE")
@@ -200,6 +220,51 @@ def _generate_text_representation(result: DependencyAnalysisResult) -> str:
     lines.extend(_generate_dependency_tree_text(result))
 
     return "\n".join(lines)
+
+
+_MAX_AFFECTED_SHOWN = 5
+
+
+def _warning_site_lines(warning: "DependencyWarning") -> List[str]:
+    """Render one aggregated warning site as an indented text block.
+
+    Shows the site location, the message, up to
+    :data:`_MAX_AFFECTED_SHOWN` affected ``flowgroup.action`` pairs with an
+    overflow count, and the distinct YAML file(s) a ``depends_on`` fix
+    belongs in. Leaf records that never went through the builder's
+    aggregation (empty ``affected_actions``) fall back to their own
+    ``flowgroup``/``action``/``edit_yaml_path`` fields.
+    """
+    header = f"  {warning.code}"
+    if warning.file_path and warning.line is not None:
+        header += f" {warning.file_path}:{warning.line}"
+    elif warning.file_path:
+        header += f" {warning.file_path}"
+
+    affected = warning.affected_actions or (
+        AffectedAction(
+            flowgroup=warning.flowgroup,
+            action=warning.action,
+            edit_yaml_path=warning.edit_yaml_path,
+        ),
+    )
+    shown = [f"{a.flowgroup}.{a.action}" for a in affected[:_MAX_AFFECTED_SHOWN]]
+    overflow = len(affected) - _MAX_AFFECTED_SHOWN
+    if overflow > 0:
+        shown.append(f"+{overflow} more")
+    edit_paths = list(
+        dict.fromkeys(a.edit_yaml_path for a in affected if a.edit_yaml_path)
+    )
+
+    lines = [
+        header,
+        f"    {warning.message}",
+        f"    Affected ({warning.affected_count}): {', '.join(shown)}",
+    ]
+    if edit_paths:
+        lines.append(f"    Add depends_on in: {', '.join(edit_paths[:3])}")
+    lines.append(f"    Suggestion: {warning.suggestion}")
+    return lines
 
 
 def _generate_dependency_tree_text(

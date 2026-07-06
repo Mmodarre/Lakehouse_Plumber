@@ -1,5 +1,6 @@
 import json
 import tempfile
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import Mock, mock_open, patch
 
@@ -9,6 +10,7 @@ import pytest
 from lhp.core.dependencies.output import export_to_json, export_to_text
 from lhp.core.dependencies.output_writer import DependencyOutputWriter
 from lhp.models.dependencies import (
+    AffectedAction,
     DependencyAnalysisResult,
     DependencyGraphs,
     DependencyWarning,
@@ -793,7 +795,7 @@ class TestDependencyWarningsInOutputs:
         # Round-trips through json.dumps (JSON-ready, no stray objects).
         json.loads(json.dumps(data))
 
-    def test_export_to_json_carries_warnings_with_all_seven_fields(self):
+    def test_export_to_json_carries_warnings_with_all_fields(self):
         result = create_test_dependency_result()
         result.warnings = [
             _make_warning(0, file_path="pipelines/fg0.yaml", line=12),
@@ -803,6 +805,7 @@ class TestDependencyWarningsInOutputs:
         data = export_to_json(result)
 
         assert data["metadata"]["total_warnings"] == 2
+        assert data["metadata"]["total_warning_occurrences"] == 2
         assert data["warnings"] == [
             {
                 "code": "LHP-DEP-002",
@@ -812,6 +815,9 @@ class TestDependencyWarningsInOutputs:
                 "suggestion": "Add an explicit depends_on declaration",
                 "file_path": "pipelines/fg0.yaml",
                 "line": 12,
+                "edit_yaml_path": None,
+                "affected_actions": [],
+                "affected_count": 1,
             },
             {
                 "code": "LHP-DEP-002",
@@ -821,12 +827,58 @@ class TestDependencyWarningsInOutputs:
                 "suggestion": "Add an explicit depends_on declaration",
                 "file_path": None,
                 "line": None,
+                "edit_yaml_path": None,
+                "affected_actions": [],
+                "affected_count": 1,
+            },
+        ]
+        json.loads(json.dumps(data))
+
+    def test_export_to_json_aggregated_site_fields(self):
+        """An aggregated site record serializes its affected actions and the
+        occurrence total counts (site x action) pairs, not sites."""
+        result = create_test_dependency_result()
+        affected = (
+            AffectedAction(
+                flowgroup="fg0", action="load_0", edit_yaml_path="pipelines/fg0.yaml"
+            ),
+            AffectedAction(
+                flowgroup="fg1", action="load_1", edit_yaml_path="pipelines/fg1.yaml"
+            ),
+        )
+        result.warnings = [
+            replace(
+                _make_warning(0, file_path="py_functions/helper.py", line=4),
+                edit_yaml_path="pipelines/fg0.yaml",
+                affected_actions=affected,
+                affected_count=2,
+            )
+        ]
+
+        data = export_to_json(result)
+
+        assert data["metadata"]["total_warnings"] == 1
+        assert data["metadata"]["total_warning_occurrences"] == 2
+        warning = data["warnings"][0]
+        assert warning["edit_yaml_path"] == "pipelines/fg0.yaml"
+        assert warning["affected_count"] == 2
+        assert warning["affected_actions"] == [
+            {
+                "flowgroup": "fg0",
+                "action": "load_0",
+                "edit_yaml_path": "pipelines/fg0.yaml",
+            },
+            {
+                "flowgroup": "fg1",
+                "action": "load_1",
+                "edit_yaml_path": "pipelines/fg1.yaml",
             },
         ]
         json.loads(json.dumps(data))
 
     def test_export_to_text_renders_warnings_section(self):
-        """Text export lists code, fg.action, location, message, suggestion;
+        """Text export renders one per-site block: location header, message,
+        affected actions, edit-path hint (when known) and suggestion. The
         location adapts (file:line / file-only / omitted)."""
         result = create_test_dependency_result()
         result.warnings = [
@@ -838,12 +890,46 @@ class TestDependencyWarningsInOutputs:
         content = export_to_text(result)
 
         assert "DEPENDENCY EXTRACTION WARNINGS" in content
-        assert "  LHP-DEP-002 fg0.load_0 (pipelines/fg0.yaml:12)" in content
-        assert "  LHP-DEP-002 fg1.load_1 (pipelines/fg1.yaml)" in content
-        # No location -> bare code + fg.action line, no parens.
-        assert "\n  LHP-DEP-002 fg2.load_2\n" in content
+        assert "3 unresolved site(s) affecting 3 action(s)" in content
+        assert "  LHP-DEP-002 pipelines/fg0.yaml:12" in content
+        assert "  LHP-DEP-002 pipelines/fg1.yaml" in content
+        # No location -> bare code header line.
+        assert "\n  LHP-DEP-002\n" in content
         assert "    could not resolve source table for read 0" in content
+        assert "    Affected (1): fg0.load_0" in content
         assert "    Suggestion: Add an explicit depends_on declaration" in content
+
+    def test_export_to_text_caps_affected_list_and_names_edit_paths(self):
+        """One site affecting many actions renders a capped list with an
+        overflow marker plus the distinct depends_on edit paths."""
+        result = create_test_dependency_result()
+        affected = tuple(
+            AffectedAction(
+                flowgroup=f"fg{i}",
+                action=f"load_{i}",
+                edit_yaml_path=f"pipelines/fg{i}.yaml",
+            )
+            for i in range(7)
+        )
+        result.warnings = [
+            replace(
+                _make_warning(0, file_path="py_functions/helper.py", line=4),
+                edit_yaml_path="pipelines/fg0.yaml",
+                affected_actions=affected,
+                affected_count=7,
+            )
+        ]
+
+        content = export_to_text(result)
+
+        assert "1 unresolved site(s) affecting 7 action(s)" in content
+        assert (
+            "    Affected (7): fg0.load_0, fg1.load_1, fg2.load_2, "
+            "fg3.load_3, fg4.load_4, +2 more" in content
+        )
+        assert (
+            "    Add depends_on in: pipelines/fg0.yaml, pipelines/fg1.yaml" in content
+        )
 
     def test_export_to_text_omits_section_when_no_warnings(self):
         """Pin the convention: empty warnings -> no section header at all."""

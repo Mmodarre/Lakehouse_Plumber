@@ -356,20 +356,26 @@ Runs blueprint discovery, expansion, and full FlowGroup validation.
 
    lhp validate --env dev
 
-``lhp deps``
-~~~~~~~~~~~~
+``lhp dag``
+~~~~~~~~~~~
 
-By default the dependency graph deduplicates synthetic FlowGroups by
-``(blueprint_name, spec_index)`` — one logical edge per spec, not per
-instance.
+Dependency analysis **always fully expands** blueprint synthetic FlowGroups —
+one graph node per instance. This is the only mode: a blueprint that sets
+``pipeline:`` per instance would otherwise have every non-representative
+instance's pipeline silently dropped from the graph, the JSON, and the
+``--format job`` orchestration YAML.
 
 .. code-block:: bash
 
-   lhp deps
-   lhp deps --expand-blueprints
-   lhp deps --blueprint erp_ingestion
+   lhp dag
+   lhp dag --blueprint erp_ingestion   # restrict analysis to one blueprint
 
-See :doc:`dependency_analysis` for the full ``deps`` reference.
+``--blueprint <name>`` restricts the analysis to a single blueprint's synthetic
+FlowGroups (unchanged). ``--expand-blueprints`` is a **deprecated, ignored
+no-op** — expansion is always full — and prints a deprecation notice when
+passed. (``lhp deps`` remains as a deprecated alias for ``lhp dag``.)
+
+See :doc:`dependency_analysis` for the full ``lhp dag`` reference.
 
 Error codes
 -----------
@@ -443,6 +449,6 @@ See also
 * :doc:`presets_reference` — Presets referenced by ``presets:``.
 * :doc:`substitutions` — environment tokens, local variables, secret
   references.
-* :doc:`dependency_analysis` — full ``lhp deps`` reference.
+* :doc:`dependency_analysis` — full ``lhp dag`` reference.
 * :doc:`architecture` — why expansion runs before the rest of the pipeline.
 * :doc:`errors_reference` — project-wide error code catalog.

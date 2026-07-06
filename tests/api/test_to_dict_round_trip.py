@@ -26,6 +26,7 @@ import pytest
 
 from lhp.api import (
     ActionView,
+    AffectedActionView,
     BatchGenerationResponse,
     BatchValidationResponse,
     BlueprintInstanceView,
@@ -79,6 +80,7 @@ _TYPE_NS: dict[str, Any] = {
     "DependencyOutputEntry": DependencyOutputEntry,
     "BatchGenerationResponse": BatchGenerationResponse,
     "BatchValidationResponse": BatchValidationResponse,
+    "AffectedActionView": AffectedActionView,
     "DependencyWarningView": DependencyWarningView,
     "BundleSyncResult": BundleSyncResult,
     "GenerationPlan": GenerationPlan,
@@ -163,6 +165,11 @@ _val_resp = ValidationResponse(
     success=False, issues=(_issue,), validated_pipelines=("pipe1",)
 )
 _dep_entry = DependencyOutputEntry(format_name="dot", label="", path=Path("out.dot"))
+_affected = AffectedActionView(
+    flowgroup="customer_ingest",
+    action="load_customer",
+    edit_yaml_path="pipelines/bronze/customer.yaml",
+)
 _dep_warning = DependencyWarningView(
     code="LHP-DEP-002",
     message="Source 'raw.customer' is not produced by any flowgroup in scope",
@@ -171,6 +178,16 @@ _dep_warning = DependencyWarningView(
     suggestion="Declare an explicit depends_on for 'raw.customer'",
     file_path="pipelines/bronze/customer.yaml",
     line=12,
+    edit_yaml_path="pipelines/bronze/customer.yaml",
+    affected_actions=(
+        _affected,
+        AffectedActionView(
+            flowgroup="customer_silver",
+            action="load_customer_silver",
+            edit_yaml_path="pipelines/silver/customer.yaml",
+        ),
+    ),
+    affected_count=2,
 )
 
 _INSTANCES = [
@@ -274,6 +291,7 @@ _INSTANCES = [
         id="DependencyAnalysisResult",
     ),
     pytest.param(_dep_warning, id="DependencyWarningView"),
+    pytest.param(_affected, id="AffectedActionView"),
     pytest.param(_dep_entry, id="DependencyOutputEntry"),
     pytest.param(
         DependencyOutputsResult(

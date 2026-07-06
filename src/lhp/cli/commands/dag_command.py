@@ -36,18 +36,29 @@ def dag(
     blueprint: Optional[str],
 ) -> None:
     """Analyze pipeline dependencies and write dependency outputs."""
+    if expand_blueprints:
+        _console_module.err_console.print(
+            "[dim]'--expand-blueprints' is deprecated and has no effect; "
+            "blueprints are always fully expanded.[/dim]"
+        )
+        warnings.warn(
+            "'--expand-blueprints' is deprecated and has no effect; "
+            "blueprints are always fully expanded.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
     project_root = resolve_project_root()
     facade = build_facade(project_root)
 
-    analysis = facade.inspection.analyze_dependencies(
-        expand_blueprints=expand_blueprints, blueprint_filter=blueprint
-    )
+    # Both facade calls route through the service's memoized
+    # analyze_project, so the project is discovered and analyzed once.
+    analysis = facade.inspection.analyze_dependencies(blueprint_filter=blueprint)
     dag_presenter.render_analysis(analysis, console=_console_module.err_console)
 
     outputs = facade.inspection.save_dependency_outputs(
         formats=output_format,
         output_dir=output_dir,
-        expand_blueprints=expand_blueprints,
         blueprint_filter=blueprint,
         job_name=job_name,
         job_config_path=str(job_config) if job_config else None,

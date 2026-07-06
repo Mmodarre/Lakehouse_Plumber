@@ -1,7 +1,7 @@
 """Data models for dependency analysis in LakehousePlumber."""
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import networkx as nx
 
@@ -9,10 +9,32 @@ from ..errors import ErrorFactory, codes
 
 
 @dataclass(frozen=True)
+class AffectedAction:
+    """One action affected by an aggregated extraction-warning site.
+
+    ``edit_yaml_path`` names the YAML file where a ``depends_on`` entry for
+    this action belongs — the flowgroup YAML, or the blueprint YAML for a
+    blueprint-expanded synthetic flowgroup.
+    """
+
+    flowgroup: str
+    action: str
+    edit_yaml_path: Optional[str] = None
+
+
+@dataclass(frozen=True)
 class DependencyWarning:
     """Advisory record from dependency extraction (LHP-DEP-002 / LHP-DEP-003).
 
     Warning-only: carried on analysis results for presentation, never raised.
+
+    Parsers emit LEAF records (one per opaque read per action;
+    ``affected_actions`` empty, ``affected_count`` 1). The graph builder
+    aggregates leaves by warning SITE — ``(code, file_path, line, message)``
+    — into one record per site whose ``flowgroup`` / ``action`` are the
+    first affected action (sorted) and whose ``affected_actions`` /
+    ``affected_count`` enumerate every distinct action referencing the site.
+    ``edit_yaml_path`` is the YAML file a ``depends_on`` fix belongs in.
     """
 
     code: str
@@ -22,6 +44,9 @@ class DependencyWarning:
     suggestion: str
     file_path: Optional[str] = None
     line: Optional[int] = None
+    edit_yaml_path: Optional[str] = None
+    affected_actions: Tuple[AffectedAction, ...] = ()
+    affected_count: int = 1
 
 
 @dataclass

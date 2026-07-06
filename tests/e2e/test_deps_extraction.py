@@ -384,10 +384,12 @@ class TestDepsExtraction:
         * ``configured_union_flow`` — a python transform looping over
           ``parameters["tables"]``; static loop unrolling yields one read per
           element, token bytes preserved exactly.
-        * ``opaque_read_flow`` — a read routed through a helper call; the
-          analyzer does not follow helper calls, so it emits exactly one
-          LHP-DEP-002 warning with stamped context instead of a silent
-          missing edge.
+        * ``opaque_read_flow`` — a read whose table name only exists in a
+          runtime environment variable (genuinely dynamic — the analyzer
+          now follows helper calls and parameter bindings, so the fixture
+          must be beyond static reach); it emits exactly one aggregated
+          LHP-DEP-002 site record with stamped context and the depends_on
+          edit path instead of a silent missing edge.
         """
         exit_code, output = self.run_dag_command("--format", "json")
         assert exit_code == 0, f"lhp dag failed: {output}"
@@ -417,9 +419,13 @@ class TestDepsExtraction:
             f"Loop element beta missing. external_sources: {external_sources}"
         )
 
-        # (iii) opaque helper-routed read → exactly one stamped LHP-DEP-002.
+        # (iii) genuinely-dynamic read → exactly one aggregated LHP-DEP-002
+        # site record with the enriched message and actionable fields.
         warnings = data["warnings"]
         assert data["metadata"]["total_warnings"] == len(warnings)
+        assert data["metadata"]["total_warning_occurrences"] == sum(
+            w["affected_count"] for w in warnings
+        )
         opaque = [
             w
             for w in warnings
@@ -439,3 +445,294 @@ class TestDepsExtraction:
         )
         assert isinstance(warning["line"], int)
         assert "depends_on" in warning["suggestion"]
+        # Enriched message names the unresolved argument expression.
+        assert "os.environ['DEP_BINDINGS_LOOKUP_TABLE']" in warning["message"]
+        # Site aggregation fields: one affected action, pointing at the
+        # flowgroup YAML as the place to add depends_on.
+        assert warning["affected_count"] == 1
+        assert [(a["flowgroup"], a["action"]) for a in warning["affected_actions"]] == [
+            ("opaque_read_flow", "opaque_union_lookup")
+        ]
+        assert warning["edit_yaml_path"].endswith(
+            "pipelines/19_dependency_bindings/opaque_read_flow.yaml"
+        )
+
+    def test_deps_interprocedural_resolution_zero_warnings(self):
+        """Cases A/B/C from the customer gap analysis, end-to-end on disk:
+        kwonly-seeded snapshot functions with nested closures, return-value
+        folding and ``dict.fromkeys`` loops (A); module-level sibling callees
+        with positional args (B); ``parameters or {}`` coercion chains with
+        helper calls inside f-strings (C). Every read resolves statically —
+        the tables surface and NO LHP-DEP-002 is emitted for these flows.
+        """
+        py_dir = self.project_root / "py_functions"
+        flow_dir = self.project_root / "pipelines" / "20_dep_cases"
+        flow_dir.mkdir(parents=True, exist_ok=True)
+
+        (py_dir / "case_a_snapshot_func.py").write_text(
+            textwrap.dedent('''\
+                from typing import Optional, Tuple
+                from pyspark.sql import DataFrame
+
+
+                def next_case_a_snapshot(
+                    latest_snapshot_version: Optional[int],
+                    *,
+                    catalog: str,
+                    schema: str,
+                ) -> Optional[Tuple[DataFrame, int]]:
+                    """Kwonly-seeded reader with closures + folded candidates."""
+
+                    def _table_exists(fqn):
+                        return spark.catalog.tableExists(fqn)
+
+                    def _resolve_stg_fqn():
+                        return f"{catalog}.{schema}_stg.case_a_orders"
+
+                    stg_table_fqn = _resolve_stg_fqn()
+                    if latest_snapshot_version is None and _table_exists(stg_table_fqn):
+                        return (spark.read.table(stg_table_fqn), 1)
+                    candidates = [
+                        f"{catalog}.{schema}.case_a_t1",
+                        f"{catalog}.{schema}.case_a_t2",
+                    ]
+                    for fqn in dict.fromkeys(candidates):
+                        if _table_exists(fqn):
+                            return (spark.read.table(fqn), 1)
+                    return None
+                '''),
+            encoding="utf-8",
+        )
+        (flow_dir / "case_a_snapshot_flow.yaml").write_text(
+            textwrap.dedent("""\
+                pipeline: dep_cases
+                flowgroup: case_a_snapshot_flow
+                actions:
+                  - name: load_case_a_seed
+                    type: load
+                    readMode: stream
+                    source:
+                      type: delta
+                      database: "${catalog}.${raw_schema}"
+                      table: dep_bindings_seed
+                    target: v_case_a_seed
+                  - name: write_case_a_snapshot
+                    type: write
+                    source: v_case_a_seed
+                    write_target:
+                      type: streaming_table
+                      database: "${catalog}.${silver_schema}"
+                      table: "case_a_dim"
+                      mode: "snapshot_cdc"
+                      snapshot_cdc_config:
+                        source_function:
+                          file: "py_functions/case_a_snapshot_func.py"
+                          function: "next_case_a_snapshot"
+                          parameters:
+                            catalog: "acme_edw_dev"
+                            schema: "edw_case"
+                        keys: ["id"]
+                        stored_as_scd_type: 1
+                """),
+            encoding="utf-8",
+        )
+
+        (py_dir / "case_b_deid_transform.py").write_text(
+            textwrap.dedent('''\
+                from pyspark.sql import DataFrame
+
+
+                def _deid(df: DataFrame, table_name):
+                    ref = spark.read.table(table_name)
+                    return df
+
+
+                def transform_case_b(df: DataFrame, spark, parameters) -> DataFrame:
+                    """Sibling callee receives the table name positionally."""
+                    return _deid(df, "acme_edw_dev.edw_ref.case_b_patients")
+                '''),
+            encoding="utf-8",
+        )
+        (py_dir / "case_c_sites_transform.py").write_text(
+            textwrap.dedent('''\
+                from pyspark.sql import DataFrame
+
+
+                def _schema_for(site):
+                    return f"edw_{site}"
+
+
+                def _coerce_sites(raw):
+                    return list(raw)
+
+
+                def transform_case_c(df: DataFrame, spark, parameters) -> DataFrame:
+                    """`parameters or {}` + coercion + f-string helper call."""
+                    p = parameters or {}
+                    sites = _coerce_sites(p["sites"])
+                    for site in sites:
+                        lookup = spark.read.table(
+                            f"acme_edw_dev.{_schema_for(site)}.case_c_orders"
+                        )
+                        df = df.unionByName(lookup, allowMissingColumns=True)
+                    return df
+                '''),
+            encoding="utf-8",
+        )
+        (flow_dir / "case_bc_transforms.yaml").write_text(
+            textwrap.dedent("""\
+                pipeline: dep_cases
+                flowgroup: case_bc_transform_flow
+                actions:
+                  - name: load_case_bc_seed
+                    type: load
+                    readMode: stream
+                    source:
+                      type: delta
+                      database: "${catalog}.${raw_schema}"
+                      table: dep_bindings_seed
+                    target: v_case_bc_seed
+                  - name: transform_case_b
+                    type: transform
+                    transform_type: python
+                    source: v_case_bc_seed
+                    module_path: "py_functions/case_b_deid_transform.py"
+                    function_name: "transform_case_b"
+                    readMode: stream
+                    parameters:
+                      unused: "x"
+                    target: v_case_b_out
+                  - name: transform_case_c
+                    type: transform
+                    transform_type: python
+                    source: v_case_b_out
+                    module_path: "py_functions/case_c_sites_transform.py"
+                    function_name: "transform_case_c"
+                    readMode: stream
+                    parameters:
+                      sites:
+                        - "syd"
+                        - "mel"
+                    target: v_case_c_out
+                  - name: write_case_bc
+                    type: write
+                    source: v_case_c_out
+                    write_target:
+                      type: streaming_table
+                      database: "${catalog}.${silver_schema}"
+                      table: "case_bc_out"
+                """),
+            encoding="utf-8",
+        )
+
+        exit_code, output = self.run_dag_command("--format", "json")
+        assert exit_code == 0, f"lhp dag failed: {output}"
+
+        data = self._load_json_output()
+        cases = data["pipelines"].get("dep_cases")
+        assert cases is not None, "dep_cases pipeline missing from deps output"
+
+        external_sources = set(cases["external_sources"])
+        expected = {
+            # Case A: return folding + closure param + dict.fromkeys loop.
+            "acme_edw_dev.edw_case_stg.case_a_orders",
+            "acme_edw_dev.edw_case.case_a_t1",
+            "acme_edw_dev.edw_case.case_a_t2",
+            # Case B: positional arg to a sibling callee.
+            "acme_edw_dev.edw_ref.case_b_patients",
+            # Case C: parameters-or-{} + coerced loop + f-string helper call.
+            "acme_edw_dev.edw_syd.case_c_orders",
+            "acme_edw_dev.edw_mel.case_c_orders",
+        }
+        missing = expected - external_sources
+        assert not missing, (
+            f"Statically-resolvable reads failed to surface: {missing}. "
+            f"external_sources: {external_sources}"
+        )
+
+        # Everything resolved — no advisory may reference these flowgroups.
+        case_warnings = [
+            w
+            for w in data["warnings"]
+            if any(
+                a["flowgroup"].startswith("case_")
+                for a in (w["affected_actions"] or [w])
+            )
+            or w["flowgroup"].startswith("case_")
+        ]
+        assert case_warnings == [], (
+            f"Cases A/B/C must resolve with zero warnings, got: {case_warnings}"
+        )
+
+    def test_deps_blueprint_pipeline_identity_full_expansion(self):
+        """REGRESSION (dedup-loss): a blueprint that parameterizes
+        ``pipeline:`` per instance must contribute EVERY instance's pipeline
+        to the DAG — the old default view collapsed synthetics to one
+        representative per spec and silently dropped all but the first
+        instance's pipeline from the JSON and the job orchestration YAML.
+        """
+        blueprint = self.project_root / "blueprints" / "bp11_per_site.yaml"
+        blueprint.write_text(
+            textwrap.dedent("""\
+                name: bp11_per_site
+                version: "1.0"
+                description: "Per-site pipeline identity (dedup-loss regression)."
+
+                parameters:
+                  - name: site_name
+                    required: true
+                    description: "Site identifier; becomes part of the pipeline name."
+
+                flowgroups:
+                  - pipeline: "bp11_%{site_name}_pipeline"
+                    flowgroup: "%{site_name}_bp11_ingest"
+                    actions:
+                      - name: load_%{site_name}_bp11_seed
+                        type: load
+                        readMode: stream
+                        source:
+                          type: delta
+                          database: "${catalog}.${raw_schema}"
+                          table: dep_bindings_seed
+                        target: "v_%{site_name}_bp11_seed"
+                      - name: write_%{site_name}_bp11
+                        type: write
+                        source: "v_%{site_name}_bp11_seed"
+                        write_target:
+                          type: streaming_table
+                          database: "${catalog}.${silver_schema}"
+                          table: "bp11_%{site_name}_out"
+                """),
+            encoding="utf-8",
+        )
+        instance_dir = self.project_root / "pipelines" / "20_bp11_sites"
+        instance_dir.mkdir(parents=True, exist_ok=True)
+        for site in ("site_a", "site_b"):
+            (instance_dir / f"{site}.yaml").write_text(
+                textwrap.dedent(f"""\
+                    use_blueprint: bp11_per_site
+                    parameters:
+                      site_name: {site}
+                    """),
+                encoding="utf-8",
+            )
+
+        exit_code, output = self.run_dag_command("--format", "json,job")
+        assert exit_code == 0, f"lhp dag failed: {output}"
+
+        data = self._load_json_output()
+        pipelines = set(data["pipelines"])
+        assert {"bp11_site_a_pipeline", "bp11_site_b_pipeline"} <= pipelines, (
+            "Both per-site pipelines must appear in the DAG JSON. "
+            f"Got: {sorted(p for p in pipelines if p.startswith('bp11'))}"
+        )
+
+        deps_dir = self.project_root / ".lhp" / "dependencies"
+        job_files = list(deps_dir.rglob("*.job.yml"))
+        assert job_files, f"Expected job YAML under {deps_dir}"
+        job_text = "\n".join(f.read_text(encoding="utf-8") for f in job_files)
+        for pipeline in ("bp11_site_a_pipeline", "bp11_site_b_pipeline"):
+            assert pipeline in job_text, (
+                f"{pipeline} missing from the job orchestration YAML — "
+                "blueprint instances were dropped from job output"
+            )

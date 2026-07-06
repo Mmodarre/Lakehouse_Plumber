@@ -36,6 +36,7 @@ from lhp.api import (
     collect_response,
 )
 from lhp.api.responses import (
+    AffectedActionView,
     BatchGenerationResponse,
     BatchValidationResponse,
     DependencyWarningView,
@@ -187,6 +188,15 @@ def dependency_warning_view() -> DependencyWarningView:
         suggestion="Declare an explicit depends_on for 'raw.customer'",
         file_path="pipelines/bronze/customer.yaml",
         line=12,
+        edit_yaml_path="pipelines/bronze/customer.yaml",
+        affected_actions=(
+            AffectedActionView(
+                flowgroup="customer_ingest",
+                action="load_customer",
+                edit_yaml_path="pipelines/bronze/customer.yaml",
+            ),
+        ),
+        affected_count=1,
     )
 
 
@@ -201,6 +211,7 @@ class TestFrozenContract:
             BatchGenerationResponse,
             ValidationResponse,
             BatchValidationResponse,
+            AffectedActionView,
             DependencyWarningView,
             pytest.param(
                 InitProjectResult,
@@ -397,10 +408,25 @@ class TestJSONRoundTripViaFields:
     def test_dependency_warning_view_fields_json_round_trip(
         self, dependency_warning_view: DependencyWarningView
     ) -> None:
-        """Every field is a flat JSON-native value (str / Optional / int)."""
+        """Every field is JSON-native modulo tuple->list: the nested
+        ``affected_actions`` tuple round-trips as a list of dicts and
+        reconstructs back into ``AffectedActionView`` entries."""
         payload = dataclasses.asdict(dependency_warning_view)
-        assert _json_round_trip(payload) == payload
-        restored = DependencyWarningView(**_json_round_trip(payload))
+        round_tripped = _json_round_trip(payload)
+        assert round_tripped == {
+            **payload,
+            "affected_actions": list(payload["affected_actions"]),
+        }
+        assert isinstance(round_tripped, dict)
+        restored = DependencyWarningView(
+            **{
+                **round_tripped,
+                "affected_actions": tuple(
+                    AffectedActionView(**affected)
+                    for affected in round_tripped["affected_actions"]
+                ),
+            }
+        )
         assert restored == dependency_warning_view
 
     @pytest.mark.skipif(
@@ -455,6 +481,7 @@ class TestFieldTypeContract:
             BatchGenerationResponse,
             ValidationResponse,
             BatchValidationResponse,
+            AffectedActionView,
             DependencyWarningView,
             pytest.param(
                 InitProjectResult,
@@ -481,6 +508,7 @@ class TestFieldTypeContract:
             BatchGenerationResponse,
             ValidationResponse,
             BatchValidationResponse,
+            AffectedActionView,
             DependencyWarningView,
             pytest.param(
                 InitProjectResult,
@@ -514,6 +542,7 @@ class TestFieldTypeContract:
             BatchGenerationResponse,
             ValidationResponse,
             BatchValidationResponse,
+            AffectedActionView,
             DependencyWarningView,
             pytest.param(
                 InitProjectResult,

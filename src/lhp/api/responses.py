@@ -214,6 +214,22 @@ class StatsResult:
 
 
 @dataclass(frozen=True)
+class AffectedActionView:
+    """One action affected by an aggregated extraction-warning site.
+
+    ``edit_yaml_path`` names the YAML file where a ``depends_on`` entry
+    for this action belongs — the flowgroup YAML, or the blueprint YAML
+    for a blueprint-expanded synthetic flowgroup.
+
+    :stability: provisional
+    """
+
+    flowgroup: str
+    action: str
+    edit_yaml_path: Optional[str] = None
+
+
+@dataclass(frozen=True)
 class DependencyWarningView:
     """Advisory warning surfaced by dependency extraction.
 
@@ -222,6 +238,12 @@ class DependencyWarningView:
     advisory extraction warnings (codes ``LHP-DEP-002`` /
     ``LHP-DEP-003``) that recommend an explicit ``depends_on``
     declaration — warning-only, never raised as errors.
+
+    One record per unresolved read SITE: ``flowgroup`` / ``action`` are
+    the representative (first sorted) affected action, while
+    ``affected_actions`` / ``affected_count`` enumerate every distinct
+    action referencing the site. ``edit_yaml_path`` is the YAML file a
+    ``depends_on`` fix belongs in.
 
     :stability: provisional
     """
@@ -233,6 +255,9 @@ class DependencyWarningView:
     suggestion: str
     file_path: Optional[str] = None
     line: Optional[int] = None
+    edit_yaml_path: Optional[str] = None
+    affected_actions: Tuple[AffectedActionView, ...] = ()
+    affected_count: int = 1
 
 
 @dataclass(frozen=True)

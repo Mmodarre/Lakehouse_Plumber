@@ -447,7 +447,7 @@ class TestDependencyAnalysisService:
         assert result.execution_stages[2] == ["pipeline_d"]  # D runs last
 
     @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
-    @patch("lhp.core.dependencies.source_parsing.extract_tables_from_sql")
+    @patch("lhp.core.dependencies._parse_cache.extract_tables_from_sql")
     def test_sql_source_extraction(self, mock_extract_sql, mockget_flowgroups):
         mock_extract_sql.return_value = SqlExtractionResult(
             tables=["bronze.customers", "bronze.orders"], warnings=[]
@@ -542,7 +542,7 @@ class TestDependencyAnalysisService:
         sql_file.write_text("SELECT * FROM bronze.test_table")
 
         with patch(
-            "lhp.core.dependencies.source_parsing.extract_tables_from_sql",
+            "lhp.core.dependencies._parse_cache.extract_tables_from_sql",
             return_value=SqlExtractionResult(tables=["bronze.test_table"], warnings=[]),
         ):
             graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
@@ -1230,7 +1230,7 @@ class TestWriteTargetExtraction:
         self.analyzer._flowgroup_file_paths["gold_fg"] = yaml_path
 
         with patch(
-            "lhp.core.dependencies.source_parsing.extract_tables_from_sql",
+            "lhp.core.dependencies._parse_cache.extract_tables_from_sql",
             return_value=SqlExtractionResult(tables=["silver.customers"], warnings=[]),
         ):
             graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
@@ -1455,7 +1455,7 @@ class TestWriteTargetExtraction:
         self.analyzer._flowgroup_file_paths["fg"] = yaml_path
 
         with patch(
-            "lhp.core.dependencies.source_parsing.extract_tables_from_sql",
+            "lhp.core.dependencies._parse_cache.extract_tables_from_sql",
             return_value=SqlExtractionResult(tables=["parser.src"], warnings=[]),
         ):
             graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())

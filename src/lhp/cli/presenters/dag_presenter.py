@@ -151,7 +151,8 @@ def _render_external_sources(
         )
 
 
-_MAX_WARNING_LINES = 10
+_MAX_WARNING_SITES = 50
+_MAX_AFFECTED_SHOWN = 3
 
 
 def _render_warnings(
@@ -159,37 +160,77 @@ def _render_warnings(
     *,
     console: "Console",
 ) -> None:
-    """Render extraction warnings when present (silent otherwise).
+    """Render extraction warnings as one grouped site table (silent otherwise).
 
-    Shows a count header, up to :data:`_MAX_WARNING_LINES` detail lines
-    (``code flowgroup.action (file:line): message`` — the location part is
-    omitted or shortened when the warning carries no file/line), an overflow
-    line pointing at the JSON output, and one trailing ``depends_on`` hint.
+    Warnings arrive aggregated per unresolved read SITE. Each row shows the
+    advisory code, the read location (``file:line``), the reason (message,
+    including the opaque argument expression), the affected actions (count
+    plus the first :data:`_MAX_AFFECTED_SHOWN` ``flowgroup.action`` pairs,
+    ``+N more`` beyond that) and the distinct YAML file(s) a ``depends_on``
+    fix belongs in. At most :data:`_MAX_WARNING_SITES` sites render, with an
+    overflow row pointing at the JSON output; a count header and one
+    trailing ``depends_on`` hint frame the table.
     """
     if not result.warnings:
         return
 
+    total_affected = sum(w.affected_count for w in result.warnings)
     console.print(
         Text(
-            f"{len(result.warnings)} dependency extraction warning(s):",
+            f"{len(result.warnings)} unresolved read site(s) affecting "
+            f"{total_affected} action(s):",
             style="bold yellow",
         )
     )
-    for warning in result.warnings[:_MAX_WARNING_LINES]:
+
+    rows: list[tuple[str, str, str, str, str]] = []
+    for warning in result.warnings[:_MAX_WARNING_SITES]:
         location = ""
         if warning.file_path and warning.line is not None:
-            location = f" ({warning.file_path}:{warning.line})"
+            location = f"{warning.file_path}:{warning.line}"
         elif warning.file_path:
-            location = f" ({warning.file_path})"
-        console.print(
-            Text(
-                f"  {warning.code} {warning.flowgroup}.{warning.action}"
-                f"{location}: {warning.message}"
+            location = warning.file_path
+
+        if warning.affected_actions:
+            pairs = [
+                (f"{a.flowgroup}.{a.action}", a.edit_yaml_path)
+                for a in warning.affected_actions
+            ]
+        else:
+            pairs = [(f"{warning.flowgroup}.{warning.action}", warning.edit_yaml_path)]
+        shown = [name for name, _ in pairs[:_MAX_AFFECTED_SHOWN]]
+        overflow = len(pairs) - _MAX_AFFECTED_SHOWN
+        if overflow > 0:
+            shown.append(f"+{overflow} more")
+        edit_paths = list(dict.fromkeys(path for _, path in pairs if path))
+
+        rows.append(
+            (
+                warning.code,
+                location,
+                warning.message,
+                f"{warning.affected_count}: {', '.join(shown)}",
+                ", ".join(edit_paths[:3]) if edit_paths else "-",
             )
         )
-    overflow = len(result.warnings) - _MAX_WARNING_LINES
-    if overflow > 0:
-        console.print(Text(f"  ... and {overflow} more (see JSON output)", style="dim"))
+    site_overflow = len(result.warnings) - _MAX_WARNING_SITES
+    if site_overflow > 0:
+        rows.append(
+            ("...", f"+{site_overflow} more site(s)", "see JSON output", "", "")
+        )
+
+    render_listing_table(
+        "Extraction warnings",
+        [
+            ColumnSpec("Code"),
+            ColumnSpec("Unresolved read"),
+            ColumnSpec("Reason", style="dim"),
+            ColumnSpec("Affected"),
+            ColumnSpec("Add depends_on in"),
+        ],
+        rows,
+        sink=console,
+    )
     console.print(
         Text(
             "  Declare explicit 'depends_on' for reads LHP cannot resolve.",

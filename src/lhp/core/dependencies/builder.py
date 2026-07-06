@@ -15,16 +15,70 @@ delegates to it.
 
 import logging
 from collections import defaultdict
+from dataclasses import replace
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import networkx as nx
 
 from lhp.models import FlowGroup
 
-from ...models.dependencies import DependencyGraphs, DependencyWarning
+from ...models.dependencies import (
+    AffectedAction,
+    DependencyGraphs,
+    DependencyWarning,
+)
+from ._parse_cache import ParseCache
 from ._producers import build_producer_indexes, match_table_producers
 from .source_parsing import SourceParser
+
+
+def _aggregate_warnings(
+    leaves: List[DependencyWarning],
+) -> List[DependencyWarning]:
+    """Aggregate leaf advisories by warning SITE.
+
+    One unresolvable read lives at exactly one source location, but every
+    action referencing that file re-parses it and re-emits the leaf — a
+    shared helper can fan a single site out to thousands of near-identical
+    records. Grouping by ``(code, file_path, line, message)`` folds each
+    site back to ONE record carrying the distinct affected actions (sorted
+    by flowgroup/action; the first becomes the record's representative
+    ``flowgroup``/``action``/``edit_yaml_path``) and their count. Site
+    order follows first appearance, so output is deterministic.
+    """
+    grouped: Dict[
+        Tuple[str, Optional[str], Optional[int], str], List[DependencyWarning]
+    ] = {}
+    for leaf in leaves:
+        key = (leaf.code, leaf.file_path, leaf.line, leaf.message)
+        grouped.setdefault(key, []).append(leaf)
+
+    aggregated: List[DependencyWarning] = []
+    for group in grouped.values():
+        affected = sorted(
+            {
+                AffectedAction(
+                    flowgroup=w.flowgroup,
+                    action=w.action,
+                    edit_yaml_path=w.edit_yaml_path,
+                )
+                for w in group
+            },
+            key=lambda a: (a.flowgroup, a.action),
+        )
+        representative = affected[0]
+        aggregated.append(
+            replace(
+                group[0],
+                flowgroup=representative.flowgroup,
+                action=representative.action,
+                edit_yaml_path=representative.edit_yaml_path,
+                affected_actions=tuple(affected),
+                affected_count=len(affected),
+            )
+        )
+    return aggregated
 
 
 class DependencyGraphBuilder:
@@ -45,6 +99,10 @@ class DependencyGraphBuilder:
                 :class:`SourceParser`.
         """
         self.project_root = project_root
+        # Per-builder read/parse memo: a helper file referenced by N actions
+        # is read + parsed once, not N times (content-keyed, so sharing it
+        # across this builder's builds stays correct).
+        self._parse_cache = ParseCache()
         self.logger = logging.getLogger(__name__)
 
     def build_from_flowgroups(
@@ -146,7 +204,9 @@ class DependencyGraphBuilder:
         # source written as a literal `${catalog}.schema.table` cannot match a
         # producer whose write_target resolved to a concrete catalog — this is a
         # documented authoring constraint, NOT fixed by ref canonicalization.
-        source_parser = SourceParser(file_paths, self.project_root)
+        source_parser = SourceParser(
+            file_paths, self.project_root, parse_cache=self._parse_cache
+        )
         extraction_warnings: List[DependencyWarning] = []
 
         for flowgroup in flowgroups:
@@ -177,10 +237,7 @@ class DependencyGraphBuilder:
                             graph.nodes[action_id]["external_sources"] = []
                         graph.nodes[action_id]["external_sources"].append(source)
 
-        # Ordered dedup over full-record equality (DependencyWarning is a
-        # frozen dataclass): identical advisories — same code/message/
-        # flowgroup/action/file/line — collapse to one, first occurrence wins.
-        return graph, list(dict.fromkeys(extraction_warnings))
+        return graph, _aggregate_warnings(extraction_warnings)
 
     def _build_flowgroup_graph(
         self, flowgroups: List[FlowGroup], action_graph: nx.DiGraph

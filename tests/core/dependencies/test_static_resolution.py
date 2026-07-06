@@ -16,11 +16,16 @@ from typing import Callable, Optional
 import pytest
 
 from lhp.core.dependencies._bindings import Bound, DictValue, ListValue
-from lhp.core.dependencies._static_resolution import (
-    render_f_string,
+from lhp.core.dependencies._bound_folding import (
+    binding_updates,
+    fold_builtin_call,
+    resolve_boolop,
     resolve_static_bound,
     resolve_static_dict,
     resolve_static_list,
+)
+from lhp.core.dependencies._static_resolution import (
+    render_f_string,
     resolve_static_string_values,
 )
 
@@ -651,3 +656,171 @@ class TestResolveStaticBound:
     def test_unresolvable_expression_is_none(self):
         assert resolve_static_bound(_expr("get_name()")) is None
         assert resolve_static_bound(_expr("tbl"), _resolver()) is None
+
+
+def _stmt(code: str) -> ast.stmt:
+    """Parse ``code`` as a single statement and return its AST node."""
+    return ast.parse(code).body[0]
+
+
+@pytest.mark.unit
+class TestBoolOpStringContext:
+    """``a or b`` / ``a and b`` union their operands' string sets."""
+
+    def test_union_of_two_literal_operands(self):
+        assert resolve_static_string_values(_expr('"a" or "b"')) == frozenset(
+            {"a", "b"}
+        )
+
+    def test_and_chain_unions_operands(self):
+        assert resolve_static_string_values(_expr('"a" and "b"')) == frozenset(
+            {"a", "b"}
+        )
+
+    def test_one_dynamic_operand_poisons(self):
+        # A dynamic branch could carry any value, so the whole BoolOp is
+        # unresolved in string context (empty set).
+        assert resolve_static_string_values(_expr('"a" or dyn')) == frozenset()
+
+
+@pytest.mark.unit
+class TestResolveBoolOp:
+    """``resolve_boolop`` in bound context: union or poison over operands."""
+
+    def test_dict_or_empty_dict_yields_the_dict_value(self):
+        # The common ``parameters or {}`` idiom folds to the parameters
+        # DictValue (entry-union with the empty dict).
+        resolver = _resolver(parameters=DictValue({"k": frozenset({"v"})}))
+        assert resolve_boolop(_expr("parameters or {}"), resolver) == DictValue(
+            {"k": frozenset({"v"})}
+        )
+
+    def test_mismatched_shapes_poison(self):
+        resolver = _resolver(a=frozenset({"x"}), b=DictValue({"k": frozenset({"v"})}))
+        assert resolve_boolop(_expr("a or b"), resolver) is None
+
+    def test_unresolvable_operand_poisons(self):
+        resolver = _resolver(a=frozenset({"x"}))
+        assert resolve_boolop(_expr("a or missing"), resolver) is None
+
+
+@pytest.mark.unit
+class TestFoldBuiltinCall:
+    """Allowlisted collection builtins fold to their element value set."""
+
+    def test_sorted_literal(self):
+        assert fold_builtin_call(_expr('sorted(["b", "a"])')) == frozenset({"a", "b"})
+
+    def test_set_list_tuple(self):
+        assert fold_builtin_call(_expr('set(["a"])')) == frozenset({"a"})
+        assert fold_builtin_call(_expr('list(["a"])')) == frozenset({"a"})
+        assert fold_builtin_call(_expr('tuple(["a"])')) == frozenset({"a"})
+
+    def test_dict_fromkeys_over_name_bound_list_value(self):
+        resolver = _resolver(cols=ListValue(("a", "b")))
+        assert fold_builtin_call(_expr("dict.fromkeys(cols)"), resolver) == frozenset(
+            {"a", "b"}
+        )
+
+    def test_dict_fromkeys_two_args_folds_keys(self):
+        assert fold_builtin_call(_expr('dict.fromkeys(["a", "b"], 0)')) == frozenset(
+            {"a", "b"}
+        )
+
+    def test_keywords_not_folded(self):
+        assert fold_builtin_call(_expr('sorted(["a"], reverse=True)')) is None
+
+    def test_sorted_two_positional_args_not_folded(self):
+        assert fold_builtin_call(_expr("sorted(x, y)")) is None
+
+    def test_non_allowlisted_call_not_folded(self):
+        assert fold_builtin_call(_expr('frozenset(["a"])')) is None
+
+    def test_token_bytes_preserved(self):
+        assert fold_builtin_call(_expr('sorted(["${catalog}.sch.t"])')) == frozenset(
+            {"${catalog}.sch.t"}
+        )
+
+
+@pytest.mark.unit
+class TestResolveStaticBoundNewBranches:
+    """``resolve_static_bound`` BoolOp / builtin / call_resolver branches."""
+
+    def test_boolop_branch(self):
+        resolver = _resolver(parameters=DictValue({"k": frozenset({"v"})}))
+        assert resolve_static_bound(_expr("parameters or {}"), resolver) == DictValue(
+            {"k": frozenset({"v"})}
+        )
+
+    def test_builtin_call_branch(self):
+        assert resolve_static_bound(_expr('sorted(["b", "a"])')) == frozenset(
+            {"a", "b"}
+        )
+
+    def test_call_resolver_fallback_returns_dict_value(self):
+        call_resolver = lambda call: DictValue({"kk": frozenset({"vv"})})  # noqa: E731
+        assert resolve_static_bound(
+            _expr("some_call()"), call_resolver=call_resolver
+        ) == DictValue({"kk": frozenset({"vv"})})
+
+
+@pytest.mark.unit
+class TestStringContextCallResolverFallback:
+    """A call not recognized as a method falls back to ``call_resolver``."""
+
+    def test_frozenset_return_resolves_in_string_context(self):
+        call_resolver = lambda call: frozenset({"cat.a.t"})  # noqa: E731
+        assert resolve_static_string_values(
+            _expr("some()"), call_resolver=call_resolver
+        ) == frozenset({"cat.a.t"})
+
+    def test_dict_value_return_does_not_resolve_in_string_context(self):
+        # A DictValue is "not a string here" — string context yields empty.
+        call_resolver = lambda call: DictValue({"k": frozenset({"v"})})  # noqa: E731
+        assert (
+            resolve_static_string_values(_expr("some()"), call_resolver=call_resolver)
+            == frozenset()
+        )
+
+
+@pytest.mark.unit
+class TestBindingUpdates:
+    """The shared statement-level binding replay (Assign / AnnAssign / For)."""
+
+    def test_simple_assign(self):
+        assert binding_updates(_stmt('a = "x"'), _resolver()) == [
+            ("a", frozenset({"x"}))
+        ]
+
+    def test_chained_assign_binds_all_targets(self):
+        assert binding_updates(_stmt('a = b = "x"'), _resolver()) == [
+            ("a", frozenset({"x"})),
+            ("b", frozenset({"x"})),
+        ]
+
+    def test_tuple_parallel_literal_unpacking(self):
+        assert binding_updates(_stmt('a, b = "x", "y"'), _resolver()) == [
+            ("a", frozenset({"x"})),
+            ("b", frozenset({"y"})),
+        ]
+
+    def test_ann_assign(self):
+        assert binding_updates(_stmt('a: str = "x"'), _resolver()) == [
+            ("a", frozenset({"x"}))
+        ]
+
+    def test_ann_assign_without_value_binds_nothing(self):
+        assert binding_updates(_stmt("a: str"), _resolver()) == []
+
+    def test_for_over_list_literal_binds_union(self):
+        assert binding_updates(
+            _stmt('for t in ["a", "b"]:\n    pass'), _resolver()
+        ) == [("t", frozenset({"a", "b"}))]
+
+    def test_for_over_dict_fromkeys_call(self):
+        assert binding_updates(
+            _stmt('for t in dict.fromkeys(["a", "b"]):\n    pass'), _resolver()
+        ) == [("t", frozenset({"a", "b"}))]
+
+    def test_for_with_non_name_target_no_updates(self):
+        assert binding_updates(_stmt("for (a, b) in x:\n    pass"), _resolver()) == []

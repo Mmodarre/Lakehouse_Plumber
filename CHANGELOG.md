@@ -155,6 +155,53 @@ silently missing edges.
   junk `"{var}"` placeholder table in external sources; such reads are now
   reported as unresolved via `LHP-DEP-002`, and the junk `{var}` entries
   disappear from `lhp dag` outputs.
+- **`LHP-DEP-002` messages now name the unresolved expression.** The advisory
+  reads ``Cannot statically resolve the table argument of `<call>(...)` — the
+  value of `<expr>` is only known at runtime``, quoting the exact argument
+  expression (e.g. `os.environ['TBL']`, `helper(x)`) instead of a generic
+  "not statically resolvable" note.
+- **Extraction warnings are now aggregated per unresolved read site.** The
+  graph builder groups leaf advisories by `(code, file_path, line, message)`,
+  emitting one record per read *site* rather than one per affected action. A
+  helper referenced by thousands of near-identical actions (one field case
+  produced 11,451 warnings from four helper sites) now yields four records.
+  Each record carries a representative `flowgroup`/`action`, the
+  `edit_yaml_path` where a `depends_on` fix belongs, and the full
+  `affected_actions` list (with `affected_count`).
+- **`depends_on` now suppresses the action's extraction advisories.** A
+  non-empty `depends_on` on an action silences its `LHP-DEP-002`/`LHP-DEP-003`
+  warnings — the author has taken manual control of that action's edges.
+  Suppression is per *action*, not per read (matching a declared entry to an
+  opaque read is uncomputable), so an action with two opaque reads and one
+  declared upstream stops warning about the second read as well. Declared
+  entries still contribute edges additively, unchanged.
+- **`--expand-blueprints` is now a deprecated, ignored no-op.** Blueprint
+  synthetic flowgroups are always fully expanded (see Fixed, below), so the
+  flag no longer changes behavior; passing it prints a deprecation notice and
+  emits a `DeprecationWarning`. `--blueprint <name>` (restrict analysis to one
+  blueprint) is unchanged.
+- **Removed the `expand_blueprints` keyword argument** from the provisional
+  `InspectionFacade.analyze_dependencies` and
+  `InspectionFacade.save_dependency_outputs` (constitution §1.13
+  provisional-API removal notice). Dependency analysis is always fully
+  expanded; the parameter no longer had any effect.
+- **Public API `DependencyWarningView` gained `edit_yaml_path`,
+  `affected_actions`, and `affected_count`; new `AffectedActionView` DTO**
+  exported from `lhp.api` (both `:stability:` provisional). In the JSON
+  output each `warnings[]` entry gains `edit_yaml_path`, `affected_actions`
+  (array of objects), and `affected_count`; `metadata.total_warnings` now
+  counts distinct read sites, and a new `metadata.total_warning_occurrences`
+  counts site × affected-action pairs.
+
+### Performance
+
+- **One analysis per `lhp dag` invocation.** `analyze_project` is memoized so a
+  single command does one discovery + graph build + analysis, shared across
+  the analysis, output serialization, and job-orchestration phases (previously
+  each phase re-analyzed).
+- **Per-run parse caches.** A helper `.py` module referenced by many actions is
+  read and parsed once per run, and SQL bodies are deduplicated by content,
+  so large projects no longer re-parse the same sources repeatedly.
 
 ### Fixed
 
@@ -170,6 +217,36 @@ silently missing edges.
   correctly excludes MERGE/INSERT/CTAS write targets and handles CTEs, quoted
   identifiers, multi-statement SQL, and string literals containing `FROM`;
   the `$source` placeholder no longer leaks into external sources.
+- **Blueprint instances that parameterize `pipeline:` no longer lose pipelines
+  from the dependency graph.** Dependency analysis previously deduplicated
+  synthetic flowgroups by `(blueprint_name, spec_index)`, keeping one
+  representative node per spec. When a blueprint set `pipeline:` per instance,
+  every non-representative instance's pipeline silently vanished from the DAG,
+  the JSON output, and the `--format job` orchestration YAML. Blueprint
+  synthetic flowgroups are now always fully expanded (one node per instance),
+  so per-instance pipelines are preserved everywhere.
+- **Static Python resolution now spans function boundaries (RC1–RC4).** Reads
+  the extractor previously reported as unresolvable (`LHP-DEP-002`) now
+  resolve when statically knowable:
+  - **RC1 — function parameters:** a parameter's value set is the union of the
+    argument values across the function's call sites in the same file, plus
+    any YAML-bound parameters and signature defaults.
+  - **RC2 — return values:** a bare-name call to a user function in the same
+    file resolves to the union of its `return` expressions (`return None` and
+    bare `return` are skipped; any dynamic return poisons the result to
+    "unknown").
+  - **RC3 — boolean and builtin folds:** `a or b` / `a and b` fold to the union
+    of the operand value sets (so `parameters or {}` resolves to the
+    parameters dict), and the allowlisted collection builtins `list(x)`,
+    `tuple(x)`, `sorted(x)`, `set(x)`, and `dict.fromkeys(x)` fold as identity
+    on the element value set.
+  - **RC4 — loop unrolling:** `for t in <statically-foldable iterable>` unrolls
+    (including iteration over dict keys), emitting one read per element.
+
+  Resolution is memoized, cycle-guarded (recursion resolves to "unknown",
+  keeping the advisory), depth-capped, and value-set-capped. It is never
+  speculative — anything genuinely dynamic (e.g. `os.environ`) still yields
+  `LHP-DEP-002`.
 
 ### Removed
 
