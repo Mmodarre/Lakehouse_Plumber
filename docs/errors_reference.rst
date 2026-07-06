@@ -1827,19 +1827,37 @@ generation.
 (for example ``spark.read.table(...)`` or ``spark.sql(...)``) whose table
 argument cannot be statically resolved — its value is only known at runtime.
 The read contributes no dependency edge, so the graph may be missing an
-upstream relationship.
+upstream relationship. The message names the unresolved expression, for
+example:
+
+.. code-block:: text
+
+   Cannot statically resolve the table argument of `spark.read.table(...)` — the value of `os.environ['TBL']` is only known at runtime.
+
+**What resolves statically first.** Extraction is inter-procedural within a
+single file: it follows function parameters (unioned across call sites, plus
+YAML-bound values and signature defaults), user-function return values (so
+``spark.read.table(helper(x))`` now resolves when the helper is statically
+knowable), ``a or b`` / ``a and b`` folds, the collection builtins ``list`` /
+``tuple`` / ``sorted`` / ``set`` / ``dict.fromkeys``, and loops over
+statically-foldable iterables. This advisory fires only for reads that remain
+genuinely dynamic after all of that. See :doc:`dependency_analysis` for the
+full resolution rules.
 
 **Common causes:**
 
-- The table name comes from a helper or function call
-  (``spark.read.table(helper(x))`` — the parser never follows calls)
-- The name is built from a function argument that is not bound from the
-  action's YAML ``parameters``
+- The name comes from the environment or other runtime I/O
+  (``os.environ[...]``, a config lookup, an API result)
+- A function parameter receives a dynamic value at one of its call sites, so
+  its value set cannot be folded
 - A class attribute or other runtime-only value supplies the name
 
 **Where it appears:** the ``lhp dag`` terminal summary (stderr), the JSON
 output's top-level ``warnings`` array, and the text report — never in the
-DOT output or generated job YAML.
+DOT output or generated job YAML. Warnings are **aggregated per read site**:
+one record groups every action that shares the same unresolved read and
+carries ``edit_yaml_path``, ``affected_actions``, and ``affected_count``
+(see :ref:`extraction-warnings`).
 
 .. code-block:: yaml
    :caption: Fix — declare the edge explicitly
@@ -1855,8 +1873,11 @@ DOT output or generated job YAML.
          - acme_prod.reference.exchange_rates
 
 ``depends_on`` is additive — its entries contribute edges on top of whatever
-the parser extracts. Each entry is validated by
-:ref:`LHP-VAL-063 <lhp-val-063>`.
+the parser extracts. A **non-empty** ``depends_on`` also **suppresses** this
+advisory for the whole action; suppression is per action, not per read, so an
+action with two opaque reads and only one declared upstream stops warning
+about the second read too — declare every upstream the action needs. Each
+entry is validated by :ref:`LHP-VAL-063 <lhp-val-063>`.
 
 .. _lhp-dep-003:
 
@@ -1880,11 +1901,14 @@ implies are missing from the graph.
   flowgroup-YAML feature and are not valid in SQL files
 
 **Where it appears:** the same surfaces as ``LHP-DEP-002`` — terminal
-summary, JSON ``warnings`` array, and text report.
+summary, JSON ``warnings`` array, and text report — with the same per-read-site
+aggregation (``edit_yaml_path`` / ``affected_actions`` / ``affected_count``).
 
 **Fix:** Correct the SQL so it parses as Databricks SQL, or declare the
-upstream tables explicitly with ``depends_on`` on the action (each entry is
-validated by :ref:`LHP-VAL-063 <lhp-val-063>`).
+upstream tables explicitly with ``depends_on`` on the action. A non-empty
+``depends_on`` both contributes those edges and **suppresses** this advisory
+for the action (per action, not per read). Each entry is validated by
+:ref:`LHP-VAL-063 <lhp-val-063>`.
 
 .. seealso::
 

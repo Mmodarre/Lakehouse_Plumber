@@ -304,34 +304,32 @@ class InspectionFacade:
         self,
         *,
         pipeline_filter: Optional[str] = None,
-        expand_blueprints: bool = False,
         blueprint_filter: Optional[str] = None,
     ) -> DependencyAnalysisResult:
         """Run dependency analysis and return a frozen, flattened result.
 
         ``pipeline_filter`` restricts the graph to the named pipeline.
-        ``expand_blueprints=False`` dedupes synthetic flowgroups by
-        ``(blueprint_name, spec_index)`` so the resulting graph stays
-        readable at scale; ``True`` renders the literal expansion (one
-        node per blueprint × instance × spec). ``blueprint_filter``
-        further restricts the graph to synthetic flowgroups expanded
-        from the named blueprint.
+        ``blueprint_filter`` restricts the graph to synthetic flowgroups
+        expanded from the named blueprint. Blueprint expansion is always
+        full — one node per blueprint × instance × spec — so pipelines a
+        blueprint parameterizes per instance are never dropped. Analysis
+        is memoized per filter pair: a subsequent
+        :meth:`save_dependency_outputs` with the same filters reuses this
+        call's analysis.
 
         The result's ``warnings`` may carry ``LHP-DEP-002`` /
-        ``LHP-DEP-003`` advisory codes (never raised), each suggesting
-        an explicit ``depends_on`` declaration.
+        ``LHP-DEP-003`` advisory codes (never raised), aggregated per
+        unresolved read SITE with the affected actions enumerated, each
+        suggesting an explicit ``depends_on`` declaration.
 
         :stability: provisional
         :raises lhp.errors.LHPError: ``LHP-CFG-*`` / ``LHP-VAL-*`` /
             ``LHP-FILE-*`` / ``LHP-MULT-*`` propagated from flowgroup
             discovery and dependency analysis.
         """
-        dep_service = self._orchestrator.dependencies
-        dep_service.set_blueprint_view_mode(
-            expand_blueprints=expand_blueprints, blueprint=blueprint_filter
+        internal = self._orchestrator.dependencies.analyze_project(
+            pipeline_filter=pipeline_filter, blueprint_filter=blueprint_filter
         )
-        flowgroups = dep_service.get_flowgroups(pipeline_filter=pipeline_filter)
-        internal = dep_service.analyze(dep_service.build_graphs(flowgroups))
         return _dependency_result_to_view(internal)
 
     def save_dependency_outputs(
@@ -340,7 +338,6 @@ class InspectionFacade:
         formats: Sequence[str],
         output_dir: Path,
         pipeline_filter: Optional[str] = None,
-        expand_blueprints: bool = False,
         blueprint_filter: Optional[str] = None,
         job_name: Optional[str] = None,
         job_config_path: Optional[str] = None,
@@ -350,10 +347,10 @@ class InspectionFacade:
 
         ``formats`` accepts any combination of ``"dot"``, ``"json"``,
         ``"text"``, ``"job"``, or ``"all"`` (expands to all four).
-        Blueprint-view and pipeline-filter parameters mirror
-        :meth:`analyze_dependencies`. ``job_name`` /
-        ``job_config_path`` / ``bundle_output`` shape the ``"job"``
-        format only and have no effect on the others.
+        Filter parameters mirror :meth:`analyze_dependencies` (and share
+        its memoized analysis). ``job_name`` / ``job_config_path`` /
+        ``bundle_output`` shape the ``"job"`` format only and have no
+        effect on the others.
 
         Returns a frozen :class:`DependencyOutputsResult` enumerating
         every generated file with its format name and optional job-name
@@ -368,12 +365,9 @@ class InspectionFacade:
         from lhp.core.dependencies import DependencyOutputWriter
 
         dep_service = self._orchestrator.dependencies
-        dep_service.set_blueprint_view_mode(
-            expand_blueprints=expand_blueprints, blueprint=blueprint_filter
+        internal = dep_service.analyze_project(
+            pipeline_filter=pipeline_filter, blueprint_filter=blueprint_filter
         )
-        flowgroups = dep_service.get_flowgroups(pipeline_filter=pipeline_filter)
-        graphs = dep_service.build_graphs(flowgroups)
-        internal = dep_service.analyze(graphs)
 
         output_manager = DependencyOutputWriter()
         # ``save_outputs`` is typed ``Dict[str, Path]`` but the multi-job

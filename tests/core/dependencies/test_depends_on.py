@@ -13,7 +13,10 @@ Covered:
 - ``depends_on`` is canonicalized (case-variant / backtick entry still matches),
 - ``depends_on`` is ADDITIVE (unioned on top of a parseable source),
 - ``depends_on`` with no producer stays external (no phantom edge),
-- ``depends_on`` is unset/empty -> no extra edges (regression guard).
+- ``depends_on`` is unset/empty -> no extra edges (regression guard),
+- a non-empty ``depends_on`` SUPPRESSES the action's extraction
+  advisories (the user has taken manual control) while still forming
+  its edges; an identical action without it keeps the advisory.
 """
 
 from __future__ import annotations
@@ -179,3 +182,57 @@ class TestDependsOnEscapeHatch:
 
         assert not graph.has_edge("producer_fg.write_a", "consumer_fg.b")
         assert "external_sources" not in graph.nodes["consumer_fg.b"]
+
+
+@pytest.mark.unit
+class TestDependsOnSuppression:
+    """Non-empty ``depends_on`` suppresses LHP-DEP-002/003 for that action."""
+
+    _OPAQUE_MODULE = (
+        "def do_it(df, spark, parameters):\n    return spark.read.table(helper())\n"
+    )
+
+    def _consumer(self, depends_on: list[str] | None) -> FlowGroup:
+        return FlowGroup(
+            pipeline="p2",
+            flowgroup="consumer_fg",
+            actions=[
+                Action(
+                    name="opaque_act",
+                    type=ActionType.TRANSFORM,
+                    transform_type="python",
+                    module_path="transforms/opaque.py",
+                    function_name="do_it",
+                    source="v_in",
+                    target="v_out",
+                    depends_on=depends_on,
+                )
+            ],
+        )
+
+    def _build_graphs(self, tmp_path, depends_on: list[str] | None):
+        module = tmp_path / "transforms/opaque.py"
+        module.parent.mkdir(parents=True, exist_ok=True)
+        module.write_text(self._OPAQUE_MODULE)
+        builder = DependencyGraphBuilder(project_root=tmp_path)
+        return builder.build_from_flowgroups(
+            [_producer_fg("p1", "cat", "sch", "orders"), self._consumer(depends_on)],
+            file_paths={},
+        )
+
+    def test_depends_on_suppresses_advisory_and_still_forms_edge(self, tmp_path):
+        graphs = self._build_graphs(tmp_path, depends_on=["cat.sch.orders"])
+
+        # The declared upstream forms the INTERNAL edge...
+        assert graphs.action_graph.has_edge(
+            "producer_fg.write_a", "consumer_fg.opaque_act"
+        )
+        # ...and the action's opaque-read advisory is suppressed.
+        assert graphs.extraction_warnings == []
+
+    def test_without_depends_on_the_advisory_remains(self, tmp_path):
+        graphs = self._build_graphs(tmp_path, depends_on=None)
+
+        [warning] = graphs.extraction_warnings
+        assert warning.code == "LHP-DEP-002"
+        assert (warning.flowgroup, warning.action) == ("consumer_fg", "opaque_act")

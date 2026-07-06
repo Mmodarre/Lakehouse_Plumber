@@ -26,6 +26,7 @@ __all__ = [
     "ListValue",
     "ParameterBindings",
     "bound_from_yaml",
+    "merge_bound",
 ]
 
 
@@ -122,3 +123,19 @@ def bound_from_yaml(value: object) -> Optional[Bound]:
                 entries[key] = bound
         return DictValue(entries)
     return None
+
+
+def merge_bound(existing: Optional["Bound"], value: "Bound") -> "Bound":
+    """Merge a rebinding onto an existing bound (shared scope semantics).
+
+    A string-set rebinding merges via union — reassignment and conditional
+    branches accumulate candidate values. Any rebinding involving a
+    structured value (``ListValue`` / ``DictValue`` on either side) is
+    last-write-wins: unioning heterogeneous shapes would fabricate values
+    that no execution path produces. Shared by the extraction visitor's
+    scope stack and the call-resolution engine's environment replay so the
+    two can never drift.
+    """
+    if isinstance(existing, frozenset) and isinstance(value, frozenset):
+        return existing | value
+    return value

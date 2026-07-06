@@ -363,7 +363,7 @@ lhp dag --format job --job-name <name>         # Generate orchestration job
 lhp dag --format job --job-config config/job_config.yaml --bundle-output  # Job with config
 lhp dag --format dot                           # GraphViz dot (visualize, spot cycles)
 lhp dag --format json                          # Dependency graph as JSON
-lhp dag --expand-blueprints                    # One node per blueprint instance
+lhp dag --blueprint <name>                     # Restrict analysis to one blueprint (synthetics always fully expanded; --expand-blueprints is a deprecated no-op)
 
 # Inspection
 lhp diff --env <env>                          # Show what `lhp generate` would change on disk

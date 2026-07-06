@@ -30,8 +30,8 @@ from ._binding_rules import (
 )
 from ._bindings import ParameterBindings
 from ._canonical import canonicalize_table_ref
+from ._parse_cache import ParseCache
 from .source_extractor import extract_action_sources
-from .sql_extraction import extract_tables_from_sql
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,12 @@ class SourceParser:
     warnings); matching sources to producers is the builder's job.
     """
 
-    def __init__(self, file_paths: dict[str, Path], project_root: Path) -> None:
+    def __init__(
+        self,
+        file_paths: dict[str, Path],
+        project_root: Path,
+        parse_cache: Optional[ParseCache] = None,
+    ) -> None:
         """Wire the parser with the resolution context.
 
         Args:
@@ -70,9 +75,12 @@ class SourceParser:
                 project-root-only resolution.
             project_root: Root directory of the project, used as the fallback
                 resolution base.
+            parse_cache: Per-run read/parse memo shared across actions (the
+                builder threads one in); standalone callers get a fresh one.
         """
         self._file_paths = file_paths
         self.project_root = project_root
+        self._parse_cache = parse_cache or ParseCache()
         self.logger = logger
 
     def extract_action_sources(
@@ -80,19 +88,27 @@ class SourceParser:
     ) -> ActionSources:
         """Precedence: SQL parsing (reliable, wins alone) > Python parsing (union with explicit source:) > explicit source declaration (fallback).
 
-        ``action.depends_on`` is ADDITIVE: every declared entry is canonicalized
-        and unioned on top of the parsed/declared sources above, so it always
-        contributes edges (the builder's edge-matcher forms an INTERNAL edge when
-        a producer for that table exists). The escape hatch lets an action whose
-        upstream cannot be parsed from its SQL/Python body still declare the
-        dependency explicitly.
+        ``action.depends_on`` is ADDITIVE for edges: every declared entry is
+        canonicalized and unioned on top of the parsed/declared sources above,
+        so it always contributes edges (the builder's edge-matcher forms an
+        INTERNAL edge when a producer for that table exists). The escape hatch
+        lets an action whose upstream cannot be parsed from its SQL/Python
+        body still declare the dependency explicitly.
 
-        Returns an :class:`ActionSources` pairing the source list with the
-        stamped extraction warnings collected from every parsed body.
+        A non-empty ``depends_on`` additionally SUPPRESSES this action's
+        extraction advisories (LHP-DEP-002/003): the user has taken manual
+        control, which is what the advisories ask for. Suppression is
+        deliberately per-action, not per-read — an opaque read's target is
+        by definition unknown, so "which declared entry covers which read"
+        is uncomputable. Documented trade-off: an action with two opaque
+        reads and one declared upstream stops warning about the second.
         """
         parsed = self._extract_parsed_sources(action, flowgroup_name)
         sources = self._union_depends_on(parsed.sources, action, flowgroup_name)
-        return ActionSources(sources=sources, warnings=parsed.warnings)
+        suppressed = bool(getattr(action, "depends_on", None))
+        return ActionSources(
+            sources=sources, warnings=[] if suppressed else parsed.warnings
+        )
 
     def _extract_parsed_sources(
         self, action: Action, flowgroup_name: str
@@ -261,12 +277,21 @@ class SourceParser:
         ``file_path``; this fills all three (``file_path`` is the resolved
         ``.py`` file for file bodies, the flowgroup YAML for inline bodies),
         normalized to POSIX separators so JSON output is platform-stable.
-        Each warning's own ``line`` is preserved.
+        ``edit_yaml_path`` is stamped from the flowgroup's YAML in the
+        file-path index — for a blueprint synthetic that is the blueprint
+        YAML, exactly the file a ``depends_on`` fix belongs in. Each
+        warning's own ``line`` is preserved.
         """
         posix_path = PurePath(file_path).as_posix() if file_path else file_path
+        yaml_file = self._file_paths.get(flowgroup_name)
+        edit_yaml_path = PurePath(yaml_file).as_posix() if yaml_file else None
         return [
             replace(
-                w, flowgroup=flowgroup_name, action=action.name, file_path=posix_path
+                w,
+                flowgroup=flowgroup_name,
+                action=action.name,
+                file_path=posix_path,
+                edit_yaml_path=edit_yaml_path,
             )
             for w in warnings
         ]
@@ -331,7 +356,7 @@ class SourceParser:
             )
 
         try:
-            content = resolved_path.read_text(encoding="utf-8")
+            content = self._parse_cache.read_text(resolved_path)
             parsed, raw_warnings = parser_fn(content)
             stamped = self._stamp_warnings(
                 raw_warnings, action, flowgroup_name, str(resolved_path)
@@ -365,7 +390,7 @@ class SourceParser:
         """
 
         def _parse_sql(sql_text: str) -> tuple[list[str], list[DependencyWarning]]:
-            result = extract_tables_from_sql(sql_text)
+            result = self._parse_cache.extract_sql(sql_text)
             return result.tables, result.warnings
 
         yaml_file = self._file_paths.get(flowgroup_name)
@@ -423,7 +448,13 @@ class SourceParser:
             bindings: Optional[ParameterBindings],
         ) -> Callable[[str], tuple[list[str], list[DependencyWarning]]]:
             def _parse(code: str) -> tuple[list[str], list[DependencyWarning]]:
-                result = extract_tables_from_python(code, bindings=bindings)
+                # One parse + function index per distinct body content; the
+                # bindings-dependent visitor still runs per action.
+                result = extract_tables_from_python(
+                    code,
+                    bindings=bindings,
+                    parsed=self._parse_cache.parse_python(code),
+                )
                 return result.tables, result.warnings
 
             return _parse

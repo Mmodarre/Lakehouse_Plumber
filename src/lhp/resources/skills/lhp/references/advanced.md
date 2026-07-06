@@ -121,8 +121,10 @@ lhp dag --format job --job-name my_etl      # Orchestration job
 lhp dag --format job --bundle-output        # Save to resources/
 lhp dag --format dot                        # GraphViz diagram
 lhp dag --format json                       # Structured dependency graph
-lhp dag --expand-blueprints                 # One node per blueprint instance
+lhp dag --blueprint <name>                  # restrict analysis to one blueprint
 ```
+
+Blueprint synthetic flowgroups are ALWAYS fully expanded (one graph node per instance) — required so per-instance `pipeline:` values aren't dropped from the graph/JSON/job YAML. `--expand-blueprints` is a deprecated, ignored no-op (prints a deprecation notice); `--blueprint <name>` restricts analysis to one blueprint (unchanged).
 
 ### Output Formats
 
@@ -139,19 +141,22 @@ lhp dag --expand-blueprints                 # One node per blueprint instance
 ### What Extraction Resolves
 
 - **SQL** (sqlglot, Databricks dialect; multi-statement): `FROM`/`JOIN` reads incl. inside `MERGE`/`INSERT`/CTAS (write targets excluded — reads only), `stream()`/`live()`/`snapshot()` wrappers unwrapped, CTE names excluded, quoted identifiers output unquoted, string literals containing `FROM` never mis-extracted. The SQL-transform `$source` placeholder is excluded (the action's declared `source:` view carries that edge). Substitution tokens (`${token}`, `${secret:scope/key}`, legacy `{token}`) survive byte-for-byte, even mid-segment: `FROM cat.sch.tbl${suffix}` extracts `cat.sch.tbl${suffix}`. Unparseable body → zero edges + ONE `LHP-DEP-003` advisory (never an error).
-- **Python**: recognized Spark reads (`spark.table`, `spark.read`/`readStream.table`, `spark.read.format("delta"|"iceberg"|"hive"|"unity_catalog").table`/`.load`, `spark.catalog.tableExists`/`.dropTempView`, `spark.sql`) resolve through literals, module constants, conditional reassignment (union), `+`/`"{}.{}".format(...)`, string methods (`.replace`/`.upper`/`.lower`/`.strip`/`.lstrip`/`.rstrip`/`sep.join`), f-strings over bound values, and `for`-loops over statically-known string lists (unrolled — one read per element).
+- **Python**: recognized Spark reads (`spark.table`, `spark.read`/`readStream.table`, `spark.read.format("delta"|"iceberg"|"hive"|"unity_catalog").table`/`.load`, `spark.catalog.tableExists`/`.dropTempView`, `spark.sql`) resolve through literals, module constants, conditional reassignment (union), `+`/`"{}.{}".format(...)`, string methods (`.replace`/`.upper`/`.lower`/`.strip`/`.lstrip`/`.rstrip`/`sep.join`), f-strings over bound values, and `for`-loops over statically-foldable iterables (unrolled — one read per element).
+- **Inter-procedural (within a file):** function params (union of arg values across the file's call sites + YAML-bound + signature defaults), user-function return values (so `spark.read.table(helper(x))` resolves), `a or b`/`a and b` folds to operand-set union, collection builtins `list`/`tuple`/`sorted`/`set`/`dict.fromkeys` fold as identity, `for`-loops over foldable iterables incl. dict-key iteration. Memoized, cycle-guarded (recursion→unknown), depth-cap 20, value-set-cap 256; never speculative (`os.environ` etc. stay unresolved).
 - **YAML parameters resolve like codegen applies them** (entry function looked up at module top level by name; signature mismatch binds nothing): python transform `parameters:` dict passed positionally (3rd arg with ≥1 source view, 2nd with none); python load `source.parameters` dict as 2nd arg (`function_name` default `get_df`); snapshot_cdc `source_function.parameters` bound as keyword-only kwargs via `functools.partial`. `parameters["k"]` and `parameters.get("k", default)` resolve.
-- **Not followed (by design):** helper/function call results (`spark.read.table(helper(x))` is opaque), function args not bound from YAML, class attributes, runtime-only values → `LHP-DEP-002` advisory; declare the edge with `depends_on`.
+- **Not resolved → `LHP-DEP-002`:** genuinely dynamic values (`os.environ`/runtime I/O), a param fed a dynamic value at a call site, class attributes, or anything past the depth/value-set caps → declare the edge with `depends_on`.
 - **Token byte-fidelity:** `${...}` tokens are never resolved at dag time; matching canonicalizes ONLY lowercase + backtick/whitespace stripping. Producer and consumer must use identical token bytes — `${catalog}.x` does not match `{catalog}.x` (`${token}` recommended; `{token}` deprecated).
 
 ### Extraction Warnings (advisory — never errors, never fail a run)
 
 | Code | Meaning | Fix |
 |------|---------|-----|
-| `LHP-DEP-002` | Recognized Python table-read whose argument is not statically resolvable | `depends_on` on the action (entries validated by `LHP-VAL-063`) |
+| `LHP-DEP-002` | Recognized Python table-read whose argument is not statically resolvable. Message names the unresolved expr: ``Cannot statically resolve the table argument of `spark.read.table(...)` — the value of `os.environ['TBL']` is only known at runtime.`` | `depends_on` on the action (entries validated by `LHP-VAL-063`) |
 | `LHP-DEP-003` | SQL body could not be parsed (one per body; zero edges from it) | Fix the SQL, or `depends_on` |
 
-Surfaces (default-on): `lhp dag` stderr summary (count header, up to 10 detail lines `LHP-DEP-00x fg.action (file:line): message`, overflow `... and N more (see JSON output)`, one `depends_on` hint); JSON output (top-level `warnings` array always present + `metadata.total_warnings`; entries carry `code`/`message`/`flowgroup`/`action`/`suggestion`/`file_path`/`line`); text report (`DEPENDENCY EXTRACTION WARNINGS` section). NOT in DOT output or job YAML. Public API: `lhp.api.DependencyWarningView` (provisional) on `DependencyAnalysisResult.warnings`.
+A **non-empty `depends_on` suppresses that action's DEP-002/003 advisories** (per action, not per read — an action with 2 opaque reads + 1 declared upstream stops warning about the 2nd too), while still unioning its edges additively.
+
+Surfaces (default-on): warnings are **aggregated per read site** (grouped by `(code, file, line, message)` — one record per unresolved read, listing every affected action). `lhp dag` stderr shows a grouped `Extraction warnings` table (`Code` | `Unresolved read` file:line | `Reason` | `Affected` [count + first 3 `fg.action`, `+N more`] | `Add depends_on in` [distinct YAML paths]), capped at 50 sites, under header `N unresolved read site(s) affecting M action(s):`, plus one `depends_on` hint. JSON output: top-level `warnings` array always present; entries carry `code`/`message`/`flowgroup`/`action`/`suggestion`/`file_path`/`line` + `edit_yaml_path`/`affected_actions` (array of `{flowgroup,action,edit_yaml_path}`)/`affected_count`; `metadata.total_warnings` counts distinct sites, `metadata.total_warning_occurrences` counts site×action pairs. Text report (`DEPENDENCY EXTRACTION WARNINGS`): one block per site with `Affected (N): ...` (cap 5) + `Add depends_on in: ...`. NOT in DOT output or job YAML. Public API: `lhp.api.DependencyWarningView` (+ `edit_yaml_path`/`affected_actions`/`affected_count`) and new `AffectedActionView` (both provisional) on `DependencyAnalysisResult.warnings`.
 
 ### Execution Stages
 

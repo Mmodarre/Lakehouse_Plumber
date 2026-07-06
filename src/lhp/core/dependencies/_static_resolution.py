@@ -12,8 +12,21 @@ carries in scope — a set of possible strings, an ordered string list
 mapping (:class:`~lhp.core.dependencies._bindings.DictValue`). On top of
 those bindings the helpers understand subscripts (``params["tbl"]``),
 ``.get("k"[, default])`` lookups, common string methods (``.replace``,
-``.upper`` / ``.lower``, the ``.strip`` family, ``sep.join(...)``) and
-resolver-aware f-strings.
+``.upper`` / ``.lower``, the ``.strip`` family, ``sep.join(...)``),
+``or`` / ``and`` chains (union over operands) and resolver-aware f-strings.
+
+Resolution is also *call-aware*: an optional ``call_resolver`` callback maps
+a user-function call node to the bound value its return could statically be
+(see :class:`~lhp.core.dependencies._call_resolution.CallResolutionEngine`).
+It is consulted wherever a call is not otherwise recognized, so
+``x = _helper()`` and ``f"{_schema_for(site)}"`` resolve transitively.
+
+Layering note: this module owns STRING-context resolution; the structured
+bound layer (dict/list/BoolOp folding) lives in
+:mod:`lhp.core.dependencies._bound_folding`, which imports this module. The
+two are mutually recursive by nature — the few upward references here are
+deliberately deferred (function-level imports) to keep module import order
+acyclic.
 
 Token byte fidelity is a hard invariant: ``${token}`` substrings inside bound
 values are NEVER resolved or altered here — they flow through every
@@ -26,7 +39,7 @@ Spark read calls (``spark.read.format("delta").table(name)``).
 
 import ast
 from itertools import product
-from typing import Callable, Dict, FrozenSet, List, Optional
+from typing import Callable, FrozenSet, List, Optional
 
 from ._bindings import Bound, DictValue, ListValue
 
@@ -51,10 +64,16 @@ _KNOWN_PLACEHOLDER_NAMES: FrozenSet[str] = frozenset(
 #: Returning ``None`` (or an empty set) means "not statically known".
 NameResolver = Optional[Callable[[str], Optional[Bound]]]
 
+#: Resolves a user-function call node to the bound value its return could
+#: statically be. Returning ``None`` means "not statically known".
+CallResolver = Optional[Callable[[ast.Call], Optional[Bound]]]
+
 
 def resolve_static_string_values(
     node: ast.expr,
     name_resolver: NameResolver = None,
+    *,
+    call_resolver: CallResolver = None,
 ) -> FrozenSet[str]:
     """Resolve ``node`` to the set of string values it could statically be.
 
@@ -69,6 +88,9 @@ def resolve_static_string_values(
         concatenation. Each side is resolved recursively and the cartesian
         product is concatenated. If either side is unresolvable, the whole
         expression is left unresolved.
+      - ``a or b`` / ``a and b`` — :class:`ast.BoolOp`, the union of the
+        operand value sets; ANY unresolvable operand poisons the whole
+        expression (a dynamic branch could carry any value).
       - ``"{}.{}".format(a, b)`` — a ``.format()`` call whose receiver is a
         constant string with positional ``{}`` fields and whose arguments all
         resolve to a single literal each.
@@ -80,7 +102,10 @@ def resolve_static_string_values(
       - string methods on statically-resolved receivers: ``.replace(a, b)``,
         ``.upper()`` / ``.lower()``, ``.strip()`` / ``.lstrip()`` /
         ``.rstrip()`` (optional chars argument), and ``sep.join(items)``
-        where ``items`` resolves via :func:`resolve_static_list`.
+        where ``items`` resolves via
+        :func:`~lhp.core.dependencies._bound_folding.resolve_static_list`.
+      - a user-function call — resolved through ``call_resolver`` when
+        supplied (return-value folding).
 
     Multi-valued operands combine via cartesian product throughout. Byte
     fidelity: ``${token}`` substrings in resolved values pass through as
@@ -90,124 +115,62 @@ def resolve_static_string_values(
         return frozenset({node.value})
 
     if isinstance(node, ast.JoinedStr):
-        return render_f_string(node, name_resolver)
+        return render_f_string(node, name_resolver, call_resolver=call_resolver)
 
     if isinstance(node, (ast.Name, ast.Subscript)):
-        return _strings_from_bound(_resolve_bound(node, name_resolver))
+        return _strings_from_bound(
+            _resolve_bound(node, name_resolver, call_resolver=call_resolver)
+        )
 
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
-        left = resolve_static_string_values(node.left, name_resolver)
-        right = resolve_static_string_values(node.right, name_resolver)
+        left = resolve_static_string_values(
+            node.left, name_resolver, call_resolver=call_resolver
+        )
+        right = resolve_static_string_values(
+            node.right, name_resolver, call_resolver=call_resolver
+        )
         if not left or not right:
             return frozenset()
         return frozenset({a + b for a in left for b in right})
 
+    if isinstance(node, ast.BoolOp):
+        # Deferred upward reference (see the module docstring layering note).
+        from ._bound_folding import resolve_boolop
+
+        return _strings_from_bound(
+            resolve_boolop(node, name_resolver, call_resolver=call_resolver)
+        )
+
     if isinstance(node, ast.Call):
-        return _resolve_method_call(node, name_resolver)
+        resolved = _resolve_method_call(
+            node, name_resolver, call_resolver=call_resolver
+        )
+        if resolved:
+            return resolved
+        if call_resolver is not None:
+            return _strings_from_bound(call_resolver(node))
+        return frozenset()
 
     return frozenset()
-
-
-def resolve_static_list(
-    node: ast.expr,
-    name_resolver: NameResolver = None,
-) -> Optional[ListValue]:
-    """Resolve ``node`` to an ordered list of statically-known strings.
-
-    Recognized forms (anything else yields ``None``):
-
-      - ``["a", x]`` / ``("a", x)`` — list/tuple literals whose elements each
-        statically resolve to exactly ONE string. A multi-valued element makes
-        the WHOLE list unresolved (``None``) rather than expanding into a
-        cartesian set of candidate lists.
-      - an ``ast.Name`` bound (via ``name_resolver``) to a
-        :class:`~lhp.core.dependencies._bindings.ListValue`.
-      - subscript / ``.get`` lookups (``params["cols"]``,
-        ``params.get("cols")``) whose resolved bound is a ``ListValue``.
-    """
-    if isinstance(node, (ast.List, ast.Tuple)):
-        items: List[str] = []
-        for element in node.elts:
-            values = resolve_static_string_values(element, name_resolver)
-            if len(values) != 1:
-                return None
-            items.append(next(iter(values)))
-        return ListValue(tuple(items))
-
-    bound = _resolve_bound(node, name_resolver)
-    return bound if isinstance(bound, ListValue) else None
-
-
-def resolve_static_dict(
-    node: ast.expr,
-    name_resolver: NameResolver = None,
-) -> Optional[DictValue]:
-    """Resolve ``node`` to a string-keyed mapping of bound values, or ``None``.
-
-    Recognized forms (anything else yields ``None``):
-
-      - ``{"k": <expr>, ...}`` — a dict literal. Keys must be constant strings;
-        each value resolves via :func:`resolve_static_bound`. Mirroring
-        :func:`~lhp.core.dependencies._bindings.bound_from_yaml`: an entry
-        whose value is unbindable — or whose key is not a constant string, and
-        any ``**spread`` — is DROPPED; the remaining entries still bind.
-      - an ``ast.Name`` / subscript / ``.get`` chain bound to a
-        :class:`~lhp.core.dependencies._bindings.DictValue`.
-    """
-    if isinstance(node, ast.Dict):
-        entries: Dict[str, Bound] = {}
-        for key_node, value_node in zip(node.keys, node.values, strict=False):
-            if not (
-                isinstance(key_node, ast.Constant) and isinstance(key_node.value, str)
-            ):
-                continue
-            bound = resolve_static_bound(value_node, name_resolver)
-            if bound is not None:
-                entries[key_node.value] = bound
-        return DictValue(entries)
-
-    bound = _resolve_bound(node, name_resolver)
-    return bound if isinstance(bound, DictValue) else None
-
-
-def resolve_static_bound(
-    node: ast.expr,
-    name_resolver: NameResolver = None,
-) -> Optional[Bound]:
-    """Resolve an assignment RHS to a :data:`Bound` of any shape, or ``None``.
-
-    Mirrors :func:`~lhp.core.dependencies._bindings.bound_from_yaml` over the
-    AST so a Python-side ``X = {...}`` / ``X = [...]`` binds the same shape a
-    YAML-seeded parameter would: a dict literal → :class:`DictValue`, a
-    list/tuple literal of single-valued string elements → :class:`ListValue`
-    (all-or-nothing), and any statically-known string expression → a string
-    set. A name / subscript / ``.get`` chain resolves to whatever bound it
-    already carries. Returns ``None`` when nothing static is visible.
-    """
-    if isinstance(node, ast.Dict):
-        return resolve_static_dict(node, name_resolver)
-    if isinstance(node, (ast.List, ast.Tuple)):
-        return resolve_static_list(node, name_resolver)
-    strings = resolve_static_string_values(node, name_resolver)
-    if strings:
-        return strings
-    return _resolve_bound(node, name_resolver)
 
 
 def render_f_string(
     node: ast.JoinedStr,
     name_resolver: NameResolver = None,
+    *,
+    call_resolver: CallResolver = None,
 ) -> FrozenSet[str]:
     """Resolve an f-string to the set of strings it could statically render.
 
     Each interpolated expression is resolved through the full static
-    machinery (resolver bindings, subscripts, ``.get``, string methods);
-    multi-valued interpolations expand via cartesian product across parts. A
-    plain ``ast.Name`` interpolation that does NOT resolve but matches a
-    known LHP substitution-token name is preserved literally as ``{name}``
-    (legacy ``{token}`` spelling support). Any other unresolved interpolation
-    — or any conversion specifier / format spec (``!r``, ``:>10``) — leaves
-    the WHOLE f-string unresolved (``frozenset()``).
+    machinery (resolver bindings, subscripts, ``.get``, string methods,
+    ``call_resolver`` return folding); multi-valued interpolations expand via
+    cartesian product across parts. A plain ``ast.Name`` interpolation that
+    does NOT resolve but matches a known LHP substitution-token name is
+    preserved literally as ``{name}`` (legacy ``{token}`` spelling support).
+    Any other unresolved interpolation — or any conversion specifier / format
+    spec (``!r``, ``:>10``) — leaves the WHOLE f-string unresolved
+    (``frozenset()``).
     """
     part_choices: List[FrozenSet[str]] = []
 
@@ -219,7 +182,9 @@ def render_f_string(
             return frozenset()
         if value.conversion != -1 or value.format_spec is not None:
             return frozenset()
-        resolved = resolve_static_string_values(value.value, name_resolver)
+        resolved = resolve_static_string_values(
+            value.value, name_resolver, call_resolver=call_resolver
+        )
         if resolved:
             part_choices.append(resolved)
         elif (
@@ -249,14 +214,18 @@ def _strings_from_bound(bound: Optional[Bound]) -> FrozenSet[str]:
 def _resolve_bound(
     node: ast.expr,
     name_resolver: NameResolver = None,
+    *,
+    call_resolver: CallResolver = None,
 ) -> Optional[Bound]:
-    """Resolve a name / subscript / ``.get`` chain to its bound value.
+    """Resolve a name / subscript / ``.get`` / call chain to its bound value.
 
     - ``name`` — looked up through ``name_resolver``.
     - ``base["key"]`` — ``base`` must resolve to a
       :class:`~lhp.core.dependencies._bindings.DictValue` and the slice must
       be a constant string key present in its entries.
     - ``base.get(...)`` — see :func:`_resolve_get_call`.
+    - any other call — folded through ``call_resolver`` when supplied
+      (user-function return values, any bound shape).
 
     Anything else (missing key, non-constant slice, non-dict base) is
     unresolved (``None``).
@@ -265,7 +234,7 @@ def _resolve_bound(
         return name_resolver(node.id) if name_resolver is not None else None
 
     if isinstance(node, ast.Subscript):
-        base = _resolve_bound(node.value, name_resolver)
+        base = _resolve_bound(node.value, name_resolver, call_resolver=call_resolver)
         if isinstance(base, DictValue):
             key = node.slice
             if isinstance(key, ast.Constant) and isinstance(key.value, str):
@@ -276,7 +245,12 @@ def _resolve_bound(
         return None
 
     if isinstance(node, ast.Call):
-        return _resolve_get_call(node, name_resolver)
+        resolved = _resolve_get_call(node, name_resolver, call_resolver=call_resolver)
+        if resolved is not None:
+            return resolved
+        if call_resolver is not None:
+            return call_resolver(node)
+        return None
 
     return None
 
@@ -325,6 +299,8 @@ def _constant_int(node: ast.expr) -> Optional[int]:
 def _resolve_get_call(
     node: ast.Call,
     name_resolver: NameResolver = None,
+    *,
+    call_resolver: CallResolver = None,
 ) -> Optional[Bound]:
     """Resolve ``base.get("key"[, default])`` on a dict-bound receiver.
 
@@ -341,7 +317,7 @@ def _resolve_get_call(
     if len(node.args) not in (1, 2):
         return None
 
-    base = _resolve_bound(func.value, name_resolver)
+    base = _resolve_bound(func.value, name_resolver, call_resolver=call_resolver)
     if not isinstance(base, DictValue):
         return None
 
@@ -351,13 +327,20 @@ def _resolve_get_call(
     if key.value in base.entries:
         return base.entries[key.value]
     if len(node.args) == 2:
-        return resolve_static_bound(node.args[1], name_resolver)
+        # Deferred upward reference (see the module docstring layering note).
+        from ._bound_folding import resolve_static_bound
+
+        return resolve_static_bound(
+            node.args[1], name_resolver, call_resolver=call_resolver
+        )
     return None
 
 
 def _resolve_method_call(
     node: ast.Call,
     name_resolver: NameResolver = None,
+    *,
+    call_resolver: CallResolver = None,
 ) -> FrozenSet[str]:
     """Resolve a method call to its statically-known string value(s).
 
@@ -371,23 +354,33 @@ def _resolve_method_call(
     method = node.func.attr
 
     if method == "format":
-        return _resolve_format_method_call(node, name_resolver)
+        return _resolve_format_method_call(
+            node, name_resolver, call_resolver=call_resolver
+        )
 
     if node.keywords or any(isinstance(a, ast.Starred) for a in node.args):
         return frozenset()
 
     if method == "get":
-        return _strings_from_bound(_resolve_get_call(node, name_resolver))
+        return _strings_from_bound(
+            _resolve_get_call(node, name_resolver, call_resolver=call_resolver)
+        )
 
     if method == "join":
-        return _resolve_join_call(node, name_resolver)
+        return _resolve_join_call(node, name_resolver, call_resolver=call_resolver)
 
     if method == "replace":
         if len(node.args) != 2:
             return frozenset()
-        receivers = resolve_static_string_values(node.func.value, name_resolver)
-        olds = resolve_static_string_values(node.args[0], name_resolver)
-        news = resolve_static_string_values(node.args[1], name_resolver)
+        receivers = resolve_static_string_values(
+            node.func.value, name_resolver, call_resolver=call_resolver
+        )
+        olds = resolve_static_string_values(
+            node.args[0], name_resolver, call_resolver=call_resolver
+        )
+        news = resolve_static_string_values(
+            node.args[1], name_resolver, call_resolver=call_resolver
+        )
         if not (receivers and olds and news):
             return frozenset()
         return frozenset(r.replace(o, n) for r in receivers for o in olds for n in news)
@@ -395,18 +388,24 @@ def _resolve_method_call(
     if method in ("upper", "lower"):
         if node.args:
             return frozenset()
-        receivers = resolve_static_string_values(node.func.value, name_resolver)
+        receivers = resolve_static_string_values(
+            node.func.value, name_resolver, call_resolver=call_resolver
+        )
         return frozenset(getattr(r, method)() for r in receivers)
 
     if method in ("strip", "lstrip", "rstrip"):
         if len(node.args) > 1:
             return frozenset()
-        receivers = resolve_static_string_values(node.func.value, name_resolver)
+        receivers = resolve_static_string_values(
+            node.func.value, name_resolver, call_resolver=call_resolver
+        )
         if not receivers:
             return frozenset()
         if not node.args:
             return frozenset(getattr(r, method)() for r in receivers)
-        chars = resolve_static_string_values(node.args[0], name_resolver)
+        chars = resolve_static_string_values(
+            node.args[0], name_resolver, call_resolver=call_resolver
+        )
         if not chars:
             return frozenset()
         return frozenset(getattr(r, method)(c) for r in receivers for c in chars)
@@ -417,20 +416,29 @@ def _resolve_method_call(
 def _resolve_join_call(
     node: ast.Call,
     name_resolver: NameResolver = None,
+    *,
+    call_resolver: CallResolver = None,
 ) -> FrozenSet[str]:
     """Resolve ``sep.join(items)`` where ``items`` is a static ordered list.
 
     The receiver must resolve to string value(s) (cartesian over multi-valued
     separators) and the single argument must resolve via
-    :func:`resolve_static_list`.
+    :func:`~lhp.core.dependencies._bound_folding.resolve_static_list`.
     """
     func = node.func
     if not isinstance(func, ast.Attribute) or len(node.args) != 1:
         return frozenset()
-    separators = resolve_static_string_values(func.value, name_resolver)
+    separators = resolve_static_string_values(
+        func.value, name_resolver, call_resolver=call_resolver
+    )
     if not separators:
         return frozenset()
-    items = resolve_static_list(node.args[0], name_resolver)
+    # Deferred upward reference (see the module docstring layering note).
+    from ._bound_folding import resolve_static_list
+
+    items = resolve_static_list(
+        node.args[0], name_resolver, call_resolver=call_resolver
+    )
     if items is None:
         return frozenset()
     return frozenset(sep.join(items.items) for sep in separators)
@@ -439,6 +447,8 @@ def _resolve_join_call(
 def _resolve_format_method_call(
     node: ast.Call,
     name_resolver: NameResolver = None,
+    *,
+    call_resolver: CallResolver = None,
 ) -> FrozenSet[str]:
     """Resolve a ``"...".format(...)`` call to its concrete string(s).
 
@@ -454,14 +464,18 @@ def _resolve_format_method_call(
     if node.keywords or any(isinstance(a, ast.Starred) for a in node.args):
         return frozenset()
 
-    receiver_values = resolve_static_string_values(node.func.value, name_resolver)
+    receiver_values = resolve_static_string_values(
+        node.func.value, name_resolver, call_resolver=call_resolver
+    )
     if len(receiver_values) != 1:
         return frozenset()
     template = next(iter(receiver_values))
 
     arg_values: List[str] = []
     for arg in node.args:
-        resolved = resolve_static_string_values(arg, name_resolver)
+        resolved = resolve_static_string_values(
+            arg, name_resolver, call_resolver=call_resolver
+        )
         if len(resolved) != 1:
             return frozenset()
         arg_values.append(next(iter(resolved)))

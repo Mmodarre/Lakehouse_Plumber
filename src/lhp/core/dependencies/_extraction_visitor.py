@@ -10,10 +10,16 @@ stays on ``PythonParser``.
 Scopes can be pre-seeded from a
 :class:`~lhp.core.dependencies._bindings.ParameterBindings` instance so the
 values a flowgroup YAML declares for a Python function flow into that
-function's body exactly the way codegen applies them at runtime (the target
-function is looked up the same way codegen does: direct children of
-``tree.body``, first match wins). Binding is never speculative — a signature
-mismatch binds nothing.
+function's body exactly the way codegen applies them at runtime (see
+:func:`~lhp.core.dependencies._call_resolution.compute_seed_bindings`).
+Binding is never speculative — a signature mismatch binds nothing.
+
+Names the scope stack cannot answer fall back to the
+:class:`~lhp.core.dependencies._call_resolution.CallResolutionEngine`: a
+parameter of an enclosing function resolves to the union of the values its
+call sites pass, and a bare-name user-function call folds to the union of
+its return expressions — both memoized, cycle-guarded, and conservative
+(unresolvable stays unresolvable, keeping the advisory alive).
 
 Recognized read calls whose table argument cannot be statically resolved emit
 an advisory :class:`~lhp.models.dependencies.DependencyWarning` (LHP-DEP-002);
@@ -29,12 +35,11 @@ from typing import TYPE_CHECKING, Dict, FrozenSet, List, Literal, Optional, Set
 
 from ...errors.codes import DEP_002
 from ...models.dependencies import DependencyWarning
-from ._bindings import Bound, DictValue, ParameterBindings
-from ._static_resolution import (
-    resolve_static_bound,
-    resolve_static_list,
-    resolve_static_string_values,
-)
+from ._bindings import Bound, ParameterBindings, merge_bound
+from ._bound_folding import binding_updates
+from ._call_resolution import CallResolutionEngine, compute_seed_bindings
+from ._function_index import FunctionIndex, FunctionNode
+from ._static_resolution import CallResolver, resolve_static_string_values
 from ._table_sites import PythonTableSite, SiteKind, SourceSpan
 from .sql_extraction import extract_tables_from_sql
 
@@ -47,16 +52,13 @@ class _Scope:
     """A lexical scope: module body, function body, or class body.
 
     ``bindings`` maps a variable name to the
-    :data:`~lhp.core.dependencies._bindings.Bound` value it carries. A
-    string-set rebinding merges via union — reassignment and conditional
-    branches accumulate candidate values::
+    :data:`~lhp.core.dependencies._bindings.Bound` value it carries, merging
+    rebindings via :func:`~lhp.core.dependencies._bindings.merge_bound`
+    (string-set rebindings union; structured rebindings are
+    last-write-wins)::
 
         tbl = "a"                 # {"a"}
         tbl = "b"                 # {"a", "b"}  (union)
-
-    Any rebinding involving a structured value (``ListValue`` / ``DictValue``
-    on either side) is last-write-wins — unioning heterogeneous shapes would
-    fabricate values that no execution path produces.
     """
 
     kind: Literal["module", "function", "class"]
@@ -64,11 +66,7 @@ class _Scope:
 
     def bind(self, name: str, value: Bound) -> None:
         """Merge or replace the binding for ``name`` (see class docstring)."""
-        existing = self.bindings.get(name)
-        if isinstance(existing, frozenset) and isinstance(value, frozenset):
-            self.bindings[name] = existing | value
-        else:
-            self.bindings[name] = value
+        self.bindings[name] = merge_bound(self.bindings.get(name), value)
 
 
 class _TableExtractor(ast.NodeVisitor):
@@ -79,6 +77,11 @@ class _TableExtractor(ast.NodeVisitor):
     visible to methods inside the class — this mirrors Python's actual
     scoping rules (methods see enclosing function/module scopes but not the
     class body scope).
+
+    ``function_index`` optionally supplies a pre-built (cached)
+    :class:`~lhp.core.dependencies._function_index.FunctionIndex` for the
+    SAME tree the visitor is about to walk; when absent one is built in
+    ``visit_Module``.
 
     Usage::
 
@@ -93,11 +96,16 @@ class _TableExtractor(ast.NodeVisitor):
         self,
         parser: "PythonParser",
         bindings: Optional[ParameterBindings] = None,
+        function_index: Optional[FunctionIndex] = None,
     ) -> None:
         self._parser = parser
         self._bindings = bindings
+        self._prebuilt_index = function_index
         self._seed_target: Optional[ast.FunctionDef] = None
+        self._seed_bindings: Dict[str, Bound] = {}
+        self._engine: Optional[CallResolutionEngine] = None
         self._scopes: List[_Scope] = [_Scope(kind="module")]
+        self._func_stack: List[FunctionNode] = []
         self.tables: Set[str] = set()
         self.warnings: List[DependencyWarning] = []
         self.sites: List[PythonTableSite] = []
@@ -105,24 +113,17 @@ class _TableExtractor(ast.NodeVisitor):
     # ---- Scope management & parameter-binding seeding ----
 
     def visit_Module(self, node: ast.Module) -> None:
-        """Locate the binding target function, then walk the module body.
-
-        Mirrors codegen's lookup (``_find_function_node`` in
-        ``generators/write/snapshot_cdc_source_function.py``): only direct
-        children of ``tree.body``, plain ``ast.FunctionDef`` only, FIRST
-        match wins.
-        """
-        bindings = self._bindings
-        if bindings is not None:
-            self._seed_target = next(
-                (
-                    child
-                    for child in node.body
-                    if isinstance(child, ast.FunctionDef)
-                    and child.name == bindings.function_name
-                ),
-                None,
-            )
+        """Build the call-resolution engine, seed lookup, then walk the body."""
+        self._seed_target, self._seed_bindings = compute_seed_bindings(
+            node, self._bindings
+        )
+        index = self._prebuilt_index or FunctionIndex(node)
+        self._engine = CallResolutionEngine(
+            node,
+            index,
+            seed_target=self._seed_target,
+            seed_bindings=self._seed_bindings,
+        )
         self.generic_visit(node)
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
@@ -139,130 +140,54 @@ class _TableExtractor(ast.NodeVisitor):
     ) -> None:
         scope = _Scope(kind=kind)
         if self._seed_target is not None and node is self._seed_target:
-            self._seed_parameter_bindings(self._seed_target, scope)
+            for name, bound in self._seed_bindings.items():
+                scope.bind(name, bound)
         self._scopes.append(scope)
+        if kind == "function":
+            self._func_stack.append(node)  # type: ignore[arg-type]
         self.generic_visit(node)
+        if kind == "function":
+            self._func_stack.pop()
         self._scopes.pop()
-
-    def _seed_parameter_bindings(self, node: ast.FunctionDef, scope: _Scope) -> None:
-        """Seed ``scope`` from the YAML parameter bindings, mirroring codegen.
-
-        Kwonly style: each entry binds to the function's matching
-        keyword-only argument name; leftover entries bind as one
-        ``DictValue`` to the ``**kwargs`` name when the function has one,
-        else they stay silently unbound. Dict style: the positional
-        parameter at ``dict_arg_index`` (within posonly + args) is bound to
-        the whole parameters dict; an out-of-range index is a signature
-        mismatch → NO binding at all (locked design L2 — never guess).
-        """
-        bindings = self._bindings
-        if bindings is None:
-            return
-        if bindings.kwonly is not None:
-            kwonly_names = {arg.arg for arg in node.args.kwonlyargs}
-            leftovers: Dict[str, Bound] = {}
-            for key, bound in bindings.kwonly.entries.items():
-                if key in kwonly_names:
-                    scope.bind(key, bound)
-                else:
-                    leftovers[key] = bound
-            if leftovers and node.args.kwarg is not None:
-                scope.bind(node.args.kwarg.arg, DictValue(leftovers))
-            return
-        if bindings.dict_arg_index is None or bindings.dict_value is None:
-            return  # Unreachable per the ParameterBindings invariant.
-        positional = [*node.args.posonlyargs, *node.args.args]
-        if 0 <= bindings.dict_arg_index < len(positional):
-            scope.bind(positional[bindings.dict_arg_index].arg, bindings.dict_value)
 
     # ---- Variable bindings ----
 
     def visit_Assign(self, node: ast.Assign) -> None:
         """Bind ``a = "x"``, ``a = {...}`` / ``[...]``, ``a = b = ...``, ``a, b = "x", "y"``."""
-        rhs_bound = self._evaluate_rhs_bound(node.value)
-
-        for target in node.targets:
-            # Tuple / list unpacking with parallel literal RHS.
-            if (
-                isinstance(target, (ast.Tuple, ast.List))
-                and isinstance(node.value, (ast.Tuple, ast.List))
-                and len(target.elts) == len(node.value.elts)
-            ):
-                for sub_target, sub_value in zip(
-                    target.elts, node.value.elts, strict=False
-                ):
-                    sub_values = self._evaluate_rhs(sub_value)
-                    if sub_values and isinstance(sub_target, ast.Name):
-                        self._current_scope().bind(sub_target.id, sub_values)
-            elif rhs_bound is not None:
-                self._bind_target(target, rhs_bound)
-
+        self._apply_binding_updates(node)
         self.generic_visit(node)
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
         """Collect bindings from ``a: str = "x"`` (annotation-only skipped)."""
-        if node.value is None:
-            self.generic_visit(node)
-            return
-
-        rhs_bound = self._evaluate_rhs_bound(node.value)
-        if rhs_bound is not None:
-            self._bind_target(node.target, rhs_bound)
+        self._apply_binding_updates(node)
         self.generic_visit(node)
 
     def visit_For(self, node: ast.For) -> None:
-        """Statically unroll ``for t in <static list>`` loops.
+        """Statically unroll ``for t in <static iterable>`` loops.
 
-        When the iterable resolves to an ordered static string list and the
-        loop target is a plain ``ast.Name``, the target is bound to the
-        union of all iterations' values. Loops do NOT create a new scope —
-        matching Python semantics — so the binding lands in the current
-        scope before the body is visited.
+        When the iterable folds to a static element value set (an ordered
+        string list, a dict's keys, an allowlisted builtin collection call,
+        or a folded user-function return) and the loop target is a plain
+        ``ast.Name``, the target binds to the union of all iterations'
+        values. Loops do NOT create a new scope — matching Python semantics
+        — so the binding lands in the current scope before the body is
+        visited.
         """
-        items = resolve_static_list(node.iter, self._resolve_name)
-        if items is not None and isinstance(node.target, ast.Name):
-            self._current_scope().bind(node.target.id, frozenset(items.items))
+        self._apply_binding_updates(node)
         self.generic_visit(node)
 
-    def _bind_target(self, target: ast.expr, value: Bound) -> None:
-        """Bind ``value`` to ``target`` when it's a simple name.
+    def _apply_binding_updates(self, stmt: ast.stmt) -> None:
+        """Apply the shared statement-level binding replay to the current scope.
 
-        Non-``Name`` targets (attribute assignments, subscript assignments,
-        unmatched tuple unpacking) are intentionally dropped — tracking those
-        would require tracking object shape, which is out of scope.
+        Binding semantics live once in
+        :func:`~lhp.core.dependencies._bound_folding.binding_updates` —
+        shared with the engine's environment replay so the two can never
+        drift.
         """
-        if isinstance(target, ast.Name):
-            self._current_scope().bind(target.id, value)
-
-    def _evaluate_rhs(self, node: ast.expr) -> FrozenSet[str]:
-        """Return the set of literal string values ``node`` could be.
-
-        Delegates to :func:`resolve_static_string_values`, which handles the
-        forms the parser can reason about statically:
-          - ``"literal"`` (ast.Constant with str value)
-          - ``f"..."`` (ast.JoinedStr — rendered via render_f_string)
-          - ``"a" + "b"`` (ast.BinOp string concatenation, all operands static)
-          - ``"{}.{}".format(a, b)`` (.format() chains, all operands static)
-          - a previously bound ``ast.Name`` (resolved through the scope stack)
-          - subscript / ``.get`` lookups into dict-bound names
-
-        Returns an empty set for anything else (function calls returning
-        unknowns). The extractor never speculates past what's literally
-        visible in the source: if any operand is dynamic, the whole
-        expression is left unresolved.
-        """
-        return resolve_static_string_values(node, name_resolver=self._resolve_name)
-
-    def _evaluate_rhs_bound(self, node: ast.expr) -> Optional[Bound]:
-        """Return the :data:`Bound` a name-assignment target should carry.
-
-        Extends :meth:`_evaluate_rhs` (string sets only) to the container
-        literals codegen also binds: a dict literal → ``DictValue`` and a
-        list/tuple literal → ``ListValue``, so subscript / iteration reads over
-        the bound name resolve exactly as they do for a YAML-seeded binding.
-        Returns ``None`` when nothing static is visible.
-        """
-        return resolve_static_bound(node, name_resolver=self._resolve_name)
+        for name, bound in binding_updates(
+            stmt, self._resolve_name, call_resolver=self._call_resolver()
+        ):
+            self._current_scope().bind(name, bound)
 
     # ---- Call extraction ----
 
@@ -271,8 +196,15 @@ class _TableExtractor(ast.NodeVisitor):
             self._extract_from_spark_sql(node)
         else:
             matched, values = self._parser._extract_table_from_call(
-                node, name_resolver=self._resolve_name
+                node,
+                name_resolver=self._resolve_name,
+                call_resolver=self._call_resolver(),
             )
+            # An empty string can never be a real table reference — it is
+            # the artifact of defaults like `p.get("tbl") or ""`. Dropping
+            # it keeps phantom externals out; if nothing remains the read
+            # is effectively opaque and the advisory path applies.
+            values = frozenset(v for v in values if v)
             if matched and values:
                 self.tables.update(values)
                 self._record_site("table_read", node, values)
@@ -291,8 +223,9 @@ class _TableExtractor(ast.NodeVisitor):
     def _extract_from_spark_sql(self, node: ast.Call) -> None:
         """Resolve the ``spark.sql(...)`` argument and extract its tables.
 
-        The argument resolves through the full scope + parameter-binding
-        machinery; each resolved SQL string flows through the sqlglot-based
+        The argument resolves through the full scope + parameter-binding +
+        call-resolution machinery; each resolved SQL string flows through the
+        sqlglot-based
         :func:`lhp.core.dependencies.sql_extraction.extract_tables_from_sql`.
         An unresolvable argument emits ONE LHP-DEP-002 advisory; an
         unparseable resolved SQL string propagates the extractor's single
@@ -301,7 +234,9 @@ class _TableExtractor(ast.NodeVisitor):
         the SQL string and is meaningless at file level).
         """
         sql_values = (
-            resolve_static_string_values(node.args[0], self._resolve_name)
+            resolve_static_string_values(
+                node.args[0], self._resolve_name, call_resolver=self._call_resolver()
+            )
             if node.args
             else frozenset()
         )
@@ -430,15 +365,29 @@ class _TableExtractor(ast.NodeVisitor):
         )
 
     def _warn_opaque(self, node: ast.Call) -> None:
-        """Record an LHP-DEP-002 advisory for a recognized-but-opaque read."""
+        """Record an LHP-DEP-002 advisory for a recognized-but-opaque read.
+
+        The message names both the call head and the exact argument
+        expression that failed to resolve, so the advisory points at the
+        thing to fix (or to cover with ``depends_on``).
+        """
         call_repr = ast.unparse(node.func)
+        if node.args:
+            arg_repr = ast.unparse(node.args[0])
+            message = (
+                f"Cannot statically resolve the table argument of "
+                f"`{call_repr}(...)` — the value of `{arg_repr}` is only "
+                f"known at runtime."
+            )
+        else:
+            message = (
+                f"Cannot statically resolve the table argument of "
+                f"`{call_repr}(...)` — its value is only known at runtime."
+            )
         self.warnings.append(
             DependencyWarning(
                 code=DEP_002.code,
-                message=(
-                    f"Cannot statically resolve the table argument of "
-                    f"`{call_repr}(...)` — its value is only known at runtime."
-                ),
+                message=message,
                 flowgroup="",
                 action="",
                 suggestion=(
@@ -450,21 +399,35 @@ class _TableExtractor(ast.NodeVisitor):
             )
         )
 
-    # ---- Name resolution ----
+    # ---- Name & call resolution ----
 
     def _resolve_name(self, name: str) -> Optional[Bound]:
         """Walk the scope stack innermost → outermost, skipping class scopes.
 
         Class bodies exist on the stack for correctness of scope push/pop,
         but methods cannot transparently see class-body bindings — this
-        matches Python's lexical rules.
+        matches Python's lexical rules. A name no scope binds falls back to
+        the engine: if it is a PARAMETER of an enclosing function, it
+        resolves to the union of the values that function's call sites pass
+        (inter-procedural propagation).
         """
         for scope in reversed(self._scopes):
             if scope.kind == "class":
                 continue
             if name in scope.bindings:
                 return scope.bindings[name]
+        if self._engine is not None:
+            for func in reversed(self._func_stack):
+                bound = self._engine.resolve_param(func, name)
+                if bound is not None:
+                    return bound
         return None
+
+    def _call_resolver(self) -> CallResolver:
+        """A return-value resolver scoped to the visitor's current function chain."""
+        if self._engine is None:
+            return None
+        return self._engine.call_resolver_for(tuple(self._func_stack))
 
     def _current_scope(self) -> _Scope:
         return self._scopes[-1]

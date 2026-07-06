@@ -49,8 +49,8 @@ class BlueprintProvenance:
       - DependencyTracker to set FileState.synthetic=True.
       - FlowgroupDiscoveryService.find_source_yaml_for_flowgroup to point at the
         blueprint, not a non-existent flowgroup file.
-      - DependencyAnalysisService to dedupe synthetic flowgroups by
-        (blueprint_name, spec_index) when rendering `lhp deps`.
+      - DependencyAnalysisService to filter synthetic flowgroups to one
+        blueprint (`lhp dag --blueprint <name>`).
     """
 
     blueprint_name: str

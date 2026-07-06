@@ -191,6 +191,20 @@ of upstream table references:
 whatever the parser already extracts from the action's SQL or Python source — it
 never replaces parsed dependencies.
 
+A **non-empty** ``depends_on`` also **suppresses** that action's
+:ref:`LHP-DEP-002 <lhp-dep-002>` / :ref:`LHP-DEP-003 <lhp-dep-003>` extraction
+advisories: once you have declared the action's upstreams by hand, LHP stops
+flagging the reads it could not resolve statically for that action. Suppression
+is **per action, not per read** — matching a declared entry back to a specific
+opaque read is uncomputable, so LHP cannot tell which unresolved read a given
+``depends_on`` entry was meant to cover.
+
+.. important::
+   The trade-off is plain: an action with two opaque reads and only **one**
+   declared upstream stops warning about the **second** read as well. When you
+   add ``depends_on`` to silence an advisory, declare **every** upstream the
+   action needs — not just the one the advisory named.
+
 Each entry must be a well-formed table reference: a non-empty string of at most
 three dot-separated parts (``catalog.schema.table``, ``schema.table``, or
 ``table``) with no blank parts. A malformed entry raises
@@ -227,12 +241,18 @@ declaration instead. The two sections that follow give the full rules.
        candidates), f-strings over bound values, ``+`` concatenation,
        ``"{}.{}".format(...)``, the string methods ``.replace`` / ``.upper``
        / ``.lower`` / ``.strip`` / ``.lstrip`` / ``.rstrip`` /
-       ``sep.join(...)``, values bound from the action's YAML ``parameters``
-       (all three shapes), and ``for``-loops over statically-known string
-       lists (unrolled — one read per element).
-     - Runtime-only values: function arguments not bound from YAML, helper
-       call results (``spark.read.table(helper(x))`` is opaque by design),
-       and class attributes. Each recognized-but-unresolvable read emits one
+       ``sep.join(...)``, and values bound from the action's YAML
+       ``parameters`` (all three shapes). Resolution is **inter-procedural**
+       within a file: function parameters (unioned across the same file's
+       call sites, plus signature defaults), user-function return values
+       (so ``spark.read.table(helper(x))`` now resolves), ``a or b`` /
+       ``a and b`` folds, the collection builtins ``list`` / ``tuple`` /
+       ``sorted`` / ``set`` / ``dict.fromkeys``, and ``for``-loops over any
+       statically-foldable iterable (unrolled — one read per element).
+     - Genuinely runtime-only values: ``os.environ`` and other runtime I/O,
+       class attributes, a parameter fed a dynamic value at any call site,
+       and anything past the depth (20) or value-set (256) caps. Each
+       recognized-but-unresolvable read emits one
        :ref:`LHP-DEP-002 <lhp-dep-002>` advisory.
 
 How ``lhp dag`` Extracts Dependencies from SQL
@@ -380,8 +400,8 @@ read like this needs no ``depends_on``:
 - Module-level constants referenced inside functions.
 - Values bound from YAML ``parameters`` (see the table above), including
   ``parameters["key"]`` and ``parameters.get("key", default)`` lookups.
-- ``for``-loops over statically-known string lists — the loop unrolls,
-  emitting one read per element::
+- ``for``-loops over statically-foldable iterables — the loop unrolls,
+  emitting one read per element (including iteration over dict keys)::
 
       for t in ["cat.sch.a", "cat.sch.b"]:
           spark.read.table(t)  # emits both "cat.sch.a" and "cat.sch.b"
@@ -401,17 +421,45 @@ read like this needs no ``depends_on``:
   recursively and combined; if any operand is unresolvable, the whole
   expression is dropped.
 
+.. versionchanged:: 0.9.1
+   Resolution is now **inter-procedural** within a single file. In addition to
+   the intra-function cases above, the parser also resolves:
+
+- **Function parameters** — a parameter's value set is the union of the
+  argument values passed at every call site of that function in the same
+  file, plus any value bound from YAML ``parameters`` and the signature
+  default. If a call site passes a dynamic value (or spreads ``*args`` /
+  ``**kwargs``), the parameter stays unresolved.
+- **User-function return values** — a bare-name call to a function defined in
+  the same file resolves to the union of its ``return`` expressions
+  (``return None`` and bare ``return`` are skipped; any dynamic return leaves
+  the call unresolved). A read routed through a helper —
+  ``spark.read.table(helper(x))`` — therefore now resolves whenever the
+  helper's returns and its arguments are all statically knowable.
+- **Boolean folds** — ``a or b`` and ``a and b`` fold to the union of both
+  operands' value sets, so ``parameters or {}`` resolves to the ``parameters``
+  dict.
+- **Collection builtins** — ``list(x)``, ``tuple(x)``, ``sorted(x)``,
+  ``set(x)``, and ``dict.fromkeys(x)`` fold as identity on the element value
+  set.
+
+Inter-procedural resolution is memoized and cycle-guarded (a recursive
+resolution yields "unknown", keeping the advisory), depth-capped at 20 and
+value-set-capped at 256. It is never speculative: anything genuinely dynamic
+(for example ``os.environ``) still emits an :ref:`LHP-DEP-002 <lhp-dep-002>`
+advisory.
+
 **What the parser cannot resolve:**
 
-- Function arguments that are not bound from YAML ``parameters`` (the value
-  depends on the caller).
-- Function return values (``tbl = get_name()``). A read routed through a
-  helper — ``spark.read.table(helper(x))`` — is opaque by design: the parser
-  never follows calls.
+- Genuinely runtime-only values — ``os.environ`` and other runtime I/O, or a
+  function parameter that receives a dynamic (non-static) value at any of its
+  call sites.
 - String concatenation or ``.format()`` where any operand is non-static.
 - Class attributes (``self.tbl``, class-body bindings seen from methods).
-- ``for``-loops over iterables that are not statically-known string lists.
+- ``for``-loops over iterables that are not statically foldable.
 - ``nonlocal`` / ``global`` declarations.
+- Anything requiring resolution deeper than the depth cap (20) or wider than
+  the value-set cap (256); recursive resolution resolves to "unknown".
 
 A recognized read call whose argument cannot be resolved emits one
 :ref:`LHP-DEP-002 <lhp-dep-002>` advisory. For these cases, declare the edge
@@ -484,7 +532,10 @@ could not turn into dependency edges.
      - Remediation
    * - :ref:`LHP-DEP-002 <lhp-dep-002>`
      - A recognized Python table-read call whose table argument cannot be
-       statically resolved — its value is only known at runtime.
+       statically resolved — its value is only known at runtime. The message
+       quotes the unresolved argument expression, e.g. *Cannot statically
+       resolve the table argument of* ``spark.read.table(...)`` *— the value
+       of* ``os.environ['TBL']`` *is only known at runtime.*
      - Declare the upstream table with :ref:`depends_on <depends-on>` on the
        action.
    * - :ref:`LHP-DEP-003 <lhp-dep-003>`
@@ -493,29 +544,64 @@ could not turn into dependency edges.
      - Fix the SQL, or declare the upstream tables with ``depends_on``.
 
 ``depends_on`` entries are themselves validated:
-a malformed entry raises :ref:`LHP-VAL-063 <lhp-val-063>`.
+a malformed entry raises :ref:`LHP-VAL-063 <lhp-val-063>`. A non-empty
+``depends_on`` also **suppresses** the action's advisories entirely — see
+:ref:`depends-on`.
+
+Warnings are aggregated per read site
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. versionchanged:: 0.9.1
+   Warnings are grouped by unresolved read **site**, not per affected action.
+
+A single opaque read — one helper module referenced by hundreds of actions,
+say — used to emit one near-identical warning per action. Warnings are now
+grouped by ``(code, file, line, message)``, so each record represents **one
+unresolved read site** and lists every action it affects. A project that once
+produced 11,451 near-identical warnings from four helper sites now reports
+**four** records.
+
+Each aggregated record carries:
+
+- a representative ``flowgroup`` / ``action`` (the first affected action,
+  sorted),
+- ``edit_yaml_path`` — the YAML file a ``depends_on`` fix belongs in (the
+  flowgroup's own YAML, or the **blueprint** YAML for a blueprint-synthetic
+  flowgroup),
+- ``affected_actions`` — the full list of affected actions, each with its own
+  ``flowgroup`` / ``action`` / ``edit_yaml_path``, and
+- ``affected_count`` — how many actions the site affects.
 
 **Where warnings appear:**
 
-- **Terminal (stderr).** ``lhp dag`` prints a count header, up to 10 detail
-  lines in the form ``LHP-DEP-00x flowgroup.action (file:line): message``,
-  an overflow line (``... and N more (see JSON output)``), and one
-  ``depends_on`` hint.
+- **Terminal (stderr).** ``lhp dag`` prints a count header
+  (``N unresolved read site(s) affecting M action(s):``) followed by a
+  grouped ``Extraction warnings`` table with columns **Code**, **Unresolved
+  read** (``file:line``), **Reason**, **Affected** (the count plus the first
+  three ``flowgroup.action`` entries, then ``+N more``), and **Add
+  depends_on in** (the distinct YAML paths to edit). The table is capped at
+  50 sites with an overflow row, and one ``depends_on`` hint follows.
 - **JSON output.** The top-level ``warnings`` array is always present (empty
-  when there are none), and ``metadata.total_warnings`` carries the count.
-  Each entry has ``code``, ``message``, ``flowgroup``, ``action``,
-  ``suggestion``, ``file_path``, and ``line``. For file-based bodies,
-  ``file_path`` is the resolved ``.sql`` / ``.py`` file; for inline bodies
-  it is the flowgroup YAML file.
-- **Text report.** A ``DEPENDENCY EXTRACTION WARNINGS`` section lists every
-  warning with its message and suggestion.
+  when there are none). Each entry has ``code``, ``message``, ``flowgroup``,
+  ``action``, ``suggestion``, ``file_path``, ``line``, plus the aggregation
+  fields ``edit_yaml_path``, ``affected_actions`` (an array of
+  ``{flowgroup, action, edit_yaml_path}`` objects), and ``affected_count``.
+  For file-based bodies, ``file_path`` is the resolved ``.sql`` / ``.py``
+  file; for inline bodies it is the flowgroup YAML file. In ``metadata``,
+  ``total_warnings`` counts **distinct sites** and
+  ``total_warning_occurrences`` counts the site × affected-action pairs.
+- **Text report.** A ``DEPENDENCY EXTRACTION WARNINGS`` section renders one
+  block per site, each with an ``Affected (N): ...`` line (the first five
+  actions, then ``+N more``) and an ``Add depends_on in: ...`` line.
 
 Warnings do **not** appear in the DOT output or in generated orchestration
 job YAML.
 
 In the Python API, ``lhp.api`` exposes the same records as
-``DependencyWarningView`` entries on ``DependencyAnalysisResult.warnings``
-(provisional stability).
+``DependencyWarningView`` entries on ``DependencyAnalysisResult.warnings``;
+each view carries the ``edit_yaml_path`` / ``affected_actions`` /
+``affected_count`` fields (``affected_actions`` is a tuple of
+``AffectedActionView``). Both types are provisional stability.
 
 For the per-code reference, see :doc:`errors_reference`.
 
@@ -578,10 +664,14 @@ Command Options
     Save job file directly to ``resources/`` directory
 
 ``--expand-blueprints``
-    One graph node per blueprint instance (see :doc:`blueprints`)
+    **Deprecated, ignored no-op.** Blueprint synthetic flowgroups are always
+    fully expanded — one graph node per instance — so this flag no longer
+    changes anything. Passing it prints a deprecation notice and emits a
+    ``DeprecationWarning``. It will be removed in a future release. (See
+    :doc:`blueprints` for why full expansion is the only correct mode.)
 
 ``--blueprint``
-    Restrict the analysis to one blueprint
+    Restrict the analysis to one blueprint (unchanged).
 
 Output Formats
 --------------
@@ -625,7 +715,8 @@ Structured data perfect for integration with other tools:
        "total_external_sources": 7,
        "total_stages": 6,
        "has_circular_dependencies": false,
-       "total_warnings": 0
+       "total_warnings": 0,
+       "total_warning_occurrences": 0
      },
      "pipelines": {
        "acmi_edw_bronze": {

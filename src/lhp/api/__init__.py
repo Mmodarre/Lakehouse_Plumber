@@ -51,6 +51,7 @@ from lhp.api.facade import (
     WheelFacade,
 )
 from lhp.api.responses import (
+    AffectedActionView,
     BatchGenerationResponse,
     BatchValidationResponse,
     BundleEnableResult,
@@ -142,6 +143,7 @@ def collect_response(
 
 __all__: list[str] = [
     "ActionView",
+    "AffectedActionView",
     "BatchGenerationResponse",
     "BatchValidationResponse",
     "BlueprintInstanceView",

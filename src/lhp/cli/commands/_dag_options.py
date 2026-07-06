@@ -37,7 +37,10 @@ def dag_options(func: Callable) -> Callable:
     """Apply the ``dag`` / ``deps`` option set (one stack, applied to both)."""
     stack = [
         click.option("--blueprint", default=None),
-        click.option("--expand-blueprints", is_flag=True),
+        # Deprecated no-op: blueprints are always fully expanded during
+        # analysis. Accepted-but-ignored so existing invocations keep
+        # working; the command prints a deprecation notice when passed.
+        click.option("--expand-blueprints", is_flag=True, hidden=True),
         click.option(
             "-jc",
             "--job-config",

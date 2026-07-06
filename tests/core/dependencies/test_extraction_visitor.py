@@ -246,6 +246,8 @@ df2 = spark.read.table(helper(x))
         assert warning.code == DEP_002_CODE
         assert "spark.read.table" in warning.message
         assert "runtime" in warning.message
+        # The enriched message names the exact unresolved argument expression.
+        assert "helper(x)" in warning.message
         assert warning.line == 2
         assert warning.flowgroup == ""
         assert warning.action == ""
@@ -308,3 +310,210 @@ def f(spark, parameters):
         [warning] = result.warnings
         assert warning.code == DEP_003_CODE
         assert warning.line == 2  # the Python call line, not the SQL-internal line
+
+
+@pytest.mark.unit
+class TestInterproceduralReturnResolution:
+    """A bare-name helper call folds to the union of its return expressions."""
+
+    def test_helper_called_twice_with_different_literals(self):
+        # RC1: the helper's single read site resolves to the union of the
+        # arguments both call sites pass — both tables, zero warnings.
+        code = """
+def _table_exists(fqn):
+    return spark.catalog.tableExists(fqn)
+_table_exists("cat.a.orders")
+_table_exists("cat.a.customers")
+"""
+        result = extract_tables_from_python(code)
+        assert result.tables == ["cat.a.customers", "cat.a.orders"]
+        assert result.warnings == []
+
+    def test_return_value_folds_into_bound_name(self):
+        # RC2: ``t = _fqn()`` binds ``t`` to the helper's folded literal return.
+        code = """
+def _fqn():
+    return "cat.stg.orders"
+t = _fqn()
+spark.table(t)
+"""
+        result = extract_tables_from_python(code)
+        assert result.tables == ["cat.stg.orders"]
+        assert result.warnings == []
+
+    def test_closure_reads_enclosing_param_seeded_from_module_call(self):
+        # A nested function reads its enclosing function's parameter; the
+        # enclosing function is called from module level with a literal.
+        code = """
+def outer(name):
+    def inner():
+        return spark.table(name)
+    return inner()
+outer("cat.x.y")
+"""
+        result = extract_tables_from_python(code)
+        assert result.tables == ["cat.x.y"]
+        assert result.warnings == []
+
+
+@pytest.mark.unit
+class TestSeededOrEmptyDictChain:
+    """``parameters or {}`` then ``.get(...) or ""`` resolves the real table."""
+
+    def test_empty_string_default_filtered_out(self):
+        # RC3: the ``or ""`` default resolves to {"", "cat.s.real"}; the empty
+        # string is filtered, leaving only the real table and no advisory.
+        code = """
+def transform(df, parameters):
+    p = parameters or {}
+    src = p.get("source_table") or ""
+    return spark.table(src)
+"""
+        bindings = ParameterBindings(
+            function_name="transform",
+            dict_arg_index=1,
+            dict_value=DictValue({"source_table": frozenset({"cat.s.real"})}),
+        )
+        result = extract_tables_from_python(code, bindings=bindings)
+        assert result.tables == ["cat.s.real"]
+        assert result.warnings == []
+
+
+@pytest.mark.unit
+class TestFromkeysLoopResolution:
+    """``for t in dict.fromkeys([...])`` unrolls to the deduplicated keys."""
+
+    def test_loop_over_fromkeys_literal(self):
+        # RC4: dict.fromkeys folds to its argument's element value set.
+        code = """
+for t in dict.fromkeys(["cat.s.a", "cat.s.b", "cat.s.a"]):
+    spark.table(t)
+"""
+        result = extract_tables_from_python(code)
+        assert result.tables == ["cat.s.a", "cat.s.b"]
+        assert result.warnings == []
+
+
+@pytest.mark.unit
+class TestOpaqueEmissionAndMessages:
+    """Cycle guard, per-read-site emission, and enriched advisory messages."""
+
+    def test_recursion_guard_emits_single_dep_002(self):
+        code = """
+def f(x):
+    return f(x)
+spark.table(f("a"))
+"""
+        result = extract_tables_from_python(code)
+        assert result.tables == []
+        assert len(result.warnings) == 1
+        warning = result.warnings[0]
+        assert warning.code == DEP_002_CODE
+        # ``ast.unparse`` renders the recursive call argument with single quotes.
+        assert "f('a')" in warning.message
+
+    def test_single_emission_per_read_site_not_per_caller(self):
+        # A helper has ONE opaque read site; calling it from three places
+        # still emits exactly ONE advisory (emission is per read site).
+        code = """
+import os
+def helper():
+    return spark.table(os.environ["T"])
+helper()
+helper()
+helper()
+"""
+        result = extract_tables_from_python(code)
+        assert result.tables == []
+        assert len(result.warnings) == 1
+        assert result.warnings[0].code == DEP_002_CODE
+
+    def test_enriched_message_names_arg_and_call_head(self):
+        code = """
+import os
+spark.table(os.environ["TBL"])
+"""
+        result = extract_tables_from_python(code)
+        assert result.tables == []
+        [warning] = result.warnings
+        assert warning.code == DEP_002_CODE
+        assert "spark.table" in warning.message
+        assert "os.environ['TBL']" in warning.message
+
+
+@pytest.mark.unit
+class TestFullSourceInterproceduralCases:
+    """Realistic snapshot / transform bodies resolve with zero warnings."""
+
+    def test_case_a_kwonly_seeding_with_closures_and_loop(self):
+        code = """
+def snapshot_fn(*, catalog, schema, tables):
+    def _table_exists(fqn):
+        return spark.catalog.tableExists(fqn)
+    def _resolve_stg_fqn():
+        return f"{catalog}.{schema}_stg.orders"
+    stg_table_fqn = _resolve_stg_fqn()
+    if _table_exists(stg_table_fqn):
+        df = spark.table(stg_table_fqn)
+    candidates = [f"{catalog}.{schema}.t1", f"{catalog}.{schema}.t2"]
+    for fqn in dict.fromkeys(candidates):
+        if _table_exists(fqn):
+            spark.table(fqn)
+    return df
+"""
+        bindings = ParameterBindings(
+            function_name="snapshot_fn",
+            kwonly=DictValue(
+                {
+                    "catalog": frozenset({"cat"}),
+                    "schema": frozenset({"edw"}),
+                    "tables": ListValue(("a", "b")),
+                }
+            ),
+        )
+        result = extract_tables_from_python(code, bindings=bindings)
+        assert result.tables == [
+            "cat.edw.t1",
+            "cat.edw.t2",
+            "cat.edw_stg.orders",
+        ]
+        assert result.warnings == []
+
+    def test_case_b_module_sibling_positional_args(self):
+        code = """
+def _deid(df, table_name):
+    ref = spark.table(table_name)
+    return df
+def transform(df, parameters):
+    return _deid(df, "cat.ref.patients")
+"""
+        bindings = ParameterBindings(
+            function_name="transform",
+            dict_arg_index=1,
+            dict_value=DictValue({}),
+        )
+        result = extract_tables_from_python(code, bindings=bindings)
+        assert result.tables == ["cat.ref.patients"]
+        assert result.warnings == []
+
+    def test_case_c_transitive_helpers_over_seeded_list(self):
+        code = """
+def _schema_for(site):
+    return f"edw_{site}"
+def transform(df, parameters):
+    p = parameters or {}
+    sites = _coerce_sites(p["sites"])
+    for site in sites:
+        df = spark.table(f"cat.{_schema_for(site)}.orders")
+    return df
+def _coerce_sites(raw):
+    return list(raw)
+"""
+        bindings = ParameterBindings(
+            function_name="transform",
+            dict_arg_index=1,
+            dict_value=DictValue({"sites": ListValue(("syd", "mel"))}),
+        )
+        result = extract_tables_from_python(code, bindings=bindings)
+        assert result.tables == ["cat.edw_mel.orders", "cat.edw_syd.orders"]
+        assert result.warnings == []

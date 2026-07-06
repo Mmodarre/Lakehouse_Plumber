@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Sequence
 
 from lhp.api.responses import (
+    AffectedActionView,
     DependencyAnalysisResult,
     DependencyWarningView,
     StatsResult,
@@ -364,6 +365,16 @@ def _dependency_result_to_view(
             suggestion=warning.suggestion,
             file_path=warning.file_path,
             line=warning.line,
+            edit_yaml_path=warning.edit_yaml_path,
+            affected_actions=tuple(
+                AffectedActionView(
+                    flowgroup=affected.flowgroup,
+                    action=affected.action,
+                    edit_yaml_path=affected.edit_yaml_path,
+                )
+                for affected in warning.affected_actions
+            ),
+            affected_count=warning.affected_count,
         )
         for warning in internal.warnings
     )

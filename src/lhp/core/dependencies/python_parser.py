@@ -15,7 +15,12 @@ from typing import FrozenSet, List, Optional, Tuple
 from ...models.dependencies import DependencyWarning
 from ._bindings import ParameterBindings
 from ._extraction_visitor import _TableExtractor
-from ._static_resolution import NameResolver, resolve_static_string_values
+from ._function_index import FunctionIndex
+from ._static_resolution import (
+    CallResolver,
+    NameResolver,
+    resolve_static_string_values,
+)
 from ._table_sites import PythonTableSitesResult
 
 # Spark DataFrameReader ``.format(...)`` values that denote a relational table
@@ -52,12 +57,17 @@ class PythonParser:
         python_code: str,
         *,
         bindings: Optional[ParameterBindings] = None,
+        parsed: "Optional[Tuple[ast.Module, FunctionIndex]]" = None,
     ) -> PythonExtractionResult:
         """Extract internal-table references from a Python body.
 
         ``bindings`` optionally seeds the scope of one module-level function
         with the statically-known YAML parameter values codegen would apply
         at runtime (see :class:`~lhp.core.dependencies._bindings.ParameterBindings`).
+        ``parsed`` optionally supplies the pre-parsed
+        ``(tree, function_index)`` pair for this exact (normalized) code —
+        the per-run parse cache's seam; both are bindings-independent, so
+        one parse serves every action referencing the same helper file.
         """
         if not python_code or not isinstance(python_code, str):
             return PythonExtractionResult(tables=[], warnings=[])
@@ -65,16 +75,22 @@ class PythonParser:
         self.logger.debug(
             f"Extracting table references from Python code ({len(python_code)} chars)"
         )
-        try:
-            tree = ast.parse(self._normalize_python_code(python_code))
-        except SyntaxError as e:
-            self.logger.warning(f"Could not parse Python code: {e}")
-            return PythonExtractionResult(tables=[], warnings=[])
-        except Exception:
-            self.logger.exception("Error extracting table references from Python")
-            return PythonExtractionResult(tables=[], warnings=[])
+        if parsed is not None:
+            tree, function_index = parsed
+        else:
+            try:
+                tree = ast.parse(self._normalize_python_code(python_code))
+            except SyntaxError as e:
+                self.logger.warning(f"Could not parse Python code: {e}")
+                return PythonExtractionResult(tables=[], warnings=[])
+            except Exception:
+                self.logger.exception("Error extracting table references from Python")
+                return PythonExtractionResult(tables=[], warnings=[])
+            function_index = None
 
-        extractor = _TableExtractor(self, bindings=bindings)
+        extractor = _TableExtractor(
+            self, bindings=bindings, function_index=function_index
+        )
         extractor.visit(tree)
 
         self.logger.debug(
@@ -155,6 +171,8 @@ class PythonParser:
         self,
         node: ast.Call,
         name_resolver: NameResolver = None,
+        *,
+        call_resolver: CallResolver = None,
     ) -> Tuple[bool, FrozenSet[str]]:
         """Recognize a Spark read call and extract its table reference(s).
 
@@ -172,7 +190,9 @@ class PythonParser:
             and node.func.attr == "table"
             and self._is_spark_object(node.func.value)
         ):
-            return True, self._get_string_argument_values(node, 0, name_resolver)
+            return True, self._get_string_argument_values(
+                node, 0, name_resolver, call_resolver=call_resolver
+            )
 
         # ``spark.read.table(...)`` and ``spark.readStream.table(...)`` — the
         # ``.table`` accessor on a DataFrameReader / DataStreamReader. Also
@@ -185,14 +205,16 @@ class PythonParser:
             and node.func.value.attr in ("read", "readStream")
             and self._is_spark_object(node.func.value.value)
         ):
-            return True, self._get_string_argument_values(node, 0, name_resolver)
+            return True, self._get_string_argument_values(
+                node, 0, name_resolver, call_resolver=call_resolver
+            )
 
         # ``spark.read.format(fmt).table/load(...)`` and the ``readStream``
         # variant. Only matches when ``fmt`` is a recognized relational-table
         # format (see ``_INTERNAL_TABLE_FORMATS``); ``cloudFiles`` and custom
         # DataSource names fall through and stay external.
         matched, format_chain_values = self._extract_table_from_format_chain(
-            node, name_resolver
+            node, name_resolver, call_resolver=call_resolver
         )
         if matched:
             return True, format_chain_values
@@ -204,7 +226,9 @@ class PythonParser:
             and self._is_spark_object(node.func.value.value)
             and node.func.attr in ["tableExists", "dropTempView"]
         ):
-            return True, self._get_string_argument_values(node, 0, name_resolver)
+            return True, self._get_string_argument_values(
+                node, 0, name_resolver, call_resolver=call_resolver
+            )
 
         return False, frozenset()
 
@@ -212,6 +236,8 @@ class PythonParser:
         self,
         node: ast.Call,
         name_resolver: NameResolver = None,
+        *,
+        call_resolver: CallResolver = None,
     ) -> Tuple[bool, FrozenSet[str]]:
         """Recognize ``spark.read.format(fmt).table/load("c.s.t")`` chains.
 
@@ -252,14 +278,18 @@ class PythonParser:
         # The format string must statically resolve to a single allowlisted
         # relational-table format. Anything else (cloudFiles, custom DataSource
         # names, file formats) is external — never speculate.
-        format_values = self._get_string_argument_values(format_call, 0, name_resolver)
+        format_values = self._get_string_argument_values(
+            format_call, 0, name_resolver, call_resolver=call_resolver
+        )
         if not (
             len(format_values) == 1
             and next(iter(format_values)).lower() in _INTERNAL_TABLE_FORMATS
         ):
             return False, frozenset()
 
-        return True, self._get_string_argument_values(node, 0, name_resolver)
+        return True, self._get_string_argument_values(
+            node, 0, name_resolver, call_resolver=call_resolver
+        )
 
     def _is_spark_object(self, node: ast.AST) -> bool:
         """Check if an AST node represents a spark object."""
@@ -274,6 +304,8 @@ class PythonParser:
         node: ast.Call,
         arg_index: int,
         name_resolver: NameResolver = None,
+        *,
+        call_resolver: CallResolver = None,
     ) -> Optional[str]:
         """Extract a string argument from a function call at ``arg_index``.
 
@@ -290,7 +322,9 @@ class PythonParser:
           - the argument is an ``ast.Name`` and no resolver is supplied (or the
             resolver yields zero or multiple values).
         """
-        values = self._get_string_argument_values(node, arg_index, name_resolver)
+        values = self._get_string_argument_values(
+            node, arg_index, name_resolver, call_resolver=call_resolver
+        )
         if len(values) == 1:
             return next(iter(values))
         return None
@@ -300,6 +334,8 @@ class PythonParser:
         node: ast.Call,
         arg_index: int,
         name_resolver: NameResolver = None,
+        *,
+        call_resolver: CallResolver = None,
     ) -> FrozenSet[str]:
         """Extract all possible string values for the ``arg_index`` argument.
 
@@ -321,7 +357,9 @@ class PythonParser:
             )
             return frozenset()
 
-        resolved = resolve_static_string_values(arg, name_resolver)
+        resolved = resolve_static_string_values(
+            arg, name_resolver, call_resolver=call_resolver
+        )
         if not resolved and isinstance(arg, ast.Name):
             self.logger.debug(
                 f"Variable reference '{arg.id}' in spark call — "
@@ -330,22 +368,34 @@ class PythonParser:
         return resolved
 
     def _normalize_python_code(self, python_code: str) -> str:
-        """Remove common indentation so indented code blocks (e.g. in test strings) parse cleanly."""
-        if not python_code or not isinstance(python_code, str):
-            return ""
+        return normalize_python_code(python_code)
 
-        import textwrap
 
-        return textwrap.dedent(python_code).strip()
+def normalize_python_code(python_code: str) -> str:
+    """Remove common indentation so indented code blocks (e.g. in test strings) parse cleanly.
+
+    Module-level so the per-run parse cache normalizes exactly the way
+    :meth:`PythonParser.extract_tables_from_python` does — the cached tree
+    must be byte-for-byte the one that method would have parsed itself.
+    """
+    if not python_code or not isinstance(python_code, str):
+        return ""
+
+    import textwrap
+
+    return textwrap.dedent(python_code).strip()
 
 
 def extract_tables_from_python(
     python_code: str,
     *,
     bindings: Optional[ParameterBindings] = None,
+    parsed: "Optional[Tuple[ast.Module, FunctionIndex]]" = None,
 ) -> PythonExtractionResult:
     parser = PythonParser()
-    return parser.extract_tables_from_python(python_code, bindings=bindings)
+    return parser.extract_tables_from_python(
+        python_code, bindings=bindings, parsed=parsed
+    )
 
 
 def collect_python_table_sites(
