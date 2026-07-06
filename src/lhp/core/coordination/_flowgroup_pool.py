@@ -61,7 +61,9 @@ from .._interfaces import BaseCodeGenerationService, BaseFlowgroupResolutionServ
 from ..codegen.formatter import assert_generated_python_valid
 
 if TYPE_CHECKING:
-    from lhp.core.sandbox import SandboxTableRenames, UnrewritableTableRead
+    from lhp.core.sandbox import (
+        SandboxTableRenames,
+    )
 
     from ...models.processing import CopiedModuleRecord
     from ..processing.substitution import EnhancedSubstitutionManager
@@ -339,10 +341,11 @@ def _apply_sandbox_python_rewrites(
     flowgroup's generated module and over each
     :class:`~lhp.models.processing.CopiedModuleRecord`'s content (records are
     frozen — rewritten ones are rebuilt via :func:`dataclasses.replace`).
-    Returns ``(code, records, warnings)`` with one ``LHP-VAL-066``
-    :class:`~lhp.models.processing.SandboxWarningRecord` per FILE that still
-    holds in-scope reads the rewriter could not rename (the ``(code, file)``
-    dedup grain the merge chain uses).
+    Returns ``(code, records, warnings)`` with up to one ``LHP-VAL-066``
+    (unrewritable in-scope reads) and one ``LHP-VAL-067`` (opaque ``spark.sql``
+    bodies) :class:`~lhp.models.processing.SandboxWarningRecord` per FILE — the
+    ``(code, file)`` dedup grain the merge chain uses. Opaque runtime reads are
+    wrapped in the ``__lhp_sandbox_table(...)`` shim, not reported.
 
     File identity: the generated module is named exactly as the commit step
     writes it (``<pipeline output dir>/<flowgroup_name>.py``; the bare
@@ -356,6 +359,8 @@ def _apply_sandbox_python_rewrites(
     """
     from lhp.core.sandbox import rewrite_python_table_literals
 
+    from ._sandbox_warning_fold import fold_file_warnings
+
     warnings: List[SandboxWarningRecord] = []
 
     generated_file = (
@@ -363,55 +368,18 @@ def _apply_sandbox_python_rewrites(
         if output_dir is not None
         else Path(f"{flowgroup_name}.py")
     )
-    code, unrewritable = rewrite_python_table_literals(code, renames)
-    warning = _fold_unrewritable_reads(unrewritable, generated_file, flowgroup_name)
-    if warning is not None:
-        warnings.append(warning)
+    code, unhandled = rewrite_python_table_literals(code, renames)
+    warnings.extend(fold_file_warnings(unhandled, generated_file, flowgroup_name))
 
     new_records: List["CopiedModuleRecord"] = []
     for record in records:
-        content, unrewritable = rewrite_python_table_literals(record.content, renames)
+        content, unhandled = rewrite_python_table_literals(record.content, renames)
         if content != record.content:
             record = dataclasses.replace(record, content=content)
         new_records.append(record)
-        warning = _fold_unrewritable_reads(
-            unrewritable, record.dest_path, flowgroup_name
-        )
-        if warning is not None:
-            warnings.append(warning)
+        warnings.extend(fold_file_warnings(unhandled, record.dest_path, flowgroup_name))
 
     return code, new_records, tuple(warnings)
-
-
-def _fold_unrewritable_reads(
-    reads: "tuple[UnrewritableTableRead, ...]",
-    file: Path,
-    flowgroup_name: str,
-) -> Optional[SandboxWarningRecord]:
-    """Fold ONE file's unrewritable in-scope reads into ONE ``LHP-VAL-066``.
-
-    Returns ``None`` when the file has no such reads. Sites are deduped and
-    sorted by ``(lineno, table, kind)`` so the message is deterministic.
-    """
-    if not reads:
-        return None
-    from lhp.errors.codes import VAL_066
-
-    sites = sorted({(read.lineno, read.table, read.kind) for read in reads})
-    detail = "; ".join(
-        f"line {lineno}: {table} ({kind})" for lineno, table, kind in sites
-    )
-    message = (
-        f"Sandbox rewrite could not rename {len(sites)} in-scope table "
-        f"read(s) in {file.name}: {detail}. These sites still read the "
-        f"original (non-sandbox) table(s)."
-    )
-    return SandboxWarningRecord(
-        code=VAL_066.code,
-        message=message,
-        file=file,
-        flowgroup=flowgroup_name,
-    )
 
 
 def _to_failure(

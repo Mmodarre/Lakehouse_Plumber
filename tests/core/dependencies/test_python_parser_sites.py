@@ -193,8 +193,15 @@ class TestUnrewritableResolvedTableReads:
             kwonly=DictValue({"table_name": frozenset({"cat.sch.orders"})}),
         )
 
-        # Without bindings the parameter is opaque: no site, one advisory.
-        assert collect_python_table_sites(code).sites == ()
+        # Without bindings the parameter is opaque: it records a shimmable
+        # opaque table_read site (span over the argument) and still emits one
+        # LHP-DEP-002 advisory — the additive recording never leaks into the
+        # dependency outputs.
+        unbound_sites = collect_python_table_sites(code).sites
+        assert len(unbound_sites) == 1
+        assert unbound_sites[0].opaque is True
+        assert unbound_sites[0].kind == "table_read"
+        assert unbound_sites[0].rewritable is False
         unbound = extract_tables_from_python(code)
         assert unbound.tables == []
         assert [w.code for w in unbound.warnings] == [DEP_002_CODE]
@@ -207,28 +214,52 @@ class TestUnrewritableResolvedTableReads:
 
 
 @pytest.mark.unit
-class TestOpaqueSitesExcluded:
-    """Opaque arguments stay LHP-DEP-002 territory — never recorded."""
+class TestOpaqueSitesRecorded:
+    """Opaque arguments record an ``opaque`` site (for the sandbox shim /
 
-    def test_function_call_argument(self):
+    advisory) while dependency extraction stays LHP-DEP-002 territory — the
+    recording is additive and never leaks into ``tables`` / ``warnings``.
+    A call with NO positional argument has nothing to wrap and records nothing.
+    """
+
+    def test_function_call_argument_records_opaque_table_read(self):
         code = "df = spark.table(get_name())\n"
-        assert collect_python_table_sites(code).sites == ()
+        sites = collect_python_table_sites(code).sites
+
+        assert len(sites) == 1
+        site = sites[0]
+        assert site.kind == "table_read"
+        assert site.opaque is True
+        assert site.rewritable is False
+        assert site.value is None and site.resolved_values == frozenset()
+        assert _slice(code, site.span) == "get_name()"
+
         result = extract_tables_from_python(code)
         assert result.tables == []
         assert [w.code for w in result.warnings] == [DEP_002_CODE]
 
-    def test_keyword_argument_is_opaque(self):
+    def test_keyword_argument_records_nothing(self):
         # Recognition only inspects positional args; a keyword-passed table
-        # name is opaque for both extraction and site collection.
+        # name has no argument node to wrap, so no site is recorded (though it
+        # is still opaque for dependency extraction → one LHP-DEP-002).
         code = 'df = spark.table(tableName="cat.sch.t")\n'
         assert collect_python_table_sites(code).sites == ()
         result = extract_tables_from_python(code)
         assert result.tables == []
         assert [w.code for w in result.warnings] == [DEP_002_CODE]
 
-    def test_opaque_spark_sql(self):
+    def test_opaque_spark_sql_records_advisory_site(self):
         code = "df = spark.sql(build_query())\n"
-        assert collect_python_table_sites(code).sites == ()
+        sites = collect_python_table_sites(code).sites
+
+        assert len(sites) == 1
+        site = sites[0]
+        assert site.kind == "spark_sql"
+        assert site.opaque is True
+        assert site.rewritable is False
+        assert site.span is None  # opaque SQL text is not a rewritable name arg
+        assert site.value is None and site.resolved_values == frozenset()
+
         result = extract_tables_from_python(code)
         assert result.tables == []
         assert [w.code for w in result.warnings] == [DEP_002_CODE]
@@ -280,6 +311,48 @@ class TestSparkSqlSites:
         )
         result = extract_tables_from_python(code, bindings=bindings)
         assert result.tables == ["cat.bronze.lines", "cat.bronze.orders"]
+
+    def test_dynamic_fstring_records_fstring_site(self):
+        """A dynamic f-string body (unresolved interpolation) records an
+
+        ``fstring`` site carrying the JoinedStr span for the sandbox rewriter,
+        while dependency extraction is byte-identical: still no table, still
+        one LHP-DEP-002 advisory (the additive recording never leaks into the
+        dependency outputs).
+        """
+        code = 'df = spark.sql(f"SELECT * FROM cat.sch.orders WHERE x = {run_id}")\n'
+        sites = collect_python_table_sites(code).sites
+
+        assert len(sites) == 1
+        site = sites[0]
+        assert site.kind == "spark_sql"
+        assert site.fstring is True
+        assert site.rewritable is False
+        assert site.value is None and site.resolved_values == frozenset()
+        assert site.lineno == 1
+        assert (
+            _slice(code, site.span)
+            == 'f"SELECT * FROM cat.sch.orders WHERE x = {run_id}"'
+        )
+
+        result = extract_tables_from_python(code)
+        assert result.tables == []
+        assert [w.code for w in result.warnings] == [DEP_002_CODE]
+
+    def test_opaque_non_fstring_spark_sql_records_advisory_site(self):
+        """A JoinedStr argument records an ``fstring`` site; other opaque forms
+
+        (calls, bare names) record an ``opaque`` spark_sql site (spanless) that
+        the sandbox pass turns into the LHP-VAL-067 advisory.
+        """
+        for arg in ("build_query()", "query_var"):
+            code = f"df = spark.sql({arg})\n"
+            sites = collect_python_table_sites(code).sites
+            assert len(sites) == 1
+            assert sites[0].kind == "spark_sql"
+            assert sites[0].opaque is True
+            assert sites[0].fstring is False
+            assert sites[0].span is None
 
 
 @pytest.mark.unit

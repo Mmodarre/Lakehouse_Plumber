@@ -10,6 +10,7 @@ from ``core/coordination``, ``api``, ``cli``, ``generators``, or ``bundle``.
 from lhp.core.sandbox._flowgroup_rewriter import rewrite_flowgroup_tables
 from lhp.core.sandbox._python_rewriter import (
     UnrewritableTableRead,
+    UnverifiableSqlRead,
     rewrite_python_table_literals,
 )
 from lhp.core.sandbox._renames import (
@@ -27,6 +28,7 @@ __all__ = [
     "SandboxTableRenames",
     "TableRenameStrategy",
     "UnrewritableTableRead",
+    "UnverifiableSqlRead",
     "build_sandbox_table_renames",
     "match_renamed_table",
     "rename_parts",

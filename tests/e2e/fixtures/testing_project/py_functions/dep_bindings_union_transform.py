@@ -7,3 +7,29 @@ def union_configured_tables(df: DataFrame, spark, parameters) -> DataFrame:
     for t in parameters["tables"]:
         result = result.unionByName(spark.read.table(t), allowMissingColumns=True)
     return result
+
+
+def fstring_scoped_read(df: DataFrame, spark, run_id) -> DataFrame:
+    """f-string spark.sql: the in-scope FQN sits fully inside the literal
+    segment, so sandbox mode rewrites its leaf to the producer namespace; the
+    trailing ``{run_id}`` interpolation is preserved verbatim."""
+    extra = spark.sql(
+        f"SELECT * FROM acme_edw_dev.edw_bronze.helper_snapshot_dim WHERE v = {run_id}"
+    )
+    return df.unionByName(extra, allowMissingColumns=True)
+
+
+def dict_bound_read(df: DataFrame, spark) -> DataFrame:
+    """Name-bound container read: the spark.read.table argument resolves through
+    a dict, so it is statically known but not a plain literal — sandbox mode
+    leaves it untouched and folds an LHP-VAL-066 warning."""
+    sources = {"helper": "acme_edw_dev.edw_bronze.helper_snapshot_dim"}
+    return df.unionByName(spark.read.table(sources["helper"]), allowMissingColumns=True)
+
+
+def dynamic_query_read(df: DataFrame, spark, parameters) -> DataFrame:
+    """Opaque spark.sql: the query text is supplied at runtime, so its table
+    references cannot be verified or rewritten — sandbox mode folds an
+    LHP-VAL-067 advisory and leaves the body unchanged."""
+    query = parameters["dynamic_query"]
+    return df.unionByName(spark.sql(query), allowMissingColumns=True)

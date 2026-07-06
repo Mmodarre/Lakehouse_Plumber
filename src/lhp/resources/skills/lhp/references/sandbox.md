@@ -20,7 +20,7 @@ lhp validate -e dev --sandbox    # same scoping + structured renames
   (exit code 2): `--sandbox cannot be combined with -p/--pipeline: sandbox scope
   comes from .lhp/profile.yaml`.
 - Works with `--dry-run`.
-- `--strict` promotes the sandbox warnings (`VAL-065`/`VAL-066`) to failures.
+- `--strict` promotes the sandbox warnings (`VAL-065`/`VAL-066`/`VAL-067`) to failures.
 
 ## `.lhp/profile.yaml` (personal, gitignored)
 
@@ -79,8 +79,8 @@ the rewrite formats the original leaf spelling, so the author's casing survives.
 | Delta-load `source.{catalog,schema,table}` of an in-scope table | `depends_on` entries (DAG-only, never in generated code) |
 | `action.source` string / list entries matching the rename set | Bare 1-part view names (rename set holds only 2-/3-part keys) |
 | Test `reference` / `lookup_table` dotted refs | Per-pipeline explicit `event_log:` dicts |
-| SQL bodies in generated `spark.sql(...)` literals (table leaf only; refs inside SQL quoted strings and `--` / `/* */` comments are exempt) | Refs inside SQL string literals and comments |
-| Python table literals in copied modules (custom datasource / transform files): direct string-literal args and `spark.sql(...)` constant bodies | Indirect Python reads (variable, f-string, concat, `.format`) — left untouched, flagged `LHP-VAL-066` |
+| SQL bodies in generated `spark.sql(...)` literals (table leaf only; refs inside SQL quoted strings and `--` / `/* */` comments are exempt — EXCEPT a single-quoted in-scope table arg to `table_changes(...)` / `IDENTIFIER(...)`, which IS rewritten) | Refs inside SQL string literals and comments (other than the `table_changes` / `IDENTIFIER` arg exception) |
+| Python table refs in copied modules (custom datasource / transform files): direct string-literal args, `spark.sql(...)` constant bodies, f-string SQL literal segments holding a full in-scope name, and opaque `spark.read.table(runtime_name)` reads (wrapped in a generated `__lhp_sandbox_table(...)` shim that renames at runtime) | Statically-resolved-but-non-literal in-scope reads (bound variable / concat / `.format` / resolved f-string / constant-key container subscript) — left untouched, flagged `LHP-VAL-066`; opaque `spark.sql(...)` bodies and f-strings with ≥2 interpolated name parts — flagged `LHP-VAL-067` |
 | YAML parameter values bound into user Python code — python-transform `parameters`, python-load `source.parameters`, snapshot-CDC `source_function.parameters` (whole-value canonical match only; nested lists/dicts walked element-wise) | Arbitrary parameter strings that don't canonically match the rename set |
 
 **Canonical example.** Profile: namespace `alice`, pipelines `bronze_*` +
@@ -102,6 +102,12 @@ every in-scope read (YAML fields, SQL, Python literals). A read of
 - **Mixed producers:** an in-scope rename target also produced by an out-of-scope
   pipeline is still renamed; all such findings fold into one `LHP-VAL-065` warning
   naming the out-of-scope producers.
+- **Runtime shim:** an opaque recognized read whose table name is only known at
+  runtime (`spark.read.table(fetch_name())`) is wrapped in a generated
+  `__lhp_sandbox_table(...)` helper (one per copied module with any wrapped
+  site) that mirrors the static matcher and renames at execution time — no
+  warning. Opaque `spark.sql(...)` bodies cannot be shimmed and flag
+  `LHP-VAL-067` instead.
 - A rewritten Python module that fails to re-parse fails the flowgroup cleanly
   (all-or-nothing run) — never a corrupt file.
 
@@ -116,7 +122,8 @@ every in-scope read (YAML fields, SQL, Python literals). A read of
 | **LHP-CFG-065** | error | Env not in `sandbox.allowed_envs` |
 | **LHP-VAL-064** | error | Profile entry matched zero pipelines, or an exact entry names the monitoring pipeline |
 | **LHP-VAL-065** | **warning** | Mixed-producer sink table (also produced out of scope); rename proceeds |
-| **LHP-VAL-066** | **warning** | Unrewritable in-scope Python read (non-literal argument); source untouched. Generate-only in v1 |
+| **LHP-VAL-066** | **warning** | Unrewritable in-scope Python read (statically-resolved non-literal argument); source untouched. Generate-only in v1 |
+| **LHP-VAL-067** | **warning** | Opaque dynamic `spark.sql(...)` body (runtime-determined table refs); can be neither verified nor rewritten. Generate-only in v1. (Opaque table *reads* are shimmed, not flagged) |
 
 Warnings carry category `sandbox` and never fail a run — unless `--strict`
 promotes warnings to failures.
@@ -128,6 +135,7 @@ promotes warnings to failures.
   tables and materialized views, but delta-sink tables created by sandbox runs
   need manual cleanup.
 - `lhp validate --sandbox` applies the structured renames but emits no
-  `LHP-VAL-066` (generate-only).
+  `LHP-VAL-066` / `LHP-VAL-067` and performs no Python shim wrapping
+  (generate-only).
 - Per-pipeline explicit `event_log:` dicts are not rewritten — only the
   project-level composed event-log table name is namespaced.

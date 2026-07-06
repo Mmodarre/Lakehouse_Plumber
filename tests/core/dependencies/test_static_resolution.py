@@ -18,6 +18,8 @@ import pytest
 from lhp.core.dependencies._bindings import Bound, DictValue, ListValue
 from lhp.core.dependencies._static_resolution import (
     render_f_string,
+    resolve_static_bound,
+    resolve_static_dict,
     resolve_static_list,
     resolve_static_string_values,
 )
@@ -527,3 +529,125 @@ class TestFStrings:
         assert render_f_string(node, resolver) == frozenset(
             {"dev.sch.{table}", "prod.sch.{table}"}
         )
+
+
+@pytest.mark.unit
+class TestListSubscriptResolution:
+    """``list_bound[index]`` lookups into a name bound to a ``ListValue``."""
+
+    def test_constant_index_returns_element(self):
+        resolver = _resolver(cols=ListValue(("a", "b", "c")))
+        assert resolve_static_string_values(_expr("cols[0]"), resolver) == frozenset(
+            {"a"}
+        )
+
+    def test_negative_index_returns_element(self):
+        resolver = _resolver(cols=ListValue(("a", "b", "c")))
+        assert resolve_static_string_values(_expr("cols[-1]"), resolver) == frozenset(
+            {"c"}
+        )
+
+    def test_out_of_range_index_unresolved(self):
+        resolver = _resolver(cols=ListValue(("a", "b")))
+        assert resolve_static_string_values(_expr("cols[9]"), resolver) == frozenset()
+
+    def test_dynamic_index_unions_all_elements(self):
+        resolver = _resolver(cols=ListValue(("a", "b", "c")), i=frozenset({"0"}))
+        assert resolve_static_string_values(_expr("cols[i]"), resolver) == frozenset(
+            {"a", "b", "c"}
+        )
+
+    def test_slice_unions_all_elements(self):
+        resolver = _resolver(cols=ListValue(("a", "b", "c")))
+        assert resolve_static_string_values(_expr("cols[1:2]"), resolver) == frozenset(
+            {"a", "b", "c"}
+        )
+
+    def test_index_token_bytes_preserved(self):
+        resolver = _resolver(cols=ListValue(("${catalog}.sch.t", "b")))
+        assert resolve_static_string_values(_expr("cols[0]"), resolver) == frozenset(
+            {"${catalog}.sch.t"}
+        )
+
+
+@pytest.mark.unit
+class TestResolveStaticDict:
+    """``resolve_static_dict``: dict literals and dict-bound names → DictValue."""
+
+    def test_dict_literal_binds_string_entries(self):
+        assert resolve_static_dict(_expr('{"o": "cat.sch.o", "p": "cat.sch.p"}')) == (
+            DictValue({"o": frozenset({"cat.sch.o"}), "p": frozenset({"cat.sch.p"})})
+        )
+
+    def test_nested_container_values(self):
+        node = _expr('{"d": {"inner": "x.y.z"}, "l": ["c1", "c2"]}')
+        assert resolve_static_dict(node) == DictValue(
+            {
+                "d": DictValue({"inner": frozenset({"x.y.z"})}),
+                "l": ListValue(("c1", "c2")),
+            }
+        )
+
+    def test_unbindable_value_dropped_rest_still_bind(self):
+        # Mirrors bound_from_yaml: an entry whose value is not statically known
+        # is dropped; the static entries still bind.
+        node = _expr('{"o": "cat.sch.o", "d": get_name()}')
+        assert resolve_static_dict(node) == DictValue({"o": frozenset({"cat.sch.o"})})
+
+    def test_non_constant_and_non_string_keys_dropped(self):
+        resolver = _resolver(k=frozenset({"o"}))
+        node = _expr('{k: "cat.sch.a", 0: "cat.sch.b", "o": "cat.sch.o"}')
+        assert resolve_static_dict(node, resolver) == DictValue(
+            {"o": frozenset({"cat.sch.o"})}
+        )
+
+    def test_spread_entry_dropped(self):
+        node = _expr('{"o": "cat.sch.o", **other}')
+        assert resolve_static_dict(node) == DictValue({"o": frozenset({"cat.sch.o"})})
+
+    def test_token_bytes_preserved(self):
+        assert resolve_static_dict(_expr('{"o": "cat.sch.t${suffix}"}')) == DictValue(
+            {"o": frozenset({"cat.sch.t${suffix}"})}
+        )
+
+    def test_name_bound_to_dict_value(self):
+        resolver = _resolver(params=_PARAMS)
+        assert resolve_static_dict(_expr("params"), resolver) == _PARAMS
+
+    def test_non_dict_node_unresolved(self):
+        assert resolve_static_dict(_expr('"cat.sch.t"')) is None
+        assert resolve_static_dict(_expr('["a", "b"]')) is None
+
+
+@pytest.mark.unit
+class TestResolveStaticBound:
+    """``resolve_static_bound``: the assignment-RHS dispatcher (any shape)."""
+
+    def test_dict_literal_becomes_dict_value(self):
+        assert resolve_static_bound(_expr('{"o": "cat.sch.o"}')) == DictValue(
+            {"o": frozenset({"cat.sch.o"})}
+        )
+
+    def test_list_literal_becomes_list_value(self):
+        assert resolve_static_bound(_expr('["a", "b"]')) == ListValue(("a", "b"))
+
+    def test_tuple_literal_becomes_list_value(self):
+        assert resolve_static_bound(_expr('("a", "b")')) == ListValue(("a", "b"))
+
+    def test_string_expression_becomes_frozenset(self):
+        assert resolve_static_bound(_expr('"cat.sch.t"')) == frozenset({"cat.sch.t"})
+
+    def test_multivalued_list_is_unbindable(self):
+        # A list with a multi-valued element is all-or-nothing (None), matching
+        # resolve_static_list — never expand into candidate lists.
+        resolver = _resolver(x=frozenset({"a", "b"}))
+        assert resolve_static_bound(_expr('["a", x]'), resolver) is None
+
+    def test_name_carries_its_existing_bound(self):
+        resolver = _resolver(params=_PARAMS, cols=ListValue(("a",)))
+        assert resolve_static_bound(_expr("params"), resolver) == _PARAMS
+        assert resolve_static_bound(_expr("cols"), resolver) == ListValue(("a",))
+
+    def test_unresolvable_expression_is_none(self):
+        assert resolve_static_bound(_expr("get_name()")) is None
+        assert resolve_static_bound(_expr("tbl"), _resolver()) is None

@@ -110,6 +110,9 @@ where = ["src"]
 # runner body is a *.j2 template (constitution §2.10/§9.14); ships as
 # package-data so the BUILT wheel's PackageLoader can find it (not just editable)
 "lhp.templates.packaging" = ["*.j2"]
+# sandbox runtime-shim body is a *.j2 template (constitution §2.10/§9.14); same
+# rationale — the BUILT wheel's PackageLoader must find it, not just editable
+"lhp.templates.sandbox" = ["*.j2"]
 "lhp.resources.skills.lhp" = ["*.md"]
 "lhp.resources.skills.lhp.references" = ["*.md"]
 # Built SPA assets (gitignored, generated at build time). static/ has no

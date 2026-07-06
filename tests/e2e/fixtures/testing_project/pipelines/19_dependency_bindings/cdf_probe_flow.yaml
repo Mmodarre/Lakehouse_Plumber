@@ -1,0 +1,32 @@
+# Dynamic-SQL text rewrite: an inline-SQL action reads through IDENTIFIER()
+# and table_changes(). In sandbox mode the single-quoted in-scope FQN inside
+# each construct is text-rewritten to the producer's namespaced leaf.
+# helper_snapshot_dim is produced by the helper_imports pipeline (already a
+# dep_bindings dependency via param_snapshot_flow), so this adds no new
+# cross-pipeline edge. The commented job_name matches the sibling flowgroups so
+# the pipeline stays consistent under multi-job mode (all-or-nothing job names).
+pipeline: dep_bindings
+flowgroup: cdf_probe_flow
+#job_name: j_dep_bindings
+
+actions:
+  - name: load_cdf_probe
+    type: load
+    readMode: batch
+    source:
+      type: sql
+      sql: |
+        SELECT * FROM IDENTIFIER('${catalog}.${bronze_schema}.helper_snapshot_dim')
+        WHERE id NOT IN (
+          SELECT id
+          FROM table_changes('${catalog}.${bronze_schema}.helper_snapshot_dim', 0)
+        )
+    target: v_cdf_probe
+
+  - name: write_cdf_probe
+    type: write
+    source: v_cdf_probe
+    write_target:
+      type: materialized_view
+      database: "${catalog}.${silver_schema}"
+      table: "cdf_probe_out"

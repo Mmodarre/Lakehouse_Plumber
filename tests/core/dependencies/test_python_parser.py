@@ -836,3 +836,84 @@ fmt = get_format()
 df = spark.read.format(fmt).table("c.s.t")
 """
         assert self.parser.extract_tables_from_python(code).tables == []
+
+
+@pytest.mark.unit
+class TestContainerBindingResolution:
+    """Name-bound dict / list literals resolve through subscript and iteration.
+
+    Before this, a container literal bound to a name resolved to nothing, so a
+    read through it was silently opaque (LHP-DEP-002, no edge). Now the literal
+    binds the same ``DictValue`` / ``ListValue`` a YAML-seeded parameter would,
+    so the read yields a real dependency edge and no advisory.
+    """
+
+    def test_dict_constant_key_yields_edge_no_advisory(self):
+        code = """
+TABLES = {"o": "dev.silver.orders"}
+df = spark.table(TABLES["o"])
+"""
+        result = extract_tables_from_python(code)
+        assert result.tables == ["dev.silver.orders"]
+        assert result.warnings == []
+
+    def test_name_bound_list_for_loop_yields_edges(self):
+        code = """
+TS = ["dev.silver.orders", "dev.bronze.raw"]
+for t in TS:
+    spark.table(t)
+"""
+        result = extract_tables_from_python(code)
+        assert result.tables == ["dev.bronze.raw", "dev.silver.orders"]
+        assert result.warnings == []
+
+    def test_name_bound_list_constant_index_yields_edge(self):
+        code = """
+TS = ["dev.silver.orders"]
+df = spark.table(TS[0])
+"""
+        result = extract_tables_from_python(code)
+        assert result.tables == ["dev.silver.orders"]
+        assert result.warnings == []
+
+    def test_name_bound_list_dynamic_index_unions_edges(self):
+        code = """
+TS = ["dev.silver.a", "dev.silver.b"]
+df = spark.table(TS[i])
+"""
+        result = extract_tables_from_python(code)
+        assert result.tables == ["dev.silver.a", "dev.silver.b"]
+        assert result.warnings == []
+
+    def test_nested_dict_chain_yields_edge(self):
+        code = """
+CFG = {"src": {"main": "dev.silver.orders"}}
+df = spark.table(CFG["src"]["main"])
+"""
+        result = extract_tables_from_python(code)
+        assert result.tables == ["dev.silver.orders"]
+        assert result.warnings == []
+
+    def test_mixed_dict_binds_static_entries_only(self):
+        # Non-static values are dropped (bound_from_yaml parity); the static
+        # entry still resolves.
+        code = """
+TABLES = {"o": "dev.silver.orders", "d": build_name()}
+df = spark.table(TABLES["o"])
+"""
+        result = extract_tables_from_python(code)
+        assert result.tables == ["dev.silver.orders"]
+        assert result.warnings == []
+
+    def test_dict_dynamic_key_stays_opaque(self):
+        # A variable dict key resolves to nothing today — union-over-values is
+        # deferred because ``resolve_static_string_values`` pins a non-constant
+        # dict subscript as unresolved (see test_static_resolution.py). The
+        # read stays a single LHP-DEP-002 advisory with no edge.
+        code = """
+TABLES = {"o": "dev.silver.orders"}
+df = spark.table(TABLES[k])
+"""
+        result = extract_tables_from_python(code)
+        assert result.tables == []
+        assert [w.code for w in result.warnings] == ["LHP-DEP-002"]
