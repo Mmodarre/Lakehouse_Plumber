@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ELK, { type ElkNode, type ElkExtendedEdge } from 'elkjs/lib/elk.bundled.js'
 import type { Node, Edge } from '@xyflow/react'
 import type { GraphNode, GraphEdge } from '../../types/api'
@@ -7,22 +7,15 @@ import { computeExternalConnections } from '../../utils/externalConnections'
 
 const elk = new ELK()
 
-// Node dimensions — flowgroup names are longer, need wider cards
+// Node dimensions — must stay in sync with the NodeCard width classes
+// (w-60 actions, w-75 flowgroups). Flowgroup names are longer, need wider cards.
 const ACTION_NODE_WIDTH = 240
 const FLOWGROUP_NODE_WIDTH = 300
+// Icon chip + label + in-card sublabel (~52px card, no floating caption)
+const NODE_HEIGHT = 56
 
 function getNodeWidth(apiNode: GraphNode): number {
   return apiNode.type === 'flowgroup' ? FLOWGROUP_NODE_WIDTH : ACTION_NODE_WIDTH
-}
-
-function getNodeHeight(apiNode: GraphNode): number {
-  // Write actions with mode/scd_type get an extra info row (+28px)
-  if (apiNode.type === 'write') {
-    const hasInfo = apiNode.metadata?.write_mode || apiNode.metadata?.scd_type != null
-    if (hasInfo) return 90
-  }
-  // label(18) + card(40) = ~58, with padding ~62
-  return 62
 }
 
 function toElkGraph(
@@ -32,7 +25,7 @@ function toElkGraph(
   const elkNodes: ElkNode[] = nodes.map((n) => ({
     id: n.id,
     width: getNodeWidth(n),
-    height: getNodeHeight(n),
+    height: NODE_HEIGHT,
     layoutOptions: {
       'partitioning.partition': String(n.stage ?? 0),
     },
@@ -97,6 +90,20 @@ function toReactFlowNodes(
   })
 }
 
+// Structural fingerprint of exactly the inputs that feed ELK geometry:
+// node ids + widths (type-derived) + stage partitions, and edge endpoints.
+// Labels, metadata, edge kinds, and externalConnections are deliberately
+// excluded — they change node/edge *data*, never positions. Entries are
+// sorted so an order-only reshuffle of the same graph reuses the cached
+// layout instead of re-running ELK's order-sensitive layer sweep.
+function layoutSignature(nodes: GraphNode[], edges: GraphEdge[]): string {
+  const nodeSig = nodes
+    .map((n) => `${n.id}\u001f${getNodeWidth(n)}\u001f${n.stage ?? 0}`)
+    .sort()
+  const edgeSig = edges.map((e) => `${e.source}\u001f${e.target}`).sort()
+  return `${nodeSig.join('\u001e')}\u001d${edgeSig.join('\u001e')}`
+}
+
 function toReactFlowEdges(apiEdges: GraphEdge[]): Edge[] {
   return apiEdges.map((e, i) => ({
     id: `e-${i}`,
@@ -116,10 +123,38 @@ export function useElkLayout(
   const [edges, setEdges] = useState<Edge[]>([])
   const [isLayouting, setIsLayouting] = useState(false)
 
+  // Resolved once per input change rather than inside every layout run, so a
+  // data-only refresh never re-derives the Map from scratch.
+  const extConns = useMemo(
+    () => externalConnectionsOverride ?? computeExternalConnections(apiNodes, apiEdges),
+    [externalConnectionsOverride, apiNodes, apiEdges],
+  )
+
+  // Last computed geometry, keyed by layoutSignature. A re-run with an
+  // unchanged structure (refetch identity churn, label/badge-only updates,
+  // a new externalConnectionsOverride Map) skips elk.layout() and re-maps
+  // the fresh data onto the cached positions.
+  const layoutCacheRef = useRef<{ key: string; root: ElkNode } | null>(null)
+  // Monotonic run id: the skip path resolves synchronously, so an older
+  // still-in-flight elk.layout() must not clobber a newer run's result.
+  const runSeqRef = useRef(0)
+
   const runLayout = useCallback(async () => {
+    const seq = ++runSeqRef.current
+
     if (apiNodes.length === 0) {
       setNodes([])
       setEdges([])
+      setIsLayouting(false)
+      return
+    }
+
+    const key = layoutSignature(apiNodes, apiEdges)
+    const cached = layoutCacheRef.current
+    if (cached && cached.key === key) {
+      setNodes(toReactFlowNodes(cached.root, apiNodes, extConns))
+      setEdges(toReactFlowEdges(apiEdges))
+      setIsLayouting(false)
       return
     }
 
@@ -127,15 +162,16 @@ export function useElkLayout(
     try {
       const elkGraph = toElkGraph(apiNodes, apiEdges)
       const layouted = await elk.layout(elkGraph)
-      const extConns = externalConnectionsOverride ?? computeExternalConnections(apiNodes, apiEdges)
+      if (seq !== runSeqRef.current) return // superseded by a newer run
+      layoutCacheRef.current = { key, root: layouted }
       setNodes(toReactFlowNodes(layouted, apiNodes, extConns))
       setEdges(toReactFlowEdges(apiEdges))
     } catch (err) {
       console.error('ELK layout error:', err)
     } finally {
-      setIsLayouting(false)
+      if (seq === runSeqRef.current) setIsLayouting(false)
     }
-  }, [apiNodes, apiEdges, externalConnectionsOverride])
+  }, [apiNodes, apiEdges, extConns])
 
   useEffect(() => {
     runLayout()

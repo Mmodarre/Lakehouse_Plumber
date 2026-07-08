@@ -1700,6 +1700,56 @@ profile you can copy.
    :doc:`develop_in_a_sandbox` for setting up your profile, and
    :doc:`sandbox_reference` for the profile schema.
 
+.. _lhp-io-026:
+
+LHP-IO-026: Web IDE Dependencies Not Installed
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** ``lhp web`` was run, but the optional webapp dependencies
+(``fastapi`` and ``uvicorn``) are not installed. The web IDE ships as an
+optional extra so the core CLI stays lightweight.
+
+**Common causes:**
+
+- LHP was installed without the ``webapp`` extra.
+- A fresh virtual environment where only the base package was reinstalled.
+
+.. code-block:: bash
+   :caption: Fix — install the webapp extra, then relaunch
+
+   pip install "lakehouse-plumber[webapp]"
+   lhp web
+
+.. seealso::
+
+   :doc:`develop_in_the_web_ide` for launching and using the web IDE.
+
+.. _lhp-io-027:
+
+LHP-IO-027: Web IDE Port Already in Use
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**When it occurs:** ``lhp web`` checks its port before starting the server,
+and another process is already listening on ``127.0.0.1:<port>`` (default
+``8000``).
+
+**Common causes:**
+
+- Another ``lhp web`` session is still running, in another terminal or for a
+  different project.
+- A different development server is bound to the same port.
+
+.. code-block:: bash
+   :caption: Fix — pick a free port
+
+   lhp web --port 8001
+
+Alternatively, stop the process currently listening on the port.
+
+.. seealso::
+
+   :doc:`develop_in_the_web_ide` for launching and using the web IDE.
+
 Action Errors (LHP-ACT)
 ------------------------
 

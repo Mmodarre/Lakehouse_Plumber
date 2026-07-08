@@ -81,6 +81,8 @@ Terminal output includes: error code, description, context, fix suggestions, and
 | **IO-023** | `lhp inspect-wheel` path is not a usable `.whl` file — a directory, or a file without the `.whl` suffix | Name the built `.whl` under `generated/<env>/_wheels/<pipeline>/dist/`, not a directory or other file; or inspect by pipeline name |
 | **IO-024** | `lhp inspect-wheel` target ends in `.whl` but is not a valid zip archive (truncated/corrupt) | Rebuild with `lhp generate`; LHP wheels are deterministic, so a clean rebuild reproduces it |
 | **IO-025** | `--sandbox` run but the personal profile `.lhp/profile.yaml` does not exist at the project root | Create gitignored `.lhp/profile.yaml` with a top-level `sandbox:` key declaring `namespace` and `pipelines` (globs allowed); see [sandbox.md](sandbox.md) |
+| **IO-026** | `lhp web` run without the optional webapp dependencies (`fastapi` + `uvicorn`) installed | Install the webapp extra: `pip install "lakehouse-plumber[webapp]"`, then re-run `lhp web` |
+| **IO-027** | `lhp web` port preflight found another process already listening on `127.0.0.1:<port>` (default `8000`) | Pick another port: `lhp web --port <port>`; or stop the process currently listening on it |
 
 ## Action Errors (LHP-ACT)
 

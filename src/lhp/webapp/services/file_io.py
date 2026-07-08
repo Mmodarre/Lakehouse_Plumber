@@ -15,10 +15,11 @@ Two invariants are enforced on *every* operation:
    :class:`PathTraversalError`.
 
 2. **Write/delete protection** (``_assert_writable``): writes and deletes are
-   blocked under four project-relative prefixes — ``.git/``, ``generated/``,
-   ``.lhp/logs/``, ``.lhp/dependencies/``. Reads are unrestricted (the UI must
-   be able to display generated code). Violations raise
-   :class:`WriteProtectedError`.
+   blocked under the project-relative prefixes in
+   :data:`WRITE_PROTECTED_PREFIXES` — ``.git/``, ``generated/``,
+   ``.lhp/logs/``, ``.lhp/dependencies/``, and the ``.lhp/webapp.db`` SQLite
+   files. Reads are unrestricted (the UI must be able to display generated
+   code). Violations raise :class:`WriteProtectedError`.
 
 The two exception types are intentionally distinct so the router can map them
 to different HTTP responses while still distinguishing a security violation
@@ -40,11 +41,25 @@ logger = logging.getLogger(__name__)
 # Project-relative prefixes under which writes AND deletes are blocked.
 # D9 (amended): reads are unrestricted; only mutations are blocked here.
 # ``generated/`` must remain readable so the UI can show generated code.
+# ``.lhp/webapp.db`` is a PREFIX on purpose: it also covers the SQLite WAL
+# sidecars (``webapp.db-wal`` / ``webapp.db-shm``) so a stray PUT cannot
+# corrupt the run-history database.
 WRITE_PROTECTED_PREFIXES: tuple[str, ...] = (
     ".git/",
     "generated/",
     ".lhp/logs/",
     ".lhp/dependencies/",
+    ".lhp/webapp.db",
+)
+
+# Project-relative prefixes whose mutation carries no flowgroup / preset /
+# template meaning, so a successful write/delete there must NOT invalidate the
+# cached application facade. ``.lhp/`` covers logs, dependency graphs, and the
+# profile alike; ``.git/`` and ``generated/`` are the VCS and codegen trees.
+_GENERATED_OR_INTERNAL_PREFIXES: tuple[str, ...] = (
+    "generated/",
+    ".lhp/",
+    ".git/",
 )
 
 # Directory names excluded from tree listing (a node whose name matches is
@@ -68,8 +83,44 @@ _EXCLUDED_DIR_NAMES: frozenset[str] = frozenset(
     }
 )
 
+# File-name prefixes excluded from tree listing. ``webapp.db`` hides the
+# run-history SQLite database and its WAL sidecars (``webapp.db-wal`` /
+# ``webapp.db-shm``) while the rest of ``.lhp/`` stays visible (deliberate).
+_EXCLUDED_FILE_NAME_PREFIXES: tuple[str, ...] = ("webapp.db",)
+
 # YAML file suffixes that trigger post-write syntax feedback.
 _YAML_SUFFIXES: tuple[str, ...] = (".yaml", ".yml")
+
+
+def _normalize_relative(relative_path: str) -> str:
+    """Normalize a project-relative path for prefix matching.
+
+    Converts Windows separators to ``/``, collapses duplicate slashes, strips
+    leading slashes, and loop-strips leading ``./`` segments so
+    ``generated\\foo``, ``/generated/foo``, ``generated//foo``, and
+    ``./generated/foo`` all match the same prefix as ``generated/foo``. Case
+    is preserved by design: paths are compared exactly as given. Shared by
+    :meth:`FileIOService._assert_writable` and :func:`is_generated_or_internal`.
+    """
+    normalized = relative_path.replace("\\", "/")
+    while "//" in normalized:
+        normalized = normalized.replace("//", "/")
+    normalized = normalized.lstrip("/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized
+
+
+def is_generated_or_internal(relative_path: str) -> bool:
+    """Return ``True`` when ``relative_path`` targets a generated/internal tree.
+
+    ``True`` iff the normalized path is under ``generated/``, ``.lhp/``, or
+    ``.git/`` — mutations there carry no flowgroup / preset / template meaning
+    and therefore must not invalidate the cached application facade.
+    """
+    return _normalize_relative(relative_path).startswith(
+        _GENERATED_OR_INTERNAL_PREFIXES
+    )
 
 
 class FileIOError(Exception):
@@ -160,8 +211,8 @@ class FileIOService:
         Normalizes Windows separators before prefix-matching so a
         ``generated\\foo`` request is caught the same as ``generated/foo``.
         """
-        normalized = relative_path.replace("\\", "/").lstrip("/")
-        if any(normalized.startswith(prefix) for prefix in WRITE_PROTECTED_PREFIXES):
+        normalized = _normalize_relative(relative_path)
+        if normalized.startswith(WRITE_PROTECTED_PREFIXES):
             raise WriteProtectedError(
                 f"Write-protected path: {relative_path!r} is under a read-only prefix"
             )
@@ -174,24 +225,28 @@ class FileIOService:
         ``{"name", "path", "type", "children"?}`` where ``type`` is
         ``"file"`` | ``"directory"`` and ``children`` is present only on
         directory nodes. ``path`` is project-relative with ``/`` separators.
-        Excluded directories (see :data:`_EXCLUDED_DIR_NAMES`) are skipped
-        wholesale. Entries are sorted directories-first then case-insensitively
-        by name.
+        A directory whose contents cannot be listed additionally carries an
+        ``"error"`` marker (see :meth:`_dir_node`). Excluded directories (see
+        :data:`_EXCLUDED_DIR_NAMES`) are skipped wholesale. Entries are sorted
+        directories-first then case-insensitively by name.
         """
-        return {
-            "name": self._project_root.name,
-            "path": "",
-            "type": "directory",
-            "children": self._list_children(self._project_root, ""),
-        }
+        return self._dir_node(self._project_root, "", self._project_root.name)
 
-    def _list_children(self, directory: Path, rel_prefix: str) -> list[dict[str, Any]]:
-        """Build child nodes for ``directory`` (project-relative ``rel_prefix``)."""
+    def _dir_node(self, directory: Path, rel: str, name: str) -> dict[str, Any]:
+        """Build one directory node (recursively) for ``directory``.
+
+        On an ``OSError`` from ``iterdir()`` the node is returned with empty
+        ``children`` and a generic ``"error"`` marker instead of silently
+        dropping the subtree, so the UI can surface an unreadable directory.
+        """
+        node: dict[str, Any] = {"name": name, "path": rel, "type": "directory"}
         try:
             entries = list(directory.iterdir())
         except OSError:
             logger.warning("Could not list directory: %s", directory)
-            return []
+            node["children"] = []
+            node["error"] = "unreadable"
+            return node
 
         # Directories first, then files; each group sorted case-insensitively.
         entries.sort(key=lambda p: (p.is_file(), p.name.lower()))
@@ -200,16 +255,13 @@ class FileIOService:
         for entry in entries:
             if entry.is_dir() and entry.name in _EXCLUDED_DIR_NAMES:
                 continue
-            child_rel = f"{rel_prefix}/{entry.name}" if rel_prefix else entry.name
+            if not entry.is_dir() and entry.name.startswith(
+                _EXCLUDED_FILE_NAME_PREFIXES
+            ):
+                continue
+            child_rel = f"{rel}/{entry.name}" if rel else entry.name
             if entry.is_dir():
-                children.append(
-                    {
-                        "name": entry.name,
-                        "path": child_rel,
-                        "type": "directory",
-                        "children": self._list_children(entry, child_rel),
-                    }
-                )
+                children.append(self._dir_node(entry, child_rel, entry.name))
             else:
                 children.append(
                     {
@@ -218,10 +270,30 @@ class FileIOService:
                         "type": "file",
                     }
                 )
-        return children
+        node["children"] = children
+        return node
 
     def read_file(self, relative_path: str) -> str:
         """Read a text file. Traversal-guarded; reads are otherwise unrestricted.
+
+        Decodes :meth:`read_file_bytes` as UTF-8 with NO newline translation
+        (CRLF content is returned verbatim), so the text always corresponds
+        byte-for-byte to what an ETag of the raw bytes describes.
+
+        Raises:
+            PathTraversalError: target resolves outside the project root.
+            FileNotFoundError: target does not exist.
+            IsADirectoryError: target is a directory.
+            UnicodeDecodeError: target is not valid UTF-8.
+        """
+        return self.read_file_bytes(relative_path).decode("utf-8")
+
+    def read_file_bytes(self, relative_path: str) -> bytes:
+        """Read a file's raw bytes. Same error contract as :meth:`read_file`.
+
+        The single source of truth for ETag computation: hashing these bytes
+        matches hashing the on-disk content exactly (no universal-newline
+        translation, no re-encoding).
 
         Raises:
             PathTraversalError: target resolves outside the project root.
@@ -233,17 +305,37 @@ class FileIOService:
             raise FileNotFoundError(f"File not found: {relative_path}")
         if target.is_dir():
             raise IsADirectoryError(f"Not a file: {relative_path}")
-        return target.read_text()
+        return target.read_bytes()
+
+    def read_bytes_if_exists(self, relative_path: str) -> Optional[bytes]:
+        """Return the target's raw bytes, or ``None`` when absent / a directory.
+
+        Traversal-guarded like every operation. Unlike :meth:`read_file`, a
+        missing target is not an error: it yields ``None`` so optimistic-
+        concurrency (``If-Match``) checks can treat "no file yet" as a valid
+        create state rather than a 404.
+
+        Raises:
+            PathTraversalError: target resolves outside the project root.
+        """
+        target = self._resolve_in_root(relative_path)
+        if not target.exists() or target.is_dir():
+            return None
+        return target.read_bytes()
 
     def write_file(self, relative_path: str, content: str) -> WriteResult:
         """Write ``content`` to a file (PUT semantics: creates dirs / new files).
 
-        Traversal-guarded and write-protection-guarded. After a successful
-        write of a ``*.yaml`` / ``*.yml`` file, the content is re-parsed with
-        ``yaml.safe_load``; a positioned ``yaml.YAMLError`` is captured into the
-        returned :class:`WriteResult` (1-based line/column for Monaco). The
-        write is NOT rolled back on a YAML error — the user may be saving broken
-        YAML deliberately mid-edit.
+        Traversal-guarded and write-protection-guarded. The bytes written are
+        EXACTLY ``content.encode("utf-8")`` — ``write_bytes``, not
+        ``write_text``, so no platform newline translation ever occurs (on
+        Windows, ``write_text`` would rewrite ``\\n`` as ``\\r\\n`` and
+        immediately invalidate any ETag computed from ``content``). After a
+        successful write of a ``*.yaml`` / ``*.yml`` file, the content is
+        re-parsed with ``yaml.safe_load``; a positioned ``yaml.YAMLError`` is
+        captured into the returned :class:`WriteResult` (1-based line/column
+        for Monaco). The write is NOT rolled back on a YAML error — the user
+        may be saving broken YAML deliberately mid-edit.
 
         Raises:
             PathTraversalError: target resolves outside the project root.
@@ -252,7 +344,7 @@ class FileIOService:
         self._assert_writable(relative_path)
         target = self._resolve_in_root(relative_path)
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content)
+        target.write_bytes(content.encode("utf-8"))
 
         yaml_error: Optional[YamlSyntaxError] = None
         if target.suffix.lower() in _YAML_SUFFIXES:

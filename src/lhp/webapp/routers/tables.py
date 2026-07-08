@@ -113,10 +113,13 @@ def list_tables(
         source_file = _relative_source(view.file_path, project_root)
         try:
             processed = inspection.process_flowgroup(view.name, env=env)
-        except Exception as exc:
-            msg = f"Failed to resolve flowgroup '{view.name}': {exc}"
-            logger.warning(msg)
-            warnings.append(msg)
+        except Exception:
+            # The full traceback stays server-side (exc_info) so per-flowgroup
+            # resolution failures are diagnosable; the client-visible warning
+            # is generic so internal error text does not leak into the HTTP
+            # response body.
+            logger.warning(f"Failed to resolve flowgroup '{view.name}'", exc_info=True)
+            warnings.append(f"Failed to resolve flowgroup '{view.name}'")
             continue
 
         for action in processed.actions:

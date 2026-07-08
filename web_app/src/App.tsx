@@ -1,21 +1,6 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { Layout } from './components/layout/Layout'
-import { DashboardPage } from './pages/DashboardPage'
-import { FlowgroupsPage } from './pages/FlowgroupsPage'
-import { ValidationPage } from './pages/ValidationPage'
-import { TablesPage } from './pages/TablesPage'
+import { RouterProvider } from 'react-router-dom'
+import { router } from './router'
 
 export default function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route element={<Layout />}>
-          <Route index element={<DashboardPage />} />
-          <Route path="flowgroups" element={<FlowgroupsPage />} />
-          <Route path="tables" element={<TablesPage />} />
-          <Route path="validation" element={<ValidationPage />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
-  )
+  return <RouterProvider router={router} />
 }

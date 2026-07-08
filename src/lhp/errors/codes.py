@@ -115,6 +115,10 @@ IO_025 = ErrorCode(ErrorCategory.IO, "025")
 # installed — raised by the ``lhp web`` command when ``importlib.util.find_spec``
 # cannot locate one of them; suggests ``pip install lakehouse-plumber[webapp]``.
 IO_026 = ErrorCode(ErrorCategory.IO, "026")
+# IO_027: the requested web IDE port is already in use — raised by the ``lhp
+# web`` launch preflight when binding 127.0.0.1:<port> fails with EADDRINUSE;
+# suggests picking another port via ``--port``.
+IO_027 = ErrorCode(ErrorCategory.IO, "027")
 
 CFG_001 = ErrorCode(ErrorCategory.CONFIG, "001")
 CFG_002 = ErrorCode(ErrorCategory.CONFIG, "002")
@@ -278,6 +282,7 @@ ALL_CODES: tuple[ErrorCode, ...] = (
     IO_024,
     IO_025,
     IO_026,
+    IO_027,
     CFG_001,
     CFG_002,
     CFG_003,
@@ -421,6 +426,7 @@ __all__ = [
     "IO_024",
     "IO_025",
     "IO_026",
+    "IO_027",
     "VAL_001",
     "VAL_002",
     "VAL_003",

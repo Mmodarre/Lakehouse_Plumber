@@ -54,6 +54,131 @@ silently missing edges.
     - Generation/validation streams run with bundle support disabled — bundle
       preflight needs a pipeline config, which is not applicable to the IDE
       preview flow.
+- **Web IDE hardening.** A usability and security pass over the `lhp web`
+  server, CLI launcher, and SPA:
+  - **Live edits without restart** — file writes and deletes through the IDE
+    invalidate the server's cached facade, so `/api/flowgroups`, validation,
+    and generation always reflect the on-disk YAML.
+  - **Optimistic concurrency** — file `GET`s return a strong ETag over the raw
+    bytes; a `PUT` with a stale `If-Match` fails with `412 Precondition
+    Failed` (the SPA offers a reload) instead of silently overwriting a
+    concurrent edit.
+  - **Session-token auth** — `lhp web` mints a per-session token, passes it to
+    the server via `LHP_WEBAPP_TOKEN`, and echoes it in the printed URL
+    fragment (`#token=`); every `/api/*` route except `/api/health` requires
+    it (header `X-LHP-Token` or `?token=`). TrustedHost and Origin guards
+    reject DNS-rebinding hosts (400) and cross-origin state-changing requests
+    (403); reads with a foreign `Origin` are unaffected. The `dev_mode`
+    setting is removed.
+  - **UTF-8 file I/O everywhere** — reads and writes are UTF-8 end-to-end
+    (platform default encoding no longer leaks in); `GET` of a non-UTF-8 file
+    returns `415` instead of mojibake.
+  - **JSON API 404s** — unknown `/api/*` paths return JSON `{"detail": ...}`
+    (never the SPA's HTML shell), while non-API paths fall back to the SPA
+    shell for client-side routes; dependency drill views degrade gracefully
+    on 404 instead of crashing.
+  - **Health reports project state** — `/api/health` gains `project_state`
+    (`"ok"` / `"no_project"`) and `root`, so the SPA can render init guidance
+    instead of a broken IDE when the served root has no `lhp.yaml`.
+  - **Launch hardening** — `lhp web` preflights the port and fails with a
+    framed `LHP-IO-027` error (instead of a raw `Errno 48` traceback) when it
+    is already taken, and opens the browser only after a readiness poll on
+    `/api/health` succeeds.
+  - **Frontend resilience** — per-modal error boundaries, an unsaved-changes
+    `beforeunload` guard, and a degraded-health banner.
+  - Webapp tests now run in CI as a dedicated `webapp-tests` job (previously
+    cluster-gated).
+- **Web IDE persistence & live updates.** A follow-up pass adding run history
+  and a server-push channel to `lhp web`:
+  - **SQLite run history** — every `validate`/`generate` stream is recorded to
+    `<project_root>/.lhp/webapp.db` (plain `sqlite3`, WAL journal mode,
+    `PRAGMA user_version` migrations): run metadata, every NDJSON frame, and
+    extracted issues. Runs left in `running` state by a crash are marked
+    `failed` at the next server startup, and history is pruned to the newest
+    100 runs / 30 days.
+  - **Run history API** — `GET /api/runs` lists recorded runs (kind, env,
+    status, timestamps, result summary); `GET /api/runs/{run_id}` returns one
+    run's summary and issues, plus the full recorded frame stream with
+    `?include_events=true`.
+  - **`GET /api/events` — SSE push channel** — a single Server-Sent-Events
+    stream (session token via `?token=`, comment heartbeat every 15 s)
+    carrying `run-updated` events at run start/finish and `file-changed`
+    events with changed rel paths.
+  - **File watcher** — a stdlib mtime-poll watcher (2 s tick, no extra
+    dependency) detects project-file changes made *outside* the IDE (editor,
+    git, another terminal), invalidates the server's cached facade, and
+    publishes `file-changed` — so API reads and the SPA reflect on-disk edits
+    without a restart or a `PUT`.
+  - **Push-driven SPA refresh** — the SPA subscribes to `/api/events` and
+    maps pushed events to TanStack Query invalidations (files, flowgroups,
+    dependency graph, run history), with exponential-backoff reconnect and a
+    full refetch after a reconnect gap.
+  - **Generated API types** — `npm run gen:api` regenerates
+    `src/types/api.generated.ts` from the FastAPI OpenAPI schema via
+    openapi-typescript (key-sorted for determinism), so Python↔TypeScript
+    drift surfaces as a tsc break instead of a runtime surprise.
+  - **Dependency pins & log hygiene** — `fastapi>=0.115,<1.0` and
+    `uvicorn>=0.34,<1.0` upper bounds; uvicorn's access log is disabled (it
+    would print full request targets, including `?token=`) in favor of the
+    existing query-free request-logging middleware.
+- **Web IDE visual overhaul.** A design-system pass over the `lhp web`
+  frontend:
+  - **oklch design-token system** — all colors flow from CSS custom
+    properties defined in oklch, with light, dark, and system themes (the
+    persisted choice is applied by an inline script before the bundle loads,
+    so a dark-mode reload never flashes light). Monaco editors, the
+    dependency-graph canvas, and toasts all follow the resolved theme.
+  - **shadcn/Radix UI primitives** — dialogs, alert-dialogs, dropdowns,
+    selects, tabs, tooltips, and popovers replace the hand-rolled modals,
+    bringing focus traps, Escape handling, and accessible titles/labels;
+    `window.confirm` prompts are gone.
+  - **lucide icons** replace emoji glyphs throughout the UI.
+  - **Bundled fonts** — Inter and JetBrains Mono ship inside the SPA bundle
+    (`@fontsource`); no font CDN requests leave the machine.
+  - **Unified semantic colors** — one set of action-kind (`load` /
+    `transform` / `write` / `test`) and severity (error/warning) tokens is
+    shared by the file tree, flowgroup tables, detail views, and the
+    dependency graph, plus a new status bar in the shell.
+  - **Accessibility pass** — `aria-live` announcements for run outcomes,
+    `aria-sort` on sortable table headers, and titled dialogs.
+  - **Frontend engineering foundation** — a vitest + Testing Library harness
+    for store and component tests, and a dedicated `webapp-frontend` CI job
+    running eslint, `tsc -b`, vitest, the generated-API-types drift check,
+    and the production build.
+- **Web IDE workspace & lifecycle.** A follow-up pass replacing modal editing
+  with a persistent workspace and adding project-lifecycle pages:
+  - **Persistent editor workspace** — files and flowgroups open as tabbed
+    buffers in a workspace editor (Monaco) instead of one-shot modals; buffers
+    survive navigation, dirty tabs are marked and guarded on close, route
+    change, and `beforeunload`, and saves keep the ETag optimistic-concurrency
+    loop (a stale save surfaces a conflict dialog with a Monaco side-by-side
+    diff of the on-disk vs in-buffer content — reload theirs, keep yours, or
+    overwrite).
+  - **In-app project init wizard** — when the served root has no `lhp.yaml`
+    (`project_state: "no_project"`), the SPA renders an init wizard instead of
+    a broken IDE; `POST /api/project/init` scaffolds the project (optionally
+    with bundle support) into the served root, runs the run-history DB
+    migrations, and flips the server to `"ok"` without a restart (repeat init
+    responds `409`).
+  - **Lifecycle pages** — new lazy-loaded Blueprints (definitions with
+    parameter/flowgroup counts and expanded instances), Presets (raw YAML plus
+    the resolved deep-merged config and base→leaf `extends` inheritance
+    chain), Templates, Environments (declared substitution files with fully
+    resolved tokens per environment, opening straight into a workspace
+    buffer), and Run History (recorded `validate`/`generate` runs with their
+    extracted issues) pages, grouped under a "Resources" dropdown in the
+    header.
+  - **Public API: `InspectionFacade.resolve_preset`** — resolves a preset's
+    `extends` chain and returns a `PresetResolutionResult` DTO (base→leaf
+    chain plus the deep-merged configuration); a broken or unknown `extends`
+    surfaces as `LHP-ACT-001`.
+  - **New endpoints** — `GET /api/blueprints` (`?include_instances=true` for
+    per-instance expansion), `POST /api/project/init`,
+    `GET /api/environments/{env}/resolved`, and `GET /api/presets/{name}` now
+    returns the resolved config and inheritance chain.
+  - The SPA also migrates to React Router's data router (`createBrowserRouter`
+    with lazy route modules), and the Problems panel and Run History share one
+    issue-list component.
 - **`lhp init <name> --sample` — scaffold a complete, runnable sample
   project.** The new flag generates a TPC-H medallion-architecture project:
   bronze ingestion via `delta` and `cloudfiles` loads, silver CDC in both

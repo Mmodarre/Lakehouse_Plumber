@@ -116,6 +116,7 @@ want to understand the execution model first, read :doc:`architecture`.
    package_pipelines_as_wheels
    configure_catalog_schema
    develop_in_a_sandbox
+   develop_in_the_web_ide
    enable_monitoring
    quarantine_records
    migrate_from_dlt

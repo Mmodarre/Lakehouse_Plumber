@@ -11,7 +11,7 @@ export function PresetDetail({ name }: { name: string }) {
     <div className="space-y-4">
       {/* Raw config */}
       <div>
-        <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+        <h3 className="mb-1.5 text-2xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
           Raw Configuration
         </h3>
         {data?.raw && <JsonTree data={data.raw} />}
@@ -19,7 +19,7 @@ export function PresetDetail({ name }: { name: string }) {
 
       {/* Resolved config (with inheritance) */}
       <div>
-        <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+        <h3 className="mb-1.5 text-2xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
           Resolved (with inheritance)
         </h3>
         {data?.resolved && <JsonTree data={data.resolved} />}

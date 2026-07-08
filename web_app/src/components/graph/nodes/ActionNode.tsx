@@ -1,25 +1,24 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react'
+import {
+  ArrowDownToLine,
+  CircleHelp,
+  Database,
+  FlaskConical,
+  Wand2,
+  type LucideIcon,
+} from 'lucide-react'
+import { NodeCard, NODE_HANDLE_CLASS } from './NodeCard'
 
-function DatasetIcon() {
-  return (
-    <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="none">
-      <rect x="2" y="2" width="16" height="4" rx="1" fill="#e5a44c" opacity="0.6" />
-      <rect x="2" y="7" width="7" height="3" rx="0.5" fill="#94a3b8" opacity="0.5" />
-      <rect x="11" y="7" width="7" height="3" rx="0.5" fill="#94a3b8" opacity="0.35" />
-      <rect x="2" y="11.5" width="7" height="3" rx="0.5" fill="#94a3b8" opacity="0.35" />
-      <rect x="11" y="11.5" width="7" height="3" rx="0.5" fill="#94a3b8" opacity="0.5" />
-      <rect x="2" y="16" width="7" height="2" rx="0.5" fill="#94a3b8" opacity="0.25" />
-      <rect x="11" y="16" width="7" height="2" rx="0.5" fill="#94a3b8" opacity="0.25" />
-    </svg>
-  )
+// Kind identity resolves to the shared --kind-* tokens (same palette as the
+// table badges) — chip tint always paired with a distinct icon.
+const KIND_STYLES: Record<string, { chip: string; icon: LucideIcon }> = {
+  load: { chip: 'bg-kind-load/12 text-kind-load', icon: ArrowDownToLine },
+  transform: { chip: 'bg-kind-transform/12 text-kind-transform', icon: Wand2 },
+  write: { chip: 'bg-kind-write/12 text-kind-write', icon: Database },
+  test: { chip: 'bg-kind-test/12 text-kind-test', icon: FlaskConical },
 }
 
-const ACCENT_COLORS: Record<string, string> = {
-  load: 'bg-blue-500',
-  transform: 'bg-purple-500',
-  write: 'bg-green-500',
-  test: 'bg-amber-500',
-}
+const FALLBACK_STYLE = { chip: 'bg-muted text-muted-foreground', icon: CircleHelp }
 
 function getTypeLabel(
   nodeType: string,
@@ -60,40 +59,27 @@ export function ActionNode({ data, selected }: NodeProps) {
   const writeMode = data.write_mode as string | undefined
   const scdType = data.scd_type as number | string | undefined
   const testType = data.test_type as string | undefined
+  const searchMatch = data.searchMatch as boolean | undefined
+  const searchDimmed = data.searchDimmed as boolean | undefined
+
   const typeLabel = getTypeLabel(nodeType, sourceType, transformType, writeType, testType)
-  const accentColor = ACCENT_COLORS[nodeType] ?? 'bg-slate-400'
   const writeInfo = nodeType === 'write' ? getWriteInfo(writeMode, scdType) : null
+  const kind = KIND_STYLES[nodeType] ?? FALLBACK_STYLE
 
   return (
     <>
-      <Handle type="target" position={Position.Left} className="!h-1 !w-1 !border-0 !bg-transparent" style={{ top: 'calc(50% + 9px)' }} />
-      <div className="flex flex-col">
-        {/* Type label above node */}
-        <span className="mb-1 text-[11px] text-slate-400">{typeLabel}</span>
-
-        {/* Node card */}
-        <div
-          className={`relative rounded-md border bg-white ${
-            selected ? 'border-blue-400 shadow' : 'border-slate-200'
-          }`}
-          style={{ width: 240 }}
-        >
-          <div className={`absolute inset-x-0 top-0 h-[3px] rounded-t-md ${accentColor}`} />
-          <div className="flex items-center gap-2.5 px-3 pt-3 pb-2">
-            <DatasetIcon />
-            <span className="truncate text-[13px] text-slate-800" title={label}>
-              {label}
-            </span>
-          </div>
-
-          {writeInfo && (
-            <div className="border-t border-slate-100 px-3 py-1.5">
-              <span className="text-[11px] text-slate-400">{writeInfo}</span>
-            </div>
-          )}
-        </div>
-      </div>
-      <Handle type="source" position={Position.Right} className="!h-1 !w-1 !border-0 !bg-transparent" style={{ top: 'calc(50% + 9px)' }} />
+      <Handle type="target" position={Position.Left} className={NODE_HANDLE_CLASS} />
+      <NodeCard
+        label={label}
+        sublabel={writeInfo ? `${typeLabel} · ${writeInfo}` : typeLabel}
+        icon={kind.icon}
+        chipClassName={kind.chip}
+        selected={selected}
+        searchMatch={searchMatch}
+        searchDimmed={searchDimmed}
+        className="w-60"
+      />
+      <Handle type="source" position={Position.Right} className={NODE_HANDLE_CLASS} />
     </>
   )
 }

@@ -44,6 +44,46 @@ self.MonacoEnvironment = {
 // Use locally-bundled Monaco instead of CDN
 loader.config({ monaco })
 
+// ── Shell-matching editor themes ────────────────────────
+//
+// `editor.background` is the exact hex equivalent of the app's `--card`
+// token (light `oklch(1 0 0)` / dark `oklch(0.205 0.011 258)`), so the
+// editor surface sits seamlessly inside a `bg-card` panel in both themes.
+// Selection tints derive from `--primary` (light `oklch(0.54 0.19 259)` /
+// dark `oklch(0.66 0.16 257)`).
+
+const LIGHT_PRIMARY = '#1968da'
+const DARK_PRIMARY = '#4c92f2'
+
+monaco.editor.defineTheme('lhp-light', {
+  base: 'vs',
+  inherit: true,
+  rules: [],
+  colors: {
+    'editor.background': '#ffffff',
+    'editor.selectionBackground': `${LIGHT_PRIMARY}2e`,
+    'editor.inactiveSelectionBackground': `${LIGHT_PRIMARY}14`,
+    'editor.selectionHighlightBackground': `${LIGHT_PRIMARY}1f`,
+  },
+})
+
+monaco.editor.defineTheme('lhp-dark', {
+  base: 'vs-dark',
+  inherit: true,
+  rules: [],
+  colors: {
+    'editor.background': '#14171c',
+    'editor.selectionBackground': `${DARK_PRIMARY}40`,
+    'editor.inactiveSelectionBackground': `${DARK_PRIMARY}1f`,
+    'editor.selectionHighlightBackground': `${DARK_PRIMARY}2e`,
+  },
+})
+
+/** Monaco theme name for a resolved app theme. */
+export function monacoThemeFor(resolved: 'light' | 'dark'): 'lhp-light' | 'lhp-dark' {
+  return resolved === 'dark' ? 'lhp-dark' : 'lhp-light'
+}
+
 /**
  * Per-kind `fileMatch` globs mapping the LHP project layout to its canonical
  * schema.

@@ -67,9 +67,9 @@ export interface UseEventStreamResult {
  * Split a decoded text chunk into complete lines, returning the
  * still-incomplete trailing fragment to be carried into the next chunk.
  * A frame may be split across network chunks, and a chunk may contain
- * several frames.
+ * several frames. Exported for unit tests only.
  */
-function splitLines(buffer: string): { lines: string[]; rest: string } {
+export function splitLines(buffer: string): { lines: string[]; rest: string } {
   const parts = buffer.split('\n')
   // The last element is either an empty string (buffer ended on '\n')
   // or a partial line that has not yet been terminated.
@@ -82,8 +82,9 @@ function splitLines(buffer: string): { lines: string[]; rest: string } {
  * (`{...}`) and `data:`-prefixed SSE lines (`data: {...}`). Returns
  * `null` for empty lines, SSE comments (`:`-prefixed), and other
  * non-data SSE fields (`event:`, `id:`, `retry:`) that carry no JSON.
+ * Exported for unit tests only.
  */
-function parseLine(rawLine: string): StreamFrame | null {
+export function parseLine(rawLine: string): StreamFrame | null {
   const line = rawLine.trim()
   if (line === '') return null
   if (line.startsWith(':')) return null // SSE comment

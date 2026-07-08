@@ -43,7 +43,7 @@ def _source_file(view: FlowgroupView) -> str:
 
 
 @router.get("", response_model=PipelineListResponse)
-async def list_pipelines(
+def list_pipelines(
     inspection: InspectionFacade = Depends(get_inspection),
 ) -> PipelineListResponse:
     """List all pipelines with flowgroup and action counts."""
@@ -72,7 +72,7 @@ async def list_pipelines(
 
 
 @router.get("/{name}", response_model=PipelineDetailResponse)
-async def get_pipeline(
+def get_pipeline(
     name: str,
     inspection: InspectionFacade = Depends(get_inspection),
 ) -> PipelineDetailResponse:
@@ -94,7 +94,7 @@ async def get_pipeline(
 
 
 @router.get("/{name}/flowgroups", response_model=PipelineFlowgroupsResponse)
-async def get_pipeline_flowgroups(
+def get_pipeline_flowgroups(
     name: str,
     inspection: InspectionFacade = Depends(get_inspection),
 ) -> PipelineFlowgroupsResponse:

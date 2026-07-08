@@ -1,13 +1,25 @@
 import { Component, type ReactNode, type ErrorInfo } from 'react'
+import { Button } from '../ui/button'
 
 interface Props {
   children: ReactNode
   fallback?: ReactNode
+  /** Called when the boundary resets (via the default "Try again" button or a
+   * `resetKeys` change after a crash). */
+  onReset?: () => void
+  /** When any entry changes identity while the boundary is in its error state,
+   * the boundary clears the error and re-renders `children`. */
+  resetKeys?: unknown[]
 }
 
 interface State {
   hasError: boolean
   error: Error | null
+}
+
+function resetKeysChanged(prev: unknown[] = [], next: unknown[] = []): boolean {
+  if (prev.length !== next.length) return true
+  return prev.some((item, i) => !Object.is(item, next[i]))
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -21,21 +33,34 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error('ErrorBoundary caught:', error, info.componentStack)
   }
 
+  componentDidUpdate(prevProps: Props) {
+    if (this.state.hasError && resetKeysChanged(prevProps.resetKeys, this.props.resetKeys)) {
+      this.reset()
+    }
+  }
+
+  reset = () => {
+    this.props.onReset?.()
+    this.setState({ hasError: false, error: null })
+  }
+
   render() {
     if (this.state.hasError) {
       return (
         this.props.fallback ?? (
-          <div className="flex flex-col items-center justify-center p-8 text-red-600">
+          <div className="flex flex-col items-center justify-center p-8 text-error">
             <p className="text-sm font-medium">Something went wrong</p>
-            <p className="mt-1 text-xs text-red-400">
+            <p className="mt-1 text-xs text-error/80">
               {this.state.error?.message}
             </p>
-            <button
-              className="mt-3 rounded bg-red-50 px-3 py-1 text-xs text-red-700 hover:bg-red-100"
-              onClick={() => this.setState({ hasError: false, error: null })}
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={this.reset}
+              className="mt-3 border-error/30 bg-transparent text-error hover:bg-error/10 hover:text-error"
             >
               Try again
-            </button>
+            </Button>
           </div>
         )
       )

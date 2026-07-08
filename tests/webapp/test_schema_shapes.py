@@ -77,9 +77,13 @@ pytestmark = pytest.mark.webapp
 # --- health -----------------------------------------------------------------
 
 
-def test_health_response_fields_status_and_version_only() -> None:
+def test_health_response_fields() -> None:
     dumped = HealthResponse(status="healthy", version="0.9.1").model_dump()
-    assert set(dumped) == {"status", "version"}
+    assert set(dumped) == {"status", "version", "project_state", "root"}
+    # project_state/root default to the "working project" reading; the app
+    # lifespan overrides them per request context.
+    assert dumped["project_state"] == "ok"
+    assert dumped["root"] == ""
     # dropped feature: dev_mode must not be present
     assert "dev_mode" not in dumped
     assert "python_version" not in dumped
@@ -199,9 +203,12 @@ def test_preset_list_detail_response_fields() -> None:
 
 def test_preset_detail_response_fields() -> None:
     dumped = PresetDetailResponse(
-        name="bronze", raw={"name": "bronze"}, resolved={"defaults": {}}
+        name="bronze",
+        raw={"name": "bronze"},
+        resolved={"defaults": {}},
+        chain=["bronze"],
     ).model_dump()
-    assert set(dumped) == {"name", "raw", "resolved"}
+    assert set(dumped) == {"name", "raw", "resolved", "chain"}
 
 
 # --- template ---------------------------------------------------------------

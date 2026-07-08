@@ -1,5 +1,6 @@
 import type { ErrorDetail } from '../types/api'
 import { ApiError } from './client'
+import { getToken } from '../lib/session-token'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
@@ -27,11 +28,13 @@ export async function startStream(
   signal?: AbortSignal,
 ): Promise<Response> {
   const url = `${BASE_URL}${path.replace(/^\/api/, '')}`
+  const token = getToken()
   const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/x-ndjson',
+      ...(token ? { 'X-LHP-Token': token } : {}),
     },
     body: JSON.stringify(body),
     signal,

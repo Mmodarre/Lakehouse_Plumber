@@ -5,7 +5,8 @@
 ``LHP_WEBAPP_*`` environment via :func:`lhp.webapp.settings.get_settings`.
 
 The router registry is deliberately *tolerant*: it iterates a pinned list of
-router module names and skips any that are not yet present.
+router module names and skips any that are not yet present. Static SPA serving
+lives in :mod:`lhp.webapp.static_app`.
 
 This app is same-origin only (the SPA and API are served from one process), so
 there is no CORS middleware. There is no workspace/state init and no cache
@@ -15,27 +16,34 @@ IDE.
 
 from __future__ import annotations
 
+import asyncio
 import importlib
-import importlib.resources
 import logging
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from importlib.metadata import PackageNotFoundError, version
-from pathlib import Path
-from typing import Any
 
 from fastapi import FastAPI
-from fastapi.responses import PlainTextResponse
-from starlette.responses import FileResponse, Response
-from starlette.staticfiles import StaticFiles
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from lhp.errors import LHPError
+from lhp.webapp import static_app
 from lhp.webapp.middleware.error_handler import (
     generic_error_handler,
     lhp_error_handler,
 )
+from lhp.webapp.middleware.origin_guard import OriginGuardMiddleware
 from lhp.webapp.middleware.request_logging import RequestLoggingMiddleware
+from lhp.webapp.middleware.token_guard import TokenGuardMiddleware
+from lhp.webapp.services import file_watcher, sqlite_store
+from lhp.webapp.services.event_bus import EventBus
 from lhp.webapp.settings import get_settings
+from lhp.webapp.static_app import _API_PREFIX
+
+# DNS-rebinding defense: a rebinding attack changes the resolved IP but not the
+# Host header, so restricting Host to loopback names cuts it off. Compared
+# without the port by Starlette's TrustedHostMiddleware.
+_ALLOWED_HOSTS = ["127.0.0.1", "localhost", "::1"]
 
 logger = logging.getLogger(__name__)
 
@@ -51,23 +59,14 @@ _ROUTER_MODULES: tuple[str, ...] = (
     "tables",
     "presets",
     "templates",
+    "blueprints",
     "environments",
     "dependencies",
     "schemas",
     "files",
     "streaming",
-)
-
-_API_PREFIX = "/api"
-
-_SPA_NOT_BUILT_MESSAGE = (
-    "Lakehouse Plumber web IDE\n"
-    "=========================\n\n"
-    "The single-page app has not been built, so only the JSON API is being\n"
-    "served (try /api/health).\n\n"
-    "To build the frontend assets, run:\n\n"
-    "    scripts/build_webapp.sh\n\n"
-    "then restart the server.\n"
+    "runs",
+    "events",
 )
 
 
@@ -79,37 +78,48 @@ def _get_version() -> str:
         return "unknown"
 
 
-class SPAStaticFiles(StaticFiles):
-    """StaticFiles subclass with SPA fallback.
-
-    Serves ``index.html`` for any path that does not match a real static file,
-    enabling client-side routing (React Router). Mounted after the API routers,
-    so ``/api/*`` paths never reach this handler.
-    """
-
-    async def get_response(self, path: str, scope: Any) -> Response:
-        try:
-            return await super().get_response(path, scope)
-        except Exception:
-            # Path doesn't match a static file — serve index.html so the SPA
-            # can handle client-side routing. ``directory`` is always set when
-            # this subclass is constructed in ``_mount_static``.
-            assert self.directory is not None
-            return FileResponse(
-                Path(self.directory) / "index.html",
-                media_type="text/html",
-            )
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Lifespan handler: logging only — no workspace/state initialization."""
-    settings = get_settings()
+    """Lifespan handler: log startup and resolve the project state.
+
+    Fail-closed project root: when ``project_root`` holds no ``lhp.yaml`` the
+    server keeps running (a later init wizard needs it up) but
+    ``app.state.project_state`` is set to ``"no_project"`` so ``/api/health``
+    can tell the SPA to render guidance instead of a broken IDE.
+    """
+    settings = app.state.settings
     logger.info(
         f"LHP web IDE starting up: version={_get_version()}, "
         f"project_root={settings.project_root}"
     )
+    watcher_task: asyncio.Task[None] | None = None
+    if (settings.project_root / "lhp.yaml").is_file():
+        app.state.project_state = "ok"
+        # Run-history DB init only for a REAL project: migrations bring
+        # .lhp/webapp.db to the current schema, then crash recovery closes out
+        # runs a previous process left "running". In "no_project" state this is
+        # skipped entirely so a non-project directory never grows a .lhp/.
+        await asyncio.to_thread(sqlite_store.run_migrations, settings.project_root)
+        await asyncio.to_thread(
+            sqlite_store.mark_orphaned_runs_failed, settings.project_root
+        )
+        # Live updates only for a real project: the watcher polls the tree,
+        # invalidates the cached facade on change, and publishes file-changed
+        # bus events for the SSE endpoint.
+        watcher_task = asyncio.create_task(
+            file_watcher.watch(app), name="lhp-file-watcher"
+        )
+    else:
+        logger.error(
+            f"No lhp.yaml found at {settings.project_root} — "
+            "serving in 'no_project' state"
+        )
+        app.state.project_state = "no_project"
     yield
+    if watcher_task is not None:
+        watcher_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await watcher_task
     logger.info("LHP web IDE shut down")
 
 
@@ -122,35 +132,6 @@ def _register_routers(app: FastAPI) -> None:
             logger.debug(f"Router module not present, skipping: {name}")
             continue
         app.include_router(module.router, prefix=_API_PREFIX)
-
-
-def _mount_static(app: FastAPI) -> None:
-    """Mount the SPA at ``/`` if built; otherwise add a plain-text fallback.
-
-    Mounted AFTER the routers so ``/api`` matches first. In a dev tree the
-    static assets are gitignored, so the API still serves and ``GET /`` returns
-    a 200 plain-text page explaining how to build the SPA.
-    """
-    static_dir = importlib.resources.files("lhp.webapp") / "static"
-    index_html = static_dir / "index.html"
-
-    if static_dir.is_dir() and index_html.is_file():
-        app.mount(
-            "/",
-            SPAStaticFiles(directory=str(static_dir), html=True),
-            name="static",
-        )
-        logger.info(f"Serving SPA from {static_dir}")
-        return
-
-    logger.warning(
-        "SPA static assets not found — serving API only. "
-        "Run scripts/build_webapp.sh to build the frontend."
-    )
-
-    @app.get("/", response_class=PlainTextResponse)
-    async def spa_not_built() -> str:
-        return _SPA_NOT_BUILT_MESSAGE
 
 
 def create_app() -> FastAPI:
@@ -180,9 +161,17 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     app.state.settings = settings
+    # Server-push fan-out (run-updated today; file-watcher events later). One
+    # bus per app instance, shared by the run recorder and a future SSE endpoint.
+    app.state.event_bus = EventBus()
 
-    # Middleware (last added = first executed). Same-origin only: no CORS.
+    # Middleware (Starlette: last added = outermost). Effective request order:
+    # TrustedHost -> OriginGuard -> TokenGuard -> RequestLogging -> routes.
+    # Same-origin only: no CORS.
     app.add_middleware(RequestLoggingMiddleware)
+    app.add_middleware(TokenGuardMiddleware)
+    app.add_middleware(OriginGuardMiddleware)
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=_ALLOWED_HOSTS)
 
     # Exception handlers.
     app.add_exception_handler(LHPError, lhp_error_handler)  # type: ignore[arg-type]  # handler registry typed against Exception base; LHPError signature is intentionally narrower
@@ -190,7 +179,7 @@ def create_app() -> FastAPI:
 
     # Routers first, then static mount so /api wins.
     _register_routers(app)
-    _mount_static(app)
+    static_app.mount_spa(app)
 
     logger.info(f"LHP web IDE initialized: project_root={settings.project_root}")
     return app

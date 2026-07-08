@@ -1,0 +1,113 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { renderHook } from '@testing-library/react'
+import { useRunController, useRunStore } from '@/store/runStore'
+import { useUIStore } from '@/store/uiStore'
+import type { StreamCallbacks } from '@/hooks/useEventStream'
+
+// useRunController wires the transport hook into the store; the transport
+// itself is exercised in hooks/__tests__/useEventStream.test.tsx, so here it
+// is replaced with a controllable stub and the wiring is what's under test.
+const transport = vi.hoisted(() => ({
+  start: vi.fn(),
+  abort: vi.fn(),
+  isRunning: false,
+}))
+
+vi.mock('@/hooks/useEventStream', () => ({
+  useEventStream: () => ({
+    start: transport.start,
+    abort: transport.abort,
+    isRunning: transport.isRunning,
+    frames: [],
+    error: null,
+  }),
+}))
+
+function capturedCallbacks(): StreamCallbacks {
+  const callbacks = transport.start.mock.calls[0]?.[1] as StreamCallbacks | undefined
+  if (!callbacks) throw new Error('transport.start was not called with callbacks')
+  return callbacks
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  transport.isRunning = false
+  useRunStore.getState().reset()
+  useUIStore.setState({ selectedEnv: 'dev', pipelineFilter: null })
+})
+
+describe('useRunController', () => {
+  it('startValidate() defaults env/pipeline from uiStore and begins the run', () => {
+    const { result } = renderHook(() => useRunController())
+    result.current.startValidate()
+
+    expect(useRunStore.getState().runKind).toBe('validate')
+    expect(useRunStore.getState().isRunning).toBe(true)
+    expect(transport.start).toHaveBeenCalledTimes(1)
+    expect(transport.start.mock.calls[0][0]).toEqual({
+      path: '/api/validate/stream',
+      env: 'dev',
+      pipeline: undefined,
+    })
+  })
+
+  it('uses the uiStore pipeline filter when no override is passed', () => {
+    useUIStore.setState({ selectedEnv: 'tst', pipelineFilter: 'bronze' })
+    const { result } = renderHook(() => useRunController())
+    result.current.startValidate()
+
+    expect(transport.start.mock.calls[0][0]).toEqual({
+      path: '/api/validate/stream',
+      env: 'tst',
+      pipeline: 'bronze',
+    })
+  })
+
+  it('explicit env/pipeline overrides win over uiStore state', () => {
+    useUIStore.setState({ selectedEnv: 'dev', pipelineFilter: 'bronze' })
+    const { result } = renderHook(() => useRunController())
+    result.current.startGenerate('prod', 'sales')
+
+    expect(useRunStore.getState().runKind).toBe('generate')
+    expect(transport.start.mock.calls[0][0]).toEqual({
+      path: '/api/generate/stream',
+      env: 'prod',
+      pipeline: 'sales',
+    })
+  })
+
+  it('ignores a start while the transport is already running', () => {
+    transport.isRunning = true
+    const { result } = renderHook(() => useRunController())
+    result.current.startValidate()
+
+    expect(transport.start).not.toHaveBeenCalled()
+    expect(useRunStore.getState().runKind).toBeNull()
+  })
+
+  it('routes transport callbacks into the store (frame / error / done)', () => {
+    const { result } = renderHook(() => useRunController())
+    result.current.startGenerate()
+    const callbacks = capturedCallbacks()
+
+    callbacks.onFrame?.({ type: 'info', code: 'I', message: 'working' })
+    expect(useRunStore.getState().infoLog).toEqual(['working'])
+
+    callbacks.onError?.(new Error('socket closed'))
+    expect(useRunStore.getState().errorFrame).toMatchObject({
+      code: 'STREAM_ERROR',
+      title: 'socket closed',
+    })
+
+    callbacks.onDone?.({ aborted: false })
+    expect(useRunStore.getState().isRunning).toBe(false)
+    expect(useRunStore.getState().terminal).toBe('error')
+  })
+
+  it('exposes the transport abort and running flag directly', () => {
+    const { result } = renderHook(() => useRunController())
+    expect(result.current.isRunning).toBe(false)
+    result.current.abort()
+    expect(transport.abort).toHaveBeenCalledTimes(1)
+  })
+})

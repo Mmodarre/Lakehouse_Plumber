@@ -55,6 +55,7 @@ from lhp.api import (
     PipelineStarted,
     PipelineStats,
     PlannedFileView,
+    PresetResolutionResult,
     PresetView,
     ProcessedFlowgroupView,
     ProjectConfigView,
@@ -374,6 +375,17 @@ _INSTANCES = [
             name="pre1", file_path=Path("pre.yaml"), version="1.0", extends="base"
         ),
         id="PresetView",
+    ),
+    pytest.param(
+        PresetResolutionResult(
+            name="silver",
+            chain=("bronze", "silver"),
+            merged_config={
+                "table_properties": {"delta.enableChangeDataFeed": "true"},
+                "operational_metadata": ["_ingest_ts", "_source_file"],
+            },
+        ),
+        id="PresetResolutionResult",
     ),
     pytest.param(
         TemplateParameterView(name="env", type_="string", required=True, default="dev"),

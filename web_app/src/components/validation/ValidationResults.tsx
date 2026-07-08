@@ -1,4 +1,7 @@
+import { CircleX, TriangleAlert } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import type { ValidationIssue } from '../../types/api'
+import { cn } from '@/lib/utils'
 
 // ── ValidationResults — structured ValidationIssue[] renderer ──
 //
@@ -10,46 +13,66 @@ function severityStyles(severity: ValidationIssue['severity']): {
   card: string
   heading: string
   badge: string
+  icon: LucideIcon
+  iconClassName: string
 } {
   if (severity === 'error') {
     return {
-      card: 'border-red-200 bg-red-50',
-      heading: 'text-red-700',
-      badge: 'bg-red-100 text-red-700',
+      card: 'border-error/25 bg-error/12',
+      heading: 'text-error',
+      badge: 'border-error/25 bg-error/12 text-error',
+      icon: CircleX,
+      iconClassName: 'text-error',
     }
   }
   return {
-    card: 'border-amber-200 bg-amber-50',
-    heading: 'text-amber-700',
-    badge: 'bg-amber-100 text-amber-700',
+    card: 'border-warning/25 bg-warning/12',
+    heading: 'text-warning',
+    badge: 'border-warning/25 bg-warning/12 text-warning',
+    icon: TriangleAlert,
+    iconClassName: 'text-warning',
   }
 }
 
 function IssueCard({ issue }: { issue: ValidationIssue }) {
   const styles = severityStyles(issue.severity)
+  const Icon = styles.icon
   const location = [issue.pipeline_name, issue.flowgroup_name]
     .filter(Boolean)
     .join(' › ')
 
   return (
-    <div className={`rounded border px-3 py-2 text-xs ${styles.card}`}>
+    <div className={cn('rounded-lg border px-3 py-2 text-xs', styles.card)}>
       <div className="flex items-start gap-2">
-        <span className={`mt-0.5 rounded px-1.5 py-0.5 font-mono text-[10px] ${styles.badge}`}>
+        <Icon
+          className={cn('mt-0.5 size-3.5 shrink-0', styles.iconClassName)}
+          aria-hidden="true"
+        />
+        <span
+          className={cn(
+            'mt-px rounded-sm border px-1.5 font-mono text-2xs whitespace-nowrap',
+            styles.badge,
+          )}
+        >
           {issue.code}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="font-medium text-slate-800">{issue.title}</div>
+          <div className="font-medium text-foreground">{issue.title}</div>
           {issue.details && (
-            <div className="mt-0.5 whitespace-pre-wrap text-slate-600">{issue.details}</div>
+            <div className="mt-0.5 whitespace-pre-wrap text-muted-foreground">
+              {issue.details}
+            </div>
           )}
           {location && (
-            <div className="mt-0.5 text-[11px] text-slate-500">{location}</div>
+            <div className="mt-0.5 text-2xs text-muted-foreground">{location}</div>
           )}
           {issue.file_path && (
-            <div className="mt-0.5 font-mono text-[11px] text-slate-500">{issue.file_path}</div>
+            <div className="mt-0.5 font-mono text-2xs text-muted-foreground">
+              {issue.file_path}
+            </div>
           )}
           {issue.suggestions.length > 0 && (
-            <ul className="mt-1 list-inside list-disc space-y-0.5 text-[11px] text-slate-600">
+            <ul className="mt-1 list-inside list-disc space-y-0.5 text-2xs text-muted-foreground">
               {issue.suggestions.map((s, i) => (
                 <li key={i}>{s}</li>
               ))}
@@ -60,7 +83,7 @@ function IssueCard({ issue }: { issue: ValidationIssue }) {
               href={issue.doc_link}
               target="_blank"
               rel="noreferrer"
-              className="mt-1 inline-block text-[11px] text-blue-600 hover:underline"
+              className="mt-1 inline-block text-2xs text-primary hover:underline"
             >
               Documentation →
             </a>
@@ -80,9 +103,16 @@ function IssueGroup({
 }) {
   if (issues.length === 0) return null
   const styles = severityStyles(issues[0].severity)
+  const Icon = styles.icon
   return (
     <div>
-      <h3 className={`mb-2 text-xs font-semibold ${styles.heading}`}>
+      <h3
+        className={cn(
+          'mb-2 flex items-center gap-1.5 text-xs font-semibold',
+          styles.heading,
+        )}
+      >
+        <Icon className="size-3.5" aria-hidden="true" />
         {title} ({issues.length})
       </h3>
       <div className="space-y-1.5">

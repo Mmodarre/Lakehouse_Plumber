@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- LHP mark: two nested pipe elbows. Mid-tone blue (matches --primary)
+       so the mark reads on both light and dark browser chrome. -->
+  <path d="M7 4v10a11 11 0 0 0 11 11h10" fill="none" stroke="#4f74e6" stroke-width="5" stroke-linecap="round"/>
+  <path d="M17 4v6a5 5 0 0 0 5 5h6" fill="none" stroke="#4f74e6" stroke-width="5" stroke-linecap="round" opacity="0.5"/>
+</svg>

@@ -51,8 +51,8 @@ dependencies = [
 # Plain `uvicorn` (NOT uvicorn[standard]): uvloop/httptools/websockets/watchfiles
 # are unneeded for a localhost single-user dev server (documented spec deviation).
 webapp = [
-    "fastapi>=0.115",
-    "uvicorn>=0.34",
+    "fastapi>=0.115,<1.0",
+    "uvicorn>=0.34,<1.0",
 ]
 dev = [
     "pytest>=9.0.0",
@@ -71,8 +71,8 @@ dev = [
     "pre-commit>=3.0.0",
     "build>=1.0",  # used by tests/test_packaging.py to build a wheel for package-data assertions
     "cloudpickle>=3.0.0",  # used by the pickle-by-value round-trip test; the upstream lib pyspark vendors for register_pickle_by_value
-    "fastapi>=0.115",  # webapp backend — present in dev so mypy/CI can resolve imports
-    "uvicorn>=0.34",  # webapp ASGI server — present in dev so mypy/CI can resolve imports
+    "fastapi>=0.115,<1.0",  # webapp backend — present in dev so mypy/CI can resolve imports
+    "uvicorn>=0.34,<1.0",  # webapp ASGI server — present in dev so mypy/CI can resolve imports
     "httpx>=0.27.0",  # transport for fastapi/starlette TestClient — tests/webapp/conftest.py imports it at collection time; NOT a webapp runtime dep
 ]
 

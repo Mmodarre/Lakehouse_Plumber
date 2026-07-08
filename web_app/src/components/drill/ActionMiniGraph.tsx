@@ -10,10 +10,11 @@ import {
 } from '@xyflow/react'
 
 import { useDependencyGraph } from '../../hooks/useDependencyGraph'
+import { ApiError } from '../../api/client'
 import { useElkLayout } from '../graph/useElkLayout'
 import { ActionNode } from '../graph/nodes/ActionNode'
 import { ExternalNode } from '../graph/nodes/ExternalNode'
-import { DependencyEdge } from '../graph/edges/DependencyEdge'
+import { DependencyEdge, EdgeMarkerDefs } from '../graph/edges/DependencyEdge'
 import { LoadingSpinner } from '../common/LoadingSpinner'
 import { EmptyState } from '../common/EmptyState'
 
@@ -66,9 +67,17 @@ export function ActionMiniGraph({ pipeline, flowgroup }: { pipeline: string; flo
   }
 
   if (error) {
+    const is404 = error instanceof ApiError && error.status === 404
     return (
-      <div className="flex h-full items-center justify-center text-sm text-red-500">
-        Failed to load actions: {error.message}
+      <div className="flex h-full items-center justify-center">
+        <EmptyState
+          title={is404 ? 'Drill view not available' : 'Failed to load actions'}
+          message={
+            is404
+              ? "This graph level isn't supported by the server yet."
+              : error.message
+          }
+        />
       </div>
     )
   }
@@ -87,19 +96,11 @@ export function ActionMiniGraph({ pipeline, flowgroup }: { pipeline: string; flo
       minZoom={0.1}
       maxZoom={2}
       proOptions={{ hideAttribution: true }}
-      style={{ background: '#fafafa' }}
     >
-      <svg>
-        <defs>
-          <marker id="arrow-action" viewBox="0 0 10 10" refX="9" refY="5"
-            markerWidth="7" markerHeight="7" orient="auto-start-reverse"
-          >
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
-          </marker>
-        </defs>
-      </svg>
-      <Background variant={BackgroundVariant.Dots} gap={18} size={1} color="#e2e2e2" />
-      <Controls showInteractive={false} position="top-right" className="!shadow-sm !border-slate-200 !rounded-md" />
+      <EdgeMarkerDefs />
+      {/* Dot grid + chrome colors come from the tokened .react-flow CSS block */}
+      <Background variant={BackgroundVariant.Dots} gap={20} size={1.2} />
+      <Controls showInteractive={false} position="top-right" />
     </ReactFlow>
   )
 }

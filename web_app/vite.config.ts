@@ -2,9 +2,19 @@ import path from 'path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { visualizer } from 'rollup-plugin-visualizer'
 
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
+export default defineConfig(({ mode }) => ({
+  plugins: [
+    react(),
+    tailwindcss(),
+    // Bundle-composition report, opt-in only: `npm run build:analyze`
+    // (vite build --mode analyze) writes dist/stats.html. A normal
+    // `npm run build` is unaffected — the plugin is not even loaded.
+    ...(mode === 'analyze'
+      ? [visualizer({ filename: 'dist/stats.html', gzipSize: true, brotliSize: true })]
+      : []),
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -29,7 +39,7 @@ export default defineConfig({
     chunkSizeWarningLimit: 1500,
     rollupOptions: {
       output: {
-        manualChunks(id) {
+        manualChunks(id: string) {
           if (id.includes('node_modules/react-dom')) return 'react-vendor'
           if (id.includes('node_modules/react-router')) return 'react-vendor'
           if (id.includes('node_modules/monaco-editor')) return 'monaco-editor'
@@ -41,4 +51,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

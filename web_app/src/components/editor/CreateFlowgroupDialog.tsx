@@ -1,11 +1,27 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { Plus, X } from 'lucide-react'
 import { useUIStore } from '../../store/uiStore'
 import { usePipelines } from '../../hooks/usePipelines'
 import { useFlowgroups } from '../../hooks/useFlowgroups'
 import { useFileList } from '../../hooks/useFiles'
+import { Button } from '../ui/button'
+import { Dialog, DialogContent, DialogTitle } from '../ui/dialog'
+import { Input } from '../ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../ui/select'
 import type { FileNode } from '../../types/api'
 
 const NAME_PATTERN = /^[a-zA-Z0-9_-]+$/
+
+/** Sentinel for the "(pipeline root)" subdirectory entry — Radix Select
+ * forbids an empty-string item value. Directory names come from the file
+ * tree, so this can never collide with a real subfolder. */
+const PIPELINE_ROOT = '__pipeline_root__'
 
 /** Walk the recursive file tree to the directory node at `path` (project-
  * relative, `/`-separated). Returns null if the path is absent or is a file. */
@@ -34,17 +50,6 @@ export function CreateFlowgroupDialog() {
   const { data: flowgroupData } = useFlowgroups()
   const { data: fileTree, isLoading: loadingDirs } = useFileList()
 
-  // Escape to close — kept on the always-mounted shell so it is registered
-  // exactly once per open cycle regardless of the inner form's lifecycle.
-  useEffect(() => {
-    if (!open) return
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close()
-    }
-    document.addEventListener('keydown', handleKey)
-    return () => document.removeEventListener('keydown', handleKey)
-  }, [open, close])
-
   if (!open) return null
 
   const pipelines = pipelineData?.pipelines.map((p) => p.name) ?? []
@@ -53,14 +58,27 @@ export function CreateFlowgroupDialog() {
   )
 
   return (
-    <CreateFlowgroupForm
-      pipelines={pipelines}
-      existingNames={existingNames}
-      fileTree={fileTree}
-      loadingDirs={loadingDirs}
-      close={close}
-      openEditorCreate={openEditorCreate}
-    />
+    <Dialog
+      open
+      onOpenChange={(o) => {
+        if (!o) close()
+      }}
+    >
+      <DialogContent
+        showCloseButton={false}
+        aria-describedby={undefined}
+        className="gap-0 overflow-hidden p-0 sm:max-w-md"
+      >
+        <CreateFlowgroupForm
+          pipelines={pipelines}
+          existingNames={existingNames}
+          fileTree={fileTree}
+          loadingDirs={loadingDirs}
+          close={close}
+          openEditorCreate={openEditorCreate}
+        />
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -137,180 +155,171 @@ function CreateFlowgroupForm({
   }, [canCreate, name, activePipeline, computedPath, openEditorCreate])
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) close()
-      }}
-    >
-      <div className="w-full max-w-md overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
-          <div>
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-              New
-            </span>
-            <h2 className="text-sm font-semibold text-slate-800">Create Flowgroup</h2>
-          </div>
-          <button
-            onClick={close}
-            className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-          >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+    <>
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-border px-5 py-3">
+        <div>
+          <span className="text-2xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+            New
+          </span>
+          <DialogTitle className="text-sm font-semibold text-foreground">
+            Create Flowgroup
+          </DialogTitle>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="text-muted-foreground"
+          aria-label="Close"
+          onClick={close}
+        >
+          <X aria-hidden="true" />
+        </Button>
+      </div>
+
+      {/* Body */}
+      <div className="space-y-4 px-5 py-4">
+        {/* Pipeline selector */}
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">Pipeline</label>
+          {isNewPipeline ? (
+            <div className="flex items-center gap-2">
+              <Input
+                value={newPipeline}
+                onChange={(e) => setNewPipeline(e.target.value)}
+                placeholder="New pipeline name"
+                className="h-8 flex-1"
+                autoFocus
+              />
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={() => {
+                  setIsNewPipeline(false)
+                  setNewPipeline('')
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Select value={pipeline} onValueChange={setPipeline} disabled={pipelines.length === 0}>
+                <SelectTrigger size="sm" className="w-full flex-1">
+                  <SelectValue
+                    placeholder={pipelines.length === 0 ? 'No pipelines found' : 'Select pipeline'}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {pipelines.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="ghost" size="xs" onClick={() => setIsNewPipeline(true)}>
+                <Plus aria-hidden="true" />
+                New
+              </Button>
+            </div>
+          )}
+          {pipelineError && <p className="mt-1 text-xs text-destructive">{pipelineError}</p>}
         </div>
 
-        {/* Body */}
-        <div className="space-y-4 px-5 py-4">
-          {/* Pipeline selector */}
+        {/* Flowgroup name */}
+        <div>
+          <label className="mb-1 block text-xs font-medium text-muted-foreground">
+            Flowgroup name
+          </label>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. customer_orders"
+            className="h-8 w-full"
+            aria-invalid={!!nameError}
+          />
+          {nameError && <p className="mt-1 text-xs text-destructive">{nameError}</p>}
+        </div>
+
+        {/* Directory picker */}
+        {activePipeline && (
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Pipeline</label>
-            {isNewPipeline ? (
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">
+              Directory
+              <span className="ml-1 font-normal text-muted-foreground/70">(optional subfolder)</span>
+            </label>
+            {loadingDirs ? (
+              <div className="flex items-center gap-2 py-1 text-xs text-muted-foreground">
+                <div className="h-3 w-3 animate-spin rounded-full border border-border border-t-muted-foreground" />
+                Loading...
+              </div>
+            ) : isNewSubdir ? (
               <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={newPipeline}
-                  onChange={(e) => setNewPipeline(e.target.value)}
-                  placeholder="New pipeline name"
-                  className="flex-1 rounded border border-slate-300 px-2.5 py-1.5 text-sm text-slate-800 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                  autoFocus
+                <Input
+                  value={newSubdir}
+                  onChange={(e) => setNewSubdir(e.target.value)}
+                  placeholder="New subfolder name"
+                  className="h-8 flex-1"
                 />
-                <button
+                <Button
+                  variant="ghost"
+                  size="xs"
                   onClick={() => {
-                    setIsNewPipeline(false)
-                    setNewPipeline('')
+                    setIsNewSubdir(false)
+                    setNewSubdir('')
                   }}
-                  className="text-xs text-slate-400 hover:text-slate-600"
                 >
                   Cancel
-                </button>
+                </Button>
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <select
-                  value={pipeline}
-                  onChange={(e) => setPipeline(e.target.value)}
-                  className="flex-1 rounded border border-slate-300 px-2.5 py-1.5 text-sm text-slate-800 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                <Select
+                  value={selectedSubdir === '' ? PIPELINE_ROOT : selectedSubdir}
+                  onValueChange={(v) => setSelectedSubdir(v === PIPELINE_ROOT ? '' : v)}
                 >
-                  {pipelines.length === 0 && (
-                    <option value="" disabled>No pipelines found</option>
-                  )}
-                  {pipelines.map((p) => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => setIsNewPipeline(true)}
-                  className="whitespace-nowrap text-xs text-blue-600 hover:text-blue-700"
-                >
-                  + New
-                </button>
+                  <SelectTrigger size="sm" className="w-full flex-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={PIPELINE_ROOT}>(pipeline root)</SelectItem>
+                    {subdirs.map((d) => (
+                      <SelectItem key={d} value={d}>
+                        {d}/
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button variant="ghost" size="xs" onClick={() => setIsNewSubdir(true)}>
+                  <Plus aria-hidden="true" />
+                  New
+                </Button>
               </div>
             )}
-            {pipelineError && (
-              <p className="mt-1 text-xs text-red-500">{pipelineError}</p>
-            )}
           </div>
+        )}
 
-          {/* Flowgroup name */}
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Flowgroup name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. customer_orders"
-              className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm text-slate-800 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
-            />
-            {nameError && (
-              <p className="mt-1 text-xs text-red-500">{nameError}</p>
-            )}
+        {/* Path preview */}
+        {computedPath && (
+          <div className="rounded-md border border-border bg-muted/50 px-3 py-2">
+            <span className="text-2xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+              File path
+            </span>
+            <p className="mt-0.5 font-mono text-xs text-foreground">{computedPath}</p>
           </div>
-
-          {/* Directory picker */}
-          {activePipeline && (
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">
-                Directory
-                <span className="ml-1 font-normal text-slate-400">(optional subfolder)</span>
-              </label>
-              {loadingDirs ? (
-                <div className="flex items-center gap-2 py-1 text-xs text-slate-400">
-                  <div className="h-3 w-3 animate-spin rounded-full border border-slate-300 border-t-slate-500" />
-                  Loading...
-                </div>
-              ) : isNewSubdir ? (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={newSubdir}
-                    onChange={(e) => setNewSubdir(e.target.value)}
-                    placeholder="New subfolder name"
-                    className="flex-1 rounded border border-slate-300 px-2.5 py-1.5 text-sm text-slate-800 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                  />
-                  <button
-                    onClick={() => {
-                      setIsNewSubdir(false)
-                      setNewSubdir('')
-                    }}
-                    className="text-xs text-slate-400 hover:text-slate-600"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <select
-                    value={selectedSubdir}
-                    onChange={(e) => setSelectedSubdir(e.target.value)}
-                    className="flex-1 rounded border border-slate-300 px-2.5 py-1.5 text-sm text-slate-800 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                  >
-                    <option value="">(pipeline root)</option>
-                    {subdirs.map((d) => (
-                      <option key={d} value={d}>{d}/</option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={() => setIsNewSubdir(true)}
-                    className="whitespace-nowrap text-xs text-blue-600 hover:text-blue-700"
-                  >
-                    + New
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Path preview */}
-          {computedPath && (
-            <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2">
-              <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
-                File path
-              </span>
-              <p className="mt-0.5 font-mono text-xs text-slate-700">{computedPath}</p>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-3">
-          <button
-            onClick={close}
-            className="rounded px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleCreate}
-            disabled={!canCreate}
-            className="rounded bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-40"
-          >
-            Create
-          </button>
-        </div>
+        )}
       </div>
-    </div>
+
+      {/* Footer */}
+      <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3">
+        <Button variant="ghost" size="sm" onClick={close}>
+          Cancel
+        </Button>
+        <Button size="sm" onClick={handleCreate} disabled={!canCreate}>
+          Create
+        </Button>
+      </div>
+    </>
   )
 }

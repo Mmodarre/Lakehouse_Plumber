@@ -1,5 +1,6 @@
 import { useTemplateDetail } from '../../hooks/useTemplates'
 import { LoadingSpinner } from '../common/LoadingSpinner'
+import { Badge } from '../ui/badge'
 
 export function TemplateDetail({ name }: { name: string }) {
   const { data, isLoading } = useTemplateDetail(name)
@@ -14,20 +15,22 @@ export function TemplateDetail({ name }: { name: string }) {
       <div className="space-y-2">
         {template?.version && (
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-slate-400">Version</span>
-            <span className="text-xs font-medium text-slate-700">{template.version}</span>
+            <span className="text-2xs text-muted-foreground">Version</span>
+            <span className="text-xs font-medium text-foreground">{template.version}</span>
           </div>
         )}
         {template?.description && (
           <div>
-            <span className="text-[11px] text-slate-400">Description</span>
-            <p className="mt-0.5 text-xs text-slate-600">{template.description}</p>
+            <span className="text-2xs text-muted-foreground">Description</span>
+            <p className="mt-0.5 text-xs text-muted-foreground">{template.description}</p>
           </div>
         )}
         {template?.action_count !== undefined && (
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-slate-400">Actions</span>
-            <span className="text-xs font-medium text-slate-700">{template.action_count}</span>
+            <span className="text-2xs text-muted-foreground">Actions</span>
+            <span className="text-xs font-medium tabular-nums text-foreground">
+              {template.action_count}
+            </span>
           </div>
         )}
       </div>
@@ -35,7 +38,7 @@ export function TemplateDetail({ name }: { name: string }) {
       {/* Parameters */}
       {template?.parameters && template.parameters.length > 0 && (
         <div>
-          <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          <h3 className="mb-1.5 text-2xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
             Parameters ({template.parameters.length})
           </h3>
           <div className="space-y-1">
@@ -44,16 +47,21 @@ export function TemplateDetail({ name }: { name: string }) {
               const paramDefault = param.default as string | undefined
               const paramRequired = param.required as boolean | undefined
               return (
-                <div key={i} className="rounded bg-slate-50 px-2 py-1.5">
+                <div key={i} className="rounded-md bg-muted/50 px-2 py-1.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-slate-700">{paramName}</span>
+                    <span className="font-mono text-xs font-medium text-foreground">
+                      {paramName}
+                    </span>
                     {paramRequired && (
-                      <span className="rounded bg-red-50 px-1 py-0.5 text-[9px] text-red-600">required</span>
+                      <Badge className="h-4 rounded-sm border border-destructive/25 bg-destructive/12 px-1 text-2xs text-destructive">
+                        required
+                      </Badge>
                     )}
                   </div>
                   {paramDefault !== undefined && (
-                    <p className="mt-0.5 text-[10px] text-slate-400">
-                      Default: <code className="text-slate-500">{String(paramDefault)}</code>
+                    <p className="mt-0.5 text-2xs text-muted-foreground">
+                      Default:{' '}
+                      <code className="font-mono text-foreground/80">{String(paramDefault)}</code>
                     </p>
                   )}
                 </div>

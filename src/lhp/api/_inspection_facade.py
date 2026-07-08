@@ -4,24 +4,27 @@ Underscore-prefixed: not part of the import surface; external callers
 MUST import :class:`InspectionFacade` from :mod:`lhp.api` (re-exported
 via :mod:`lhp.api.facade`). This split exists purely to keep
 ``lhp/api/facade.py`` under the constitution §3.3 soft cap (500 lines)
-while the inspection surface absorbs twelve read-only methods plus the
-two dependency-output paths.
+while the inspection surface absorbs thirteen read-only methods plus
+the two dependency-output paths.
 
 :stability: internal
 """
 
-# JUSTIFIED: This module's :class:`InspectionFacade` exposes fourteen
-# public methods (§3.2 requires justification at 10–15; hard cap at 15),
-# explicitly enumerated in the class docstring to satisfy the
-# constitution's exception clause. The methods are cohesive — all
-# read-only project introspection plus the two dependency-output paths
-# — and splitting further would fracture a single semantic group across
-# multiple facades. Heavy DTO-conversion bodies live in
-# :mod:`lhp.api._inspection_converters`; what remains is the per-method
-# delegation surface plus the dependency-output enumeration path.
-# TODO(INSPECTION-FACADE-SPLIT): trim or split InspectionFacade's fourteen methods into sub-facades grouped by DTO family once the inspection surface stabilises; see LOCAL/REMAINING_WORK.md §9.5.
+# JUSTIFIED: This module's :class:`InspectionFacade` exposes fifteen
+# public methods — exactly at the §3.2 hard cap (justification required
+# from 10; nothing beyond 15 may be added) — explicitly enumerated in
+# the class docstring to satisfy the constitution's exception clause.
+# The methods are cohesive — all read-only project introspection plus
+# the two dependency-output paths — and splitting further would
+# fracture a single semantic group across multiple facades. The same
+# cohesion justifies the §3.3 size overage (>500 lines): heavy
+# DTO-conversion bodies live in :mod:`lhp.api._inspection_converters`;
+# what remains is the per-method delegation surface plus the
+# dependency-output enumeration path.
+# TODO(INSPECTION-FACADE-SPLIT): the §3.2 method cap is now HIT — a sixteenth method REQUIRES splitting InspectionFacade into sub-facades grouped by DTO family; see LOCAL/REMAINING_WORK.md §9.5.
 from __future__ import annotations
 
+import copy
 import logging
 from pathlib import Path
 from typing import (
@@ -61,6 +64,7 @@ from lhp.api.views import (
     BlueprintView,
     FlowgroupView,
     GeneratedCodeView,
+    PresetResolutionResult,
     PresetView,
     ProcessedFlowgroupView,
     ProjectConfigView,
@@ -78,7 +82,7 @@ if TYPE_CHECKING:
 class InspectionFacade:
     """Inspection / read-only operations on a constructed project.
 
-    Fourteen public methods grouped by responsibility — inspection-style
+    Fifteen public methods grouped by responsibility — inspection-style
     read-only / informational operations plus the two dependency-output
     paths:
 
@@ -91,6 +95,7 @@ class InspectionFacade:
     - ``compute_stats``
     - ``list_blueprints``
     - ``list_presets``
+    - ``resolve_preset``
     - ``list_templates``
     - ``analyze_dependencies``
     - ``save_dependency_outputs``
@@ -273,6 +278,49 @@ class InspectionFacade:
                 continue
             views.append(_preset_to_view(preset, path))
         return tuple(views)
+
+    def resolve_preset(self, name: str) -> PresetResolutionResult:
+        """Resolve a preset's ``extends`` chain and deep-merged configuration.
+
+        Resolution is delegated to the project's preset manager:
+        ``merged_config`` is the base→leaf deep merge of every
+        ``defaults`` payload along the chain (per key, the more-derived
+        preset's value wins; nested mappings merge recursively;
+        ``operational_metadata`` lists are concatenated with
+        order-preserving dedup instead of replaced). ``chain`` holds the
+        preset names base→leaf, derived by walking ``extends`` upward
+        from ``name``.
+
+        :stability: provisional
+        :raises lhp.errors.LHPError: ``LHP-ACT-001`` when ``name`` — or
+            any preset referenced through ``extends`` along the chain —
+            is not declared in the project's ``presets/`` directory;
+            ``LHP-DEP-022`` when the ``extends`` chain is circular.
+        """
+        manager = self._orchestrator.preset_manager
+        # Raises LHP-ACT-001 / LHP-DEP-022 before the chain walk below,
+        # so the walk can assume every name resolves acyclically.
+        merged = manager.resolve_preset_chain([name])
+
+        leaf_to_base: List[str] = []
+        visited: set[str] = set()
+        current: Optional[str] = name
+        while current is not None and current not in visited:
+            visited.add(current)
+            leaf_to_base.append(current)
+            current = manager.presets[current].extends
+
+        # Deep-copied so the DTO payload cannot alias the orchestrator's
+        # live preset cache: ``_resolve_preset_inheritance`` returns
+        # ``preset.defaults`` itself for base presets and ``_deep_merge``
+        # copies only the touched levels, so without this copy a caller
+        # mutating ``merged_config`` would corrupt later preset
+        # resolution in-process (§4.4).
+        return PresetResolutionResult(
+            name=name,
+            chain=tuple(reversed(leaf_to_base)),
+            merged_config=copy.deepcopy(merged),
+        )
 
     def list_templates(self) -> Tuple[TemplateView, ...]:
         """List all templates declared under the project's ``templates/`` directory.

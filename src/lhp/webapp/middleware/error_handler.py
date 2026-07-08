@@ -1,8 +1,8 @@
 """FastAPI exception handlers for the LHP web IDE backend.
 
 Maps domain ``LHPError`` exceptions to structured JSON error responses with
-appropriate HTTP status codes, and provides a catch-all handler that gates
-internal details behind ``dev_mode``.
+appropriate HTTP status codes, and provides a catch-all handler that always
+redacts internal details (they go to the server log instead).
 """
 
 import logging
@@ -73,15 +73,12 @@ async def lhp_error_handler(request: Request, exc: LHPError) -> JSONResponse:
 async def generic_error_handler(request: Request, exc: Exception) -> JSONResponse:
     """Catch-all for unhandled exceptions.
 
-    In dev_mode, the raw exception message is included in the response.
-    In production, only a generic "Internal server error" is returned
-    to avoid leaking internal details (file paths, SQL, stack traces).
+    The response is always redacted to a generic "Internal server error" so no
+    internal detail (file paths, SQL, stack traces) can leak to the client; the
+    full exception with traceback goes to the server log via
+    ``logger.exception``.
     """
     logger.exception("Unhandled error")
-
-    # Gate internal details by dev_mode
-    settings = getattr(request.app.state, "settings", None)
-    is_dev = getattr(settings, "dev_mode", False) if settings else False
 
     return JSONResponse(
         status_code=500,
@@ -90,10 +87,8 @@ async def generic_error_handler(request: Request, exc: Exception) -> JSONRespons
                 "code": "LHP-GEN-000",
                 "category": "GENERAL",
                 "message": "Internal server error",
-                "details": str(exc) if is_dev else "An unexpected error occurred.",
-                "suggestions": (
-                    ["Check server logs for details"] if not is_dev else []
-                ),
+                "details": "An unexpected error occurred.",
+                "suggestions": ["Check server logs for details"],
                 "context": {},
                 "http_status": 500,
             }
