@@ -2,7 +2,8 @@ import { useRef, useImperativeHandle, forwardRef } from 'react'
 import Editor from '@monaco-editor/react'
 import type { OnMount, Monaco } from '@monaco-editor/react'
 import type { editor } from 'monaco-editor'
-import { setupMonacoYaml } from '../../lib/monaco-setup'
+import { monacoThemeFor, setupMonacoYaml } from '../../lib/monaco-setup'
+import { useThemeStore } from '../../store/themeStore'
 
 /** Marker owner used for our YAML syntax-error markers. Kept distinct from
  * monaco-yaml's own schema markers so we only ever clear what we set. */
@@ -38,6 +39,10 @@ export interface YamlSyntaxMarker {
 
 export interface MonacoEditorHandle {
   getValue: () => string
+  /** Programmatically replace the editor buffer (e.g. reloading from disk).
+   * Resets the dirty signal to `false` since this is not a user edit. No-op if
+   * the editor is not mounted. */
+  setValue: (value: string) => void
   /** Set our `lhp-yaml` error markers on the current model. Replaces any
    * previously-set markers of the same owner. No-op if the editor is not
    * mounted. */
@@ -52,17 +57,41 @@ interface Props {
   readOnly?: boolean
   onDirtyChange?: (dirty: boolean) => void
   onSave?: () => void
+  /** Called once the Monaco editor instance is mounted (after the imperative
+   * handle is usable) — e.g. to re-apply markers on a fresh model. */
+  onEditorMount?: () => void
 }
 
 const MonacoEditorWrapper = forwardRef<MonacoEditorHandle, Props>(function MonacoEditorWrapper(
-  { path, content, readOnly = false, onDirtyChange, onSave },
+  { path, content, readOnly = false, onDirtyChange, onSave, onEditorMount },
   ref,
 ) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
   const monacoRef = useRef<Monaco | null>(null)
+  // True while a programmatic setValue is in flight. Monaco fires
+  // onDidChangeModelContent SYNCHRONOUSLY from setValue, which would
+  // otherwise surface as a spurious user-edit dirty signal.
+  const suppressChangeRef = useRef(false)
+  // Subscribing keeps open editors live: a theme flip re-renders with the
+  // other `lhp-*` theme name and @monaco-editor/react calls setTheme for us.
+  const resolvedTheme = useThemeStore((s) => s.resolved)
 
   useImperativeHandle(ref, () => ({
     getValue: () => editorRef.current?.getValue() ?? '',
+    setValue: (value: string) => {
+      const ed = editorRef.current
+      if (!ed) return
+      // Suppress the synchronous change event for the duration of the call —
+      // this is a programmatic reload, not a user edit — then signal clean so
+      // the host can cancel any pending capture of the replaced text.
+      suppressChangeRef.current = true
+      try {
+        ed.setValue(value)
+      } finally {
+        suppressChangeRef.current = false
+      }
+      onDirtyChange?.(false)
+    },
     setYamlMarkers: (markers: YamlSyntaxMarker[]) => {
       const monacoInstance = monacoRef.current
       const model = editorRef.current?.getModel()
@@ -100,8 +129,10 @@ const MonacoEditorWrapper = forwardRef<MonacoEditorHandle, Props>(function Monac
     // Idempotent and self-guarding; failures degrade gracefully.
     void setupMonacoYaml()
 
-    // Signal dirty on any content change
+    // Signal dirty on any content change — except programmatic setValue
+    // (see suppressChangeRef), which is a reload rather than a user edit.
     ed.onDidChangeModelContent(() => {
+      if (suppressChangeRef.current) return
       onDirtyChange?.(true)
     })
 
@@ -109,6 +140,8 @@ const MonacoEditorWrapper = forwardRef<MonacoEditorHandle, Props>(function Monac
     ed.addCommand(monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyS, () => {
       onSave?.()
     })
+
+    onEditorMount?.()
   }
 
   return (
@@ -116,7 +149,7 @@ const MonacoEditorWrapper = forwardRef<MonacoEditorHandle, Props>(function Monac
       defaultValue={content}
       path={path}
       language={getLanguage(path)}
-      theme="vs-dark"
+      theme={monacoThemeFor(resolvedTheme)}
       loading={null}
       onMount={handleMount}
       options={{

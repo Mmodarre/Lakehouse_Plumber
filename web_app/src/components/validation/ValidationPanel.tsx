@@ -1,35 +1,55 @@
-import { useRunStore } from '../../store/runStore'
+import { CircleCheck, CircleX, Loader2, PlayCircle, TriangleAlert } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { useRunController, useRunStore } from '../../store/runStore'
 import type { RunTerminal } from '../../store/runStore'
 import { ValidationResults } from './ValidationResults'
+import { EmptyState } from '../common/EmptyState'
+import { cn } from '@/lib/utils'
 
 // ── ValidationPanel — live run view ─────────────────────────
 //
 // Reads the shared run state from `runStore` (driven by the controller
 // mounted in the Header). Shows the current phase, a progress bar, any
 // streaming info lines, a terminal status banner, and the structured
-// issue list. The run itself is *triggered* from the Header's
-// Validate/Generate buttons — this panel is the read-side view.
+// issue list. A run is normally *triggered* from the Header's
+// Validate/Generate buttons; the idle empty state offers an in-place
+// "Validate project" action through the same run-controller flow.
 
 function terminalBanner(
   terminal: RunTerminal,
   kind: string,
   errorTitle: string | null,
-): { text: string; className: string } {
+  warningCount: number,
+): { text: string; className: string; icon: LucideIcon; iconClassName: string } {
   if (terminal === 'success') {
+    if (warningCount > 0) {
+      return {
+        text: `${kind} completed with ${warningCount} ${warningCount === 1 ? 'warning' : 'warnings'}`,
+        className: 'border-warning/25 bg-warning/12',
+        icon: TriangleAlert,
+        iconClassName: 'text-warning',
+      }
+    }
     return {
       text: `${kind} completed successfully`,
-      className: 'bg-green-50 text-green-800 border-green-200',
+      className: 'border-success/25 bg-success/12',
+      icon: CircleCheck,
+      iconClassName: 'text-success',
     }
   }
   if (terminal === 'error') {
     return {
       text: errorTitle ?? `${kind} errored`,
-      className: 'bg-red-50 text-red-800 border-red-200',
+      className: 'border-error/25 bg-error/12',
+      icon: CircleX,
+      iconClassName: 'text-error',
     }
   }
   return {
     text: `${kind} failed — see issues below`,
-    className: 'bg-red-50 text-red-800 border-red-200',
+    className: 'border-error/25 bg-error/12',
+    icon: CircleX,
+    iconClassName: 'text-error',
   }
 }
 
@@ -45,15 +65,22 @@ function ProgressBar({
   const pct = total > 0 ? Math.round((done / total) * 100) : 0
   return (
     <div className="space-y-1">
-      <div className="flex items-center justify-between text-xs text-slate-600">
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>{current ?? 'Working…'}</span>
-        <span className="tabular-nums">
+        <span className="font-mono tabular-nums">
           {done}/{total}
         </span>
       </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+      <div
+        role="progressbar"
+        aria-label="Run progress"
+        aria-valuenow={done}
+        aria-valuemin={0}
+        aria-valuemax={total}
+        className="h-1.5 w-full overflow-hidden rounded-full bg-secondary"
+      >
         <div
-          className="h-full rounded-full bg-blue-600 transition-all"
+          className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -70,27 +97,40 @@ export function ValidationPanel() {
   const terminal = useRunStore((s) => s.terminal)
   const errorFrame = useRunStore((s) => s.errorFrame)
   const infoLog = useRunStore((s) => s.infoLog)
+  const { startValidate } = useRunController()
 
   const kindLabel = runKind === 'generate' ? 'Generation' : 'Validation'
+  const warningCount = issues.filter((i) => i.severity === 'warning').length
 
   // Idle: nothing has been run yet this session.
   if (runKind === null) {
     return (
-      <div className="rounded border border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
-        Use the <span className="font-medium text-slate-700">Validate</span> or{' '}
-        <span className="font-medium text-slate-700">Generate</span> button in the
-        header to start a run.
+      <div className="rounded-lg border border-border bg-card">
+        <EmptyState
+          icon={PlayCircle}
+          title="No runs yet"
+          message="Validate the project to see progress and structured issues here."
+          action={{ label: 'Validate project', onClick: () => startValidate() }}
+        />
       </div>
     )
   }
+
+  const banner = terminalBanner(
+    terminal ?? 'success',
+    kindLabel,
+    errorFrame?.title ?? null,
+    warningCount,
+  )
+  const BannerIcon = banner.icon
 
   return (
     <div className="space-y-4">
       {/* Live phase + progress */}
       {isRunning && (
-        <div className="space-y-3 rounded border border-slate-200 bg-white px-4 py-3">
-          <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
-            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+        <div className="space-y-3 rounded-lg border border-border bg-card px-4 py-3">
+          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <Loader2 className="size-3.5 animate-spin text-primary" aria-hidden="true" />
             {phase ? `${kindLabel}: ${phase}` : `${kindLabel} running…`}
           </div>
           {progress && (
@@ -105,33 +145,43 @@ export function ValidationPanel() {
 
       {/* Streaming info lines */}
       {infoLog.length > 0 && (
-        <div className="space-y-0.5 rounded border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-[11px] text-slate-600">
+        <div className="max-h-64 space-y-0.5 overflow-auto rounded-lg bg-muted/40 p-3 font-mono text-xs text-muted-foreground">
           {infoLog.map((line, i) => (
             <div key={i}>{line}</div>
           ))}
         </div>
       )}
 
-      {/* Terminal status banner */}
+      {/* Terminal status banner — a live region so the run outcome is
+          announced (alert for failures, polite status for success) */}
       {!isRunning && terminal && (
         <div
-          className={`rounded-lg border px-4 py-3 text-sm font-medium ${
-            terminalBanner(terminal, kindLabel, errorFrame?.title ?? null).className
-          }`}
+          role={terminal === 'success' ? 'status' : 'alert'}
+          aria-live={terminal === 'success' ? 'polite' : 'assertive'}
+          className={cn(
+            'flex items-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium text-foreground',
+            banner.className,
+          )}
         >
-          {terminalBanner(terminal, kindLabel, errorFrame?.title ?? null).text}
+          <BannerIcon
+            className={cn('size-4 shrink-0', banner.iconClassName)}
+            aria-hidden="true"
+          />
+          {banner.text}
         </div>
       )}
 
       {/* Terminal error detail (transport / non-issue failure) */}
       {!isRunning && errorFrame && (
-        <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-          <span className="font-mono text-[10px]">{errorFrame.code}</span>
+        <div className="rounded-lg border border-error/25 bg-error/12 px-3 py-2 text-xs text-foreground">
+          <span className="font-mono text-2xs text-error">{errorFrame.code}</span>
           {errorFrame.details && (
-            <div className="mt-0.5 whitespace-pre-wrap">{errorFrame.details}</div>
+            <div className="mt-0.5 whitespace-pre-wrap text-muted-foreground">
+              {errorFrame.details}
+            </div>
           )}
           {errorFrame.suggestions.length > 0 && (
-            <ul className="mt-1 list-inside list-disc space-y-0.5">
+            <ul className="mt-1 list-inside list-disc space-y-0.5 text-muted-foreground">
               {errorFrame.suggestions.map((s, i) => (
                 <li key={i}>{s}</li>
               ))}

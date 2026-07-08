@@ -14,6 +14,8 @@ from fastapi.testclient import TestClient
 from lhp.errors import ErrorCategory, LHPError
 from lhp.webapp.app import create_app
 
+from .conftest import LOOPBACK_BASE_URL
+
 pytestmark = pytest.mark.webapp
 
 
@@ -33,24 +35,25 @@ def test_create_app_boots(project_root_env):
         pass
 
 
-def test_root_serves_plaintext_fallback_without_static(project_root_env):
+def test_root_serves_plaintext_fallback_without_static(no_static):
     """Without built static assets, GET / returns a 200 plain-text page.
 
-    The dev tree ships no static/index.html (assets are gitignored), so the
-    fallback route should be active and mention the build script.
+    ``no_static`` forces ``resolve_static_dir`` to ``None`` so the fallback
+    route is active regardless of whether a built bundle exists on disk; it
+    mentions the build script.
     """
-    app = create_app()
-    with TestClient(app, raise_server_exceptions=False) as client:
-        resp = client.get("/")
-        assert resp.status_code == 200
-        assert resp.headers["content-type"].startswith("text/plain")
-        assert "scripts/build_webapp.sh" in resp.text
+    resp = no_static.get("/")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/plain")
+    assert "scripts/build_webapp.sh" in resp.text
 
 
 def test_api_health_does_not_crash_app(project_root_env):
     """GET /api/health is either 200 (router present) or 404 — never a crash."""
     app = create_app()
-    with TestClient(app, raise_server_exceptions=False) as client:
+    with TestClient(
+        app, base_url=LOOPBACK_BASE_URL, raise_server_exceptions=False
+    ) as client:
         resp = client.get("/api/health")
         assert resp.status_code in (200, 404)
 
@@ -72,7 +75,9 @@ def test_lhp_error_handler_registered(project_root_env):
             details="probe details",
         )
 
-    with TestClient(app, raise_server_exceptions=False) as client:
+    with TestClient(
+        app, base_url=LOOPBACK_BASE_URL, raise_server_exceptions=False
+    ) as client:
         resp = client.get("/__probe_lhp_error")
         assert resp.status_code == 422
         body = resp.json()
@@ -96,9 +101,14 @@ def test_router_registry_is_tolerant(project_root_env, monkeypatch):
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(app_module.importlib, "import_module", _fake_import)
+    # Force the not-built fallback so the assertion holds regardless of whether
+    # a built bundle exists on disk (hermetic; complements the router drop).
+    monkeypatch.setattr("lhp.webapp.static_app.resolve_static_dir", lambda: None)
 
     app = create_app()
-    with TestClient(app, raise_server_exceptions=False) as client:
+    with TestClient(
+        app, base_url=LOOPBACK_BASE_URL, raise_server_exceptions=False
+    ) as client:
         resp = client.get("/")
         assert resp.status_code == 200
         assert "scripts/build_webapp.sh" in resp.text

@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { useUIStore } from '../../../store/uiStore'
 import type { ExternalConnection } from '../../../types/graph'
 
@@ -12,6 +13,22 @@ export function ExternalBadge({ connections }: { connections: ExternalConnection
   const [rect, setRect] = useState<DOMRect | null>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const { openPipelineModal } = useUIStore()
+
+  // Escape closes the dropdown. Registered on `window` in the capture phase
+  // so it runs BEFORE Radix's document-capture dismiss listener — the
+  // preventDefault keeps a surrounding dialog (e.g. the pipeline drill
+  // modal) open while only the dropdown closes.
+  useEffect(() => {
+    if (!dropdownOpen) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      setDropdownOpen(false)
+      buttonRef.current?.focus()
+    }
+    window.addEventListener('keydown', onKeyDown, { capture: true })
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true })
+  }, [dropdownOpen])
 
   if (connections.length === 0) return null
 
@@ -30,11 +47,14 @@ export function ExternalBadge({ connections }: { connections: ExternalConnection
   }
 
   return (
-    <div className="absolute -right-1 -top-1">
+    <div className="absolute -top-1.5 -right-1.5">
       <button
         ref={buttonRef}
         onClick={handleClick}
-        className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-[8px] font-bold text-white shadow-sm hover:bg-amber-500"
+        aria-haspopup="menu"
+        aria-expanded={dropdownOpen}
+        aria-label={`${connections.length} external connection${connections.length > 1 ? 's' : ''}`}
+        className="flex h-4.5 min-w-4.5 items-center justify-center rounded-full border border-warning/60 bg-card px-1 font-mono text-2xs font-semibold text-foreground shadow-xs transition-colors duration-150 hover:border-warning"
         title={`${connections.length} external connection${connections.length > 1 ? 's' : ''}`}
       >
         {connections.length}
@@ -49,7 +69,8 @@ export function ExternalBadge({ connections }: { connections: ExternalConnection
             onClick={(e) => { e.stopPropagation(); setDropdownOpen(false) }}
           />
           <div
-            className="fixed min-w-[160px] rounded border border-slate-200 bg-white py-1 shadow-lg"
+            role="menu"
+            className="fixed min-w-40 rounded-md border border-border bg-popover py-1 shadow-lg"
             style={{
               zIndex: 9999,
               top: rect.bottom + 4,
@@ -59,13 +80,16 @@ export function ExternalBadge({ connections }: { connections: ExternalConnection
             {connections.map((conn, i) => (
               <button
                 key={i}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] text-slate-700 hover:bg-slate-50"
+                role="menuitem"
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-popover-foreground hover:bg-accent"
                 onClick={(e) => handleSelect(conn, e)}
               >
-                <span className={`text-[9px] ${conn.direction === 'upstream' ? 'text-blue-500' : 'text-orange-500'}`}>
-                  {conn.direction === 'upstream' ? '\u2190' : '\u2192'}
-                </span>
-                <span className="truncate">{conn.targetPipeline}</span>
+                {conn.direction === 'upstream' ? (
+                  <ArrowLeft className="size-3 shrink-0 text-info" aria-hidden="true" />
+                ) : (
+                  <ArrowRight className="size-3 shrink-0 text-warning" aria-hidden="true" />
+                )}
+                <span className="truncate font-mono">{conn.targetPipeline}</span>
               </button>
             ))}
           </div>

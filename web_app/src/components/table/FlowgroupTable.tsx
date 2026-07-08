@@ -1,18 +1,80 @@
 import { useState, useMemo } from 'react'
-import { Plus } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowDownToLine,
+  ArrowUp,
+  ArrowUpDown,
+  Boxes,
+  Database,
+  FlaskConical,
+  Plus,
+  Search,
+  Wand2,
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { useFlowgroups } from '../../hooks/useFlowgroups'
 import { useUIStore } from '../../store/uiStore'
 import type { FlowgroupSummary } from '../../types/api'
-import { LoadingSpinner } from '../common/LoadingSpinner'
+import { EmptyState } from '../common/EmptyState'
+import { TableSkeleton } from '../common/SkeletonLoader'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { cn } from '@/lib/utils'
 
 type SortKey = 'name' | 'pipeline' | 'action_count' | 'source_file'
 type SortDir = 'asc' | 'desc'
 
-const ACTION_TYPE_BADGE: Record<string, string> = {
-  load: 'bg-blue-100 text-blue-700',
-  transform: 'bg-emerald-100 text-emerald-700',
-  write: 'bg-orange-100 text-orange-700',
-  test: 'bg-purple-100 text-purple-700',
+/** Sentinel for the "no type filter" select entry (Radix Select forbids
+ * an empty-string item value). Action types are load/transform/write/test,
+ * so this can never collide with a real value. */
+const ALL_TYPES = 'all'
+
+/** Unified action-kind badge recipe — the same `--kind-*` tokens the DAG
+ * accents use (12% tinted fill, 25% border, kind-colored text + icon), so
+ * "transform" is violet and "write" is green everywhere. */
+const ACTION_KIND_BADGE: Record<string, { icon: LucideIcon; className: string }> = {
+  load: {
+    icon: ArrowDownToLine,
+    className: 'border-kind-load/25 bg-kind-load/12 text-kind-load',
+  },
+  transform: {
+    icon: Wand2,
+    className: 'border-kind-transform/25 bg-kind-transform/12 text-kind-transform',
+  },
+  write: {
+    icon: Database,
+    className: 'border-kind-write/25 bg-kind-write/12 text-kind-write',
+  },
+  test: {
+    icon: FlaskConical,
+    className: 'border-kind-test/25 bg-kind-test/12 text-kind-test',
+  },
+}
+
+function ActionKindBadge({ kind }: { kind: string }) {
+  const spec = ACTION_KIND_BADGE[kind]
+  if (!spec) {
+    return (
+      <Badge variant="outline" className="rounded-sm px-1.5 text-2xs">
+        {kind}
+      </Badge>
+    )
+  }
+  const Icon = spec.icon
+  return (
+    <Badge className={cn('h-5 rounded-sm border px-1.5 text-2xs', spec.className)}>
+      <Icon className="size-2.5" aria-hidden="true" />
+      {kind}
+    </Badge>
+  )
 }
 
 function SortHeader({
@@ -31,14 +93,38 @@ function SortHeader({
   const isActive = currentSort === sortKey
   return (
     <button
-      className="flex items-center gap-1 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-700"
+      type="button"
+      aria-label={`Sort by ${label}`}
+      className={cn(
+        'group inline-flex items-center gap-1 text-left text-2xs font-semibold uppercase tracking-[0.05em] transition-colors',
+        isActive
+          ? 'text-foreground'
+          : 'text-muted-foreground hover:text-foreground',
+      )}
       onClick={() => onSort(sortKey)}
     >
       {label}
-      {isActive && (
-        <span className="text-[9px]">{currentDir === 'asc' ? '\u25B2' : '\u25BC'}</span>
+      {isActive ? (
+        currentDir === 'asc' ? (
+          <ArrowUp className="size-3" aria-hidden="true" />
+        ) : (
+          <ArrowDown className="size-3" aria-hidden="true" />
+        )
+      ) : (
+        <ArrowUpDown
+          className="size-3 opacity-0 transition-opacity group-hover:opacity-100"
+          aria-hidden="true"
+        />
       )}
     </button>
+  )
+}
+
+function HeaderLabel({ label }: { label: string }) {
+  return (
+    <span className="text-2xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+      {label}
+    </span>
   )
 }
 
@@ -59,6 +145,10 @@ export function FlowgroupTable() {
       setSortDir('asc')
     }
   }
+
+  /** `aria-sort` value for a sortable column header. */
+  const ariaSort = (key: SortKey): 'ascending' | 'descending' | 'none' =>
+    sortKey === key ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'
 
   const filtered = useMemo(() => {
     if (!data?.flowgroups) return []
@@ -94,117 +184,157 @@ export function FlowgroupTable() {
     return [...types].sort()
   }, [data])
 
-  if (isLoading) return <LoadingSpinner className="py-4" />
+  if (isLoading) {
+    return (
+      <div className="flex h-full flex-col bg-card">
+        <TableSkeleton rows={8} />
+      </div>
+    )
+  }
+
+  const hasFilter = filter !== '' || typeFilter !== ''
 
   return (
-    <div className="flex h-full flex-col bg-white">
+    <div className="flex h-full flex-col bg-card">
       {/* Toolbar */}
-      <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-2">
-        <span className="text-xs font-semibold text-slate-700">
-          Flowgroups <span className="font-normal text-slate-400">{filtered.length}</span>
-        </span>
+      <div className="flex items-center gap-3 border-b border-border px-4 py-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-foreground">Flowgroups</span>
+          <Badge variant="secondary" className="tabular-nums">
+            {filtered.length}
+          </Badge>
+        </div>
 
-        <div className="relative ml-4">
-          <svg className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
+        <div className="relative ml-2">
+          <Search
+            className="absolute inset-y-0 left-2.5 my-auto size-3.5 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <Input
             type="text"
-            placeholder="Filter by name..."
+            placeholder="Filter by name…"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="rounded border border-slate-200 py-1 pl-7 pr-2 text-xs text-slate-700 placeholder-slate-400 focus:border-blue-400 focus:outline-none"
-            style={{ width: 180 }}
+            className="h-8 w-[200px] pl-8 text-sm"
           />
         </div>
 
-        <select
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 focus:border-blue-400 focus:outline-none"
+        <Select
+          value={typeFilter === '' ? ALL_TYPES : typeFilter}
+          onValueChange={(v) => setTypeFilter(v === ALL_TYPES ? '' : v)}
         >
-          <option value="">Type</option>
-          {allTypes.map((t) => (
-            <option key={t} value={t}>{t}</option>
-          ))}
-        </select>
+          <SelectTrigger size="sm" className="text-sm" aria-label="Filter by action type">
+            <SelectValue placeholder="Type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_TYPES}>All types</SelectItem>
+            {allTypes.map((t) => (
+              <SelectItem key={t} value={t}>
+                {t}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
         <div className="ml-auto">
-          <button
-            onClick={openCreateFlowgroupDialog}
-            className="flex items-center gap-1.5 rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
-          >
-            <Plus className="h-3 w-3" />
+          <Button size="sm" onClick={openCreateFlowgroupDialog}>
+            <Plus aria-hidden="true" />
             New Flowgroup
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Table */}
       <div className="flex-1 overflow-auto">
-        <table className="w-full text-xs">
-          <thead className="sticky top-0 bg-slate-50">
-            <tr className="border-b border-slate-200">
-              <th className="px-4 py-2 text-left">
-                <SortHeader label="Name" sortKey="name" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
-              </th>
-              <th className="px-4 py-2 text-left">
-                <SortHeader label="Pipeline" sortKey="pipeline" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
-              </th>
-              <th className="px-4 py-2 text-left">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Type</span>
-              </th>
-              <th className="px-4 py-2 text-left">
-                <SortHeader label="Actions" sortKey="action_count" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
-              </th>
-              <th className="px-4 py-2 text-left">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Presets</span>
-              </th>
-              <th className="px-4 py-2 text-left">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Template</span>
-              </th>
-              <th className="px-4 py-2 text-left">
-                <SortHeader label="Source" sortKey="source_file" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((fg) => (
-              <tr
-                key={fg.name}
-                className="cursor-pointer border-b border-slate-100 transition-colors hover:bg-blue-50/50"
-                onClick={() => openFlowgroupEditor(fg.name, fg.pipeline)}
-              >
-                <td className="px-4 py-2">
-                  <span className="font-medium text-blue-700 hover:underline">{fg.name}</span>
-                </td>
-                <td className="px-4 py-2 text-slate-600">{fg.pipeline}</td>
-                <td className="px-4 py-2">
-                  <div className="flex flex-wrap gap-1">
-                    {fg.action_types.map((t) => (
-                      <span
-                        key={t}
-                        className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${ACTION_TYPE_BADGE[t] ?? 'bg-slate-100 text-slate-600'}`}
-                      >
-                        {t}
-                      </span>
-                    ))}
-                  </div>
-                </td>
-                <td className="px-4 py-2 text-slate-600">{fg.action_count}</td>
-                <td className="px-4 py-2 text-slate-500">
-                  {fg.presets.length > 0 ? fg.presets.join(', ') : '-'}
-                </td>
-                <td className="px-4 py-2 text-slate-500">
-                  {fg.template ?? '-'}
-                </td>
-                <td className="px-4 py-2 text-slate-400 truncate max-w-[200px]" title={fg.source_file}>
-                  {fg.source_file.split('/').pop()}
-                </td>
+        {filtered.length === 0 ? (
+          <EmptyState
+            icon={Boxes}
+            title="No flowgroups"
+            message={
+              hasFilter
+                ? 'No flowgroups match the current filter.'
+                : 'Create a flowgroup to get started.'
+            }
+            action={
+              hasFilter
+                ? {
+                    label: 'Clear filter',
+                    onClick: () => {
+                      setFilter('')
+                      setTypeFilter('')
+                    },
+                    variant: 'outline',
+                  }
+                : { label: 'New Flowgroup', onClick: openCreateFlowgroupDialog }
+            }
+          />
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 z-10 bg-card/80 backdrop-blur">
+              <tr className="border-b border-border">
+                <th aria-sort={ariaSort('name')} className="h-9 px-3 text-left">
+                  <SortHeader label="Name" sortKey="name" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
+                </th>
+                <th aria-sort={ariaSort('pipeline')} className="h-9 px-3 text-left">
+                  <SortHeader label="Pipeline" sortKey="pipeline" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
+                </th>
+                <th className="h-9 px-3 text-left">
+                  <HeaderLabel label="Type" />
+                </th>
+                <th aria-sort={ariaSort('action_count')} className="h-9 px-3 text-right">
+                  <SortHeader label="Actions" sortKey="action_count" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
+                </th>
+                <th className="h-9 px-3 text-left">
+                  <HeaderLabel label="Presets" />
+                </th>
+                <th className="h-9 px-3 text-left">
+                  <HeaderLabel label="Template" />
+                </th>
+                <th aria-sort={ariaSort('source_file')} className="h-9 px-3 text-left">
+                  <SortHeader label="Source" sortKey="source_file" currentSort={sortKey} currentDir={sortDir} onSort={handleSort} />
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filtered.map((fg) => (
+                <tr
+                  key={fg.name}
+                  className="h-9 cursor-pointer border-b border-border/60 transition-colors hover:bg-muted/50"
+                  onClick={() => openFlowgroupEditor(fg.name, fg.pipeline)}
+                >
+                  <td className="px-3 font-medium text-foreground">{fg.name}</td>
+                  <td className="px-3 text-muted-foreground">{fg.pipeline}</td>
+                  <td className="px-3">
+                    <div className="flex flex-wrap gap-1">
+                      {fg.action_types.map((t) => (
+                        <ActionKindBadge key={t} kind={t} />
+                      ))}
+                    </div>
+                  </td>
+                  <td className="px-3 text-right tabular-nums text-muted-foreground">
+                    {fg.action_count}
+                  </td>
+                  <td className="px-3 text-muted-foreground">
+                    {fg.presets.length > 0 ? (
+                      fg.presets.join(', ')
+                    ) : (
+                      <span className="text-muted-foreground/60">&mdash;</span>
+                    )}
+                  </td>
+                  <td className="px-3 text-muted-foreground">
+                    {fg.template ?? <span className="text-muted-foreground/60">&mdash;</span>}
+                  </td>
+                  <td
+                    className="max-w-[200px] truncate px-3 font-mono text-xs text-muted-foreground"
+                    title={fg.source_file}
+                  >
+                    {fg.source_file.split('/').pop()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   )

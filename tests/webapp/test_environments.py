@@ -1,8 +1,9 @@
-"""Tests for the environment list endpoint.
+"""Tests for the environment endpoints.
 
-Reads only — the local IDE exposes ``GET /api/environments`` only
-(per-environment token read, secret scan, and CRUD are out of scope for this
-revision). No auth; subjects are the shared E2E fixture project
+Reads only — the local IDE exposes ``GET /api/environments`` (list) and
+``GET /api/environments/{env}/resolved`` (resolved substitution context via
+the public inspection facade); environment CRUD is out of scope for this
+revision. No auth; subjects are the shared E2E fixture project
 (substitutions/{dev,prod,tst}.yaml).
 """
 
@@ -41,3 +42,42 @@ class TestListEnvironments:
         assert data["total"] == len(data["environments"])
         paged = client.get("/api/environments", params={"offset": 0, "limit": 1}).json()
         assert paged["total"] == data["total"]
+
+
+class TestResolvedSubstitutions:
+    """Tests for GET /api/environments/{env}/resolved."""
+
+    def test_known_env_returns_200(self, client):
+        resp = client.get("/api/environments/dev/resolved")
+        assert resp.status_code == 200
+
+    def test_tokens_are_resolved(self, client):
+        data = client.get("/api/environments/dev/resolved").json()
+        assert data["env"] == "dev"
+        assert data["tokens"]["env"] == "dev"
+        assert data["tokens"]["catalog"] == "acme_edw_dev"
+
+    def test_raw_mappings_mirror_tokens(self, client):
+        data = client.get("/api/environments/dev/resolved").json()
+        # Flat string values appear identically in both projections.
+        assert data["raw_mappings"]["catalog"] == data["tokens"]["catalog"]
+
+    def test_default_secret_scope_exposed(self, client):
+        data = client.get("/api/environments/dev/resolved").json()
+        assert data["default_secret_scope"] == "dev_secrets"
+
+    def test_secret_references_empty_on_fresh_resolution(self, client):
+        # The facade populates secret_references only after substitution has
+        # processed a payload; a fresh resolution reports an empty list.
+        data = client.get("/api/environments/dev/resolved").json()
+        assert data["secret_references"] == []
+
+    def test_unknown_env_returns_404(self, client):
+        resp = client.get("/api/environments/nope_env/resolved")
+        assert resp.status_code == 404
+        assert "nope_env" in resp.json()["detail"]
+
+    def test_traversal_name_returns_404(self, client):
+        # Encoded separators / dot-dot must never escape substitutions/.
+        resp = client.get("/api/environments/..%2F..%2Fetc%2Fpasswd/resolved")
+        assert resp.status_code in (400, 404)

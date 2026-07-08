@@ -1,23 +1,211 @@
-import { NavLink } from 'react-router-dom'
+import { useState } from 'react'
+import { NavLink, useLocation } from 'react-router-dom'
+import {
+  Boxes,
+  Check,
+  ChevronDown,
+  ChevronsUpDown,
+  CircleCheck,
+  Layers,
+  Loader2,
+  PanelLeft,
+  Play,
+  Wifi,
+  WifiOff,
+} from 'lucide-react'
+import { Badge } from '../ui/badge'
+import { Button } from '../ui/button'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '../ui/command'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu'
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../ui/select'
+import { ThemeToggle } from './ThemeToggle'
+import { cn } from '../../lib/utils'
 import { useProject, useHealth } from '../../hooks/useProject'
 import { useEnvironments } from '../../hooks/useEnvironments'
 import { usePipelines } from '../../hooks/usePipelines'
 import { useUIStore } from '../../store/uiStore'
-import { useRunController } from '../../store/runStore'
+import { useRunController, useRunStore } from '../../store/runStore'
 
 // ── Small helpers (not exported) ────────────────────────
 
-function HealthDot({ isHealthy }: { isHealthy: boolean }) {
+/** 16px LHP pipe-glyph mark (mirrors public/favicon.svg). */
+function LogoMark() {
   return (
-    <div className="flex items-center gap-1" title={isHealthy ? 'API connected' : 'API unreachable'}>
-      <div className={`h-1.5 w-1.5 rounded-full ${isHealthy ? 'bg-green-500' : 'bg-red-400'}`} />
-    </div>
+    <svg viewBox="0 0 32 32" className="h-4 w-4 shrink-0 text-primary" aria-hidden="true">
+      <path
+        d="M7 4v10a11 11 0 0 0 11 11h10"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M17 4v6a5 5 0 0 0 5 5h6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="5"
+        strokeLinecap="round"
+        opacity="0.5"
+      />
+    </svg>
   )
 }
 
-function ButtonSpinner() {
+function HealthIndicator({ ok, pending }: { ok: boolean; pending: boolean }) {
+  // Neutral while the first health response is in flight — red means a real
+  // error/unhealthy answer, not "haven't heard back yet".
+  const label = pending ? 'Connecting…' : ok ? 'API connected' : 'API unreachable'
+  const Icon = pending ? Loader2 : ok ? Wifi : WifiOff
   return (
-    <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+    <span
+      role="status"
+      title={label}
+      className={cn(
+        'inline-flex items-center px-1',
+        pending ? 'text-muted-foreground' : ok ? 'text-success' : 'text-error',
+      )}
+    >
+      <Icon className={cn('h-3.5 w-3.5', pending && 'animate-spin')} aria-hidden="true" />
+      {/* Text (not attribute-only) change inside the live region so screen
+          readers announce health transitions. */}
+      <span className="sr-only">{label}</span>
+    </span>
+  )
+}
+
+/** Searchable pipeline filter (shadcn combobox = popover + command). */
+function PipelineCombobox() {
+  const { data: pipelines } = usePipelines()
+  const pipelineFilter = useUIStore((s) => s.pipelineFilter)
+  const setPipelineFilter = useUIStore((s) => s.setPipelineFilter)
+  const [open, setOpen] = useState(false)
+
+  const select = (value: string | null) => {
+    setPipelineFilter(value)
+    setOpen(false)
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          role="combobox"
+          aria-expanded={open}
+          aria-label="Filter by pipeline"
+          className="w-44 justify-between font-normal"
+        >
+          <span className="flex min-w-0 items-center gap-1.5">
+            <Boxes className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span className="truncate">{pipelineFilter ?? 'All pipelines'}</span>
+          </span>
+          <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-0" align="end">
+        <Command>
+          <CommandInput placeholder="Search pipelines…" />
+          <CommandList>
+            <CommandEmpty>No pipelines found.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem value="__all__" onSelect={() => select(null)}>
+                <Check
+                  className={cn('size-3.5', pipelineFilter === null ? 'opacity-100' : 'opacity-0')}
+                />
+                All pipelines
+              </CommandItem>
+              {pipelines?.pipelines.map((p) => (
+                <CommandItem key={p.name} value={p.name} onSelect={() => select(p.name)}>
+                  <Check
+                    className={cn(
+                      'size-3.5',
+                      pipelineFilter === p.name ? 'opacity-100' : 'opacity-0',
+                    )}
+                  />
+                  {p.name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+const NAV_LINKS = [
+  { to: '/', label: 'Dashboard' },
+  { to: '/flowgroups', label: 'Flowgroups' },
+  { to: '/tables', label: 'Tables' },
+  { to: '/validation', label: 'Validation' },
+  { to: '/runs', label: 'Runs' },
+]
+
+// Lifecycle resource pages grouped under one "Resources" dropdown so the
+// underline nav stays uncluttered.
+const RESOURCE_LINKS = [
+  { to: '/blueprints', label: 'Blueprints' },
+  { to: '/presets', label: 'Presets' },
+  { to: '/templates', label: 'Templates' },
+  { to: '/environments', label: 'Environments' },
+]
+
+/** Dropdown nav entry styled like the underline tabs; active (underlined)
+ * when the current route is one of its children. */
+function ResourcesNavDropdown() {
+  const location = useLocation()
+  const isActive = RESOURCE_LINKS.some((link) =>
+    location.pathname.startsWith(link.to),
+  )
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className={cn(
+          'inline-flex items-center gap-1 border-b-2 px-2.5 text-sm font-medium transition-colors duration-150 outline-none motion-reduce:transition-none',
+          isActive
+            ? 'border-primary text-foreground'
+            : 'border-transparent text-muted-foreground hover:text-foreground',
+        )}
+      >
+        Resources
+        <ChevronDown className="size-3.5" aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {RESOURCE_LINKS.map((link) => (
+          <DropdownMenuItem key={link.to} asChild>
+            <NavLink
+              to={link.to}
+              className={({ isActive: itemActive }) =>
+                cn('w-full', itemActive && 'font-medium text-foreground')
+              }
+            >
+              {link.label}
+            </NavLink>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -25,119 +213,118 @@ function ButtonSpinner() {
 
 export function Header() {
   const { data: project } = useProject()
-  const { data: health } = useHealth()
+  const { data: health, isError: healthError, isPending: healthPending } = useHealth()
   const { data: envData } = useEnvironments()
-  const { data: pipelines } = usePipelines()
-  const { selectedEnv, setSelectedEnv, pipelineFilter, setPipelineFilter, sidebarOpen, toggleSidebar } = useUIStore()
+  const { selectedEnv, setSelectedEnv, pipelineFilter, sidebarOpen, toggleSidebar } = useUIStore()
   const { isRunning, startValidate, startGenerate } = useRunController()
+  const runKind = useRunStore((s) => s.runKind)
 
-  const isHealthy = health?.status === 'healthy'
+  const isHealthy = health?.status === 'healthy' && !healthError
 
   return (
-    <header className="flex h-11 items-center border-b border-slate-200 bg-white px-4">
+    <header className="flex h-12 shrink-0 items-center border-b border-border bg-card px-3">
       {/* Sidebar toggle */}
-      <button
+      <Button
+        variant="ghost"
+        size="icon-sm"
         onClick={toggleSidebar}
-        className="mr-3 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+        aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
         title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+        className="mr-2 text-muted-foreground"
       >
-        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
-      </button>
+        <PanelLeft />
+      </Button>
 
-      {/* Breadcrumb: Project > Pipeline */}
-      <div className="flex items-center gap-1 text-xs">
-        <span className="font-medium text-slate-500">
+      {/* Wordmark: logo · project name · version */}
+      <div className="flex min-w-0 items-center gap-2">
+        <LogoMark />
+        <span className="truncate text-sm font-semibold text-foreground">
           {project?.name ?? 'Lakehouse Plumber'}
         </span>
-        {pipelineFilter && (
-          <>
-            <span className="text-slate-300">&rsaquo;</span>
-            <span className="font-semibold text-slate-800">{pipelineFilter}</span>
-          </>
-        )}
         {project?.version && (
-          <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-400">
+          <Badge variant="outline" className="rounded-sm px-1.5 text-2xs text-muted-foreground">
             v{project.version}
-          </span>
+          </Badge>
         )}
       </div>
 
-      {/* Nav links */}
-      <nav className="ml-6 flex gap-1">
-        {[
-          { to: '/', label: 'Dashboard' },
-          { to: '/flowgroups', label: 'Flowgroups' },
-          { to: '/tables', label: 'Tables' },
-          { to: '/validation', label: 'Validation' },
-        ].map((link) => (
+      {/* Underline tab nav */}
+      <nav className="ml-6 flex h-full items-stretch gap-1 self-stretch">
+        {NAV_LINKS.map((link) => (
           <NavLink
             key={link.to}
             to={link.to}
             end={link.to === '/'}
             className={({ isActive }) =>
-              `rounded px-2.5 py-1 text-[11px] font-medium transition-colors ${
+              cn(
+                'inline-flex items-center border-b-2 px-2.5 text-sm font-medium transition-colors duration-150 motion-reduce:transition-none',
                 isActive
-                  ? 'bg-blue-50 text-blue-700'
-                  : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
-              }`
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground',
+              )
             }
           >
             {link.label}
           </NavLink>
         ))}
+        <ResourcesNavDropdown />
       </nav>
 
-      <div className="ml-auto flex items-center gap-3">
+      <div className="ml-auto flex items-center gap-2">
         {/* Pipeline filter */}
-        <select
-          value={pipelineFilter ?? ''}
-          onChange={(e) => setPipelineFilter(e.target.value || null)}
-          className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700 focus:border-blue-400 focus:outline-none"
-        >
-          <option value="">All Pipelines</option>
-          {pipelines?.pipelines.map((p) => (
-            <option key={p.name} value={p.name}>{p.name}</option>
-          ))}
-        </select>
+        <PipelineCombobox />
 
         {/* Environment selector */}
-        <select
-          value={selectedEnv}
-          onChange={(e) => setSelectedEnv(e.target.value)}
-          className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700 focus:border-blue-400 focus:outline-none"
-        >
-          {envData?.environments.map((env) => (
-            <option key={env} value={env}>{env}</option>
-          ))}
-          {!envData && <option value="dev">dev</option>}
-        </select>
+        <Select value={selectedEnv} onValueChange={setSelectedEnv}>
+          <SelectTrigger size="sm" aria-label="Environment" className="gap-1.5">
+            <Layers className="size-3.5 text-muted-foreground" aria-hidden="true" />
+            <SelectValue placeholder="env" />
+          </SelectTrigger>
+          <SelectContent position="popper" align="end">
+            {(envData?.environments ?? ['dev']).map((env) => (
+              <SelectItem key={env} value={env}>
+                {env}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-        {/* Validate button */}
-        <button
-          className="flex items-center gap-1.5 rounded bg-slate-800 px-3 py-1 text-[11px] font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+        {/* Validate (outline) — Generate below is the screen's one filled button */}
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => startValidate()}
           disabled={isRunning}
           title={`Validate ${pipelineFilter ?? 'all pipelines'} (${selectedEnv})`}
         >
-          {isRunning && <ButtonSpinner />}
+          {isRunning && runKind === 'validate' ? (
+            <Loader2 className="animate-spin" aria-hidden="true" />
+          ) : (
+            <CircleCheck aria-hidden="true" />
+          )}
           Validate
-        </button>
+        </Button>
 
-        {/* Generate button */}
-        <button
-          className="flex items-center gap-1.5 rounded bg-blue-600 px-3 py-1 text-[11px] font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        {/* Generate (primary fill) */}
+        <Button
+          size="sm"
           onClick={() => startGenerate()}
           disabled={isRunning}
           title={`Generate ${pipelineFilter ?? 'all pipelines'} (${selectedEnv})`}
         >
-          {isRunning && <ButtonSpinner />}
+          {isRunning && runKind === 'generate' ? (
+            <Loader2 className="animate-spin" aria-hidden="true" />
+          ) : (
+            <Play aria-hidden="true" />
+          )}
           Generate
-        </button>
+        </Button>
+
+        {/* Theme toggle */}
+        <ThemeToggle />
 
         {/* Health indicator */}
-        <HealthDot isHealthy={isHealthy} />
+        <HealthIndicator ok={isHealthy} pending={healthPending} />
       </div>
     </header>
   )

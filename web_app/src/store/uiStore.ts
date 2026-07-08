@@ -33,20 +33,14 @@ interface UIState {
   openFlowgroupModal: (name: string, pipeline: string) => void
   closeFlowgroupModal: () => void
 
-  // Open file (Monaco-ready)
-  openFile: { path: string; content: string; isDirty: boolean; isSaving: boolean } | null
-  openFilePath: (path: string, content: string) => void
-  closeFile: () => void
-  setFileDirty: (dirty: boolean) => void
-  setFileSaving: (saving: boolean) => void
-  updateFileContent: (content: string) => void
-
   // Create flowgroup dialog
   createFlowgroupDialog: boolean
   openCreateFlowgroupDialog: () => void
   closeCreateFlowgroupDialog: () => void
 
-  // Flowgroup editor (multi-tab)
+  // Flowgroup open/create request — consumed by the workspace bridge
+  // (components/workspace/flowgroupBuffers.ts), which opens the flowgroup's
+  // files as workspace buffers and then clears this via closeFlowgroupEditor.
   flowgroupEditor: {
     name: string
     pipeline: string
@@ -86,21 +80,12 @@ export const useUIStore = create<UIState>((set) => ({
   openFlowgroupModal: (name, pipeline) => set({ drillFlowgroup: { name, pipeline } }),
   closeFlowgroupModal: () => set({ drillFlowgroup: null }),
 
-  // Open file (Monaco-ready)
-  openFile: null,
-  openFilePath: (path, content) => set({ openFile: { path, content, isDirty: false, isSaving: false } }),
-  closeFile: () => set({ openFile: null }),
-  setFileDirty: (dirty) => set((s) => (s.openFile ? { openFile: { ...s.openFile, isDirty: dirty } } : {})),
-  setFileSaving: (saving) => set((s) => (s.openFile ? { openFile: { ...s.openFile, isSaving: saving } } : {})),
-  updateFileContent: (content) =>
-    set((s) => (s.openFile ? { openFile: { ...s.openFile, content, isDirty: false } } : {})),
-
   // Create flowgroup dialog
   createFlowgroupDialog: false,
   openCreateFlowgroupDialog: () => set({ createFlowgroupDialog: true }),
   closeCreateFlowgroupDialog: () => set({ createFlowgroupDialog: false }),
 
-  // Flowgroup editor (multi-tab)
+  // Flowgroup open/create request (consumed by the workspace bridge)
   flowgroupEditor: null,
   openFlowgroupEditor: (name, pipeline) => set({ flowgroupEditor: { name, pipeline } }),
   openFlowgroupEditorCreate: (name, pipeline, filePath) =>

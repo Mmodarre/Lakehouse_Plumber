@@ -30,14 +30,16 @@ class PresetListDetailResponse(BaseModel):
 
 
 class PresetDetailResponse(BaseModel):
-    """Preset detail — raw YAML content of the preset file.
+    """Preset detail — raw YAML content plus the resolved inheritance merge.
 
-    ``resolved`` (the inheritance-merged chain) is deferred: the read-only
-    inspection facade exposes no preset-resolution surface, so the web IDE
-    returns only the raw file content. The field is retained as optional so
-    a future revision can populate it without a schema break.
+    ``resolved`` carries the inheritance-merged ``defaults`` payload from
+    ``InspectionFacade.resolve_preset`` (base→leaf deep merge; more-derived
+    values win per key, ``operational_metadata`` lists concatenate with
+    dedup). ``chain`` lists the preset names base→leaf — the requested
+    preset is last.
     """
 
     name: str
     raw: dict[str, Any]  # Raw preset YAML (name, version, extends, defaults)
-    resolved: dict[str, Any] | None = None  # Deferred: inheritance-merged config
+    resolved: dict[str, Any] | None = None  # Inheritance-merged defaults
+    chain: list[str] = []  # Preset names base→leaf

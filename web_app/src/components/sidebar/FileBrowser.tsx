@@ -1,33 +1,37 @@
 import { useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { FilePlus2 } from 'lucide-react'
 import { useFileList } from '../../hooks/useFiles'
-import { useUIStore } from '../../store/uiStore'
-import { fetchFileContent, writeFile, deleteFile } from '../../api/files'
-import { ApiError } from '../../api/client'
+import { useWorkspaceStore } from '../../store/workspaceStore'
+import { fetchFileContentWithMeta, writeFile, deleteFile } from '../../api/files'
+import { errorMessage } from '../../lib/errors'
 import { SkeletonLoader } from '../common/SkeletonLoader'
+import { Button } from '../ui/button'
+import { Input } from '../ui/input'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../ui/alert-dialog'
 import { FileTreeItem } from './FileTreeItem'
-
-function errorMessage(err: unknown, fallback: string): string {
-  if (err instanceof ApiError) {
-    // The file API returns 403 for write-protected paths
-    // (.git/, generated/, .lhp/logs/, .lhp/dependencies/, .lhp_state.json).
-    if (err.status === 403) {
-      return 'This path is write-protected and cannot be modified.'
-    }
-    return err.message
-  }
-  return fallback
-}
 
 export function FileBrowser() {
   const { data, isLoading } = useFileList()
-  const openFilePath = useUIStore((s) => s.openFilePath)
+  const openBuffer = useWorkspaceStore((s) => s.openBuffer)
+  const setActiveBuffer = useWorkspaceStore((s) => s.setActive)
+  const activeFilePath = useWorkspaceStore((s) => s.activePath)
   const queryClient = useQueryClient()
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
   const [creating, setCreating] = useState(false)
   const [newPath, setNewPath] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null)
 
   const handleToggle = useCallback((path: string) => {
     setExpandedPaths((prev) => {
@@ -43,14 +47,19 @@ export function FileBrowser() {
 
   const handleFileClick = useCallback(
     async (path: string) => {
+      // Already open in the workspace → just focus it (never clobber edits).
+      if (useWorkspaceStore.getState().buffers.some((b) => b.path === path)) {
+        setActiveBuffer(path)
+        return
+      }
       try {
-        const content = await fetchFileContent(path)
-        openFilePath(path, content)
-      } catch {
-        // 404 / 403 / network error — silently skip
+        const { content, etag } = await fetchFileContentWithMeta(path)
+        openBuffer(path, { content, etag, exists: true })
+      } catch (err) {
+        toast.error(errorMessage(err, 'Failed to open file'))
       }
     },
-    [openFilePath],
+    [openBuffer, setActiveBuffer],
   )
 
   const startCreate = useCallback(() => {
@@ -68,24 +77,23 @@ export function FileBrowser() {
     if (!path || submitting) return
     setSubmitting(true)
     try {
-      await writeFile(path, '')
+      const res = await writeFile(path, '')
       queryClient.invalidateQueries({ queryKey: ['files'] })
       setCreating(false)
       setNewPath('')
       const filename = path.split('/').pop() ?? path
       toast.success(`Created ${filename}`)
-      openFilePath(path, '')
+      openBuffer(path, { content: '', etag: res.etag ?? null, exists: true })
     } catch (err) {
       toast.error(errorMessage(err, 'Failed to create file'))
     } finally {
       setSubmitting(false)
     }
-  }, [newPath, submitting, queryClient, openFilePath])
+  }, [newPath, submitting, queryClient, openBuffer])
 
-  const handleDelete = useCallback(
+  const confirmDelete = useCallback(
     async (path: string) => {
       const filename = path.split('/').pop() ?? path
-      if (!window.confirm(`Delete ${filename}? This cannot be undone.`)) return
       try {
         await deleteFile(path)
         queryClient.invalidateQueries({ queryKey: ['files'] })
@@ -99,27 +107,29 @@ export function FileBrowser() {
 
   if (isLoading) return <SkeletonLoader lines={6} />
 
+  const pendingDeleteName = pendingDelete?.split('/').pop() ?? pendingDelete
+
   return (
     <div className="space-y-0.5 px-1 py-2">
       <div className="flex items-center justify-between px-2 pb-1">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+        <span className="text-2xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
           File Browser
         </span>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="icon-xs"
           onClick={startCreate}
+          aria-label="New file"
           title="New file"
-          className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+          className="text-muted-foreground"
         >
-          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-        </button>
+          <FilePlus2 />
+        </Button>
       </div>
 
       {creating && (
         <div className="px-2 pb-1">
-          <input
+          <Input
             autoFocus
             type="text"
             value={newPath}
@@ -136,22 +146,53 @@ export function FileBrowser() {
               }
             }}
             onBlur={cancelCreate}
-            className="w-full rounded border border-slate-300 px-2 py-1 font-mono text-[11px] text-slate-700 focus:border-blue-400 focus:outline-none disabled:opacity-50"
+            className="h-7 px-2 font-mono text-xs md:text-xs"
           />
         </div>
       )}
 
-      {data?.children?.map((node) => (
+      {/* Junk filter (dotfiles like .DS_Store) — FileTreeItem applies the
+          same predicate to nested children. */}
+      {data?.children?.filter((node) => !node.name.startsWith('.')).map((node) => (
         <FileTreeItem
           key={node.path}
           node={node}
           depth={1}
           expandedPaths={expandedPaths}
+          activePath={activeFilePath}
           onToggle={handleToggle}
           onClick={handleFileClick}
-          onDelete={handleDelete}
+          onDelete={setPendingDelete}
         />
       ))}
+
+      <AlertDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {pendingDeleteName}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes the file. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                if (pendingDelete) void confirmDelete(pendingDelete)
+                setPendingDelete(null)
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

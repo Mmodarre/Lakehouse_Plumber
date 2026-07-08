@@ -248,6 +248,37 @@ class PresetView:
 
 
 @dataclass(frozen=True)
+class PresetResolutionResult:
+    """Resolved inheritance chain and merged configuration for one preset.
+
+    Returned by :meth:`InspectionFacade.resolve_preset`. ``chain`` holds
+    preset *names* ordered base→leaf (the requested preset is last).
+    Plain names are exposed rather than nested :class:`PresetView`
+    entries: consumers need the chain labels only, and per-preset
+    metadata (file path, version, description) is already available
+    through :meth:`InspectionFacade.list_presets`.
+
+    ``merged_config`` is the deep merge of every ``defaults`` payload
+    along the chain, applied base→leaf:
+
+    - per key, the more-derived (later) preset's value wins;
+    - nested mappings merge recursively rather than replace;
+    - ``operational_metadata`` *lists* are concatenated with
+      order-preserving dedup instead of replaced.
+
+    Values are parsed-YAML shapes (scalars / lists / mappings), exposed
+    un-coerced as ``Mapping[str, JSONValue]`` — the same convention as
+    :attr:`SubstitutionView.raw_mappings`.
+
+    :stability: provisional
+    """
+
+    name: str
+    chain: Tuple[str, ...]
+    merged_config: Mapping[str, JSONValue] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class TemplateParameterView:
     """A single declared parameter on a template.
 

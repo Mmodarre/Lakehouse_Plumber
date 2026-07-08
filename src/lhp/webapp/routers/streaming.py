@@ -14,7 +14,10 @@ and single-run serialization all live in
 2. binds the facade method into a zero-config ``run(progress) -> Iterator``
    via :func:`functools.partial` (every kwarg bound EXCEPT ``progress`` — the
    adapter injects the sink as ``progress=``), and
-3. wraps :func:`stream_events` in a ``StreamingResponse``.
+3. wraps :func:`stream_events` in
+   :func:`~lhp.webapp.services.run_recorder.record_ndjson` (SQLite run
+   history + ``run-updated`` bus events; frames pass through byte-identical)
+   inside a ``StreamingResponse``.
 
 ``pipeline`` (optional) maps to the facade's ``pipeline_filter`` — the
 single-pipeline selection filter; ``None`` runs the whole project.
@@ -39,12 +42,13 @@ import functools
 from collections.abc import Iterator
 from pathlib import Path
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from lhp.api import LakehousePlumberApplicationFacade, LHPEvent, ProgressSink
 from lhp.webapp.dependencies import get_facade, get_project_root
+from lhp.webapp.services.run_recorder import record_ndjson
 from lhp.webapp.services.stream_adapter import stream_events
 
 router = APIRouter(tags=["streaming"])
@@ -71,7 +75,9 @@ class StreamRunRequest(BaseModel):
 @router.post("/validate/stream")
 def validate_stream(
     body: StreamRunRequest,
+    request: Request,
     facade: LakehousePlumberApplicationFacade = Depends(get_facade),
+    project_root: Path = Depends(get_project_root),
 ) -> StreamingResponse:
     """Stream a validation run as NDJSON frames.
 
@@ -80,6 +86,7 @@ def validate_stream(
     the response — or a terminal ``error`` frame for a structural / config
     failure that aborts the run). Pipeline-level findings are REPORTED inside
     ``ValidationCompleted`` (``success=false`` + issues), not raised.
+    The run is recorded into SQLite run history (see ``/api/runs``).
     """
     run = functools.partial(
         _validate_run,
@@ -87,12 +94,21 @@ def validate_stream(
         env=body.env,
         pipeline_filter=body.pipeline,
     )
-    return StreamingResponse(stream_events(run), media_type=_NDJSON_MEDIA_TYPE)
+    frames = record_ndjson(
+        stream_events(run),
+        project_root=project_root,
+        event_bus=request.app.state.event_bus,
+        kind="validate",
+        env=body.env,
+        pipeline=body.pipeline,
+    )
+    return StreamingResponse(frames, media_type=_NDJSON_MEDIA_TYPE)
 
 
 @router.post("/generate/stream")
 def generate_stream(
     body: StreamRunRequest,
+    request: Request,
     facade: LakehousePlumberApplicationFacade = Depends(get_facade),
     project_root: Path = Depends(get_project_root),
 ) -> StreamingResponse:
@@ -102,6 +118,7 @@ def generate_stream(
     carrying the response (or a terminal ``error`` frame on a structural /
     config failure). Output is written to ``<project_root>/generated/<env>``,
     matching the ``lhp generate`` CLI default.
+    The run is recorded into SQLite run history (see ``/api/runs``).
     """
     output_dir = project_root / "generated" / body.env
     run = functools.partial(
@@ -111,7 +128,15 @@ def generate_stream(
         pipeline_filter=body.pipeline,
         output_dir=output_dir,
     )
-    return StreamingResponse(stream_events(run), media_type=_NDJSON_MEDIA_TYPE)
+    frames = record_ndjson(
+        stream_events(run),
+        project_root=project_root,
+        event_bus=request.app.state.event_bus,
+        kind="generate",
+        env=body.env,
+        pipeline=body.pipeline,
+    )
+    return StreamingResponse(frames, media_type=_NDJSON_MEDIA_TYPE)
 
 
 def _validate_run(

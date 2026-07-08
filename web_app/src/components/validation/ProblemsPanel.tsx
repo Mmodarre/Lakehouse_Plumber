@@ -1,14 +1,21 @@
 import { useCallback } from 'react'
+import { CircleX, Loader2, TriangleAlert } from 'lucide-react'
+import { toast } from 'sonner'
 import { useRunStore } from '../../store/runStore'
-import { useUIStore } from '../../store/uiStore'
-import { fetchFileContent } from '../../api/files'
+import { useWorkspaceStore } from '../../store/workspaceStore'
+import { fetchFileContentWithMeta } from '../../api/files'
+import { errorMessage } from '../../lib/errors'
 import type { ValidationIssue } from '../../types/api'
+import { IssueList } from './IssueList'
+import type { IssueListItem } from './IssueList'
 
 // ── ProblemsPanel — compact post-run issues list ────────────
 //
-// A dense, clickable list of the issues from the most recent run.
-// Clicking an entry that carries a `file_path` opens that file in the
-// file-editor modal (via the uiStore `openFilePath` opener).
+// A dense, clickable list of the issues from the most recent run,
+// rendered through the shared `IssueList` rows (same presentational
+// component as run history). Clicking an entry that carries a `file`
+// opens that file as a workspace editor buffer (via the workspaceStore
+// `openBuffer` opener).
 //
 // The file API is keyed on project-relative paths. The backend reports
 // `file_path` as project-relative (the tree no longer carries a project
@@ -21,70 +28,96 @@ function toProjectRelative(filePath: string): string {
   return filePath.replace(/^\/+/, '')
 }
 
-function severityDot(severity: ValidationIssue['severity']): string {
-  return severity === 'error' ? 'bg-red-500' : 'bg-amber-500'
+/** Project stream `ValidationIssue`s onto the shared `IssueList` row shape. */
+function toIssueItems(issues: ValidationIssue[]): IssueListItem[] {
+  return issues.map((issue) => {
+    const line = issue.context['line']
+    return {
+      severity: issue.severity,
+      code: issue.code,
+      message: issue.title,
+      file: issue.file_path,
+      line: typeof line === 'number' ? line : null,
+    }
+  })
 }
 
 export function ProblemsPanel() {
   const issues = useRunStore((s) => s.issues)
   const isRunning = useRunStore((s) => s.isRunning)
-  const openFilePath = useUIStore((s) => s.openFilePath)
+  const openBuffer = useWorkspaceStore((s) => s.openBuffer)
+  const setActiveBuffer = useWorkspaceStore((s) => s.setActive)
 
   const handleOpen = useCallback(
     async (filePath: string) => {
       const relative = toProjectRelative(filePath)
       if (relative === '') return
+      // Already open in the workspace → just focus it (never clobber edits).
+      if (useWorkspaceStore.getState().buffers.some((b) => b.path === relative)) {
+        setActiveBuffer(relative)
+        return
+      }
       try {
-        const content = await fetchFileContent(relative)
-        openFilePath(relative, content)
-      } catch {
-        // File missing / not readable — silently skip.
+        const { content, etag } = await fetchFileContentWithMeta(relative)
+        openBuffer(relative, { content, etag, exists: true })
+      } catch (err) {
+        toast.error(errorMessage(err, 'Failed to open file'))
       }
     },
-    [openFilePath],
+    [openBuffer, setActiveBuffer],
   )
-
-  if (issues.length === 0) return null
 
   const errorCount = issues.filter((i) => i.severity === 'error').length
   const warningCount = issues.length - errorCount
+  const countSummary = [
+    errorCount > 0 ? `${errorCount} ${errorCount === 1 ? 'error' : 'errors'}` : null,
+    warningCount > 0 ? `${warningCount} ${warningCount === 1 ? 'warning' : 'warnings'}` : null,
+  ]
+    .filter(Boolean)
+    .join(', ')
 
   return (
-    <div className="rounded border border-slate-200 bg-white">
-      <div className="flex items-center gap-3 border-b border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600">
-        <span>Problems</span>
-        {errorCount > 0 && <span className="text-red-600">{errorCount} errors</span>}
-        {warningCount > 0 && <span className="text-amber-600">{warningCount} warnings</span>}
-        {isRunning && <span className="text-slate-400">(running…)</span>}
-      </div>
-      <ul className="divide-y divide-slate-100">
-        {issues.map((issue, i) => {
-          const clickable = !!issue.file_path
-          return (
-            <li key={`${issue.code}-${i}`}>
-              <button
-                type="button"
-                disabled={!clickable}
-                onClick={clickable ? () => void handleOpen(issue.file_path!) : undefined}
-                className={`flex w-full items-start gap-2 px-3 py-1.5 text-left text-xs ${
-                  clickable ? 'hover:bg-slate-50' : 'cursor-default'
-                }`}
-              >
-                <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${severityDot(issue.severity)}`} />
-                <span className="min-w-0 flex-1">
-                  <span className="font-mono text-[10px] text-slate-400">{issue.code}</span>{' '}
-                  <span className="text-slate-700">{issue.title}</span>
-                  {issue.file_path && (
-                    <span className="ml-1 font-mono text-[10px] text-blue-600">
-                      {issue.file_path.split('/').pop()}
-                    </span>
-                  )}
+    <>
+      {/* Persistent live region: stays mounted across empty↔populated so
+          screen readers reliably announce count changes (a region that
+          mounts already holding content is not announced). */}
+      <span role="status" className="sr-only">
+        {issues.length > 0 ? `Problems: ${countSummary}` : ''}
+      </span>
+      {issues.length > 0 && (
+        <div className="rounded-lg border border-border bg-card">
+          <div className="flex items-center gap-3 border-b border-border px-3 py-2">
+            <span className="text-sm font-semibold text-foreground">Problems</span>
+            <span className="flex items-center gap-3 text-xs">
+              {errorCount > 0 && (
+                <span className="flex items-center gap-1 text-error">
+                  <CircleX className="size-3.5" aria-hidden="true" />
+                  {errorCount} {errorCount === 1 ? 'error' : 'errors'}
                 </span>
-              </button>
-            </li>
-          )
-        })}
-      </ul>
-    </div>
+              )}
+              {warningCount > 0 && (
+                <span className="flex items-center gap-1 text-warning">
+                  <TriangleAlert className="size-3.5" aria-hidden="true" />
+                  {warningCount} {warningCount === 1 ? 'warning' : 'warnings'}
+                </span>
+              )}
+            </span>
+            {isRunning && (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Loader2 className="size-3 animate-spin" aria-hidden="true" />
+                running…
+              </span>
+            )}
+          </div>
+          <IssueList
+            issues={toIssueItems(issues)}
+            onSelect={(item) => {
+              // Rows without a file are inert (nothing to open).
+              if (item.file) void handleOpen(item.file)
+            }}
+          />
+        </div>
+      )}
+    </>
   )
 }

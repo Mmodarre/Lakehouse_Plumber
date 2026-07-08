@@ -27,19 +27,13 @@ from lhp.webapp.middleware.request_logging import RequestLoggingMiddleware
 pytestmark = pytest.mark.webapp
 
 
-def _build_app(dev_mode: bool = False) -> FastAPI:
+def _build_app() -> FastAPI:
     """Build a minimal FastAPI app wired with the middleware.
 
     Registers the LHP/generic exception handlers and the request-logging
     middleware, plus a handful of routes that raise on demand.
     """
     app = FastAPI()
-
-    class _Settings:
-        def __init__(self, dev_mode: bool) -> None:
-            self.dev_mode = dev_mode
-
-    app.state.settings = _Settings(dev_mode)
 
     app.add_middleware(RequestLoggingMiddleware)
     # mypy: handlers accept the specific exception subtype; the registry is typed
@@ -149,10 +143,10 @@ class TestLhpErrorHandler:
         assert error["http_status"] == 404
 
 
-# generic_error_handler: unhandled exception -> 500 shape, dev_mode gating
+# generic_error_handler: unhandled exception -> 500 shape, always redacted
 class TestGenericErrorHandler:
-    def test_prod_mode_hides_exception_details(self):
-        client = TestClient(_build_app(dev_mode=False), raise_server_exceptions=False)
+    def test_always_hides_exception_details(self):
+        client = TestClient(_build_app(), raise_server_exceptions=False)
         resp = client.get("/raise-generic")
         assert resp.status_code == 500
         error = resp.json()["error"]
@@ -163,14 +157,6 @@ class TestGenericErrorHandler:
         assert "internal secret" not in error["details"]
         assert error["suggestions"] == ["Check server logs for details"]
         assert error["http_status"] == 500
-
-    def test_dev_mode_includes_exception_details(self):
-        client = TestClient(_build_app(dev_mode=True), raise_server_exceptions=False)
-        resp = client.get("/raise-generic")
-        assert resp.status_code == 500
-        error = resp.json()["error"]
-        assert "internal secret" in error["details"]
-        assert error["suggestions"] == []
 
 
 # RequestLoggingMiddleware: emits a log line and does not alter the response

@@ -2,9 +2,27 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lakehouse Plumber</title>
+    <script>
+      // Apply the persisted theme before the bundle loads so a dark-mode
+      // reload never flashes light. Mirrors store/themeStore.ts ('lhp-theme'
+      // is the zustand-persist key; 'system' falls back to the OS setting).
+      ;(function () {
+        var theme = null
+        try {
+          var raw = localStorage.getItem('lhp-theme')
+          if (raw) theme = JSON.parse(raw).state.theme
+        } catch (e) {
+          /* corrupt/absent persistence — fall through to system */
+        }
+        var dark =
+          theme === 'dark' ||
+          (theme !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+        if (dark) document.documentElement.classList.add('dark')
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

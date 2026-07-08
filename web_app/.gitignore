@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Regenerable intermediate from `npm run gen:api` (the generated
+# src/types/api.generated.ts IS committed; this JSON dump is not).
+openapi.json
+
+# Playwright browser-e2e outputs (test-results, html report)
+e2e/.results
+e2e/.report

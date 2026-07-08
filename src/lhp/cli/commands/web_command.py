@@ -1,11 +1,14 @@
 """``lhp web`` command — launch the local web IDE backend (uvicorn + FastAPI).
 
 Thin CLI shell (constitution §9.11 / TARGET_ARCHITECTURE §7): resolve the
-project root, check that the optional webapp dependencies are installed, export
-the ``LHP_WEBAPP_*`` configuration into the environment, and hand off to
-``uvicorn.run`` with the zero-argument factory string
-``lhp.webapp.app:create_app``. No business logic lives here — the FastAPI app is
-built entirely behind that factory in a uvicorn-owned process.
+project root (with ``--allow-empty``, fall back to the current directory so the
+in-app init wizard is reachable outside an initialized project), check that the
+optional webapp dependencies are installed, mint
+the per-session token, export the ``LHP_WEBAPP_*`` configuration into the
+environment, preflight the port, and hand off to ``uvicorn.run`` with the
+zero-argument factory string ``lhp.webapp.app:create_app``. Launch mechanics
+(token minting, port preflight, readiness-poll browser opener) live in
+:mod:`lhp.cli.commands._web_launch`.
 
 All configuration flows through environment variables (read by
 :func:`lhp.webapp.settings.get_settings`), which is what lets ``--reload`` work:
@@ -21,8 +24,6 @@ from __future__ import annotations
 import importlib.util
 import logging
 import os
-import threading
-import webbrowser
 
 import click
 from rich_click import RichCommand
@@ -31,6 +32,7 @@ from lhp.errors import ErrorFactory, codes
 
 from .._app_context import resolve_project_root
 from ..error_boundary import cli_error_boundary
+from . import _web_launch
 
 logger = logging.getLogger(__name__)
 
@@ -44,30 +46,7 @@ _WEBAPP_FACTORY = "lhp.webapp.app:create_app"
 _ENV_PROJECT_ROOT = "LHP_WEBAPP_PROJECT_ROOT"
 _ENV_PORT = "LHP_WEBAPP_PORT"
 _ENV_LOG_LEVEL = "LHP_WEBAPP_LOG_LEVEL"
-
-# Delay (seconds) before opening the browser, giving uvicorn a moment to bind
-# the socket so the first request lands on a live server rather than a refused
-# connection.
-_BROWSER_OPEN_DELAY = 1.0
-
-
-def _open_browser_later(url: str) -> None:
-    """Schedule a best-effort browser open shortly after the server starts.
-
-    Runs on a daemon timer so it never blocks process exit, and swallows any
-    failure (headless box, no browser configured) — failing to open a browser
-    must not bring the server down.
-    """
-
-    def _open() -> None:
-        try:
-            webbrowser.open(url)
-        except Exception:
-            logger.debug("Could not open a web browser automatically", exc_info=True)
-
-    timer = threading.Timer(_BROWSER_OPEN_DELAY, _open)
-    timer.daemon = True
-    timer.start()
+_ENV_TOKEN = "LHP_WEBAPP_TOKEN"
 
 
 @click.command(cls=RichCommand, name="web")
@@ -92,19 +71,38 @@ def _open_browser_later(url: str) -> None:
     default=False,
     help="Reload the server on code changes (development convenience).",
 )
+@click.option(
+    "--allow-empty",
+    "allow_empty",
+    is_flag=True,
+    default=False,
+    help=(
+        "Launch even when the current directory is not an initialized LHP "
+        "project (enables the in-app init wizard)."
+    ),
+)
 @cli_error_boundary("web")
-def web_command(port: int, no_open: bool, reload: bool) -> None:
+def web_command(port: int, no_open: bool, reload: bool, allow_empty: bool) -> None:
     """Launch the Lakehouse Plumber local web IDE for the current project.
 
     Starts a FastAPI backend (served via uvicorn) bound to ``127.0.0.1`` — the
-    IDE is loopback-only and never exposed beyond this machine. Requires the
+    IDE is loopback-only and never exposed beyond this machine. Access is
+    protected by a per-session token embedded in the URL fragment. Requires the
     optional webapp extra: ``pip install lakehouse-plumber[webapp]``.
 
     Configuration is passed to the server through ``LHP_WEBAPP_*`` environment
     variables, so ``--reload`` works across uvicorn's worker reloads.
+
+    With ``--allow-empty`` the IDE also starts outside an initialized project
+    and serves the in-app init wizard instead of the project view.
     """
     logger.debug(f"Starting web IDE on port {port} (reload={reload})")
-    project_root = resolve_project_root()
+    if allow_empty:
+        # Permissive launch: the root handed to the server may lack lhp.yaml —
+        # its lifespan detects the missing marker and serves the init wizard.
+        project_root = _web_launch.resolve_project_root_or_cwd()
+    else:
+        project_root = resolve_project_root()
 
     # Dependency guard: the webapp stack is an optional extra. Fail with a
     # friendly, actionable error rather than an ImportError traceback.
@@ -125,23 +123,36 @@ def web_command(port: int, no_open: bool, reload: bool) -> None:
             ],
         )
 
+    _web_launch.preflight_port(_WEBAPP_HOST, port)
+
     # Hand configuration to the uvicorn worker process via the environment;
-    # the factory string takes no arguments, so env vars are the only channel.
+    # the factory string takes no arguments, so env vars are the only channel
+    # (they also survive --reload's worker respawns).
+    token = _web_launch.mint_token()
     log_level = "info"
     os.environ[_ENV_PROJECT_ROOT] = str(project_root)
     os.environ[_ENV_PORT] = str(port)
     os.environ[_ENV_LOG_LEVEL] = log_level
+    os.environ[_ENV_TOKEN] = token
 
-    url = f"http://{_WEBAPP_HOST}:{port}"
-    click.echo(f"Starting Lakehouse Plumber web IDE at {url}")
+    base_url = f"http://{_WEBAPP_HOST}:{port}"
+    tokened_url = f"{base_url}/#token={token}"
+    # Echo the tokened URL so users who suppress the browser can click it.
+    click.echo(f"Starting Lakehouse Plumber web IDE at {tokened_url}")
 
     if not no_open:
-        _open_browser_later(url)
+        _web_launch.open_browser_when_ready(
+            tokened_url, health_url=f"{base_url}/api/health"
+        )
 
     # Imported lazily, after the dependency guard, so the FastAPI/uvicorn stack
     # is never pulled into the help/version paths or when the extra is absent.
     import uvicorn
 
+    # access_log=False: uvicorn's access log would print full request targets,
+    # leaking the session token that SSE clients pass as ?token=... (the app's
+    # RequestLoggingMiddleware already logs method/path/status WITHOUT the
+    # query string, so no logging coverage is lost).
     uvicorn.run(
         _WEBAPP_FACTORY,
         host=_WEBAPP_HOST,
@@ -149,4 +160,5 @@ def web_command(port: int, no_open: bool, reload: bool) -> None:
         factory=True,
         reload=reload,
         log_level=log_level,
+        access_log=False,
     )

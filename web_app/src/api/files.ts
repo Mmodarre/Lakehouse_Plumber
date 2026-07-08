@@ -1,4 +1,4 @@
-import { fetchApi, fetchApiText } from './client'
+import { fetchApi, fetchApiTextWithMeta } from './client'
 import type { FileListResponse, FileWriteResponse } from '../types/api'
 
 function encodePath(path: string): string {
@@ -11,15 +11,29 @@ export function fetchFiles(): Promise<FileListResponse> {
 }
 
 // `GET /api/files/{path}` → the file's raw text content (plain-text body, NOT
-// a JSON envelope).
-export function fetchFileContent(path: string): Promise<string> {
-  return fetchApiText(`/files/${encodePath(path)}`)
+// a JSON envelope), plus the response `ETag` (unquoted) so the caller can
+// seed the optimistic-concurrency token. `etag` is `null` when the backend
+// does not emit the header.
+export function fetchFileContentWithMeta(
+  path: string,
+): Promise<{ content: string; etag: string | null }> {
+  return fetchApiTextWithMeta(`/files/${encodePath(path)}`)
 }
 
-export function writeFile(path: string, content: string): Promise<FileWriteResponse> {
+// `PUT /api/files/{path}`. When `etag` is provided it is sent as a quoted
+// `If-Match` header; a backend that enforces ETags then returns 412 on a
+// stale write. Omitting `etag` (new files / older backend) skips the header.
+export function writeFile(
+  path: string,
+  content: string,
+  etag?: string | null,
+): Promise<FileWriteResponse> {
+  const headers: Record<string, string> = {}
+  if (etag) headers['If-Match'] = `"${etag}"`
   return fetchApi(`/files/${encodePath(path)}`, {
     method: 'PUT',
     body: JSON.stringify({ content }),
+    headers,
   })
 }
 

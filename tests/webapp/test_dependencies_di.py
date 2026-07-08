@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 
 from lhp.api import LakehousePlumberApplicationFacade
 from lhp.webapp import dependencies
-from lhp.webapp.dependencies import check_etag, compute_etag, get_facade
+from lhp.webapp.dependencies import compute_etag, get_facade
 
 pytestmark = pytest.mark.webapp
 
@@ -96,36 +96,3 @@ def test_compute_etag_is_16_hex_chars() -> None:
     etag = compute_etag(b"payload")
     assert len(etag) == 16
     assert all(c in "0123456789abcdef" for c in etag)
-
-
-def test_check_etag_noop_when_if_match_is_none(tmp_path: Path) -> None:
-    target = tmp_path / "absent.txt"
-    # No If-Match header => no validation, even if the file is missing.
-    check_etag(target, if_match=None)
-
-
-def test_check_etag_404_when_file_missing(tmp_path: Path) -> None:
-    from fastapi import HTTPException
-
-    target = tmp_path / "absent.txt"
-    with pytest.raises(HTTPException) as exc:
-        check_etag(target, if_match="anything")
-    assert exc.value.status_code == 404
-
-
-def test_check_etag_passes_on_matching_etag(tmp_path: Path) -> None:
-    target = tmp_path / "file.txt"
-    content = b"the current bytes"
-    target.write_bytes(content)
-    # Matching If-Match => returns without raising.
-    check_etag(target, if_match=compute_etag(content))
-
-
-def test_check_etag_412_on_stale_etag(tmp_path: Path) -> None:
-    from fastapi import HTTPException
-
-    target = tmp_path / "file.txt"
-    target.write_bytes(b"the current bytes")
-    with pytest.raises(HTTPException) as exc:
-        check_etag(target, if_match="staleetag00000000")
-    assert exc.value.status_code == 412

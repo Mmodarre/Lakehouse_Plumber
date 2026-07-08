@@ -37,6 +37,12 @@ Reusability and patterns
 * :doc:`dynamic_templates_guide` — Use Jinja2 conditionals, loops, and filters in
   Templates for advanced parameter patterns.
 
+Develop locally
+---------------
+
+* :doc:`develop_in_the_web_ide` — Launch the browser-based local IDE to
+  browse, edit, validate, and generate your project on your own machine.
+
 Develop in parallel
 -------------------
 

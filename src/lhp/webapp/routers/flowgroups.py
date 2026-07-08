@@ -84,16 +84,17 @@ def list_flowgroups(
 )
 def get_flowgroup(
     name: str,
+    env: str = Query("dev", description="Environment for substitution resolution"),
     inspection: InspectionFacade = Depends(get_inspection),
     project_root: Path = Depends(get_project_root),
 ) -> FlowgroupDetailResponse:
     """Get a flowgroup's processed config plus its source-file path.
 
-    Resolution uses the ``dev`` environment (the detail view is env-agnostic
-    in the UI; the dedicated ``/resolved`` endpoint takes an explicit env).
+    Resolution defaults to the ``dev`` environment; pass ``?env=`` to resolve
+    substitutions against another environment (matching ``/resolved``).
     """
     view = _find_view(inspection, name)
-    processed = inspection.process_flowgroup(name, env="dev")
+    processed = inspection.process_flowgroup(name, env=env)
     return FlowgroupDetailResponse.from_view(
         processed, source_file=_relative_source(view.file_path, project_root)
     )

@@ -1,9 +1,65 @@
+import type { LucideIcon } from 'lucide-react'
+import {
+  Braces,
+  ChevronRight,
+  Database,
+  File,
+  FileCode2,
+  FileText,
+  Folder,
+  FolderOpen,
+  Trash2,
+} from 'lucide-react'
+import { cn } from '../../lib/utils'
 import type { FileNode } from '../../types/api'
+
+/** Client-side junk filter: hides dotfiles/dot-directories (.DS_Store, .git, …).
+ * FileBrowser applies the same name-based predicate to the root children. */
+function isVisibleNode(node: FileNode): boolean {
+  return !node.name.startsWith('.')
+}
+
+type FileIconSpec = {
+  icon: LucideIcon
+  className: string
+}
+
+const FILE_ICONS: Record<string, FileIconSpec> = {
+  yaml: { icon: FileText, className: 'text-kind-load/70' },
+  yml: { icon: FileText, className: 'text-kind-load/70' },
+  sql: { icon: Database, className: 'text-kind-write/70' },
+  py: { icon: FileCode2, className: 'text-kind-transform/70' },
+  json: { icon: Braces, className: 'text-kind-test/70' },
+}
+
+function fileIconFor(name: string): FileIconSpec {
+  const dot = name.lastIndexOf('.')
+  const ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : ''
+  return FILE_ICONS[ext] ?? { icon: File, className: 'text-muted-foreground/70' }
+}
+
+/** Vertical guide line per ancestor level (12px per indent unit). */
+function IndentGuides({ depth }: { depth: number }) {
+  if (depth <= 1) return null
+  return (
+    <>
+      {Array.from({ length: depth - 1 }, (_, i) => (
+        <span
+          key={i}
+          aria-hidden="true"
+          className="h-full w-3 shrink-0 self-stretch border-l border-border/50"
+        />
+      ))}
+    </>
+  )
+}
 
 interface FileTreeItemProps {
   node: FileNode
   depth: number
   expandedPaths: Set<string>
+  /** Path of the file currently open in the editor (active-row rail). */
+  activePath: string | null
   onToggle: (path: string) => void
   onClick: (path: string) => void
   onDelete: (path: string) => void
@@ -13,6 +69,7 @@ export function FileTreeItem({
   node,
   depth,
   expandedPaths,
+  activePath,
   onToggle,
   onClick,
   onDelete,
@@ -24,30 +81,35 @@ export function FileTreeItem({
     return (
       <div>
         <button
-          className="flex w-full items-center gap-1.5 rounded px-2 py-1 text-left text-xs text-slate-700 hover:bg-slate-50"
-          style={{ paddingLeft: depth * 16 }}
+          type="button"
+          className="flex h-[26px] w-full items-center gap-1.5 rounded-sm px-2 text-left text-sm text-foreground transition-colors duration-150 hover:bg-muted/60 motion-reduce:transition-none"
           onClick={() => onToggle(path)}
         >
-          <svg
-            className={`h-3 w-3 shrink-0 text-slate-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-            fill="none" viewBox="0 0 24 24" stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-          <svg className="h-3.5 w-3.5 shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-          </svg>
+          <IndentGuides depth={depth} />
+          <ChevronRight
+            aria-hidden="true"
+            className={cn(
+              'size-3.5 shrink-0 text-muted-foreground transition-transform duration-150 motion-reduce:transition-none',
+              isExpanded && 'rotate-90',
+            )}
+          />
+          {isExpanded ? (
+            <FolderOpen aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground/70" />
+          ) : (
+            <Folder aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground/70" />
+          )}
           <span className="truncate font-medium">{name}</span>
         </button>
 
         {isExpanded && (
           <div>
-            {node.children?.map((child) => (
+            {node.children?.filter(isVisibleNode).map((child) => (
               <FileTreeItem
                 key={child.path}
                 node={child}
                 depth={depth + 1}
                 expandedPaths={expandedPaths}
+                activePath={activePath}
                 onToggle={onToggle}
                 onClick={onClick}
                 onDelete={onDelete}
@@ -59,30 +121,51 @@ export function FileTreeItem({
     )
   }
 
+  const { icon: Icon, className: iconClass } = fileIconFor(name)
+  const isActive = activePath === path
+
   return (
-    <div className="group flex items-center rounded hover:bg-slate-50">
+    <div
+      className={cn(
+        'group relative flex h-[26px] items-center rounded-sm transition-colors duration-150 motion-reduce:transition-none',
+        isActive ? 'bg-accent' : 'hover:bg-muted/60',
+      )}
+    >
+      {/* Active-row rail */}
+      {isActive && (
+        <span aria-hidden="true" className="absolute inset-y-0.5 left-0 w-0.5 rounded-full bg-primary" />
+      )}
       <button
-        className="flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1 text-left text-xs text-slate-600"
-        style={{ paddingLeft: depth * 16 }}
+        type="button"
+        className="flex h-full min-w-0 flex-1 items-center gap-1.5 px-2 text-left text-sm"
         onClick={() => onClick(path)}
       >
-        <svg className="h-3.5 w-3.5 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-        <span className="truncate">{name}</span>
+        <IndentGuides depth={depth} />
+        {/* Chevron-width spacer keeps file icons aligned with folder icons */}
+        <span aria-hidden="true" className="w-3.5 shrink-0" />
+        <Icon aria-hidden="true" className={cn('size-3.5 shrink-0', iconClass)} />
+        <span
+          className={cn(
+            'truncate',
+            isActive
+              ? 'text-accent-foreground'
+              : 'text-muted-foreground group-hover:text-foreground',
+          )}
+        >
+          {name}
+        </span>
       </button>
       <button
         type="button"
+        aria-label={`Delete ${name}`}
         title="Delete file"
         onClick={(e) => {
           e.stopPropagation()
           onDelete(path)
         }}
-        className="mr-1 shrink-0 rounded p-0.5 text-slate-400 opacity-0 hover:bg-slate-200 hover:text-red-600 focus:opacity-100 group-hover:opacity-100"
+        className="mr-1 shrink-0 rounded-sm p-0.5 text-muted-foreground opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:bg-muted hover:text-destructive focus-visible:opacity-100 motion-reduce:transition-none"
       >
-        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-        </svg>
+        <Trash2 aria-hidden="true" className="size-3.5" />
       </button>
     </div>
   )

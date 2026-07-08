@@ -14,6 +14,7 @@ _ENV_VARS = (
     "LHP_WEBAPP_PROJECT_ROOT",
     "LHP_WEBAPP_PORT",
     "LHP_WEBAPP_LOG_LEVEL",
+    "LHP_WEBAPP_TOKEN",
 )
 
 
@@ -29,6 +30,7 @@ def test_defaults_when_env_unset(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.project_root == Path.cwd().resolve()
     assert settings.port == 8000
     assert settings.log_level == "info"
+    assert settings.token is None
 
 
 def test_env_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -57,6 +59,25 @@ def test_project_root_is_resolved(
 
     assert settings.project_root == (tmp_path / "sub").resolve()
     assert settings.project_root.is_absolute()
+
+
+def test_token_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear_env(monkeypatch)
+    monkeypatch.setenv("LHP_WEBAPP_TOKEN", "sample-session-token")
+
+    settings = get_settings()
+
+    assert settings.token == "sample-session-token"
+
+
+def test_empty_token_env_is_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An accidentally blank LHP_WEBAPP_TOKEN must not arm the guard with ''."""
+    _clear_env(monkeypatch)
+    monkeypatch.setenv("LHP_WEBAPP_TOKEN", "")
+
+    settings = get_settings()
+
+    assert settings.token is None
 
 
 def test_invalid_port_raises(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Optional
 
 # Host is intentionally NOT configurable. Binding the local IDE to loopback is a
 # security property (no exposure beyond the developer's machine), not a setting.
@@ -21,15 +22,21 @@ _DEFAULT_LOG_LEVEL = "info"
 _ENV_PROJECT_ROOT = "LHP_WEBAPP_PROJECT_ROOT"
 _ENV_PORT = "LHP_WEBAPP_PORT"
 _ENV_LOG_LEVEL = "LHP_WEBAPP_LOG_LEVEL"
+_ENV_TOKEN = "LHP_WEBAPP_TOKEN"
 
 
 @dataclass(frozen=True)
 class WebappSettings:
-    """Immutable webapp configuration."""
+    """Immutable webapp configuration.
+
+    ``token`` is the per-session secret minted by the ``lhp web`` command; when
+    ``None`` (unset or empty env var) the token guard middleware is a no-op.
+    """
 
     project_root: Path = field(default_factory=lambda: Path.cwd().resolve())
     port: int = _DEFAULT_PORT
     log_level: str = _DEFAULT_LOG_LEVEL
+    token: Optional[str] = None
 
 
 def get_settings() -> WebappSettings:
@@ -58,8 +65,13 @@ def get_settings() -> WebappSettings:
 
     log_level = os.environ.get(_ENV_LOG_LEVEL, _DEFAULT_LOG_LEVEL)
 
+    # Empty string means "no token" so an accidentally blank env var cannot
+    # create an app whose guard compares against "".
+    token = os.environ.get(_ENV_TOKEN) or None
+
     return WebappSettings(
         project_root=project_root,
         port=port,
         log_level=log_level,
+        token=token,
     )
