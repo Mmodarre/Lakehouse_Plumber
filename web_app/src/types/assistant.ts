@@ -18,8 +18,12 @@ export type ActiveSessionInfo = Schemas['ActiveSessionInfo']
 export type ExecutorConfig = Schemas['ExecutorConfig']
 export type ExecutorConfigUpdate = Schemas['ExecutorConfigUpdate']
 export type ExecutorMode = ExecutorConfig['mode']
+export type ExecutorProvider = NonNullable<ExecutorConfig['provider']>
 export type DatabricksProfilesResponse = Schemas['DatabricksProfilesResponse']
 export type ChatRequest = Schemas['ChatRequest']
+/** Per-turn approval policy (claude_sdk provider): mirrors Claude Code's
+ * permission modes. Optional in the wire schema; the UI always sends one. */
+export type PermissionMode = NonNullable<ChatRequest['permission_mode']>
 export type ApprovalRequestBody = Schemas['ApprovalRequest']
 export type ApprovalAction = ApprovalRequestBody['action']
 export type SessionSnapshot = Schemas['SessionSnapshot']
@@ -124,7 +128,12 @@ export interface InterruptedFrame {
   type: 'interrupted'
 }
 
-export type SessionFailedHint = 'omnigent_setup' | 'databricks_auth' | 'unknown'
+export type SessionFailedHint =
+  | 'omnigent_setup'
+  | 'databricks_auth'
+  | 'claude_auth'
+  | 'claude_setup'
+  | 'unknown'
 
 export interface SessionFailedFrame {
   type: 'session.failed'

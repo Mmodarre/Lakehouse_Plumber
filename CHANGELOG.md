@@ -39,7 +39,8 @@ silently missing edges.
     plan/preview/single-flowgroup/browse endpoints, `/validate/yaml` and
     flowgroup preview-yaml, and the visual flowgroup builder. The chat
     assistant, cut from that branch alongside these, returns in 0.9.1 as the
-    Omnigent-backed assistant panel (see "Web IDE AI assistant panel" below).
+    assistant panel — built-in Claude provider by default, Omnigent daemon
+    selectable (see "Built-in Claude assistant provider" below).
   - Deferred (returns in a later version):
     - Full multi-level dependency-graph DTO with per-level drill — v1 is
       pipeline-level only; needs a public graph DTO → v2.
@@ -181,8 +182,52 @@ silently missing edges.
   - The SPA also migrates to React Router's data router (`createBrowserRouter`
     with lazy route modules), and the Problems panel and Run History share one
     issue-list component.
-- **Web IDE AI assistant panel.** `lhp web` gains a chat panel (a right-hand
-  dock opened from the header) backed by a locally running
+- **Built-in Claude assistant provider — the default.** The web IDE's
+  assistant panel now runs on an in-process provider powered by the
+  [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk):
+  `pip install 'lakehouse-plumber[webapp]'` is the only install step (the
+  SDK's platform wheels bundle a self-contained `claude` runtime — no
+  Node.js, no daemon, nothing else to start). The setup card preselects it;
+  the Omnigent daemon (below) remains selectable as an alternative provider.
+  - **Two new `webapp`-extra dependencies:** `claude-agent-sdk` (the
+    in-process provider) and `databricks-sdk` (pure-Python bearer minting
+    for the Databricks auth mode — no `databricks` CLI binary required).
+    Both are sanctioned by constitution §5.8; the core install never pulls
+    them.
+  - **Token-free sign-in, two ways.** *Claude subscription*: the machine's
+    Claude Code login (or the NAME of an env var holding a
+    `claude setup-token` token — validated as an identifier, never a token
+    value). *Databricks workspace*: a `~/.databrickscfg` profile; a bearer
+    is minted fresh per turn via `databricks-sdk` against the workspace's
+    Anthropic-compatible `/ai-gateway/anthropic` endpoint, never cached,
+    stored, or logged.
+  - **Same chat experience, same wire protocol.** The provider reproduces
+    the panel's pinned NDJSON frame vocabulary byte-for-byte — streaming
+    markdown, reasoning disclosure, tool cards, approval cards
+    (read-only tools run without asking; everything else asks), interrupt,
+    and reload rehydration (transcripts persist locally in the webapp
+    store; SQLite schema v3, append-only).
+  - **Permission modes.** A selector under the chat composer picks the
+    approval policy per message, mirroring Claude Code's modes: *Ask every
+    time* (the default), *Accept edits* (file edits run without asking;
+    commands and web access still ask), and *Allow all* (nothing asks).
+    The choice is remembered in the browser and rides along with each
+    turn (`permission_mode` on `POST /api/assistant/chat`).
+  - Executor configs gain a `provider` field (`claude_sdk` / `omnigent`);
+    configs stored by earlier 0.9.1 dev builds read as `omnigent`
+    unchanged.
+  - **Friendlier tool and approval cards.** Tool calls render as a one-line
+    summary — the verb plus the argument that matters (file path relative
+    to the project, shell command, search pattern, URL) with a pass/fail
+    icon; arguments and output stay behind a "Details" disclosure instead
+    of raw JSON. Approval cards show the same summary with the full request
+    one disclosure away.
+  - **Resizable assistant panel.** The dock's left edge is a drag handle
+    (300–760 px, keyboard-adjustable); the width is remembered in the
+    browser.
+- **Web IDE AI assistant panel (Omnigent provider).** `lhp web`'s chat
+  panel (a right-hand dock opened from the header) can alternatively be
+  backed by a locally running
   [omnigent](https://github.com/omnigent-ai/omnigent) daemon — an agent
   runtime that answers questions about the project and edits its files in
   place:

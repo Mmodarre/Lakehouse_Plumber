@@ -49,6 +49,7 @@ function statusOf(over: Partial<AssistantStatus> = {}): AssistantStatus {
     skill_version: '0.9.1',
     executor_configured: true,
     active_session: null,
+    provider: 'omnigent',
     ...over,
   }
 }
@@ -73,6 +74,7 @@ function resetStore() {
     failure: null,
     interrupted: false,
     panelOpen: true,
+    permissionMode: 'default',
   })
 }
 
@@ -151,14 +153,54 @@ describe('AssistantPanel switchboard', () => {
     expect(screen.getByRole('button', { name: /send message/i })).toBeInTheDocument()
   })
 
+  it('claude provider ready → chat view, no omnigent daemon gate', async () => {
+    statusMock.mockResolvedValue(
+      statusOf({
+        provider: 'claude_sdk',
+        host_id: 'local',
+        server_url: '',
+        server_ok: true,
+        host_online: true,
+      }),
+    )
+    renderPanel()
+
+    expect(await screen.findByLabelText('Chat message')).toBeInTheDocument()
+    expect(
+      screen.queryByText('omnigent is not installed'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('claude provider with SDK binary missing → ClaudeGate reinstall card', async () => {
+    statusMock.mockResolvedValue(
+      statusOf({
+        provider: 'claude_sdk',
+        binary_found: false,
+        server_ok: false,
+        host_online: false,
+        host_id: null,
+        server_url: '',
+      }),
+    )
+    renderPanel()
+
+    expect(
+      await screen.findByText('Claude runtime unavailable'),
+    ).toBeInTheDocument()
+    expect(screen.queryByLabelText('Chat message')).not.toBeInTheDocument()
+  })
+
   it('gear button opens the setup card prefilled; Cancel returns to chat', async () => {
     const user = userEvent.setup()
     statusMock.mockResolvedValue(statusOf())
     configMock.mockResolvedValue({
-      mode: 'databricks',
+      provider: 'omnigent' as const,
+      mode: 'databricks' as const,
       profile: 'field-enf',
+      host: null,
       model: null,
       api_key_env: null,
+      oauth_token_env: null,
     })
     renderPanel()
 
@@ -169,8 +211,8 @@ describe('AssistantPanel switchboard', () => {
       await screen.findByText('Choose how the assistant runs'),
     ).toBeInTheDocument()
     // Prefilled from the stored config: the mode select shows the label.
-    expect(screen.getByLabelText('Executor mode')).toHaveTextContent(
-      'Databricks profile',
+    expect(screen.getByLabelText('Auth mode')).toHaveTextContent(
+      'Databricks workspace',
     )
 
     await user.click(screen.getByRole('button', { name: /^cancel$/i }))
@@ -182,16 +224,22 @@ describe('AssistantPanel switchboard', () => {
     const user = userEvent.setup()
     statusMock.mockResolvedValue(statusOf())
     configMock.mockResolvedValue({
-      mode: 'databricks',
+      provider: 'omnigent' as const,
+      mode: 'databricks' as const,
       profile: 'field-enf',
+      host: null,
       model: null,
       api_key_env: null,
+      oauth_token_env: null,
     })
     putConfigMock.mockResolvedValue({
-      mode: 'databricks',
+      provider: 'omnigent' as const,
+      mode: 'databricks' as const,
       profile: 'field-enf',
+      host: null,
       model: null,
       api_key_env: null,
+      oauth_token_env: null,
     })
     renderPanel()
 
@@ -203,10 +251,13 @@ describe('AssistantPanel switchboard', () => {
 
     await waitFor(() => expect(putConfigMock).toHaveBeenCalledTimes(1))
     expect(putConfigMock).toHaveBeenCalledWith({
-      mode: 'databricks',
+      provider: 'omnigent' as const,
+      mode: 'databricks' as const,
       profile: 'field-enf',
+      host: null,
       model: null,
       api_key_env: null,
+      oauth_token_env: null,
     })
     expect(await screen.findByLabelText('Chat message')).toBeInTheDocument()
   })
@@ -252,9 +303,12 @@ describe('AssistantPanel switchboard', () => {
     expect(screen.getByText(/omnigent server start/)).toBeInTheDocument()
   })
 
-  it.each(['decline', 'cancel'] as const)(
+  it.each([
+    ['decline', /declined/i],
+    ['cancel', /cancelled/i],
+  ] as const)(
     'approval card %s fires the mutation and marks it resolved',
-    async (action) => {
+    async (action, resolvedCopy) => {
       const user = userEvent.setup()
       statusMock.mockResolvedValue(statusOf())
       approvalMock.mockResolvedValue({ message: 'Approval resolved', details: null })
@@ -278,9 +332,7 @@ describe('AssistantPanel switchboard', () => {
           action,
         }),
       )
-      expect(
-        await screen.findByText(new RegExp(`response sent: ${action}`, 'i')),
-      ).toBeInTheDocument()
+      expect(await screen.findByText(resolvedCopy)).toBeInTheDocument()
       expect(useAssistantStore.getState().pendingApproval).toBeNull()
     },
   )
@@ -321,6 +373,18 @@ describe('AssistantPanel switchboard', () => {
     expect(screen.getByText('disk exploded')).toBeInTheDocument()
   })
 
+  it('composer permission-mode selector reflects the store', async () => {
+    statusMock.mockResolvedValue(statusOf())
+    renderPanel()
+    await screen.findByLabelText('Chat message')
+
+    const trigger = screen.getByRole('combobox', { name: /permission mode/i })
+    expect(trigger).toHaveTextContent('Ask every time')
+
+    useAssistantStore.getState().setPermissionMode('bypassPermissions')
+    await waitFor(() => expect(trigger).toHaveTextContent('Allow all'))
+  })
+
   it('approval card actions fire the approval mutation and mark it resolved', async () => {
     const user = userEvent.setup()
     statusMock.mockResolvedValue(statusOf())
@@ -344,7 +408,7 @@ describe('AssistantPanel switchboard', () => {
       }),
     )
     // onSuccess marks the part resolved and clears the pending approval.
-    expect(await screen.findByText(/response sent: accept/i)).toBeInTheDocument()
+    expect(await screen.findByText(/accepted/i)).toBeInTheDocument()
     expect(useAssistantStore.getState().pendingApproval).toBeNull()
   })
 })

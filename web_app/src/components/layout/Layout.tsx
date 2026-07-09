@@ -25,6 +25,47 @@ import { cn } from '../../lib/utils'
 // chunk. Only the toggle + this shell are eager.
 const AssistantPanel = lazy(() => import('../assistant/AssistantPanel'))
 
+/** Drag handle on the assistant dock's left edge. Pointer capture keeps the
+ * drag alive outside the strip; the store setter clamps the width. */
+function AssistantResizeHandle() {
+  const setPanelWidth = useAssistantStore((s) => s.setPanelWidth)
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startWidth = useAssistantStore.getState().panelWidth
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const onMove = (ev: PointerEvent) => {
+      // Dragging left of the start point widens the right-docked panel.
+      setPanelWidth(startWidth + (startX - ev.clientX))
+    }
+    const target = e.currentTarget
+    const onUp = () => {
+      target.removeEventListener('pointermove', onMove)
+      target.removeEventListener('pointerup', onUp)
+    }
+    target.addEventListener('pointermove', onMove)
+    target.addEventListener('pointerup', onUp)
+  }
+
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize assistant panel"
+      tabIndex={0}
+      onPointerDown={onPointerDown}
+      onKeyDown={(e) => {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+        e.preventDefault()
+        const width = useAssistantStore.getState().panelWidth
+        setPanelWidth(width + (e.key === 'ArrowLeft' ? 16 : -16))
+      }}
+      className="w-1 shrink-0 cursor-col-resize touch-none select-none bg-transparent transition-colors hover:bg-primary/40 focus-visible:bg-primary/40 focus-visible:outline-none active:bg-primary/60"
+    />
+  )
+}
+
 export function Layout() {
   const { data: health, isError: healthError, refetch } = useHealth()
   // Server-push channel: turns /api/events into query invalidations.
@@ -50,6 +91,7 @@ export function Layout() {
   const closeAllBuffers = useWorkspaceStore((s) => s.closeAllBuffers)
   const ensureProjectScope = useWorkspaceStore((s) => s.ensureProjectScope)
   const assistantOpen = useAssistantStore((s) => s.panelOpen)
+  const assistantWidth = useAssistantStore((s) => s.panelWidth)
 
   // Persisted buffers are keyed to a project root: a different served
   // project drops the restored workspace instead of leaking it across.
@@ -109,13 +151,19 @@ export function Layout() {
             closed panel costs nothing and closing aborts any open stream
             (the turn continues server-side; rehydration shows it). */}
         {assistantOpen && (
-          <aside className="w-[360px] shrink-0 border-l border-border bg-sidebar">
-            <ErrorBoundary>
-              <Suspense fallback={<LoadingSpinner className="h-full" />}>
-                <AssistantPanel />
-              </Suspense>
-            </ErrorBoundary>
-          </aside>
+          <>
+            <AssistantResizeHandle />
+            <aside
+              style={{ width: assistantWidth }}
+              className="shrink-0 border-l border-border bg-sidebar"
+            >
+              <ErrorBoundary>
+                <Suspense fallback={<LoadingSpinner className="h-full" />}>
+                  <AssistantPanel />
+                </Suspense>
+              </ErrorBoundary>
+            </aside>
+          </>
         )}
       </div>
       <StatusBar />

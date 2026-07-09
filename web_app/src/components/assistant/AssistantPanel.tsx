@@ -15,7 +15,7 @@ import { DaemonGate } from './DaemonGate'
 import { FilesChangedChip } from './FilesChangedChip'
 import { SetupCard } from './SetupCard'
 import {
-  isDaemonReady,
+  isRuntimeReady,
   useAssistantSession,
   useAssistantStatus,
   useExecutorConfig,
@@ -35,9 +35,11 @@ import { useAssistantStore } from '../../store/assistantStore'
 // state — never toast-only):
 //   status loading → spinner
 //   status unreachable → retry card
-//   daemon ladder not green → DaemonGate (binary / server / host rungs)
+//   executor not configured → SetupCard (provider choice comes FIRST —
+//     it decides which runtime gate even applies)
 //   skill not installed → install card
-//   executor not configured → SetupCard (blocks the composer)
+//   omnigent provider, daemon ladder not green → DaemonGate
+//   claude provider, bundled SDK binary missing → ClaudeGate
 //   ready → thread + composer
 
 /** Skill pre-gate (the 409 LHP-WEB-002 backstop has its own in-thread card). */
@@ -71,6 +73,43 @@ function SkillGate() {
   )
 }
 
+/** Escape hatch under a runtime gate: the gate must never trap the user
+ * on a provider they want to leave. */
+function SwitchProviderHint({ onClick }: { onClick: () => void }) {
+  return (
+    <div className="px-3 pb-3 text-xs text-muted-foreground">
+      <Button size="sm" variant="ghost" onClick={onClick}>
+        <Settings2 aria-hidden="true" />
+        Use a different provider…
+      </Button>
+    </div>
+  )
+}
+
+/** Claude-provider runtime gate: the SDK's bundled binary was not found. */
+function ClaudeGate({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="p-3 text-xs text-muted-foreground">
+      <div className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-foreground">
+        <Download className="size-4" aria-hidden="true" />
+        Claude runtime unavailable
+      </div>
+      <p>
+        The Claude runtime bundled with <code>claude-agent-sdk</code> was not
+        found. Reinstall the webapp extra in the environment running{' '}
+        <code>lhp web</code>:
+      </p>
+      <pre className="mt-1.5 overflow-x-auto rounded bg-muted p-2 text-2xs text-foreground">
+        pip install 'lakehouse-plumber[webapp]'
+      </pre>
+      <Button size="sm" variant="outline" className="mt-2" onClick={onRetry}>
+        <RefreshCw aria-hidden="true" />
+        Check again
+      </Button>
+    </div>
+  )
+}
+
 export default function AssistantPanel() {
   const setPanelOpen = useAssistantStore((s) => s.setPanelOpen)
   const parts = useAssistantStore((s) => s.parts)
@@ -80,16 +119,21 @@ export default function AssistantPanel() {
   const interrupted = useAssistantStore((s) => s.interrupted)
 
   // The panel is mounted only while open, so the queries are simply
-  // enabled; the status query polls at 2s until the daemon is ready.
+  // enabled; the status query polls at 2s until the runtime is ready.
   const status = useAssistantStatus({ enabled: true })
-  const ready = isDaemonReady(status.data)
+  const provider = status.data?.provider ?? null
+  const ready = isRuntimeReady(status.data)
   const chatReady =
     ready &&
     status.data !== undefined &&
     status.data.skill_installed &&
     status.data.executor_configured
 
-  const config = useExecutorConfig({ enabled: chatReady })
+  // Enabled as soon as a config exists (not just when fully ready): the
+  // settings card must be reachable FROM the runtime gates, or a stored
+  // omnigent config with the daemon down would trap the user there.
+  const configured = status.data?.executor_configured === true
+  const config = useExecutorConfig({ enabled: configured })
   const stream = useAssistantStream()
   const daemonStart = useStartDaemon()
   const newSession = useNewAssistantSession()
@@ -118,31 +162,31 @@ export default function AssistantPanel() {
         <span className="text-xs font-semibold text-foreground">Assistant</span>
         <FilesChangedChip streaming={streaming} />
         <div className="ml-auto flex items-center">
+          {configured && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setShowSetup((v) => !v)}
+              disabled={streaming}
+              aria-label="Assistant settings"
+              title="Change provider"
+              className="text-muted-foreground"
+            >
+              <Settings2 aria-hidden="true" />
+            </Button>
+          )}
           {chatReady && (
-            <>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setShowSetup((v) => !v)}
-                disabled={streaming}
-                aria-label="Assistant settings"
-                title="Change executor"
-                className="text-muted-foreground"
-              >
-                <Settings2 aria-hidden="true" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => newSession.mutate()}
-                disabled={newSession.isPending || streaming}
-                aria-label="New session"
-                title="New session"
-                className="text-muted-foreground"
-              >
-                <SquarePen aria-hidden="true" />
-              </Button>
-            </>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => newSession.mutate()}
+              disabled={newSession.isPending || streaming}
+              aria-label="New session"
+              title="New session"
+              className="text-muted-foreground"
+            >
+              <SquarePen aria-hidden="true" />
+            </Button>
           )}
           <Button
             variant="ghost"
@@ -175,21 +219,31 @@ export default function AssistantPanel() {
             Retry
           </Button>
         </div>
-      ) : !ready ? (
-        <DaemonGate
-          status={status.data}
-          onStartDaemon={() => daemonStart.mutate()}
-          starting={daemonStart.isPending}
-        />
-      ) : !status.data.skill_installed ? (
-        <SkillGate />
       ) : !status.data.executor_configured ? (
         <SetupCard />
       ) : showSetup ? (
+        // Ahead of the runtime gates on purpose: switching provider must be
+        // possible while a gate blocks (e.g. omnigent configured, daemon down).
         <SetupCard
           initial={config.data ?? null}
           onDone={() => setShowSetup(false)}
         />
+      ) : !status.data.skill_installed ? (
+        <SkillGate />
+      ) : provider === 'omnigent' && !ready ? (
+        <>
+          <DaemonGate
+            status={status.data}
+            onStartDaemon={() => daemonStart.mutate()}
+            starting={daemonStart.isPending}
+          />
+          <SwitchProviderHint onClick={() => setShowSetup(true)} />
+        </>
+      ) : provider === 'claude_sdk' && !ready ? (
+        <>
+          <ClaudeGate onRetry={() => void status.refetch()} />
+          <SwitchProviderHint onClick={() => setShowSetup(true)} />
+        </>
       ) : (
         <>
           <ChatThread

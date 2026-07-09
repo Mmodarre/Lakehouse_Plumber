@@ -8,6 +8,10 @@ function remediation(hint: SessionFailedHint, profile: string | null): string {
       return 'Run `omnigent setup` in a terminal, then try again.'
     case 'databricks_auth':
       return `Run \`databricks auth login --profile ${profile ?? '<profile>'}\` in a terminal, then try again.`
+    case 'claude_auth':
+      return 'Sign in with `claude` (Claude Code) on this machine — or export the configured token variable (see `claude setup-token`) before starting `lhp web` — then try again.'
+    case 'claude_setup':
+      return "Reinstall the webapp extra in the environment running `lhp web`: pip install 'lakehouse-plumber[webapp]'."
     default:
       return ''
   }

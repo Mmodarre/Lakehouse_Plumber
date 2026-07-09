@@ -77,6 +77,7 @@ function resetStore() {
     failure: null,
     interrupted: false,
     panelOpen: false,
+    permissionMode: 'default',
   })
 }
 
@@ -111,7 +112,24 @@ describe('useAssistantStream', () => {
     ])
     expect(s.failure).toBeNull()
     expect(startChatMock).toHaveBeenCalledExactlyOnceWith(
-      { message: 'hi' },
+      // The store's permission mode rides along on every turn.
+      { message: 'hi', permission_mode: 'default' },
+      expect.any(AbortSignal),
+    )
+  })
+
+  it('sends the currently selected permission mode with the turn', async () => {
+    startChatMock.mockResolvedValue(
+      responseOf([frameLine({ type: 'turn.completed' })]),
+    )
+    useAssistantStore.getState().setPermissionMode('acceptEdits')
+    const { result } = setup()
+
+    act(() => result.current.send('go'))
+    await waitFor(() => expect(useAssistantStore.getState().streaming).toBe(false))
+
+    expect(startChatMock).toHaveBeenCalledExactlyOnceWith(
+      { message: 'go', permission_mode: 'acceptEdits' },
       expect.any(AbortSignal),
     )
   })

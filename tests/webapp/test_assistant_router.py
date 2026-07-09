@@ -227,7 +227,15 @@ def test_config_put_api_key_env_valid_name_roundtrip(
     assert put_response.status_code == 200
     stored = put_response.json()
     # Echo is EXACTLY the stored shape — no extra fields, never a key value.
-    assert set(stored) == {"mode", "profile", "model", "api_key_env"}
+    assert set(stored) == {
+        "provider",
+        "mode",
+        "profile",
+        "host",
+        "model",
+        "api_key_env",
+        "oauth_token_env",
+    }
     assert stored["mode"] == "api_key_env"
     assert stored["api_key_env"] == "MY_PROVIDER_KEY"
 

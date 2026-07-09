@@ -6,8 +6,10 @@ synchronous and opens one connection per call; async callers bridge via
 ``asyncio.to_thread`` or FastAPI's sync-handler threadpool.
 
 Sessions track omnigent conversations (``session_id`` = ``conv_...``,
-``agent_id`` = ``ag_...``) under a single-active invariant: at most one row
-has ``status = 'active'``. :func:`insert_session` archives the previous
+``agent_id`` = ``ag_...``) or Claude SDK sessions (``session_id`` =
+``claude_...``, ``provider`` column discriminates) under a single-active
+invariant: at most one row has ``status = 'active'`` across BOTH providers.
+:func:`insert_session` / :func:`insert_claude_session` archive the previous
 active session in the same transaction that activates the new one.
 
 Config rows are a JSON key/value store (keys ``executor`` / ``agent``).
@@ -97,6 +99,86 @@ def insert_session(
             f"Archived previously active assistant session before "
             f"activating {session_id}"
         )
+
+
+def insert_claude_session(
+    project_root: Path,
+    session_id: str,
+    agent_bundle_hash: str,
+    title: Optional[str] = None,
+) -> None:
+    """Insert a new ``active`` Claude SDK session, archiving any active one.
+
+    Same single-transaction demote+insert invariant as :func:`insert_session`.
+    ``agent_id`` / ``host_id`` are Omnigent concepts with no Claude equivalent;
+    the columns are NOT NULL, so Claude rows write the sentinels ``''`` /
+    ``'local'``.
+    """
+    now = utc_now_iso()
+    with closing(connect(project_root)) as conn, conn:
+        demoted = conn.execute(
+            "UPDATE assistant_sessions SET status = 'archived' WHERE status = 'active'"
+        ).rowcount
+        conn.execute(
+            "INSERT INTO assistant_sessions "
+            "(session_id, agent_id, host_id, agent_bundle_hash, title, status, "
+            "created_at, last_used_at, provider) "
+            "VALUES (?, '', 'local', ?, ?, 'active', ?, ?, 'claude_sdk')",
+            (session_id, agent_bundle_hash, title, now, now),
+        )
+    if demoted:
+        logger.debug(
+            f"Archived previously active assistant session before "
+            f"activating {session_id}"
+        )
+
+
+def set_runtime_session_id(
+    project_root: Path, session_id: str, runtime_session_id: Optional[str]
+) -> None:
+    """Store the SDK resume handle for ``session_id`` (``None`` clears it).
+
+    Refreshed after every Claude turn — the SDK may re-mint its own session id
+    on resume. Cleared (``None``) when a resume fails so the next turn starts
+    a fresh SDK session under the same LHP ``session_id``.
+    """
+    with closing(connect(project_root)) as conn, conn:
+        conn.execute(
+            "UPDATE assistant_sessions SET runtime_session_id = ? WHERE session_id = ?",
+            (runtime_session_id, session_id),
+        )
+
+
+def insert_item(project_root: Path, session_id: str, item: dict[str, Any]) -> int:
+    """Append ``item`` to the session transcript; return its assigned ``seq``.
+
+    ``seq`` is ``MAX(seq) + 1`` computed inside the insert's transaction; the
+    turn engine is the single writer (under its turn lock), so this cannot
+    race with itself.
+    """
+    with closing(connect(project_root)) as conn, conn:
+        row = conn.execute(
+            "SELECT COALESCE(MAX(seq), 0) + 1 FROM assistant_items "
+            "WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+        seq = int(row[0])
+        conn.execute(
+            "INSERT INTO assistant_items (session_id, seq, item_json, created_at) "
+            "VALUES (?, ?, ?, ?)",
+            (session_id, seq, json.dumps(item), utc_now_iso()),
+        )
+    return seq
+
+
+def list_items(project_root: Path, session_id: str) -> list[dict[str, Any]]:
+    """Return the session transcript's item envelopes in insertion order."""
+    with closing(connect(project_root)) as conn:
+        rows = conn.execute(
+            "SELECT item_json FROM assistant_items WHERE session_id = ? ORDER BY seq",
+            (session_id,),
+        ).fetchall()
+    return [json.loads(row["item_json"]) for row in rows]
 
 
 def archive_active(project_root: Path) -> int:

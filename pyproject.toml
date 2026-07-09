@@ -58,6 +58,12 @@ webapp = [
     "starlette>=0.40,<2.0",
     "uvicorn>=0.34,<1.0",
     "httpx>=0.27,<1.0",  # same-origin proxy transport to the local Omnigent daemon (assistant panel)
+    # Default in-process assistant provider (constitution §5.8). Platform wheels
+    # bundle a self-contained `claude` CLI binary — no Node.js, no separate install.
+    "claude-agent-sdk>=0.2.110,<0.3",
+    # Pure-Python Databricks bearer minting for the assistant's Databricks-workspace
+    # auth mode (constitution §5.8); replaces any dependency on the databricks CLI binary.
+    "databricks-sdk>=0.120,<1.0",
 ]
 dev = [
     "pytest>=9.0.0",
@@ -79,6 +85,8 @@ dev = [
     "fastapi>=0.115,<1.0",  # webapp backend — present in dev so mypy/CI can resolve imports
     "uvicorn>=0.34,<1.0",  # webapp ASGI server — present in dev so mypy/CI can resolve imports
     "httpx>=0.27.0",  # transport for fastapi/starlette TestClient — tests/webapp/conftest.py imports it at collection time; now ALSO a runtime dep of the webapp extra (Omnigent assistant proxy)
+    "claude-agent-sdk>=0.2.110,<0.3",  # webapp assistant provider — present in dev so mypy/CI can resolve imports (and tests build real SDK message dataclasses)
+    "databricks-sdk>=0.120,<1.0",  # webapp assistant Databricks auth — present in dev so mypy/CI can resolve imports
 ]
 
 [project.urls]

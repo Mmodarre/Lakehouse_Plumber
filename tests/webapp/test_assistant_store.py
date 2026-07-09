@@ -57,13 +57,12 @@ def _set_last_used_at(project_root: Path, session_id: str, last_used_at: str) ->
         )
 
 
-def test_fresh_db_migrates_to_v2_with_assistant_schema(tmp_path: Path) -> None:
+def test_fresh_db_migrates_to_latest_with_assistant_schema(tmp_path: Path) -> None:
     sqlite_store.run_migrations(tmp_path)
 
-    assert _user_version(tmp_path) == 2
     assert _user_version(tmp_path) == len(MIGRATIONS)
-    assert {"assistant_sessions", "assistant_config"} <= _schema_names(
-        tmp_path, "table"
+    assert {"assistant_sessions", "assistant_config", "assistant_items"} <= (
+        _schema_names(tmp_path, "table")
     )
     assert "idx_assistant_sessions_status" in _schema_names(tmp_path, "index")
 
@@ -78,7 +77,7 @@ def test_v1_db_upgrades_in_place_and_preserves_runs(tmp_path: Path) -> None:
 
     sqlite_store.run_migrations(tmp_path)
 
-    assert _user_version(tmp_path) == 2
+    assert _user_version(tmp_path) == len(MIGRATIONS)
     assert {"assistant_sessions", "assistant_config"} <= _schema_names(
         tmp_path, "table"
     )
@@ -201,3 +200,115 @@ def test_list_sessions_most_recent_first_and_limit(project: Path) -> None:
 
     limited = assistant_store.list_sessions(project, limit=2)
     assert [s["session_id"] for s in limited] == ["conv_2", "conv_1"]
+
+
+# ---------------------------------------------------------------------------
+# v3 migration (providers + transcript items)
+# ---------------------------------------------------------------------------
+
+
+def test_v2_db_upgrades_to_v3_and_backfills_provider(tmp_path: Path) -> None:
+    # Build a database exactly as v2 shipped it: batches 1+2, user_version 2,
+    # with one pre-v3 omnigent session row already present.
+    with closing(sqlite_store.connect(tmp_path)) as conn, conn:
+        for batch in MIGRATIONS[:2]:
+            for statement in batch:
+                conn.execute(statement)
+        conn.execute("PRAGMA user_version = 2")
+        conn.execute(
+            "INSERT INTO assistant_sessions "
+            "(session_id, agent_id, host_id, agent_bundle_hash, status, "
+            "created_at, last_used_at) "
+            "VALUES ('conv_old', 'ag_old', 'host-1', 'hash-1', 'active', "
+            "'2026-07-01T00:00:00+00:00', '2026-07-01T00:00:00+00:00')"
+        )
+
+    sqlite_store.run_migrations(tmp_path)
+
+    assert _user_version(tmp_path) == len(MIGRATIONS)
+    assert "assistant_items" in _schema_names(tmp_path, "table")
+    active = assistant_store.get_active_session(tmp_path)
+    assert active is not None
+    assert active["session_id"] == "conv_old"
+    assert active["provider"] == "omnigent"
+    assert active["runtime_session_id"] is None
+
+
+def test_omnigent_insert_session_defaults_provider(project: Path) -> None:
+    _insert(project, "conv_1")
+
+    active = assistant_store.get_active_session(project)
+    assert active is not None
+    assert active["provider"] == "omnigent"
+
+
+def test_insert_claude_session_writes_sentinels(project: Path) -> None:
+    assistant_store.insert_claude_session(
+        project, "claude_abc", agent_bundle_hash="hash-c", title="claude chat"
+    )
+
+    active = assistant_store.get_active_session(project)
+    assert active is not None
+    assert active["session_id"] == "claude_abc"
+    assert active["provider"] == "claude_sdk"
+    assert active["agent_id"] == ""
+    assert active["host_id"] == "local"
+    assert active["agent_bundle_hash"] == "hash-c"
+    assert active["title"] == "claude chat"
+    assert active["runtime_session_id"] is None
+
+
+def test_single_active_invariant_holds_across_providers(project: Path) -> None:
+    _insert(project, "conv_1")
+    assistant_store.insert_claude_session(project, "claude_1", "hash-c")
+
+    by_id = {
+        s["session_id"]: s["status"] for s in assistant_store.list_sessions(project)
+    }
+    assert by_id == {"conv_1": "archived", "claude_1": "active"}
+
+    # And back the other way: an omnigent session demotes the claude one.
+    _insert(project, "conv_2")
+    by_id = {
+        s["session_id"]: s["status"] for s in assistant_store.list_sessions(project)
+    }
+    assert by_id == {
+        "conv_1": "archived",
+        "claude_1": "archived",
+        "conv_2": "active",
+    }
+
+
+def test_set_runtime_session_id_roundtrip_and_clear(project: Path) -> None:
+    assistant_store.insert_claude_session(project, "claude_1", "hash-c")
+
+    assistant_store.set_runtime_session_id(project, "claude_1", "sdk-uuid-1")
+    active = assistant_store.get_active_session(project)
+    assert active is not None
+    assert active["runtime_session_id"] == "sdk-uuid-1"
+
+    # Cleared (e.g. after a failed resume) so the next turn starts fresh.
+    assistant_store.set_runtime_session_id(project, "claude_1", None)
+    active = assistant_store.get_active_session(project)
+    assert active is not None
+    assert active["runtime_session_id"] is None
+
+
+def test_insert_item_assigns_monotonic_seq_per_session(project: Path) -> None:
+    assert assistant_store.insert_item(project, "claude_1", {"id": "a"}) == 1
+    assert assistant_store.insert_item(project, "claude_1", {"id": "b"}) == 2
+    # Sequences are per-session, not global.
+    assert assistant_store.insert_item(project, "claude_2", {"id": "x"}) == 1
+    assert assistant_store.insert_item(project, "claude_1", {"id": "c"}) == 3
+
+
+def test_list_items_returns_envelopes_in_insertion_order(project: Path) -> None:
+    envelopes = [
+        {"id": "m1", "type": "message", "status": "completed", "data": {"n": i}}
+        for i in range(3)
+    ]
+    for env in envelopes:
+        assistant_store.insert_item(project, "claude_1", env)
+
+    assert assistant_store.list_items(project, "claude_1") == envelopes
+    assert assistant_store.list_items(project, "claude_other") == []

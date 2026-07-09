@@ -136,11 +136,12 @@ sessions and launches.
 Chat with the AI assistant
 --------------------------
 
-The IDE includes an assistant panel: a chat dock backed by a locally
-running omnigent daemon that answers questions about your project and edits
-its files in place. The daemon is a separate, user-installed tool with a
-one-time setup of its own — installation, startup, executor choice, and
-troubleshooting are covered in :doc:`use_the_ai_assistant`.
+The IDE includes an assistant panel: a chat dock that answers questions
+about your project and edits its files in place. The built-in provider
+ships with the web IDE — nothing else to install — and signs in with your
+Claude subscription or a Databricks workspace; a user-managed omnigent
+daemon is selectable as an alternative. Setup, sign-in, and troubleshooting
+are covered in :doc:`use_the_ai_assistant`.
 
 What the web IDE does not do
 ----------------------------

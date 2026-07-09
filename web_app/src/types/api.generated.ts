@@ -17,8 +17,10 @@ export interface paths {
          * Resolve Approval
          * @description Resolve a pending elicitation on the active session.
          *
-         *     Talks to the omnigent client directly (no chat-turn lock), so approvals
-         *     work while a chat stream is open on another request.
+         *     Never touches a chat-turn lock, so approvals work while a chat stream is
+         *     open on another request. Claude provider: resolves the in-process turn
+         *     registry (unknown / already-resolved elicitations 404). Omnigent: talks
+         *     to the daemon client directly.
          */
         post: operations["resolve_approval_api_assistant_approval_post"];
         delete?: never;
@@ -41,11 +43,11 @@ export interface paths {
          * @description Run one assistant chat turn as an NDJSON stream.
          *
          *     Backstop gates (the panel pre-gates on ``/status``): executor
-         *     unconfigured, skill not installed, or no online omnigent host each 409
-         *     with the ``ErrorDetail`` envelope. Past the gates, the whole turn —
-         *     session provisioning included — is relayed by
-         *     :func:`~lhp.webapp.services.assistant_chat.chat_turn`, whose frame
-         *     protocol is pinned in its module docstring.
+         *     unconfigured and skill not installed 409 for BOTH providers; the
+         *     daemon-online gate applies to the omnigent provider only (the Claude
+         *     provider has no daemon). Past the gates, the whole turn — session
+         *     provisioning included — is relayed by the provider's ``chat_turn``,
+         *     whose frame protocol is pinned in its module docstring.
          */
         post: operations["chat_api_assistant_chat_post"];
         delete?: never;
@@ -70,9 +72,10 @@ export interface paths {
          * Put Executor Config
          * @description Store the executor config; echo back EXACTLY what was stored.
          *
-         *     Switching executors marks the active session stale so the next chat
-         *     turn reprovisions against the new config (bundle-hash drift would catch
-         *     it anyway; the stale mark makes the drift explicit and immediate).
+         *     Switching executors — including switching provider — marks the active
+         *     session stale so the next chat turn reprovisions against the new config
+         *     (bundle-hash drift would catch it anyway; the stale mark makes the drift
+         *     explicit and immediate).
          */
         put: operations["put_executor_config_api_assistant_config_put"];
         post?: never;
@@ -138,6 +141,10 @@ export interface paths {
         /**
          * Interrupt
          * @description Interrupt the active session's running turn (no chat-turn lock).
+         *
+         *     Claude provider: interrupting with no live turn is a harmless no-op
+         *     (``delivered: false``) — the stop button can race a turn that just
+         *     finished.
          */
         post: operations["interrupt_api_assistant_interrupt_post"];
         delete?: never;
@@ -157,8 +164,10 @@ export interface paths {
          * Get Session
          * @description Snapshot of the active session for panel rehydration.
          *
-         *     ``items`` pass through UNMODIFIED in omnigent's snapshot envelope shape
-         *     (spike S8); the client-side renderer unwraps each item's ``data``.
+         *     ``items`` pass through UNMODIFIED in the snapshot envelope shape (spike
+         *     S8; the Claude provider persists the SAME envelope shape in
+         *     ``assistant_items``); the client-side renderer unwraps each item's
+         *     ``data``.
          */
         get: operations["get_session_api_assistant_session_get"];
         put?: never;
@@ -246,9 +255,11 @@ export interface paths {
          * Get Status
          * @description The assistant panel's single source of truth.
          *
-         *     A daemon that is down reports as falsy ladder fields (never a 500): the
-         *     detection ladder swallows connection failures by design, and the client
-         *     getter is deferred so no client is even built when the binary is missing.
+         *     Omnigent provider: a daemon that is down reports as falsy ladder fields
+         *     (never a 500) — the detection ladder swallows connection failures by
+         *     design, and the client getter is deferred so no client is even built when
+         *     the binary is missing. Claude provider: the same ladder fields report the
+         *     in-process SDK's availability (no daemon probe runs at all).
          */
         get: operations["get_status_api_assistant_status_get"];
         put?: never;
@@ -1058,9 +1069,13 @@ export interface components {
          * AssistantStatus
          * @description Single source of truth for the assistant panel's readiness display.
          *
-         *     The first four fields mirror the daemon-detection ladder
+         *     For the ``omnigent`` provider the first four fields mirror the
+         *     daemon-detection ladder
          *     (:class:`~lhp.webapp.services.omnigent_lifecycle.DaemonStatus`): a daemon
          *     that is down shows as falsy ladder fields, never as an error response.
+         *     For the ``claude_sdk`` provider the same ladder fields report the
+         *     in-process SDK's availability (bundled binary present) so the existing
+         *     frontend gate logic keeps working; ``host_id`` is ``"local"``.
          */
         AssistantStatus: {
             active_session: components["schemas"]["ActiveSessionInfo"] | null;
@@ -1072,6 +1087,8 @@ export interface components {
             host_id: string | null;
             /** Host Online */
             host_online: boolean;
+            /** Provider */
+            provider?: string | null;
             /** Server Ok */
             server_ok: boolean;
             /** Server Url */
@@ -1136,6 +1153,12 @@ export interface components {
              * @description User message text.
              */
             message: string;
+            /**
+             * Permission Mode
+             * @default default
+             * @enum {string}
+             */
+            permission_mode: "default" | "acceptEdits" | "bypassPermissions";
         };
         /** CircularDependencyResponse */
         CircularDependencyResponse: {
@@ -1197,21 +1220,36 @@ export interface components {
          * ExecutorConfig
          * @description Stored executor configuration, echoed back exactly as stored.
          *
-         *     ``api_key_env`` is an environment-variable NAME (see module docstring);
-         *     no field ever carries a key value.
+         *     ``provider`` selects the assistant backend. The Pydantic default is
+         *     ``omnigent`` purely for back-compat parsing of configs stored before the
+         *     field existed; the PRODUCT default is the Claude provider (the setup UI
+         *     preselects ``claude_sdk``).
+         *
+         *     ``api_key_env`` / ``oauth_token_env`` are environment-variable NAMES
+         *     (see module docstring); no field ever carries a key value.
          */
         ExecutorConfig: {
             /** Api Key Env */
             api_key_env?: string | null;
+            /** Host */
+            host?: string | null;
             /**
              * Mode
              * @enum {string}
              */
-            mode: "omnigent_defaults" | "databricks" | "api_key_env";
+            mode: "omnigent_defaults" | "databricks" | "api_key_env" | "claude_subscription";
             /** Model */
             model?: string | null;
+            /** Oauth Token Env */
+            oauth_token_env?: string | null;
             /** Profile */
             profile?: string | null;
+            /**
+             * Provider
+             * @default omnigent
+             * @enum {string}
+             */
+            provider: "omnigent" | "claude_sdk";
         };
         /**
          * ExecutorConfigUpdate
@@ -1220,15 +1258,25 @@ export interface components {
         ExecutorConfigUpdate: {
             /** Api Key Env */
             api_key_env?: string | null;
+            /** Host */
+            host?: string | null;
             /**
              * Mode
              * @enum {string}
              */
-            mode: "omnigent_defaults" | "databricks" | "api_key_env";
+            mode: "omnigent_defaults" | "databricks" | "api_key_env" | "claude_subscription";
             /** Model */
             model?: string | null;
+            /** Oauth Token Env */
+            oauth_token_env?: string | null;
             /** Profile */
             profile?: string | null;
+            /**
+             * Provider
+             * @default omnigent
+             * @enum {string}
+             */
+            provider: "omnigent" | "claude_sdk";
         };
         /** ExternalSourcesResponse */
         ExternalSourcesResponse: {

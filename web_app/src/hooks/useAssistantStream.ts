@@ -51,13 +51,17 @@ export function useAssistantStream(): UseAssistantStreamResult {
       abortRef.current = controller
       runningRef.current = true
 
-      const { beginTurn, applyFrame, failTransport, finishStream } =
+      const { beginTurn, applyFrame, failTransport, finishStream, permissionMode } =
         useAssistantStore.getState()
       beginTurn(message)
 
       const run = async () => {
         try {
-          const response = await startAssistantChat({ message }, controller.signal)
+          const response = await startAssistantChat(
+            // Read at send time: the approval policy is per-turn.
+            { message, permission_mode: permissionMode },
+            controller.signal,
+          )
           const stream = response.body
           if (stream === null) {
             throw new Error('Chat stream response had no body')
