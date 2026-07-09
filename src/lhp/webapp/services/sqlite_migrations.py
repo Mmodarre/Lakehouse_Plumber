@@ -105,4 +105,30 @@ _V3: tuple[str, ...] = (
     """,
 )
 
-MIGRATIONS: tuple[tuple[str, ...], ...] = (_V1, _V2, _V3)
+#: v4 — assistant token usage: one append-only row per completed Claude turn,
+#: keyed ``(session_id, turn_seq)`` (allocated MAX+1 per session, like
+#: ``assistant_items``). Totals are always ``SUM(...) GROUP BY session_id`` —
+#: never a read-modify-write counter, so concurrent turns across sessions
+#: stay safe. ``sdk_cost_usd`` is the SDK-reported estimate;
+#: ``configured_cost_usd`` the cost under the project's stored pricing (NULL
+#: when unpriced); ``model_usage_json`` keeps the raw per-model breakdown so
+#: later pricing edits can retroactively reprice history.
+_V4: tuple[str, ...] = (
+    """
+    CREATE TABLE assistant_turn_usage (
+        session_id TEXT NOT NULL,
+        turn_seq INTEGER NOT NULL,
+        input_tokens INTEGER NOT NULL DEFAULT 0,
+        output_tokens INTEGER NOT NULL DEFAULT 0,
+        cache_read_input_tokens INTEGER NOT NULL DEFAULT 0,
+        cache_creation_input_tokens INTEGER NOT NULL DEFAULT 0,
+        sdk_cost_usd REAL,
+        configured_cost_usd REAL,
+        model_usage_json TEXT,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (session_id, turn_seq)
+    )
+    """,
+)
+
+MIGRATIONS: tuple[tuple[str, ...], ...] = (_V1, _V2, _V3, _V4)

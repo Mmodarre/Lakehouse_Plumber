@@ -69,16 +69,20 @@ function setup() {
 
 function resetStore() {
   useAssistantStore.setState({
-    parts: [],
-    streaming: false,
-    statusState: null,
-    pendingApproval: null,
-    sessionMeta: null,
-    failure: null,
-    interrupted: false,
+    conversations: {},
+    tabOrder: [],
+    activeTabKey: null,
+    tabTitles: {},
+    nextDraftId: 1,
     panelOpen: false,
     permissionMode: 'default',
   })
+}
+
+const store = () => useAssistantStore.getState()
+
+function conversationOf(tabKey: string) {
+  return store().conversations[tabKey]
 }
 
 beforeEach(() => {
@@ -87,51 +91,129 @@ beforeEach(() => {
 })
 
 describe('useAssistantStream', () => {
-  it('feeds decoded frames into the store in arrival order', async () => {
+  it('feeds decoded frames into the tab conversation, rekeying on the session frame', async () => {
     startChatMock.mockResolvedValue(
       responseOf([
         frameLine({ type: 'status', state: 'preparing' }) +
-          frameLine({ type: 'session', session_id: 'conv_1', created: true }) +
+          frameLine({ type: 'session', session_id: 'claude_1', created: true }) +
           frameLine({ type: 'text.delta', delta: 'Hel' }),
         frameLine({ type: 'text.delta', delta: 'lo' }) +
           frameLine({ type: 'item.done', item: { id: 'fc1', type: 'function_call' } }) +
           frameLine({ type: 'turn.completed' }),
       ]),
     )
+    const draftKey = store().openTab()
     const { result } = setup()
 
-    act(() => result.current.send('hi'))
-    await waitFor(() => expect(useAssistantStore.getState().streaming).toBe(false))
+    act(() => result.current.send(draftKey, 'hi'))
+    await waitFor(() =>
+      expect(conversationOf('claude_1')?.streaming).toBe(false),
+    )
 
-    const s = useAssistantStore.getState()
-    expect(s.sessionMeta).toEqual({ sessionId: 'conv_1' })
-    expect(s.parts).toMatchObject([
+    const s = store()
+    // The draft tab was re-keyed to the real session id, position preserved.
+    expect(s.tabOrder).toEqual(['claude_1'])
+    expect(s.activeTabKey).toBe('claude_1')
+    expect(s.conversations[draftKey]).toBeUndefined()
+    const conversation = conversationOf('claude_1')
+    expect(conversation.sessionMeta).toEqual({ sessionId: 'claude_1' })
+    expect(conversation.parts).toMatchObject([
       { kind: 'text', role: 'user', text: 'hi' },
       { kind: 'text', role: 'assistant', text: 'Hello' },
       { kind: 'item', item: { id: 'fc1' } },
     ])
-    expect(s.failure).toBeNull()
+    expect(conversation.failure).toBeNull()
     expect(startChatMock).toHaveBeenCalledExactlyOnceWith(
-      // The store's permission mode rides along on every turn.
-      { message: 'hi', permission_mode: 'default' },
+      // The tab key doubles as the session target; the store's permission
+      // mode rides along on every turn.
+      { message: 'hi', permission_mode: 'default', session_id: draftKey },
       expect.any(AbortSignal),
     )
   })
 
-  it('sends the currently selected permission mode with the turn', async () => {
+  it('sends the currently selected permission mode and the real tab key', async () => {
     startChatMock.mockResolvedValue(
       responseOf([frameLine({ type: 'turn.completed' })]),
     )
-    useAssistantStore.getState().setPermissionMode('acceptEdits')
+    store().setPermissionMode('acceptEdits')
+    store().openSessionTab('claude_9')
     const { result } = setup()
 
-    act(() => result.current.send('go'))
-    await waitFor(() => expect(useAssistantStore.getState().streaming).toBe(false))
+    act(() => result.current.send('claude_9', 'go'))
+    await waitFor(() => expect(conversationOf('claude_9').streaming).toBe(false))
 
     expect(startChatMock).toHaveBeenCalledExactlyOnceWith(
-      { message: 'go', permission_mode: 'acceptEdits' },
+      { message: 'go', permission_mode: 'acceptEdits', session_id: 'claude_9' },
       expect.any(AbortSignal),
     )
+  })
+
+  it('two tabs stream simultaneously with independent parts', async () => {
+    const heldA = openStream()
+    const heldB = openStream()
+    startChatMock
+      .mockResolvedValueOnce({ body: heldA.stream } as Response)
+      .mockResolvedValueOnce({ body: heldB.stream } as Response)
+    store().openSessionTab('claude_a')
+    store().openSessionTab('claude_b')
+    const { result } = setup()
+
+    act(() => {
+      result.current.send('claude_a', 'one')
+      result.current.send('claude_b', 'two')
+    })
+    act(() => {
+      heldA.push(frameLine({ type: 'text.delta', delta: 'Alpha' }))
+      heldB.push(frameLine({ type: 'text.delta', delta: 'Beta' }))
+    })
+    await waitFor(() => {
+      expect(conversationOf('claude_a').parts).toHaveLength(2)
+      expect(conversationOf('claude_b').parts).toHaveLength(2)
+    })
+
+    expect(conversationOf('claude_a').parts[1]).toMatchObject({ text: 'Alpha' })
+    expect(conversationOf('claude_b').parts[1]).toMatchObject({ text: 'Beta' })
+    expect(conversationOf('claude_a').streaming).toBe(true)
+    expect(conversationOf('claude_b').streaming).toBe(true)
+
+    // One tab finishing leaves the other streaming.
+    act(() => heldA.close())
+    await waitFor(() => expect(conversationOf('claude_a').streaming).toBe(false))
+    expect(conversationOf('claude_b').streaming).toBe(true)
+
+    heldB.close()
+    await waitFor(() => expect(conversationOf('claude_b').streaming).toBe(false))
+  })
+
+  it('frames from a background tab keep applying to THAT tab after a rekey', async () => {
+    const held = openStream()
+    startChatMock.mockResolvedValue({ body: held.stream } as Response)
+    const draftKey = store().openTab()
+    const { result } = setup()
+
+    act(() => result.current.send(draftKey, 'hi'))
+    act(() =>
+      held.push(
+        frameLine({ type: 'session', session_id: 'claude_bg', created: true }),
+      ),
+    )
+    await waitFor(() =>
+      expect(store().tabOrder).toEqual(['claude_bg']),
+    )
+
+    // User switches away: the stream's tab is now in the background.
+    store().openTab()
+    expect(store().activeTabKey).toBe('draft:2')
+
+    act(() => held.push(frameLine({ type: 'text.delta', delta: 'later' })))
+    await waitFor(() =>
+      expect(conversationOf('claude_bg').parts).toHaveLength(2),
+    )
+    expect(conversationOf('claude_bg').parts[1]).toMatchObject({ text: 'later' })
+    expect(conversationOf('draft:2').parts).toEqual([])
+
+    held.close()
+    await waitFor(() => expect(conversationOf('claude_bg').streaming).toBe(false))
   })
 
   it('a frame split across chunk boundaries is buffered, not dropped', async () => {
@@ -139,18 +221,19 @@ describe('useAssistantStream', () => {
     startChatMock.mockResolvedValue(
       responseOf([line.slice(0, 10), line.slice(10), frameLine({ type: 'turn.completed' })]),
     )
+    store().openSessionTab('claude_1')
     const { result } = setup()
 
-    act(() => result.current.send('hi'))
-    await waitFor(() => expect(useAssistantStore.getState().streaming).toBe(false))
+    act(() => result.current.send('claude_1', 'hi'))
+    await waitFor(() => expect(conversationOf('claude_1').streaming).toBe(false))
 
-    expect(useAssistantStore.getState().parts[1]).toMatchObject({
+    expect(conversationOf('claude_1').parts[1]).toMatchObject({
       kind: 'text',
       text: 'split-frame',
     })
   })
 
-  it('a terminal error frame lands as a stream_error failure', async () => {
+  it('a terminal error frame lands as a stream_error failure on its tab', async () => {
     startChatMock.mockResolvedValue(
       responseOf([
         frameLine({ type: 'text.delta', delta: 'partial' }),
@@ -165,18 +248,19 @@ describe('useAssistantStream', () => {
         }),
       ]),
     )
+    store().openSessionTab('claude_1')
     const { result } = setup()
 
-    act(() => result.current.send('hi'))
-    await waitFor(() => expect(useAssistantStore.getState().streaming).toBe(false))
+    act(() => result.current.send('claude_1', 'hi'))
+    await waitFor(() => expect(conversationOf('claude_1').streaming).toBe(false))
 
-    const s = useAssistantStore.getState()
-    expect(s.failure).toMatchObject({
+    const conversation = conversationOf('claude_1')
+    expect(conversation.failure).toMatchObject({
       kind: 'stream_error',
       frame: { code: 'LHP-GEN-902' },
     })
     // The partial text stays visible above the failure card.
-    expect(s.parts[1]).toMatchObject({ kind: 'text', text: 'partial' })
+    expect(conversation.parts[1]).toMatchObject({ kind: 'text', text: 'partial' })
   })
 
   it('a gate 409 on open (LHP-WEB-002) becomes a gate failure', async () => {
@@ -191,12 +275,13 @@ describe('useAssistantStream', () => {
         http_status: 409,
       }),
     )
+    store().openSessionTab('claude_1')
     const { result } = setup()
 
-    act(() => result.current.send('hi'))
-    await waitFor(() => expect(useAssistantStore.getState().streaming).toBe(false))
+    act(() => result.current.send('claude_1', 'hi'))
+    await waitFor(() => expect(conversationOf('claude_1').streaming).toBe(false))
 
-    expect(useAssistantStore.getState().failure).toMatchObject({
+    expect(conversationOf('claude_1').failure).toMatchObject({
       kind: 'gate',
       code: 'LHP-WEB-002',
     })
@@ -205,56 +290,92 @@ describe('useAssistantStream', () => {
   it('a transport drop mid-stream becomes a transport failure', async () => {
     const held = openStream()
     startChatMock.mockResolvedValue({ body: held.stream } as Response)
+    store().openSessionTab('claude_1')
     const { result } = setup()
 
-    act(() => result.current.send('hi'))
+    act(() => result.current.send('claude_1', 'hi'))
     act(() => held.push(frameLine({ type: 'text.delta', delta: 'x' })))
     await waitFor(() =>
-      expect(useAssistantStore.getState().parts).toHaveLength(2),
+      expect(conversationOf('claude_1').parts).toHaveLength(2),
     )
     act(() => held.errorWith(new Error('connection reset')))
-    await waitFor(() => expect(useAssistantStore.getState().streaming).toBe(false))
+    await waitFor(() => expect(conversationOf('claude_1').streaming).toBe(false))
 
-    expect(useAssistantStore.getState().failure).toMatchObject({
+    expect(conversationOf('claude_1').failure).toMatchObject({
       kind: 'transport',
     })
   })
 
-  it('abort mid-stream closes the turn without recording a failure', async () => {
-    const held = openStream()
-    startChatMock.mockImplementation(async (_body, signal) => {
-      // Mirror real fetch: an abort rejects the in-flight read.
+  it('per-tab abort closes ONLY that turn, leaving the other stream running', async () => {
+    const heldA = openStream()
+    const heldB = openStream()
+    startChatMock.mockImplementation(async (body, signal) => {
+      const held = body.session_id === 'claude_a' ? heldA : heldB
       signal?.addEventListener('abort', () =>
         held.errorWith(new DOMException('The operation was aborted.', 'AbortError')),
       )
       return { body: held.stream } as Response
     })
+    store().openSessionTab('claude_a')
+    store().openSessionTab('claude_b')
     const { result } = setup()
 
-    act(() => result.current.send('hi'))
-    await waitFor(() => expect(result.current.isStreaming).toBe(true))
-    act(() => result.current.abort())
-    await waitFor(() => expect(useAssistantStore.getState().streaming).toBe(false))
+    act(() => {
+      result.current.send('claude_a', 'one')
+      result.current.send('claude_b', 'two')
+    })
+    await waitFor(() => expect(conversationOf('claude_a').streaming).toBe(true))
 
-    expect(useAssistantStore.getState().failure).toBeNull()
-    expect(useAssistantStore.getState().interrupted).toBe(false)
+    act(() => result.current.abort('claude_a'))
+    await waitFor(() => expect(conversationOf('claude_a').streaming).toBe(false))
+
+    // Abort records no failure; the OTHER tab's stream is untouched.
+    expect(conversationOf('claude_a').failure).toBeNull()
+    expect(conversationOf('claude_b').streaming).toBe(true)
+
+    act(() => heldB.push(frameLine({ type: 'turn.completed' })))
+    act(() => heldB.close())
+    await waitFor(() => expect(conversationOf('claude_b').streaming).toBe(false))
   })
 
-  it('ignores a re-entrant send() while a turn is streaming', async () => {
+  it('ignores a re-entrant send() on the SAME tab while it streams', async () => {
     const held = openStream()
     startChatMock.mockResolvedValue({ body: held.stream } as Response)
+    store().openSessionTab('claude_1')
     const { result } = setup()
 
-    act(() => result.current.send('one'))
-    await waitFor(() => expect(result.current.isStreaming).toBe(true))
-    act(() => result.current.send('two'))
+    act(() => result.current.send('claude_1', 'one'))
+    await waitFor(() => expect(conversationOf('claude_1').streaming).toBe(true))
+    act(() => result.current.send('claude_1', 'two'))
     expect(startChatMock).toHaveBeenCalledTimes(1)
     // Only the first user message was appended.
     expect(
-      useAssistantStore.getState().parts.filter((p) => p.kind === 'text'),
+      conversationOf('claude_1').parts.filter((p) => p.kind === 'text'),
     ).toHaveLength(1)
 
     held.close()
-    await waitFor(() => expect(useAssistantStore.getState().streaming).toBe(false))
+    await waitFor(() => expect(conversationOf('claude_1').streaming).toBe(false))
+  })
+
+  it('the double-send guard follows a rekeyed tab', async () => {
+    const held = openStream()
+    startChatMock.mockResolvedValue({ body: held.stream } as Response)
+    const draftKey = store().openTab()
+    const { result } = setup()
+
+    act(() => result.current.send(draftKey, 'one'))
+    act(() =>
+      held.push(
+        frameLine({ type: 'session', session_id: 'claude_1', created: true }),
+      ),
+    )
+    await waitFor(() => expect(store().tabOrder).toEqual(['claude_1']))
+
+    // A send on the tab's NEW key is still guarded by the live stream.
+    act(() => result.current.send('claude_1', 'two'))
+    expect(startChatMock).toHaveBeenCalledTimes(1)
+
+    held.close()
+    await waitFor(() => expect(conversationOf('claude_1').streaming).toBe(false))
   })
 })

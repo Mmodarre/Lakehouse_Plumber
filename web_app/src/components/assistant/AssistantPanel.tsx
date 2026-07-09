@@ -13,10 +13,14 @@ import { ChatComposer } from './ChatComposer'
 import { ChatThread } from './ChatThread'
 import { DaemonGate } from './DaemonGate'
 import { FilesChangedChip } from './FilesChangedChip'
+import { SessionHistory } from './SessionHistory'
+import { SessionTabs } from './SessionTabs'
 import { SetupCard } from './SetupCard'
+import { UsageFooter } from './UsageFooter'
 import {
   isRuntimeReady,
   useAssistantSession,
+  useAssistantSessions,
   useAssistantStatus,
   useExecutorConfig,
   useInstallSkill,
@@ -24,7 +28,11 @@ import {
   useStartDaemon,
 } from '../../hooks/useAssistant'
 import { useAssistantStream } from '../../hooks/useAssistantStream'
-import { useAssistantStore } from '../../store/assistantStore'
+import {
+  isDraftKey,
+  useActiveConversation,
+  useAssistantStore,
+} from '../../store/assistantStore'
 
 // ── AssistantPanel — right-dock chat panel (lazy-loaded) ────────
 //
@@ -112,16 +120,15 @@ function ClaudeGate({ onRetry }: { onRetry: () => void }) {
 
 export default function AssistantPanel() {
   const setPanelOpen = useAssistantStore((s) => s.setPanelOpen)
-  const parts = useAssistantStore((s) => s.parts)
-  const streaming = useAssistantStore((s) => s.streaming)
-  const statusState = useAssistantStore((s) => s.statusState)
-  const failure = useAssistantStore((s) => s.failure)
-  const interrupted = useAssistantStore((s) => s.interrupted)
+  const activeTabKey = useAssistantStore((s) => s.activeTabKey)
+  const { parts, streaming, statusState, failure, interrupted, usage } =
+    useActiveConversation()
 
   // The panel is mounted only while open, so the queries are simply
   // enabled; the status query polls at 2s until the runtime is ready.
   const status = useAssistantStatus({ enabled: true })
   const provider = status.data?.provider ?? null
+  const isClaude = provider === 'claude_sdk'
   const ready = isRuntimeReady(status.data)
   const chatReady =
     ready &&
@@ -142,19 +149,46 @@ export default function AssistantPanel() {
   // the active session stale server-side, so the next message reprovisions.
   const [showSetup, setShowSetup] = useState(false)
 
-  // Rehydrate an existing session's thread after a reload — only into an
-  // empty, idle thread (a live conversation is never clobbered).
+  // Claude tabs boot: every active claude session becomes a tab (MRU
+  // first); an empty strip gets a draft tab. Refetches (post-turn) merge in
+  // fresh titles without disturbing open tabs.
+  const sessionList = useAssistantSessions({ enabled: chatReady && isClaude })
+  useEffect(() => {
+    if (!isClaude || sessionList.data === undefined) return
+    useAssistantStore
+      .getState()
+      .syncTabsFromSessions(
+        sessionList.data.sessions.filter(
+          (s) => s.provider === 'claude_sdk' && s.status === 'active',
+        ),
+      )
+  }, [isClaude, sessionList.data])
+
+  // Omnigent single-tab boot: one tab for the active session (or a draft).
+  useEffect(() => {
+    if (!chatReady || isClaude || status.data === undefined) return
+    const store = useAssistantStore.getState()
+    if (store.tabOrder.length > 0) return
+    const active = status.data.active_session
+    if (active != null) store.openSessionTab(active.session_id, active.title)
+    else store.openTab()
+  }, [chatReady, isClaude, status.data])
+
+  // Lazy per-tab hydration on activation — only into an empty, idle
+  // conversation (the store guards; a live conversation is never clobbered).
+  const isRealTab = activeTabKey !== null && !isDraftKey(activeTabKey)
   const session = useAssistantSession({
-    enabled: chatReady && status.data?.active_session != null,
+    enabled: chatReady && isRealTab,
+    sessionId: isRealTab ? activeTabKey : null,
   })
   const snapshot = session.data
   useEffect(() => {
-    if (snapshot === undefined) return
-    const store = useAssistantStore.getState()
-    if (store.parts.length === 0 && !store.streaming) {
-      store.hydrateFromSnapshot(snapshot)
-    }
-  }, [snapshot])
+    if (snapshot === undefined || activeTabKey === null) return
+    // The snapshot must belong to the CURRENT tab (tab switches can race
+    // the query cache).
+    if (snapshot.session_id !== activeTabKey) return
+    useAssistantStore.getState().hydrateFromSnapshot(activeTabKey, snapshot)
+  }, [snapshot, activeTabKey])
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -175,7 +209,8 @@ export default function AssistantPanel() {
               <Settings2 aria-hidden="true" />
             </Button>
           )}
-          {chatReady && (
+          {chatReady && isClaude && <SessionHistory />}
+          {chatReady && !isClaude && (
             <Button
               variant="ghost"
               size="icon-sm"
@@ -246,6 +281,7 @@ export default function AssistantPanel() {
         </>
       ) : (
         <>
+          {isClaude && <SessionTabs />}
           <ChatThread
             parts={parts}
             streaming={streaming}
@@ -254,7 +290,17 @@ export default function AssistantPanel() {
             interrupted={interrupted}
             profile={config.data?.profile ?? null}
           />
-          <ChatComposer streaming={streaming} onSend={stream.send} />
+          <UsageFooter
+            usage={usage}
+            mode={config.data?.mode ?? null}
+            onSetPricing={() => setShowSetup(true)}
+          />
+          <ChatComposer
+            streaming={streaming}
+            onSend={(message) => {
+              if (activeTabKey !== null) stream.send(activeTabKey, message)
+            }}
+          />
         </>
       )}
     </div>

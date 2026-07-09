@@ -10,6 +10,8 @@ import type {
   DatabricksProfilesResponse,
   ExecutorConfig,
   ExecutorConfigUpdate,
+  PermissionsConfig,
+  PricingConfig,
   SessionListResponse,
   SessionSnapshot,
   SkillInstallResponse,
@@ -50,6 +52,36 @@ export function putExecutorConfig(
   })
 }
 
+/** Stored model pricing; `{models: {}}` when never set (backend never 404s). */
+export function fetchPricingConfig(): Promise<PricingConfig> {
+  return fetchApi('/assistant/pricing')
+}
+
+/** Store model pricing. Unlike `PUT /assistant/config` this never marks the
+ * active session stale — pricing only relabels costs. */
+export function putPricingConfig(body: PricingConfig): Promise<PricingConfig> {
+  return fetchApi('/assistant/pricing', {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
+/** Stored always-allow rules; `{always_allow: []}` when never set. */
+export function fetchPermissionsConfig(): Promise<PermissionsConfig> {
+  return fetchApi('/assistant/permissions')
+}
+
+/** Store the always-allow rules. Like pricing, this never marks the active
+ * session stale — rules only widen the silent-allow set. */
+export function putPermissionsConfig(
+  body: PermissionsConfig,
+): Promise<PermissionsConfig> {
+  return fetchApi('/assistant/permissions', {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
 export function fetchDatabricksProfiles(): Promise<DatabricksProfilesResponse> {
   return fetchApi('/assistant/databricks-profiles')
 }
@@ -71,12 +103,27 @@ export function resolveAssistantApproval(
   })
 }
 
-export function interruptAssistant(): Promise<AssistantSuccessResponse> {
-  return fetchApi('/assistant/interrupt', { method: 'POST' })
+/** Interrupt a session's running turn; no id falls back to the MRU session. */
+export function interruptAssistant(
+  sessionId?: string,
+): Promise<AssistantSuccessResponse> {
+  return fetchApi('/assistant/interrupt', {
+    method: 'POST',
+    body: JSON.stringify(sessionId !== undefined ? { session_id: sessionId } : {}),
+  })
 }
 
-export function fetchAssistantSession(): Promise<SessionSnapshot> {
-  return fetchApi('/assistant/session')
+/**
+ * Snapshot of one session. An explicit `sessionId` is served whatever its
+ * status (history reopens need archived transcripts); without it the
+ * backend falls back to the MRU active session.
+ */
+export function fetchAssistantSession(
+  sessionId?: string,
+): Promise<SessionSnapshot> {
+  const query =
+    sessionId !== undefined ? `?session_id=${encodeURIComponent(sessionId)}` : ''
+  return fetchApi(`/assistant/session${query}`)
 }
 
 export function fetchAssistantSessions(): Promise<SessionListResponse> {
@@ -85,6 +132,16 @@ export function fetchAssistantSessions(): Promise<SessionListResponse> {
 
 export function newAssistantSession(): Promise<AssistantSuccessResponse> {
   return fetchApi('/assistant/session/new', { method: 'POST' })
+}
+
+/** Archive ONE session (its tab was closed). */
+export function archiveAssistantSession(
+  sessionId: string,
+): Promise<AssistantSuccessResponse> {
+  return fetchApi('/assistant/session/archive', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId }),
+  })
 }
 
 /**

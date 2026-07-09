@@ -1,81 +1,74 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { ApiError } from '../api/client'
-import type { ErrorFrame } from '../types/api'
 import type {
   ApprovalAction,
-  ApprovalParams,
   AssistantFrame,
-  AssistantItem,
   PermissionMode,
-  SessionFailedHint,
   SessionSnapshot,
-  SnapshotItemEnvelope,
 } from '../types/assistant'
+import {
+  applyFrameToConversation,
+  beginTurnInConversation,
+  conversationFromSnapshot,
+  emptyConversation,
+  failTransportInConversation,
+  finishStreamInConversation,
+  resolveApprovalInConversation,
+} from './assistantConversation'
+import type { ConversationState } from './assistantConversation'
 
-// ── assistantStore — single source of truth for the chat panel ──
+export type {
+  AssistantFailure,
+  ConversationState,
+  MessagePart,
+  PendingApproval,
+  SessionMeta,
+} from './assistantConversation'
+export { normalizeSnapshotItem } from './assistantConversation'
+
+// ── assistantStore — multi-tab container for the chat panel ──
 //
-// The transport hook (`useAssistantStream`) only decodes frames; this
-// store owns their *meaning*: the ordered message parts, the streaming
-// flag, the pending approval, session identity, and every failure state.
-// All frame→state transitions live in `applyFrame` so the thread, the
-// composer, and the failure cards read from exactly one reducer.
+// The frames' *meaning* lives in the pure `assistantConversation` reducer;
+// this store holds MANY `ConversationState`s side by side, keyed by tab:
+// a real session id (`claude_…` / `conv_…`) once known, or a `draft:<n>`
+// placeholder for a tab whose first message has not been sent yet (lazy
+// provisioning — no DB session exists until the backend's `session` frame
+// binds the tab via `rekeyTab`). Every conversation action takes the tab
+// key and delegates to the pure functions on that entry.
 //
 // Persisted fields: `panelOpen`, `panelWidth`, `permissionMode` (user
-// preferences). A reloaded page starts with an empty thread and rehydrates
-// from `GET /api/assistant/session`.
+// preferences). Tabs and conversations are transient — a reload rebuilds
+// tabs from `GET /api/assistant/sessions` and hydrates each conversation
+// lazily on first activation from `GET /api/assistant/session?session_id=`.
 
-/** One ordered slice of the conversation. Deltas coalesce into the LAST
- * part when it matches (assistant text into an open text part, reasoning
- * into an open reasoning part); any other part kind arriving in between
- * starts a new part, preserving interleaving order. */
-export type MessagePart =
-  | { id: number; kind: 'text'; role: 'user' | 'assistant'; text: string }
-  | { id: number; kind: 'reasoning'; text: string }
-  | { id: number; kind: 'item'; item: AssistantItem }
-  | {
-      id: number
-      kind: 'approval'
-      elicitationId: string
-      params: ApprovalParams
-      resolved: ApprovalAction | null
-    }
-  | { id: number; kind: 'divider'; label: string }
-
-/** Every in-panel failure state (never toast-only). */
-export type AssistantFailure =
-  | { kind: 'session_failed'; detail: string; hint: SessionFailedHint }
-  | { kind: 'turn_failed'; reason: string }
-  /** Terminal `error` frame (e.g. `LHP-GEN-902` daemon connection lost). */
-  | { kind: 'stream_error'; frame: ErrorFrame }
-  /** Chat-gate 409 (`LHP-WEB-001/002/003`) surfaced on stream open. */
-  | { kind: 'gate'; code: string; message: string }
-  | { kind: 'transport'; message: string }
-
-export interface PendingApproval {
-  elicitationId: string
-  params: ApprovalParams
+/** Tab keys for sessions that do not exist server-side yet. The key is also
+ * what the first chat request sends as `session_id`: the backend mints a
+ * fresh session for any unknown id. */
+export function isDraftKey(tabKey: string): boolean {
+  return tabKey.startsWith('draft:')
 }
 
-export interface SessionMeta {
-  sessionId: string
+/** Inline divider label for a reopened session whose SDK context is gone. */
+export const RESUME_LOST_HINT =
+  "Previous context can't be restored — the next message starts fresh but keeps this transcript."
+
+/** What `syncTabsFromSessions` needs from a `GET /sessions` row. */
+export interface TabSessionInfo {
+  session_id: string
+  title?: string | null
 }
 
 interface AssistantState {
-  /** Ordered conversation parts (user + assistant, all kinds). */
-  parts: MessagePart[]
-  /** True from send until the turn's stream closes or fails. */
-  streaming: boolean
-  /** Latest `status` frame state ('preparing' | 'running'), null when idle. */
-  statusState: string | null
-  /** The unresolved elicitation, if the turn is blocked on one. */
-  pendingApproval: PendingApproval | null
-  /** Identity of the provisioned omnigent session, once known. */
-  sessionMeta: SessionMeta | null
-  /** Set on any failure frame / transport error; cleared on the next send. */
-  failure: AssistantFailure | null
-  /** True once an `interrupted` frame arrived for the current turn. */
-  interrupted: boolean
+  /** Per-tab conversations, keyed by session id or `draft:<n>`. */
+  conversations: Record<string, ConversationState>
+  /** Tab strip order (keys into `conversations`). */
+  tabOrder: string[]
+  /** The tab whose conversation the panel renders. */
+  activeTabKey: string | null
+  /** Server-known titles (null = untitled); drafts have no entry. */
+  tabTitles: Record<string, string | null>
+  /** Monotonic counter behind `draft:<n>` keys. */
+  nextDraftId: number
   /** Panel visibility (persisted). */
   panelOpen: boolean
   /** Panel dock width in px (persisted; clamped by the resize handle). */
@@ -83,114 +76,57 @@ interface AssistantState {
   /** Per-turn approval policy sent with every chat request (persisted). */
   permissionMode: PermissionMode
 
-  // Actions
   setPanelOpen: (open: boolean) => void
   togglePanel: () => void
   setPanelWidth: (width: number) => void
   setPermissionMode: (mode: PermissionMode) => void
-  /** Append the user message and mark the turn streaming. */
-  beginTurn: (text: string) => void
-  /** Fold one decoded NDJSON frame into panel state. */
-  applyFrame: (frame: AssistantFrame) => void
-  /** Record a stream-open/transport failure (no error frame arrived). */
-  failTransport: (error: Error) => void
-  /** Mark the stream closed (clean end, terminal frame, or abort). */
-  finishStream: (info: { aborted: boolean }) => void
+
+  /** Open a fresh draft tab, activate it, and return its key. */
+  openTab: () => string
+  /** Open (or just focus) a tab for an existing session (history reopen). */
+  openSessionTab: (sessionId: string, title?: string | null) => void
+  activateTab: (tabKey: string) => void
+  /** Remove a tab locally. Archiving the server-side session is the
+   * caller's job (draft tabs have nothing to archive). Closing the last
+   * tab opens a fresh draft so the panel always has a composer target. */
+  closeTab: (tabKey: string) => void
+  /** Re-key a tab once the `session` frame reports its real session id
+   * (draft → session id, or a drift-replaced session's old id → new id).
+   * Preserves the tab's position in `tabOrder`. */
+  rekeyTab: (fromKey: string, sessionId: string) => void
+  /** Merge the server's active-session list into the tab strip: missing
+   * sessions become tabs (in the given, MRU-first order), titles refresh,
+   * and an empty strip gets a draft tab. Existing tabs are never removed. */
+  syncTabsFromSessions: (sessions: TabSessionInfo[]) => void
+
+  /** Append the user message to the tab and mark its turn streaming. */
+  beginTurn: (tabKey: string, text: string) => void
+  /** Fold one decoded NDJSON frame into the tab's conversation. */
+  applyFrame: (tabKey: string, frame: AssistantFrame) => void
+  /** Record a stream-open/transport failure on the tab. */
+  failTransport: (tabKey: string, error: Error) => void
+  /** Mark the tab's stream closed (clean end, terminal frame, or abort). */
+  finishStream: (tabKey: string) => void
   /** Mark an approval part resolved after the mutation succeeds. */
-  resolveApprovalLocal: (elicitationId: string, action: ApprovalAction) => void
-  /** Replace the (empty) thread with a session snapshot's items. */
-  hydrateFromSnapshot: (snapshot: SessionSnapshot) => void
-  /** Clear the thread for a fresh session (POST /session/new succeeded). */
-  newConversation: () => void
+  resolveApprovalLocal: (
+    tabKey: string,
+    elicitationId: string,
+    action: ApprovalAction,
+  ) => void
+  /** Replace an EMPTY, idle tab conversation with a session snapshot
+   * (no-op on a tab that already has parts or is streaming). Appends the
+   * resume-lost hint divider when the snapshot is not resumable. */
+  hydrateFromSnapshot: (tabKey: string, snapshot: SessionSnapshot) => void
 }
 
-/** Omit that distributes over a union (plain `Omit` collapses it). */
-type DistributiveOmit<T, K extends PropertyKey> = T extends unknown
-  ? Omit<T, K>
-  : never
-
-let nextPartId = 1
-function part(p: DistributiveOmit<MessagePart, 'id'>): MessagePart {
-  return { id: nextPartId++, ...p } as MessagePart
-}
-
-/**
- * Unwrap one snapshot item envelope (spike S8) into the flat live-stream
- * item shape: `data` is the item body; the envelope's `id`/`type`/`status`
- * win over any same-named keys inside `data`.
- */
-export function normalizeSnapshotItem(raw: SnapshotItemEnvelope): AssistantItem {
-  const data =
-    raw.data !== null && typeof raw.data === 'object' ? raw.data : {}
-  const merged: AssistantItem = { ...data }
-  if (raw.id !== undefined) merged.id = raw.id
-  if (raw.type !== undefined) merged.type = raw.type
-  if (raw.status !== undefined) merged.status = raw.status
-  return merged
-}
-
-/** Tolerant text extraction from a message item's `content` — a plain
- * string, or an array of `{text}` entries (input_text / output_text). */
-function extractItemText(content: unknown): string {
-  if (typeof content === 'string') return content
-  if (!Array.isArray(content)) return ''
-  return content
-    .map((entry) =>
-      typeof entry === 'object' && entry !== null && 'text' in entry
-        ? String((entry as { text: unknown }).text ?? '')
-        : '',
-    )
-    .join('')
-}
-
-/** Map normalized snapshot items onto message parts (the same shapes the
- * live stream produces), so one renderer path serves both. */
-function partsFromSnapshot(items: SnapshotItemEnvelope[]): MessagePart[] {
-  const parts: MessagePart[] = []
-  for (const raw of items) {
-    const item = normalizeSnapshotItem(raw)
-    if (item.type === 'message') {
-      const role = item.role === 'user' ? 'user' : 'assistant'
-      const text = extractItemText(item.content)
-      if (text !== '') parts.push(part({ kind: 'text', role, text }))
-    } else if (item.type === 'reasoning') {
-      const text =
-        extractItemText(item.summary) || extractItemText(item.content)
-      if (text !== '') parts.push(part({ kind: 'reasoning', text }))
-    } else {
-      parts.push(part({ kind: 'item', item }))
-    }
-  }
-  return parts
-}
-
-/** Append a delta to the last part when it matches, else open a new part. */
-function coalesceDelta(
-  parts: MessagePart[],
-  kind: 'text' | 'reasoning',
-  delta: string,
-): MessagePart[] {
-  const last = parts[parts.length - 1]
-  if (kind === 'text') {
-    if (last !== undefined && last.kind === 'text' && last.role === 'assistant') {
-      return [...parts.slice(0, -1), { ...last, text: last.text + delta }]
-    }
-    return [...parts, part({ kind: 'text', role: 'assistant', text: delta })]
-  }
-  if (last !== undefined && last.kind === 'reasoning') {
-    return [...parts.slice(0, -1), { ...last, text: last.text + delta }]
-  }
-  return [...parts, part({ kind: 'reasoning', text: delta })]
-}
-
-const conversationInitial = {
-  parts: [] as MessagePart[],
-  streaming: false,
-  statusState: null as string | null,
-  pendingApproval: null as PendingApproval | null,
-  sessionMeta: null as SessionMeta | null,
-  failure: null as AssistantFailure | null,
-  interrupted: false,
+function withConversation(
+  s: AssistantState,
+  tabKey: string,
+  fn: (conversation: ConversationState) => ConversationState,
+): Partial<AssistantState> {
+  const conversation = s.conversations[tabKey]
+  if (conversation === undefined) return {}
+  return { conversations: { ...s.conversations, [tabKey]: fn(conversation) } }
 }
 
 /** Resize bounds for the docked panel (px). The max stays conservative so
@@ -201,8 +137,12 @@ export const PANEL_DEFAULT_WIDTH = 360
 
 export const useAssistantStore = create<AssistantState>()(
   persist(
-    (set) => ({
-      ...conversationInitial,
+    (set, get) => ({
+      conversations: {},
+      tabOrder: [],
+      activeTabKey: null,
+      tabTitles: {},
+      nextDraftId: 1,
       panelOpen: false,
       panelWidth: PANEL_DEFAULT_WIDTH,
       permissionMode: 'default',
@@ -215,156 +155,179 @@ export const useAssistantStore = create<AssistantState>()(
         }),
       setPermissionMode: (mode) => set({ permissionMode: mode }),
 
-      beginTurn: (text) =>
+      openTab: () => {
+        const key = `draft:${get().nextDraftId}`
         set((s) => ({
-          parts: [...s.parts, part({ kind: 'text', role: 'user', text })],
-          streaming: true,
-          statusState: null,
-          failure: null,
-          interrupted: false,
-          // A pending elicitation belongs to the previous turn; it cannot
-          // be resolved once a new turn starts.
-          pendingApproval: null,
-        })),
+          nextDraftId: s.nextDraftId + 1,
+          conversations: { ...s.conversations, [key]: emptyConversation() },
+          tabOrder: [...s.tabOrder, key],
+          activeTabKey: key,
+        }))
+        return key
+      },
 
-      applyFrame: (frame) =>
+      openSessionTab: (sessionId, title) =>
         set((s) => {
-          switch (frame.type) {
-            case 'text.delta':
-              return { parts: coalesceDelta(s.parts, 'text', frame.delta) }
-
-            case 'reasoning.delta':
-              return { parts: coalesceDelta(s.parts, 'reasoning', frame.delta) }
-
-            case 'item.done':
-              return { parts: [...s.parts, part({ kind: 'item', item: frame.item })] }
-
-            case 'approval.request': {
-              const params = frame.params ?? {}
-              return {
-                pendingApproval: {
-                  elicitationId: frame.elicitation_id,
-                  params,
-                },
-                parts: [
-                  ...s.parts,
-                  part({
-                    kind: 'approval',
-                    elicitationId: frame.elicitation_id,
-                    params,
-                    resolved: null,
-                  }),
-                ],
-              }
-            }
-
-            case 'status':
-              return { statusState: frame.state }
-
-            case 'session': {
-              const meta = { sessionId: frame.session_id }
-              // A `created: true` arriving mid-conversation means the stale
-              // session was silently replaced — surface a subtle divider
-              // before this turn's user message.
-              if (frame.created && s.parts.length > 1) {
-                const parts = [...s.parts]
-                const last = parts[parts.length - 1]
-                const divider = part({
-                  kind: 'divider',
-                  label: 'new session started',
-                })
-                if (last?.kind === 'text' && last.role === 'user') {
-                  parts.splice(parts.length - 1, 0, divider)
-                } else {
-                  parts.push(divider)
-                }
-                return { sessionMeta: meta, parts }
-              }
-              return { sessionMeta: meta }
-            }
-
-            case 'turn.completed':
-              return { streaming: false, statusState: null }
-
-            case 'turn.failed':
-              return {
-                streaming: false,
-                statusState: null,
-                failure: { kind: 'turn_failed', reason: frame.reason },
-              }
-
-            case 'interrupted':
-              return { streaming: false, statusState: null, interrupted: true }
-
-            case 'session.failed':
-              return {
-                streaming: false,
-                statusState: null,
-                failure: {
-                  kind: 'session_failed',
-                  detail: frame.detail,
-                  hint: frame.hint,
-                },
-              }
-
-            case 'error':
-              return {
-                streaming: false,
-                statusState: null,
-                failure: { kind: 'stream_error', frame },
-              }
-
-            case 'heartbeat':
-              return {}
-
-            default:
-              return {}
+          const tabTitles =
+            title !== undefined
+              ? { ...s.tabTitles, [sessionId]: title }
+              : s.tabTitles
+          if (s.tabOrder.includes(sessionId)) {
+            return { activeTabKey: sessionId, tabTitles }
+          }
+          return {
+            conversations: {
+              ...s.conversations,
+              [sessionId]: emptyConversation(),
+            },
+            tabOrder: [...s.tabOrder, sessionId],
+            activeTabKey: sessionId,
+            tabTitles,
           }
         }),
 
-      failTransport: (error) =>
-        set(() => {
-          if (error instanceof ApiError && error.code.startsWith('LHP-WEB-')) {
-            return {
-              streaming: false,
-              statusState: null,
-              failure: { kind: 'gate', code: error.code, message: error.message },
+      activateTab: (tabKey) =>
+        set((s) => (s.tabOrder.includes(tabKey) ? { activeTabKey: tabKey } : {})),
+
+      closeTab: (tabKey) =>
+        set((s) => {
+          const idx = s.tabOrder.indexOf(tabKey)
+          if (idx === -1) return {}
+          const conversations = { ...s.conversations }
+          delete conversations[tabKey]
+          const tabTitles = { ...s.tabTitles }
+          delete tabTitles[tabKey]
+          let tabOrder = s.tabOrder.filter((k) => k !== tabKey)
+          let nextDraftId = s.nextDraftId
+          if (tabOrder.length === 0) {
+            const draftKey = `draft:${nextDraftId}`
+            nextDraftId += 1
+            tabOrder = [draftKey]
+            conversations[draftKey] = emptyConversation()
+          }
+          const activeTabKey =
+            s.activeTabKey === tabKey || s.activeTabKey === null
+              ? tabOrder[Math.min(idx, tabOrder.length - 1)]
+              : s.activeTabKey
+          return { conversations, tabTitles, tabOrder, activeTabKey, nextDraftId }
+        }),
+
+      rekeyTab: (fromKey, sessionId) =>
+        set((s) => {
+          if (fromKey === sessionId) return {}
+          const conversation = s.conversations[fromKey]
+          if (conversation === undefined) return {}
+          const conversations = { ...s.conversations }
+          delete conversations[fromKey]
+          conversations[sessionId] = conversation
+          const tabTitles = { ...s.tabTitles }
+          if (fromKey in tabTitles) {
+            tabTitles[sessionId] = tabTitles[fromKey]
+            delete tabTitles[fromKey]
+          }
+          const fromIdx = s.tabOrder.indexOf(fromKey)
+          // Keep the rekeyed tab's position; drop any pre-existing tab that
+          // already carried the target key (they are now the same session).
+          const tabOrder = s.tabOrder
+            .map((k) => (k === fromKey ? sessionId : k))
+            .filter((k, i) => k !== sessionId || i === fromIdx)
+          return {
+            conversations,
+            tabTitles,
+            tabOrder,
+            activeTabKey: s.activeTabKey === fromKey ? sessionId : s.activeTabKey,
+          }
+        }),
+
+      syncTabsFromSessions: (sessions) =>
+        set((s) => {
+          const tabTitles = { ...s.tabTitles }
+          for (const session of sessions) {
+            tabTitles[session.session_id] = session.title ?? null
+          }
+          const additions = sessions.filter(
+            (session) => !s.tabOrder.includes(session.session_id),
+          )
+          let conversations = s.conversations
+          let tabOrder = s.tabOrder
+          if (additions.length > 0) {
+            conversations = { ...conversations }
+            tabOrder = [...tabOrder]
+            for (const session of additions) {
+              conversations[session.session_id] = emptyConversation()
+              tabOrder.push(session.session_id)
+            }
+          }
+          let nextDraftId = s.nextDraftId
+          if (tabOrder.length === 0) {
+            const draftKey = `draft:${nextDraftId}`
+            nextDraftId += 1
+            tabOrder = [draftKey]
+            conversations = { ...conversations, [draftKey]: emptyConversation() }
+          }
+          const activeTabKey =
+            s.activeTabKey !== null && tabOrder.includes(s.activeTabKey)
+              ? s.activeTabKey
+              : tabOrder[0]
+          return { conversations, tabOrder, tabTitles, activeTabKey, nextDraftId }
+        }),
+
+      beginTurn: (tabKey, text) =>
+        set((s) =>
+          withConversation(s, tabKey, (c) => beginTurnInConversation(c, text)),
+        ),
+
+      applyFrame: (tabKey, frame) =>
+        set((s) =>
+          withConversation(s, tabKey, (c) => applyFrameToConversation(c, frame)),
+        ),
+
+      failTransport: (tabKey, error) =>
+        set((s) =>
+          withConversation(s, tabKey, (c) => failTransportInConversation(c, error)),
+        ),
+
+      finishStream: (tabKey) =>
+        set((s) => withConversation(s, tabKey, finishStreamInConversation)),
+
+      resolveApprovalLocal: (tabKey, elicitationId, action) =>
+        set((s) =>
+          withConversation(s, tabKey, (c) =>
+            resolveApprovalInConversation(c, elicitationId, action),
+          ),
+        ),
+
+      hydrateFromSnapshot: (tabKey, snapshot) =>
+        set((s) => {
+          const conversation = s.conversations[tabKey]
+          if (
+            conversation === undefined ||
+            conversation.parts.length > 0 ||
+            conversation.streaming
+          ) {
+            return {}
+          }
+          let next = conversationFromSnapshot(snapshot)
+          if (snapshot.resumable === false && next.parts.length > 0) {
+            next = {
+              ...next,
+              parts: [
+                ...next.parts,
+                { id: next.nextPartId, kind: 'divider', label: RESUME_LOST_HINT },
+              ],
+              nextPartId: next.nextPartId + 1,
             }
           }
           return {
-            streaming: false,
-            statusState: null,
-            failure: { kind: 'transport', message: error.message },
+            conversations: { ...s.conversations, [tabKey]: next },
+            tabTitles: { ...s.tabTitles, [tabKey]: snapshot.title ?? null },
           }
         }),
-
-      finishStream: () => set({ streaming: false, statusState: null }),
-
-      resolveApprovalLocal: (elicitationId, action) =>
-        set((s) => ({
-          pendingApproval:
-            s.pendingApproval?.elicitationId === elicitationId
-              ? null
-              : s.pendingApproval,
-          parts: s.parts.map((p) =>
-            p.kind === 'approval' && p.elicitationId === elicitationId
-              ? { ...p, resolved: action }
-              : p,
-          ),
-        })),
-
-      hydrateFromSnapshot: (snapshot) =>
-        set({
-          parts: partsFromSnapshot(snapshot.items as SnapshotItemEnvelope[]),
-          sessionMeta: { sessionId: snapshot.session_id },
-        }),
-
-      newConversation: () => set({ ...conversationInitial }),
     }),
     {
       name: 'lhp-assistant',
-      // Conversation state is transient by design — a reload rehydrates
-      // from the session snapshot. Only the panel toggle survives.
+      // Conversations and tabs are transient by design — a reload rebuilds
+      // tabs from GET /sessions. Only the panel preferences survive.
       partialize: (s) => ({
         panelOpen: s.panelOpen,
         panelWidth: s.panelWidth,
@@ -373,3 +336,26 @@ export const useAssistantStore = create<AssistantState>()(
     },
   ),
 )
+
+const EMPTY_CONVERSATION: ConversationState = emptyConversation()
+
+/** The active tab's conversation (a stable empty one before any tab exists),
+ * so thread/composer/footer components stay single-conversation shaped. */
+export function useActiveConversation(): ConversationState {
+  return useAssistantStore((s) =>
+    s.activeTabKey !== null
+      ? (s.conversations[s.activeTabKey] ?? EMPTY_CONVERSATION)
+      : EMPTY_CONVERSATION,
+  )
+}
+
+/** The active tab's REAL session id for mutations (approval/interrupt):
+ * the bound session if known, else the tab key when it already is one.
+ * `undefined` for drafts — the backend then falls back to the MRU session. */
+export function activeSessionId(): string | undefined {
+  const s = useAssistantStore.getState()
+  if (s.activeTabKey === null) return undefined
+  const bound = s.conversations[s.activeTabKey]?.sessionMeta?.sessionId
+  if (bound !== undefined) return bound
+  return isDraftKey(s.activeTabKey) ? undefined : s.activeTabKey
+}

@@ -28,6 +28,8 @@ from lhp.webapp.schemas.assistant import (
     DatabricksProfilesResponse,
     ExecutorConfig,
     ExecutorConfigUpdate,
+    PermissionsConfig,
+    PricingConfig,
     SkillInstallResponse,
 )
 from lhp.webapp.services import assistant_store
@@ -85,6 +87,69 @@ async def put_executor_config(
                 f"{active['session_id']} stale"
             )
     return ExecutorConfig(**stored)
+
+
+@router.get("/pricing", response_model=PricingConfig)
+async def get_pricing(
+    request: Request, project_root: Path = Depends(get_project_root)
+) -> PricingConfig:
+    """Return the stored model pricing; empty (no models) when never set."""
+    assert_project_loaded(request, "the assistant is unavailable")
+    stored = await asyncio.to_thread(
+        assistant_store.get_config, project_root, "pricing"
+    )
+    return PricingConfig(**stored) if stored is not None else PricingConfig()
+
+
+@router.put("/pricing", response_model=PricingConfig)
+async def put_pricing(
+    body: PricingConfig,
+    request: Request,
+    project_root: Path = Depends(get_project_root),
+) -> PricingConfig:
+    """Store the model pricing; echo back exactly what was stored.
+
+    Deliberately NEVER touches session staleness: pricing lives under its
+    own ``assistant_config`` key (``"pricing"``) and only affects cost
+    labeling — the stale-marking in :func:`put_executor_config` is specific
+    to the ``executor`` key, whose changes alter how turns run.
+    """
+    assert_project_loaded(request, "the assistant is unavailable")
+    stored = body.model_dump()
+    await asyncio.to_thread(assistant_store.put_config, project_root, "pricing", stored)
+    return PricingConfig(**stored)
+
+
+@router.get("/permissions", response_model=PermissionsConfig)
+async def get_permissions(
+    request: Request, project_root: Path = Depends(get_project_root)
+) -> PermissionsConfig:
+    """Return the stored always-allow rules; empty (no rules) when never set."""
+    assert_project_loaded(request, "the assistant is unavailable")
+    stored = await asyncio.to_thread(
+        assistant_store.get_config, project_root, "permissions"
+    )
+    return PermissionsConfig(**stored) if stored is not None else PermissionsConfig()
+
+
+@router.put("/permissions", response_model=PermissionsConfig)
+async def put_permissions(
+    body: PermissionsConfig,
+    request: Request,
+    project_root: Path = Depends(get_project_root),
+) -> PermissionsConfig:
+    """Store the always-allow rules; echo back exactly what was stored.
+
+    Same posture as :func:`put_pricing`: its own ``assistant_config`` key
+    (``"permissions"``), and deliberately NEVER touches session staleness —
+    rules only widen the silent-allow set for future tool calls.
+    """
+    assert_project_loaded(request, "the assistant is unavailable")
+    stored = body.model_dump()
+    await asyncio.to_thread(
+        assistant_store.put_config, project_root, "permissions", stored
+    )
+    return PermissionsConfig(**stored)
 
 
 @router.get("/databricks-profiles", response_model=DatabricksProfilesResponse)

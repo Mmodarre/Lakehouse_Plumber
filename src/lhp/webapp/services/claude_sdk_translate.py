@@ -22,7 +22,12 @@ AssistantMessage TextBlock / ThinkingBlock      envelope (``message`` / ``reason
                                                 text is re-emitted as ONE delta frame only
                                                 when no partial deltas were seen (fallback
                                                 for ``include_partial_messages`` gaps)
-AssistantMessage ToolUseBlock                   recorded for the result join; no frame
+AssistantMessage ToolUseBlock                   recorded for the result join +
+                                                ``{"type":"item.started","item":{id,
+                                                type:"tool_call", name, status:
+                                                "running", arguments}}`` — frame only,
+                                                NEVER an envelope: started-only items
+                                                must not survive into session snapshots
 UserMessage ToolResultBlock                     joined with its ToolUseBlock ->
                                                 ``{"type":"item.done","item":{id, type:
                                                 "tool_call", name, status, arguments,
@@ -31,8 +36,16 @@ ResultMessage (first terminal wins)             interrupt requested -> ``{"type"
                                                 "interrupted"}``; ``success`` and not
                                                 ``is_error`` -> ``{"type":"turn.completed"}``;
                                                 else ``{"type":"turn.failed","reason":...}``.
-                                                Also refreshes the SDK session id (resume
-                                                handles may be re-minted per resume).
+                                                When the ResultMessage carries usage data
+                                                the terminal frame gains OPTIONAL keys
+                                                ``usage`` / ``total_cost_usd`` /
+                                                ``model_usage`` (normalized snake_case via
+                                                :mod:`~lhp.webapp.services.assistant_usage`);
+                                                keys are OMITTED entirely when absent, so
+                                                the omnigent provider's bare terminal
+                                                frames stay valid. Also refreshes the SDK
+                                                session id (resume handles may be
+                                                re-minted per resume).
 subagent traffic (``parent_tool_use_id`` set)   swallowed — the parent ``Task`` tool's own
                                                 result renders the aggregate
 RateLimitEvent and ALL unknown messages         swallowed (``logger.debug``)
@@ -61,6 +74,10 @@ from claude_agent_sdk import (
     UserMessage,
 )
 
+from lhp.webapp.services.assistant_usage import (
+    normalize_model_usage,
+    normalize_usage,
+)
 from lhp.webapp.services.sqlite_store import utc_now_iso
 
 logger = logging.getLogger(__name__)
@@ -82,12 +99,15 @@ class TranslationState:
 
     __slots__ = (
         "interrupt_requested",
+        "model_usage",
         "pending_tool_uses",
         "running_emitted",
         "saw_text_delta",
         "saw_thinking_delta",
         "sdk_session_id",
         "terminal",
+        "total_cost_usd",
+        "usage",
     )
 
     def __init__(self) -> None:
@@ -108,6 +128,12 @@ class TranslationState:
         #: so the whole-block fallback must not re-emit the text.
         self.saw_text_delta = False
         self.saw_thinking_delta = False
+        #: Usage data captured from the terminal ``ResultMessage`` (normalized
+        #: canonical shapes); ``None`` until then. The engine persists these
+        #: after the turn.
+        self.usage: Optional[dict[str, int]] = None
+        self.total_cost_usd: Optional[float] = None
+        self.model_usage: Optional[dict[str, dict[str, int]]] = None
 
 
 def _mint_id() -> str:
@@ -223,6 +249,20 @@ def _translate_assistant(
             thinking_parts.append(block.thinking)
         elif isinstance(block, ToolUseBlock):
             state.pending_tool_uses[block.id] = (block.name, block.input)
+            # Frame only, no envelope: a started-only item must never
+            # survive into a session snapshot. item.done re-uses the id.
+            out.frames.append(
+                {
+                    "type": "item.started",
+                    "item": {
+                        "id": block.id,
+                        "type": "tool_call",
+                        "name": block.name,
+                        "status": "running",
+                        "arguments": block.input,
+                    },
+                }
+            )
 
     thinking = "".join(thinking_parts)
     if thinking:
@@ -274,6 +314,26 @@ def _translate_user(
         out.items.append(envelope(item["id"], "tool_call", item["status"], item))
 
 
+def _usage_extra(message: ResultMessage, state: TranslationState) -> dict[str, Any]:
+    """Optional usage keys for a terminal frame; empty when the SDK sent none.
+
+    Also captures the normalized data on ``state`` for the engine's post-turn
+    persistence. Keys are OMITTED (not nulled) when absent so the omnigent
+    provider's bare terminal frames remain the same vocabulary.
+    """
+    extra: dict[str, Any] = {}
+    if message.usage:
+        state.usage = normalize_usage(message.usage)
+        extra["usage"] = state.usage
+    if message.total_cost_usd is not None:
+        state.total_cost_usd = message.total_cost_usd
+        extra["total_cost_usd"] = message.total_cost_usd
+    if message.model_usage:
+        state.model_usage = normalize_model_usage(message.model_usage)
+        extra["model_usage"] = state.model_usage
+    return extra
+
+
 def _translate_result(
     out: Translated, message: ResultMessage, state: TranslationState
 ) -> None:
@@ -285,15 +345,18 @@ def _translate_result(
             f"{message.subtype!r}"
         )
         return
+    extra = _usage_extra(message, state)
     if state.interrupt_requested:
         state.terminal = "interrupted"
-        out.frames.append({"type": "interrupted"})
+        out.frames.append({"type": "interrupted", **extra})
     elif message.subtype == "success" and not message.is_error:
         state.terminal = "completed"
-        out.frames.append({"type": "turn.completed"})
+        out.frames.append({"type": "turn.completed", **extra})
     else:
         state.terminal = "failed"
-        out.frames.append({"type": "turn.failed", "reason": _failure_reason(message)})
+        out.frames.append(
+            {"type": "turn.failed", "reason": _failure_reason(message), **extra}
+        )
 
 
 def translate(message: Any, state: TranslationState) -> Translated:

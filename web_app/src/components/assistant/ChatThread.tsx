@@ -6,6 +6,8 @@ import { ChatMessage } from './ChatMessage'
 import { ReasoningDisclosure } from './ReasoningDisclosure'
 import { SessionFailedCard } from './SessionFailedCard'
 import { ToolCallCard } from './ToolCallCard'
+import { ToolCallGroup } from './ToolCallGroup'
+import { groupParts } from './toolGrouping'
 import { useInstallSkill } from '../../hooks/useAssistant'
 import type {
   AssistantFailure,
@@ -143,9 +145,13 @@ export function ChatThread({
         </div>
       )}
       <div className="flex flex-col gap-2">
-        {parts.map((part) => (
-          <Part key={part.id} part={part} />
-        ))}
+        {groupParts(parts, streaming).map((entry) =>
+          entry.kind === 'group' ? (
+            <ToolCallGroup key={`group-${entry.id}`} parts={entry.parts} />
+          ) : (
+            <Part key={entry.part.id} part={entry.part} />
+          ),
+        )}
         {streaming && (
           <div
             role="status"

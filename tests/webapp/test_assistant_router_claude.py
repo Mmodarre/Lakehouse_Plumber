@@ -10,6 +10,7 @@ router seam — no SDK subprocess.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Any, AsyncIterator
@@ -20,6 +21,7 @@ from fastapi.testclient import TestClient
 
 from lhp.webapp.routers import assistant as assistant_router
 from lhp.webapp.services import assistant_store, omnigent_lifecycle
+from lhp.webapp.services.claude_sdk_bridge import get_claude_turns
 from lhp.webapp.services.omnigent_client import OmnigentClient
 
 from ._omnigent_stub import BASE_URL
@@ -231,6 +233,30 @@ def test_chat_passes_permission_mode_to_claude_engine(
     assert collected["kwargs"]["permission_mode"] == "acceptEdits"
 
 
+def test_chat_passes_session_id_to_claude_engine(
+    mutable_client: TestClient,
+    mutable_project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _which_missing(monkeypatch)
+    collected: dict[str, Any] = {}
+    monkeypatch.setattr(assistant_router, "claude_chat_turn", _fake_turn(collected))
+    _put_config(mutable_client, _CLAUDE_CFG)
+    _write_marker(mutable_project)
+
+    response = mutable_client.post(
+        _CHAT_URL, json={"message": "hello", "session_id": "claude_tab_2"}
+    )
+
+    assert response.status_code == 200
+    assert collected["kwargs"]["session_id"] == "claude_tab_2"
+
+    # No session_id in the body -> None reaches the engine (MRU fallback).
+    response = mutable_client.post(_CHAT_URL, json={"message": "hello"})
+    assert response.status_code == 200
+    assert collected["kwargs"]["session_id"] is None
+
+
 def test_chat_rejects_unknown_permission_mode(
     mutable_client: TestClient,
     mutable_project: Path,
@@ -319,6 +345,137 @@ def test_approval_claude_unknown_elicitation_404(
     assert response.status_code == 404
 
 
+def _mint_approval(
+    client: TestClient, session_id: str, tool_name: str, tool_input: dict[str, Any]
+) -> tuple[str, Any]:
+    """Park one approval on the app's registry, as the turn engine would.
+
+    The Future is minted under a throwaway loop; nothing awaits it here, so
+    resolving it from the endpoint's thread just records the result.
+    """
+    registry = get_claude_turns(client.app)
+    registry.begin_turn(session_id)
+
+    async def mint() -> tuple[str, Any]:
+        return registry.create_approval(session_id, tool_name, tool_input)
+
+    return asyncio.run(mint())
+
+
+def test_approval_always_allow_persists_server_derived_rule_then_resolves(
+    mutable_client: TestClient, mutable_project: Path
+) -> None:
+    assistant_store.insert_claude_session(mutable_project, "claude_1", "hash")
+    elicitation_id, future = _mint_approval(
+        mutable_client, "claude_1", "Bash", {"command": "npm test -- --run"}
+    )
+
+    response = mutable_client.post(
+        "/api/assistant/approval",
+        json={
+            "elicitation_id": elicitation_id,
+            "action": "accept",
+            "always_allow": True,
+            # Anything the client sends beyond the flag is ignored: the rule
+            # is re-derived from the registry-RECORDED tool call.
+            "rule": {"tool": "Bash", "prefix": "npm"},
+            "tool_name": "WebFetch",
+        },
+    )
+
+    assert response.status_code == 200
+    assert future.result() == "accept"
+    stored = assistant_store.get_config(mutable_project, "permissions")
+    assert stored == {"always_allow": [{"tool": "Bash", "prefix": "npm test"}]}
+
+
+def test_approval_accept_without_flag_persists_nothing(
+    mutable_client: TestClient, mutable_project: Path
+) -> None:
+    assistant_store.insert_claude_session(mutable_project, "claude_1", "hash")
+    elicitation_id, future = _mint_approval(
+        mutable_client, "claude_1", "Bash", {"command": "npm test"}
+    )
+
+    response = mutable_client.post(
+        "/api/assistant/approval",
+        json={"elicitation_id": elicitation_id, "action": "accept"},
+    )
+
+    assert response.status_code == 200
+    assert future.result() == "accept"
+    assert assistant_store.get_config(mutable_project, "permissions") is None
+
+
+def test_approval_decline_with_flag_persists_nothing(
+    mutable_client: TestClient, mutable_project: Path
+) -> None:
+    assistant_store.insert_claude_session(mutable_project, "claude_1", "hash")
+    elicitation_id, future = _mint_approval(
+        mutable_client, "claude_1", "Bash", {"command": "npm test"}
+    )
+
+    response = mutable_client.post(
+        "/api/assistant/approval",
+        json={
+            "elicitation_id": elicitation_id,
+            "action": "decline",
+            "always_allow": True,
+        },
+    )
+
+    assert response.status_code == 200
+    assert future.result() == "decline"
+    assert assistant_store.get_config(mutable_project, "permissions") is None
+
+
+def test_approval_always_allow_short_bash_command_accepts_without_persisting(
+    mutable_client: TestClient, mutable_project: Path
+) -> None:
+    # A one-token command derives no rule (never a bare allow-all-Bash rule);
+    # the accept still resolves normally.
+    assistant_store.insert_claude_session(mutable_project, "claude_1", "hash")
+    elicitation_id, future = _mint_approval(
+        mutable_client, "claude_1", "Bash", {"command": "make"}
+    )
+
+    response = mutable_client.post(
+        "/api/assistant/approval",
+        json={
+            "elicitation_id": elicitation_id,
+            "action": "accept",
+            "always_allow": True,
+        },
+    )
+
+    assert response.status_code == 200
+    assert future.result() == "accept"
+    assert assistant_store.get_config(mutable_project, "permissions") is None
+
+
+def test_approval_always_allow_non_bash_persists_whole_tool_rule(
+    mutable_client: TestClient, mutable_project: Path
+) -> None:
+    assistant_store.insert_claude_session(mutable_project, "claude_1", "hash")
+    elicitation_id, future = _mint_approval(
+        mutable_client, "claude_1", "WebFetch", {"url": "https://example.com"}
+    )
+
+    response = mutable_client.post(
+        "/api/assistant/approval",
+        json={
+            "elicitation_id": elicitation_id,
+            "action": "accept",
+            "always_allow": True,
+        },
+    )
+
+    assert response.status_code == 200
+    assert future.result() == "accept"
+    stored = assistant_store.get_config(mutable_project, "permissions")
+    assert stored == {"always_allow": [{"tool": "WebFetch", "prefix": None}]}
+
+
 def test_interrupt_claude_without_live_turn_is_noop_success(
     mutable_client: TestClient, mutable_project: Path
 ) -> None:
@@ -358,3 +515,61 @@ def test_session_snapshot_claude_serves_store_items(
     assert snapshot["title"] == "My chat"
     assert snapshot["status"] == "active"
     assert snapshot["items"] == [envelope]
+    assert snapshot["usage_totals"] is None  # no turn recorded usage yet
+
+
+# ---------------------------------------------------------------------------
+# usage totals on /session and /sessions
+# ---------------------------------------------------------------------------
+
+_USAGE_ROW = {
+    "input_tokens": 100,
+    "output_tokens": 50,
+    "cache_read_input_tokens": 1000,
+    "cache_creation_input_tokens": 200,
+}
+
+
+def test_session_snapshot_carries_usage_totals(
+    mutable_client: TestClient, mutable_project: Path
+) -> None:
+    assistant_store.insert_claude_session(mutable_project, "claude_1", "hash")
+    assistant_store.insert_turn_usage(
+        mutable_project, "claude_1", _USAGE_ROW, 0.42, 0.10, None
+    )
+    assistant_store.insert_turn_usage(
+        mutable_project, "claude_1", _USAGE_ROW, 0.08, None, None
+    )
+
+    response = mutable_client.get("/api/assistant/session")
+
+    assert response.status_code == 200
+    totals = response.json()["usage_totals"]
+    assert totals == {
+        "input_tokens": 200,
+        "output_tokens": 100,
+        "cache_read_input_tokens": 2000,
+        "cache_creation_input_tokens": 400,
+        "sdk_cost_usd": pytest.approx(0.5),
+        "configured_cost_usd": pytest.approx(0.10),
+    }
+
+
+def test_sessions_list_carries_provider_and_usage_totals(
+    mutable_client: TestClient, mutable_project: Path
+) -> None:
+    assistant_store.insert_session(mutable_project, "conv_1", "ag", "h", "hash")
+    assistant_store.insert_claude_session(mutable_project, "claude_1", "hash")
+    assistant_store.insert_turn_usage(
+        mutable_project, "claude_1", _USAGE_ROW, 0.42, None, None
+    )
+
+    response = mutable_client.get("/api/assistant/sessions")
+
+    assert response.status_code == 200
+    by_id = {s["session_id"]: s for s in response.json()["sessions"]}
+    assert by_id["claude_1"]["provider"] == "claude_sdk"
+    assert by_id["claude_1"]["usage_totals"]["input_tokens"] == 100
+    assert by_id["claude_1"]["usage_totals"]["sdk_cost_usd"] == pytest.approx(0.42)
+    assert by_id["conv_1"]["provider"] == "omnigent"
+    assert by_id["conv_1"]["usage_totals"] is None

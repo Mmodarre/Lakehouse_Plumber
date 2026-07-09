@@ -69,6 +69,7 @@ _ROUTER_MODULES: tuple[str, ...] = (
     "events",
     "assistant",
     "assistant_config",
+    "assistant_sessions",
 )
 
 

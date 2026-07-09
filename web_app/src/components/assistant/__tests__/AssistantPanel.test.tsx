@@ -19,14 +19,19 @@ vi.mock('../../../api/assistant', () => ({
   fetchAssistantStatus: vi.fn(),
   fetchExecutorConfig: vi.fn().mockResolvedValue(null),
   putExecutorConfig: vi.fn(),
+  fetchPricingConfig: vi.fn().mockResolvedValue({ models: {} }),
+  putPricingConfig: vi.fn(),
+  fetchPermissionsConfig: vi.fn().mockResolvedValue({ always_allow: [] }),
+  putPermissionsConfig: vi.fn(),
   fetchDatabricksProfiles: vi.fn().mockResolvedValue({ profiles: [] }),
   installAssistantSkill: vi.fn(),
   startAssistantDaemon: vi.fn(),
   resolveAssistantApproval: vi.fn(),
   interruptAssistant: vi.fn(),
   fetchAssistantSession: vi.fn(),
-  fetchAssistantSessions: vi.fn(),
+  fetchAssistantSessions: vi.fn().mockResolvedValue({ sessions: [], total: 0 }),
   newAssistantSession: vi.fn(),
+  archiveAssistantSession: vi.fn(),
   startAssistantChat: vi.fn(),
 }))
 
@@ -66,16 +71,28 @@ function renderPanel() {
 
 function resetStore() {
   useAssistantStore.setState({
-    parts: [],
-    streaming: false,
-    statusState: null,
-    pendingApproval: null,
-    sessionMeta: null,
-    failure: null,
-    interrupted: false,
+    conversations: {},
+    tabOrder: [],
+    activeTabKey: null,
+    tabTitles: {},
+    nextDraftId: 1,
     panelOpen: true,
     permissionMode: 'default',
   })
+}
+
+/** Fold a frame into the ACTIVE tab (the panel boot opens one). */
+function applyToActive(frame: Parameters<
+  ReturnType<typeof useAssistantStore.getState>['applyFrame']
+>[1]) {
+  const s = useAssistantStore.getState()
+  if (s.activeTabKey === null) throw new Error('no active tab to apply to')
+  s.applyFrame(s.activeTabKey, frame)
+}
+
+function activeConversation() {
+  const s = useAssistantStore.getState()
+  return s.activeTabKey !== null ? s.conversations[s.activeTabKey] : undefined
 }
 
 beforeEach(() => {
@@ -315,7 +332,7 @@ describe('AssistantPanel switchboard', () => {
       renderPanel()
       await screen.findByLabelText('Chat message')
 
-      useAssistantStore.getState().applyFrame({
+      applyToActive({
         type: 'approval.request',
         elicitation_id: 'e2',
         params: { message: 'Edit this file?' },
@@ -330,10 +347,11 @@ describe('AssistantPanel switchboard', () => {
         expect(approvalMock).toHaveBeenCalledExactlyOnceWith({
           elicitation_id: 'e2',
           action,
+          always_allow: false,
         }),
       )
       expect(await screen.findByText(resolvedCopy)).toBeInTheDocument()
-      expect(useAssistantStore.getState().pendingApproval).toBeNull()
+      expect(activeConversation()?.pendingApproval).toBeNull()
     },
   )
 
@@ -347,7 +365,7 @@ describe('AssistantPanel switchboard', () => {
       renderPanel()
       await screen.findByLabelText('Chat message')
 
-      useAssistantStore.getState().applyFrame({
+      applyToActive({
         type: 'session.failed',
         detail: 'runner_error: boom',
         hint,
@@ -363,7 +381,7 @@ describe('AssistantPanel switchboard', () => {
     renderPanel()
     await screen.findByLabelText('Chat message')
 
-    useAssistantStore.getState().applyFrame({
+    applyToActive({
       type: 'session.failed',
       detail: 'disk exploded',
       hint: 'unknown',
@@ -392,7 +410,7 @@ describe('AssistantPanel switchboard', () => {
     renderPanel()
     await screen.findByLabelText('Chat message')
 
-    useAssistantStore.getState().applyFrame({
+    applyToActive({
       type: 'approval.request',
       elicitation_id: 'e1',
       params: { message: 'Run lhp generate?', phase: 'execute' },
@@ -405,10 +423,11 @@ describe('AssistantPanel switchboard', () => {
       expect(approvalMock).toHaveBeenCalledExactlyOnceWith({
         elicitation_id: 'e1',
         action: 'accept',
+        always_allow: false,
       }),
     )
     // onSuccess marks the part resolved and clears the pending approval.
     expect(await screen.findByText(/accepted/i)).toBeInTheDocument()
-    expect(useAssistantStore.getState().pendingApproval).toBeNull()
+    expect(activeConversation()?.pendingApproval).toBeNull()
   })
 })
