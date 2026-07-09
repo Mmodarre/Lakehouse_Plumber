@@ -311,7 +311,7 @@ class SourceParser:
     def _extract_sql_sources(
         self, action: Action, flowgroup_name: str
     ) -> tuple[list[str], list[DependencyWarning]]:
-        """Extract table references from every SQL location via ``_iter_sql_bodies``.
+        """Extract table references from every SQL location via ``iter_sql_bodies``.
 
         Each body parses through the sqlglot-based
         :func:`~lhp.core.dependencies.sql_extraction.extract_tables_from_sql`:
@@ -371,7 +371,7 @@ class SourceParser:
     ) -> tuple[list[str], list[DependencyWarning]]:
         """Extract table references and advisories from every Python location.
 
-        Each body from ``_iter_python_bodies`` parses with its own parameter
+        Each body from ``iter_python_bodies`` parses with its own parameter
         bindings; the full :class:`PythonExtractionResult` is consumed —
         tables become sources, warnings are stamped with this action's
         context (inline bodies get the flowgroup YAML path, file bodies the
