@@ -153,7 +153,7 @@ def enrich_with_dims(df: DataFrame, spark, parameters) -> DataFrame:
 def _copy_fixture(dest: Path, profile: str) -> Path:
     """Deep-copy the e2e fixture and apply the sandbox additions to the COPY."""
     shutil.copytree(_E2E_FIXTURE, dest, ignore=shutil.ignore_patterns("__pycache__"))
-    (dest / ".lhp").mkdir()
+    (dest / ".lhp").mkdir(exist_ok=True)
     (dest / ".lhp" / "profile.yaml").write_text(profile)
     lhp_yaml = dest / "lhp.yaml"
     lhp_yaml.write_text(lhp_yaml.read_text() + _SANDBOX_POLICY)

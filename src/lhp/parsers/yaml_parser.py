@@ -1,21 +1,27 @@
-# JUSTIFIED: YAML parse + cache + schema validation share a single
-# document-tree representation; splitting requires either deep-copy
-# at every boundary or a parser-internal mutability contract.
+# JUSTIFIED: YAML parse + cache (in-memory and persistent-shard seam) +
+# schema validation share a single document-tree representation; splitting
+# requires either deep-copy at every boundary or a parser-internal
+# mutability contract.
 
 import logging
 import threading
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, TypeVar
 
 from lhp.models import ActionType, FlowGroup, Preset, Template
 
 from ..errors import ErrorFactory, LHPError, codes
+from .parse_cache import PersistentParseCache
 from .yaml_loader import load_yaml_documents_all, load_yaml_file
 
 _CacheValueT = TypeVar("_CacheValueT")
 
 
 class YAMLParser:
+    #: Capability marker: True on parsers whose caches can be warmed/seeded
+    #: from a persistent store (the caching wrapper overrides this).
+    can_seed = False
+
     def __init__(self):
         self.logger = logging.getLogger(__name__)
 
@@ -25,6 +31,21 @@ class YAMLParser:
         Present so callers can size any parser uniformly without a
         capability check. The caching subclass overrides this.
         """
+
+    def warm(self, path: Path) -> bool:
+        """No-op: nothing to warm (returns False). Mirrors :meth:`reserve_capacity`."""
+        return False
+
+    def seed(
+        self,
+        path: Path,
+        documents: List[Dict[str, Any]],
+        flowgroups: List[FlowGroup],
+    ) -> None:
+        """No-op: a non-caching parser has no cache to seed."""
+
+    def sweep_parse_cache(self, live_paths: Iterable[Path]) -> None:
+        """No-op: a non-caching parser has no persistent shards to sweep."""
 
     def parse_file(self, file_path: Path) -> Dict[str, Any]:
         self.logger.debug(f"Parsing YAML file: {file_path}")
@@ -286,11 +307,21 @@ class CachingYAMLParser:
     """Thread-safe caching wrapper for YAMLParser.
 
     Uses file path + modification time as cache key to automatically
-    invalidate cache when files change.
+    invalidate cache when files change. With a ``persistent_cache``
+    attached, parse results also round-trip through on-disk shards
+    (:class:`PersistentParseCache`) so a later process can warm its
+    in-memory sub-caches without re-reading unchanged files.
     """
 
+    #: Capability marker mirroring :attr:`YAMLParser.can_seed`.
+    can_seed = True
+
     def __init__(
-        self, base_parser: Optional["YAMLParser"] = None, max_cache_size: int = 500
+        self,
+        base_parser: Optional["YAMLParser"] = None,
+        max_cache_size: int = 500,
+        *,
+        persistent_cache: Optional[PersistentParseCache] = None,
     ) -> None:
         self._parser: YAMLParser = base_parser or YAMLParser()
         self._cache: Dict[Tuple[str, float], List[FlowGroup]] = {}
@@ -298,6 +329,7 @@ class CachingYAMLParser:
         self._max_cache_size: int = max_cache_size
         self._lock: threading.RLock = threading.RLock()
         self._hits: int = 0
+        self._persistent_cache: Optional[PersistentParseCache] = persistent_cache
 
     def reserve_capacity(self, n: int) -> None:
         """Grow-only size hint (``max(current, n)``): both discovery passes call
@@ -351,16 +383,46 @@ class CachingYAMLParser:
         """On a ``_cache`` miss, documents are obtained via ``load_documents_all``
         so the raw read populates ``_documents_cache`` too; the instance pass then
         hits that entry instead of re-reading the file.
+
+        With a persistent store attached, :meth:`warm` first tries to seed
+        both in-memory sub-caches from the on-disk shard, and a successful
+        fresh parse writes the shard back. Files whose parse raises never
+        get a shard — fatal errors re-raise identically on every run.
         """
+        if self._persistent_cache is not None:
+            self.warm(path)
         return self._cached_load(
             path,
             self._cache,
-            lambda: self._parser._flowgroups_from_documents(
-                self.load_documents_all(path, error_context=f"flowgroup file {path}"),
-                path,
-            ),
+            lambda: self._parse_and_persist(path),
             label="Flowgroup",
         )
+
+    def _parse_and_persist(self, path: Path) -> List[FlowGroup]:
+        """Fresh parse (docs via the shared documents sub-cache) + shard write.
+
+        The shard is written only after ``_flowgroups_from_documents``
+        succeeds, so error-raising files never get one.
+        """
+        documents = self.load_documents_all(
+            path, error_context=f"flowgroup file {path}"
+        )
+        flowgroups = self._parser._flowgroups_from_documents(documents, path)
+        if self._persistent_cache is not None:
+            try:
+                resolved_path = path.resolve()
+                stat = resolved_path.stat()
+            except OSError as e:
+                self._parser.logger.debug(f"Could not stat {path} for shard write: {e}")
+            else:
+                self._persistent_cache.save(
+                    resolved_path,
+                    stat.st_mtime_ns,
+                    stat.st_size,
+                    documents,
+                    flowgroups,
+                )
+        return flowgroups
 
     def load_documents_all(
         self, path: Path, error_context: Optional[str] = None
@@ -372,6 +434,97 @@ class CachingYAMLParser:
             lambda: load_yaml_documents_all(path, error_context=error_context),
             label="Documents",
         )
+
+    def _seed_entries(
+        self,
+        mem_key: Tuple[str, float],
+        documents: List[Dict[str, Any]],
+        flowgroups: List[FlowGroup],
+    ) -> None:
+        """Insert into both in-memory sub-caches under the shared eviction cap."""
+        with self._lock:
+            for cache, value in (
+                (self._documents_cache, documents),
+                (self._cache, flowgroups),
+            ):
+                if mem_key not in cache and len(cache) >= self._max_cache_size:
+                    for stale_key in list(cache.keys())[: self._max_cache_size // 10]:
+                        del cache[stale_key]
+                cache[mem_key] = value  # type: ignore[assignment]
+
+    def warm(self, path: Path) -> bool:
+        """Try to satisfy a future parse of ``path`` without reading the file.
+
+        Order: in-memory flowgroups sub-cache, then the persistent store. A
+        full shard seeds both in-memory sub-caches; a doc-only shard
+        (``flowgroups is None``) additionally builds the flowgroups from the
+        cached documents and rewrites the shard as a full payload. Never
+        raises; any failure returns False (fresh parse).
+        """
+        if self._persistent_cache is None:
+            return False
+        try:
+            resolved_path = path.resolve()
+            stat = resolved_path.stat()
+        except OSError as e:
+            self._parser.logger.debug(f"Could not stat {path} for cache warm: {e}")
+            return False
+        mem_key = (str(resolved_path), stat.st_mtime)
+        with self._lock:
+            if mem_key in self._cache:
+                return True
+        payload = self._persistent_cache.load(
+            resolved_path, stat.st_mtime_ns, stat.st_size
+        )
+        if payload is None:
+            return False
+        try:
+            documents = payload["documents"]
+            flowgroups = payload["flowgroups"]
+            if flowgroups is None:
+                flowgroups = self._parser._flowgroups_from_documents(documents, path)
+                self._persistent_cache.save(
+                    resolved_path,
+                    stat.st_mtime_ns,
+                    stat.st_size,
+                    documents,
+                    flowgroups,
+                )
+        except Exception as e:
+            self._parser.logger.debug(
+                f"Could not warm parse cache from shard for {path}: {e}"
+            )
+            return False
+        self._seed_entries(mem_key, documents, flowgroups)
+        return True
+
+    def seed(
+        self,
+        path: Path,
+        documents: List[Dict[str, Any]],
+        flowgroups: List[FlowGroup],
+    ) -> None:
+        """Insert an externally parsed result into both in-memory sub-caches
+        and (when attached) the persistent store. One ``stat``; never raises.
+        """
+        try:
+            resolved_path = path.resolve()
+            stat = resolved_path.stat()
+        except OSError as e:
+            self._parser.logger.debug(f"Could not stat {path} for cache seed: {e}")
+            return
+        self._seed_entries((str(resolved_path), stat.st_mtime), documents, flowgroups)
+        if self._persistent_cache is not None:
+            self._persistent_cache.save(
+                resolved_path, stat.st_mtime_ns, stat.st_size, documents, flowgroups
+            )
+
+    def sweep_parse_cache(self, live_paths: Iterable[Path]) -> None:
+        """Delegate shard garbage collection to the persistent store (no-op
+        when no store is attached)."""
+        if self._persistent_cache is None:
+            return
+        self._persistent_cache.sweep(path.resolve() for path in live_paths)
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._parser, name)

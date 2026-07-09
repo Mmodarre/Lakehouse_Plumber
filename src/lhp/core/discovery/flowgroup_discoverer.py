@@ -30,11 +30,20 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
         project_root: Path,
         config_loader=None,
         yaml_parser: Optional[YAMLParser] = None,
+        max_workers: int = 1,
     ):
-        """Initialize flowgroup discoverer."""
+        """Initialize flowgroup discoverer.
+
+        Args:
+            max_workers: Worker-process budget for the cold-discovery parse
+                pool (see :mod:`._parse_pool`). The default ``1`` keeps
+                discovery fully serial — no pool is ever constructed — which
+                preserves every legacy construction site.
+        """
         self.project_root = project_root
         self.config_loader = config_loader
         self.yaml_parser = yaml_parser or YAMLParser()
+        self._max_workers = max(1, max_workers)
         self.logger = logging.getLogger(__name__)
         self._project_config = None
 
@@ -263,12 +272,22 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
             yaml_files = []
             yaml_files.extend(pipelines_dir.rglob("*.yaml"))
             yaml_files.extend(pipelines_dir.rglob("*.yml"))
+            yaml_files.sort()
 
         # Cache-warming hint: reserve the full working set so the shared
         # CachingYAMLParser does not evict warmed entries before the instance
         # pass reads them. YAMLParser.reserve_capacity is a no-op on the
         # non-caching base, so no capability check is needed.
         self.yaml_parser.reserve_capacity(len(yaml_files))
+
+        # Cold-start fan-out: parse cache MISSES in parallel and seed the
+        # caching parser so the serial loop below becomes a pure cache read.
+        # Failed outcomes are NOT seeded — the loop re-parses those files at
+        # their deterministic positions and raises the ORIGINAL LHPError
+        # in-process, byte-identical to a fully serial run. Warm runs and
+        # max_workers == 1 never construct a pool.
+        if self.yaml_parser.can_seed and self._max_workers > 1:
+            self._parallel_seed_parse_cache(yaml_files)
 
         for yaml_file in yaml_files:
             file_flowgroups = self.yaml_parser.parse_flowgroups_from_file(yaml_file)
@@ -278,7 +297,45 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
                 f"Discovered {len(file_flowgroups)} flowgroup(s) from {yaml_file}"
             )
 
+        # Persistent-cache GC: only after a fully successful pass (a parse
+        # failure raises out above, keeping every shard). No-op on the
+        # non-caching base parser and when no persistent store is attached.
+        self.yaml_parser.sweep_parse_cache(yaml_files)
+
         return flowgroups_with_paths
+
+    def _parallel_seed_parse_cache(self, yaml_files: List[Path]) -> None:
+        """Seed the caching parser from a parallel parse of cold cache misses.
+
+        Successful outcomes are seeded into both in-memory sub-caches (and
+        the persistent shards, when a store is attached); failed outcomes are
+        skipped so the serial loop re-parses and raises in-process.
+        ``warm()`` is idempotent — the loop's own ``warm()`` call inside
+        ``parse_flowgroups_from_file`` short-circuits on entries seeded here.
+        Threshold and sizing constants live in :mod:`._parse_pool` as
+        module-level names (monkeypatchable); resolved at call time via the
+        module attribute so patches take effect.
+        """
+        from . import _parse_pool
+
+        misses = [p for p in yaml_files if not self.yaml_parser.warm(p)]
+        if len(misses) < _parse_pool.MIN_FILES_FOR_PARALLEL_PARSE:
+            return
+        seeded = 0
+        for outcome in _parse_pool.run_parse_pool(misses, self._max_workers):
+            if outcome.failed:
+                self.logger.debug(
+                    f"Parallel parse failed for {outcome.path} "
+                    f"({outcome.failure_summary}); deferring to serial re-parse"
+                )
+                continue
+            self.yaml_parser.seed(
+                outcome.path, list(outcome.documents), list(outcome.flowgroups)
+            )
+            seeded += 1
+        self.logger.debug(
+            f"Parallel parse pool seeded {seeded}/{len(misses)} cache miss(es)"
+        )
 
     def scan_deprecation_warnings(
         self, *, pipeline_filter: Optional[str] = None
@@ -333,6 +390,7 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
         yaml_files: List[Path] = []
         yaml_files.extend(pipelines_dir.rglob("*.yaml"))
         yaml_files.extend(pipelines_dir.rglob("*.yml"))
+        yaml_files.sort()
         return yaml_files
 
     def _build_source_path_index_from_pairs(

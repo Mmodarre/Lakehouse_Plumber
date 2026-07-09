@@ -7,6 +7,7 @@ surface below is the only API callers should depend on; submodule paths
 direct module references.
 """
 
+from .parse_cache import PersistentParseCache
 from .schema_parser import SchemaParser
 from .schema_transform_parser import SchemaTransformParser
 from .yaml_loader import (
@@ -16,6 +17,7 @@ from .yaml_loader import (
 )
 
 __all__ = [
+    "PersistentParseCache",
     "SchemaParser",
     "SchemaTransformParser",
     "load_yaml_documents_all",

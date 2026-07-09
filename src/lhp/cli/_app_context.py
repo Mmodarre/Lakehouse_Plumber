@@ -57,12 +57,14 @@ def build_facade(
     *,
     pipeline_config: Optional[str] = None,
     max_workers: Optional[int] = None,
+    no_cache: bool = False,
 ) -> LakehousePlumberApplicationFacade:
     """Construct the application facade for ``project_root``.
 
     Threads ``pipeline_config`` into the facade's ``pipeline_config_path``
-    parameter and ``max_workers`` into its worker-pool size. All other
-    composition is delegated to the facade's own ``for_project`` factory.
+    parameter, ``max_workers`` into its worker-pool size, and ``no_cache``
+    into its persistent parse-cache switch. All other composition is
+    delegated to the facade's own ``for_project`` factory.
     """
     # Deferred so importing this CLI-wiring module (reached early in startup)
     # does not eagerly pull the facade's codegen/jinja2 transitive stack; the
@@ -73,6 +75,7 @@ def build_facade(
         project_root,
         pipeline_config_path=pipeline_config,
         max_workers=max_workers,
+        no_cache=no_cache,
     )
 
 

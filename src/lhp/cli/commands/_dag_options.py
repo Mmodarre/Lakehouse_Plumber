@@ -60,6 +60,17 @@ def dag_options(func: Callable) -> Callable:
         click.option(
             "--format", "output_format", default="all", callback=parse_formats
         ),
+        click.option(
+            "--no-cache",
+            is_flag=True,
+            help="Disable the persistent parse cache for this run.",
+        ),
+        click.option(
+            "--max-workers",
+            type=click.IntRange(min=1),
+            default=None,
+            help="Max worker processes (default ~80%% of CPUs; 1 = sequential).",
+        ),
     ]
     for decorate in stack:
         func = decorate(func)

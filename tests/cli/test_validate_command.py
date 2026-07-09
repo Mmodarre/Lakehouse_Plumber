@@ -90,6 +90,9 @@ def test_clean_project_exits_zero_and_validates_pipelines(monkeypatch):
     the fixture ships a databricks.yml (otherwise CFG-023 would fold in).
     """
     monkeypatch.chdir(FIXTURE_PROJECT)
+    # Runs in-place in the tracked fixture: the parse cache must not write
+    # .lhp/cache/ shards into it.
+    monkeypatch.setenv("LHP_NO_CACHE", "1")
     runner = CliRunner()
     result = runner.invoke(
         validate_command, ["--env", "dev", "--no-bundle"], catch_exceptions=False

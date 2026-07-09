@@ -370,7 +370,7 @@ class TestLoadYAMLDocumentsAllLHPError:
 
         import yaml
 
-        with patch.object(yaml, "safe_load_all") as mock_yaml_load_all:
+        with patch.object(yaml, "load_all") as mock_yaml_load_all:
             mock_yaml_load_all.side_effect = lhp_error
 
             with patch("builtins.open", mock_open(read_data="test: data")):
@@ -389,3 +389,13 @@ class TestLoadYAMLDocumentsAllLHPError:
             load_yaml_documents_all(bad_file)
 
         assert "YAML parsing error" in str(exc_info.value)
+
+
+class TestSafeLoaderSelection:
+    def test_fast_loader_matches_availability(self):
+        """SAFE_LOADER uses libyaml CSafeLoader when available, else SafeLoader."""
+        import yaml
+
+        from lhp.parsers.yaml_loader import SAFE_LOADER
+
+        assert SAFE_LOADER is getattr(yaml, "CSafeLoader", yaml.SafeLoader)

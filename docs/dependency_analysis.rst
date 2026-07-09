@@ -33,6 +33,11 @@ Use Case             Description
 **CI/CD**            Optimize build and deployment order
 ==================== ================================================================
 
+.. note::
+   Dependency analysis fully resolves flowgroups (templates, presets, and
+   substitutions) but does not run per-flowgroup configuration validation.
+   Run ``lhp validate`` to check flowgroup configurations.
+
 Key Concepts
 ------------
 

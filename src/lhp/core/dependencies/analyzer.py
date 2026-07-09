@@ -230,7 +230,7 @@ class DependencyAnalyzer:
 
         for pipeline in graphs.pipeline_graph.nodes():
             node_data = graphs.pipeline_graph.nodes[pipeline]
-            depends_on = list(graphs.pipeline_graph.predecessors(pipeline))
+            depends_on = sorted(graphs.pipeline_graph.predecessors(pipeline))
 
             pipeline_deps[pipeline] = PipelineDependency(
                 pipeline=pipeline,

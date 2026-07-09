@@ -262,7 +262,7 @@ class DependencyGraphBuilder:
                 flowgroup.flowgroup,
                 pipeline=flowgroup.pipeline,
                 action_count=action_count,
-                external_sources=list(external_sources),
+                external_sources=sorted(external_sources),
             )
 
         flowgroup_deps = set()
@@ -274,7 +274,7 @@ class DependencyGraphBuilder:
             if source_fg != target_fg:
                 flowgroup_deps.add((source_fg, target_fg))
 
-        for source_fg, target_fg in flowgroup_deps:
+        for source_fg, target_fg in sorted(flowgroup_deps):
             graph.add_edge(source_fg, target_fg, dependency_type="flowgroup")
 
         return graph
@@ -305,7 +305,7 @@ class DependencyGraphBuilder:
                 pipeline,
                 flowgroup_count=info["flowgroups"],
                 action_count=info["actions"],
-                external_sources=list(info["external_sources"]),
+                external_sources=sorted(info["external_sources"]),
             )
 
         pipeline_deps = set()
@@ -317,7 +317,7 @@ class DependencyGraphBuilder:
             if source_pipeline != target_pipeline:
                 pipeline_deps.add((source_pipeline, target_pipeline))
 
-        for source_pipeline, target_pipeline in pipeline_deps:
+        for source_pipeline, target_pipeline in sorted(pipeline_deps):
             graph.add_edge(source_pipeline, target_pipeline, dependency_type="pipeline")
 
         return graph

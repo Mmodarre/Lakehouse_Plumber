@@ -315,6 +315,24 @@ silently missing edges.
   loop unrolling, and `LHP-DEP-002`; orchestration, master-job, and monitoring
   baselines were regenerated to include it, and mid-segment-token SQL
   extraction gained dedicated e2e coverage.
+- **Persistent on-disk parse cache under `.lhp/cache/`.** Default-on: each
+  pipeline YAML file gets one cache shard under `<project>/.lhp/cache/parse/`,
+  keyed by resolved path, mtime, size, installed LHP version, cache schema
+  version, and the flowgroup model shape — so upgrading LHP or touching a file
+  invalidates its shard automatically. The cache is delete-safe at any time:
+  corrupt or stale shards silently degrade to a fresh parse, and results are
+  identical with or without it (the `.lhp/` directory is already covered by
+  the init templates' gitignore).
+- **`--no-cache` flag on `lhp generate`, `lhp validate`, `lhp dag`, and
+  `lhp deps`** — disables the persistent parse cache for a single run.
+- **`LHP_NO_CACHE` environment variable** — a truthy value (`1`, `true`,
+  `yes`, case-insensitive) disables the persistent parse cache for every run
+  in that environment (e.g. CI).
+- **`--max-workers` on `lhp dag`/`lhp deps`** — same precedence as
+  `generate`/`validate`: explicit flag → `LHP_MAX_WORKERS` env var →
+  automatic default.
+- **`for_project(no_cache=...)`** — new keyword-only parameter on the public
+  facade constructor (`:stability:` provisional).
 
 ### Changed
 
@@ -368,6 +386,12 @@ silently missing edges.
   `LHP-CFG-011` ("Not a LakehousePlumber project directory") and points at
   `lhp init <project_name>`. `lhp skill install --user` (targeting
   `~/.claude/`) is unchanged and does not need a project.
+- **`lhp dag`/`lhp deps` no longer run per-flowgroup configuration
+  validation.** The dependency-analysis path still fully resolves flowgroups
+  (templates, presets, substitutions) and secret-reference validation still
+  runs, but per-flowgroup configuration errors (`LHP-VAL-007`) are no longer
+  raised there — run `lhp validate` for configuration diagnosis.
+  `lhp validate` and `lhp generate` are unchanged.
 
 ### Performance
 
@@ -378,6 +402,24 @@ silently missing edges.
 - **Per-run parse caches.** A helper `.py` module referenced by many actions is
   read and parsed once per run, and SQL bodies are deduplicated by content,
   so large projects no longer re-parse the same sources repeatedly.
+- **libyaml C loader for YAML parsing.** YAML files are loaded with
+  `yaml.CSafeLoader` when the installed PyYAML has libyaml bindings, with a
+  pure-Python `SafeLoader` fallback otherwise. `lhp dag` on a 2,802-flowgroup
+  project drops from 8.6s to ~4s.
+- **Dependency analysis skips per-flowgroup config validation.** `lhp dag`/
+  `lhp deps` no longer pay the configuration-validation cost on every
+  flowgroup (see Changed, above).
+- **Persistent on-disk parse cache makes warm discovery near-instant.** Repeat
+  runs re-parse only changed files: warm discovery on 2,802 files drops from
+  ~5.9s to well under a second, and a whole warm `lhp dag` runs in ~3s
+  end-to-end (vs 8.6s originally). See Added for the cache location and the
+  `--no-cache`/`LHP_NO_CACHE` switches.
+- **Parallel cold discovery for large projects.** When more than one worker is
+  configured and at least 500 files miss the parse cache, cold parsing fans
+  out to a process pool (one worker per 250 miss files, capped by the resolved
+  worker count). Small projects always stay serial, and a file that fails in a
+  worker is re-parsed serially, so error behavior is identical to a serial
+  run.
 
 ### Fixed
 
@@ -423,6 +465,14 @@ silently missing edges.
   keeping the advisory), depth-capped, and value-set-capped. It is never
   speculative — anything genuinely dynamic (e.g. `os.environ`) still yields
   `LHP-DEP-002`.
+- **Dependency-analysis outputs are now deterministic across runs and
+  machines.** Dependency-graph edge insertion, per-node `external_sources`,
+  `depends_on` lists, execution stages, and discovery file ordering are
+  sorted, so the JSON (`pipeline_dependencies.json`), DOT, and text outputs
+  are byte-identical from run to run (previously the ordering varied with
+  Python's hash seed). Existing users will see a one-time ordering diff in
+  regenerated dependency outputs; the `.job.yml` orchestration output was
+  already sorted and is unchanged.
 
 ### Removed
 

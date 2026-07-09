@@ -18,6 +18,7 @@ def build_facade_orchestrator(
     pipeline_config_path: Optional[str] = None,
     enforce_version: bool = True,
     max_workers: Optional[int] = None,
+    no_cache: bool = False,
 ):
     """Build a fully-wired orchestrator for the application facade.
 
@@ -65,4 +66,5 @@ def build_facade_orchestrator(
         flowgroup_resolver=flowgroup_resolver,
         validation_service=validation_service,
         config_validator=config_validator,
+        no_cache=no_cache,
     )

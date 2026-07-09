@@ -32,6 +32,9 @@ FIXTURE_PROJECT = (
 def test_substitutions_lists_tokens_against_fixture(monkeypatch):
     """Resolved tokens and the default secret scope reach stdout for the fixture."""
     monkeypatch.chdir(FIXTURE_PROJECT)
+    # Runs in-place in the tracked fixture: the parse cache must not write
+    # .lhp/cache/ shards into it (same for the two tests below).
+    monkeypatch.setenv("LHP_NO_CACHE", "1")
     runner = CliRunner()
     with capture_lhp_console(width=120) as buf:
         result = runner.invoke(substitutions_command, ["-e", "dev"])
@@ -51,6 +54,7 @@ def test_substitutions_lists_tokens_against_fixture(monkeypatch):
 def test_substitutions_default_env_is_dev(monkeypatch):
     """Omitting ``-e`` resolves the ``dev`` environment."""
     monkeypatch.chdir(FIXTURE_PROJECT)
+    monkeypatch.setenv("LHP_NO_CACHE", "1")
     runner = CliRunner()
     with capture_lhp_console(width=120) as buf:
         result = runner.invoke(substitutions_command, [])
@@ -65,6 +69,7 @@ def test_substitutions_default_env_is_dev(monkeypatch):
 def test_substitutions_missing_env_is_not_an_error(monkeypatch):
     """A missing ``substitutions/<env>.yaml`` reports an empty context, not a failure."""
     monkeypatch.chdir(FIXTURE_PROJECT)
+    monkeypatch.setenv("LHP_NO_CACHE", "1")
     runner = CliRunner()
     with capture_lhp_console(width=120) as buf:
         result = runner.invoke(substitutions_command, ["-e", "does_not_exist"])
