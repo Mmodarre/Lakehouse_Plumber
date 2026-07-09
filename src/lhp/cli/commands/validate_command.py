@@ -67,6 +67,7 @@ _WORKERS_HELP = "Max worker processes (default ~80%% of CPUs; 1 = sequential)."
 @click.option(
     "--max-workers", type=click.IntRange(min=1), default=None, help=_WORKERS_HELP
 )
+@click.option("--no-cache", is_flag=True, help="Disable the persistent parse cache.")
 @cli_error_boundary("validate")
 def validate_command(
     env: str,
@@ -79,6 +80,7 @@ def validate_command(
     sandbox: bool,
     pipeline_config: str | None,
     max_workers: int | None,
+    no_cache: bool,
 ) -> None:
     """Validate pipeline configurations for ENV."""
     # D2: sandbox scope is profile-driven (.lhp/profile.yaml), so it cannot be
@@ -97,7 +99,10 @@ def validate_command(
     logger.debug(f"Validate request: env={env}, pipeline={pipeline}")
     project_root = resolve_project_root()
     facade = build_facade(
-        project_root, pipeline_config=pipeline_config, max_workers=max_workers
+        project_root,
+        pipeline_config=pipeline_config,
+        max_workers=max_workers,
+        no_cache=no_cache,
     )
     bundle_enabled = should_enable_bundle_support(project_root, cli_no_bundle=no_bundle)
 

@@ -8,6 +8,7 @@ import yaml
 from ..errors import ErrorFactory, codes
 from ..models.deprecations import record_deprecation
 from ..parsers.yaml_parser import YAMLParser
+from .yaml_loader import SAFE_LOADER
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +80,7 @@ class SchemaTransformParser:
             )
 
         try:
-            parsed = yaml.safe_load(schema_str)
+            parsed = yaml.load(schema_str, Loader=SAFE_LOADER)
         except yaml.YAMLError as e:
             # Likely plain arrow format with inconsistent colons — fall back
             logger.debug(

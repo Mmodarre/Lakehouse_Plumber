@@ -50,13 +50,17 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
         substitution_mgr: EnhancedSubstitutionManager,
         *,
         include_tests: bool = True,
+        validate_config: bool = True,
     ) -> FlowGroupContext:
         """Canonical entry point — delegates to :meth:`process_flowgroup`.
 
         Satisfies :class:`BaseFlowgroupResolutionService.resolve` (§4.12).
         """
         return self.process_flowgroup(
-            ctx, substitution_mgr, include_tests=include_tests
+            ctx,
+            substitution_mgr,
+            include_tests=include_tests,
+            validate_config=validate_config,
         )
 
     def process_flowgroup(
@@ -64,6 +68,8 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
         ctx: FlowGroupContext,
         substitution_mgr: EnhancedSubstitutionManager,
         include_tests: bool = True,
+        *,
+        validate_config: bool = True,
     ) -> FlowGroupContext:
         """Process flowgroup: expand templates, apply presets, apply substitutions.
 
@@ -190,9 +196,10 @@ class FlowgroupResolutionService(BaseFlowgroupResolutionService):
 
         processed_flowgroup = FlowGroup(**substituted_dict)
 
-        # Skip validation only when test filtering caused zero actions
+        # Skip validation when the caller opted out (validate_config=False,
+        # e.g. dependency analysis) or when test filtering caused zero actions
         # (genuinely empty flowgroups from YAML should still fail validation)
-        if processed_flowgroup.actions or not tests_were_filtered:
+        if validate_config and (processed_flowgroup.actions or not tests_were_filtered):
             self.logger.debug(
                 f"Validating processed flowgroup '{processed_flowgroup.flowgroup}'"
             )

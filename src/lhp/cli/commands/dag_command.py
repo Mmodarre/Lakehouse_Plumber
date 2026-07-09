@@ -34,6 +34,8 @@ def dag(
     job_config: Optional[Path],
     expand_blueprints: bool,
     blueprint: Optional[str],
+    no_cache: bool,
+    max_workers: Optional[int],
 ) -> None:
     """Analyze pipeline dependencies and write dependency outputs."""
     if expand_blueprints:
@@ -49,7 +51,7 @@ def dag(
         )
 
     project_root = resolve_project_root()
-    facade = build_facade(project_root)
+    facade = build_facade(project_root, max_workers=max_workers, no_cache=no_cache)
 
     # Both facade calls route through the service's memoized
     # analyze_project, so the project is discovered and analyzed once.

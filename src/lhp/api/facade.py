@@ -81,6 +81,7 @@ class LakehousePlumberApplicationFacade:
         pipeline_config_path: Optional[str] = None,
         enforce_version: bool = True,
         max_workers: Optional[int] = None,
+        no_cache: bool = False,
     ) -> "LakehousePlumberApplicationFacade":
         """Construct a fully-wired facade from a project root.
 
@@ -88,6 +89,12 @@ class LakehousePlumberApplicationFacade:
         into another's private attributes; builds the single
         ``ConfigValidator`` that threads through validation and
         flowgroup-resolution (closes the §9.24 leak).
+
+        ``no_cache`` disables the persistent on-disk parse cache
+        (``<project_root>/.lhp/cache/parse``) for this facade; the cache
+        is also disabled when the ``LHP_NO_CACHE`` environment variable
+        is truthy (``"1"``, ``"true"``, ``"yes"``). The cache is
+        delete-safe: results are identical with or without it.
 
         :stability: provisional
         :raises lhp.errors.LHPError: ``LHP-CFG-*`` if ``lhp.yaml`` is
@@ -116,6 +123,7 @@ class LakehousePlumberApplicationFacade:
             pipeline_config_path=pipeline_config_path,
             enforce_version=enforce_version,
             max_workers=max_workers,
+            no_cache=no_cache,
         )
         return cls(orchestrator)
 

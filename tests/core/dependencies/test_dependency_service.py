@@ -139,3 +139,39 @@ class TestAnalyzeProjectMemo:
         assert spy.call_count == 1
         assert by_job_global is global_result
         assert set(job_results) == {"test_orchestration"}
+
+
+@pytest.mark.unit
+class TestDagPathSkipsConfigValidation:
+    def test_dag_path_does_not_degrade_invalid_flowgroup(self, tmp_path, caplog):
+        """A config-invalid flowgroup (duplicate action names) comes back
+        PROCESSED through the dependency-analysis path — substitutions
+        applied, no fall-back-to-raw warning. Config validation (VAL_007)
+        is ``lhp validate``'s job, not the read-only dag path's."""
+        pipeline_dir = tmp_path / "pipelines" / "p_dup"
+        pipeline_dir.mkdir(parents=True)
+        (pipeline_dir / "fg_dup.yaml").write_text(
+            "pipeline: p_dup\n"
+            "flowgroup: fg_dup\n"
+            "actions:\n"
+            "  - name: dup\n"
+            "    type: load\n"
+            "    source:\n"
+            "      type: sql\n"
+            '      sql: "SELECT * FROM ${workspace_env}_cat.raw.orders"\n'
+            "    target: v_a\n"
+            "  - name: dup\n"
+            "    type: load\n"
+            "    source:\n"
+            "      type: sql\n"
+            '      sql: "SELECT 2"\n'
+            "    target: v_b\n"
+        )
+        service = _make_service(tmp_path)
+
+        with caplog.at_level("WARNING", logger="lhp.core.dependencies.service"):
+            flowgroups = service.get_flowgroups()
+
+        assert "Could not process flowgroup" not in caplog.text
+        (fg,) = flowgroups
+        assert fg.actions[0].source["sql"] == "SELECT * FROM dev_cat.raw.orders"

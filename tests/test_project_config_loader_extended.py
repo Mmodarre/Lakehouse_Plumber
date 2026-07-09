@@ -10,7 +10,7 @@ class TestLoadProjectConfig:
     def test_empty_yaml_raises_error(self, tmp_path):
         """Empty YAML file raises LHPError with the specific IO-003 code.
 
-        An empty file yields 0 documents from yaml.safe_load_all, triggering
+        An empty file yields 0 documents from yaml.load_all, triggering
         MultiDocumentError (LHP-IO-003) inside yaml_loader. That is an LHPError,
         so load_project_config's `except LHPError` guard re-raises it unchanged --
         the specific IO-003 code surfaces instead of a re-wrapped CFG-002.

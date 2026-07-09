@@ -149,9 +149,15 @@ class BaseFlowgroupResolutionService(ABC):
         substitution_mgr: SubstitutionManager,
         *,
         include_tests: bool = True,
+        validate_config: bool = True,
     ) -> FlowGroupContext:
         """Returns a new envelope wrapping the resolved :class:`FlowGroup`
         (provenance fields are propagated unchanged).
+
+        When ``validate_config`` is False, per-flowgroup config validation
+        (``LHP-VAL-007``) is skipped — for read-only structural analysis that
+        must resolve invalid-but-parseable flowgroups. Secret validation
+        (``LHP-VAL-008``) always runs.
         """
         raise NotImplementedError
 

@@ -57,6 +57,7 @@ if TYPE_CHECKING:
     from ..sandbox import SandboxRewritePlan, SandboxTableRenames
 
 from ...parsers.blueprint_parser import BlueprintParser
+from ...parsers.parse_cache import PersistentParseCache
 from ...parsers.yaml_parser import CachingYAMLParser, YAMLParser
 from ...presets.preset_manager import PresetManager
 from ...utils.performance_timer import perf_timer
@@ -134,6 +135,7 @@ class ActionOrchestrator:
         validation_service: Optional[BaseValidationService] = None,
         config_validator: Optional[ConfigValidator] = None,
         bootstrap_service: Optional[BaseFlowgroupBootstrapService] = None,
+        no_cache: bool = False,
     ):
         """Initialize orchestrator.
 
@@ -143,6 +145,13 @@ class ActionOrchestrator:
                 ``None``, resolves to ``LHP_MAX_WORKERS`` env var, else
                 :func:`_auto_max_workers` (~80% of OS-visible CPU count,
                 honoring cgroup CPU limits on Linux). ``1`` is sequential.
+            no_cache: Disable the persistent on-disk parse cache for this
+                run. Also disabled when the ``LHP_NO_CACHE`` env var is
+                truthy (``"1"``, ``"true"``, ``"yes"``). When enabled
+                (the default), one :class:`PersistentParseCache` under
+                ``<project_root>/.lhp/cache/parse`` is shared by this
+                orchestrator's ``CachingYAMLParser`` and the
+                :class:`DependencyAnalysisService`'s.
             flowgroup_resolver: Pre-built
                 :class:`FlowgroupResolutionService` injected by
                 :meth:`LakehousePlumberApplicationFacade.for_project`.
@@ -184,8 +193,43 @@ class ActionOrchestrator:
         self.pipeline_config_path = pipeline_config_path
         self.logger = logging.getLogger(__name__)
 
+        # Resolved BEFORE service construction so the worker budget can be
+        # threaded into the services built below (discovery's cold parse
+        # pool, DependencyAnalysisService's own discoverer).
+        if max_workers is not None:
+            self.max_workers: int = max(1, max_workers)
+        else:
+            env_override = os.environ.get("LHP_MAX_WORKERS")
+            if env_override:
+                try:
+                    self.max_workers = max(1, int(env_override))
+                except ValueError:
+                    self.logger.warning(
+                        f"LHP_MAX_WORKERS={env_override!r} is not an integer; "
+                        f"falling back to auto-detect."
+                    )
+                    self.max_workers = _auto_max_workers()
+            else:
+                self.max_workers = _auto_max_workers()
+
         self.yaml_parser = YAMLParser()
-        self._cached_yaml_parser = CachingYAMLParser(self.yaml_parser)
+        # Persistent parse cache: default ON; disabled by the ``no_cache``
+        # param or a truthy LHP_NO_CACHE (same idiom as LHP_IGNORE_VERSION).
+        disable_parse_cache = no_cache or os.environ.get(
+            "LHP_NO_CACHE", ""
+        ).lower() in ("1", "true", "yes")
+        self._persistent_parse_cache: Optional[PersistentParseCache] = None
+        if disable_parse_cache:
+            self.logger.debug(
+                "Persistent parse cache disabled (no_cache flag or LHP_NO_CACHE)"
+            )
+        else:
+            self._persistent_parse_cache = PersistentParseCache(
+                project_root / ".lhp" / "cache" / "parse"
+            )
+        self._cached_yaml_parser = CachingYAMLParser(
+            self.yaml_parser, persistent_cache=self._persistent_parse_cache
+        )
         self.preset_manager = PresetManager(project_root / "presets")
         self.template_engine = TemplateEngine(project_root / "templates")
         self.project_config_loader = ProjectConfigLoader(project_root)
@@ -201,6 +245,7 @@ class ActionOrchestrator:
             project_root,
             self.project_config_loader,
             yaml_parser=self._cached_yaml_parser,
+            max_workers=self.max_workers,
         )
         self.blueprint_parser = BlueprintParser(
             caching_yaml_parser=self._cached_yaml_parser
@@ -227,6 +272,8 @@ class ActionOrchestrator:
             project_config=self.project_config,
             validation_service=self.validation,
             config_validator=config_validator,
+            persistent_parse_cache=self._persistent_parse_cache,
+            max_workers=self.max_workers,
         )
         self.monitoring: BaseMonitoringFinalizerService = MonitoringFinalizerService(
             project_config=self.project_config,
@@ -235,21 +282,6 @@ class ActionOrchestrator:
             pipeline_config_path=self.pipeline_config_path,
             logger=self.logger,
         )
-        if max_workers is not None:
-            self.max_workers: int = max(1, max_workers)
-        else:
-            env_override = os.environ.get("LHP_MAX_WORKERS")
-            if env_override:
-                try:
-                    self.max_workers = max(1, int(env_override))
-                except ValueError:
-                    self.logger.warning(
-                        f"LHP_MAX_WORKERS={env_override!r} is not an integer; "
-                        f"falling back to auto-detect."
-                    )
-                    self.max_workers = _auto_max_workers()
-            else:
-                self.max_workers = _auto_max_workers()
         self.execution: BasePipelineExecutionService = PipelineExecutionService(
             max_workers=self.max_workers,
         )

@@ -46,6 +46,18 @@ WITH_STATIC_INDEX_MARKER = "SPA_TEST_INDEX_MARKER"
 LOOPBACK_BASE_URL = "http://127.0.0.1"
 
 
+@pytest.fixture(autouse=True)
+def _no_parse_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Disable the default-on parse cache for every webapp test.
+
+    Several tests serve the tracked e2e fixture project in place; the cache
+    would otherwise write ``.lhp/cache/`` shards into it, polluting the
+    fixture for the e2e suite. Parse-cache behavior has its own coverage in
+    ``tests/core/coordination`` and ``tests/integration``.
+    """
+    monkeypatch.setenv("LHP_NO_CACHE", "1")
+
+
 def _clear_ambient_webapp_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Drop ambient LHP_WEBAPP_* vars so a developer's env can't perturb tests.
 

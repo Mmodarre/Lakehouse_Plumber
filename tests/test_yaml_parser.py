@@ -43,7 +43,7 @@ class TestYAMLParserErrorHandling:
             details="This is a test LHP error",
         )
 
-        with patch("yaml.safe_load_all") as mock_yaml_load_all:
+        with patch("yaml.load_all") as mock_yaml_load_all:
             mock_yaml_load_all.side_effect = lhp_error
 
             with patch("builtins.open", mock_open(read_data="test: data")):

@@ -196,6 +196,57 @@ def test_each_pipeline_file_parsed_exactly_once(tmp_path):
     assert all(c == 1 for c in read_counter.values())
 
 
+@pytest.mark.integration
+def test_warm_run_discovers_with_zero_file_reads(tmp_path):
+    """A second-process discovery is served entirely from the persistent cache.
+
+    The cold run (default-on parse cache) populates one shard per pipeline
+    YAML file under ``<project>/.lhp/cache/parse``. A FRESH orchestrator —
+    new ``CachingYAMLParser`` with empty in-memory caches, same project —
+    must then complete BOTH discovery passes (flowgroup + blueprint
+    instance) with ZERO physical ``load_yaml_documents_all`` reads: the
+    flowgroup pass warm-seeds both in-memory sub-caches from the shards and
+    the instance pass hits the seeded documents sub-cache. Results must
+    equal the cold run.
+    """
+    project_root = _build_multi_flowgroup_project(tmp_path / "warm_run_project")
+    expected_keys = _expected_pipeline_yaml_keys(project_root)
+    assert len(expected_keys) >= 3
+
+    cold_orchestrator = build_facade_orchestrator(project_root, enforce_version=False)
+    cold_flowgroups = cold_orchestrator.bootstrap.discover_all_flowgroups()
+    assert len(cold_flowgroups) == len(expected_keys)
+
+    shards = list((project_root / ".lhp" / "cache" / "parse").glob("*.pkl"))
+    assert len(shards) == len(expected_keys), (
+        "Cold discovery must write exactly one shard per pipeline YAML file; "
+        f"found {len(shards)} shard(s) for {len(expected_keys)} file(s)."
+    )
+
+    real_load_yaml_documents_all = yaml_parser_module.load_yaml_documents_all
+    read_counter: "collections.Counter[str]" = collections.Counter()
+
+    def counting_load(file_path, *args, **kwargs):
+        read_counter[str(Path(file_path).resolve())] += 1
+        return real_load_yaml_documents_all(file_path, *args, **kwargs)
+
+    warm_orchestrator = build_facade_orchestrator(project_root, enforce_version=False)
+    with patch.object(
+        yaml_parser_module,
+        "load_yaml_documents_all",
+        side_effect=counting_load,
+    ):
+        warm_flowgroups = warm_orchestrator.bootstrap.discover_all_flowgroups()
+
+    assert not read_counter, (
+        "Warm discovery must be served entirely from the persistent parse "
+        f"cache (zero physical reads); these files were read: {dict(read_counter)}"
+    )
+    assert {(fg.pipeline, fg.flowgroup) for fg in warm_flowgroups} == {
+        (fg.pipeline, fg.flowgroup) for fg in cold_flowgroups
+    }
+
+
 def _build_n_flowgroup_project(tmpdir: Path, n: int) -> Path:
     """Build an LHP project with exactly ``n`` regular FlowGroup files.
 

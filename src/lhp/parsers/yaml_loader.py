@@ -14,6 +14,10 @@ from ..errors import ErrorFactory, LHPError, MultiDocumentError, codes
 
 logger = logging.getLogger(__name__)
 
+SAFE_LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+if SAFE_LOADER is yaml.SafeLoader:
+    logger.debug("libyaml CSafeLoader unavailable; using pure-Python SafeLoader")
+
 
 def load_yaml_file(
     file_path: Union[Path, str],
@@ -29,7 +33,7 @@ def load_yaml_file(
 
     try:
         with open(file_path, "r", encoding="utf-8") as f:
-            documents = list(yaml.safe_load_all(f))
+            documents = list(yaml.load_all(f, Loader=SAFE_LOADER))
 
         if len(documents) != 1:
             raise MultiDocumentError(file_path, len(documents), error_context)
@@ -101,7 +105,7 @@ def load_yaml_documents_all(
 
     try:
         with open(file_path, "r", encoding="utf-8") as f:
-            documents = list(yaml.safe_load_all(f))
+            documents = list(yaml.load_all(f, Loader=SAFE_LOADER))
 
         documents = [doc for doc in documents if doc is not None]
 

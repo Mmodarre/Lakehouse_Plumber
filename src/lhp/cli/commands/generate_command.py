@@ -56,6 +56,7 @@ logger = logging.getLogger(__name__)
 @click.option("-o", "--output", default=None, help="Output dir override.")
 @click.option("-pc", "--pipeline-config", default=None, help="pipeline_config.yaml.")
 @click.option("--max-workers", type=int, default=None, help="Max parallel workers.")
+@click.option("--no-cache", is_flag=True, help="Disable the persistent parse cache.")
 @click.option("--force", is_flag=True, hidden=True, help="Deprecated no-op.")
 @cli_error_boundary("generate")
 def generate(
@@ -71,6 +72,7 @@ def generate(
     output: Optional[str],
     pipeline_config: Optional[str],
     max_workers: Optional[int],
+    no_cache: bool,
     force: bool,
 ) -> None:
     """Generate Databricks pipeline code for ENV from the project's flowgroups."""
@@ -93,7 +95,10 @@ def generate(
 
     project_root = resolve_project_root()
     facade = build_facade(
-        project_root, pipeline_config=pipeline_config, max_workers=max_workers
+        project_root,
+        pipeline_config=pipeline_config,
+        max_workers=max_workers,
+        no_cache=no_cache,
     )
 
     bundle_enabled = should_enable_bundle_support(project_root, cli_no_bundle=no_bundle)

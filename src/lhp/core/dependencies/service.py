@@ -23,6 +23,7 @@ from ...models.dependencies import (
     DependencyGraphs,
 )
 from ...parsers.blueprint_parser import BlueprintParser
+from ...parsers.parse_cache import PersistentParseCache
 from ...parsers.yaml_parser import CachingYAMLParser, YAMLParser
 from ...presets.preset_manager import PresetManager
 from .._interfaces import BaseDependencyAnalysisService
@@ -79,6 +80,8 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         validation_service: ValidationService,
         *,
         config_validator: Optional[ConfigValidator] = None,
+        persistent_parse_cache: Optional[PersistentParseCache] = None,
+        max_workers: Optional[int] = None,
     ) -> None:
         # Public attribute — output.py:587 / 616 / 636 reads it directly.
         self.project_root = project_root
@@ -91,13 +94,20 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         self._project_config_loader = ProjectConfigLoader(project_root)
 
         # Shared YAML parser (caching wrapper feeds both discoverers).
+        # ``persistent_parse_cache`` is the orchestrator's store instance so
+        # the dag/deps path shares the same on-disk shards as generation.
         self.yaml_parser = YAMLParser()
-        self._cached_yaml_parser = CachingYAMLParser(self.yaml_parser)
+        self._cached_yaml_parser = CachingYAMLParser(
+            self.yaml_parser, persistent_cache=persistent_parse_cache
+        )
 
+        # ``max_workers`` sizes the discoverer's cold-discovery parse pool;
+        # ``None`` (legacy direct construction) stays fully serial.
         self._flowgroup_discoverer = FlowgroupDiscoveryService(
             project_root,
             self._project_config_loader,
             yaml_parser=self._cached_yaml_parser,
+            max_workers=1 if max_workers is None else max(1, max_workers),
         )
         blueprint_parser = BlueprintParser(caching_yaml_parser=self._cached_yaml_parser)
         self._blueprint_discoverer = BlueprintDiscoverer(
@@ -354,11 +364,17 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         file_path: Path,
         substitution_mgr: "EnhancedSubstitutionManager",
     ) -> FlowGroup:
-        """Process one flowgroup; fall back to raw fg on template/preset error."""
+        """Process one flowgroup; fall back to raw fg on template/preset error.
+
+        The dag path resolves fully (templates, presets, substitutions) but
+        skips per-flowgroup config validation (``validate_config=False``) —
+        structural analysis should not degrade to the raw flowgroup just
+        because its config is invalid; ``lhp validate`` owns that diagnosis.
+        """
         try:
             ctx_in = FlowGroupContext(flowgroup=fg, source_yaml=file_path)
             ctx_out = self._flowgroup_resolver.process_flowgroup(
-                ctx_in, substitution_mgr
+                ctx_in, substitution_mgr, validate_config=False
             )
             processed_fg = ctx_out.flowgroup
             self._flowgroup_file_paths[processed_fg.flowgroup] = file_path
