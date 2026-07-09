@@ -8,58 +8,74 @@ import { parseLine, splitLines } from './useEventStream'
 // ── useAssistantStream — chat NDJSON transport hook ──────────
 //
 // Mirrors `useEventStream`'s fetch + ReadableStream lifecycle for the
-// assistant chat endpoint (`POST /api/assistant/chat`), but feeds every
-// decoded frame straight into `assistantStore.applyFrame` — the store is
-// the single reducer, so this hook models nothing itself.
+// assistant chat endpoint (`POST /api/assistant/chat`), one stream PER TAB:
+// every decoded frame is routed into that tab's conversation via
+// `assistantStore.applyFrame(tabKey, …)` — the store is the reducer, this
+// hook models nothing itself. Streams on different tabs run concurrently;
+// a per-tab running set guards double-send on one tab.
 //
-// Failure split: a terminal `error` frame (e.g. LHP-GEN-902 daemon lost)
-// reaches the store through `applyFrame`; anything that prevents/kills
-// the transport (gate 409s on open, network drop, parse-loop crash) goes
-// through `failTransport`. A caller-initiated abort (panel unmount) is
-// neither — the turn continues server-side and rehydration shows it.
+// Rekey routing: the request sends the tab key as `session_id` (a draft key
+// is unknown server-side, so the backend mints a fresh session); when the
+// stream's `session` frame reports a different id, the tab is re-keyed and
+// every SUBSEQUENT frame of this stream lands on the new key — the local
+// `key` binding follows the tab, surviving the rename.
 //
-// The stop button does NOT abort this stream: it POSTs /interrupt (see
+// Failure split: a terminal `error` frame reaches the tab's conversation
+// through `applyFrame`; anything that prevents/kills the transport (gate
+// 409s on open, network drop, parse-loop crash) goes through
+// `failTransport`. A caller-initiated abort (panel unmount) is neither —
+// the turn continues server-side and rehydration shows it.
+//
+// The stop button does NOT abort these streams: it POSTs /interrupt (see
 // `useInterruptAssistant`) and the backend ends the turn with an
 // `interrupted` frame.
 
 export interface UseAssistantStreamResult {
-  /** Send one user message. No-op while a turn is already streaming. */
-  send: (message: string) => void
-  /** Abort the in-flight fetch (unmount/teardown — NOT the stop button). */
-  abort: () => void
-  /** True while a turn's stream is open (from the store). */
+  /** Send one user message on a tab. No-op while that tab is streaming. */
+  send: (tabKey: string, message: string) => void
+  /** Abort one tab's in-flight fetch (teardown — NOT the stop button). */
+  abort: (tabKey: string) => void
+  /** True while the ACTIVE tab's stream is open (from the store). */
   isStreaming: boolean
 }
 
 export function useAssistantStream(): UseAssistantStreamResult {
   const queryClient = useQueryClient()
-  const isStreaming = useAssistantStore((s) => s.streaming)
+  const isStreaming = useAssistantStore((s) =>
+    s.activeTabKey !== null
+      ? (s.conversations[s.activeTabKey]?.streaming ?? false)
+      : false,
+  )
 
-  const abortRef = useRef<AbortController | null>(null)
-  // Synchronous re-entrancy guard (state updates are async).
-  const runningRef = useRef(false)
+  const controllersRef = useRef(new Map<string, AbortController>())
+  // Synchronous per-tab re-entrancy guard (state updates are async).
+  const runningRef = useRef(new Set<string>())
 
-  const abort = useCallback(() => {
-    abortRef.current?.abort()
+  const abort = useCallback((tabKey: string) => {
+    controllersRef.current.get(tabKey)?.abort()
   }, [])
 
   const send = useCallback(
-    (message: string) => {
-      if (runningRef.current) return
+    (tabKey: string, message: string) => {
+      if (runningRef.current.has(tabKey)) return
 
       const controller = new AbortController()
-      abortRef.current = controller
-      runningRef.current = true
+      controllersRef.current.set(tabKey, controller)
+      runningRef.current.add(tabKey)
 
-      const { beginTurn, applyFrame, failTransport, finishStream, permissionMode } =
-        useAssistantStore.getState()
-      beginTurn(message)
+      // Follows the tab across a rekey; frames always land on the tab's
+      // CURRENT key.
+      let key = tabKey
+
+      const { beginTurn, permissionMode } = useAssistantStore.getState()
+      beginTurn(key, message)
 
       const run = async () => {
         try {
           const response = await startAssistantChat(
-            // Read at send time: the approval policy is per-turn.
-            { message, permission_mode: permissionMode },
+            // Mode read at send time (per-turn); the tab key doubles as the
+            // session target — unknown (draft) keys mint a fresh session.
+            { message, permission_mode: permissionMode, session_id: key },
             controller.signal,
           )
           const stream = response.body
@@ -81,7 +97,21 @@ export function useAssistantStream(): UseAssistantStreamResult {
               return
             }
             if (frame === null) return
-            applyFrame(frame)
+            const store = useAssistantStore.getState()
+            if (frame.type === 'session' && frame.session_id !== key) {
+              // The backend bound this tab to a (new) real session: re-key
+              // the tab and move this stream's bookkeeping with it.
+              const fromKey = key
+              key = frame.session_id
+              store.rekeyTab(fromKey, key)
+              runningRef.current.delete(fromKey)
+              runningRef.current.add(key)
+              if (controllersRef.current.get(fromKey) === controller) {
+                controllersRef.current.delete(fromKey)
+                controllersRef.current.set(key, controller)
+              }
+            }
+            store.applyFrame(key, frame)
           }
 
           let done = false
@@ -108,20 +138,24 @@ export function useAssistantStream(): UseAssistantStreamResult {
             // Unmount/teardown — the turn continues server-side.
             return
           }
-          failTransport(
-            err instanceof Error ? err : new Error('Assistant stream failed'),
-          )
+          useAssistantStore
+            .getState()
+            .failTransport(
+              key,
+              err instanceof Error ? err : new Error('Assistant stream failed'),
+            )
         } finally {
           // Guard against a superseded controller (StrictMode/restart):
-          // only the latest run may close the shared streaming state.
-          if (abortRef.current === controller) {
-            abortRef.current = null
-            runningRef.current = false
-            finishStream({ aborted: controller.signal.aborted })
+          // only the latest run may close its tab's streaming state.
+          if (controllersRef.current.get(key) === controller) {
+            controllersRef.current.delete(key)
+            runningRef.current.delete(key)
+            useAssistantStore.getState().finishStream(key)
           }
-          // The turn may have provisioned a session / changed its
-          // last-used bookkeeping — keep the status card fresh.
+          // The turn may have provisioned a session / set a title / changed
+          // last-used bookkeeping — keep the status card and tab strip fresh.
           void queryClient.invalidateQueries({ queryKey: ['assistant-status'] })
+          void queryClient.invalidateQueries({ queryKey: ['assistant-sessions'] })
         }
       }
 
@@ -130,10 +164,13 @@ export function useAssistantStream(): UseAssistantStreamResult {
     [queryClient],
   )
 
-  // StrictMode-safe: abort any in-flight stream on unmount.
+  // StrictMode-safe: abort every in-flight stream on unmount.
   useEffect(() => {
+    const controllers = controllersRef.current
     return () => {
-      abortRef.current?.abort()
+      for (const controller of controllers.values()) {
+        controller.abort()
+      }
     }
   }, [])
 

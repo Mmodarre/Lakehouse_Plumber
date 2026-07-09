@@ -8,8 +8,11 @@ user-managed Omnigent daemon (:mod:`lhp.webapp.services.omnigent_client` /
 :mod:`~lhp.webapp.services.assistant_provision` /
 :mod:`~lhp.webapp.services.assistant_chat`); this module only wires them to
 routes. The config-ish endpoints (``/config``, ``/databricks-profiles``,
-``/skill``) live in :mod:`lhp.webapp.routers.assistant_config` (mechanical
-size split; same prefix). Per the ``webapp-uses-public-api`` contract this
+``/skill``) live in :mod:`lhp.webapp.routers.assistant_config` and the
+session-lifecycle endpoints (``/session``, ``/sessions``, ``/session/new``,
+``/session/archive``) in :mod:`lhp.webapp.routers.assistant_sessions`
+(mechanical size splits; same prefix). Per the ``webapp-uses-public-api``
+contract this
 module imports ONLY :mod:`lhp.api` from the ``lhp`` package (``LHPError``
 translation happens in the app-level exception handler, so ``lhp.errors``
 is not needed here).
@@ -58,9 +61,7 @@ from lhp.webapp.schemas.assistant import (
     AssistantStatus,
     ChatRequest,
     DaemonStartResponse,
-    SessionListItem,
-    SessionListResponse,
-    SessionSnapshot,
+    InterruptRequest,
 )
 from lhp.webapp.schemas.common import ErrorDetail, ErrorResponse, SuccessResponse
 from lhp.webapp.services import assistant_store, claude_sdk_auth, omnigent_lifecycle
@@ -68,7 +69,7 @@ from lhp.webapp.services.assistant_chat import chat_turn
 from lhp.webapp.services.assistant_provision import installed_skill_version
 from lhp.webapp.services.claude_sdk_bridge import get_claude_turns
 from lhp.webapp.services.claude_sdk_chat import chat_turn as claude_chat_turn
-from lhp.webapp.services.claude_sdk_sessions import snapshot_items
+from lhp.webapp.services.claude_sdk_policy import record_always_allow_rule
 from lhp.webapp.services.omnigent_client import (
     OmnigentUnavailable,
     get_omnigent_client,
@@ -128,8 +129,21 @@ def _omnigent_http_error(exc: httpx.HTTPStatusError) -> HTTPException:
     )
 
 
-async def _require_active_session(project_root: Path) -> dict[str, Any]:
-    """Return the active session row, or raise the 404-shaped absence."""
+async def _resolve_session(
+    project_root: Path, session_id: str | None
+) -> dict[str, Any]:
+    """The targeted session row: explicit id, or the MRU active fallback.
+
+    Explicit unknown ids and an empty active set both raise the 404-shaped
+    absence.
+    """
+    if session_id is not None:
+        row = await asyncio.to_thread(
+            assistant_store.get_session, project_root, session_id
+        )
+        if row is None:
+            raise HTTPException(404, "No assistant session with that id")
+        return row
     active = await asyncio.to_thread(assistant_store.get_active_session, project_root)
     if active is None:
         raise HTTPException(404, "No active assistant session")
@@ -262,6 +276,7 @@ async def chat(
             executor_cfg,
             body.message,
             get_claude_turns(request.app),
+            session_id=body.session_id,
             permission_mode=body.permission_mode,
         )
         return StreamingResponse(claude_frames, media_type=_NDJSON_MEDIA_TYPE)
@@ -291,18 +306,32 @@ async def resolve_approval(
     request: Request,
     project_root: Path = Depends(get_project_root),
 ) -> SuccessResponse:
-    """Resolve a pending elicitation on the active session.
+    """Resolve a pending elicitation on one session's live turn.
 
-    Never touches a chat-turn lock, so approvals work while a chat stream is
-    open on another request. Claude provider: resolves the in-process turn
-    registry (unknown / already-resolved elicitations 404). Omnigent: talks
-    to the daemon client directly.
+    ``body.session_id`` targets a tab's session; absent, the MRU active
+    session is assumed (pre-multi-tab clients). Never touches a chat-turn
+    lock, so approvals work while a chat stream is open on another request.
+    Claude provider: resolves the in-process turn registry (unknown /
+    already-resolved elicitations 404). ``accept`` with ``always_allow``
+    persists the rule RE-DERIVED from the registry-recorded tool call BEFORE
+    resolving; the client echo is never trusted. Omnigent: talks to the
+    daemon client directly.
     """
     assert_project_loaded(request, "the assistant is unavailable")
-    active = await _require_active_session(project_root)
+    active = await _resolve_session(project_root, body.session_id)
     session_id = str(active["session_id"])
     if active.get("provider") == "claude_sdk":
-        resolved = get_claude_turns(request.app).resolve_approval(
+        registry = get_claude_turns(request.app)
+        if body.action == "accept" and body.always_allow:
+            entry = registry.peek_approval(session_id, body.elicitation_id)
+            if entry is not None:
+                await asyncio.to_thread(
+                    record_always_allow_rule,
+                    project_root,
+                    entry.tool_name,
+                    entry.tool_input,
+                )
+        resolved = registry.resolve_approval(
             session_id, body.elicitation_id, body.action
         )
         if not resolved:
@@ -328,16 +357,22 @@ async def resolve_approval(
 
 @router.post("/interrupt", response_model=SuccessResponse)
 async def interrupt(
-    request: Request, project_root: Path = Depends(get_project_root)
+    request: Request,
+    body: InterruptRequest | None = None,
+    project_root: Path = Depends(get_project_root),
 ) -> SuccessResponse:
-    """Interrupt the active session's running turn (no chat-turn lock).
+    """Interrupt one session's running turn (no chat-turn lock).
 
-    Claude provider: interrupting with no live turn is a harmless no-op
-    (``delivered: false``) — the stop button can race a turn that just
+    The body is optional: ``session_id`` targets a tab's turn; no body (or
+    ``null``) falls back to the MRU active session — legacy clients POST
+    nothing. Claude provider: interrupting with no live turn is a harmless
+    no-op (``delivered: false``) — the stop button can race a turn that just
     finished.
     """
     assert_project_loaded(request, "the assistant is unavailable")
-    active = await _require_active_session(project_root)
+    active = await _resolve_session(
+        project_root, body.session_id if body is not None else None
+    )
     session_id = str(active["session_id"])
     if active.get("provider") == "claude_sdk":
         delivered = await get_claude_turns(request.app).request_interrupt(session_id)
@@ -354,80 +389,4 @@ async def interrupt(
         raise _omnigent_http_error(exc) from exc
     return SuccessResponse(
         message="Interrupt queued", details={"session_id": session_id}
-    )
-
-
-@router.get("/session", response_model=SessionSnapshot)
-async def get_session(
-    request: Request, project_root: Path = Depends(get_project_root)
-) -> SessionSnapshot:
-    """Snapshot of the active session for panel rehydration.
-
-    ``items`` pass through UNMODIFIED in the snapshot envelope shape (spike
-    S8; the Claude provider persists the SAME envelope shape in
-    ``assistant_items``); the client-side renderer unwraps each item's
-    ``data``.
-    """
-    assert_project_loaded(request, "the assistant is unavailable")
-    active = await _require_active_session(project_root)
-    session_id = str(active["session_id"])
-    if active.get("provider") == "claude_sdk":
-        items = await asyncio.to_thread(snapshot_items, project_root, session_id)
-        return SessionSnapshot(
-            session_id=session_id,
-            title=active.get("title"),
-            status=str(active["status"]),
-            items=items,
-        )
-    client = get_omnigent_client(request.app)
-    try:
-        snapshot = await client.get_session(session_id, include_items=True)
-    except OmnigentUnavailable as exc:
-        raise _daemon_down_error() from exc
-    except httpx.HTTPStatusError as exc:
-        raise _omnigent_http_error(exc) from exc
-    return SessionSnapshot(
-        session_id=str(snapshot.get("session_id", session_id)),
-        title=snapshot.get("title"),
-        status=str(snapshot.get("status", "")),
-        items=list(snapshot.get("items", [])),
-    )
-
-
-@router.get("/sessions", response_model=SessionListResponse)
-async def list_sessions(
-    request: Request, project_root: Path = Depends(get_project_root)
-) -> SessionListResponse:
-    """List locally-tracked assistant sessions, most recently used first."""
-    assert_project_loaded(request, "the assistant is unavailable")
-    rows = await asyncio.to_thread(assistant_store.list_sessions, project_root)
-    sessions = [
-        SessionListItem(
-            session_id=str(row["session_id"]),
-            title=row["title"],
-            status=str(row["status"]),
-            created_at=str(row["created_at"]),
-            last_used_at=str(row["last_used_at"]),
-        )
-        for row in rows
-    ]
-    return SessionListResponse(sessions=sessions, total=len(sessions))
-
-
-@router.post("/session/new", response_model=SuccessResponse)
-async def new_session(
-    request: Request, project_root: Path = Depends(get_project_root)
-) -> SuccessResponse:
-    """Archive the active session so the next chat turn starts a fresh one.
-
-    Nothing is created here — provisioning happens lazily on the next chat
-    turn (idempotent when no session is active).
-    """
-    assert_project_loaded(request, "the assistant is unavailable")
-    archived = await asyncio.to_thread(assistant_store.archive_active, project_root)
-    return SuccessResponse(
-        message=(
-            "Active session archived" if archived else "No active session to archive"
-        ),
-        details={"archived": bool(archived)},
     )

@@ -177,10 +177,59 @@ def test_tool_use_result_join_completed() -> None:
     assert item["status"] == "completed"
     assert json.loads(item["arguments"]) == {"path": "x"}
     assert item["output_preview"] == "file body"
-    # ToolUseBlock alone produced no frame and no envelope.
+    # ToolUseBlock alone produced no envelope (started frames never persist).
     assert [i["type"] for i in items] == ["tool_call"]
     assert items[0]["data"] == item
     assert state.pending_tool_uses == {}
+
+
+def test_tool_use_emits_item_started_frame_without_envelope() -> None:
+    state = tr.TranslationState()
+    out = tr.translate(
+        AssistantMessage(
+            content=[ToolUseBlock(id="tu_5", name="Bash", input={"command": "ls"})],
+            model="m",
+        ),
+        state,
+    )
+    assert out.frames == [
+        {"type": "status", "state": "running"},
+        {
+            "type": "item.started",
+            "item": {
+                "id": "tu_5",
+                "type": "tool_call",
+                "name": "Bash",
+                "status": "running",
+                "arguments": {"command": "ls"},
+            },
+        },
+    ]
+    # No persistence envelope: started-only items never reach a snapshot.
+    assert out.items == []
+
+
+def test_item_started_precedes_item_done_with_matching_id() -> None:
+    state = tr.TranslationState()
+    frames, items = _drain(
+        [
+            AssistantMessage(
+                content=[
+                    ToolUseBlock(id="tu_6", name="Read", input={"file_path": "a"})
+                ],
+                model="m",
+            ),
+            UserMessage(content=[ToolResultBlock(tool_use_id="tu_6", content="body")]),
+        ],
+        state,
+    )
+    item_frames = [f for f in frames if f["type"].startswith("item.")]
+    assert [f["type"] for f in item_frames] == ["item.started", "item.done"]
+    assert item_frames[0]["item"]["id"] == item_frames[1]["item"]["id"] == "tu_6"
+    assert item_frames[0]["item"]["arguments"] == {"file_path": "a"}
+    # Only the joined item.done persists.
+    assert [i["type"] for i in items] == ["tool_call"]
+    assert items[0]["data"]["status"] == "completed"
 
 
 def test_tool_result_error_status_and_preview_clip() -> None:
@@ -304,3 +353,78 @@ def test_session_failed_frame_shape() -> None:
         "detail": "no creds",
         "hint": "claude_auth",
     }
+
+
+# ---------------------------------------------------------------------------
+# terminal-frame usage keys (optional; omitted when the SDK sent none)
+# ---------------------------------------------------------------------------
+
+_USAGE = {
+    "input_tokens": 100,
+    "output_tokens": 50,
+    "cache_read_input_tokens": 1000,
+    "cache_creation_input_tokens": 200,
+    "service_tier": "standard",  # unknown extra key: must be dropped
+}
+
+_MODEL_USAGE = {
+    "claude-sonnet-5": {"inputTokens": 100, "outputTokens": 50, "webSearchRequests": 0}
+}
+
+_NORMALIZED_USAGE = {
+    "input_tokens": 100,
+    "output_tokens": 50,
+    "cache_read_input_tokens": 1000,
+    "cache_creation_input_tokens": 200,
+}
+
+
+def test_result_with_usage_enriches_turn_completed() -> None:
+    state = tr.TranslationState()
+    out = tr.translate(
+        _result(usage=_USAGE, total_cost_usd=0.42, model_usage=_MODEL_USAGE), state
+    )
+    terminal = out.frames[-1]
+    assert terminal["type"] == "turn.completed"
+    assert terminal["usage"] == _NORMALIZED_USAGE
+    assert terminal["total_cost_usd"] == 0.42
+    # model_usage values arrive camelCase and leave canonical snake_case.
+    assert terminal["model_usage"] == {
+        "claude-sonnet-5": {
+            "input_tokens": 100,
+            "output_tokens": 50,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0,
+        }
+    }
+    # And the state captured the same normalized data for persistence.
+    assert state.usage == _NORMALIZED_USAGE
+    assert state.total_cost_usd == 0.42
+    assert state.model_usage == terminal["model_usage"]
+
+
+def test_result_without_usage_keeps_terminal_frames_bare() -> None:
+    # Omnigent back-compat: no usage keys, not even nulled ones.
+    state = tr.TranslationState()
+    out = tr.translate(_result(), state)
+    assert out.frames[-1] == {"type": "turn.completed"}
+    assert state.usage is None
+    assert state.total_cost_usd is None
+    assert state.model_usage is None
+
+
+def test_result_usage_attaches_to_failed_and_interrupted_terminals() -> None:
+    failed_state = tr.TranslationState()
+    out = tr.translate(
+        _result(subtype="error_max_turns", is_error=True, usage=_USAGE), failed_state
+    )
+    terminal = out.frames[-1]
+    assert terminal["type"] == "turn.failed"
+    assert terminal["usage"] == _NORMALIZED_USAGE
+
+    interrupted_state = tr.TranslationState()
+    interrupted_state.interrupt_requested = True
+    out = tr.translate(_result(usage=_USAGE), interrupted_state)
+    terminal = out.frames[-1]
+    assert terminal["type"] == "interrupted"
+    assert terminal["usage"] == _NORMALIZED_USAGE

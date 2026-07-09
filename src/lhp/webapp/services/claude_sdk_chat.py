@@ -9,23 +9,22 @@ the providers apart. Per turn: mint auth env
 ``ClaudeSDKClient``, and pump SDK messages through
 :func:`~lhp.webapp.services.claude_sdk_translate.translate` onto the stream.
 
-Turn serialization: a module-level ``asyncio.Lock`` admits ONE turn at a time
-(same single-user posture as the Omnigent relay). A silent stream emits a
-``heartbeat`` frame every 15s — approvals can park the SDK for minutes and
-the HTTP response must stay alive.
+Turn serialization: a per-session ``asyncio.Lock``
+(:meth:`~lhp.webapp.services.claude_sdk_bridge.ClaudeTurnRegistry.lock_for`)
+admits ONE live turn per session; turns on different sessions (multi-tab)
+run concurrently. A silent stream emits a ``heartbeat`` frame every 15s —
+approvals can park the SDK for minutes and the HTTP response must stay
+alive.
 
 Approvals: the SDK's ``can_use_tool`` callback is the policy source of truth
 (``ClaudeAgentOptions.permission_mode`` stays ``"default"`` — the SDK's own
 modes would resolve permissions BEFORE the callback and bypass the interrupt
-/deny machinery). The UI's per-turn ``permission_mode`` is implemented
-inside the callback instead: ``default`` auto-allows only the read-only
-tools in :data:`AUTO_ALLOWED_TOOLS`; ``acceptEdits`` additionally
-auto-allows the local file-edit tools in :data:`EDIT_TOOLS`;
-``bypassPermissions`` auto-allows everything. Anything not auto-allowed
-emits an ``approval.request`` frame and parks on a Future resolved by
-``POST /assistant/approval`` (timeout 300s -> deny). ``accept`` allows;
-``decline`` denies and the model re-plans; ``cancel`` denies AND interrupts
-the turn (matching Omnigent elicitation semantics).
+/deny machinery). The callback itself — permission modes, silent-allow
+sets, the approval park/resolve flow — lives in
+:mod:`~lhp.webapp.services.claude_sdk_policy`; this engine only wires it to
+the per-turn queue and registry. ``accept`` allows; ``decline`` denies and
+the model re-plans; ``cancel`` denies AND interrupts the turn (matching
+Omnigent elicitation semantics).
 
 Interrupts: ``POST /assistant/interrupt`` goes through
 :meth:`~lhp.webapp.services.claude_sdk_bridge.ClaudeTurnRegistry.request_interrupt`.
@@ -63,19 +62,17 @@ from claude_agent_sdk import (
     ClaudeSDKClient,
     ClaudeSDKError,
     CLINotFoundError,
-    PermissionResultAllow,
-    PermissionResultDeny,
 )
-from claude_agent_sdk.types import PermissionResult, ToolPermissionContext
 
 from lhp.errors import ErrorFactory, codes
 from lhp.webapp.services import assistant_store
 from lhp.webapp.services.assistant_provision import ASSISTANT_PROMPT
+from lhp.webapp.services.assistant_usage import compute_configured_cost
 from lhp.webapp.services.claude_sdk_auth import ClaudeAuthError, build_turn_env
 from lhp.webapp.services.claude_sdk_bridge import ClaudeTurnRegistry, TurnHandle
+from lhp.webapp.services.claude_sdk_policy import make_can_use_tool
 from lhp.webapp.services.claude_sdk_sessions import ensure_claude_session
 from lhp.webapp.services.claude_sdk_translate import (
-    PREVIEW_MAX_CHARS,
     TranslationState,
     session_failed_frame,
     translate,
@@ -85,13 +82,8 @@ from lhp.webapp.services.stream_adapter import _error_frame
 
 logger = logging.getLogger(__name__)
 
-#: Whole-turn gate: one chat turn at a time; concurrent callers WAIT.
-_turn_lock = asyncio.Lock()
-
 #: Ceiling on auth-env minting (``external-browser`` can block on a human).
 _AUTH_TIMEOUT_S = 120.0
-#: How long an ``approval.request`` may park before it is denied.
-_APPROVAL_TIMEOUT_S = 300.0
 #: Silence threshold after which a ``heartbeat`` frame keeps the stream alive.
 _HEARTBEAT_INTERVAL_S = 15.0
 #: Post-interrupt drain ceiling: the SDK stream must be consumed after an
@@ -99,20 +91,6 @@ _HEARTBEAT_INTERVAL_S = 15.0
 _INTERRUPT_DRAIN_CEILING_S = 30.0
 #: Agentic-loop bound handed to the SDK.
 _MAX_TURNS = 50
-
-#: Read-only local tools that never need approval. Everything else —
-#: Edit/Write/Bash/WebSearch/WebFetch/mcp__* — goes through the approval
-#: bridge. The callback is the policy source of truth, independent of
-#: whether ``allowed_tools`` would short-circuit it.
-AUTO_ALLOWED_TOOLS = frozenset(
-    {"Read", "Glob", "Grep", "NotebookRead", "TodoWrite", "Task"}
-)
-
-#: Local file-edit tools additionally auto-allowed in ``acceptEdits`` mode.
-#: Bash is deliberately NOT here — a shell command can edit files, but
-#: ``acceptEdits`` means "trust edits, still ask for commands", matching
-#: Claude Code's own mode of the same name.
-EDIT_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
 
 #: Queue sentinel: the pump finished (terminal seen, stream end, or error).
 _STREAM_END = object()
@@ -196,20 +174,6 @@ def _build_options(
     )
 
 
-def _approval_params(
-    tool_name: str, tool_input: dict[str, Any], context: ToolPermissionContext
-) -> dict[str, Any]:
-    """The ``approval.request`` params the frontend approval card renders."""
-    preview = json.dumps(tool_input, separators=(",", ":"), default=str)
-    return {
-        "message": context.title or f"Claude wants to use {tool_name}",
-        "phase": "tool_use",
-        "policy_name": context.display_name or tool_name,
-        "content_preview": preview[:PREVIEW_MAX_CHARS],
-        "tool_name": tool_name,
-    }
-
-
 async def _persist_item(
     project_root: Path, session_id: str, item: dict[str, Any]
 ) -> None:
@@ -223,67 +187,54 @@ async def _persist_item(
         logger.exception(f"assistant chat: insert_item failed for {session_id}")
 
 
-def _make_can_use_tool(
+#: Terminal frame types eligible for usage persistence/enrichment.
+_TERMINAL_TYPES = frozenset({"turn.completed", "turn.failed", "interrupted"})
+
+
+async def _record_turn_usage(
+    project_root: Path,
     session_id: str,
-    registry: ClaudeTurnRegistry,
-    handle: TurnHandle,
-    queue: "asyncio.Queue[Any]",
-    interrupt_tasks: set["asyncio.Task[Any]"],
-    permission_mode: str = "default",
-) -> Any:
-    """Build the per-turn ``can_use_tool`` approval-policy callback.
+    state: TranslationState,
+    frame: dict[str, Any],
+) -> None:
+    """Persist the turn's usage row and enrich the terminal ``frame`` in place.
 
-    ``permission_mode`` widens the silent-allow policy (see module
-    docstring); an unknown value degrades to ``default`` — ask for
-    everything non-read-only — never to more permissive.
+    Best-effort (same posture as :func:`_persist_item`): a failure is logged
+    and the frame streams on un-enriched — never kill or corrupt the stream.
+    Adds ``configured_cost_usd`` (when the project's stored pricing covers
+    every used model) and ``session_totals`` (the post-insert lifetime sums,
+    so a freshly resumed session shows correct totals after its first turn
+    without a refetch). No-op when the translator captured no usage — the
+    engine's own ``interrupted`` terminals stay bare.
     """
-    bypass = permission_mode == "bypassPermissions"
-    auto_allowed = AUTO_ALLOWED_TOOLS
-    if permission_mode == "acceptEdits":
-        auto_allowed = AUTO_ALLOWED_TOOLS | EDIT_TOOLS
-
-    async def can_use_tool(
-        tool_name: str, tool_input: dict[str, Any], context: ToolPermissionContext
-    ) -> PermissionResult:
-        if bypass or tool_name in auto_allowed:
-            return PermissionResultAllow()
-        if handle.interrupt_requested:
-            return PermissionResultDeny(message="Turn was interrupted")
-        elicitation_id, future = registry.create_approval(session_id)
-        await queue.put(
-            {
-                "type": "approval.request",
-                "elicitation_id": elicitation_id,
-                "params": _approval_params(tool_name, tool_input, context),
-            }
+    if state.usage is None and state.model_usage is None:
+        return
+    try:
+        pricing = await asyncio.to_thread(
+            assistant_store.get_config, project_root, "pricing"
         )
-        try:
-            action = await asyncio.wait_for(future, _APPROVAL_TIMEOUT_S)
-        except TimeoutError:
-            handle.approvals.pop(elicitation_id, None)
-            return PermissionResultDeny(message="Approval request timed out")
-        except asyncio.CancelledError:
-            if future.cancelled():
-                # end_turn cancelled the Future (turn is over): deny quietly.
-                return PermissionResultDeny(message="Turn ended")
-            raise
-        if action == "accept":
-            return PermissionResultAllow()
-        if action == "cancel":
-            # Deny AND stop the turn (Omnigent elicitation semantics). The
-            # interrupt runs as its own task — awaiting it here would
-            # deadlock the SDK control loop this callback replies on.
-            task = asyncio.get_running_loop().create_task(
-                registry.request_interrupt(session_id)
-            )
-            interrupt_tasks.add(task)
-            task.add_done_callback(interrupt_tasks.discard)
-            return PermissionResultDeny(message="User cancelled the turn")
-        # "decline" or the interrupt-deny sentinel: the turn continues (the
-        # model re-plans) unless an interrupt is already in flight.
-        return PermissionResultDeny(message="User declined")
-
-    return can_use_tool
+        models = (pricing or {}).get("models") or {}
+        configured = compute_configured_cost(state.model_usage or {}, models)
+        await asyncio.to_thread(
+            assistant_store.insert_turn_usage,
+            project_root,
+            session_id,
+            state.usage or {},
+            state.total_cost_usd,
+            configured,
+            state.model_usage,
+        )
+        totals = await asyncio.to_thread(
+            assistant_store.usage_totals, project_root, session_id
+        )
+        if configured is not None:
+            frame["configured_cost_usd"] = configured
+        if totals is not None:
+            frame["session_totals"] = totals
+    except Exception:
+        logger.exception(
+            f"assistant chat: usage bookkeeping failed (session {session_id})"
+        )
 
 
 async def _pump(
@@ -315,53 +266,88 @@ async def _pump(
         queue.put_nowait(_STREAM_END)
 
 
+async def _set_title_once(project_root: Path, session_id: str, text: str) -> None:
+    """Claim the session title from the FIRST user message (best-effort).
+
+    :func:`assistant_store.set_title_if_default` only writes while the title
+    is still the ``NULL`` placeholder, so later turns are no-ops.
+    """
+    try:
+        await asyncio.to_thread(
+            assistant_store.set_title_if_default,
+            project_root,
+            session_id,
+            text.strip()[:60],
+        )
+    except Exception:
+        logger.exception(f"assistant chat: title bookkeeping failed ({session_id})")
+
+
 async def chat_turn(
     project_root: Path,
     executor_cfg: dict[str, Any],
     text: str,
     registry: ClaudeTurnRegistry,
     *,
+    session_id: Optional[str] = None,
     permission_mode: str = "default",
     client_factory: Optional[ClientFactory] = None,
 ) -> AsyncIterator[bytes]:
     """Run one Claude SDK chat turn, yielding NDJSON frame lines.
 
     Sequence: ``status: preparing`` -> auth mint (failure -> ``session.failed``
-    pre-session) -> ensure session -> ``session`` frame -> persist the user
-    envelope -> spawn the per-turn client -> pump frames (heartbeats on
-    silence) until a terminal frame, an interrupt, or ``LHP-GEN-902``.
+    pre-session) -> ensure session -> ``session`` frame -> acquire the
+    session's turn lock -> persist the user envelope -> spawn the per-turn
+    client -> pump frames (heartbeats on silence) until a terminal frame, an
+    interrupt, or ``LHP-GEN-902``.
+
+    ``session_id`` targets one tab's session (``None`` = MRU-active
+    fallback; an unknown id mints a fresh session — the draft-tab path). The
+    ``session`` frame always reports the RESOLVED id, which is how a draft
+    tab learns its real session id.
 
     ``permission_mode`` is the caller-chosen approval policy for THIS turn
     (see module docstring); it is deliberately per-turn, not stored config —
     the user cycles it in the chat UI like Claude Code's own modes.
 
-    Holds the module turn lock for the WHOLE turn.
+    Holds the SESSION's turn lock (``registry.lock_for``) from just after the
+    ``session`` frame to the end of the turn: same-session turns serialize,
+    different sessions interleave freely.
     """
-    async with _turn_lock:
-        yield _encode({"type": "status", "state": "preparing"})
-        try:
-            auth = await asyncio.wait_for(
-                asyncio.to_thread(build_turn_env, executor_cfg), _AUTH_TIMEOUT_S
-            )
-        except ClaudeAuthError as exc:
-            yield _encode(session_failed_frame(exc.detail, exc.hint))
-            return
-        except TimeoutError:
-            mode = executor_cfg.get("mode", "claude_subscription")
-            hint = "databricks_auth" if mode == "databricks" else "claude_auth"
-            yield _encode(
-                session_failed_frame(
-                    f"Authentication did not complete within {_AUTH_TIMEOUT_S:.0f}s.",
-                    hint,
-                )
-            )
-            return
-
-        session_id, created, resume = await ensure_claude_session(
-            project_root, executor_cfg
+    yield _encode({"type": "status", "state": "preparing"})
+    try:
+        auth = await asyncio.wait_for(
+            asyncio.to_thread(build_turn_env, executor_cfg), _AUTH_TIMEOUT_S
         )
-        yield _encode({"type": "session", "session_id": session_id, "created": created})
+    except ClaudeAuthError as exc:
+        yield _encode(session_failed_frame(exc.detail, exc.hint))
+        return
+    except TimeoutError:
+        mode = executor_cfg.get("mode", "claude_subscription")
+        hint = "databricks_auth" if mode == "databricks" else "claude_auth"
+        yield _encode(
+            session_failed_frame(
+                f"Authentication did not complete within {_AUTH_TIMEOUT_S:.0f}s.",
+                hint,
+            )
+        )
+        return
+
+    session_id, created, resume = await ensure_claude_session(
+        project_root, executor_cfg, session_id=session_id
+    )
+    yield _encode({"type": "session", "session_id": session_id, "created": created})
+    async with registry.lock_for(session_id):
+        if not created:
+            # Re-read under the lock: a turn that finished while this one
+            # waited may have refreshed the stored resume handle.
+            row = await asyncio.to_thread(
+                assistant_store.get_session, project_root, session_id
+            )
+            fresh_resume = (row or {}).get("runtime_session_id")
+            resume = str(fresh_resume) if fresh_resume else None
         await _persist_item(project_root, session_id, user_message_envelope(text))
+        await _set_title_once(project_root, session_id, text)
 
         handle = registry.begin_turn(session_id)
         state = TranslationState()
@@ -375,7 +361,8 @@ async def chat_turn(
             auth.model,
             auth.env,
             resume,
-            _make_can_use_tool(
+            make_can_use_tool(
+                project_root,
                 session_id,
                 registry,
                 handle,
@@ -434,6 +421,8 @@ async def chat_turn(
                     continue
                 if entry is _STREAM_END:
                     break
+                if entry.get("type") in _TERMINAL_TYPES:
+                    await _record_turn_usage(project_root, session_id, state, entry)
                 yield _encode(entry)
 
             if state.terminal is None:

@@ -137,6 +137,10 @@ class ChatRequest(BaseModel):
     """``POST /assistant/chat`` body."""
 
     message: str = Field(..., min_length=1, description="User message text.")
+    #: Target session (multi-tab, claude_sdk provider). ``None`` falls back
+    #: to the MRU active session (stale/omnigent clients keep working); an
+    #: unknown id mints a fresh session — the draft-tab first-message path.
+    session_id: Optional[str] = None
     #: Per-turn approval policy, honored by the ``claude_sdk`` provider only
     #: (the omnigent provider has its own elicitation flow). Vocabulary
     #: matches Claude Code's permission modes: ``default`` asks for every
@@ -146,11 +150,93 @@ class ChatRequest(BaseModel):
 
 
 class ApprovalRequest(BaseModel):
-    """``POST /assistant/approval`` body: resolve one pending elicitation."""
+    """``POST /assistant/approval`` body: resolve one pending elicitation.
+
+    ``always_allow`` (with ``action: accept``, Claude provider only) asks the
+    server to persist an always-allow rule BEFORE resolving. The rule itself
+    is re-derived server-side from the recorded tool call — the client sends
+    only this flag, never the rule.
+    """
 
     elicitation_id: str = Field(..., min_length=1)
     action: Literal["accept", "decline", "cancel"]
     content: Optional[dict[str, Any]] = None  # optional MCP resolve payload
+    always_allow: bool = False
+    #: Session whose live turn holds the elicitation; ``None`` falls back to
+    #: the MRU active session (pre-multi-tab client behavior).
+    session_id: Optional[str] = None
+
+
+class InterruptRequest(BaseModel):
+    """``POST /assistant/interrupt`` body (optional — legacy clients POST none).
+
+    ``session_id`` targets one tab's running turn; ``None`` (or no body at
+    all) falls back to the MRU active session.
+    """
+
+    session_id: Optional[str] = None
+
+
+class ArchiveSessionRequest(BaseModel):
+    """``POST /assistant/session/archive`` body: close one tab's session."""
+
+    session_id: str = Field(..., min_length=1)
+
+
+class PermissionRule(BaseModel):
+    """One always-allow rule: a whole tool, or a Bash command prefix.
+
+    ``prefix`` applies to ``Bash`` rules only and matches word-boundary
+    guarded (the exact command, or the prefix followed by a space) — never
+    by substring.
+    """
+
+    tool: str = Field(..., min_length=1)
+    prefix: Optional[str] = None
+
+
+class PermissionsConfig(BaseModel):
+    """``GET/PUT /assistant/permissions`` body: the always-allow rules."""
+
+    always_allow: list[PermissionRule] = Field(default_factory=list)
+
+
+class UsageTotals(BaseModel):
+    """Summed token/cost usage over a session's persisted turns.
+
+    Cost fields are ``None`` (not 0) when no turn carried that cost — an
+    unpriced session must not read as a free one.
+    """
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_input_tokens: int = 0
+    cache_creation_input_tokens: int = 0
+    sdk_cost_usd: Optional[float] = None  # SDK-reported estimate (subscription)
+    configured_cost_usd: Optional[float] = None  # under the project's pricing
+
+
+class ModelPricing(BaseModel):
+    """Per-MTok USD rates for one model id (or id-prefix) key.
+
+    Omitted cache rates default server-side to 0.1x (read) / 1.25x (write)
+    of the input rate.
+    """
+
+    input_per_mtok: float = Field(..., ge=0)
+    output_per_mtok: float = Field(..., ge=0)
+    cache_read_per_mtok: Optional[float] = Field(None, ge=0)
+    cache_write_per_mtok: Optional[float] = Field(None, ge=0)
+
+
+class PricingConfig(BaseModel):
+    """``GET/PUT /assistant/pricing`` body: model id/prefix -> rates.
+
+    Keys match a used model by exact id first, then longest prefix (e.g.
+    ``claude-sonnet-`` covers every ``claude-sonnet-5-*``).
+    """
+
+    models: dict[str, ModelPricing] = Field(default_factory=dict)
 
 
 class SessionSnapshot(BaseModel):
@@ -166,6 +252,14 @@ class SessionSnapshot(BaseModel):
     title: Optional[str] = None
     status: str
     items: list[dict[str, Any]]
+    #: Lifetime usage sums; ``None`` when no turn recorded usage (omnigent
+    #: sessions always).
+    usage_totals: Optional[UsageTotals] = None
+    #: Whether the SDK context can be resumed (a ``runtime_session_id`` is
+    #: stored). ``False`` with items present means the next message starts a
+    #: fresh SDK context but keeps this transcript — the frontend renders a
+    #: hint. Omnigent snapshots always report ``True`` (daemon-managed).
+    resumable: bool = True
 
 
 class SessionListItem(BaseModel):
@@ -176,6 +270,8 @@ class SessionListItem(BaseModel):
     status: str  # "active" | "archived" | "stale"
     created_at: str
     last_used_at: str
+    provider: str  # "omnigent" | "claude_sdk"
+    usage_totals: Optional[UsageTotals] = None
 
 
 class SessionListResponse(BaseModel):

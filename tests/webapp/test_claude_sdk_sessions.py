@@ -163,6 +163,125 @@ def test_skill_upgrade_alone_recreates(
     assert second_id != first_id
 
 
+# ---------------------------------------------------------------------------
+# explicit session_id (multi-tab / historical resume)
+# ---------------------------------------------------------------------------
+
+
+def test_explicit_id_hash_match_reuses_that_session(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    installs = _record_skill_installs(monkeypatch)
+    first_id, _, _ = asyncio.run(
+        claude_sdk_sessions.ensure_claude_session(project, _CFG)
+    )
+    second_id, _, _ = asyncio.run(
+        claude_sdk_sessions.ensure_claude_session(project, _CFG, session_id="claude_x")
+    )
+    assert second_id != first_id  # unknown id minted a second session
+    assistant_store.set_runtime_session_id(project, first_id, "sdk-first")
+
+    # Explicit targeting picks the NON-MRU first session, not the MRU one.
+    again_id, created, resume = asyncio.run(
+        claude_sdk_sessions.ensure_claude_session(project, _CFG, session_id=first_id)
+    )
+
+    assert again_id == first_id
+    assert created is False
+    assert resume == "sdk-first"
+    # Both tabs stay active; reuse never reinstalls the skill.
+    by_id = {
+        s["session_id"]: s["status"] for s in assistant_store.list_sessions(project)
+    }
+    assert by_id == {first_id: "active", second_id: "active"}
+    assert installs == [project, project]
+
+
+def test_explicit_id_archived_match_is_reopened(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _record_skill_installs(monkeypatch)
+    session_id, _, _ = asyncio.run(
+        claude_sdk_sessions.ensure_claude_session(project, _CFG)
+    )
+    assistant_store.set_runtime_session_id(project, session_id, "sdk-old")
+    assistant_store.archive_session(project, session_id)
+
+    again_id, created, resume = asyncio.run(
+        claude_sdk_sessions.ensure_claude_session(project, _CFG, session_id=session_id)
+    )
+
+    assert again_id == session_id
+    assert created is False
+    assert resume == "sdk-old"
+    row = assistant_store.get_session(project, session_id)
+    assert row is not None
+    assert row["status"] == "active"
+
+
+def test_explicit_id_hash_drift_marks_stale_and_mints_fresh(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _record_skill_installs(monkeypatch)
+    first_id, _, _ = asyncio.run(
+        claude_sdk_sessions.ensure_claude_session(project, _CFG)
+    )
+
+    drifted = {"mode": "databricks", "profile": "DEFAULT"}
+    second_id, created, resume = asyncio.run(
+        claude_sdk_sessions.ensure_claude_session(project, drifted, session_id=first_id)
+    )
+
+    assert created is True
+    assert resume is None
+    assert second_id != first_id
+    by_id = {
+        s["session_id"]: s["status"] for s in assistant_store.list_sessions(project)
+    }
+    assert by_id == {first_id: "stale", second_id: "active"}
+
+
+def test_explicit_unknown_id_mints_fresh(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The draft-tab path: the client's placeholder id is unknown, so a fresh
+    # session is minted (and reported back via the `session` frame).
+    _record_skill_installs(monkeypatch)
+
+    session_id, created, resume = asyncio.run(
+        claude_sdk_sessions.ensure_claude_session(project, _CFG, session_id="draft:1")
+    )
+
+    assert created is True
+    assert resume is None
+    assert session_id.startswith("claude_")
+    assert assistant_store.get_session(project, "draft:1") is None
+    row = assistant_store.get_session(project, session_id)
+    assert row is not None
+    assert row["status"] == "active"
+    assert row["title"] is None  # placeholder: first user message claims it
+
+
+def test_none_session_id_uses_mru_active(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _record_skill_installs(monkeypatch)
+    first_id, _, _ = asyncio.run(
+        claude_sdk_sessions.ensure_claude_session(project, _CFG)
+    )
+    second_id, _, _ = asyncio.run(
+        claude_sdk_sessions.ensure_claude_session(project, _CFG, session_id="claude_x")
+    )
+    assert second_id != first_id
+
+    # No explicit id → the MRU active session (the one minted last).
+    mru_id, created, _ = asyncio.run(
+        claude_sdk_sessions.ensure_claude_session(project, _CFG)
+    )
+    assert mru_id == second_id
+    assert created is False
+
+
 def test_bundle_config_never_contains_values(project: Path) -> None:
     config = claude_sdk_sessions.claude_bundle_config(
         {

@@ -1,46 +1,26 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { renderHook } from '@testing-library/react'
 import {
-  normalizeSnapshotItem,
+  RESUME_LOST_HINT,
+  activeSessionId,
+  useActiveConversation,
   useAssistantStore,
 } from '@/store/assistantStore'
-import { ApiError } from '@/api/client'
-import type { AssistantFrame, SessionFailedHint } from '@/types/assistant'
-import type { ErrorFrame } from '@/types/api'
 
-// ── Frame builders ───────────────────────────────────────────────
-
-const textDelta = (delta: string): AssistantFrame => ({ type: 'text.delta', delta })
-const reasoningDelta = (delta: string): AssistantFrame => ({
-  type: 'reasoning.delta',
-  delta,
-})
-
-const errorFrame: ErrorFrame = {
-  type: 'error',
-  code: 'LHP-GEN-902',
-  title: 'Assistant daemon connection lost',
-  details: null,
-  suggestions: ['Restart the daemon'],
-  context: {},
-  doc_link: null,
-}
-
-function apply(...frames: AssistantFrame[]) {
-  for (const frame of frames) {
-    useAssistantStore.getState().applyFrame(frame)
-  }
-}
+// Frame→state behavior is covered by the pure-reducer tests in
+// assistantConversation.test.ts; these tests cover the multi-tab container
+// — tab lifecycle, per-tab action routing, and persistence.
 
 function resetStore() {
   useAssistantStore.setState({
-    parts: [],
-    streaming: false,
-    statusState: null,
-    pendingApproval: null,
-    sessionMeta: null,
-    failure: null,
-    interrupted: false,
+    conversations: {},
+    tabOrder: [],
+    activeTabKey: null,
+    tabTitles: {},
+    nextDraftId: 1,
     panelOpen: false,
+    panelWidth: 360,
+    permissionMode: 'default',
   })
 }
 
@@ -48,296 +28,265 @@ beforeEach(() => {
   resetStore()
 })
 
-describe('assistantStore.beginTurn', () => {
-  it('appends the user message and opens the streaming turn', () => {
-    useAssistantStore.getState().beginTurn('hello')
-    const s = useAssistantStore.getState()
-    expect(s.parts).toMatchObject([{ kind: 'text', role: 'user', text: 'hello' }])
-    expect(s.streaming).toBe(true)
-    expect(s.failure).toBeNull()
-    expect(s.interrupted).toBe(false)
+const store = () => useAssistantStore.getState()
+
+describe('assistantStore — tab lifecycle', () => {
+  it('openTab mints draft keys, appends in order, and activates', () => {
+    const first = store().openTab()
+    const second = store().openTab()
+    expect(first).toBe('draft:1')
+    expect(second).toBe('draft:2')
+    const s = store()
+    expect(s.tabOrder).toEqual(['draft:1', 'draft:2'])
+    expect(s.activeTabKey).toBe('draft:2')
+    expect(s.conversations['draft:1'].parts).toEqual([])
   })
 
-  it('clears the previous turn failure and stale pending approval', () => {
-    useAssistantStore.setState({
-      failure: { kind: 'transport', message: 'boom' },
-      pendingApproval: { elicitationId: 'e1', params: {} },
-    })
-    useAssistantStore.getState().beginTurn('again')
-    const s = useAssistantStore.getState()
-    expect(s.failure).toBeNull()
-    expect(s.pendingApproval).toBeNull()
-  })
-})
+  it('rekeyTab moves the conversation to the session id, preserving position', () => {
+    store().openTab()
+    store().openTab()
+    store().openTab()
+    store().beginTurn('draft:2', 'hello')
+    store().activateTab('draft:2')
 
-describe('assistantStore.applyFrame — delta coalescing', () => {
-  it('coalesces consecutive text deltas into one assistant part', () => {
-    useAssistantStore.getState().beginTurn('hi')
-    apply(textDelta('Hel'), textDelta('lo'))
-    const parts = useAssistantStore.getState().parts
-    expect(parts).toHaveLength(2)
-    expect(parts[1]).toMatchObject({ kind: 'text', role: 'assistant', text: 'Hello' })
-  })
+    store().rekeyTab('draft:2', 'claude_abc')
 
-  it('never coalesces an assistant delta into the user message', () => {
-    useAssistantStore.getState().beginTurn('hi')
-    apply(textDelta('yo'))
-    const parts = useAssistantStore.getState().parts
-    expect(parts[0]).toMatchObject({ kind: 'text', role: 'user', text: 'hi' })
-    expect(parts[1]).toMatchObject({ kind: 'text', role: 'assistant', text: 'yo' })
-  })
-
-  it('starts new parts across text/reasoning boundaries, preserving order', () => {
-    useAssistantStore.getState().beginTurn('hi')
-    apply(
-      textDelta('a'),
-      textDelta('b'),
-      reasoningDelta('think'),
-      reasoningDelta('ing'),
-      textDelta('c'),
-    )
-    const parts = useAssistantStore.getState().parts
-    expect(parts.map((p) => p.kind)).toEqual(['text', 'text', 'reasoning', 'text'])
-    expect(parts[1]).toMatchObject({ kind: 'text', text: 'ab' })
-    expect(parts[2]).toMatchObject({ kind: 'reasoning', text: 'thinking' })
-    expect(parts[3]).toMatchObject({ kind: 'text', text: 'c' })
-  })
-
-  it('an item.done between text deltas splits the text into two parts', () => {
-    useAssistantStore.getState().beginTurn('hi')
-    apply(
-      textDelta('before'),
-      { type: 'item.done', item: { id: 'fc1', type: 'function_call' } },
-      textDelta('after'),
-    )
-    const parts = useAssistantStore.getState().parts
-    expect(parts.map((p) => p.kind)).toEqual(['text', 'text', 'item', 'text'])
-    expect(parts[2]).toMatchObject({ kind: 'item', item: { id: 'fc1' } })
-  })
-})
-
-describe('assistantStore.applyFrame — approvals', () => {
-  it('approval.request sets pendingApproval and appends an approval part', () => {
-    apply({
-      type: 'approval.request',
-      elicitation_id: 'e1',
-      params: { message: 'Run this?' },
-    })
-    const s = useAssistantStore.getState()
-    expect(s.pendingApproval).toEqual({
-      elicitationId: 'e1',
-      params: { message: 'Run this?' },
-    })
-    expect(s.parts).toMatchObject([
-      { kind: 'approval', elicitationId: 'e1', resolved: null },
+    const s = store()
+    expect(s.tabOrder).toEqual(['draft:1', 'claude_abc', 'draft:3'])
+    expect(s.activeTabKey).toBe('claude_abc')
+    expect(s.conversations['draft:2']).toBeUndefined()
+    expect(s.conversations['claude_abc'].parts).toMatchObject([
+      { kind: 'text', role: 'user', text: 'hello' },
     ])
   })
 
-  it('resolveApprovalLocal marks the part resolved and clears the pending state', () => {
-    apply({ type: 'approval.request', elicitation_id: 'e1', params: {} })
-    useAssistantStore.getState().resolveApprovalLocal('e1', 'accept')
-    const s = useAssistantStore.getState()
-    expect(s.pendingApproval).toBeNull()
-    expect(s.parts[0]).toMatchObject({ kind: 'approval', resolved: 'accept' })
+  it('rekeyTab keeps a background tab active elsewhere untouched', () => {
+    store().openTab()
+    store().openTab() // active: draft:2
+    store().rekeyTab('draft:1', 'claude_bg')
+    const s = store()
+    expect(s.activeTabKey).toBe('draft:2')
+    expect(s.tabOrder).toEqual(['claude_bg', 'draft:2'])
   })
 
-  it('resolving an unknown elicitation leaves a different pending one intact', () => {
-    apply({ type: 'approval.request', elicitation_id: 'e1', params: {} })
-    useAssistantStore.getState().resolveApprovalLocal('other', 'decline')
-    expect(useAssistantStore.getState().pendingApproval).not.toBeNull()
+  it('closeTab removes the tab and activates a neighbor', () => {
+    store().openSessionTab('claude_a')
+    store().openSessionTab('claude_b')
+    store().openSessionTab('claude_c')
+    store().activateTab('claude_b')
+
+    store().closeTab('claude_b')
+
+    const s = store()
+    expect(s.tabOrder).toEqual(['claude_a', 'claude_c'])
+    expect(s.activeTabKey).toBe('claude_c')
+    expect(s.conversations['claude_b']).toBeUndefined()
+  })
+
+  it('closing the last tab auto-opens a fresh draft', () => {
+    store().openSessionTab('claude_a')
+    store().closeTab('claude_a')
+    const s = store()
+    expect(s.tabOrder).toEqual(['draft:1'])
+    expect(s.activeTabKey).toBe('draft:1')
+  })
+
+  it('openSessionTab focuses an already-open tab instead of duplicating', () => {
+    store().openSessionTab('claude_a', 'First')
+    store().openTab()
+    store().openSessionTab('claude_a', 'Renamed')
+    const s = store()
+    expect(s.tabOrder).toEqual(['claude_a', 'draft:1'])
+    expect(s.activeTabKey).toBe('claude_a')
+    expect(s.tabTitles['claude_a']).toBe('Renamed')
+  })
+
+  it('syncTabsFromSessions appends missing sessions, refreshes titles, never removes', () => {
+    store().openTab() // an existing draft stays put
+    store().syncTabsFromSessions([
+      { session_id: 'claude_new', title: 'Bronze work' },
+      { session_id: 'claude_old', title: null },
+    ])
+    const s = store()
+    expect(s.tabOrder).toEqual(['draft:1', 'claude_new', 'claude_old'])
+    expect(s.tabTitles['claude_new']).toBe('Bronze work')
+    expect(s.activeTabKey).toBe('draft:1')
+
+    // Re-sync is idempotent for known sessions.
+    store().syncTabsFromSessions([{ session_id: 'claude_new', title: 'Renamed' }])
+    expect(store().tabOrder).toEqual(['draft:1', 'claude_new', 'claude_old'])
+    expect(store().tabTitles['claude_new']).toBe('Renamed')
+  })
+
+  it('syncTabsFromSessions with no sessions opens a draft so the panel has a target', () => {
+    store().syncTabsFromSessions([])
+    const s = store()
+    expect(s.tabOrder).toEqual(['draft:1'])
+    expect(s.activeTabKey).toBe('draft:1')
   })
 })
 
-describe('assistantStore.applyFrame — session identity', () => {
-  it('records the session id', () => {
-    apply({ type: 'session', session_id: 'conv_1', created: false })
-    expect(useAssistantStore.getState().sessionMeta).toEqual({
-      sessionId: 'conv_1',
+describe('assistantStore — per-tab conversation routing', () => {
+  it('frames land on their tab only; two conversations stream independently', () => {
+    store().openSessionTab('claude_a')
+    store().openSessionTab('claude_b')
+    store().beginTurn('claude_a', 'one')
+    store().beginTurn('claude_b', 'two')
+
+    store().applyFrame('claude_a', { type: 'text.delta', delta: 'Alpha' })
+    store().applyFrame('claude_b', { type: 'text.delta', delta: 'Beta' })
+    store().applyFrame('claude_a', { type: 'turn.completed' })
+
+    const s = store()
+    expect(s.conversations['claude_a'].parts).toMatchObject([
+      { kind: 'text', role: 'user', text: 'one' },
+      { kind: 'text', role: 'assistant', text: 'Alpha' },
+    ])
+    expect(s.conversations['claude_a'].streaming).toBe(false)
+    expect(s.conversations['claude_b'].parts).toMatchObject([
+      { kind: 'text', role: 'user', text: 'two' },
+      { kind: 'text', role: 'assistant', text: 'Beta' },
+    ])
+    expect(s.conversations['claude_b'].streaming).toBe(true)
+  })
+
+  it('actions on an unknown tab key are safe no-ops', () => {
+    const before = store()
+    store().applyFrame('ghost', { type: 'text.delta', delta: 'x' })
+    store().beginTurn('ghost', 'x')
+    store().finishStream('ghost')
+    store().failTransport('ghost', new Error('x'))
+    expect(store().conversations).toBe(before.conversations)
+  })
+
+  it('failTransport and resolveApprovalLocal target their tab', () => {
+    store().openSessionTab('claude_a')
+    store().openSessionTab('claude_b')
+    store().beginTurn('claude_a', 'hi')
+    store().failTransport('claude_a', new Error('network down'))
+    store().applyFrame('claude_b', {
+      type: 'approval.request',
+      elicitation_id: 'e1',
+      params: {},
     })
-  })
+    store().resolveApprovalLocal('claude_b', 'e1', 'accept')
 
-  it('created=true on the FIRST turn adds no divider', () => {
-    useAssistantStore.getState().beginTurn('hi')
-    apply({ type: 'session', session_id: 'conv_1', created: true })
-    expect(
-      useAssistantStore.getState().parts.every((p) => p.kind !== 'divider'),
-    ).toBe(true)
-  })
-
-  it('created=true mid-conversation inserts a divider before the new user message', () => {
-    useAssistantStore.getState().beginTurn('first')
-    apply(textDelta('answer'), { type: 'turn.completed' })
-    useAssistantStore.getState().beginTurn('second')
-    apply({ type: 'session', session_id: 'conv_2', created: true })
-    const parts = useAssistantStore.getState().parts
-    expect(parts.map((p) => p.kind)).toEqual(['text', 'text', 'divider', 'text'])
-    expect(parts[2]).toMatchObject({ kind: 'divider', label: 'new session started' })
-    expect(parts[3]).toMatchObject({ kind: 'text', role: 'user', text: 'second' })
-  })
-})
-
-describe('assistantStore.applyFrame — terminal frames', () => {
-  it('turn.completed closes the streaming turn cleanly', () => {
-    useAssistantStore.getState().beginTurn('hi')
-    apply({ type: 'status', state: 'running' }, { type: 'turn.completed' })
-    const s = useAssistantStore.getState()
-    expect(s.streaming).toBe(false)
-    expect(s.statusState).toBeNull()
-    expect(s.failure).toBeNull()
-  })
-
-  it('turn.failed records the reason as a failure', () => {
-    useAssistantStore.getState().beginTurn('hi')
-    apply({ type: 'turn.failed', reason: 'model exploded' })
-    const s = useAssistantStore.getState()
-    expect(s.streaming).toBe(false)
-    expect(s.failure).toEqual({ kind: 'turn_failed', reason: 'model exploded' })
-  })
-
-  it('interrupted marks the turn interrupted (not failed)', () => {
-    useAssistantStore.getState().beginTurn('hi')
-    apply({ type: 'interrupted' })
-    const s = useAssistantStore.getState()
-    expect(s.streaming).toBe(false)
-    expect(s.interrupted).toBe(true)
-    expect(s.failure).toBeNull()
-  })
-
-  it('a terminal error frame becomes a stream_error failure', () => {
-    useAssistantStore.getState().beginTurn('hi')
-    apply(errorFrame)
-    const s = useAssistantStore.getState()
-    expect(s.streaming).toBe(false)
-    expect(s.failure).toEqual({ kind: 'stream_error', frame: errorFrame })
-  })
-
-  it.each<SessionFailedHint>(['omnigent_setup', 'databricks_auth', 'unknown'])(
-    'session.failed carries the %s hint into the failure state',
-    (hint) => {
-      useAssistantStore.getState().beginTurn('hi')
-      apply({ type: 'session.failed', detail: 'runner_error: boom', hint })
-      const s = useAssistantStore.getState()
-      expect(s.streaming).toBe(false)
-      expect(s.failure).toEqual({
-        kind: 'session_failed',
-        detail: 'runner_error: boom',
-        hint,
-      })
-    },
-  )
-
-  it('heartbeat frames change nothing', () => {
-    useAssistantStore.getState().beginTurn('hi')
-    const before = useAssistantStore.getState().parts
-    apply({ type: 'heartbeat' })
-    expect(useAssistantStore.getState().parts).toBe(before)
-    expect(useAssistantStore.getState().streaming).toBe(true)
-  })
-})
-
-describe('assistantStore.failTransport', () => {
-  it('maps a chat-gate 409 (LHP-WEB-002) to a gate failure', () => {
-    useAssistantStore.getState().beginTurn('hi')
-    useAssistantStore.getState().failTransport(
-      new ApiError(409, {
-        code: 'LHP-WEB-002',
-        category: 'CFG',
-        message: 'LHP skill is not installed in this project',
-        details: '',
-        suggestions: [],
-        context: {},
-        http_status: 409,
-      }),
-    )
-    const s = useAssistantStore.getState()
-    expect(s.streaming).toBe(false)
-    expect(s.failure).toEqual({
-      kind: 'gate',
-      code: 'LHP-WEB-002',
-      message: 'LHP skill is not installed in this project',
-    })
-  })
-
-  it('maps a plain transport error to a transport failure', () => {
-    useAssistantStore.getState().beginTurn('hi')
-    useAssistantStore.getState().failTransport(new Error('network down'))
-    expect(useAssistantStore.getState().failure).toEqual({
+    const s = store()
+    expect(s.conversations['claude_a'].failure).toEqual({
       kind: 'transport',
       message: 'network down',
     })
-  })
-})
-
-describe('snapshot normalization + hydration', () => {
-  it('normalizeSnapshotItem unwraps data and merges envelope id/type/status', () => {
-    const item = normalizeSnapshotItem({
-      id: 'fc1',
-      type: 'function_call',
-      status: 'completed',
-      response_id: 'resp_1',
-      created_at: '2026-07-08T00:00:00Z',
-      created_by: 'assistant',
-      data: { name: 'run_lhp', arguments: '{}', status: 'in_progress' },
-    })
-    expect(item).toEqual({
-      id: 'fc1',
-      type: 'function_call',
-      status: 'completed', // envelope wins over data.status
-      name: 'run_lhp',
-      arguments: '{}',
+    expect(s.conversations['claude_b'].failure).toBeNull()
+    expect(s.conversations['claude_b'].parts[0]).toMatchObject({
+      kind: 'approval',
+      resolved: 'accept',
     })
   })
 
-  it('hydrateFromSnapshot maps enveloped items onto the shared part shapes', () => {
-    useAssistantStore.getState().hydrateFromSnapshot({
-      session_id: 'conv_9',
-      title: null,
-      status: 'idle',
+  it('hydrateFromSnapshot fills an empty tab and skips a busy one', () => {
+    store().openSessionTab('claude_a')
+    store().hydrateFromSnapshot('claude_a', {
+      session_id: 'claude_a',
+      title: 'My chat',
+      status: 'active',
+      resumable: true,
       items: [
         {
           id: 'msg_1',
           type: 'message',
-          data: {
-            role: 'user',
-            content: [{ type: 'input_text', text: 'generate the pipeline' }],
-          },
-        },
-        {
-          id: 'r_1',
-          type: 'reasoning',
-          data: { summary: [{ type: 'summary_text', text: 'planning' }] },
-        },
-        {
-          id: 'fc_1',
-          type: 'function_call',
-          status: 'completed',
-          data: { name: 'Bash', arguments: '{"cmd":"lhp generate"}' },
-        },
-        {
-          id: 'msg_2',
-          type: 'message',
-          data: {
-            role: 'assistant',
-            content: [{ type: 'output_text', text: 'Done.' }],
-          },
+          data: { role: 'user', content: 'generate the pipeline' },
         },
       ],
     })
-    const s = useAssistantStore.getState()
-    expect(s.sessionMeta).toEqual({ sessionId: 'conv_9' })
-    expect(s.parts).toMatchObject([
+    let s = store()
+    expect(s.conversations['claude_a'].parts).toMatchObject([
       { kind: 'text', role: 'user', text: 'generate the pipeline' },
-      { kind: 'reasoning', text: 'planning' },
-      { kind: 'item', item: { id: 'fc_1', type: 'function_call', name: 'Bash' } },
-      { kind: 'text', role: 'assistant', text: 'Done.' },
     ])
+    expect(s.tabTitles['claude_a']).toBe('My chat')
+
+    // A tab that already has parts is never clobbered.
+    store().hydrateFromSnapshot('claude_a', {
+      session_id: 'claude_a',
+      title: null,
+      status: 'active',
+      resumable: true,
+      items: [],
+    })
+    s = store()
+    expect(s.conversations['claude_a'].parts).toHaveLength(1)
+  })
+
+  it('hydrateFromSnapshot appends the resume-lost hint when not resumable', () => {
+    store().openSessionTab('claude_a')
+    store().hydrateFromSnapshot('claude_a', {
+      session_id: 'claude_a',
+      title: null,
+      status: 'archived',
+      resumable: false,
+      items: [
+        { id: 'm1', type: 'message', data: { role: 'user', content: 'hello' } },
+      ],
+    })
+    const parts = store().conversations['claude_a'].parts
+    expect(parts[parts.length - 1]).toMatchObject({
+      kind: 'divider',
+      label: RESUME_LOST_HINT,
+    })
+  })
+
+  it('hydrateFromSnapshot renders no hint for an EMPTY non-resumable session', () => {
+    store().openSessionTab('claude_a')
+    store().hydrateFromSnapshot('claude_a', {
+      session_id: 'claude_a',
+      title: null,
+      status: 'archived',
+      resumable: false,
+      items: [],
+    })
+    expect(store().conversations['claude_a'].parts).toEqual([])
+  })
+})
+
+describe('assistantStore — active-conversation selectors', () => {
+  it('useActiveConversation tracks the active tab (stable empty before any tab)', () => {
+    const { result, rerender } = renderHook(() => useActiveConversation())
+    expect(result.current.parts).toEqual([])
+    const emptyBefore = result.current
+
+    store().openSessionTab('claude_a')
+    store().beginTurn('claude_a', 'hi')
+    rerender()
+    expect(result.current.parts).toMatchObject([{ kind: 'text', text: 'hi' }])
+
+    store().openTab()
+    rerender()
+    expect(result.current.parts).toEqual([])
+    expect(result.current).not.toBe(emptyBefore) // draft has its own state
+  })
+
+  it('activeSessionId prefers the bound session, falls back to a real key, undefined for drafts', () => {
+    expect(activeSessionId()).toBeUndefined()
+
+    store().openTab()
+    expect(activeSessionId()).toBeUndefined() // draft, nothing bound yet
+
+    store().applyFrame('draft:1', {
+      type: 'session',
+      session_id: 'claude_bound',
+      created: true,
+    })
+    expect(activeSessionId()).toBe('claude_bound') // bound via session frame
+
+    store().openSessionTab('claude_real')
+    expect(activeSessionId()).toBe('claude_real') // key IS the session id
   })
 })
 
 describe('assistantStore persistence', () => {
-  it('persists ONLY UI preferences — never conversation state', () => {
-    useAssistantStore.getState().beginTurn('secret conversation')
-    useAssistantStore.getState().setPanelOpen(true)
+  it('persists ONLY UI preferences — never tabs or conversations', () => {
+    store().openTab()
+    store().beginTurn('draft:1', 'secret conversation')
+    store().setPanelOpen(true)
     const raw = localStorage.getItem('lhp-assistant')
     expect(raw).not.toBeNull()
     const persisted = JSON.parse(raw as string) as { state: Record<string, unknown> }
@@ -349,9 +298,9 @@ describe('assistantStore persistence', () => {
   })
 
   it('clamps panelWidth to the resize bounds', () => {
-    useAssistantStore.getState().setPanelWidth(10)
-    expect(useAssistantStore.getState().panelWidth).toBe(300)
-    useAssistantStore.getState().setPanelWidth(5000)
-    expect(useAssistantStore.getState().panelWidth).toBe(760)
+    store().setPanelWidth(10)
+    expect(store().panelWidth).toBe(300)
+    store().setPanelWidth(5000)
+    expect(store().panelWidth).toBe(760)
   })
 })

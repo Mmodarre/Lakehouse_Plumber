@@ -15,12 +15,16 @@ export interface paths {
         put?: never;
         /**
          * Resolve Approval
-         * @description Resolve a pending elicitation on the active session.
+         * @description Resolve a pending elicitation on one session's live turn.
          *
-         *     Never touches a chat-turn lock, so approvals work while a chat stream is
-         *     open on another request. Claude provider: resolves the in-process turn
-         *     registry (unknown / already-resolved elicitations 404). Omnigent: talks
-         *     to the daemon client directly.
+         *     ``body.session_id`` targets a tab's session; absent, the MRU active
+         *     session is assumed (pre-multi-tab clients). Never touches a chat-turn
+         *     lock, so approvals work while a chat stream is open on another request.
+         *     Claude provider: resolves the in-process turn registry (unknown /
+         *     already-resolved elicitations 404). ``accept`` with ``always_allow``
+         *     persists the rule RE-DERIVED from the registry-recorded tool call BEFORE
+         *     resolving; the client echo is never trusted. Omnigent: talks to the
+         *     daemon client directly.
          */
         post: operations["resolve_approval_api_assistant_approval_post"];
         delete?: never;
@@ -140,13 +144,72 @@ export interface paths {
         put?: never;
         /**
          * Interrupt
-         * @description Interrupt the active session's running turn (no chat-turn lock).
+         * @description Interrupt one session's running turn (no chat-turn lock).
          *
-         *     Claude provider: interrupting with no live turn is a harmless no-op
-         *     (``delivered: false``) — the stop button can race a turn that just
+         *     The body is optional: ``session_id`` targets a tab's turn; no body (or
+         *     ``null``) falls back to the MRU active session — legacy clients POST
+         *     nothing. Claude provider: interrupting with no live turn is a harmless
+         *     no-op (``delivered: false``) — the stop button can race a turn that just
          *     finished.
          */
         post: operations["interrupt_api_assistant_interrupt_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assistant/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Permissions
+         * @description Return the stored always-allow rules; empty (no rules) when never set.
+         */
+        get: operations["get_permissions_api_assistant_permissions_get"];
+        /**
+         * Put Permissions
+         * @description Store the always-allow rules; echo back exactly what was stored.
+         *
+         *     Same posture as :func:`put_pricing`: its own ``assistant_config`` key
+         *     (``"permissions"``), and deliberately NEVER touches session staleness —
+         *     rules only widen the silent-allow set for future tool calls.
+         */
+        put: operations["put_permissions_api_assistant_permissions_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assistant/pricing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Pricing
+         * @description Return the stored model pricing; empty (no models) when never set.
+         */
+        get: operations["get_pricing_api_assistant_pricing_get"];
+        /**
+         * Put Pricing
+         * @description Store the model pricing; echo back exactly what was stored.
+         *
+         *     Deliberately NEVER touches session staleness: pricing lives under its
+         *     own ``assistant_config`` key (``"pricing"``) and only affects cost
+         *     labeling — the stale-marking in :func:`put_executor_config` is specific
+         *     to the ``executor`` key, whose changes alter how turns run.
+         */
+        put: operations["put_pricing_api_assistant_pricing_put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -162,16 +225,43 @@ export interface paths {
         };
         /**
          * Get Session
-         * @description Snapshot of the active session for panel rehydration.
+         * @description Snapshot of one session for panel (re)hydration.
          *
-         *     ``items`` pass through UNMODIFIED in the snapshot envelope shape (spike
-         *     S8; the Claude provider persists the SAME envelope shape in
-         *     ``assistant_items``); the client-side renderer unwraps each item's
-         *     ``data``.
+         *     Explicit ``session_id``: that row is served whatever its status —
+         *     archived transcripts back the history view. Absent: the MRU active
+         *     session (the pre-multi-tab behavior). ``items`` pass through UNMODIFIED
+         *     in the snapshot envelope shape (spike S8; the Claude provider persists
+         *     the SAME envelope shape in ``assistant_items``); the client-side
+         *     renderer unwraps each item's ``data``. ``resumable`` reports whether a
+         *     stored SDK resume handle exists (Claude rows; omnigent is always
+         *     ``True`` — resume is daemon-managed).
          */
         get: operations["get_session_api_assistant_session_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assistant/session/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Archive Session
+         * @description Archive ONE session by id (a tab was closed).
+         *
+         *     Unknown ids 404; archiving a session that is not active (already
+         *     archived, or stale) is a harmless no-op reported via ``archived``.
+         */
+        post: operations["archive_session_api_assistant_session_archive_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -189,8 +279,10 @@ export interface paths {
         put?: never;
         /**
          * New Session
-         * @description Archive the active session so the next chat turn starts a fresh one.
+         * @description Archive every active session so the next chat turn starts a fresh one.
          *
+         *     Pre-multi-tab semantics, kept for the omnigent provider's single-session
+         *     flow (the Claude tabs UI archives per-session via ``/session/archive``).
          *     Nothing is created here — provisioning happens lazily on the next chat
          *     turn (idempotent when no session is active).
          */
@@ -211,6 +303,10 @@ export interface paths {
         /**
          * List Sessions
          * @description List locally-tracked assistant sessions, most recently used first.
+         *
+         *     All statuses and both providers are returned — the frontend splits
+         *     ``active`` Claude rows into tabs and ``archived`` ones into history.
+         *     Usage totals come from ONE grouped query over all listed ids (no N+1).
          */
         get: operations["list_sessions_api_assistant_sessions_get"];
         put?: never;
@@ -1051,6 +1147,11 @@ export interface components {
         /**
          * ApprovalRequest
          * @description ``POST /assistant/approval`` body: resolve one pending elicitation.
+         *
+         *     ``always_allow`` (with ``action: accept``, Claude provider only) asks the
+         *     server to persist an always-allow rule BEFORE resolving. The rule itself
+         *     is re-derived server-side from the recorded tool call — the client sends
+         *     only this flag, never the rule.
          */
         ApprovalRequest: {
             /**
@@ -1058,12 +1159,27 @@ export interface components {
              * @enum {string}
              */
             action: "accept" | "decline" | "cancel";
+            /**
+             * Always Allow
+             * @default false
+             */
+            always_allow: boolean;
             /** Content */
             content?: {
                 [key: string]: unknown;
             } | null;
             /** Elicitation Id */
             elicitation_id: string;
+            /** Session Id */
+            session_id?: string | null;
+        };
+        /**
+         * ArchiveSessionRequest
+         * @description ``POST /assistant/session/archive`` body: close one tab's session.
+         */
+        ArchiveSessionRequest: {
+            /** Session Id */
+            session_id: string;
         };
         /**
          * AssistantStatus
@@ -1159,6 +1275,8 @@ export interface components {
              * @enum {string}
              */
             permission_mode: "default" | "acceptEdits" | "bypassPermissions";
+            /** Session Id */
+            session_id?: string | null;
         };
         /** CircularDependencyResponse */
         CircularDependencyResponse: {
@@ -1565,6 +1683,56 @@ export interface components {
             /** Success */
             success: boolean;
         };
+        /**
+         * InterruptRequest
+         * @description ``POST /assistant/interrupt`` body (optional — legacy clients POST none).
+         *
+         *     ``session_id`` targets one tab's running turn; ``None`` (or no body at
+         *     all) falls back to the MRU active session.
+         */
+        InterruptRequest: {
+            /** Session Id */
+            session_id?: string | null;
+        };
+        /**
+         * ModelPricing
+         * @description Per-MTok USD rates for one model id (or id-prefix) key.
+         *
+         *     Omitted cache rates default server-side to 0.1x (read) / 1.25x (write)
+         *     of the input rate.
+         */
+        ModelPricing: {
+            /** Cache Read Per Mtok */
+            cache_read_per_mtok?: number | null;
+            /** Cache Write Per Mtok */
+            cache_write_per_mtok?: number | null;
+            /** Input Per Mtok */
+            input_per_mtok: number;
+            /** Output Per Mtok */
+            output_per_mtok: number;
+        };
+        /**
+         * PermissionRule
+         * @description One always-allow rule: a whole tool, or a Bash command prefix.
+         *
+         *     ``prefix`` applies to ``Bash`` rules only and matches word-boundary
+         *     guarded (the exact command, or the prefix followed by a space) — never
+         *     by substring.
+         */
+        PermissionRule: {
+            /** Prefix */
+            prefix?: string | null;
+            /** Tool */
+            tool: string;
+        };
+        /**
+         * PermissionsConfig
+         * @description ``GET/PUT /assistant/permissions`` body: the always-allow rules.
+         */
+        PermissionsConfig: {
+            /** Always Allow */
+            always_allow?: components["schemas"]["PermissionRule"][];
+        };
         /** PipelineDetailResponse */
         PipelineDetailResponse: {
             /** Config */
@@ -1662,6 +1830,19 @@ export interface components {
             extends?: string | null;
             /** Name */
             name: string;
+        };
+        /**
+         * PricingConfig
+         * @description ``GET/PUT /assistant/pricing`` body: model id/prefix -> rates.
+         *
+         *     Keys match a used model by exact id first, then longest prefix (e.g.
+         *     ``claude-sonnet-`` covers every ``claude-sonnet-5-*``).
+         */
+        PricingConfig: {
+            /** Models */
+            models?: {
+                [key: string]: components["schemas"]["ModelPricing"];
+            };
         };
         /** ProjectInfoResponse */
         ProjectInfoResponse: {
@@ -1824,12 +2005,15 @@ export interface components {
             created_at: string;
             /** Last Used At */
             last_used_at: string;
+            /** Provider */
+            provider: string;
             /** Session Id */
             session_id: string;
             /** Status */
             status: string;
             /** Title */
             title: string | null;
+            usage_totals?: components["schemas"]["UsageTotals"] | null;
         };
         /**
          * SessionListResponse
@@ -1855,12 +2039,18 @@ export interface components {
             items: {
                 [key: string]: unknown;
             }[];
+            /**
+             * Resumable
+             * @default true
+             */
+            resumable: boolean;
             /** Session Id */
             session_id: string;
             /** Status */
             status: string;
             /** Title */
             title?: string | null;
+            usage_totals?: components["schemas"]["UsageTotals"] | null;
         };
         /**
          * SkillInstallResponse
@@ -2023,6 +2213,39 @@ export interface components {
             name: string;
             /** Parameter Count */
             parameter_count: number;
+        };
+        /**
+         * UsageTotals
+         * @description Summed token/cost usage over a session's persisted turns.
+         *
+         *     Cost fields are ``None`` (not 0) when no turn carried that cost — an
+         *     unpriced session must not read as a free one.
+         */
+        UsageTotals: {
+            /**
+             * Cache Creation Input Tokens
+             * @default 0
+             */
+            cache_creation_input_tokens: number;
+            /**
+             * Cache Read Input Tokens
+             * @default 0
+             */
+            cache_read_input_tokens: number;
+            /** Configured Cost Usd */
+            configured_cost_usd?: number | null;
+            /**
+             * Input Tokens
+             * @default 0
+             */
+            input_tokens: number;
+            /**
+             * Output Tokens
+             * @default 0
+             */
+            output_tokens: number;
+            /** Sdk Cost Usd */
+            sdk_cost_usd?: number | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -2224,7 +2447,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["InterruptRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -2235,9 +2462,18 @@ export interface operations {
                     "application/json": components["schemas"]["SuccessResponse"];
                 };
             };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
-    get_session_api_assistant_session_get: {
+    get_permissions_api_assistant_permissions_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2252,7 +2488,157 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    "application/json": components["schemas"]["PermissionsConfig"];
+                };
+            };
+        };
+    };
+    put_permissions_api_assistant_permissions_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PermissionsConfig"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionsConfig"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_pricing_api_assistant_pricing_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingConfig"];
+                };
+            };
+        };
+    };
+    put_pricing_api_assistant_pricing_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PricingConfig"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingConfig"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_session_api_assistant_session_get: {
+        parameters: {
+            query?: {
+                session_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
                     "application/json": components["schemas"]["SessionSnapshot"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    archive_session_api_assistant_session_archive_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArchiveSessionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

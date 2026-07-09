@@ -117,6 +117,66 @@ IDE's open views — file tree, editors, flowgroup pages — refresh themselves
 the same way they do for any on-disk edit. Review the changes with your
 normal git tooling.
 
+Reduce approval prompts
+-----------------------
+
+In the default **Ask every time** policy, three mechanisms cut down how
+often the assistant asks — without handing it blanket permission.
+
+Read-only commands run without asking
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Shell commands that provably only read — ``git status``, ``git log``,
+``ls``, ``grep``, and similar inspection commands — run without an approval
+card. The check is strict: any command that writes, redirects output,
+expands variables, or falls outside a fixed allowlist still asks. There is
+nothing to configure; commands the check cannot prove read-only prompt as
+before.
+
+Allow a tool or command permanently
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When an approval card offers an **Always allow** button, selecting it
+accepts the current request and saves a rule for this project:
+
+* For a shell command, the rule covers the command's first two words — for
+  example ``Always allow "npm test"`` covers ``npm test`` and
+  ``npm test -- --run``, but not ``npm testx``.
+* For any other tool (for example web fetches), the rule covers the whole
+  tool.
+
+Saved rules apply from the very next tool call, including later calls in
+the same turn. They are stored per project in ``.lhp/webapp.db``. To review
+or remove them, open the assistant settings (the gear button in the panel
+header) and expand **Always-allow rules**; removing a rule makes that tool
+or command prefix ask again.
+
+Pre-approve tools in the project's Claude settings
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The assistant runs on the Claude Agent SDK and loads the project's
+``.claude/settings.json``. Rules under ``permissions.allow`` are evaluated
+by the SDK *before* the assistant's own approval flow, so a matching tool
+call never reaches the panel:
+
+.. code-block:: json
+   :caption: .claude/settings.json
+
+   {
+     "permissions": {
+       "allow": [
+         "Bash(lhp validate:*)",
+         "Bash(lhp generate:*)",
+         "WebFetch(domain:docs.databricks.com)"
+       ]
+     }
+   }
+
+``permissions.deny`` rules apply the same way: a denied tool call is
+rejected by the SDK without ever prompting. Because the file lives in the
+project, these rules are shared with anyone who uses Claude Code or the
+assistant in the same repository.
+
 Troubleshoot from the panel
 ---------------------------
 

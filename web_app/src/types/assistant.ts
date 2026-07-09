@@ -29,6 +29,11 @@ export type ApprovalAction = ApprovalRequestBody['action']
 export type SessionSnapshot = Schemas['SessionSnapshot']
 export type SessionListItem = Schemas['SessionListItem']
 export type SessionListResponse = Schemas['SessionListResponse']
+export type UsageTotals = Schemas['UsageTotals']
+export type ModelPricing = Schemas['ModelPricing']
+export type PricingConfig = Schemas['PricingConfig']
+export type PermissionRule = Schemas['PermissionRule']
+export type PermissionsConfig = Schemas['PermissionsConfig']
 export type DaemonStartResponse = Schemas['DaemonStartResponse']
 export type SkillInstallResponse = Schemas['SkillInstallResponse']
 export type AssistantSuccessResponse = Schemas['SuccessResponse']
@@ -67,6 +72,18 @@ export interface SnapshotItemEnvelope {
 }
 
 /**
+ * Server-derived "Always allow" offer attached to an `approval.request`.
+ * Rendering it is display-only: accepting sends back just the
+ * `always_allow` flag — the backend re-derives the rule from its own
+ * record and never trusts a client echo.
+ */
+export interface AlwaysAllowOffer {
+  tool?: string
+  prefix?: string | null
+  label?: string
+}
+
+/**
  * Elicitation params carried by an `approval.request` frame. The documented
  * MCP fields are optional (never observed live in the spike — no ask
  * policies were configured); renderers must fall back to raw JSON.
@@ -76,6 +93,7 @@ export interface ApprovalParams {
   phase?: string
   policy_name?: string
   content_preview?: string
+  always_allow_offer?: AlwaysAllowOffer
   [key: string]: unknown
 }
 
@@ -89,6 +107,14 @@ export interface TextDeltaFrame {
 export interface ReasoningDeltaFrame {
   type: 'reasoning.delta'
   delta: string
+}
+
+/** A tool call the model just issued (`status: 'running'`, `arguments` as
+ * a plain object). The matching `item.done` carries the SAME item id.
+ * Claude-provider only; never persisted into session snapshots. */
+export interface ItemStartedFrame {
+  type: 'item.started'
+  item: AssistantItem
 }
 
 export interface ItemDoneFrame {
@@ -115,16 +141,38 @@ export interface AssistantSessionFrame {
   created: boolean
 }
 
-export interface TurnCompletedFrame {
+/** Canonical snake_case token counters (backend-normalized). */
+export interface UsageCounters {
+  input_tokens?: number
+  output_tokens?: number
+  cache_read_input_tokens?: number
+  cache_creation_input_tokens?: number
+}
+
+/**
+ * Optional usage keys on terminal frames (claude_sdk provider only; the
+ * omnigent provider's terminals stay bare — keys are omitted, never null).
+ * `session_totals` is authoritative (post-insert lifetime sums including
+ * history); `usage`/`total_cost_usd` are this turn's own numbers.
+ */
+export interface TurnUsageKeys {
+  usage?: UsageCounters
+  total_cost_usd?: number
+  model_usage?: Record<string, UsageCounters>
+  configured_cost_usd?: number
+  session_totals?: UsageTotals
+}
+
+export interface TurnCompletedFrame extends TurnUsageKeys {
   type: 'turn.completed'
 }
 
-export interface TurnFailedFrame {
+export interface TurnFailedFrame extends TurnUsageKeys {
   type: 'turn.failed'
   reason: string
 }
 
-export interface InterruptedFrame {
+export interface InterruptedFrame extends TurnUsageKeys {
   type: 'interrupted'
 }
 
@@ -152,6 +200,7 @@ export type AssistantErrorFrame = ErrorFrame
 export type AssistantFrame =
   | TextDeltaFrame
   | ReasoningDeltaFrame
+  | ItemStartedFrame
   | ItemDoneFrame
   | ApprovalRequestFrame
   | AssistantStatusFrame

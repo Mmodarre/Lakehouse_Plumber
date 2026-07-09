@@ -37,13 +37,37 @@ def test_create_and_resolve_approval() -> None:
     async def run() -> None:
         registry = ClaudeTurnRegistry()
         registry.begin_turn("s1")
-        elicitation_id, future = registry.create_approval("s1")
+        elicitation_id, future = registry.create_approval(
+            "s1", "Bash", {"command": "npm test"}
+        )
 
         assert elicitation_id.startswith("elic_")
         assert registry.resolve_approval("s1", elicitation_id, "accept") is True
         assert await future == "accept"
         # A second resolve of the same elicitation is unknown -> False (404).
         assert registry.resolve_approval("s1", elicitation_id, "accept") is False
+
+    asyncio.run(run())
+
+
+def test_peek_approval_returns_recorded_tool_call_without_popping() -> None:
+    async def run() -> None:
+        registry = ClaudeTurnRegistry()
+        registry.begin_turn("s1")
+        elicitation_id, _ = registry.create_approval(
+            "s1", "Bash", {"command": "npm test"}
+        )
+
+        entry = registry.peek_approval("s1", elicitation_id)
+        assert entry is not None
+        assert entry.tool_name == "Bash"
+        assert entry.tool_input == {"command": "npm test"}
+        # Non-destructive: the approval is still resolvable afterwards.
+        assert registry.resolve_approval("s1", elicitation_id, "accept") is True
+        # Resolved -> peek reports nothing (mirrors resolve semantics).
+        assert registry.peek_approval("s1", elicitation_id) is None
+        assert registry.peek_approval("s1", "elic_ghost") is None
+        assert registry.peek_approval("nope", elicitation_id) is None
 
     asyncio.run(run())
 
@@ -62,7 +86,7 @@ def test_create_approval_without_live_turn_raises() -> None:
     async def run() -> None:
         registry = ClaudeTurnRegistry()
         with pytest.raises(KeyError):
-            registry.create_approval("s1")
+            registry.create_approval("s1", "Bash", {"command": "npm test"})
 
     asyncio.run(run())
 
@@ -71,7 +95,7 @@ def test_request_interrupt_unblocks_pending_approvals_then_interrupts() -> None:
     async def run() -> None:
         registry = ClaudeTurnRegistry()
         handle = registry.begin_turn("s1")
-        _, future = registry.create_approval("s1")
+        _, future = registry.create_approval("s1", "Bash", {"command": "npm test"})
 
         calls: list[str] = []
 
@@ -115,7 +139,7 @@ def test_end_turn_cancels_stray_futures() -> None:
     async def run() -> None:
         registry = ClaudeTurnRegistry()
         registry.begin_turn("s1")
-        _, future = registry.create_approval("s1")
+        _, future = registry.create_approval("s1", "Bash", {"command": "npm test"})
 
         registry.end_turn("s1")
         assert future.cancelled()

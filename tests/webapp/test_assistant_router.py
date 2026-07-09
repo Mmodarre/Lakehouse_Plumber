@@ -271,6 +271,133 @@ def test_config_put_marks_active_session_stale(
 
 
 # ---------------------------------------------------------------------------
+# /assistant/pricing
+# ---------------------------------------------------------------------------
+
+_PRICING_URL = "/api/assistant/pricing"
+
+
+def test_pricing_get_unset_is_empty_not_404(mutable_client: TestClient) -> None:
+    response = mutable_client.get(_PRICING_URL)
+
+    assert response.status_code == 200
+    assert response.json() == {"models": {}}
+
+
+def test_pricing_put_roundtrip(mutable_client: TestClient) -> None:
+    payload = {
+        "models": {
+            "claude-sonnet-": {"input_per_mtok": 3.0, "output_per_mtok": 15.0},
+            "claude-opus-4-8": {
+                "input_per_mtok": 15.0,
+                "output_per_mtok": 75.0,
+                "cache_read_per_mtok": 1.5,
+                "cache_write_per_mtok": 18.75,
+            },
+        }
+    }
+
+    put_response = mutable_client.put(_PRICING_URL, json=payload)
+
+    assert put_response.status_code == 200
+    stored = put_response.json()
+    assert stored["models"]["claude-sonnet-"] == {
+        "input_per_mtok": 3.0,
+        "output_per_mtok": 15.0,
+        "cache_read_per_mtok": None,
+        "cache_write_per_mtok": None,
+    }
+    assert mutable_client.get(_PRICING_URL).json() == stored
+
+
+def test_pricing_put_rejects_negative_rates(mutable_client: TestClient) -> None:
+    response = mutable_client.put(
+        _PRICING_URL,
+        json={"models": {"m": {"input_per_mtok": -1.0, "output_per_mtok": 1.0}}},
+    )
+    assert response.status_code == 422
+
+
+def test_pricing_put_never_marks_active_session_stale(
+    mutable_client: TestClient, mutable_project: Path
+) -> None:
+    # The staleness path is exclusive to PUT /assistant/config (executor
+    # changes reshape turns); pricing only relabels costs.
+    _insert_active(mutable_project, "conv_p")
+
+    response = mutable_client.put(
+        _PRICING_URL,
+        json={"models": {"m": {"input_per_mtok": 1.0, "output_per_mtok": 2.0}}},
+    )
+
+    assert response.status_code == 200
+    active = assistant_store.get_active_session(mutable_project)
+    assert active is not None
+    assert active["session_id"] == "conv_p"
+    assert active["status"] == "active"
+
+
+# ---------------------------------------------------------------------------
+# /assistant/permissions
+# ---------------------------------------------------------------------------
+
+_PERMISSIONS_URL = "/api/assistant/permissions"
+
+
+def test_permissions_get_unset_is_empty_not_404(mutable_client: TestClient) -> None:
+    response = mutable_client.get(_PERMISSIONS_URL)
+
+    assert response.status_code == 200
+    assert response.json() == {"always_allow": []}
+
+
+def test_permissions_put_roundtrip(mutable_client: TestClient) -> None:
+    payload = {
+        "always_allow": [
+            {"tool": "WebFetch"},
+            {"tool": "Bash", "prefix": "npm test"},
+        ]
+    }
+
+    put_response = mutable_client.put(_PERMISSIONS_URL, json=payload)
+
+    assert put_response.status_code == 200
+    stored = put_response.json()
+    assert stored == {
+        "always_allow": [
+            {"tool": "WebFetch", "prefix": None},
+            {"tool": "Bash", "prefix": "npm test"},
+        ]
+    }
+    assert mutable_client.get(_PERMISSIONS_URL).json() == stored
+
+
+def test_permissions_put_rejects_empty_tool_name(mutable_client: TestClient) -> None:
+    response = mutable_client.put(
+        _PERMISSIONS_URL, json={"always_allow": [{"tool": ""}]}
+    )
+    assert response.status_code == 422
+
+
+def test_permissions_put_never_marks_active_session_stale(
+    mutable_client: TestClient, mutable_project: Path
+) -> None:
+    # Same posture as pricing: rules only widen the silent-allow set; the
+    # staleness path stays exclusive to PUT /assistant/config.
+    _insert_active(mutable_project, "conv_q")
+
+    response = mutable_client.put(
+        _PERMISSIONS_URL, json={"always_allow": [{"tool": "WebFetch"}]}
+    )
+
+    assert response.status_code == 200
+    active = assistant_store.get_active_session(mutable_project)
+    assert active is not None
+    assert active["session_id"] == "conv_q"
+    assert active["status"] == "active"
+
+
+# ---------------------------------------------------------------------------
 # /assistant/databricks-profiles
 # ---------------------------------------------------------------------------
 

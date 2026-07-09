@@ -46,6 +46,14 @@ class Sleep:
 
 
 @dataclass
+class Wait:
+    """Script sentinel: park the stream until the test sets ``event``
+    (deterministic cross-turn coordination for the locking tests)."""
+
+    event: asyncio.Event
+
+
+@dataclass
 class Approval:
     """Script sentinel: drive one ``can_use_tool`` round-trip."""
 
@@ -91,6 +99,9 @@ class FakeClaudeClient:
                 continue
             if isinstance(entry, Sleep):
                 await asyncio.sleep(entry.seconds)
+                continue
+            if isinstance(entry, Wait):
+                await entry.event.wait()
                 continue
             if isinstance(entry, Approval):
                 assert self.options.can_use_tool is not None

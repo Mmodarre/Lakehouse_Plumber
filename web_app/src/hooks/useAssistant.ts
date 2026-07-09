@@ -1,21 +1,29 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  archiveAssistantSession,
   fetchAssistantSession,
+  fetchAssistantSessions,
   fetchAssistantStatus,
   fetchDatabricksProfiles,
   fetchExecutorConfig,
+  fetchPermissionsConfig,
+  fetchPricingConfig,
   installAssistantSkill,
   interruptAssistant,
   newAssistantSession,
   putExecutorConfig,
+  putPermissionsConfig,
+  putPricingConfig,
   resolveAssistantApproval,
   startAssistantDaemon,
 } from '../api/assistant'
-import { useAssistantStore } from '../store/assistantStore'
+import { activeSessionId, useAssistantStore } from '../store/assistantStore'
 import type {
   ApprovalRequestBody,
   AssistantStatus,
   ExecutorConfigUpdate,
+  PermissionsConfig,
+  PricingConfig,
 } from '../types/assistant'
 
 // ── useAssistant — react-query wrappers for the assistant panel ──
@@ -67,6 +75,42 @@ export function useExecutorConfig(options: { enabled: boolean }) {
   })
 }
 
+export function usePricingConfig(options: { enabled: boolean }) {
+  return useQuery({
+    queryKey: ['assistant-pricing'],
+    queryFn: fetchPricingConfig,
+    enabled: options.enabled,
+  })
+}
+
+export function useUpdatePricingConfig() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (body: PricingConfig) => putPricingConfig(body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['assistant-pricing'] })
+    },
+  })
+}
+
+export function usePermissionsConfig(options: { enabled: boolean }) {
+  return useQuery({
+    queryKey: ['assistant-permissions'],
+    queryFn: fetchPermissionsConfig,
+    enabled: options.enabled,
+  })
+}
+
+export function useUpdatePermissionsConfig() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (body: PermissionsConfig) => putPermissionsConfig(body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['assistant-permissions'] })
+    },
+  })
+}
+
 export function useDatabricksProfiles(options: { enabled: boolean }) {
   return useQuery({
     queryKey: ['assistant-databricks-profiles'],
@@ -75,15 +119,42 @@ export function useDatabricksProfiles(options: { enabled: boolean }) {
   })
 }
 
-/** Session snapshot for thread rehydration after a reload. 404 (no active
- * session) is an expected state — retries are pointless. */
-export function useAssistantSession(options: { enabled: boolean }) {
+/** Session snapshot for per-tab thread hydration (`sessionId` = the tab's
+ * session; `null` = the MRU-active fallback). 404 (no such session) is an
+ * expected state — retries are pointless. */
+export function useAssistantSession(options: {
+  enabled: boolean
+  sessionId: string | null
+}) {
   return useQuery({
-    queryKey: ['assistant-session'],
-    queryFn: fetchAssistantSession,
+    queryKey: ['assistant-session', options.sessionId],
+    queryFn: () => fetchAssistantSession(options.sessionId ?? undefined),
     enabled: options.enabled,
     retry: false,
     staleTime: Infinity,
+  })
+}
+
+/** All locally-tracked sessions (tabs = active claude rows, history =
+ * archived ones), MRU first. */
+export function useAssistantSessions(options: { enabled: boolean }) {
+  return useQuery({
+    queryKey: ['assistant-sessions'],
+    queryFn: fetchAssistantSessions,
+    enabled: options.enabled,
+  })
+}
+
+/** Archive one session server-side (tab closed). The local tab removal is
+ * the caller's job — the store stays free of I/O. */
+export function useArchiveSession() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (sessionId: string) => archiveAssistantSession(sessionId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['assistant-sessions'] })
+      void queryClient.invalidateQueries({ queryKey: ['assistant-status'] })
+    },
   })
 }
 
@@ -122,11 +193,13 @@ export function useStartDaemon() {
 
 export function useNewAssistantSession() {
   const queryClient = useQueryClient()
-  const newConversation = useAssistantStore((s) => s.newConversation)
   return useMutation({
     mutationFn: newAssistantSession,
     onSuccess: () => {
-      newConversation()
+      // Omnigent single-session flow: restart the sole tab as a fresh draft
+      // (closing the last tab auto-opens one).
+      const store = useAssistantStore.getState()
+      if (store.activeTabKey !== null) store.closeTab(store.activeTabKey)
       void queryClient.invalidateQueries({ queryKey: ['assistant-status'] })
       void queryClient.invalidateQueries({ queryKey: ['assistant-session'] })
     },
@@ -134,19 +207,33 @@ export function useNewAssistantSession() {
 }
 
 export function useResolveApproval() {
-  const resolveApprovalLocal = useAssistantStore((s) => s.resolveApprovalLocal)
   return useMutation({
-    mutationFn: (body: ApprovalRequestBody) => resolveAssistantApproval(body),
+    // The ACTIVE tab's session rides along (approvals are only clickable in
+    // the visible thread); drafts have no session — MRU fallback applies.
+    mutationFn: (body: ApprovalRequestBody) => {
+      const sessionId = activeSessionId()
+      return resolveAssistantApproval(
+        sessionId !== undefined ? { ...body, session_id: sessionId } : body,
+      )
+    },
     onSuccess: (_data, body) => {
-      resolveApprovalLocal(body.elicitation_id, body.action)
+      const store = useAssistantStore.getState()
+      if (store.activeTabKey !== null) {
+        store.resolveApprovalLocal(
+          store.activeTabKey,
+          body.elicitation_id,
+          body.action,
+        )
+      }
     },
   })
 }
 
-/** Interrupt the running turn. The stream itself is NOT aborted — the
- * backend answers with an `interrupted` frame and then ends the turn. */
+/** Interrupt the ACTIVE tab's running turn. The stream itself is NOT
+ * aborted — the backend answers with an `interrupted` frame on that tab's
+ * stream and then ends the turn. */
 export function useInterruptAssistant() {
   return useMutation({
-    mutationFn: interruptAssistant,
+    mutationFn: () => interruptAssistant(activeSessionId()),
   })
 }

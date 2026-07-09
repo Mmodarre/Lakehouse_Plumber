@@ -122,6 +122,8 @@ lhp dag --format job --bundle-output        # Save to resources/
 lhp dag --format dot                        # GraphViz diagram
 lhp dag --format json                       # Structured dependency graph
 lhp dag --blueprint <name>                  # restrict analysis to one blueprint
+lhp dag --pipeline <name>                   # restrict analysis to one pipeline (job format skipped under filters)
+lhp dag --trust-depends-on                  # actions with depends_on skip body extraction (declared deps authoritative)
 ```
 
 Blueprint synthetic flowgroups are ALWAYS fully expanded (one graph node per instance) — required so per-instance `pipeline:` values aren't dropped from the graph/JSON/job YAML. `--expand-blueprints` is a deprecated, ignored no-op (prints a deprecation notice); `--blueprint <name>` restricts analysis to one blueprint (unchanged).

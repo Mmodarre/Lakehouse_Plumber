@@ -57,28 +57,65 @@ def claude_bundle_config(
     }
 
 
-def _session_title(project_root: Path) -> str:
-    return f"LHP Assistant ({project_root.name})"
-
-
 def _install_skill(project_root: Path) -> str:
     """Force-install the packaged LHP skill; return the installed version."""
     result = SkillFacade(project_root).install_project_skill(force=True)
     return result.skill_version
 
 
+def _hash_matches(
+    row: Optional[dict[str, Any]],
+    config: dict[str, Any],
+    installed_version: Optional[str],
+) -> bool:
+    """True when ``row`` is a Claude row whose bundle hash is still current."""
+    return (
+        row is not None
+        and row.get("provider") == "claude_sdk"
+        and installed_version is not None
+        and row["agent_bundle_hash"] == bundle_hash(config, installed_version)
+    )
+
+
+async def _mint_fresh(
+    project_root: Path, config: dict[str, Any]
+) -> tuple[str, bool, Optional[str]]:
+    """Force-refresh the skill, mint a fresh active session, return its id.
+
+    The title is left ``NULL`` (the placeholder): the first user message
+    claims it via :func:`assistant_store.set_title_if_default`.
+    """
+    skill_version = await asyncio.to_thread(_install_skill, project_root)
+    new_hash = bundle_hash(config, skill_version)
+    session_id = f"claude_{uuid.uuid4().hex}"
+    await asyncio.to_thread(
+        assistant_store.insert_claude_session, project_root, session_id, new_hash
+    )
+    logger.info(f"Provisioned assistant session {session_id} (skill v{skill_version})")
+    return session_id, True, None
+
+
 async def ensure_claude_session(
-    project_root: Path, executor_cfg: dict[str, Any]
+    project_root: Path,
+    executor_cfg: dict[str, Any],
+    session_id: Optional[str] = None,
 ) -> tuple[str, bool, Optional[str]]:
     """Return ``(session_id, created, resume_handle)`` for a current session.
 
-    Reuse path: the active store row is a ``claude_sdk`` row AND its
-    ``agent_bundle_hash`` matches the current config + installed skill
-    version — return it with ``created=False`` and its stored resume handle
-    (``None`` when no turn has completed yet).
+    Explicit ``session_id`` (multi-tab / historical resume): the row is
+    reused iff it is a ``claude_sdk`` row in ``active`` / ``archived``
+    status whose ``agent_bundle_hash`` matches the current config +
+    installed skill version; an archived match is reopened (tab restored
+    from history). On hash drift the row is marked stale and a fresh session
+    is minted; an unknown id also mints fresh (this is how a draft tab's
+    first message creates its session).
 
-    Otherwise: mark any active session stale, force-refresh the project
-    skill, mint ``claude_<uuid>``, record it active, and return
+    ``session_id=None`` (legacy clients / omnigent parity): the MRU active
+    row is the candidate — reused on hash match, otherwise marked stale and
+    replaced, exactly as before multi-tab.
+
+    The reuse path returns ``created=False`` and the stored SDK resume
+    handle (``None`` when no turn has completed yet); a fresh mint returns
     ``created=True`` with no resume handle.
 
     Store calls are synchronous and bridged via ``asyncio.to_thread``.
@@ -87,37 +124,40 @@ async def ensure_claude_session(
         not an LHP project (raised by the skill install step).
     """
     config = claude_bundle_config(executor_cfg, project_root)
-    active = await asyncio.to_thread(assistant_store.get_active_session, project_root)
     installed_version = await asyncio.to_thread(installed_skill_version, project_root)
 
-    if (
-        active is not None
-        and active.get("provider") == "claude_sdk"
-        and installed_version is not None
-        and active["agent_bundle_hash"] == bundle_hash(config, installed_version)
-    ):
-        session_id = str(active["session_id"])
-        logger.debug(f"Reusing assistant session {session_id}")
+    if session_id is not None:
+        row = await asyncio.to_thread(
+            assistant_store.get_session, project_root, session_id
+        )
+        if _hash_matches(row, config, installed_version) and row is not None:
+            status = str(row["status"])
+            if status == "archived":
+                await asyncio.to_thread(
+                    assistant_store.reopen_session, project_root, session_id
+                )
+            if status in ("active", "archived"):
+                logger.debug(f"Reusing assistant session {session_id}")
+                resume = row.get("runtime_session_id")
+                return session_id, False, str(resume) if resume else None
+        if row is not None and row.get("status") != "stale":
+            await asyncio.to_thread(
+                assistant_store.mark_stale, project_root, str(row["session_id"])
+            )
+        return await _mint_fresh(project_root, config)
+
+    active = await asyncio.to_thread(assistant_store.get_active_session, project_root)
+    if _hash_matches(active, config, installed_version) and active is not None:
+        reused_id = str(active["session_id"])
+        logger.debug(f"Reusing assistant session {reused_id}")
         resume = active.get("runtime_session_id")
-        return session_id, False, str(resume) if resume else None
+        return reused_id, False, str(resume) if resume else None
 
     if active is not None:
         await asyncio.to_thread(
             assistant_store.mark_stale, project_root, active["session_id"]
         )
-
-    skill_version = await asyncio.to_thread(_install_skill, project_root)
-    new_hash = bundle_hash(config, skill_version)
-    session_id = f"claude_{uuid.uuid4().hex}"
-    await asyncio.to_thread(
-        assistant_store.insert_claude_session,
-        project_root,
-        session_id,
-        new_hash,
-        _session_title(project_root),
-    )
-    logger.info(f"Provisioned assistant session {session_id} (skill v{skill_version})")
-    return session_id, True, None
+    return await _mint_fresh(project_root, config)
 
 
 def snapshot_items(project_root: Path, session_id: str) -> list[dict[str, Any]]:

@@ -30,6 +30,7 @@ from claude_agent_sdk import (
 from lhp.webapp.services import (
     assistant_store,
     claude_sdk_chat,
+    claude_sdk_policy,
     claude_sdk_sessions,
     sqlite_store,
 )
@@ -42,6 +43,7 @@ from ._claude_sdk_stub import (
     Approval,
     FakeClaudeClient,
     Sleep,
+    Wait,
     make_factory,
 )
 
@@ -88,7 +90,10 @@ def _text_delta(text: str) -> StreamEvent:
 
 
 def _result(
-    session_id: str = "sdk-2", subtype: str = "success", is_error: bool = False
+    session_id: str = "sdk-2",
+    subtype: str = "success",
+    is_error: bool = False,
+    **kwargs: Any,
 ) -> ResultMessage:
     return ResultMessage(
         subtype=subtype,
@@ -97,6 +102,7 @@ def _result(
         is_error=is_error,
         num_turns=1,
         session_id=session_id,
+        **kwargs,
     )
 
 
@@ -121,12 +127,14 @@ async def _collect(
     on_frame: OnFrame = None,
     connect_error: Exception | None = None,
     permission_mode: str = "default",
+    session_id: Optional[str] = None,
 ) -> tuple[list[dict], list[bytes]]:
     turn = claude_sdk_chat.chat_turn(
         project,
         cfg,
         text,
         registry,
+        session_id=session_id,
         permission_mode=permission_mode,
         client_factory=make_factory(script, holder, connect_error=connect_error),
     )
@@ -304,7 +312,7 @@ def test_approval_accept_roundtrip(project: Path) -> None:
 
         frames, _ = await _collect(
             project,
-            [_init(), Approval("Bash", {"command": "ls"}), _result()],
+            [_init(), Approval("Bash", {"command": "npm run build"}), _result()],
             registry,
             holder,
             on_frame=on_frame,
@@ -316,8 +324,14 @@ def test_approval_accept_roundtrip(project: Path) -> None:
         assert params["tool_name"] == "Bash"
         assert params["phase"] == "tool_use"
         assert params["policy_name"] == "Bash"
-        assert json.loads(params["content_preview"]) == {"command": "ls"}
+        assert json.loads(params["content_preview"]) == {"command": "npm run build"}
         assert "message" in params
+        # Server-derived offer: first two shlex tokens of the command.
+        assert params["always_allow_offer"] == {
+            "tool": "Bash",
+            "prefix": "npm run",
+            "label": 'Always allow "npm run"',
+        }
 
         (client,) = holder
         assert isinstance(client.permission_results[0], PermissionResultAllow)
@@ -394,14 +408,14 @@ def test_approval_cancel_denies_and_interrupts(project: Path) -> None:
 def test_approval_timeout_denies_and_clears_registry(
     project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(claude_sdk_chat, "_APPROVAL_TIMEOUT_S", 0.05)
+    monkeypatch.setattr(claude_sdk_policy, "_APPROVAL_TIMEOUT_S", 0.05)
 
     async def run() -> None:
         registry = ClaudeTurnRegistry()
         holder: list[FakeClaudeClient] = []
         frames, _ = await _collect(
             project,
-            [_init(), Approval("Bash", {"command": "ls"}), _result()],
+            [_init(), Approval("Bash", {"command": "npm test"}), _result()],
             registry,
             holder,
         )
@@ -428,6 +442,180 @@ def test_auto_allowed_tool_never_asks(project: Path) -> None:
         (client,) = holder
         assert isinstance(client.permission_results[0], PermissionResultAllow)
         assert all(f["type"] != "approval.request" for f in frames)
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("mode", ["default", "acceptEdits"])
+def test_read_only_bash_auto_allowed_without_prompt(project: Path, mode: str) -> None:
+    async def run() -> None:
+        holder: list[FakeClaudeClient] = []
+        frames, _ = await _collect(
+            project,
+            [
+                _init(),
+                Approval("Bash", {"command": "git status"}),
+                Approval("Bash", {"command": "grep a | head -3"}),
+                _result(),
+            ],
+            ClaudeTurnRegistry(),
+            holder,
+            permission_mode=mode,
+        )
+        (client,) = holder
+        assert all(
+            isinstance(r, PermissionResultAllow) for r in client.permission_results
+        )
+        assert all(f["type"] != "approval.request" for f in frames)
+        assert frames[-1]["type"] == "turn.completed"
+
+    asyncio.run(run())
+
+
+def test_non_read_only_bash_still_prompts_in_default_mode(project: Path) -> None:
+    async def run() -> None:
+        registry = ClaudeTurnRegistry()
+        holder: list[FakeClaudeClient] = []
+        approvals: list[dict] = []
+        session_ids: list[str] = []
+
+        async def on_frame(frame: dict) -> None:
+            if frame["type"] == "session":
+                session_ids.append(frame["session_id"])
+            if frame["type"] == "approval.request":
+                approvals.append(frame)
+                registry.resolve_approval(
+                    session_ids[0], frame["elicitation_id"], "decline"
+                )
+
+        await _collect(
+            project,
+            [_init(), Approval("Bash", {"command": "rm -rf build"}), _result()],
+            registry,
+            holder,
+            on_frame=on_frame,
+        )
+        assert len(approvals) == 1
+        (client,) = holder
+        assert isinstance(client.permission_results[0], PermissionResultDeny)
+
+    asyncio.run(run())
+
+
+def test_persisted_tool_rule_skips_prompt(project: Path) -> None:
+    assistant_store.put_config(
+        project, "permissions", {"always_allow": [{"tool": "WebFetch", "prefix": None}]}
+    )
+
+    async def run() -> None:
+        holder: list[FakeClaudeClient] = []
+        frames, _ = await _collect(
+            project,
+            [_init(), Approval("WebFetch", {"url": "https://x"}), _result()],
+            ClaudeTurnRegistry(),
+            holder,
+        )
+        (client,) = holder
+        assert isinstance(client.permission_results[0], PermissionResultAllow)
+        assert all(f["type"] != "approval.request" for f in frames)
+
+    asyncio.run(run())
+
+
+def test_bash_prefix_rule_matches_word_boundary_only(project: Path) -> None:
+    assistant_store.put_config(
+        project,
+        "permissions",
+        {"always_allow": [{"tool": "Bash", "prefix": "npm test"}]},
+    )
+
+    async def run() -> None:
+        registry = ClaudeTurnRegistry()
+        holder: list[FakeClaudeClient] = []
+        approvals: list[dict] = []
+        session_ids: list[str] = []
+
+        async def on_frame(frame: dict) -> None:
+            if frame["type"] == "session":
+                session_ids.append(frame["session_id"])
+            if frame["type"] == "approval.request":
+                approvals.append(frame)
+                registry.resolve_approval(
+                    session_ids[0], frame["elicitation_id"], "decline"
+                )
+
+        await _collect(
+            project,
+            [
+                _init(),
+                Approval("Bash", {"command": "npm test -- --run"}),  # boundary hit
+                Approval("Bash", {"command": "npm test"}),  # exact hit
+                Approval("Bash", {"command": "npm testx"}),  # NOT a substring match
+                _result(),
+            ],
+            registry,
+            holder,
+            on_frame=on_frame,
+        )
+        # Only the substring-lookalike prompts; the rule covers the other two.
+        assert len(approvals) == 1
+        assert json.loads(approvals[0]["params"]["content_preview"]) == {
+            "command": "npm testx"
+        }
+        (client,) = holder
+        results = client.permission_results
+        assert isinstance(results[0], PermissionResultAllow)
+        assert isinstance(results[1], PermissionResultAllow)
+        assert isinstance(results[2], PermissionResultDeny)
+
+    asyncio.run(run())
+
+
+def test_rule_persisted_mid_turn_covers_the_next_call(project: Path) -> None:
+    from lhp.webapp.services.claude_sdk_policy import record_always_allow_rule
+
+    async def run() -> None:
+        registry = ClaudeTurnRegistry()
+        holder: list[FakeClaudeClient] = []
+        approvals: list[dict] = []
+        session_ids: list[str] = []
+
+        async def on_frame(frame: dict) -> None:
+            if frame["type"] == "session":
+                session_ids.append(frame["session_id"])
+            if frame["type"] == "approval.request":
+                approvals.append(frame)
+                # Mirror the /approval endpoint's always-allow flow: persist
+                # the rule from the REGISTRY-recorded call, then resolve.
+                entry = registry.peek_approval(session_ids[0], frame["elicitation_id"])
+                assert entry is not None
+                assert record_always_allow_rule(
+                    project, entry.tool_name, entry.tool_input
+                )
+                registry.resolve_approval(
+                    session_ids[0], frame["elicitation_id"], "accept"
+                )
+
+        await _collect(
+            project,
+            [
+                _init(),
+                Approval("Bash", {"command": "npm test"}),
+                Approval("Bash", {"command": "npm test"}),
+                _result(),
+            ],
+            registry,
+            holder,
+            on_frame=on_frame,
+        )
+        # The second identical call sails through on the freshly stored rule.
+        assert len(approvals) == 1
+        (client,) = holder
+        assert all(
+            isinstance(r, PermissionResultAllow) for r in client.permission_results
+        )
+        stored = assistant_store.get_config(project, "permissions")
+        assert stored == {"always_allow": [{"tool": "Bash", "prefix": "npm test"}]}
 
     asyncio.run(run())
 
@@ -475,7 +663,7 @@ def test_accept_edits_mode_still_asks_for_bash(project: Path) -> None:
 
         frames, _ = await _collect(
             project,
-            [_init(), Approval("Bash", {"command": "ls"}), _result()],
+            [_init(), Approval("Bash", {"command": "npm test"}), _result()],
             registry,
             holder,
             on_frame=on_frame,
@@ -702,6 +890,29 @@ def test_tool_use_result_join_emits_item_done(project: Path) -> None:
         done = next(f for f in frames if f["type"] == "item.done")
         assert done["item"]["name"] == "Read"
         assert done["item"]["status"] == "completed"
+        started = next(f for f in frames if f["type"] == "item.started")
+        assert started["item"]["id"] == done["item"]["id"]
+        assert frames.index(started) < frames.index(done)
+
+    asyncio.run(run())
+
+
+def test_started_only_tool_call_never_persisted(project: Path) -> None:
+    async def run() -> None:
+        script = [
+            _init(),
+            AssistantMessage(
+                content=[ToolUseBlock(id="tu_1", name="Bash", input={"command": "ls"})],
+                model="m",
+            ),
+            _result(),
+        ]
+        frames, _ = await _collect(project, script, ClaudeTurnRegistry(), [])
+        assert any(f["type"] == "item.started" for f in frames)
+        # The result never arrived: the snapshot must contain no tool item.
+        session_id = frames[1]["session_id"]
+        items = assistant_store.list_items(project, session_id)
+        assert [i["type"] for i in items] == ["message"]  # the user envelope only
 
     asyncio.run(run())
 
@@ -721,32 +932,269 @@ def test_heartbeat_on_queue_silence(
     asyncio.run(run())
 
 
-def test_turn_lock_serializes_concurrent_turns(project: Path) -> None:
+_TURN_USAGE = {
+    "input_tokens": 100,
+    "output_tokens": 50,
+    "cache_read_input_tokens": 1000,
+    "cache_creation_input_tokens": 200,
+}
+
+_TURN_MODEL_USAGE = {"claude-sonnet-5": {"inputTokens": 100, "outputTokens": 50}}
+
+
+def _usage_result() -> ResultMessage:
+    return _result(
+        usage=dict(_TURN_USAGE),
+        total_cost_usd=0.42,
+        model_usage=_TURN_MODEL_USAGE,
+    )
+
+
+def test_completed_turn_persists_usage_row_and_enriches_terminal(
+    project: Path,
+) -> None:
+    assistant_store.put_config(
+        project,
+        "pricing",
+        {
+            "models": {
+                "claude-sonnet-": {"input_per_mtok": 3.0, "output_per_mtok": 15.0}
+            }
+        },
+    )
+
+    async def run() -> None:
+        frames, _ = await _collect(
+            project, [_init(), _usage_result()], ClaudeTurnRegistry(), []
+        )
+        session_id = frames[1]["session_id"]
+        terminal = frames[-1]
+        assert terminal["type"] == "turn.completed"
+        assert terminal["usage"] == _TURN_USAGE
+        assert terminal["total_cost_usd"] == 0.42
+        expected_cost = (100 * 3.0 + 50 * 15.0) / 1_000_000
+        assert terminal["configured_cost_usd"] == pytest.approx(expected_cost)
+        totals = terminal["session_totals"]
+        assert totals["input_tokens"] == 100
+        assert totals["output_tokens"] == 50
+        assert totals["sdk_cost_usd"] == pytest.approx(0.42)
+        assert totals["configured_cost_usd"] == pytest.approx(expected_cost)
+
+        stored = assistant_store.usage_totals(project, session_id)
+        assert stored == totals
+
+    asyncio.run(run())
+
+
+def test_usage_terminal_without_pricing_omits_configured_cost(project: Path) -> None:
+    async def run() -> None:
+        frames, _ = await _collect(
+            project, [_init(), _usage_result()], ClaudeTurnRegistry(), []
+        )
+        terminal = frames[-1]
+        assert terminal["type"] == "turn.completed"
+        assert "configured_cost_usd" not in terminal
+        # The row still persists (totals present) for later repricing.
+        assert terminal["session_totals"]["configured_cost_usd"] is None
+
+    asyncio.run(run())
+
+
+def test_session_totals_accumulate_across_turns(project: Path) -> None:
     async def run() -> None:
         registry = ClaudeTurnRegistry()
-        order: list[tuple[str, str]] = []
+        await _collect(project, [_init(), _usage_result()], registry, [])
+        frames, _ = await _collect(project, [_init(), _usage_result()], registry, [])
+        totals = frames[-1]["session_totals"]
+        assert totals["input_tokens"] == 200
+        assert totals["sdk_cost_usd"] == pytest.approx(0.84)
 
-        async def drive(tag: str) -> None:
+    asyncio.run(run())
+
+
+def test_usage_free_turn_terminal_stays_bare(project: Path) -> None:
+    async def run() -> None:
+        frames, _ = await _collect(
+            project, list(_HAPPY_SCRIPT), ClaudeTurnRegistry(), []
+        )
+        assert frames[-1] == {"type": "turn.completed"}
+        session_id = frames[1]["session_id"]
+        assert assistant_store.usage_totals(project, session_id) is None
+
+    asyncio.run(run())
+
+
+def test_usage_persist_failure_never_breaks_the_stream(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def boom(*args: Any, **kwargs: Any) -> int:
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(claude_sdk_chat.assistant_store, "insert_turn_usage", boom)
+
+    async def run() -> None:
+        frames, _ = await _collect(
+            project, [_init(), _usage_result()], ClaudeTurnRegistry(), []
+        )
+        terminal = frames[-1]
+        # The turn still terminates cleanly; enrichment is skipped, the
+        # translator-attached keys survive.
+        assert terminal["type"] == "turn.completed"
+        assert terminal["usage"] == _TURN_USAGE
+        assert "session_totals" not in terminal
+        assert "configured_cost_usd" not in terminal
+
+    asyncio.run(run())
+
+
+def test_same_session_turns_serialize(project: Path) -> None:
+    # ONE live turn per session: while t1 holds the session lock (parked on
+    # its Wait gate), t2 emits only its pre-lock frames (preparing + session)
+    # and its pumped frames all land after t1's terminal.
+    async def run() -> None:
+        registry = ClaudeTurnRegistry()
+        frames, _ = await _collect(project, list(_HAPPY_SCRIPT), registry, [])
+        sid = frames[1]["session_id"]
+
+        gate = asyncio.Event()
+        t1_running = asyncio.Event()
+        t2_session = asyncio.Event()
+        timeline: list[tuple[str, str, Any]] = []
+        holders: dict[str, list[FakeClaudeClient]] = {"t1": [], "t2": []}
+
+        async def drive(tag: str, script: list[Any]) -> None:
             turn = claude_sdk_chat.chat_turn(
                 project,
                 _CFG,
                 tag,
                 registry,
-                client_factory=make_factory(list(_HAPPY_SCRIPT), []),
+                session_id=sid,
+                client_factory=make_factory(script, holders[tag]),
             )
             async for line in turn:
-                order.append((tag, json.loads(line)["type"]))
+                frame = json.loads(line)
+                timeline.append((tag, frame["type"], frame.get("state")))
+                if tag == "t1" and frame.get("state") == "running":
+                    t1_running.set()
+                if tag == "t2" and frame["type"] == "session":
+                    t2_session.set()
 
-        await asyncio.wait_for(
-            asyncio.gather(drive("t1"), drive("t2")), _TEST_TIMEOUT_S
+        task1 = asyncio.create_task(
+            drive("t1", [_init(), Wait(gate), _result(session_id="sdk-T1")])
         )
+        await asyncio.wait_for(t1_running.wait(), _TEST_TIMEOUT_S)
+        task2 = asyncio.create_task(drive("t2", [_init(), _result()]))
+        # t2 emits its pre-lock frames, then parks on the session lock —
+        # nothing further can arrive while t1 holds it.
+        await asyncio.wait_for(t2_session.wait(), _TEST_TIMEOUT_S)
 
-        tags = [tag for tag, _ in order]
-        # No interleaving: whichever turn won the lock emits ALL its frames
-        # before the other's first frame (gather does not promise start order).
-        winner = tags[0]
-        boundary = tags.index(next(t for t in tags if t != winner))
-        assert set(tags[:boundary]) == {winner}
-        assert winner not in tags[boundary:]
+        t2_so_far = [(t, s) for tag, t, s in timeline if tag == "t2"]
+        assert t2_so_far == [("status", "preparing"), ("session", None)]
+
+        gate.set()
+        await asyncio.wait_for(asyncio.gather(task1, task2), _TEST_TIMEOUT_S)
+
+        t1_terminal = timeline.index(("t1", "turn.completed", None))
+        t2_running = timeline.index(("t2", "status", "running"))
+        assert t1_terminal < t2_running
+        assert ("t2", "turn.completed", None) in timeline
+        # t2 read its resume handle UNDER the lock: it must see the handle t1
+        # stored, not the pre-lock snapshot from before t1 finished.
+        assert holders["t2"][0].options.resume == "sdk-T1"
+
+    asyncio.run(run())
+
+
+def test_turns_on_different_sessions_run_concurrently(project: Path) -> None:
+    # Multi-tab: while session A's turn is parked mid-stream (lock A held),
+    # a full turn on session B starts AND completes. A global lock would
+    # deadlock this (the wait_for timeouts fail the test).
+    async def run() -> None:
+        registry = ClaudeTurnRegistry()
+        frames_a, _ = await _collect(project, list(_HAPPY_SCRIPT), registry, [])
+        sid_a = frames_a[1]["session_id"]
+        frames_b, _ = await _collect(
+            project, list(_HAPPY_SCRIPT), registry, [], session_id="draft:1"
+        )
+        sid_b = frames_b[1]["session_id"]
+        assert sid_b != sid_a
+
+        gate = asyncio.Event()
+        a_running = asyncio.Event()
+        a_frames: list[dict] = []
+
+        async def drive_a() -> None:
+            turn = claude_sdk_chat.chat_turn(
+                project,
+                _CFG,
+                "a2",
+                registry,
+                session_id=sid_a,
+                client_factory=make_factory([_init(), Wait(gate), _result()], []),
+            )
+            async for line in turn:
+                frame = json.loads(line)
+                a_frames.append(frame)
+                if frame.get("state") == "running":
+                    a_running.set()
+
+        task_a = asyncio.create_task(drive_a())
+        await asyncio.wait_for(a_running.wait(), _TEST_TIMEOUT_S)
+
+        frames_b2, _ = await _collect(
+            project, list(_HAPPY_SCRIPT), registry, [], session_id=sid_b
+        )
+        assert frames_b2[-1] == {"type": "turn.completed"}
+        assert frames_b2[1]["session_id"] == sid_b
+        assert not task_a.done()  # A is still parked mid-turn
+
+        gate.set()
+        await asyncio.wait_for(task_a, _TEST_TIMEOUT_S)
+        assert a_frames[-1] == {"type": "turn.completed"}
+
+    asyncio.run(run())
+
+
+def test_chat_turn_explicit_session_id_reaches_that_session(project: Path) -> None:
+    async def run() -> None:
+        registry = ClaudeTurnRegistry()
+        frames, _ = await _collect(project, list(_HAPPY_SCRIPT), registry, [])
+        sid_a = frames[1]["session_id"]
+        frames_b, _ = await _collect(
+            project, list(_HAPPY_SCRIPT), registry, [], session_id="draft:1"
+        )
+        sid_b = frames_b[1]["session_id"]
+
+        # Target the first (non-MRU) session explicitly: the turn binds to it
+        # and its transcript, not the MRU one, gains the new envelopes.
+        before = len(assistant_store.list_items(project, sid_a))
+        frames_a2, _ = await _collect(
+            project, list(_HAPPY_SCRIPT), registry, [], text="again", session_id=sid_a
+        )
+        assert frames_a2[1]["session_id"] == sid_a
+        assert frames_a2[1]["created"] is False
+        assert len(assistant_store.list_items(project, sid_a)) == before + 2
+
+    asyncio.run(run())
+
+
+def test_first_user_message_claims_the_tab_title_once(project: Path) -> None:
+    async def run() -> None:
+        registry = ClaudeTurnRegistry()
+        long_text = "Please generate the bronze layer " + "x" * 100
+        frames, _ = await _collect(
+            project, list(_HAPPY_SCRIPT), registry, [], text=long_text
+        )
+        sid = frames[1]["session_id"]
+        row = assistant_store.get_session(project, sid)
+        assert row is not None
+        assert row["title"] == long_text.strip()[:60]
+
+        await _collect(
+            project, list(_HAPPY_SCRIPT), registry, [], text="second", session_id=sid
+        )
+        row = assistant_store.get_session(project, sid)
+        assert row is not None
+        assert row["title"] == long_text.strip()[:60]  # unchanged
 
     asyncio.run(run())
