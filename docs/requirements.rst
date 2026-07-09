@@ -43,7 +43,6 @@ Runtime dependencies
 * ``pyyaml >= 6.0.3``, ``ruamel.yaml >= 0.19.0`` — YAML parsing.
 * ``jinja2 >= 3.0.0`` — template rendering.
 * ``pydantic >= 2.12.0`` — configuration validation.
-* ``jsonschema >= 4.26.0`` — schema validation.
 * ``rich >= 14.0.0`` — formatted CLI output.
 * ``networkx >= 3.6.0`` — dependency graph for ``lhp deps``.
 * ``packaging >= 23.2`` — version parsing for ``required_lhp_version``.

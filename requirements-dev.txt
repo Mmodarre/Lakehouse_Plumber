@@ -34,5 +34,4 @@ pydantic>=2.0.0
 
 
 click>=8.0
-jsonschema>=4.0
 pyyaml>=6.0
