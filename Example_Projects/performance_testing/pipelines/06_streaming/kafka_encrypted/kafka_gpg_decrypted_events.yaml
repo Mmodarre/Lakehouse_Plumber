@@ -1,0 +1,55 @@
+pipeline: kafka_perf_streaming
+flowgroup: kafka_gpg_decrypted_events
+
+actions:
+  - name: load_encrypted_kafka_events
+    type: load
+    operational_metadata:
+      - "_processing_timestamp"
+    source:
+      type: kafka
+      bootstrap_servers: "${kafka_bootstrap_servers}"
+      subscribe: "${kafka_encrypted_topic}"
+      readMode: stream
+      options:
+        kafka.security.protocol: "SASL_SSL"
+        kafka.sasl.mechanism: "PLAIN"
+        kafka.sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username='${secret:kafka/username}' password='${secret:kafka/password}';"
+        startingOffsets: "latest"
+        maxOffsetsPerTrigger: "50000"
+    target: v_encrypted_raw
+    description: "Stream GPG-encrypted binary payloads from the encrypted Kafka topic"
+
+  - name: decrypt_and_parse_events
+    type: transform
+    transform_type: python
+    source: v_encrypted_raw
+    readMode: stream
+    module_path: "py_functions/gpg_decrypt_parse.py"
+    function_name: decrypt_and_parse
+    parameters:
+      private_key: "${secret:gpg/private_key}"
+      passphrase: "${secret:gpg/passphrase}"
+      # Supply an explicit schema to get typed columns instead of map<string,string>.
+      # Example: "id STRING, event_type STRING, occurred_at TIMESTAMP, payload STRING"
+      # Remove or leave empty to fall back to map<string,string>.
+      json_schema: ""
+    target: v_decrypted_parsed
+    description: "Fetch GPG key + passphrase from Key Vault, decrypt each Kafka value, parse JSON"
+
+  - name: write_decrypted_events_bronze
+    type: write
+    source: v_decrypted_parsed
+    write_target:
+      type: streaming_table
+      mode: standard
+      catalog: "${catalog}"
+      schema: "${streaming_schema}"
+      table: kafka_encrypted_events_bronze
+      comment: "Bronze landing table for GPG-decrypted Kafka events; raw parsed JSON fields preserved"
+      cluster_columns:
+        - source_topic
+        - kafka_timestamp
+      table_properties:
+        delta.enableChangeDataFeed: "true"
+    description: "Append decrypted and JSON-parsed Kafka events to the Bronze Delta streaming table"

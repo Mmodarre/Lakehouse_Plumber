@@ -1,0 +1,31 @@
+pipeline: domain_b_bronze
+flowgroup: finance_market_news_raw
+
+actions:
+  - name: load_market_news
+    type: load
+    description: "Ingest market news and sentiment from external news API"
+    operational_metadata: [_processing_timestamp]
+    readMode: stream
+    source:
+      type: custom_datasource
+      module_path: "py_functions/sources/market_news_source.py"
+      custom_datasource_class: MarketNewsSource
+      options:
+        api_url: "https://api.marketaux.com/v1/news/all"
+        api_key: "${secret:market_data/news_api_key}"
+        tickers: "AAPL,MSFT,GOOG,AMZN,TSLA"
+    target: v_market_news_raw
+
+  - name: write_market_news_raw
+    type: write
+    description: "Write raw news to bronze as append-only staging for snapshot CDC"
+    source: v_market_news_raw
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: market_news_raw
+      comment: "Raw market news articles — staging table for snapshot CDC downstream"
+      table_properties:
+        delta.enableChangeDataFeed: "true"

@@ -1,0 +1,78 @@
+pipeline: domain_c_silver
+flowgroup: finance_stock_sentiment_joined
+
+actions:
+  - name: load_stock_prices
+    type: load
+    description: "Read current stock prices from bronze SCD2 table"
+    readMode: batch
+    source:
+      type: delta
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: stock_prices
+    target: v_stock_prices
+
+  - name: load_news_history
+    type: load
+    description: "Read news sentiment history from bronze snapshot CDC table"
+    readMode: batch
+    source:
+      type: delta
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: market_news_history
+    target: v_news_history
+
+  - name: join_stock_sentiment
+    type: transform
+    description: "Join stock prices with daily aggregated news sentiment"
+    transform_type: sql
+    source: v_stock_prices
+    target: v_stock_sentiment_joined
+    sql: |
+      WITH daily_sentiment AS (
+        SELECT
+          ticker,
+          DATE(published_at) AS sentiment_date,
+          AVG(sentiment_score) AS avg_sentiment_score,
+          COUNT(*) AS article_count,
+          SUM(CASE WHEN sentiment_label = 'positive' THEN 1 ELSE 0 END) AS positive_count,
+          SUM(CASE WHEN sentiment_label = 'negative' THEN 1 ELSE 0 END) AS negative_count
+        FROM v_news_history
+        WHERE __CURRENT = true
+        GROUP BY ticker, DATE(published_at)
+      )
+      SELECT
+        sp.ticker,
+        sp.trade_date,
+        sp.open,
+        sp.high,
+        sp.low,
+        sp.close,
+        sp.adj_close,
+        sp.volume,
+        ds.avg_sentiment_score,
+        ds.article_count,
+        ds.positive_count,
+        ds.negative_count,
+        (sp.close - sp.open) / sp.open * 100 AS daily_return_pct
+      FROM v_stock_prices sp
+      LEFT JOIN daily_sentiment ds
+        ON sp.ticker = ds.ticker
+        AND DATE(sp.trade_date) = ds.sentiment_date
+      WHERE sp.__CURRENT = true
+
+  - name: write_stock_sentiment
+    type: write
+    description: "Write joined stock-sentiment data to silver"
+    source: v_stock_sentiment_joined
+    write_target:
+      type: materialized_view
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
+      table: stock_sentiment
+      comment: "Stock prices joined with daily news sentiment scores"
+      cluster_columns:
+        - ticker
+        - trade_date

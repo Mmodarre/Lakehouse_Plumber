@@ -41,6 +41,17 @@ MAX_CALL_DEPTH = 20
 #: statically known" instead of expanding further.
 MAX_VALUE_SET_SIZE = 256
 
+#: Total guard-hit budget per engine. Guard-degraded results are not
+#: memoized (see ``_guard_hits``), so a module whose resolution keeps
+#: tripping cycle/depth guards re-replays the same environments on every
+#: query — observed going combinatorial (~1.6 s per 300-line file) on real
+#: projects. Past this budget the engine is *exhausted*: every further
+#: oracle answer degrades straight to "not statically known", which is the
+#: same conservative direction the guards already move in. Files that never
+#: approach the budget resolve exactly as before. Module-level so tests can
+#: monkeypatch it.
+MAX_GUARD_HITS = 512
+
 _SCOPE_BARRIERS = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
 
 
