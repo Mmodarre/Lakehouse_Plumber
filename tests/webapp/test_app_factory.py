@@ -48,6 +48,34 @@ def test_root_serves_plaintext_fallback_without_static(no_static):
     assert "scripts/build_webapp.sh" in resp.text
 
 
+def test_spa_cache_headers(project_root_env, tmp_path, monkeypatch):
+    """Unhashed entry points revalidate (`no-cache`); hashed assets are immutable.
+
+    A heuristically cached index.html references hashed chunks a newer build
+    has deleted — the split below is what prevents the stale-SPA failure mode.
+    """
+    static = tmp_path / "spa_static"
+    (static / "assets").mkdir(parents=True)
+    (static / "index.html").write_text("<html></html>", encoding="utf-8")
+    (static / "assets" / "index-abc123.js").write_text("//x", encoding="utf-8")
+    monkeypatch.setattr("lhp.webapp.static_app.resolve_static_dir", lambda: static)
+
+    app = create_app()
+    with TestClient(app, base_url=LOOPBACK_BASE_URL) as client:
+        index = client.get("/")
+        assert index.status_code == 200
+        assert index.headers["cache-control"] == "no-cache"
+
+        asset = client.get("/assets/index-abc123.js")
+        assert asset.status_code == 200
+        assert asset.headers["cache-control"] == "public, max-age=31536000, immutable"
+
+        # The client-side-routing fallback serves index.html — same rule.
+        fallback = client.get("/flowgroups", headers={"accept": "text/html"})
+        assert fallback.status_code == 200
+        assert fallback.headers["cache-control"] == "no-cache"
+
+
 def test_api_health_does_not_crash_app(project_root_env):
     """GET /api/health is either 200 (router present) or 404 — never a crash."""
     app = create_app()

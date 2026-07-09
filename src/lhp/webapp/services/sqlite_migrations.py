@@ -83,4 +83,26 @@ _V2: tuple[str, ...] = (
     "CREATE INDEX idx_assistant_sessions_status ON assistant_sessions(status)",
 )
 
-MIGRATIONS: tuple[tuple[str, ...], ...] = (_V1, _V2)
+#: v3 — assistant providers: ``provider`` discriminates ``assistant_sessions``
+#: rows between the in-process Claude Agent SDK provider (``claude_sdk``) and
+#: the Omnigent daemon (``omnigent``, the pre-v3 implicit value, hence the
+#: DEFAULT). ``runtime_session_id`` is the Claude SDK resume handle, refreshed
+#: after every turn (LHP's ``session_id`` stays the stable primary key).
+#: ``assistant_items`` is the per-session transcript for ``GET /session``
+#: rehydration — one JSON envelope per item, keyed ``(session_id, seq)`` so
+#: replay order is insertion order; written only by the Claude turn engine.
+_V3: tuple[str, ...] = (
+    "ALTER TABLE assistant_sessions ADD COLUMN provider TEXT NOT NULL DEFAULT 'omnigent'",
+    "ALTER TABLE assistant_sessions ADD COLUMN runtime_session_id TEXT",
+    """
+    CREATE TABLE assistant_items (
+        session_id TEXT NOT NULL,
+        seq INTEGER NOT NULL,
+        item_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (session_id, seq)
+    )
+    """,
+)
+
+MIGRATIONS: tuple[tuple[str, ...], ...] = (_V1, _V2, _V3)

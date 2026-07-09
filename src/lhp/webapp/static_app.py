@@ -40,6 +40,26 @@ _SPA_NOT_BUILT_MESSAGE = (
     "then restart the server.\n"
 )
 
+#: Unhashed entry points (``index.html``, top-level files) must revalidate on
+#: every load: without this, browsers heuristically cache ``index.html``, and
+#: a newer build deletes the hashed chunks the cached copy references —
+#: serving a stale or broken app. ``FileResponse`` sends ``ETag`` /
+#: ``Last-Modified``, so revalidation is a cheap ``304``.
+_NO_CACHE = "no-cache"
+
+
+class _ImmutableStaticFiles(StaticFiles):
+    """``/assets`` serving with far-future caching.
+
+    Every file under ``assets/`` carries a content hash in its name, so a
+    changed file is a NEW URL — cached copies can never go stale.
+    """
+
+    def file_response(self, *args, **kwargs) -> Response:
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+
 
 def resolve_static_dir() -> Optional[Path]:
     """Return the built SPA directory if ``static/index.html`` exists, else None.
@@ -61,7 +81,7 @@ def _add_static_file_route(app: FastAPI, file_path: Path) -> None:
     """Register a ``GET``/``HEAD`` route serving one top-level static file verbatim."""
 
     async def _serve() -> FileResponse:
-        return FileResponse(file_path)
+        return FileResponse(file_path, headers={"Cache-Control": _NO_CACHE})
 
     app.add_api_route(
         f"/{file_path.name}",
@@ -87,7 +107,9 @@ async def _spa_not_found_handler(request: Request, exc: Exception) -> Response:
         and "text/html" in request.headers.get("accept", "")
         and spa_index is not None
     ):
-        return FileResponse(spa_index, media_type="text/html")
+        return FileResponse(
+            spa_index, media_type="text/html", headers={"Cache-Control": _NO_CACHE}
+        )
 
     detail = "Not Found"
     headers: Optional[Mapping[str, str]] = None
@@ -111,10 +133,14 @@ def mount_spa(app: FastAPI) -> None:
         index_html = static_dir / "index.html"
         assets_dir = static_dir / "assets"
         if assets_dir.is_dir():
-            app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+            app.mount(
+                "/assets",
+                _ImmutableStaticFiles(directory=str(assets_dir)),
+                name="assets",
+            )
 
         async def _serve_index() -> FileResponse:
-            return FileResponse(index_html)
+            return FileResponse(index_html, headers={"Cache-Control": _NO_CACHE})
 
         app.add_api_route(
             "/", _serve_index, methods=["GET", "HEAD"], include_in_schema=False

@@ -7,6 +7,7 @@ import type {
   ApprovalParams,
   AssistantFrame,
   AssistantItem,
+  PermissionMode,
   SessionFailedHint,
   SessionSnapshot,
   SnapshotItemEnvelope,
@@ -20,8 +21,9 @@ import type {
 // All frame→state transitions live in `applyFrame` so the thread, the
 // composer, and the failure cards read from exactly one reducer.
 //
-// Only `panelOpen` is persisted — a reloaded page starts with an empty
-// thread and rehydrates from `GET /api/assistant/session`.
+// Persisted fields: `panelOpen`, `panelWidth`, `permissionMode` (user
+// preferences). A reloaded page starts with an empty thread and rehydrates
+// from `GET /api/assistant/session`.
 
 /** One ordered slice of the conversation. Deltas coalesce into the LAST
  * part when it matches (assistant text into an open text part, reasoning
@@ -74,12 +76,18 @@ interface AssistantState {
   failure: AssistantFailure | null
   /** True once an `interrupted` frame arrived for the current turn. */
   interrupted: boolean
-  /** Panel visibility — the ONLY persisted field. */
+  /** Panel visibility (persisted). */
   panelOpen: boolean
+  /** Panel dock width in px (persisted; clamped by the resize handle). */
+  panelWidth: number
+  /** Per-turn approval policy sent with every chat request (persisted). */
+  permissionMode: PermissionMode
 
   // Actions
   setPanelOpen: (open: boolean) => void
   togglePanel: () => void
+  setPanelWidth: (width: number) => void
+  setPermissionMode: (mode: PermissionMode) => void
   /** Append the user message and mark the turn streaming. */
   beginTurn: (text: string) => void
   /** Fold one decoded NDJSON frame into panel state. */
@@ -185,14 +193,27 @@ const conversationInitial = {
   interrupted: false,
 }
 
+/** Resize bounds for the docked panel (px). The max stays conservative so
+ * the main editor always keeps a usable width. */
+export const PANEL_MIN_WIDTH = 300
+export const PANEL_MAX_WIDTH = 760
+export const PANEL_DEFAULT_WIDTH = 360
+
 export const useAssistantStore = create<AssistantState>()(
   persist(
     (set) => ({
       ...conversationInitial,
       panelOpen: false,
+      panelWidth: PANEL_DEFAULT_WIDTH,
+      permissionMode: 'default',
 
       setPanelOpen: (open) => set({ panelOpen: open }),
       togglePanel: () => set((s) => ({ panelOpen: !s.panelOpen })),
+      setPanelWidth: (width) =>
+        set({
+          panelWidth: Math.min(PANEL_MAX_WIDTH, Math.max(PANEL_MIN_WIDTH, width)),
+        }),
+      setPermissionMode: (mode) => set({ permissionMode: mode }),
 
       beginTurn: (text) =>
         set((s) => ({
@@ -344,7 +365,11 @@ export const useAssistantStore = create<AssistantState>()(
       name: 'lhp-assistant',
       // Conversation state is transient by design — a reload rehydrates
       // from the session snapshot. Only the panel toggle survives.
-      partialize: (s) => ({ panelOpen: s.panelOpen }),
+      partialize: (s) => ({
+        panelOpen: s.panelOpen,
+        panelWidth: s.panelWidth,
+        permissionMode: s.permissionMode,
+      }),
     },
   ),
 )

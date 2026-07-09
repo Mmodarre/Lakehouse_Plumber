@@ -26,11 +26,23 @@ import type {
 // (covers both "daemon start in flight" and "panel just opened, daemon
 // warming up") and stops as soon as the ladder is green.
 
-/** True when the daemon ladder is fully green (chat can be attempted). */
+/** True when the omnigent daemon ladder is fully green. */
 export function isDaemonReady(status: AssistantStatus | undefined): boolean {
   // binary_found deliberately not required: a daemon run from a venv
   // (binary off PATH) is fully usable; the binary only gates spawning.
   return status !== undefined && status.server_ok && status.host_online
+}
+
+/** Provider-aware runtime readiness (chat can be attempted).
+ *
+ * Claude provider: the in-process SDK just needs its bundled binary
+ * (`binary_found`). Omnigent: the daemon ladder. No provider configured
+ * yet: there is no runtime to wait for — SetupCard is the next gate. */
+export function isRuntimeReady(status: AssistantStatus | undefined): boolean {
+  if (status === undefined) return false
+  if (status.provider === 'claude_sdk') return status.binary_found
+  if (status.provider == null) return true
+  return isDaemonReady(status)
 }
 
 export function useAssistantStatus(options: { enabled: boolean }) {
@@ -39,8 +51,10 @@ export function useAssistantStatus(options: { enabled: boolean }) {
     queryFn: fetchAssistantStatus,
     enabled: options.enabled,
     retry: 1,
+    // Poll only while a configured runtime is not ready (daemon warming up,
+    // SDK missing); there is nothing to track before configuration.
     refetchInterval: (query) =>
-      isDaemonReady(query.state.data) ? false : 2_000,
+      isRuntimeReady(query.state.data) ? false : 2_000,
   })
 }
 

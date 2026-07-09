@@ -1,17 +1,33 @@
-import { ShieldQuestion } from 'lucide-react'
+import { Check, ShieldQuestion, X } from 'lucide-react'
 import { Button } from '../ui/button'
 import { useResolveApproval } from '../../hooks/useAssistant'
+import { useHealth } from '../../hooks/useProject'
 import type { ApprovalAction, ApprovalParams } from '../../types/assistant'
+import { toolDisplay } from './toolDisplay'
 
-const KNOWN_FIELDS: Array<{ key: keyof ApprovalParams; label: string }> = [
-  { key: 'phase', label: 'Phase' },
-  { key: 'policy_name', label: 'Policy' },
-]
+const RESOLUTION_LABEL: Record<ApprovalAction, string> = {
+  accept: 'Accepted',
+  decline: 'Declined',
+  cancel: 'Cancelled — turn stopped',
+}
+
+/** Parse the params' content_preview (the tool input as JSON, possibly
+ * truncated at the backend's preview cap — then it fails to parse). */
+function previewArgs(params: ApprovalParams): Record<string, unknown> | null {
+  if (typeof params.content_preview !== 'string') return null
+  try {
+    const parsed: unknown = JSON.parse(params.content_preview)
+    return parsed !== null && typeof parsed === 'object'
+      ? (parsed as Record<string, unknown>)
+      : null
+  } catch {
+    return null
+  }
+}
 
 /**
- * One elicitation (approval request). Renders the documented MCP fields
- * when present; the raw params always stay reachable behind a disclosure
- * (the exact shape was never observed live — spike S5).
+ * One elicitation (approval request). Shows the same friendly tool summary
+ * as ToolCallCard, with the full arguments behind a disclosure.
  */
 export function ApprovalCard({
   elicitationId,
@@ -23,14 +39,24 @@ export function ApprovalCard({
   resolved: ApprovalAction | null
 }) {
   const approval = useResolveApproval()
+  const { data: health } = useHealth()
 
   const respond = (action: ApprovalAction) => {
     approval.mutate({ elicitation_id: elicitationId, action })
   }
 
   const disabled = resolved !== null || approval.isPending
+  const toolName =
+    typeof params.tool_name === 'string' ? params.tool_name : null
+  const args = previewArgs(params)
+  const display =
+    toolName === null ? null : toolDisplay(toolName, args ?? {}, health?.root)
   const message =
-    typeof params.message === 'string' ? params.message : 'Approval required'
+    display !== null
+      ? `Allow ${display.label.toLowerCase()}?`
+      : typeof params.message === 'string'
+        ? params.message
+        : 'Approval required'
 
   return (
     <div className="rounded-md border border-warning/50 bg-warning/10 px-2.5 py-2">
@@ -41,31 +67,31 @@ export function ApprovalCard({
         />
         <div className="min-w-0 flex-1 text-xs text-foreground">
           <p className="font-medium">{message}</p>
-          {KNOWN_FIELDS.map(({ key, label }) =>
-            typeof params[key] === 'string' ? (
-              <p key={String(key)} className="mt-0.5 text-muted-foreground">
-                {label}: {params[key]}
-              </p>
-            ) : null,
-          )}
-          {typeof params.content_preview === 'string' && (
-            <pre className="mt-1 max-h-32 overflow-auto rounded bg-muted p-1.5 text-2xs">
-              {params.content_preview}
-            </pre>
+          {display?.detail && (
+            <p className="mt-1 truncate rounded bg-muted px-1.5 py-1 font-mono text-2xs text-foreground">
+              {display.detail}
+            </p>
           )}
           <details className="mt-1">
             <summary className="cursor-pointer text-2xs text-muted-foreground select-none">
-              Raw request
+              Full request
             </summary>
             <pre className="mt-1 max-h-32 overflow-auto rounded bg-muted p-1.5 text-2xs">
-              {JSON.stringify(params, null, 2)}
+              {args !== null
+                ? JSON.stringify(args, null, 2)
+                : JSON.stringify(params, null, 2)}
             </pre>
           </details>
         </div>
       </div>
       {resolved !== null ? (
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          Response sent: {resolved}
+        <p className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">
+          {resolved === 'accept' ? (
+            <Check className="size-3.5 text-success" aria-hidden="true" />
+          ) : (
+            <X className="size-3.5" aria-hidden="true" />
+          )}
+          {RESOLUTION_LABEL[resolved]}
         </p>
       ) : (
         <div className="mt-2 flex gap-1.5">

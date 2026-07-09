@@ -37,9 +37,13 @@ class ActiveSessionInfo(BaseModel):
 class AssistantStatus(BaseModel):
     """Single source of truth for the assistant panel's readiness display.
 
-    The first four fields mirror the daemon-detection ladder
+    For the ``omnigent`` provider the first four fields mirror the
+    daemon-detection ladder
     (:class:`~lhp.webapp.services.omnigent_lifecycle.DaemonStatus`): a daemon
     that is down shows as falsy ladder fields, never as an error response.
+    For the ``claude_sdk`` provider the same ladder fields report the
+    in-process SDK's availability (bundled binary present) so the existing
+    frontend gate logic keeps working; ``host_id`` is ``"local"``.
     """
 
     binary_found: bool
@@ -51,19 +55,39 @@ class AssistantStatus(BaseModel):
     skill_version: Optional[str]
     executor_configured: bool
     active_session: Optional[ActiveSessionInfo]
+    #: Provider of the STORED executor config (``omnigent`` / ``claude_sdk``);
+    #: ``None`` until an executor has been configured.
+    provider: Optional[str] = None
 
 
 class ExecutorConfig(BaseModel):
     """Stored executor configuration, echoed back exactly as stored.
 
-    ``api_key_env`` is an environment-variable NAME (see module docstring);
-    no field ever carries a key value.
+    ``provider`` selects the assistant backend. The Pydantic default is
+    ``omnigent`` purely for back-compat parsing of configs stored before the
+    field existed; the PRODUCT default is the Claude provider (the setup UI
+    preselects ``claude_sdk``).
+
+    ``api_key_env`` / ``oauth_token_env`` are environment-variable NAMES
+    (see module docstring); no field ever carries a key value.
     """
 
-    mode: Literal["omnigent_defaults", "databricks", "api_key_env"]
-    profile: Optional[str] = None  # databricks CLI profile name
+    provider: Literal["omnigent", "claude_sdk"] = "omnigent"
+    mode: Literal[
+        "omnigent_defaults", "databricks", "api_key_env", "claude_subscription"
+    ]
+    profile: Optional[str] = None  # databricks profile name (~/.databrickscfg)
+    host: Optional[str] = None  # databricks workspace host (claude_sdk alternative)
     model: Optional[str] = None  # executor model override
     api_key_env: Optional[str] = None  # env var NAME, never a key value
+    oauth_token_env: Optional[str] = None  # env var NAME, never a token value
+
+
+#: provider -> the modes it accepts.
+_PROVIDER_MODES = {
+    "omnigent": ("omnigent_defaults", "databricks", "api_key_env"),
+    "claude_sdk": ("claude_subscription", "databricks"),
+}
 
 
 class ExecutorConfigUpdate(ExecutorConfig):
@@ -71,9 +95,18 @@ class ExecutorConfigUpdate(ExecutorConfig):
 
     @model_validator(mode="after")
     def _require_mode_fields(self) -> ExecutorConfigUpdate:
-        """Enforce the per-mode required fields and the env-var-name shape."""
-        if self.mode == "databricks" and not self.profile:
-            raise ValueError("mode 'databricks' requires 'profile'")
+        """Enforce provider/mode pairing, required fields, env-var-name shape."""
+        allowed = _PROVIDER_MODES[self.provider]
+        if self.mode not in allowed:
+            raise ValueError(
+                f"provider {self.provider!r} does not support mode "
+                f"{self.mode!r} (expected one of {', '.join(allowed)})"
+            )
+        if self.mode == "databricks":
+            if self.provider == "omnigent" and not self.profile:
+                raise ValueError("mode 'databricks' requires 'profile'")
+            if self.provider == "claude_sdk" and not (self.profile or self.host):
+                raise ValueError("mode 'databricks' requires 'profile' or 'host'")
         if self.mode == "api_key_env":
             if not self.api_key_env:
                 raise ValueError("mode 'api_key_env' requires 'api_key_env'")
@@ -83,6 +116,14 @@ class ExecutorConfigUpdate(ExecutorConfig):
                     "(letters, digits and underscores, not starting with a "
                     "digit) — never an API key value"
                 )
+        if self.oauth_token_env and not _ENV_VAR_NAME_RE.fullmatch(
+            self.oauth_token_env
+        ):
+            raise ValueError(
+                "oauth_token_env must be an environment variable NAME "
+                "(letters, digits and underscores, not starting with a "
+                "digit) — never a token value"
+            )
         return self
 
 
@@ -96,6 +137,12 @@ class ChatRequest(BaseModel):
     """``POST /assistant/chat`` body."""
 
     message: str = Field(..., min_length=1, description="User message text.")
+    #: Per-turn approval policy, honored by the ``claude_sdk`` provider only
+    #: (the omnigent provider has its own elicitation flow). Vocabulary
+    #: matches Claude Code's permission modes: ``default`` asks for every
+    #: non-read-only tool, ``acceptEdits`` additionally auto-allows local
+    #: file edits, ``bypassPermissions`` auto-allows everything.
+    permission_mode: Literal["default", "acceptEdits", "bypassPermissions"] = "default"
 
 
 class ApprovalRequest(BaseModel):

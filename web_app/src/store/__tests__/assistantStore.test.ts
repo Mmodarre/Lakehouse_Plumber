@@ -335,12 +335,23 @@ describe('snapshot normalization + hydration', () => {
 })
 
 describe('assistantStore persistence', () => {
-  it('persists panelOpen and ONLY panelOpen', () => {
+  it('persists ONLY UI preferences — never conversation state', () => {
     useAssistantStore.getState().beginTurn('secret conversation')
     useAssistantStore.getState().setPanelOpen(true)
     const raw = localStorage.getItem('lhp-assistant')
     expect(raw).not.toBeNull()
     const persisted = JSON.parse(raw as string) as { state: Record<string, unknown> }
-    expect(persisted.state).toEqual({ panelOpen: true })
+    expect(persisted.state).toEqual({
+      panelOpen: true,
+      panelWidth: 360,
+      permissionMode: 'default',
+    })
+  })
+
+  it('clamps panelWidth to the resize bounds', () => {
+    useAssistantStore.getState().setPanelWidth(10)
+    expect(useAssistantStore.getState().panelWidth).toBe(300)
+    useAssistantStore.getState().setPanelWidth(5000)
+    expect(useAssistantStore.getState().panelWidth).toBe(760)
   })
 })

@@ -54,11 +54,11 @@ logger = logging.getLogger(__name__)
 
 #: Fallback model for the ``databricks`` auth mode when the executor config
 #: does not pin one (spike-verified working default).
-_DATABRICKS_DEFAULT_MODEL = "databricks-claude-opus-4-8"
+DATABRICKS_DEFAULT_MODEL = "databricks-claude-opus-4-8"
 
 #: Short agent prompt; LHP-specific knowledge comes from the installed skill,
 #: not from this prompt.
-_ASSISTANT_PROMPT = (
+ASSISTANT_PROMPT = (
     "You are working in a Lakehouse Plumber (LHP) project; prefer the lhp "
     "skill for LHP-specific questions about flowgroups, actions, presets, "
     "templates, substitutions, and code generation."
@@ -96,7 +96,7 @@ def build_agent_config(
     if mode == "databricks":
         executor["auth"] = {"type": "databricks", "profile": executor_cfg["profile"]}
         if model is None:
-            model = _DATABRICKS_DEFAULT_MODEL
+            model = DATABRICKS_DEFAULT_MODEL
     elif mode == "api_key_env":
         # ${VAR} is an env-var NAME interpolation expanded by the omnigent
         # server from ITS process env at parse time — never a key value.
@@ -113,7 +113,7 @@ def build_agent_config(
     return {
         "spec_version": 1,
         "name": f"lhp-{resolved_root.name}-{_sha8(str(resolved_root))}",
-        "prompt": _ASSISTANT_PROMPT,
+        "prompt": ASSISTANT_PROMPT,
         "executor": executor,
         "os_env": {
             "type": "caller_process",

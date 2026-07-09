@@ -27,6 +27,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from lhp.webapp.dependencies import get_project_root
+from lhp.webapp.routers._guards import assert_project_loaded
 from lhp.webapp.schemas.runs import RunDetail, RunListResponse, RunSummary
 from lhp.webapp.services import run_history
 
@@ -36,12 +37,6 @@ _MIN_LIMIT = 1
 _MAX_LIMIT = 200
 
 
-def _assert_project_loaded(request: Request) -> None:
-    """Reject run-history access when the server runs in ``no_project`` state."""
-    if getattr(request.app.state, "project_state", "ok") != "ok":
-        raise HTTPException(409, "No LHP project loaded; run history is unavailable")
-
-
 @router.get("", response_model=RunListResponse)
 def list_runs(
     request: Request,
@@ -49,7 +44,7 @@ def list_runs(
     project_root: Path = Depends(get_project_root),
 ) -> RunListResponse:
     """List recorded runs, newest first."""
-    _assert_project_loaded(request)
+    assert_project_loaded(request, "run history is unavailable")
     clamped = max(_MIN_LIMIT, min(_MAX_LIMIT, limit))
     rows = run_history.list_runs(project_root, limit=clamped)
     runs = [RunSummary(**row) for row in rows]
@@ -66,7 +61,7 @@ def get_run(
     project_root: Path = Depends(get_project_root),
 ) -> RunDetail:
     """Return one run's summary + issues (+ frames when ``include_events``)."""
-    _assert_project_loaded(request)
+    assert_project_loaded(request, "run history is unavailable")
     detail = run_history.get_run(project_root, run_id, include_events=include_events)
     if detail is None:
         raise HTTPException(404, f"Run '{run_id}' not found")
