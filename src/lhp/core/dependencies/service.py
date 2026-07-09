@@ -26,6 +26,7 @@ from ...parsers.blueprint_parser import BlueprintParser
 from ...parsers.parse_cache import PersistentParseCache
 from ...parsers.yaml_parser import CachingYAMLParser, YAMLParser
 from ...presets.preset_manager import PresetManager
+from ...utils.performance_timer import perf_timer
 from .._interfaces import BaseDependencyAnalysisService
 from ..coordination import ValidationService
 from ..discovery.blueprint_discoverer import BlueprintDiscoverer
@@ -139,7 +140,7 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
 
         self._flowgroups: Optional[List[FlowGroup]] = None
         self._analysis_memo: Dict[
-            Tuple[Optional[str], Optional[str]], DependencyAnalysisResult
+            Tuple[Optional[str], Optional[str], bool], DependencyAnalysisResult
         ] = {}
         self._flowgroup_file_paths: Dict[str, Path] = {}
         self._blueprint_provenance: Dict[Tuple[str, str], BlueprintProvenance] = {}
@@ -150,16 +151,25 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         self._builder = DependencyGraphBuilder(project_root=project_root)
         self._analyzer = DependencyAnalyzer()
 
-    def build_graphs(self, flowgroups: Sequence[FlowGroup]) -> DependencyGraphs:
+    def build_graphs(
+        self,
+        flowgroups: Sequence[FlowGroup],
+        *,
+        trust_depends_on: bool = False,
+    ) -> DependencyGraphs:
         """Build the action/flowgroup/pipeline graph triple from a given set.
 
         Threads the file-path index populated by the prior ``get_flowgroups``
         call into the builder so the :class:`SourceParser` can resolve
         relative SQL/Python file references. The ABC-mandated signature takes
         only the flowgroup sequence; the index is service state.
+        ``trust_depends_on`` opts actions with a non-empty ``depends_on``
+        out of body extraction (declared entries become authoritative).
         """
         return self._builder.build_from_flowgroups(
-            list(flowgroups), self._flowgroup_file_paths
+            list(flowgroups),
+            self._flowgroup_file_paths,
+            trust_depends_on=trust_depends_on,
         )
 
     def analyze(self, graphs: DependencyGraphs) -> DependencyAnalysisResult:
@@ -187,12 +197,14 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
 
     def analyze_dependencies_by_job(
         self,
+        *,
+        trust_depends_on: bool = False,
     ) -> Tuple[Dict[str, DependencyAnalysisResult], DependencyAnalysisResult]:
         """Perform dependency analysis grouped by ``job_name``.
 
-        Reuses the memoized global analysis (``analyze_project``), then
-        partitions the global result by ``job_name``. Returns the tuple
-        ``(job_results, global_result)``.
+        Reuses the memoized global analysis (``analyze_project``, same
+        ``trust_depends_on`` mode), then partitions the global result by
+        ``job_name``. Returns the tuple ``(job_results, global_result)``.
         """
         from ..validators import validate_job_names
 
@@ -219,7 +231,7 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
 
         if not has_job_name:
             self.logger.info("No job_name defined - performing single-job analysis")
-            result = self.analyze_project()
+            result = self.analyze_project(trust_depends_on=trust_depends_on)
             project_name = self.get_project_name()
             job_results = {f"{project_name}_orchestration": result}
             return job_results, result
@@ -237,7 +249,7 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         )
 
         self.logger.info("Step 1: Analyzing all flowgroups together (global view)")
-        global_result = self.analyze_project()
+        global_result = self.analyze_project(trust_depends_on=trust_depends_on)
 
         self.logger.info(
             f"Step 2: Partitioning global result by {len(job_groups)} job group(s)"
@@ -294,22 +306,30 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         self,
         pipeline_filter: Optional[str] = None,
         blueprint_filter: Optional[str] = None,
+        *,
+        trust_depends_on: bool = False,
     ) -> DependencyAnalysisResult:
-        """Discover, build and analyze — once per filter pair, memoized.
+        """Discover, build and analyze — once per option triple, memoized.
 
         The single entry point the facade routes through: the ``dag``
         command's analyze and save paths (and the job-orchestration global
         pass) all share ONE discovery + graph build + analysis per service
-        instance and filter combination.
+        instance and (filter, filter, trust) combination.
         """
-        key = (pipeline_filter, blueprint_filter)
+        key = (pipeline_filter, blueprint_filter, trust_depends_on)
         if key not in self._analysis_memo:
             flowgroups = self.get_flowgroups(
                 pipeline_filter=pipeline_filter, blueprint_filter=blueprint_filter
             )
-            self._analysis_memo[key] = self._analyzer.analyze(
-                self.build_graphs(flowgroups)
-            )
+            with perf_timer(
+                f"dependency_graph_build [{len(flowgroups)} flowgroups]",
+                phase=True,
+            ):
+                graphs = self.build_graphs(
+                    flowgroups, trust_depends_on=trust_depends_on
+                )
+            with perf_timer("dependency_analysis", phase=True):
+                self._analysis_memo[key] = self._analyzer.analyze(graphs)
         return self._analysis_memo[key]
 
     def _discover_and_process_all_flowgroups(self) -> List[FlowGroup]:

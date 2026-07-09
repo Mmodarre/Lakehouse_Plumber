@@ -678,6 +678,19 @@ Command Options
 ``--blueprint``
     Restrict the analysis to one blueprint (unchanged).
 
+``--pipeline, -p``
+    Restrict the analysis to one pipeline. The ``job`` format is skipped
+    under any filter (orchestration job files are whole-project artifacts);
+    the other formats reflect only the filtered pipeline.
+
+``--trust-depends-on``
+    Opt-in fast path: an action with a non-empty ``depends_on`` skips
+    SQL/Python body extraction entirely — its declared entries (plus any
+    explicit ``source:`` config) become its authoritative source set.
+    Useful on large projects whose actions fully declare their upstreams;
+    an action whose declarations are incomplete loses the parsed edges for
+    its undeclared reads. Actions without ``depends_on`` extract normally.
+
 Output Formats
 --------------
 

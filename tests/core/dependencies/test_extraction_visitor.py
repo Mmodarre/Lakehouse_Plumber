@@ -248,7 +248,8 @@ df2 = spark.read.table(helper(x))
         assert "runtime" in warning.message
         # The enriched message names the exact unresolved argument expression.
         assert "helper(x)" in warning.message
-        assert warning.line == 2
+        # Line numbers anchor to the VERBATIM body (leading blank line kept).
+        assert warning.line == 3
         assert warning.flowgroup == ""
         assert warning.action == ""
         assert "depends_on" in warning.suggestion
@@ -516,4 +517,52 @@ def _coerce_sites(raw):
         )
         result = extract_tables_from_python(code, bindings=bindings)
         assert result.tables == ["cat.edw_mel.orders", "cat.edw_syd.orders"]
+        assert result.warnings == []
+
+
+@pytest.mark.unit
+class TestParameterShadowing:
+    """Declared parameters shadow outer bindings, even when unresolvable."""
+
+    def test_unresolvable_param_shadows_module_binding(self):
+        # `sch`/`tbl` are NOT known LHP placeholder names, so the legacy
+        # `{token}`-preservation path stays out of the way.
+        code = """
+sch = "bronze"
+
+def helper(sch, tbl):
+    return spark.table(f"{sch}.{tbl}")
+
+df = helper(cfg["s"], cfg["t"])
+"""
+        result = extract_tables_from_python(code)
+        # The runtime values of `sch`/`tbl` are unknown; falling back to the
+        # module-level `sch` would fabricate "bronze.<...>".
+        assert result.tables == []
+        assert len(result.warnings) == 1
+        assert result.warnings[0].code == DEP_002_CODE
+
+    def test_call_site_value_wins_over_module_binding(self):
+        code = """
+schema = "bronze"
+
+def helper(schema):
+    return spark.table(f"{schema}.users")
+
+df = helper("silver")
+"""
+        result = extract_tables_from_python(code)
+        assert result.tables == ["silver.users"]
+        assert result.warnings == []
+
+    def test_local_binding_still_wins_over_param(self):
+        code = """
+def helper(schema):
+    schema = "gold"
+    return spark.table(f"{schema}.users")
+
+df = helper(cfg["s"])
+"""
+        result = extract_tables_from_python(code)
+        assert result.tables == ["gold.users"]
         assert result.warnings == []

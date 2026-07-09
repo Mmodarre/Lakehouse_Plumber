@@ -186,6 +186,45 @@ class TestPersistentParseCacheStore:
         assert final is not None
         assert final["documents"][0]["iteration"] == 49
 
+    def test_failed_write_leaves_no_orphan_temp_file(
+        self, store, yaml_file, monkeypatch
+    ):
+        import tempfile
+
+        resolved, mtime_ns, size = _stat_triplet(yaml_file)
+        documents, flowgroups = _sample_payload()
+        real_named_temporary_file = tempfile.NamedTemporaryFile
+
+        class ExplodingWriter:
+            """Real temp file whose write() fails, simulating a full disk."""
+
+            def __init__(self, inner):
+                self._inner = inner
+                self.name = inner.name
+
+            def write(self, data):
+                raise OSError("disk full")
+
+            def __enter__(self):
+                self._inner.__enter__()
+                return self
+
+            def __exit__(self, *exc_info):
+                return self._inner.__exit__(*exc_info)
+
+        monkeypatch.setattr(
+            tempfile,
+            "NamedTemporaryFile",
+            lambda *args, **kwargs: ExplodingWriter(
+                real_named_temporary_file(*args, **kwargs)
+            ),
+        )
+
+        store.save(resolved, mtime_ns, size, documents, flowgroups)
+
+        assert list(store.cache_dir.glob("*.tmp")) == []
+        assert list(store.cache_dir.glob("*.pkl")) == []
+
 
 class TestCachingParserPersistentSeam:
     def test_error_yaml_gets_no_shard_and_reraises_every_run(self, store, tmp_path):

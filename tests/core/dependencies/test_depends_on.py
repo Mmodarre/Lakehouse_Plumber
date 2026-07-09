@@ -236,3 +236,166 @@ class TestDependsOnSuppression:
         [warning] = graphs.extraction_warnings
         assert warning.code == "LHP-DEP-002"
         assert (warning.flowgroup, warning.action) == ("consumer_fg", "opaque_act")
+
+
+@pytest.mark.unit
+class TestTrustDependsOn:
+    """Opt-in trust mode: a non-empty depends_on skips body extraction."""
+
+    def _consumer_with_missing_sql(self) -> FlowGroup:
+        return FlowGroup(
+            pipeline="p2",
+            flowgroup="consumer_fg",
+            actions=[
+                Action(
+                    name="b",
+                    type=ActionType.TRANSFORM,
+                    sql_path="does/not/exist.sql",
+                    target="v_b",
+                    depends_on=["cat.sch.a"],
+                )
+            ],
+        )
+
+    def test_trust_skips_body_extraction_entirely(self):
+        # The sql_path does not exist: default mode raises LHP-IO-002 while
+        # resolving it; trust mode never touches the file and still forms
+        # the declared edge.
+        producer = _producer_fg("p1", "cat", "sch", "a")
+        consumer = self._consumer_with_missing_sql()
+        builder = DependencyGraphBuilder(project_root=Path("/tmp/nonexistent_lhp_root"))
+        graph = builder.build_from_flowgroups(
+            [producer, consumer], file_paths={}, trust_depends_on=True
+        ).action_graph
+        assert graph.has_edge("producer_fg.write_a", "consumer_fg.b")
+
+    def test_default_mode_still_extracts_bodies(self):
+        from lhp.errors import LHPError
+
+        producer = _producer_fg("p1", "cat", "sch", "a")
+        consumer = self._consumer_with_missing_sql()
+        builder = DependencyGraphBuilder(project_root=Path("/tmp/nonexistent_lhp_root"))
+        with pytest.raises(LHPError):
+            builder.build_from_flowgroups([producer, consumer], file_paths={})
+
+    def test_trust_without_depends_on_extracts_normally(self):
+        # An action with NO depends_on is unaffected by trust mode: its
+        # explicit source still resolves to an internal edge.
+        producer = _producer_fg("p1", "cat", "sch", "a")
+        consumer = FlowGroup(
+            pipeline="p2",
+            flowgroup="consumer_fg",
+            actions=[
+                Action(
+                    name="b",
+                    type=ActionType.TRANSFORM,
+                    source="cat.sch.a",
+                    target="v_b",
+                )
+            ],
+        )
+        builder = DependencyGraphBuilder(project_root=Path("/tmp/nonexistent_lhp_root"))
+        graph = builder.build_from_flowgroups(
+            [producer, consumer], file_paths={}, trust_depends_on=True
+        ).action_graph
+        assert graph.has_edge("producer_fg.write_a", "consumer_fg.b")
+
+    def test_trust_unions_explicit_source_with_depends_on(self):
+        producer_a = _producer_fg("p1", "cat", "sch", "a")
+        consumer = FlowGroup(
+            pipeline="p2",
+            flowgroup="consumer_fg",
+            actions=[
+                Action(
+                    name="b",
+                    type=ActionType.TRANSFORM,
+                    source="cat.sch.a",
+                    target="v_b",
+                    depends_on=["cat.sch.other"],
+                )
+            ],
+        )
+        builder = DependencyGraphBuilder(project_root=Path("/tmp/nonexistent_lhp_root"))
+        graph = builder.build_from_flowgroups(
+            [producer_a, consumer], file_paths={}, trust_depends_on=True
+        ).action_graph
+        assert graph.has_edge("producer_fg.write_a", "consumer_fg.b")
+        externals = graph.nodes["consumer_fg.b"].get("external_sources", [])
+        assert "cat.sch.other" in externals
+
+
+@pytest.mark.unit
+class TestViewMatchCanonicalization:
+    """Pipeline-scoped view matching is case/backtick-insensitive."""
+
+    def test_depends_on_matches_case_variant_view_target(self):
+        fg = FlowGroup(
+            pipeline="p1",
+            flowgroup="fg",
+            actions=[
+                Action(
+                    name="prep",
+                    type=ActionType.TRANSFORM,
+                    source="raw.src",
+                    target="Raw_Events",
+                ),
+                Action(
+                    name="consume",
+                    type=ActionType.TRANSFORM,
+                    target="v_out",
+                    depends_on=["Raw_Events"],
+                ),
+            ],
+        )
+        graph = _build([fg])
+        assert graph.has_edge("fg.prep", "fg.consume")
+
+    def test_parsed_case_variant_source_matches_view(self):
+        fg = FlowGroup(
+            pipeline="p1",
+            flowgroup="fg",
+            actions=[
+                Action(
+                    name="prep",
+                    type=ActionType.TRANSFORM,
+                    source="raw.src",
+                    target="raw_events",
+                ),
+                Action(
+                    name="consume",
+                    type=ActionType.TRANSFORM,
+                    source="RAW_EVENTS",
+                    target="v_out",
+                ),
+            ],
+        )
+        graph = _build([fg])
+        assert graph.has_edge("fg.prep", "fg.consume")
+
+    def test_same_named_view_in_sibling_pipeline_stays_scoped(self):
+        producer_p1 = FlowGroup(
+            pipeline="p1",
+            flowgroup="fg1",
+            actions=[
+                Action(
+                    name="prep",
+                    type=ActionType.TRANSFORM,
+                    source="raw.src",
+                    target="shared_view",
+                ),
+            ],
+        )
+        consumer_p2 = FlowGroup(
+            pipeline="p2",
+            flowgroup="fg2",
+            actions=[
+                Action(
+                    name="consume",
+                    type=ActionType.TRANSFORM,
+                    source="shared_view",
+                    target="v_out",
+                ),
+            ],
+        )
+        graph = _build([producer_p1, consumer_p2])
+        assert not graph.has_edge("fg1.prep", "fg2.consume")

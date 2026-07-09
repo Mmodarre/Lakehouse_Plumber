@@ -33,7 +33,9 @@ def dag(
     job_name: Optional[str],
     job_config: Optional[Path],
     expand_blueprints: bool,
+    pipeline: Optional[str],
     blueprint: Optional[str],
+    trust_depends_on: bool,
     no_cache: bool,
     max_workers: Optional[int],
 ) -> None:
@@ -55,13 +57,19 @@ def dag(
 
     # Both facade calls route through the service's memoized
     # analyze_project, so the project is discovered and analyzed once.
-    analysis = facade.inspection.analyze_dependencies(blueprint_filter=blueprint)
+    analysis = facade.inspection.analyze_dependencies(
+        pipeline_filter=pipeline,
+        blueprint_filter=blueprint,
+        trust_depends_on=trust_depends_on,
+    )
     dag_presenter.render_analysis(analysis, console=_console_module.err_console)
 
     outputs = facade.inspection.save_dependency_outputs(
         formats=output_format,
         output_dir=output_dir,
+        pipeline_filter=pipeline,
         blueprint_filter=blueprint,
+        trust_depends_on=trust_depends_on,
         job_name=job_name,
         job_config_path=str(job_config) if job_config else None,
         bundle_output=bundle_output,

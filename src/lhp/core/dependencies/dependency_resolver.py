@@ -42,7 +42,10 @@ class DependencyResolver:
         return self._topological_sort(actions, graph, targets)
 
     def validate_relationships(self, actions: List[Action]) -> List[str]:
-        """Validate action relationships - check for cycles, missing sources.
+        """Validate action relationships - cycles, required actions, orphans.
+
+        Sources not produced by any action are treated as legitimate external
+        tables/views, so "missing source" is not detectable at this level.
 
         Args:
             actions: List of actions to validate
@@ -54,16 +57,6 @@ class DependencyResolver:
         errors = []
 
         graph, targets = self._build_dependency_graph(actions)
-
-        for action in actions:
-            sources = self._get_action_sources(action)
-            for source in sources:
-                if source not in targets:
-                    # Check if source is an external table/view (not produced by any action)
-                    if not self._is_external_source(source, targets):
-                        errors.append(
-                            f"Action '{action.name}' depends on '{source}' which is not produced by any action"
-                        )
 
         cycle = find_cycle(self._to_digraph(actions, graph))
         if cycle:
@@ -227,9 +220,6 @@ class DependencyResolver:
             ],
             context={"Cycle": cycle_visual, "Components": ", ".join(unprocessed)},
         )
-
-    def _is_external_source(self, source: str, targets: Dict[str, Action]) -> bool:
-        return source not in targets
 
     def _find_orphaned_actions(
         self,

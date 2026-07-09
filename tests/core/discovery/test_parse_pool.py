@@ -282,3 +282,63 @@ def test_blueprint_instance_file_through_pool(tmp_path, monkeypatch):
     monkeypatch.setattr(yaml_parser_module, "load_yaml_documents_all", no_read_allowed)
     documents = parser.load_documents_all(instance_path)
     assert documents == [instance_doc]
+
+
+@pytest.mark.unit
+def test_windows_clamps_workers_to_61(monkeypatch, tmp_path):
+    """ProcessPoolExecutor rejects >61 workers on Windows; the sizing clamps."""
+    import sys as _sys
+
+    from lhp.core.discovery import _parse_pool as parse_pool
+
+    captured: dict = {}
+
+    class _FakeExecutor:
+        def __init__(self, max_workers, **kwargs):
+            captured["max_workers"] = max_workers
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def submit(self, fn, batch):
+            raise RuntimeError("no real work in this test")
+
+    monkeypatch.setattr(parse_pool, "ProcessPoolExecutor", _FakeExecutor)
+    monkeypatch.setattr(parse_pool, "as_completed", lambda mapping: iter(()))
+    monkeypatch.setattr(parse_pool, "FILES_PER_WORKER", 1)
+    monkeypatch.setattr(_sys, "platform", "win32")
+
+    paths = [tmp_path / f"f{i}.yaml" for i in range(200)]
+    parse_pool.run_parse_pool(paths, max_workers=100)
+    assert captured["max_workers"] == 61
+
+
+@pytest.mark.unit
+def test_non_windows_keeps_requested_workers(monkeypatch, tmp_path):
+    from lhp.core.discovery import _parse_pool as parse_pool
+
+    captured: dict = {}
+
+    class _FakeExecutor:
+        def __init__(self, max_workers, **kwargs):
+            captured["max_workers"] = max_workers
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def submit(self, fn, batch):
+            raise RuntimeError("no real work in this test")
+
+    monkeypatch.setattr(parse_pool, "ProcessPoolExecutor", _FakeExecutor)
+    monkeypatch.setattr(parse_pool, "as_completed", lambda mapping: iter(()))
+    monkeypatch.setattr(parse_pool, "FILES_PER_WORKER", 1)
+
+    paths = [tmp_path / f"f{i}.yaml" for i in range(200)]
+    parse_pool.run_parse_pool(paths, max_workers=100)
+    assert captured["max_workers"] == 100

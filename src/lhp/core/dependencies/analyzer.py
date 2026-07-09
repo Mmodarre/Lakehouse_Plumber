@@ -107,7 +107,6 @@ class DependencyAnalyzer:
                 job_groups[job_name] = []
             job_groups[job_name].append(fg)
 
-        global_external_sources = set(global_result.external_sources)
         job_results: Dict[str, DependencyAnalysisResult] = {}
 
         for job_name in sorted(job_groups.keys()):
@@ -164,12 +163,21 @@ class DependencyAnalyzer:
             else:
                 job_execution_stages = self._get_execution_order(job_pipeline_graph)
 
+            self._update_pipeline_stages(job_pipeline_deps, job_execution_stages)
+
             job_external = self._collect_external_sources(job_graphs)
-            cross_job_sources = set(job_external) - global_external_sources
+            # Cross-job inputs are the flowgroup-graph edges dropped by the
+            # partition above: producer flowgroups outside this job feeding
+            # flowgroups inside it.
+            cross_job_sources = {
+                u
+                for u, v in global_result.graphs.flowgroup_graph.edges()
+                if v in job_fg_names and u not in job_fg_names
+            }
             if cross_job_sources:
                 self.logger.info(
                     f"Job '{job_name}' depends on {len(cross_job_sources)} source(s) "
-                    f"from other jobs: {', '.join(sorted(list(cross_job_sources)[:5]))}"
+                    f"from other jobs: {', '.join(sorted(cross_job_sources)[:5])}"
                 )
 
             # Job-scoped results never carry extraction warnings — warnings are
@@ -213,14 +221,6 @@ class DependencyAnalyzer:
             List of circular dependency chains
         """
         return self._detect_circular_dependencies(graphs)
-
-    def _is_external_source(self, source: str, all_targets: set) -> bool:
-        """
-        Check if a source is external using explicit tracking.
-
-        A source is external if it's not produced by any action in the project.
-        """
-        return source not in all_targets
 
     def _analyze_pipeline_dependencies(
         self, graphs: DependencyGraphs

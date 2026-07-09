@@ -332,7 +332,14 @@ class BaseDependencyAnalysisService(ABC):
     """
 
     @abstractmethod
-    def build_graphs(self, flowgroups: Sequence[FlowGroup]) -> "DependencyGraphs":
+    def build_graphs(
+        self,
+        flowgroups: Sequence[FlowGroup],
+        *,
+        trust_depends_on: bool = False,
+    ) -> "DependencyGraphs":
+        """``trust_depends_on`` makes a non-empty ``depends_on`` authoritative
+        (body extraction skipped for that action) instead of additive."""
         raise NotImplementedError
 
     @abstractmethod

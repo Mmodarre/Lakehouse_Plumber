@@ -110,6 +110,15 @@ class _TableExtractor(ast.NodeVisitor):
         self.warnings: List[DependencyWarning] = []
         self.sites: List[PythonTableSite] = []
 
+    @property
+    def resolution_exhausted(self) -> bool:
+        """Whether the engine spent its guard-hit budget during the walk.
+
+        Diagnostic only: reads that lost resolution to exhaustion already
+        degraded to opaque (advisory-carrying) results.
+        """
+        return self._engine is not None and self._engine.exhausted
+
     # ---- Scope management & parameter-binding seeding ----
 
     def visit_Module(self, node: ast.Module) -> None:
@@ -406,21 +415,28 @@ class _TableExtractor(ast.NodeVisitor):
 
         Class bodies exist on the stack for correctness of scope push/pop,
         but methods cannot transparently see class-body bindings — this
-        matches Python's lexical rules. A name no scope binds falls back to
-        the engine: if it is a PARAMETER of an enclosing function, it
-        resolves to the union of the values that function's call sites pass
-        (inter-procedural propagation).
+        matches Python's lexical rules. At each FUNCTION frame the lookup is
+        local bindings first, then the frame's declared parameters: a
+        parameter resolves through the engine to the union of the values the
+        function's call sites pass (inter-procedural propagation), and it
+        SHADOWS every outer binding even when that union is unknown —
+        falling through to a same-named module/outer value the runtime would
+        never see fabricates resolutions and silently suppresses the
+        LHP-DEP-002 advisory.
         """
+        func_idx = len(self._func_stack) - 1
         for scope in reversed(self._scopes):
             if scope.kind == "class":
                 continue
             if name in scope.bindings:
                 return scope.bindings[name]
-        if self._engine is not None:
-            for func in reversed(self._func_stack):
-                bound = self._engine.resolve_param(func, name)
-                if bound is not None:
-                    return bound
+            if scope.kind == "function":
+                func = self._func_stack[func_idx]
+                func_idx -= 1
+                if _is_parameter_of(func, name):
+                    if self._engine is not None:
+                        return self._engine.resolve_param(func, name)
+                    return None
         return None
 
     def _call_resolver(self) -> CallResolver:
@@ -431,3 +447,13 @@ class _TableExtractor(ast.NodeVisitor):
 
     def _current_scope(self) -> _Scope:
         return self._scopes[-1]
+
+
+def _is_parameter_of(func: FunctionNode, name: str) -> bool:
+    """Whether ``name`` is any declared parameter of ``func`` (incl. *args/**kwargs)."""
+    args = func.args
+    if any(a.arg == name for a in (*args.posonlyargs, *args.args, *args.kwonlyargs)):
+        return True
+    return (args.vararg is not None and args.vararg.arg == name) or (
+        args.kwarg is not None and args.kwarg.arg == name
+    )

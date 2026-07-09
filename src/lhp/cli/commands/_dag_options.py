@@ -36,7 +36,23 @@ def parse_formats(ctx: click.Context, param: click.Parameter, value: str) -> lis
 def dag_options(func: Callable) -> Callable:
     """Apply the ``dag`` / ``deps`` option set (one stack, applied to both)."""
     stack = [
+        click.option(
+            "-p",
+            "--pipeline",
+            "pipeline",
+            default=None,
+            help="Restrict the analysis to one pipeline.",
+        ),
         click.option("--blueprint", default=None),
+        click.option(
+            "--trust-depends-on",
+            is_flag=True,
+            help=(
+                "Treat a non-empty depends_on as the action's authoritative "
+                "source set: skip SQL/Python body extraction for it (fast "
+                "path for fully-declared projects)."
+            ),
+        ),
         # Deprecated no-op: blueprints are always fully expanded during
         # analysis. Accepted-but-ignored so existing invocations keep
         # working; the command prints a deprecation notice when passed.

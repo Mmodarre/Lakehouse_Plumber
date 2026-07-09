@@ -987,3 +987,29 @@ class TestDependencyWarningsInOutputs:
             assert files["job"].name.endswith(".job.yml")
 
         assert job_bytes["plain"] == job_bytes["warned"]
+
+
+class TestExportToDotEscaping:
+    def test_quotes_and_backslashes_escaped_in_nodes_labels_and_edges(self):
+        from lhp.core.dependencies.output import export_to_dot
+
+        pipeline_graph = nx.DiGraph()
+        pipeline_graph.add_node('raw "quoted" pipeline', flowgroup_count=2)
+        pipeline_graph.add_node("back\\slash")
+        pipeline_graph.add_edge('raw "quoted" pipeline', "back\\slash")
+        graphs = DependencyGraphs(
+            action_graph=nx.DiGraph(),
+            flowgroup_graph=nx.DiGraph(),
+            pipeline_graph=pipeline_graph,
+            metadata={},
+        )
+
+        dot = export_to_dot(graphs, level="pipeline")
+
+        # The count suffix keeps its DOT line break; the name's quotes are escaped.
+        assert (
+            '  "raw \\"quoted\\" pipeline" '
+            '[label="raw \\"quoted\\" pipeline\\n(2 flowgroups)"];' in dot
+        )
+        assert '  "back\\\\slash" [label="back\\\\slash"];' in dot
+        assert '  "raw \\"quoted\\" pipeline" -> "back\\\\slash";' in dot

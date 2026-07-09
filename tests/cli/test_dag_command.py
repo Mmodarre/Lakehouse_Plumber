@@ -146,3 +146,60 @@ def test_deps_alias_warns_and_forwards(runner: CliRunner) -> None:
 def test_deps_is_hidden(runner: CliRunner) -> None:
     """The ``deps`` alias is hidden from help listings."""
     assert deps.hidden is True
+
+
+def test_dag_pipeline_filter_scopes_analysis(runner: CliRunner) -> None:
+    """``--pipeline`` restricts the graph to the named pipeline."""
+    with runner.isolated_filesystem():
+        root = Path.cwd()
+        _make_project(root)
+        (root / "pipelines" / "other.yaml").write_text(
+            _FLOWGROUP_YAML.replace("test_pipeline", "other_pipeline").replace(
+                "test_flowgroup", "other_flowgroup"
+            )
+        )
+
+        result = runner.invoke(
+            dag,
+            ["--format", "json", "--pipeline", "test_pipeline"],
+            catch_exceptions=False,
+        )
+        assert result.exit_code == 0, result.stderr
+        assert "test_pipeline" in result.stderr
+        assert "other_pipeline" not in result.stderr
+
+
+def test_dag_pipeline_filter_skips_job_format_with_warning(
+    runner: CliRunner,
+) -> None:
+    """Job files are whole-project artifacts: filtered runs skip them."""
+    with runner.isolated_filesystem():
+        root = Path.cwd()
+        _make_project(root)
+
+        result = runner.invoke(
+            dag,
+            ["--format", "all", "--pipeline", "test_pipeline"],
+            catch_exceptions=False,
+        )
+        assert result.exit_code == 0, result.stderr
+
+        dep_dir = root / ".lhp" / "dependencies"
+        assert not list(dep_dir.glob("*.job.yml"))
+        assert not list(dep_dir.glob("*job*"))
+
+
+def test_dag_trust_depends_on_flag_accepted(runner: CliRunner) -> None:
+    """``--trust-depends-on`` runs the analysis in trust mode (exit 0)."""
+    with runner.isolated_filesystem():
+        root = Path.cwd()
+        _make_project(root)
+
+        result = runner.invoke(
+            dag,
+            ["--format", "json", "--trust-depends-on"],
+            catch_exceptions=False,
+        )
+        assert result.exit_code == 0, result.stderr
+        json_path = root / ".lhp" / "dependencies" / "pipeline_dependencies.json"
+        assert json_path.exists()

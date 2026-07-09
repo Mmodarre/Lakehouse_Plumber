@@ -23,9 +23,10 @@ def topological_generations(graph: "nx.DiGraph") -> list[list[str]]:
     if not graph.nodes():
         return []
 
+    # nx raises NetworkXUnfeasible (not a NetworkXError subclass) on cyclic graphs.
     try:
         return [list(generation) for generation in nx.topological_generations(graph)]
-    except nx.NetworkXError:
+    except (nx.NetworkXError, nx.NetworkXUnfeasible):
         return []
 
 

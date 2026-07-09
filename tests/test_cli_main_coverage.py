@@ -209,7 +209,7 @@ class TestCommandRouting:
 
     def test_deps_command_routing(self, runner):
         # ``deps`` forwards to ``dag``; ``dag`` calls the facade twice
-        # (analyze + write). ``--pipeline`` is no longer a dag option.
+        # (analyze + write).
         with runner.isolated_filesystem():
             self._make_project(Path.cwd())
             with patch(
@@ -222,14 +222,17 @@ class TestCommandRouting:
                         cli, ["deps", "--format", "json"], catch_exceptions=False
                     )
                     assert result.exit_code == 0, result.stderr
-                    mock_analyze.assert_called_once_with(blueprint_filter=None)
+                    mock_analyze.assert_called_once_with(
+                        pipeline_filter=None,
+                        blueprint_filter=None,
+                        trust_depends_on=False,
+                    )
                     assert mock_save.call_count == 1
                     assert mock_save.call_args.kwargs["formats"] == ["json"]
                     assert "expand_blueprints" not in mock_save.call_args.kwargs
 
     def test_deps_command_all_options(self, runner):
-        # The dag option set replaces the old deps flags: ``--pipeline`` is
-        # gone and ``--verbose`` is a global option (not a dag option).
+        # ``--verbose`` is a global option (not a dag option).
         # ``--expand-blueprints`` is a deprecated no-op: accepted, never
         # forwarded to the facade, and announced with a dim stderr notice.
         with runner.isolated_filesystem():
@@ -261,7 +264,11 @@ class TestCommandRouting:
                         catch_exceptions=False,
                     )
                     assert result.exit_code == 0, result.stderr
-                    mock_analyze.assert_called_once_with(blueprint_filter="mybp")
+                    mock_analyze.assert_called_once_with(
+                        pipeline_filter=None,
+                        blueprint_filter="mybp",
+                        trust_depends_on=False,
+                    )
                     save_kwargs = mock_save.call_args.kwargs
                     assert save_kwargs["formats"] == ["job"]
                     assert save_kwargs["output_dir"] == Path("out_dir")

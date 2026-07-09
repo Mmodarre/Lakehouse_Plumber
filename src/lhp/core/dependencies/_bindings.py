@@ -26,6 +26,7 @@ __all__ = [
     "ListValue",
     "ParameterBindings",
     "bound_from_yaml",
+    "freeze_bindings",
     "merge_bound",
 ]
 
@@ -123,6 +124,38 @@ def bound_from_yaml(value: object) -> Optional[Bound]:
                 entries[key] = bound
         return DictValue(entries)
     return None
+
+
+def _freeze_bound(bound: "Bound") -> object:
+    """Recursively hashable, shape-tagged form of one :data:`Bound`.
+
+    Tags ("s"/"l"/"d") keep a string-set, a list and a dict with identical
+    contents from colliding as cache keys. ``DictValue`` entries sort by key
+    so insertion order cannot split equal bindings across keys.
+    """
+    if isinstance(bound, frozenset):
+        return ("s", bound)
+    if isinstance(bound, ListValue):
+        return ("l", bound.items)
+    return ("d", tuple((k, _freeze_bound(v)) for k, v in sorted(bound.entries.items())))
+
+
+def freeze_bindings(bindings: Optional[ParameterBindings]) -> object:
+    """Canonical hashable cache key for a :class:`ParameterBindings`.
+
+    Two bindings freeze equal iff they bind the same values to the same
+    function the same way — exactly the inputs under which AST extraction
+    over identical source text yields an identical result. ``None`` (no
+    bindings) freezes to ``None``.
+    """
+    if bindings is None:
+        return None
+    return (
+        bindings.function_name,
+        None if bindings.kwonly is None else _freeze_bound(bindings.kwonly),
+        bindings.dict_arg_index,
+        None if bindings.dict_value is None else _freeze_bound(bindings.dict_value),
+    )
 
 
 def merge_bound(existing: Optional["Bound"], value: "Bound") -> "Bound":

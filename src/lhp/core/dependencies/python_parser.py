@@ -93,6 +93,11 @@ class PythonParser:
         )
         extractor.visit(tree)
 
+        if extractor.resolution_exhausted:
+            self.logger.debug(
+                "Inter-procedural resolution budget exhausted for this body; "
+                "remaining reads degraded to unresolved (LHP-DEP-002 advisories)"
+            )
         self.logger.debug(
             f"Found {len(extractor.tables)} table reference(s) in Python code"
         )
@@ -374,6 +379,10 @@ class PythonParser:
 def normalize_python_code(python_code: str) -> str:
     """Remove common indentation so indented code blocks (e.g. in test strings) parse cleanly.
 
+    Dedent ONLY — deliberately no ``strip()``: removing leading blank lines
+    would shift every AST ``lineno``, mis-anchoring LHP-DEP-002/003 warning
+    lines against the real file for any body that starts with blank lines.
+
     Module-level so the per-run parse cache normalizes exactly the way
     :meth:`PythonParser.extract_tables_from_python` does — the cached tree
     must be byte-for-byte the one that method would have parsed itself.
@@ -383,7 +392,7 @@ def normalize_python_code(python_code: str) -> str:
 
     import textwrap
 
-    return textwrap.dedent(python_code).strip()
+    return textwrap.dedent(python_code)
 
 
 def extract_tables_from_python(

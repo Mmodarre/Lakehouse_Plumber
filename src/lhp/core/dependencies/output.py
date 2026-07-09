@@ -21,6 +21,11 @@ from ...models.dependencies import (
 )
 
 
+def _dot_escape(value: str) -> str:
+    """Escape a value for use inside a double-quoted DOT string."""
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
 def export_to_dot(graphs: DependencyGraphs, level: str = "pipeline") -> str:
     """Export a dependency graph to DOT format.
 
@@ -40,17 +45,19 @@ def export_to_dot(graphs: DependencyGraphs, level: str = "pipeline") -> str:
 
     for node in graph.nodes():
         node_attrs = graph.nodes[node]
-        label = node
+        # Escape the name before appending the count suffix — the suffix's
+        # ``\n`` is a deliberate DOT line break and must survive unescaped.
+        label = _dot_escape(node)
 
         if level == "pipeline" and "flowgroup_count" in node_attrs:
-            label = f"{node}\\n({node_attrs['flowgroup_count']} flowgroups)"
+            label = f"{label}\\n({node_attrs['flowgroup_count']} flowgroups)"
         elif level == "flowgroup" and "action_count" in node_attrs:
-            label = f"{node}\\n({node_attrs['action_count']} actions)"
+            label = f"{label}\\n({node_attrs['action_count']} actions)"
 
-        dot_lines.append(f'  "{node}" [label="{label}"];')
+        dot_lines.append(f'  "{_dot_escape(node)}" [label="{label}"];')
 
     for source, target in graph.edges():
-        dot_lines.append(f'  "{source}" -> "{target}";')
+        dot_lines.append(f'  "{_dot_escape(source)}" -> "{_dot_escape(target)}";')
 
     dot_lines.append("}")
 
