@@ -11,12 +11,17 @@ dev:
   silver_schema: edw_silver
   gold_schema: edw_gold
   modelled_schema: edw_modelled
+  streaming_schema: edw_streaming
+  kafka_bootstrap_servers: "broker1.dev.acme.internal:9092,broker2.dev.acme.internal:9092"
+  kafka_source_topic: "acme.perf.events.dev"
+  kafka_sink_topic: "acme.perf.events.enriched.dev"
   
   
 secrets:
   default_scope: dev_secrets
   scopes:
     database: dev_db_secrets
+    kafka: dev_kafka_secrets
 
 
 

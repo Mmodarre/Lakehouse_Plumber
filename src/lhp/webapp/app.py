@@ -67,6 +67,7 @@ _ROUTER_MODULES: tuple[str, ...] = (
     "streaming",
     "runs",
     "events",
+    "assistant",
 )
 
 
@@ -120,6 +121,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         watcher_task.cancel()
         with suppress(asyncio.CancelledError):
             await watcher_task
+    # The lazily-cached omnigent client (see get_omnigent_client) owns a
+    # connection pool; close it if this process ever built one.
+    omnigent_client = getattr(app.state, "omnigent_client", None)
+    if omnigent_client is not None:
+        await omnigent_client.aclose()
     logger.info("LHP web IDE shut down")
 
 

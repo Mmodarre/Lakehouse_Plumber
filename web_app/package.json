@@ -20,9 +20,9 @@
       "limit": "108 KB"
     },
     {
-      "name": "total JS payload (all chunks + workers, brotli)",
+      "name": "total JS payload (all chunks + workers, brotli; 1.85→1.95 MB for the lazy assistant markdown stack ≈ +40-50 KB)",
       "path": "dist/assets/*.js",
-      "limit": "1.85 MB"
+      "limit": "1.95 MB"
     }
   ],
   "dependencies": {
@@ -41,7 +41,9 @@
     "radix-ui": "^1.6.1-rc.1782779387317",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^7.13.0",
+    "remark-gfm": "^4.0.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
     "zustand": "^5.0.11"

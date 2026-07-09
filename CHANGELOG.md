@@ -33,11 +33,13 @@ silently missing edges.
   returns the YAML syntax position). Flags: `--port`, `--no-open`, `--reload`.
   A missing extra surfaces as a friendly `LHP-IO-026` error.
   - Dropped relative to the experimental `feature/lhp-web-app` branch (cut, not
-    deferred): authentication & `/me`, workspace mode, git integration, the
-    AI/MCP chat assistant, state/staleness tracking, structured YAML CRUD
-    endpoints, `PUT` project/pipeline config, dependencies export, the generate
+    deferred): authentication & `/me`, workspace mode, git integration,
+    state/staleness tracking, structured YAML CRUD endpoints, `PUT`
+    project/pipeline config, dependencies export, the generate
     plan/preview/single-flowgroup/browse endpoints, `/validate/yaml` and
-    flowgroup preview-yaml, and the visual flowgroup builder.
+    flowgroup preview-yaml, and the visual flowgroup builder. The chat
+    assistant, cut from that branch alongside these, returns in 0.9.1 as the
+    Omnigent-backed assistant panel (see "Web IDE AI assistant panel" below).
   - Deferred (returns in a later version):
     - Full multi-level dependency-graph DTO with per-level drill — v1 is
       pipeline-level only; needs a public graph DTO → v2.
@@ -179,6 +181,50 @@ silently missing edges.
   - The SPA also migrates to React Router's data router (`createBrowserRouter`
     with lazy route modules), and the Problems panel and Run History share one
     issue-list component.
+- **Web IDE AI assistant panel.** `lhp web` gains a chat panel (a right-hand
+  dock opened from the header) backed by a locally running
+  [omnigent](https://github.com/omnigent-ai/omnigent) daemon — an agent
+  runtime that answers questions about the project and edits its files in
+  place:
+  - **The daemon is user-installed — never an LHP dependency.** omnigent is
+    Python 3.12-only; install it yourself (e.g. `uv tool install omnigent`) —
+    LHP does not declare, vendor, or install it. The panel walks a detection
+    ladder (binary → server → host) and offers "Start it for me", which spawns
+    `omnigent server start` and `omnigent host` as detached, user-owned
+    processes logging to `.lhp/logs/omnigent-server.log` /
+    `.lhp/logs/omnigent-host.log`. LHP retains no handles and never waits for,
+    stops, or kills them — they deliberately outlive the IDE so live agent
+    sessions survive a server restart.
+  - **One-time executor setup.** A first-use card picks how the assistant
+    runs: omnigent defaults (credentials from `omnigent setup`), a Databricks
+    CLI profile (model calls through the Databricks gateway; LHP reads profile
+    *names* from `~/.databrickscfg`, never credential values), or the NAME of
+    an API-key environment variable on the omnigent server (validated as an
+    env-var identifier — pasted key material is rejected, and no secret value
+    ever transits or is stored by LHP). Changing the executor takes effect on
+    the next chat turn.
+  - **Chat turns stream over NDJSON** through the LHP server (the browser
+    never talks to the daemon directly): rendered markdown, tool-call cards,
+    approval cards (accept / decline / cancel), a collapsed reasoning
+    disclosure, turn interrupt, a files-changed count chip, and
+    session-snapshot rehydration when the panel reloads. Assistant file edits
+    land on disk like any external edit — the file watcher and push channel
+    refresh open IDE views.
+  - **Backstop gates** return structured 409s instead of half-starting a
+    turn: `LHP-WEB-001` (executor not configured), `LHP-WEB-002` (LHP skill
+    not installed in the project), `LHP-WEB-003` (no omnigent host online).
+  - **`LHP_WEBAPP_ASSISTANT_URL`** overrides the daemon address (default
+    `http://127.0.0.1:6767`) and is loopback-only (`127.0.0.1`, `localhost`,
+    `::1`): the omnigent REST API is unauthenticated, so a non-loopback URL
+    is rejected at startup. Run the daemon only on a trusted, single-user
+    machine.
+  - **Public API: `SkillFacade.install_project_skill`** — installs or
+    force-updates the packaged LHP skill into a project's
+    `.claude/skills/lhp/` (the panel uses it to provision the skill the
+    assistant relies on), returning the new `SkillInstallResult` DTO
+    (`api/responses.py`): install dir, skill version, previous version,
+    `installed`/`updated` action, installed files, and `CLAUDE.md`
+    routing-block status. Both are `:stability:` provisional.
 - **`lhp init <name> --sample` — scaffold a complete, runnable sample
   project.** The new flag generates a TPC-H medallion-architecture project:
   bronze ingestion via `delta` and `cloudfiles` loads, silver CDC in both
@@ -317,6 +363,11 @@ silently missing edges.
   (array of objects), and `affected_count`; `metadata.total_warnings` now
   counts distinct read sites, and a new `metadata.total_warning_occurrences`
   counts site × affected-action pairs.
+- **Project-scope `lhp skill install` now requires an initialized LHP
+  project.** Run outside a directory containing `lhp.yaml`, it fails with
+  `LHP-CFG-011` ("Not a LakehousePlumber project directory") and points at
+  `lhp init <project_name>`. `lhp skill install --user` (targeting
+  `~/.claude/`) is unchanged and does not need a project.
 
 ### Performance
 

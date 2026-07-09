@@ -42,6 +42,8 @@ Develop locally
 
 * :doc:`develop_in_the_web_ide` — Launch the browser-based local IDE to
   browse, edit, validate, and generate your project on your own machine.
+* :doc:`use_the_ai_assistant` — Set up the Omnigent-backed assistant panel in
+  the web IDE and chat with an agent that edits your project files in place.
 
 Develop in parallel
 -------------------

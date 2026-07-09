@@ -117,6 +117,7 @@ want to understand the execution model first, read :doc:`architecture`.
    configure_catalog_schema
    develop_in_a_sandbox
    develop_in_the_web_ide
+   use_the_ai_assistant
    enable_monitoring
    quarantine_records
    migrate_from_dlt

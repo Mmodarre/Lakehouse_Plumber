@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from lhp.cli._skill_files import MARKER_FILE, enumerate_skill_files
+from lhp.api._skill_assets import MARKER_FILE, enumerate_skill_files
 from lhp.cli.main import cli
 
 pytestmark = pytest.mark.unit
@@ -21,10 +21,19 @@ def fake_version(monkeypatch: pytest.MonkeyPatch) -> str:
     """Pin the LHP version reported by ``importlib.metadata.version``."""
     target = "9.9.9"
     monkeypatch.setattr(
-        "lhp.cli._skill_files.version",
+        "lhp.api._skill_assets.version",
         lambda _name: target,
     )
     return target
+
+
+def _make_project() -> None:
+    """Drop a minimal ``lhp.yaml`` so the cwd counts as an LHP project.
+
+    Project installs go through ``lhp.api.SkillFacade``, which requires the
+    project marker; ``--user`` installs and the read-only subcommands do not.
+    """
+    Path("lhp.yaml").write_text("name: test_project\nversion: '1.0'\n")
 
 
 def _install_dir(home: bool = False) -> Path:
@@ -51,6 +60,7 @@ def _list_relative_files(root: Path) -> list[str]:
 def test_install_creates_files_and_marker(runner: CliRunner, fake_version: str) -> None:
     """A fresh install copies all skill files and writes the marker."""
     with runner.isolated_filesystem():
+        _make_project()
         result = runner.invoke(cli, ["skill", "install"])
         assert result.exit_code == 0, result.output
 
@@ -69,9 +79,19 @@ def test_install_creates_files_and_marker(runner: CliRunner, fake_version: str) 
         assert marker == fake_version
 
 
+def test_install_outside_project_errors(runner: CliRunner, fake_version: str) -> None:
+    """A project install refuses to run without an ``lhp.yaml``."""
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli, ["skill", "install"])
+        assert result.exit_code != 0
+        assert "lhp init" in result.output
+        assert not _install_dir().exists()
+
+
 def test_install_errors_if_marker_exists(runner: CliRunner, fake_version: str) -> None:
     """A second install fails with a clear ``--force`` hint."""
     with runner.isolated_filesystem():
+        _make_project()
         first = runner.invoke(cli, ["skill", "install"])
         assert first.exit_code == 0, first.output
 
@@ -84,6 +104,7 @@ def test_install_errors_if_marker_exists(runner: CliRunner, fake_version: str) -
 def test_install_force_overwrites(runner: CliRunner, fake_version: str) -> None:
     """``--force`` succeeds when an install already exists."""
     with runner.isolated_filesystem():
+        _make_project()
         first = runner.invoke(cli, ["skill", "install"])
         assert first.exit_code == 0, first.output
 
@@ -102,7 +123,7 @@ def test_install_user_flag(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """``--user`` writes to ``~/.claude/skills/lhp/``."""
+    """``--user`` writes to ``~/.claude/skills/lhp/`` and needs no project."""
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     with runner.isolated_filesystem():
         result = runner.invoke(cli, ["skill", "install", "--user"])
@@ -121,6 +142,7 @@ def test_install_user_flag(
 def test_update_errors_if_marker_missing(runner: CliRunner, fake_version: str) -> None:
     """Without a marker, ``update`` refuses and points to ``install``."""
     with runner.isolated_filesystem():
+        _make_project()
         result = runner.invoke(cli, ["skill", "update"])
         assert result.exit_code != 0
         assert "not installed" in result.output.lower()
@@ -131,19 +153,20 @@ def test_update_replaces_files_and_updates_marker(
     runner: CliRunner, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """``update`` replaces stale files and rewrites the marker version."""
-    versions = iter(["1.0.0", "2.0.0"])
-
-    def _version(_name: str) -> str:
-        return next(versions)
-
-    monkeypatch.setattr("lhp.cli._skill_files.version", _version)
+    # Phase-based pin (not a finite iterator): the CLI and the facade may
+    # each consult the version during one command, so counting calls is
+    # brittle — flip the reported version between the two commands instead.
+    current = {"value": "1.0.0"}
+    monkeypatch.setattr("lhp.api._skill_assets.version", lambda _name: current["value"])
 
     with runner.isolated_filesystem():
+        _make_project()
         first = runner.invoke(cli, ["skill", "install"])
         assert first.exit_code == 0, first.output
         assert (_install_dir() / MARKER_FILE).read_text(
             encoding="utf-8"
         ).strip() == "1.0.0"
+        current["value"] = "2.0.0"
 
         skill_md = _install_dir() / "SKILL.md"
         skill_md.write_text("user-modified", encoding="utf-8")
@@ -160,16 +183,16 @@ def test_update_downgrade_warns_requires_yes(
     runner: CliRunner, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """When the install is newer than the CLI, ``update`` requires confirmation."""
-    versions = iter(["9.9.9", "1.0.0", "1.0.0"])
-
-    def _version(_name: str) -> str:
-        return next(versions)
-
-    monkeypatch.setattr("lhp.cli._skill_files.version", _version)
+    # Phase-based pin: install as 9.9.9, then present the CLI as 1.0.0 for
+    # both update invocations (see the call-count note in the test above).
+    current = {"value": "9.9.9"}
+    monkeypatch.setattr("lhp.api._skill_assets.version", lambda _name: current["value"])
 
     with runner.isolated_filesystem():
+        _make_project()
         first = runner.invoke(cli, ["skill", "install"])
         assert first.exit_code == 0, first.output
+        current["value"] = "1.0.0"
 
         # Refuse the prompt
         aborted = runner.invoke(cli, ["skill", "update"], input="n\n")
@@ -198,6 +221,7 @@ def test_status_not_installed(runner: CliRunner, fake_version: str) -> None:
 
 def test_status_up_to_date(runner: CliRunner, fake_version: str) -> None:
     with runner.isolated_filesystem():
+        _make_project()
         runner.invoke(cli, ["skill", "install"])
         result = runner.invoke(cli, ["skill", "status"])
         assert result.exit_code == 0, result.output
@@ -214,9 +238,10 @@ def test_status_older_install(
     def _version(_name: str) -> str:
         return next(versions)
 
-    monkeypatch.setattr("lhp.cli._skill_files.version", _version)
+    monkeypatch.setattr("lhp.api._skill_assets.version", _version)
 
     with runner.isolated_filesystem():
+        _make_project()
         runner.invoke(cli, ["skill", "install"])
         result = runner.invoke(cli, ["skill", "status"])
         assert result.exit_code == 0, result.output
@@ -233,9 +258,10 @@ def test_status_newer_install(
     def _version(_name: str) -> str:
         return next(versions)
 
-    monkeypatch.setattr("lhp.cli._skill_files.version", _version)
+    monkeypatch.setattr("lhp.api._skill_assets.version", _version)
 
     with runner.isolated_filesystem():
+        _make_project()
         runner.invoke(cli, ["skill", "install"])
         result = runner.invoke(cli, ["skill", "status"])
         assert result.exit_code == 0, result.output
@@ -246,6 +272,7 @@ def test_status_newer_install(
 def test_status_missing_marker(runner: CliRunner, fake_version: str) -> None:
     """Install dir exists without marker -> foreign-install message."""
     with runner.isolated_filesystem():
+        _make_project()
         runner.invoke(cli, ["skill", "install"])
         marker = _install_dir() / MARKER_FILE
         marker.unlink()
@@ -261,6 +288,7 @@ def test_uninstall_removes_dir_with_confirm(
 ) -> None:
     """Confirmation prompt: ``y`` removes the directory."""
     with runner.isolated_filesystem():
+        _make_project()
         runner.invoke(cli, ["skill", "install"])
         assert _install_dir().exists()
 
@@ -272,6 +300,7 @@ def test_uninstall_removes_dir_with_confirm(
 def test_uninstall_force_skips_prompt(runner: CliRunner, fake_version: str) -> None:
     """``--force`` removes without prompting."""
     with runner.isolated_filesystem():
+        _make_project()
         runner.invoke(cli, ["skill", "install"])
         assert _install_dir().exists()
 

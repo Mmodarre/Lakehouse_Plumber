@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Toaster } from '../ui/sonner'
 import { Header } from './Header'
@@ -16,7 +16,14 @@ import { useHealth } from '../../hooks/useProject'
 import { usePushChannel } from '../../hooks/usePushChannel'
 import { useUIStore } from '../../store/uiStore'
 import { useWorkspaceStore } from '../../store/workspaceStore'
+import { useAssistantStore } from '../../store/assistantStore'
+import { LoadingSpinner } from '../common/LoadingSpinner'
 import { cn } from '../../lib/utils'
+
+// Lazy on purpose: the assistant panel pulls in the markdown stack
+// (react-markdown + remark-gfm), which must stay out of the eager app
+// chunk. Only the toggle + this shell are eager.
+const AssistantPanel = lazy(() => import('../assistant/AssistantPanel'))
 
 export function Layout() {
   const { data: health, isError: healthError, refetch } = useHealth()
@@ -42,6 +49,7 @@ export function Layout() {
   const editorFocused = useWorkspaceStore((s) => s.activePath !== null)
   const closeAllBuffers = useWorkspaceStore((s) => s.closeAllBuffers)
   const ensureProjectScope = useWorkspaceStore((s) => s.ensureProjectScope)
+  const assistantOpen = useAssistantStore((s) => s.panelOpen)
 
   // Persisted buffers are keyed to a project root: a different served
   // project drops the restored workspace instead of leaking it across.
@@ -97,13 +105,18 @@ export function Layout() {
             </>
           )}
         </main>
-        {/* Reserved right rail (~360px) for the assistant panel (P5). Kept
-            collapsed until the panel lands — mount it here by dropping the
-            `hidden` class; the surrounding grid already accommodates it. */}
-        <aside
-          aria-hidden="true"
-          className="hidden w-[360px] shrink-0 border-l border-border bg-sidebar"
-        />
+        {/* Assistant panel right dock (P5). Mounted only while open, so a
+            closed panel costs nothing and closing aborts any open stream
+            (the turn continues server-side; rehydration shows it). */}
+        {assistantOpen && (
+          <aside className="w-[360px] shrink-0 border-l border-border bg-sidebar">
+            <ErrorBoundary>
+              <Suspense fallback={<LoadingSpinner className="h-full" />}>
+                <AssistantPanel />
+              </Suspense>
+            </ErrorBoundary>
+          </aside>
+        )}
       </div>
       <StatusBar />
 

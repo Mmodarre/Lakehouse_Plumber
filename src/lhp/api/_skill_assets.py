@@ -1,16 +1,21 @@
-"""File-system and version logic for the LHP Claude Code skill.
+"""File-system and version primitives for the LHP Claude Code skill.
 
 The skill content ships inside the package at ``lhp.resources.skills.lhp``
-and is copied into ``<cwd>/.claude/skills/lhp/`` (or ``~/.claude/skills/lhp/``
-with ``--user``) on demand. This module owns the pure I/O and version math:
-enumerating, copying, and clearing skill files, reading/writing the install
-marker, resolving the target directory, and comparing versions.
+and is copied into ``<base>/.claude/skills/lhp/`` on demand — the project
+root for :meth:`lhp.api.SkillFacade.install_project_skill`, or the user's
+home directory for a ``--user`` CLI install. This module owns the pure
+I/O and version math: enumerating, copying, and clearing skill files,
+reading/writing the install marker, resolving the target directory, and
+comparing versions.
 
 It depends only on the standard library, ``importlib.resources`` (the
-``Traversable`` API), ``importlib.metadata`` and ``packaging`` — no Rich, no
-Click, no ``lhp.errors``. The command layer raises domain errors; the
-presenter layer renders. This module decides nothing about exit codes or
-output (constitution §9.5 / §9.11).
+``Traversable`` API), ``importlib.metadata`` and ``packaging`` — no Rich,
+no Click, no ``lhp.errors``. :class:`lhp.api.SkillFacade` raises domain
+errors; the CLI (via the sanctioned ``cli -> api`` bridge) decides exit
+codes and rendering. This module decides nothing about either
+(constitution §9.5 / §9.11).
+
+:stability: internal
 """
 
 from __future__ import annotations
@@ -36,13 +41,15 @@ EXCLUDED_NAMES = {"__init__.py", "__pycache__"}
 VersionComparison = Literal["same", "older", "newer"]
 
 
-def resolve_install_dir(user: bool) -> Path:
-    """Return the skill install directory.
+def skill_install_dir(base: Path) -> Path:
+    """Return the skill install directory rooted at ``base``.
 
-    ``user=True`` targets ``~/.claude/skills/lhp/``; otherwise the directory
-    is rooted at the current working directory.
+    ``base`` is the project root for a project install, or ``Path.home()``
+    for a user-level install; the skill always lands under
+    ``<base>/.claude/skills/lhp/``.
+
+    :stability: provisional
     """
-    base = Path.home() if user else Path.cwd()
     return base / ".claude" / "skills" / SKILL_DIRNAME
 
 
@@ -51,6 +58,8 @@ def current_version() -> str:
 
     Falls back to ``"0.0.0"`` when the package has no installed metadata
     (e.g. a bare source tree), mirroring the CLI's own last-resort default.
+
+    :stability: provisional
     """
     try:
         return str(version("lakehouse-plumber"))
@@ -64,12 +73,17 @@ def is_installed(install_dir: Path) -> bool:
 
     True when either the version marker or ``SKILL.md`` is present, matching
     the historical "already installed" guard the install command enforces.
+
+    :stability: provisional
     """
     return (install_dir / MARKER_FILE).exists() or (install_dir / "SKILL.md").exists()
 
 
 def read_marker(install_dir: Path) -> Optional[str]:
-    """Return the version recorded in the marker file, or ``None`` if absent."""
+    """Return the version recorded in the marker file, or ``None`` if absent.
+
+    :stability: provisional
+    """
     marker_path = install_dir / MARKER_FILE
     if not marker_path.is_file():
         return None
@@ -77,7 +91,10 @@ def read_marker(install_dir: Path) -> Optional[str]:
 
 
 def write_marker(install_dir: Path, version_str: str) -> None:
-    """Write ``version_str`` to the marker file in ``install_dir``."""
+    """Write ``version_str`` to the marker file in ``install_dir``.
+
+    :stability: provisional
+    """
     marker_path = install_dir / MARKER_FILE
     marker_path.write_text(version_str + "\n", encoding="utf-8")
 
@@ -87,6 +104,8 @@ def enumerate_skill_files() -> List[str]:
 
     Excludes ``__init__.py`` and ``__pycache__`` so only the rendered skill
     content (markdown and references) is reported.
+
+    :stability: provisional
     """
     package_root = files(SKILL_PACKAGE)
     collected: List[str] = []
@@ -112,6 +131,8 @@ def copy_skill_files(install_dir: Path) -> None:
 
     Creates ``install_dir`` and any intermediate directories. Existing files
     at the destination are overwritten.
+
+    :stability: provisional
     """
     install_dir.mkdir(parents=True, exist_ok=True)
     package_root = files(SKILL_PACKAGE)
@@ -130,6 +151,8 @@ def clear_install_dir(install_dir: Path) -> None:
     """Remove every child of ``install_dir`` (file or subtree); keep the dir.
 
     No-op when the directory does not exist.
+
+    :stability: provisional
     """
     if not install_dir.exists():
         return
@@ -141,7 +164,10 @@ def clear_install_dir(install_dir: Path) -> None:
 
 
 def remove_install_dir(install_dir: Path) -> None:
-    """Recursively remove ``install_dir`` and all of its contents."""
+    """Recursively remove ``install_dir`` and all of its contents.
+
+    :stability: provisional
+    """
     shutil.rmtree(install_dir)
 
 
@@ -150,6 +176,8 @@ def extra_files(install_dir: Path) -> List[str]:
 
     Excludes the marker file (``update`` rewrites it). Returns an empty list
     when the install directory does not exist.
+
+    :stability: provisional
     """
     if not install_dir.exists():
         return []
@@ -174,6 +202,8 @@ def compare_versions(installed: str, current: str) -> VersionComparison:
     Returns ``"same"``, ``"older"`` (installed predates current) or
     ``"newer"`` (installed exceeds current). Falls back to string equality
     when either value is not a valid PEP 440 version.
+
+    :stability: provisional
     """
     try:
         installed_v = parse_version(installed)

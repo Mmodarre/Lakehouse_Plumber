@@ -1,0 +1,5 @@
+pipeline: kafka_perf_streaming
+flowgroup: test_ui_fg
+description: ""
+
+actions: []

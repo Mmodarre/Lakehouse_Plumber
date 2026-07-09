@@ -10,11 +10,23 @@ exit codes and never imports ``lhp.errors`` (constitution §5.2 / §9.5).
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Sequence
+from typing import TYPE_CHECKING, Sequence
 
 from rich.text import Text
 
 from .. import console as _console_module
+
+if TYPE_CHECKING:
+    from lhp.api import SkillInstallResult
+
+
+def render_install_result(result: "SkillInstallResult") -> None:
+    """Render a project install/refresh outcome from the facade DTO."""
+    render_installed(
+        result.install_dir,
+        result.skill_version,
+        routing=result.routing_block_status,
+    )
 
 
 def render_installed(
@@ -22,9 +34,9 @@ def render_installed(
 ) -> None:
     """Confirm a fresh install of the skill at ``install_dir``.
 
-    ``routing`` is the :func:`lhp.cli._claude_setup.write_routing_block` status
-    for a project install (``None`` for a ``--user`` install, which writes no
-    project ``CLAUDE.md``).
+    ``routing`` is the :func:`lhp.api._claude_routing.write_routing_block`
+    status for a project install (``None`` for a ``--user`` install, which
+    writes no project ``CLAUDE.md``).
     """
     _console_module.console.print(
         Text.assemble(
@@ -113,8 +125,8 @@ def render_status(
     ``is_installed`` is the directory-exists check; ``installed`` is the
     marker version (``None`` when the directory exists but carries no marker,
     i.e. a foreign install). ``comparison`` is the verdict from
-    ``_skill_files.compare_versions`` and is consulted only when a marker
-    version is present.
+    ``lhp.api._skill_assets.compare_versions`` and is consulted only when a
+    marker version is present.
     """
     _console_module.console.print(
         Text.assemble(("Install location: ", "dim"), str(install_dir))
@@ -180,7 +192,7 @@ def render_nothing_to_uninstall(install_dir: Path) -> None:
 def render_uninstalled(install_dir: Path, *, routing: "str | None" = None) -> None:
     """Confirm removal of the skill install at ``install_dir``.
 
-    ``routing`` is the :func:`lhp.cli._claude_setup.remove_routing_block`
+    ``routing`` is the :func:`lhp.api._claude_routing.remove_routing_block`
     status (``None`` for a ``--user`` uninstall).
     """
     _console_module.console.print(

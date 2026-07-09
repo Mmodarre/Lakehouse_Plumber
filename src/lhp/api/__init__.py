@@ -25,6 +25,7 @@ from typing import Iterator, MutableSequence, Optional
 
 from lhp.api._progress import ProgressSink
 from lhp.api._serialization import to_dict
+from lhp.api._skill_facade import SkillFacade
 from lhp.api.bootstrap import LakehousePlumberBootstrap
 from lhp.api.events import (
     BundleSyncCompleted,
@@ -66,6 +67,7 @@ from lhp.api.responses import (
     InitProjectResult,
     JSONValue,
     PlannedFileView,
+    SkillInstallResult,
     StatsResult,
     ValidationResponse,
     WheelExtractionResult,
@@ -187,6 +189,8 @@ __all__: list[str] = [
     "ProgressSink",
     "ProjectConfigView",
     "SecretReferenceView",
+    "SkillFacade",
+    "SkillInstallResult",
     "StatsResult",
     "SubstitutionView",
     "TemplateParameterView",
