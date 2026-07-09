@@ -1,0 +1,58 @@
+pipeline: domain_d_gold
+flowgroup: finance_stock_sentiment_agg
+
+actions:
+  - name: load_stock_sentiment
+    type: load
+    description: "Read joined stock-sentiment data from silver"
+    readMode: batch
+    source:
+      type: delta
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
+      table: stock_sentiment
+    target: v_stock_sentiment
+
+  - name: aggregate_weekly
+    type: transform
+    description: "Weekly aggregation of stock performance correlated with sentiment"
+    transform_type: sql
+    source: v_stock_sentiment
+    target: v_stock_sentiment_weekly
+    sql: |
+      SELECT
+        ticker,
+        DATE_TRUNC('WEEK', trade_date) AS week_start,
+        COUNT(*) AS trading_days,
+        FIRST(open) AS week_open,
+        LAST(close) AS week_close,
+        MAX(high) AS week_high,
+        MIN(low) AS week_low,
+        SUM(volume) AS total_volume,
+        AVG(daily_return_pct) AS avg_daily_return_pct,
+        (LAST(close) - FIRST(open)) / FIRST(open) * 100 AS weekly_return_pct,
+        AVG(avg_sentiment_score) AS avg_weekly_sentiment,
+        SUM(article_count) AS total_articles,
+        SUM(positive_count) AS total_positive,
+        SUM(negative_count) AS total_negative,
+        CASE
+          WHEN AVG(avg_sentiment_score) > 0.3 THEN 'bullish'
+          WHEN AVG(avg_sentiment_score) < -0.3 THEN 'bearish'
+          ELSE 'neutral'
+        END AS sentiment_outlook
+      FROM v_stock_sentiment
+      GROUP BY ticker, DATE_TRUNC('WEEK', trade_date)
+
+  - name: write_weekly_agg
+    type: write
+    description: "Gold-layer weekly aggregation of stock performance vs sentiment"
+    source: v_stock_sentiment_weekly
+    write_target:
+      type: materialized_view
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
+      table: stock_sentiment_weekly_agg
+      comment: "Weekly stock performance correlated with news sentiment — gold reporting layer"
+      cluster_columns:
+        - ticker
+        - week_start

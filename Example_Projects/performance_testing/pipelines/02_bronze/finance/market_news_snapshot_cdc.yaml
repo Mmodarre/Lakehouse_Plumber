@@ -1,0 +1,26 @@
+pipeline: domain_b_bronze
+flowgroup: finance_market_news_snapshot_cdc
+
+actions:
+  - name: write_news_snapshot_cdc
+    type: write
+    description: "Snapshot CDC on market news — track sentiment changes as SCD2"
+    write_target:
+      type: streaming_table
+      mode: snapshot_cdc
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: market_news_history
+      comment: "Market news with SCD2 history via snapshot CDC — tracks sentiment revisions"
+      snapshot_cdc_config:
+        source_function:
+          file: "py_functions/sources/news_snapshot.py"
+          function: next_snapshot
+          parameters:
+            catalog: "${catalog}"
+            schema: "${bronze_schema}"
+        keys:
+          - article_id
+        stored_as_scd_type: 2
+        track_history_except_column_list:
+          - fetched_at

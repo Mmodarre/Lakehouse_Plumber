@@ -109,6 +109,7 @@ tags:
 pipeline: kafka_perf_streaming
 schema: ${streaming_schema}
 continuous: true
+packaging: source
 tags:
   layer: streaming
   domain: kafka_perf

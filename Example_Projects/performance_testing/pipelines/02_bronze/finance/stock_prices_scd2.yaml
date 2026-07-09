@@ -1,0 +1,51 @@
+pipeline: domain_b_bronze
+flowgroup: finance_stock_prices_scd2
+
+actions:
+  - name: load_yahoo_finance
+    type: load
+    description: "Ingest daily stock prices from Yahoo Finance via custom DataSource"
+    operational_metadata: [_processing_timestamp]
+    readMode: stream
+    source:
+      type: custom_datasource
+      module_path: "py_functions/sources/yahoo_finance_source.py"
+      custom_datasource_class: YahooFinanceSource
+      options:
+        tickers: "AAPL,MSFT,GOOG,AMZN,TSLA"
+        interval: "1d"
+        lookback_days: "90"
+    target: v_stock_prices_raw
+
+  - name: prep_stock_prices
+    type: transform
+    description: "Add sequence timestamp for SCD2 ordering"
+    transform_type: sql
+    source: v_stock_prices_raw
+    target: v_stock_prices_prepped
+    sql: |
+      SELECT
+        *,
+        CAST(trade_date AS TIMESTAMP) AS _sequence_timestamp
+      FROM STREAM(v_stock_prices_raw)
+
+  - name: write_stock_prices_scd2
+    type: write
+    description: "Write stock prices as SCD2 — track price history per ticker/date"
+    source: v_stock_prices_prepped
+    write_target:
+      type: streaming_table
+      mode: cdc
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: stock_prices
+      comment: "Yahoo Finance daily stock prices with SCD2 history tracking"
+      cdc_config:
+        keys:
+          - ticker
+          - trade_date
+        sequence_by: _sequence_timestamp
+        scd_type: 2
+        except_column_list:
+          - _sequence_timestamp
+          - _processing_timestamp
