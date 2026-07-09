@@ -15,6 +15,7 @@ _ENV_VARS = (
     "LHP_WEBAPP_PORT",
     "LHP_WEBAPP_LOG_LEVEL",
     "LHP_WEBAPP_TOKEN",
+    "LHP_WEBAPP_ASSISTANT_URL",
 )
 
 
@@ -31,6 +32,7 @@ def test_defaults_when_env_unset(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.port == 8000
     assert settings.log_level == "info"
     assert settings.token is None
+    assert settings.assistant_url is None
 
 
 def test_env_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -78,6 +80,53 @@ def test_empty_token_env_is_none(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = get_settings()
 
     assert settings.token is None
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://127.0.0.1:6767",
+        "http://localhost:6767",
+        "http://[::1]:6767",
+    ],
+)
+def test_assistant_url_loopback_accepted(
+    monkeypatch: pytest.MonkeyPatch, url: str
+) -> None:
+    _clear_env(monkeypatch)
+    monkeypatch.setenv("LHP_WEBAPP_ASSISTANT_URL", url)
+
+    settings = get_settings()
+
+    assert settings.assistant_url == url
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://10.0.0.5:6767",
+        "http://example.com",
+    ],
+)
+def test_assistant_url_non_loopback_raises(
+    monkeypatch: pytest.MonkeyPatch, url: str
+) -> None:
+    """The Omnigent REST API is unauthenticated; non-loopback hosts must fail."""
+    _clear_env(monkeypatch)
+    monkeypatch.setenv("LHP_WEBAPP_ASSISTANT_URL", url)
+
+    with pytest.raises(ValueError, match="LHP_WEBAPP_ASSISTANT_URL"):
+        get_settings()
+
+
+def test_empty_assistant_url_is_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A blank LHP_WEBAPP_ASSISTANT_URL means "not configured", not an error."""
+    _clear_env(monkeypatch)
+    monkeypatch.setenv("LHP_WEBAPP_ASSISTANT_URL", "")
+
+    settings = get_settings()
+
+    assert settings.assistant_url is None
 
 
 def test_invalid_port_raises(monkeypatch: pytest.MonkeyPatch) -> None:

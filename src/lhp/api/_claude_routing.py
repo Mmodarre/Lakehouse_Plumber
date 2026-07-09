@@ -9,11 +9,14 @@ to the ``lhp`` skill on description alone. The routing block is project context
 loaded into every Claude Code session here, and it makes that in-project intent
 stick.
 
-This is a CLI-layer concern with standard-library I/O only — no Rich, no
-``lhp.errors``, no domain imports (constitution §2.7 / §5 / §9.5). The command
-decides exit codes; the presenter renders; this module only edits the file and
-reports what it did. It is written only for project installs, never ``--user``
-(a global skill has no single project ``CLAUDE.md`` to own).
+Standard-library I/O only — no Rich, no ``lhp.errors``, no domain imports.
+:class:`lhp.api.SkillFacade` (and, over the sanctioned ``cli -> api`` bridge,
+the ``lhp skill`` command) decides what to do with the reported status; this
+module only edits the file and reports what it did. The block is written only
+for project installs, never ``--user`` (a global skill has no single project
+``CLAUDE.md`` to own).
+
+:stability: internal
 """
 
 from __future__ import annotations
@@ -43,7 +46,10 @@ preset, template, blueprint, or substitution task in this project."""
 
 
 def routing_block() -> str:
-    """The fenced routing block, delimiting markers included."""
+    """The fenced routing block, delimiting markers included.
+
+    :stability: provisional
+    """
     return f"{ROUTING_START}\n{_ROUTING_BODY}\n{ROUTING_END}"
 
 
@@ -57,6 +63,8 @@ def write_routing_block(project_dir: Path) -> WriteStatus:
       around it untouched (``"updated"``, or ``"unchanged"`` if already
       current);
     - existing file without the block → append the block (``"updated"``).
+
+    :stability: provisional
     """
     path = project_dir / CLAUDE_MD
     block = routing_block()
@@ -91,6 +99,8 @@ def remove_routing_block(project_dir: Path) -> RemoveStatus:
     preserved. If removing the block empties the file (LHP created it), the
     file is deleted so ``uninstall`` leaves no trace. Returns ``"absent"`` when
     there is no file or no block to remove.
+
+    :stability: provisional
     """
     path = project_dir / CLAUDE_MD
     if not path.exists():

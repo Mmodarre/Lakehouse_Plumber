@@ -140,3 +140,19 @@ class TestTokenGuard:
     def test_no_token_configured_is_noop(self, client: TestClient) -> None:
         # The plain fixture client has no token in its settings.
         assert client.get("/api/project").status_code == 200
+
+    def test_assistant_paths_require_token(self, token_client: TestClient) -> None:
+        """/api/assistant/* sits behind the same guard as every /api path."""
+        resp = token_client.get("/api/assistant/config")
+        assert resp.status_code == 401
+        assert resp.json() == {"detail": "invalid or missing session token"}
+
+    def test_assistant_path_with_token_reaches_route(
+        self, token_client: TestClient
+    ) -> None:
+        # Past the guard, the route's own semantics apply: no executor config
+        # is stored for the fixture project, so the endpoint's 404 (not 401).
+        resp = token_client.get(
+            "/api/assistant/config", headers={"X-LHP-Token": _TEST_TOKEN}
+        )
+        assert resp.status_code == 404

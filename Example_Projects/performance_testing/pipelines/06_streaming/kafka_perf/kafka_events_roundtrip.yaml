@@ -1,0 +1,66 @@
+pipeline: kafka_perf_streaming
+flowgroup: kafka_events_roundtrip
+
+actions:
+  - name: load_kafka_events
+    type: load
+    operational_metadata:
+      - "_processing_timestamp"
+    source:
+      type: kafka
+      bootstrap_servers: "${kafka_bootstrap_servers}"
+      subscribe: "${kafka_source_topic}"
+      readMode: stream
+      options:
+        kafka.security.protocol: "SASL_SSL"
+        kafka.sasl.mechanism: "PLAIN"
+        kafka.sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username='${secret:kafka/username}' password='${secret:kafka/password}';"
+        startingOffsets: "latest"
+        maxOffsetsPerTrigger: "100000"
+    target: v_kafka_events_raw
+    description: "Stream raw events from the Kafka source topic (binary key/value)"
+
+  - name: deserialize_kafka_events
+    type: transform
+    transform_type: sql
+    source: v_kafka_events_raw
+    target: v_kafka_events_parsed
+    description: "Deserialize the Kafka value payload (JSON) and keep routing/audit columns"
+    sql: |
+      SELECT
+        CAST(key AS STRING) AS event_key,
+        from_json(CAST(value AS STRING), 'event_id STRING, event_type STRING, payload STRING, event_ts TIMESTAMP') AS event,
+        topic AS source_topic,
+        partition AS source_partition,
+        offset AS source_offset,
+        timestamp AS kafka_timestamp,
+        _processing_timestamp
+      FROM stream(v_kafka_events_raw)
+
+  - name: prepare_kafka_events_for_sink
+    type: transform
+    transform_type: sql
+    source: v_kafka_events_parsed
+    target: v_kafka_events_for_sink
+    description: "Re-encode enriched events into key/value columns expected by the Kafka sink"
+    sql: |
+      SELECT
+        event_key AS key,
+        to_json(struct(event.*, source_topic, source_partition, source_offset, _processing_timestamp)) AS value
+      FROM stream(v_kafka_events_parsed)
+
+  - name: write_kafka_events_sink
+    type: write
+    source: v_kafka_events_for_sink
+    write_target:
+      type: sink
+      sink_type: kafka
+      sink_name: kafka_events_enriched_sink
+      bootstrap_servers: "${kafka_bootstrap_servers}"
+      topic: "${kafka_sink_topic}"
+      options:
+        kafka.security.protocol: "SASL_SSL"
+        kafka.sasl.mechanism: "PLAIN"
+        kafka.sasl.jaas.config: "org.apache.kafka.common.security.plain.PlainLoginModule required username='${secret:kafka/username}' password='${secret:kafka/password}';"
+        checkpointLocation: "/Volumes/${catalog}/${streaming_schema}/_checkpoints/kafka_events_roundtrip"
+    description: "Write deserialized/enriched events back out to the Kafka sink topic"

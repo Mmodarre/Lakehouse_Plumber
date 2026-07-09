@@ -10,6 +10,7 @@ import {
   Loader2,
   PanelLeft,
   Play,
+  Sparkles,
   Wifi,
   WifiOff,
 } from 'lucide-react'
@@ -44,6 +45,7 @@ import { useEnvironments } from '../../hooks/useEnvironments'
 import { usePipelines } from '../../hooks/usePipelines'
 import { useUIStore } from '../../store/uiStore'
 import { useRunController, useRunStore } from '../../store/runStore'
+import { useAssistantStore } from '../../store/assistantStore'
 
 // ── Small helpers (not exported) ────────────────────────
 
@@ -218,6 +220,8 @@ export function Header() {
   const { selectedEnv, setSelectedEnv, pipelineFilter, sidebarOpen, toggleSidebar } = useUIStore()
   const { isRunning, startValidate, startGenerate } = useRunController()
   const runKind = useRunStore((s) => s.runKind)
+  const assistantOpen = useAssistantStore((s) => s.panelOpen)
+  const toggleAssistant = useAssistantStore((s) => s.togglePanel)
 
   const isHealthy = health?.status === 'healthy' && !healthError
 
@@ -318,6 +322,19 @@ export function Header() {
             <Play aria-hidden="true" />
           )}
           Generate
+        </Button>
+
+        {/* Assistant panel toggle (persisted via assistantStore) */}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={toggleAssistant}
+          aria-label={assistantOpen ? 'Close assistant panel' : 'Open assistant panel'}
+          aria-pressed={assistantOpen}
+          title={assistantOpen ? 'Close assistant panel' : 'Open assistant panel'}
+          className={cn('text-muted-foreground', assistantOpen && 'text-primary')}
+        >
+          <Sparkles />
         </Button>
 
         {/* Theme toggle */}

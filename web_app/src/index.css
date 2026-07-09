@@ -125,15 +125,18 @@
 .chat-markdown h1 { font-size: 1.1em; }
 .chat-markdown h2 { font-size: 1.05em; }
 .chat-markdown h3 { font-size: 1em; }
+/* Theme tokens (not hardcoded hexes) so the panel renders correctly in
+ * both light and dark mode. */
 .chat-markdown code {
-  background: #f1f5f9;
+  background: var(--muted);
   padding: 0.1em 0.3em;
   border-radius: 3px;
   font-size: 0.9em;
 }
 .chat-markdown pre {
-  background: #1e293b;
-  color: #e2e8f0;
+  background: var(--muted);
+  color: var(--foreground);
+  border: 1px solid var(--border);
   padding: 0.6em 0.8em;
   border-radius: 6px;
   overflow-x: auto;
@@ -156,12 +159,12 @@
   font-size: 0.9em;
 }
 .chat-markdown th, .chat-markdown td {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   padding: 0.3em 0.5em;
   text-align: left;
 }
 .chat-markdown th {
-  background: #f8fafc;
+  background: var(--muted);
   font-weight: 600;
 }
 .chat-markdown ul, .chat-markdown ol {

@@ -10,6 +10,13 @@ exception instances, no mutable collections.
 :stability: provisional
 """
 
+# JUSTIFIED: this file is the constitution-mandated single registry of
+# public response DTOs (TARGET §11): every one-shot facade return shape
+# lives here by design so the public contract stays auditable in one
+# place, and TARGET §8 grants DTO files <=600 lines. Each dataclass is
+# a flat frozen value object; splitting the registry would scatter the
+# versioned surface without removing any complexity.
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -351,6 +358,35 @@ class WheelExtractionResult:
     output_dir: Path
     written_paths: Tuple[Path, ...]
     written_count: int
+
+
+@dataclass(frozen=True)
+class SkillInstallResult:
+    """Outcome of installing the LHP Claude Code skill into a project.
+
+    A one-shot result DTO (§1.3) returned by
+    :meth:`lhp.api.SkillFacade.install_project_skill`. Like
+    :class:`WheelExtractionResult`, the operation *raises* on failure
+    (``LHP-CFG-011`` when the target directory is not an LHP project,
+    ``LHP-IO-020`` when a skill is already installed and ``force`` is
+    not set), so there are deliberately no ``success`` / ``error_*``
+    fields — they would be permanently dead state. ``action``
+    discriminates a fresh install from a forced refresh of an existing
+    one; ``previous_version`` is ``None`` on a fresh install (or when
+    the refreshed install carried no marker). ``installed_files``
+    enumerates the copied skill files as relative POSIX paths;
+    ``routing_block_status`` reports what happened to the project
+    ``CLAUDE.md`` routing block.
+
+    :stability: provisional
+    """
+
+    install_dir: Path
+    skill_version: str
+    previous_version: Optional[str]
+    action: Literal["installed", "updated"]
+    installed_files: Tuple[str, ...]
+    routing_block_status: Literal["created", "updated", "unchanged"]
 
 
 @dataclass(frozen=True)

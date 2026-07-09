@@ -1,0 +1,114 @@
+# Pipeline configuration for the perf_test_edw project.
+#
+# Resolution order (deep-merge, later overrides earlier):
+#   1. DEFAULT_PIPELINE_CONFIG  (serverless=true, edition=ADVANCED,
+#      channel=CURRENT, continuous=false)
+#   2. project_defaults         (this file, top block)
+#   3. per-pipeline entry       (this file, --- separated docs)
+#
+# Catalog and schema tokens resolve from substitutions/<env>.yaml.
+# Usage:
+#   lhp generate --env dev --pipeline-config config/pipeline_config.yaml
+
+project_defaults:
+  catalog: ${catalog}
+  schema: ${bronze_schema}
+  packaging: wheel
+  serverless: true
+  edition: ADVANCED
+  channel: CURRENT
+  continuous: false
+  photon: true
+  configuration:
+    pipelines.enableTrackHistory: "true"
+    spark.databricks.delta.schema.autoMerge.enabled: "true"
+  tags:
+    project: perf_test_edw
+    managed_by: lakehouse_plumber
+    env: ${env}
+
+---
+# Raw layer ingestion — domain A
+pipeline: domain_a_raw
+schema: ${raw_schema}
+tags:
+  layer: raw
+  domain: domain_a
+configuration:
+  pipelines.enableTrackHistory: "false"
+packaging: source
+
+---
+# Bronze layer — domain B, with notifications
+pipeline: domain_b_bronze
+schema: ${bronze_schema}
+tags:
+  layer: bronze
+  domain: domain_b
+notifications:
+  - email_recipients:
+      - data-platform-bronze@example.com
+    alerts:
+      - on-update-failure
+      - on-flow-failure
+
+---
+# Silver layer — domain C
+pipeline: domain_c_silver
+schema: ${silver_schema}
+tags:
+  layer: silver
+  domain: domain_c
+
+---
+# Gold layer — domain D, photon explicit + custom Spark conf
+pipeline: domain_d_gold
+schema: ${gold_schema}
+photon: true
+tags:
+  layer: gold
+  domain: domain_d
+configuration:
+  spark.sql.shuffle.partitions: "200"
+  spark.databricks.delta.optimizeWrite.enabled: "true"
+
+---
+# Modelled layer — domain E, with permissions
+pipeline: domain_e_modelled
+schema: ${modelled_schema}
+tags:
+  layer: modelled
+  domain: domain_e
+permissions:
+  - level: CAN_VIEW
+    group_name: edw_readers
+  - level: CAN_MANAGE
+    user_name: mehdi.modarressi@databricks.com
+
+---
+# Bronze — domain J, continuous mode demo
+pipeline: domain_j_bronze
+schema: ${bronze_schema}
+continuous: true
+tags:
+  layer: bronze
+  domain: domain_j
+  mode: continuous
+
+---
+# Silver — domain N, override channel to PREVIEW
+pipeline: domain_n_silver
+schema: ${silver_schema}
+channel: PREVIEW
+tags:
+  layer: silver
+  domain: domain_n
+
+---
+# Streaming — Kafka perf round-trip (load from topic, write to sink topic)
+pipeline: kafka_perf_streaming
+schema: ${streaming_schema}
+continuous: true
+tags:
+  layer: streaming
+  domain: kafka_perf

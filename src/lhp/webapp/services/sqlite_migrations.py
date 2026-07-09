@@ -52,4 +52,35 @@ _V1: tuple[str, ...] = (
     "CREATE INDEX idx_run_issues_run_id ON run_issues(run_id)",
 )
 
-MIGRATIONS: tuple[tuple[str, ...], ...] = (_V1,)
+#: v2 — assistant: omnigent-backed chat sessions plus the assistant's
+#: persisted configuration. ``session_id`` is the omnigent conversation id
+#: (``conv_...``) and ``agent_id`` the session-scoped omnigent agent id
+#: (``ag_...``); ``agent_bundle_hash`` supports drift detection. ``status``
+#: is one of ``active`` / ``archived`` / ``stale`` — at most one row is
+#: ``active`` (enforced by :mod:`lhp.webapp.services.assistant_store`).
+#: ``assistant_config`` is a JSON key/value store (keys ``executor`` /
+#: ``agent``).
+_V2: tuple[str, ...] = (
+    """
+    CREATE TABLE assistant_sessions (
+        session_id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL,
+        host_id TEXT NOT NULL,
+        agent_bundle_hash TEXT NOT NULL,
+        title TEXT,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        last_used_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE assistant_config (
+        key TEXT PRIMARY KEY,
+        value_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    "CREATE INDEX idx_assistant_sessions_status ON assistant_sessions(status)",
+)
+
+MIGRATIONS: tuple[tuple[str, ...], ...] = (_V1, _V2)

@@ -4,6 +4,261 @@
  * with `npm run gen:api` (requires the repo's Python env active).
  */
 export interface paths {
+    "/api/assistant/approval": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve Approval
+         * @description Resolve a pending elicitation on the active session.
+         *
+         *     Talks to the omnigent client directly (no chat-turn lock), so approvals
+         *     work while a chat stream is open on another request.
+         */
+        post: operations["resolve_approval_api_assistant_approval_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assistant/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Chat
+         * @description Run one assistant chat turn as an NDJSON stream.
+         *
+         *     Backstop gates (the panel pre-gates on ``/status``): executor
+         *     unconfigured, skill not installed, or no online omnigent host each 409
+         *     with the ``ErrorDetail`` envelope. Past the gates, the whole turn —
+         *     session provisioning included — is relayed by
+         *     :func:`~lhp.webapp.services.assistant_chat.chat_turn`, whose frame
+         *     protocol is pinned in its module docstring.
+         */
+        post: operations["chat_api_assistant_chat_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assistant/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Executor Config
+         * @description Return the stored executor config; 404 when none has been set.
+         */
+        get: operations["get_executor_config_api_assistant_config_get"];
+        /**
+         * Put Executor Config
+         * @description Store the executor config; echo back EXACTLY what was stored.
+         *
+         *     Switching executors marks the active session stale so the next chat
+         *     turn reprovisions against the new config (bundle-hash drift would catch
+         *     it anyway; the stale mark makes the drift explicit and immediate).
+         */
+        put: operations["put_executor_config_api_assistant_config_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assistant/daemon/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Daemon
+         * @description Spawn the detached omnigent daemon processes (fire-and-forget).
+         */
+        post: operations["start_daemon_api_assistant_daemon_start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assistant/databricks-profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Databricks Profiles
+         * @description Section names from ``~/.databrickscfg`` — names only, never values.
+         *
+         *     ``DEFAULT`` is included only when it has content (configparser keeps it
+         *     out of ``sections()``; ``defaults()`` exposes its keys). A missing or
+         *     unparseable file yields an empty list.
+         */
+        get: operations["databricks_profiles_api_assistant_databricks_profiles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assistant/interrupt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Interrupt
+         * @description Interrupt the active session's running turn (no chat-turn lock).
+         */
+        post: operations["interrupt_api_assistant_interrupt_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assistant/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Session
+         * @description Snapshot of the active session for panel rehydration.
+         *
+         *     ``items`` pass through UNMODIFIED in omnigent's snapshot envelope shape
+         *     (spike S8); the client-side renderer unwraps each item's ``data``.
+         */
+        get: operations["get_session_api_assistant_session_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assistant/session/new": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * New Session
+         * @description Archive the active session so the next chat turn starts a fresh one.
+         *
+         *     Nothing is created here — provisioning happens lazily on the next chat
+         *     turn (idempotent when no session is active).
+         */
+        post: operations["new_session_api_assistant_session_new_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assistant/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Sessions
+         * @description List locally-tracked assistant sessions, most recently used first.
+         */
+        get: operations["list_sessions_api_assistant_sessions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assistant/skill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Install Skill
+         * @description Install (force-refresh) the LHP skill into the project.
+         *
+         *     ``LHPError`` (``LHP-CFG-011`` for a non-project root) propagates to the
+         *     app-level handler, which renders the repo's standard error envelope.
+         */
+        post: operations["install_skill_api_assistant_skill_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assistant/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Status
+         * @description The assistant panel's single source of truth.
+         *
+         *     A daemon that is down reports as falsy ladder fields (never a 500): the
+         *     detection ladder swallows connection failures by design, and the client
+         *     getter is deferred so no client is even built when the binary is missing.
+         */
+        get: operations["get_status_api_assistant_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/blueprints": {
         parameters: {
             query?: never;
@@ -767,6 +1022,66 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * ActiveSessionInfo
+         * @description The locally-tracked active assistant session (assistant_sessions row).
+         */
+        ActiveSessionInfo: {
+            /** Created At */
+            created_at: string;
+            /** Last Used At */
+            last_used_at: string;
+            /** Session Id */
+            session_id: string;
+            /** Status */
+            status: string;
+            /** Title */
+            title: string | null;
+        };
+        /**
+         * ApprovalRequest
+         * @description ``POST /assistant/approval`` body: resolve one pending elicitation.
+         */
+        ApprovalRequest: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "accept" | "decline" | "cancel";
+            /** Content */
+            content?: {
+                [key: string]: unknown;
+            } | null;
+            /** Elicitation Id */
+            elicitation_id: string;
+        };
+        /**
+         * AssistantStatus
+         * @description Single source of truth for the assistant panel's readiness display.
+         *
+         *     The first four fields mirror the daemon-detection ladder
+         *     (:class:`~lhp.webapp.services.omnigent_lifecycle.DaemonStatus`): a daemon
+         *     that is down shows as falsy ladder fields, never as an error response.
+         */
+        AssistantStatus: {
+            active_session: components["schemas"]["ActiveSessionInfo"] | null;
+            /** Binary Found */
+            binary_found: boolean;
+            /** Executor Configured */
+            executor_configured: boolean;
+            /** Host Id */
+            host_id: string | null;
+            /** Host Online */
+            host_online: boolean;
+            /** Server Ok */
+            server_ok: boolean;
+            /** Server Url */
+            server_url: string;
+            /** Skill Installed */
+            skill_installed: boolean;
+            /** Skill Version */
+            skill_version: string | null;
+        };
+        /**
          * BlueprintInstanceSummary
          * @description One blueprint instance file and the flowgroups it expands to.
          */
@@ -811,6 +1126,17 @@ export interface components {
             /** Version */
             version: string;
         };
+        /**
+         * ChatRequest
+         * @description ``POST /assistant/chat`` body.
+         */
+        ChatRequest: {
+            /**
+             * Message
+             * @description User message text.
+             */
+            message: string;
+        };
         /** CircularDependencyResponse */
         CircularDependencyResponse: {
             /** Cycles */
@@ -819,6 +1145,24 @@ export interface components {
             has_circular: boolean;
             /** Total Cycles */
             total_cycles: number;
+        };
+        /**
+         * DaemonStartResponse
+         * @description ``POST /assistant/daemon/start`` outcome (spawn attempt, not readiness).
+         */
+        DaemonStartResponse: {
+            /** Detail */
+            detail?: string | null;
+            /** Started */
+            started: boolean;
+        };
+        /**
+         * DatabricksProfilesResponse
+         * @description Section names from ``~/.databrickscfg`` — names only, no values.
+         */
+        DatabricksProfilesResponse: {
+            /** Profiles */
+            profiles: string[];
         };
         /**
          * DependencyResponse
@@ -848,6 +1192,43 @@ export interface components {
             stages: string[][];
             /** Total Stages */
             total_stages: number;
+        };
+        /**
+         * ExecutorConfig
+         * @description Stored executor configuration, echoed back exactly as stored.
+         *
+         *     ``api_key_env`` is an environment-variable NAME (see module docstring);
+         *     no field ever carries a key value.
+         */
+        ExecutorConfig: {
+            /** Api Key Env */
+            api_key_env?: string | null;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "omnigent_defaults" | "databricks" | "api_key_env";
+            /** Model */
+            model?: string | null;
+            /** Profile */
+            profile?: string | null;
+        };
+        /**
+         * ExecutorConfigUpdate
+         * @description ``PUT /assistant/config`` body: :class:`ExecutorConfig` + mode rules.
+         */
+        ExecutorConfigUpdate: {
+            /** Api Key Env */
+            api_key_env?: string | null;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "omnigent_defaults" | "databricks" | "api_key_env";
+            /** Model */
+            model?: string | null;
+            /** Profile */
+            profile?: string | null;
         };
         /** ExternalSourcesResponse */
         ExternalSourcesResponse: {
@@ -1387,6 +1768,68 @@ export interface components {
             scope: string;
         };
         /**
+         * SessionListItem
+         * @description One locally-tracked assistant session (newest-used first in lists).
+         */
+        SessionListItem: {
+            /** Created At */
+            created_at: string;
+            /** Last Used At */
+            last_used_at: string;
+            /** Session Id */
+            session_id: string;
+            /** Status */
+            status: string;
+            /** Title */
+            title: string | null;
+        };
+        /**
+         * SessionListResponse
+         * @description ``GET /assistant/sessions`` response.
+         */
+        SessionListResponse: {
+            /** Sessions */
+            sessions: components["schemas"]["SessionListItem"][];
+            /** Total */
+            total: number;
+        };
+        /**
+         * SessionSnapshot
+         * @description Active session snapshot for panel rehydration.
+         *
+         *     ``items`` are the omnigent snapshot items passed through UNMODIFIED —
+         *     each is enveloped as ``{id, type, status, response_id, created_at,
+         *     created_by, data: {...}}`` (spike S8); the shared renderer unwraps
+         *     ``data`` client-side.
+         */
+        SessionSnapshot: {
+            /** Items */
+            items: {
+                [key: string]: unknown;
+            }[];
+            /** Session Id */
+            session_id: string;
+            /** Status */
+            status: string;
+            /** Title */
+            title?: string | null;
+        };
+        /**
+         * SkillInstallResponse
+         * @description ``POST /assistant/skill`` install summary.
+         */
+        SkillInstallResponse: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "installed" | "updated";
+            /** Install Dir */
+            install_dir: string;
+            /** Skill Version */
+            skill_version: string;
+        };
+        /**
          * StreamRunRequest
          * @description Request body for the validate / generate stream endpoints.
          *
@@ -1431,6 +1874,18 @@ export interface components {
             tokens: {
                 [key: string]: string;
             };
+        };
+        /**
+         * SuccessResponse
+         * @description Generic success message.
+         */
+        SuccessResponse: {
+            /** Details */
+            details?: {
+                [key: string]: unknown;
+            } | null;
+            /** Message */
+            message: string;
         };
         /** TableListResponse */
         TableListResponse: {
@@ -1555,6 +2010,285 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    resolve_approval_api_assistant_approval_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApprovalRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    chat_api_assistant_chat_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_executor_config_api_assistant_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecutorConfig"];
+                };
+            };
+        };
+    };
+    put_executor_config_api_assistant_config_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExecutorConfigUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecutorConfig"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_daemon_api_assistant_daemon_start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DaemonStartResponse"];
+                };
+            };
+        };
+    };
+    databricks_profiles_api_assistant_databricks_profiles_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatabricksProfilesResponse"];
+                };
+            };
+        };
+    };
+    interrupt_api_assistant_interrupt_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+        };
+    };
+    get_session_api_assistant_session_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionSnapshot"];
+                };
+            };
+        };
+    };
+    new_session_api_assistant_session_new_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuccessResponse"];
+                };
+            };
+        };
+    };
+    list_sessions_api_assistant_sessions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionListResponse"];
+                };
+            };
+        };
+    };
+    install_skill_api_assistant_skill_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillInstallResponse"];
+                };
+            };
+        };
+    };
+    get_status_api_assistant_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantStatus"];
+                };
+            };
+        };
+    };
     list_blueprints_api_blueprints_get: {
         parameters: {
             query?: {

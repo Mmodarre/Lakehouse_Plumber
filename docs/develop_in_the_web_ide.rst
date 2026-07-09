@@ -133,6 +133,15 @@ Switch themes
 The IDE offers light, dark, and system themes. Your choice persists across
 sessions and launches.
 
+Chat with the AI assistant
+--------------------------
+
+The IDE includes an assistant panel: a chat dock backed by a locally
+running omnigent daemon that answers questions about your project and edits
+its files in place. The daemon is a separate, user-installed tool with a
+one-time setup of its own — installation, startup, executor choice, and
+troubleshooting are covered in :doc:`use_the_ai_assistant`.
+
 What the web IDE does not do
 ----------------------------
 
@@ -163,6 +172,7 @@ Related articles
 ----------------
 
 * :doc:`cli` — the generated ``lhp web`` flag reference.
+* :doc:`use_the_ai_assistant` — set up and chat with the AI assistant panel.
 * :doc:`quickstart` — initialize and build your first project.
 * :doc:`configure_bundles` — bundle-enabled generation and deployment, which
   the IDE's preview generation skips.
