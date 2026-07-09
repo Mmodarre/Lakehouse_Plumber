@@ -177,8 +177,11 @@ def match_produced_table(
       ``schema.table``, the match is AMBIGUOUS and yields NO edge (treated as
       external). This prevents phantom cross-catalog edges: tables are global,
       unlike pipeline-scoped views.
-    - A 3-part source can also match a 2-part producer on the same
-      ``schema.table`` + uniqueness guard. In practice 2-part producers are
+    - A 3-part source can also match a 2-part (EMPTY-catalog) producer on the
+      same ``schema.table`` + uniqueness guard — and ONLY an empty-catalog
+      producer: one registered under a different explicit catalog is
+      definitively not the named table (the exact 3-part comparison above
+      already handled the same-catalog case). In practice 2-part producers are
       rare: a normal write registers a producer only with all three of
       catalog/schema/table present (see :func:`build_producer_indexes`), so the
       only way an empty-catalog (2-part) producer enters the index is a
@@ -192,7 +195,12 @@ def match_produced_table(
             return canonical
         # 3-part source, but the producer may have been registered 2-part
         # (empty catalog). Reconcile on the schema.table suffix + uniqueness.
-        return _unique_short_key(".".join(parts[1:]), table_short_to_catalogs)
+        # _unique_short_key returns `short` itself exactly when the unique
+        # catalog is the empty one; a non-empty unique catalog is a DIFFERENT
+        # catalog than the source explicitly names, so it must not match.
+        short = ".".join(parts[1:])
+        key = _unique_short_key(short, table_short_to_catalogs)
+        return key if key == short else None
 
     if len(parts) == 2:
         return _unique_short_key(".".join(parts), table_short_to_catalogs)

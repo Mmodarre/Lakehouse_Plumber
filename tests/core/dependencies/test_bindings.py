@@ -17,6 +17,7 @@ from lhp.core.dependencies._bindings import (
     ListValue,
     ParameterBindings,
     bound_from_yaml,
+    freeze_bindings,
 )
 
 
@@ -143,3 +144,50 @@ class TestFrozenness:
         pb = ParameterBindings("fn", kwonly=DictValue({}))
         with pytest.raises(dataclasses.FrozenInstanceError):
             pb.function_name = "other"
+
+
+@pytest.mark.unit
+class TestFreezeBindings:
+    """freeze_bindings: canonical hashable cache keys."""
+
+    def test_none_freezes_to_none(self):
+        assert freeze_bindings(None) is None
+
+    def test_equal_bindings_freeze_equal_and_hashable(self):
+        a = ParameterBindings(
+            function_name="fn",
+            kwonly=DictValue({"x": frozenset({"v"}), "y": ListValue(("a", "b"))}),
+        )
+        b = ParameterBindings(
+            function_name="fn",
+            kwonly=DictValue({"y": ListValue(("a", "b")), "x": frozenset({"v"})}),
+        )
+        assert freeze_bindings(a) == freeze_bindings(b)
+        assert {freeze_bindings(a): 1}[freeze_bindings(b)] == 1
+
+    def test_different_values_freeze_differently(self):
+        a = ParameterBindings(
+            function_name="fn", kwonly=DictValue({"x": frozenset({"v1"})})
+        )
+        b = ParameterBindings(
+            function_name="fn", kwonly=DictValue({"x": frozenset({"v2"})})
+        )
+        assert freeze_bindings(a) != freeze_bindings(b)
+
+    def test_shape_tags_prevent_cross_shape_collisions(self):
+        as_set = ParameterBindings(
+            function_name="fn", kwonly=DictValue({"x": frozenset({"a"})})
+        )
+        as_list = ParameterBindings(
+            function_name="fn", kwonly=DictValue({"x": ListValue(("a",))})
+        )
+        assert freeze_bindings(as_set) != freeze_bindings(as_list)
+
+    def test_nested_dict_values_freeze(self):
+        nested = ParameterBindings(
+            function_name="fn",
+            dict_arg_index=0,
+            dict_value=DictValue({"inner": DictValue({"k": frozenset({"v"})})}),
+        )
+        assert freeze_bindings(nested) == freeze_bindings(nested)
+        hash(freeze_bindings(nested))

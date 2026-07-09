@@ -472,3 +472,123 @@ class TestListValueSeedThreading:
         assert engine.resolve_param(_func(tree, "transform"), "parameters") == (
             DictValue({"tables": ListValue(("a", "b"))})
         )
+
+
+@pytest.mark.unit
+class TestGuardHitBudget:
+    """Past MAX_GUARD_HITS the engine exhausts: every answer degrades to None."""
+
+    _RECURSIVE = """
+        def a(x):
+            return b(x)
+
+        def b(x):
+            return a(x)
+
+        t = a("seed")
+    """
+
+    def test_exhaustion_degrades_all_answers(self, monkeypatch):
+        import lhp.core.dependencies._call_resolution as cr
+
+        monkeypatch.setattr(cr, "MAX_GUARD_HITS", 0)
+        tree, _, engine = _engine(self._RECURSIVE)
+        # The mutual recursion trips the cycle guard immediately, spending
+        # the zero budget; afterwards every oracle query answers None.
+        assert engine.resolve_call_return(_call('a("x")'), ()) is None
+        assert engine.exhausted
+        assert engine.resolve_param(_func(tree, "a"), "x") is None
+        assert engine.resolve_call_return(_call('b("y")'), ()) is None
+
+    def test_memoized_clean_results_survive_exhaustion(self, monkeypatch):
+        import lhp.core.dependencies._call_resolution as cr
+
+        tree, _, engine = _engine(
+            """
+            def clean(v):
+                return "cat.sch.t"
+
+            def a(x):
+                return b(x)
+
+            def b(x):
+                return a(x)
+            """
+        )
+        assert engine.resolve_call_return(_call('clean("v")'), ()) == frozenset(
+            {"cat.sch.t"}
+        )
+        monkeypatch.setattr(cr, "MAX_GUARD_HITS", 0)
+        engine.resolve_call_return(_call('a("x")'), ())
+        assert engine.exhausted
+        # Clean pre-exhaustion memo still served; fresh queries degrade.
+        assert engine.resolve_call_return(_call('clean("v")'), ()) == frozenset(
+            {"cat.sch.t"}
+        )
+        assert engine.resolve_param(_func(tree, "a"), "x") is None
+
+    def test_healthy_module_never_exhausts(self):
+        tree, _, engine = _engine(
+            """
+            def helper(name):
+                return "silver." + name
+
+            t = helper("users")
+            """
+        )
+        assert engine.resolve_call_return(_call('helper("users")'), ()) == frozenset(
+            {"silver.users"}
+        )
+        assert not engine.exhausted
+
+
+@pytest.mark.unit
+class TestKwonlySeedBindsNamedParams:
+    """functools.partial keyword application binds positional-or-keyword params too."""
+
+    def test_positional_or_keyword_param_is_seeded(self):
+        tree, _, engine = _engine(
+            """
+            def fn(latest_snapshot_version, table_name):
+                return table_name
+            """,
+            bindings=ParameterBindings(
+                function_name="fn",
+                kwonly=DictValue({"table_name": frozenset({"cat.sch.orders"})}),
+            ),
+        )
+        assert engine.resolve_param(_func(tree, "fn"), "table_name") == frozenset(
+            {"cat.sch.orders"}
+        )
+
+    def test_positional_only_param_is_not_seeded(self):
+        tree, _, engine = _engine(
+            """
+            def fn(table_name, /):
+                return table_name
+            """,
+            bindings=ParameterBindings(
+                function_name="fn",
+                kwonly=DictValue({"table_name": frozenset({"cat.sch.orders"})}),
+            ),
+        )
+        assert engine.resolve_param(_func(tree, "fn"), "table_name") is None
+
+
+@pytest.mark.unit
+class TestParameterShadowing:
+    """A declared parameter shadows outer/module bindings even when unresolved."""
+
+    def test_unresolvable_param_does_not_expose_module_binding(self):
+        tree, _, engine = _engine(
+            """
+            schema = "bronze"
+
+            def helper(schema):
+                t = schema
+                return t
+            """
+        )
+        # `helper` is never called and has no default: its `schema` parameter
+        # is unknown, and the module-level `schema` must NOT leak through.
+        assert engine.resolve_call_return(_call('helper(cfg["s"])'), ()) is None

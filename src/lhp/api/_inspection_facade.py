@@ -353,6 +353,7 @@ class InspectionFacade:
         *,
         pipeline_filter: Optional[str] = None,
         blueprint_filter: Optional[str] = None,
+        trust_depends_on: bool = False,
     ) -> DependencyAnalysisResult:
         """Run dependency analysis and return a frozen, flattened result.
 
@@ -361,9 +362,19 @@ class InspectionFacade:
         expanded from the named blueprint. Blueprint expansion is always
         full — one node per blueprint × instance × spec — so pipelines a
         blueprint parameterizes per instance are never dropped. Analysis
-        is memoized per filter pair: a subsequent
-        :meth:`save_dependency_outputs` with the same filters reuses this
+        is memoized per option triple: a subsequent
+        :meth:`save_dependency_outputs` with the same options reuses this
         call's analysis.
+
+        ``trust_depends_on`` (opt-in) makes a non-empty ``depends_on``
+        AUTHORITATIVE for its action: SQL/Python bodies are not read or
+        parsed for that action, and its source set is exactly the explicit
+        ``source:`` declarations plus the declared ``depends_on`` entries.
+        Default (False) keeps the additive contract — declared entries
+        union on top of parsed sources. Trust mode is a performance
+        escape hatch for large projects whose actions fully declare their
+        upstreams; an action whose declarations are incomplete loses the
+        parsed edges for its undeclared reads.
 
         The result's ``warnings`` may carry ``LHP-DEP-002`` /
         ``LHP-DEP-003`` advisory codes (never raised), aggregated per
@@ -376,7 +387,9 @@ class InspectionFacade:
             discovery and dependency analysis.
         """
         internal = self._orchestrator.dependencies.analyze_project(
-            pipeline_filter=pipeline_filter, blueprint_filter=blueprint_filter
+            pipeline_filter=pipeline_filter,
+            blueprint_filter=blueprint_filter,
+            trust_depends_on=trust_depends_on,
         )
         return _dependency_result_to_view(internal)
 
@@ -387,6 +400,7 @@ class InspectionFacade:
         output_dir: Path,
         pipeline_filter: Optional[str] = None,
         blueprint_filter: Optional[str] = None,
+        trust_depends_on: bool = False,
         job_name: Optional[str] = None,
         job_config_path: Optional[str] = None,
         bundle_output: bool = False,
@@ -395,10 +409,14 @@ class InspectionFacade:
 
         ``formats`` accepts any combination of ``"dot"``, ``"json"``,
         ``"text"``, ``"job"``, or ``"all"`` (expands to all four).
-        Filter parameters mirror :meth:`analyze_dependencies` (and share
-        its memoized analysis). ``job_name`` / ``job_config_path`` /
-        ``bundle_output`` shape the ``"job"`` format only and have no
-        effect on the others.
+        Filter and ``trust_depends_on`` parameters mirror
+        :meth:`analyze_dependencies` (and share its memoized analysis).
+        ``job_name`` / ``job_config_path`` / ``bundle_output`` shape the
+        ``"job"`` format only and have no effect on the others. The
+        ``"job"`` format is a whole-project deployment artifact: when a
+        pipeline/blueprint filter is active it is skipped with a logged
+        warning instead of being written from a different flowgroup set
+        than the filtered analysis outputs.
 
         Returns a frozen :class:`DependencyOutputsResult` enumerating
         every generated file with its format name and optional job-name
@@ -414,7 +432,9 @@ class InspectionFacade:
 
         dep_service = self._orchestrator.dependencies
         internal = dep_service.analyze_project(
-            pipeline_filter=pipeline_filter, blueprint_filter=blueprint_filter
+            pipeline_filter=pipeline_filter,
+            blueprint_filter=blueprint_filter,
+            trust_depends_on=trust_depends_on,
         )
 
         output_manager = DependencyOutputWriter()
@@ -431,6 +451,8 @@ class InspectionFacade:
                 job_name,
                 job_config_path,
                 bundle_output,
+                trust_depends_on=trust_depends_on,
+                filters_active=bool(pipeline_filter or blueprint_filter),
             ),
         )
 

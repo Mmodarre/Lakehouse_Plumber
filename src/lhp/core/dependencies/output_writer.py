@@ -40,6 +40,9 @@ class DependencyOutputWriter:
         job_name: Optional[str] = None,
         job_config_path: Optional[str] = None,
         bundle_output: bool = False,
+        *,
+        trust_depends_on: bool = False,
+        filters_active: bool = False,
     ) -> Dict[str, Path]:
         """
         Save dependency analysis results in specified formats.
@@ -52,6 +55,14 @@ class DependencyOutputWriter:
             job_name: Custom name for orchestration job (only used with job format)
             job_config_path: Custom job config file path (relative to project root)
             bundle_output: If True, save job file to resources/ directory for bundle integration
+            trust_depends_on: Analysis mode for the "job" format's global pass;
+                must match the mode ``result`` was produced with so both share
+                one memoized analysis
+            filters_active: True when ``result`` was produced under a
+                pipeline/blueprint filter. The "job" format is a whole-project
+                DEPLOYMENT artifact (its global pass ignores filters), so it is
+                skipped with a warning rather than silently written from a
+                different flowgroup set than the other outputs
 
         Returns:
             Dictionary mapping format names to generated file paths
@@ -98,7 +109,14 @@ class DependencyOutputWriter:
             generated_files["text"] = text_file
 
         if "job" in output_formats:
-            if result.circular_dependencies:
+            if filters_active:
+                self.logger.warning(
+                    "Skipping job format generation: a pipeline/blueprint "
+                    "filter is active and orchestration job files are "
+                    "whole-project artifacts. Re-run without --pipeline/"
+                    "--blueprint to generate them."
+                )
+            elif result.circular_dependencies:
                 self.logger.warning(
                     "Skipping job format generation due to circular dependencies. "
                     "Circular dependencies must be resolved before orchestration "
@@ -112,6 +130,7 @@ class DependencyOutputWriter:
                     job_name,
                     job_config_path,
                     bundle_output,
+                    trust_depends_on=trust_depends_on,
                 )
                 generated_files["job"] = job_file
 
@@ -233,6 +252,8 @@ class DependencyOutputWriter:
         job_name: Optional[str] = None,
         job_config_path: Optional[str] = None,
         bundle_output: bool = False,
+        *,
+        trust_depends_on: bool = False,
     ) -> Union[Path, Dict[str, Path]]:
         """
         Save job format to standard filename.
@@ -264,7 +285,9 @@ class DependencyOutputWriter:
         # The service validates job_name usage (raising LHP-VAL-001/002 on
         # inconsistent configs), runs the single global analyze pass, and
         # partitions the result per job_name. We only choose the write path.
-        job_results, global_result = analyzer.analyze_dependencies_by_job()
+        job_results, global_result = analyzer.analyze_dependencies_by_job(
+            trust_depends_on=trust_depends_on
+        )
 
         try:
             flowgroups = analyzer.get_flowgroups()

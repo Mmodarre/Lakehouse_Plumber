@@ -440,6 +440,28 @@ silently missing edges.
 
 ### Performance
 
+- **Inter-procedural resolution is budget-bounded.** The call-resolution
+  engine does not memoize guard-degraded results; a Python helper whose
+  resolution repeatedly trips cycle/depth guards therefore re-replayed
+  environments combinatorially — observed at ~1.6 s per action on a real
+  17,695-flowgroup project (an ~8-hour `lhp dag`). Past a guard-hit budget
+  the engine now degrades every further answer straight to "not statically
+  known" (the same conservative direction the guards already move in),
+  bounding the pathological case to ~1 ms per action. Files that never
+  approach the budget resolve exactly as before.
+- **Cross-action Python extraction cache.** Extraction results are memoized
+  per (body content, YAML parameter bindings): thousands of actions binding
+  the same values to one shared helper now pay a single visitor walk instead
+  of one per action.
+- **`lhp dag --trust-depends-on` (opt-in).** An action with a non-empty
+  `depends_on` skips SQL/Python body extraction entirely; its declared
+  entries (plus any explicit `source:` config) become its authoritative
+  source set. A fast path for large projects whose actions fully declare
+  their upstreams.
+- **The graph-build phase is perf-instrumented.** `lhp --perf dag` now logs
+  `dependency_graph_build`, `action_graph_extraction`, and
+  `dependency_analysis` phases, so the formerly silent expensive phase is
+  visible in `.lhp/logs/perf.log`.
 - **One analysis per `lhp dag` invocation.** `analyze_project` is memoized so a
   single command does one discovery + graph build + analysis, shared across
   the analysis, output serialization, and job-orchestration phases (previously
@@ -468,6 +490,43 @@ silently missing edges.
 
 ### Fixed
 
+- **SQL extraction no longer drops the explicit `source:` declaration.** When
+  a SQL body parsed to real tables, the declared `source:` refs were
+  discarded — breaking the documented premise that `$source`-placeholder
+  edges are carried by the declaration. Both parse branches now union with
+  the explicit refs.
+- **No more phantom cross-catalog edges.** A 3-part `catalog.schema.table`
+  read whose exact producer lookup missed could suffix-match a producer in a
+  DIFFERENT explicit catalog; the fallback now reconciles only with
+  empty-catalog (2-part) producers.
+- **Parameter shadowing in Python extraction.** A function parameter now
+  shadows same-named module/outer bindings even when its value is unknown;
+  previously the outer value leaked through, fabricating table names and
+  silently suppressing LHP-DEP-002 advisories.
+- **Pipeline-scoped view matching is case/backtick-insensitive** (matching
+  Spark's view-name resolution), so canonicalized `depends_on` entries and
+  case-variant reads match view targets.
+- **Kwonly parameter seeding models `functools.partial` correctly.** YAML
+  parameters applied as keyword arguments now also seed positional-or-keyword
+  parameters, not just keyword-only ones.
+- **Advisory line numbers anchor to the real file.** Python bodies are no
+  longer stripped of leading blank lines before parsing, so LHP-DEP-002/003
+  `file:line` references match the on-disk source.
+- **`lhp dag --pipeline` is exposed** (the analysis service already supported
+  it), and the `job` output format is skipped with a warning when a
+  pipeline/blueprint filter is active — orchestration job files are
+  whole-project deployment artifacts and were previously written from the
+  unfiltered flowgroup set, inconsistent with the other outputs.
+- **Windows worker pools clamp to 61 processes.** `ProcessPoolExecutor`
+  raises `ValueError` above 61 workers on Windows; auto-detected worker
+  counts on high-core machines could crash generation and cold discovery.
+- **Cyclic graphs no longer crash `get_execution_order`.**
+  `nx.topological_generations` raises `NetworkXUnfeasible`, which is not a
+  `NetworkXError` subclass and slipped past the guard.
+- **Per-job analysis results carry pipeline stages**, and the cross-job
+  dependency log is derived from the edges the job partition actually drops
+  (it could never fire before).
+- **DOT export escapes quotes/backslashes** in node names and labels.
 - **`TemplateEngine` instances pickle with an empty compiled-template memo.**
   The compiled-template cache is per-process state; previously a warm cache
   made sandbox runs on template-using projects fail at the worker spawn

@@ -100,9 +100,10 @@ MATRIX = [
     ("anycat.stg.events", "stg.events"),
     # 2-part source -> 2-part producer.
     ("stg.events", "stg.events"),
-    # 3-part source, unique producer under a DIFFERENT catalog: current LOCKED
-    # behavior matches it (uniqueness guard ignores the source's catalog).
-    ("dev.silver.orders", "cat.silver.orders"),
+    # 3-part source, unique producer under a DIFFERENT explicit catalog: no
+    # match — an explicitly-named catalog only reconciles with an exact 3-part
+    # producer or an empty-catalog (2-part) producer, never a different one.
+    ("dev.silver.orders", None),
     # No producer at all.
     ("cat.nope.missing", None),
     ("nope.missing", None),

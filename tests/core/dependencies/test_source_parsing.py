@@ -1,6 +1,6 @@
 """Unit tests for SourceParser: per-shape parameter bindings + warning stamping.
 
-Pins the exact :class:`ParameterBindings` `_iter_python_bodies` attaches for
+Pins the exact :class:`ParameterBindings` `iter_python_bodies` attaches for
 each of the four Python body shapes — each mirroring its generator/template
 call convention byte-for-byte (``${token}`` values preserved verbatim) — and
 the stamping of parser-emitted advisories with flowgroup/action/file context.
@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from lhp.core.dependencies._bindings import DictValue, ListValue, ParameterBindings
+from lhp.core.dependencies._body_locator import iter_python_bodies
 from lhp.core.dependencies.source_parsing import ActionSources, SourceParser
 from lhp.models import Action, ActionType
 
@@ -28,7 +29,7 @@ def _parser(
 
 
 def _bodies(action: Action) -> list[tuple]:
-    return list(_parser()._iter_python_bodies(action))
+    return list(iter_python_bodies(action))
 
 
 @pytest.mark.unit

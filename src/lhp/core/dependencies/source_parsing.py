@@ -14,21 +14,17 @@ YAML path) plus the project root as constructor inputs.
 """
 
 import logging
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path, PurePath
-from typing import Any, Optional
+from typing import Optional
 
 from lhp.models import Action
 
 from ...errors import ErrorCategory, LHPError
 from ...models.dependencies import DependencyWarning
-from ._binding_rules import (
-    python_load_bindings,
-    snapshot_cdc_bindings,
-    transform_bindings,
-)
 from ._bindings import ParameterBindings
+from ._body_locator import iter_python_bodies, iter_sql_bodies
 from ._canonical import canonicalize_table_ref
 from ._parse_cache import ParseCache
 from .source_extractor import extract_action_sources
@@ -64,6 +60,8 @@ class SourceParser:
         file_paths: dict[str, Path],
         project_root: Path,
         parse_cache: Optional[ParseCache] = None,
+        *,
+        trust_depends_on: bool = False,
     ) -> None:
         """Wire the parser with the resolution context.
 
@@ -77,16 +75,22 @@ class SourceParser:
                 resolution base.
             parse_cache: Per-run read/parse memo shared across actions (the
                 builder threads one in); standalone callers get a fresh one.
+            trust_depends_on: Opt-in fast path. When True, an action with a
+                non-empty ``depends_on`` skips SQL/Python body extraction
+                entirely — its declared entries (plus any explicit
+                ``source:`` config) become its authoritative source set. See
+                :meth:`extract_action_sources`.
         """
         self._file_paths = file_paths
         self.project_root = project_root
         self._parse_cache = parse_cache or ParseCache()
+        self._trust_depends_on = trust_depends_on
         self.logger = logger
 
     def extract_action_sources(
         self, action: Action, flowgroup_name: str
     ) -> ActionSources:
-        """Precedence: SQL parsing (reliable, wins alone) > Python parsing (union with explicit source:) > explicit source declaration (fallback).
+        """Precedence: SQL parsing > Python parsing > explicit source declaration (fallback); both parse branches union with the explicit ``source:`` refs.
 
         ``action.depends_on`` is ADDITIVE for edges: every declared entry is
         canonicalized and unioned on top of the parsed/declared sources above,
@@ -102,7 +106,23 @@ class SourceParser:
         by definition unknown, so "which declared entry covers which read"
         is uncomputable. Documented trade-off: an action with two opaque
         reads and one declared upstream stops warning about the second.
+
+        ``trust_depends_on`` (constructor opt-in) makes a non-empty
+        ``depends_on`` AUTHORITATIVE instead of additive: body extraction is
+        skipped for that action — its bodies are neither read nor parsed, so
+        missing-file errors and parse advisories cannot arise from it — and
+        the source set is exactly the explicit ``source:`` declarations
+        unioned with the canonicalized ``depends_on`` entries. Actions
+        without ``depends_on`` extract exactly as in the default mode.
         """
+        if self._trust_depends_on and getattr(action, "depends_on", None):
+            explicit = extract_action_sources(action)
+            return ActionSources(
+                sources=self._union_depends_on(
+                    sorted(set(explicit)), action, flowgroup_name
+                ),
+                warnings=[],
+            )
         parsed = self._extract_parsed_sources(action, flowgroup_name)
         sources = self._union_depends_on(parsed.sources, action, flowgroup_name)
         suppressed = bool(getattr(action, "depends_on", None))
@@ -121,10 +141,18 @@ class SourceParser:
         """
         sql_sources, sql_warnings = self._extract_sql_sources(action, flowgroup_name)
         if sql_sources:
+            # Union the declared `source:` refs: SQL extraction DROPS bare-$
+            # placeholder tables ($source etc.) on the explicit premise that
+            # the declared source carries that edge (sql_extraction.py) —
+            # returning the parsed tables alone would break that premise for
+            # any body that joins $source with real tables.
+            explicit = extract_action_sources(action)
+            merged = sorted(set(sql_sources) | set(explicit))
             self.logger.debug(
-                f"Using {len(sql_sources)} SQL sources for {flowgroup_name}.{action.name}: {sql_sources}"
+                f"Using {len(merged)} SQL sources for {flowgroup_name}.{action.name} "
+                f"(parser: {sql_sources}, explicit: {explicit})"
             )
-            return ActionSources(sources=sql_sources, warnings=sql_warnings)
+            return ActionSources(sources=merged, warnings=sql_warnings)
 
         python_sources, python_warnings = self._extract_python_sources(
             action, flowgroup_name
@@ -170,99 +198,6 @@ class SourceParser:
             f"(total {len(merged)})"
         )
         return merged
-
-    def _write_target_as_dict(self, action: Action) -> Optional[dict[str, Any]]:
-        """Normalize ``action.write_target`` to a ``dict`` for uniform lookup.
-
-        Returns ``None`` when the action has no write target. Handles both the
-        Pydantic ``WriteTarget`` form and a raw dict (some code paths pre-dump
-        it before reaching the analyzer).
-        """
-        wt = getattr(action, "write_target", None)
-        if wt is None:
-            return None
-        if isinstance(wt, dict):
-            return wt
-        return wt.model_dump()
-
-    def _iter_sql_bodies(
-        self, action: Action
-    ) -> Iterator[tuple[Optional[str], Optional[str]]]:
-        """Yield ``(inline_sql, sql_path)`` for every known SQL location.
-
-        Covers:
-          - ``action.sql`` / ``action.sql_path``
-          - ``action.source["sql"]`` / ``action.source["sql_path"]`` (when
-            ``source["type"] == "sql"``)
-          - ``write_target["sql"]`` / ``write_target["sql_path"]``
-            (materialized-view SQL)
-
-        Either element of a yielded tuple may be ``None``; callers should
-        treat each independently.
-        """
-        yield (
-            getattr(action, "sql", None),
-            getattr(action, "sql_path", None),
-        )
-
-        source = getattr(action, "source", None)
-        if isinstance(source, dict) and source.get("type") == "sql":
-            yield source.get("sql"), source.get("sql_path")
-
-        wt = self._write_target_as_dict(action)
-        if wt is not None:
-            yield wt.get("sql"), wt.get("sql_path")
-
-    def _iter_python_bodies(
-        self, action: Action
-    ) -> Iterator[tuple[Optional[str], Optional[str], Optional[ParameterBindings]]]:
-        """Yield ``(inline_python, file_path, bindings)`` for every Python location.
-
-        Covers top-level ``action.module_path`` (Python transforms),
-        python-load ``source["module_path"]``, ``write_target["module_path"]``
-        (custom sinks), ``write_target["batch_handler"]`` (inline ForEachBatch
-        code), and ``write_target["snapshot_cdc_config"]["source_function"]["file"]``.
-
-        ``bindings`` carries the statically-known YAML parameter values for
-        the body's entry function, mirroring exactly how codegen applies them
-        (see the per-shape ``_*_bindings`` builders). Custom-sink and
-        batch-handler bodies have NO parameters mechanism in codegen (the
-        sink is class-based, the batch handler is an inlined function body —
-        see ``generators/write/sinks/custom_sink.py`` /
-        ``foreachbatch_sink.py``), so their bindings are always ``None``.
-        """
-        module_path = getattr(action, "module_path", None)
-        if module_path:
-            yield None, module_path, transform_bindings(action)
-
-        source = getattr(action, "source", None)
-        if isinstance(source, dict) and source.get("type") == "python":
-            # Python-load actions reference their module via
-            # ``source["module_path"]`` (generators/load/python.py). The file
-            # resolves through the same YAML-dir-then-project-root logic as
-            # every other shape (``_resolve_and_parse_file``).
-            source_module_path = source.get("module_path")
-            if source_module_path:
-                yield None, source_module_path, python_load_bindings(source)
-
-        wt = self._write_target_as_dict(action)
-        if wt is None:
-            return
-
-        wt_module_path = wt.get("module_path")
-        if wt_module_path:
-            yield None, wt_module_path, None
-
-        batch_handler = wt.get("batch_handler")
-        if batch_handler:
-            yield batch_handler, None, None
-
-        cdc = wt.get("snapshot_cdc_config") or {}
-        source_function = cdc.get("source_function") if isinstance(cdc, dict) else None
-        if isinstance(source_function, dict):
-            fn_file = source_function.get("file")
-            if fn_file:
-                yield None, fn_file, snapshot_cdc_bindings(source_function)
 
     def _stamp_warnings(
         self,
@@ -398,7 +333,7 @@ class SourceParser:
 
         sources: list[str] = []
         warnings: list[DependencyWarning] = []
-        for inline_sql, sql_path in self._iter_sql_bodies(action):
+        for inline_sql, sql_path in iter_sql_bodies(action):
             if inline_sql:
                 try:
                     parsed, raw_warnings = _parse_sql(inline_sql)
@@ -442,19 +377,15 @@ class SourceParser:
         context (inline bodies get the flowgroup YAML path, file bodies the
         resolved ``.py`` path).
         """
-        from .python_parser import extract_tables_from_python
 
         def _parser_for(
             bindings: Optional[ParameterBindings],
         ) -> Callable[[str], tuple[list[str], list[DependencyWarning]]]:
             def _parse(code: str) -> tuple[list[str], list[DependencyWarning]]:
-                # One parse + function index per distinct body content; the
-                # bindings-dependent visitor still runs per action.
-                result = extract_tables_from_python(
-                    code,
-                    bindings=bindings,
-                    parsed=self._parse_cache.parse_python(code),
-                )
+                # One visitor walk per distinct (body content, bindings)
+                # pair; the cached result is shared, so hand out the lists
+                # without mutating them (callers copy / replace()).
+                result = self._parse_cache.extract_python(code, bindings)
                 return result.tables, result.warnings
 
             return _parse
@@ -464,7 +395,7 @@ class SourceParser:
 
         sources: list[str] = []
         warnings: list[DependencyWarning] = []
-        for inline_python, file_path, bindings in self._iter_python_bodies(action):
+        for inline_python, file_path, bindings in iter_python_bodies(action):
             parse_fn = _parser_for(bindings)
 
             if inline_python:

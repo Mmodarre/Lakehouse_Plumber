@@ -99,3 +99,63 @@ class TestBuilderParsesSharedHelperOnce:
         for i in range(3):
             node = graphs.action_graph.nodes[f"fg_{i}.act_{i}"]
             assert "cat.sch.orders" in node["external_sources"]
+
+
+@pytest.mark.unit
+class TestPythonExtractionResultCache:
+    """extract_python memoizes per (content hash, frozen bindings)."""
+
+    _CODE = 'df = spark.table("cat.sch.t")\n'
+
+    def test_same_code_and_bindings_share_one_result(self):
+        cache = ParseCache()
+        first = cache.extract_python(self._CODE, None)
+        second = cache.extract_python(self._CODE, None)
+        assert first is second
+        assert first.tables == ["cat.sch.t"]
+
+    def test_equal_bindings_instances_hit_the_same_entry(self):
+        from lhp.core.dependencies._bindings import (
+            DictValue,
+            ParameterBindings,
+        )
+
+        code = "def fn(*, table_name):\n    return spark.table(table_name)\n"
+
+        def make() -> ParameterBindings:
+            return ParameterBindings(
+                function_name="fn",
+                kwonly=DictValue({"table_name": frozenset({"cat.sch.orders"})}),
+            )
+
+        cache = ParseCache()
+        first = cache.extract_python(code, make())
+        second = cache.extract_python(code, make())
+        assert first is second
+        assert first.tables == ["cat.sch.orders"]
+
+    def test_different_bindings_get_distinct_entries(self):
+        from lhp.core.dependencies._bindings import (
+            DictValue,
+            ParameterBindings,
+        )
+
+        code = "def fn(*, table_name):\n    return spark.table(table_name)\n"
+
+        def bindings_for(value: str) -> ParameterBindings:
+            return ParameterBindings(
+                function_name="fn",
+                kwonly=DictValue({"table_name": frozenset({value})}),
+            )
+
+        cache = ParseCache()
+        a = cache.extract_python(code, bindings_for("cat.sch.a"))
+        b = cache.extract_python(code, bindings_for("cat.sch.b"))
+        assert a.tables == ["cat.sch.a"]
+        assert b.tables == ["cat.sch.b"]
+
+    def test_unparseable_code_caches_empty_result(self):
+        cache = ParseCache()
+        result = cache.extract_python("def broken(:\n", None)
+        assert result.tables == []
+        assert result.warnings == []

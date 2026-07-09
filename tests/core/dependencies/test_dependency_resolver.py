@@ -881,6 +881,47 @@ class TestDependencyResolver:
         assert any("must have at least one Load action" in e for e in errors)
         assert any("orphaned_transform" in e for e in errors)
 
+    def test_unproduced_sources_are_never_reported_as_missing(self):
+        """Sources not produced by any action are legitimate external references.
+
+        validate_relationships cannot distinguish a typo from an external
+        table/view, so it must not emit a "not produced by any action" error.
+        """
+        resolver = DependencyResolver()
+
+        actions = [
+            Action(
+                name="load_data",
+                type=ActionType.LOAD,
+                target="v_raw_data",
+                source={"type": "cloudfiles", "path": "/mnt/data"},
+            ),
+            Action(
+                name="transform_data",
+                type=ActionType.TRANSFORM,
+                transform_type=TransformType.SQL,
+                source=["v_raw_data", "catalog.external.table"],
+                target="v_transformed",
+                sql="SELECT * FROM v_raw_data JOIN catalog.external.table USING (id)",
+            ),
+            Action(
+                name="write_data",
+                type=ActionType.WRITE,
+                source="v_transformed",
+                write_target={
+                    "type": "streaming_table",
+                    "catalog": "bronze_cat",
+                    "schema": "bronze_sch",
+                    "table": "output",
+                },
+            ),
+        ]
+
+        errors = resolver.validate_relationships(actions)
+
+        assert not any("not produced by any action" in e for e in errors)
+        assert errors == []
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

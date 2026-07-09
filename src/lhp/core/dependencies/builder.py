@@ -28,6 +28,8 @@ from ...models.dependencies import (
     DependencyGraphs,
     DependencyWarning,
 )
+from ...utils.performance_timer import perf_timer
+from ._canonical import canonicalize_table_ref
 from ._parse_cache import ParseCache
 from ._producers import build_producer_indexes, match_table_producers
 from .source_parsing import SourceParser
@@ -106,7 +108,11 @@ class DependencyGraphBuilder:
         self.logger = logging.getLogger(__name__)
 
     def build_from_flowgroups(
-        self, flowgroups: List[FlowGroup], file_paths: Dict[str, Path]
+        self,
+        flowgroups: List[FlowGroup],
+        file_paths: Dict[str, Path],
+        *,
+        trust_depends_on: bool = False,
     ) -> DependencyGraphs:
         """Build the action/flowgroup/pipeline graph triple from a given set.
 
@@ -117,6 +123,10 @@ class DependencyGraphBuilder:
                 discovered in, used by the :class:`SourceParser` to resolve
                 relative file references. Produced by the service's
                 discovery pass and threaded in here.
+            trust_depends_on: Opt-in fast path threaded into the
+                :class:`SourceParser`: actions with a non-empty
+                ``depends_on`` skip body extraction and use their declared
+                entries as the authoritative source set.
         """
         self.logger.info("Building dependency graphs...")
 
@@ -125,7 +135,7 @@ class DependencyGraphBuilder:
             return self._create_empty_graphs()
 
         action_graph, extraction_warnings = self._build_action_graph(
-            flowgroups, file_paths
+            flowgroups, file_paths, trust_depends_on=trust_depends_on
         )
         flowgroup_graph = self._build_flowgroup_graph(flowgroups, action_graph)
         pipeline_graph = self._build_pipeline_graph(flowgroups, flowgroup_graph)
@@ -156,7 +166,11 @@ class DependencyGraphBuilder:
         )
 
     def _build_action_graph(
-        self, flowgroups: List[FlowGroup], file_paths: Dict[str, Path]
+        self,
+        flowgroups: List[FlowGroup],
+        file_paths: Dict[str, Path],
+        *,
+        trust_depends_on: bool = False,
     ) -> Tuple[nx.DiGraph, List[DependencyWarning]]:
         """Build the action-level dependency graph + stamped extraction warnings."""
         graph = nx.DiGraph()
@@ -164,7 +178,9 @@ class DependencyGraphBuilder:
         # `action.target` produces a temporary view visible only within its own
         # pipeline. Keying on `(pipeline, target)` prevents same-named views in
         # sibling pipelines (common with blueprint expansion) from generating
-        # phantom cross-pipeline edges. Views are NOT canonicalized and are NOT
+        # phantom cross-pipeline edges. View names ARE canonicalized (case /
+        # backticks / whitespace — Spark resolves view names case-insensitively,
+        # and declared `depends_on` entries arrive canonicalized) but are NOT
         # subject to the 2-part<->3-part table reconciliation below: they are
         # pipeline-scoped names, not global catalog objects.
         view_target_to_action: Dict[Tuple[str, str], List[str]] = defaultdict(list)
@@ -184,9 +200,9 @@ class DependencyGraphBuilder:
                 )
 
                 if action.target:
-                    view_target_to_action[(flowgroup.pipeline, action.target)].append(
-                        action_id
-                    )
+                    view_target_to_action[
+                        (flowgroup.pipeline, canonicalize_table_ref(action.target))
+                    ].append(action_id)
 
         # CHOKE POINT (i) PRODUCER REGISTRATION lives in `_producers`. It owns
         # the canonical global table indexes (ref canonicalization + delta
@@ -205,37 +221,47 @@ class DependencyGraphBuilder:
         # producer whose write_target resolved to a concrete catalog — this is a
         # documented authoring constraint, NOT fixed by ref canonicalization.
         source_parser = SourceParser(
-            file_paths, self.project_root, parse_cache=self._parse_cache
+            file_paths,
+            self.project_root,
+            parse_cache=self._parse_cache,
+            trust_depends_on=trust_depends_on,
         )
         extraction_warnings: List[DependencyWarning] = []
 
-        for flowgroup in flowgroups:
-            for action in flowgroup.actions:
-                action_id = f"{flowgroup.flowgroup}.{action.name}"
-                action_sources = source_parser.extract_action_sources(
-                    action, flowgroup.flowgroup
-                )
-                extraction_warnings.extend(action_sources.warnings)
-
-                for source in action_sources.sources:
-                    # CHOKE POINT (ii) EDGE-MATCH LOOKUP. View path first
-                    # (pipeline-scoped, raw key, NO canonicalization); fall back
-                    # to the global, canonicalized table path.
-                    producers = view_target_to_action.get(
-                        (flowgroup.pipeline, source)
-                    ) or match_table_producers(
-                        source, table_producers, table_short_to_catalogs
+        n_actions = sum(len(fg.actions) for fg in flowgroups)
+        with perf_timer(
+            f"action_graph_extraction [{n_actions} actions]",
+            category="action_graph_extraction",
+        ):
+            for flowgroup in flowgroups:
+                for action in flowgroup.actions:
+                    action_id = f"{flowgroup.flowgroup}.{action.name}"
+                    action_sources = source_parser.extract_action_sources(
+                        action, flowgroup.flowgroup
                     )
+                    extraction_warnings.extend(action_sources.warnings)
 
-                    if producers:
-                        for source_action_id in producers:
-                            graph.add_edge(
-                                source_action_id, action_id, dependency_type="internal"
-                            )
-                    else:
-                        if "external_sources" not in graph.nodes[action_id]:
-                            graph.nodes[action_id]["external_sources"] = []
-                        graph.nodes[action_id]["external_sources"].append(source)
+                    for source in action_sources.sources:
+                        # CHOKE POINT (ii) EDGE-MATCH LOOKUP. View path first
+                        # (pipeline-scoped, canonical key); fall back to the
+                        # global, canonicalized table path.
+                        producers = view_target_to_action.get(
+                            (flowgroup.pipeline, canonicalize_table_ref(source))
+                        ) or match_table_producers(
+                            source, table_producers, table_short_to_catalogs
+                        )
+
+                        if producers:
+                            for source_action_id in producers:
+                                graph.add_edge(
+                                    source_action_id,
+                                    action_id,
+                                    dependency_type="internal",
+                                )
+                        else:
+                            if "external_sources" not in graph.nodes[action_id]:
+                                graph.nodes[action_id]["external_sources"] = []
+                            graph.nodes[action_id]["external_sources"].append(source)
 
         return graph, _aggregate_warnings(extraction_warnings)
 

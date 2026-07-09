@@ -14,7 +14,12 @@ It is NOT a global fixpoint: every answer is computed lazily on first ask
 and memoized. Cycles (recursion), excessive call depth and value-set blowups
 all degrade to ``None`` ("not statically known") — conservative in the
 direction that keeps the LHP-DEP-002 advisory alive rather than silently
-mis-resolving. The engine never touches tables or warnings.
+mis-resolving. Because guard-degraded results are not memoized, a module
+that trips guards on every path would re-replay environments per query;
+:data:`MAX_GUARD_HITS` bounds that: past the budget the engine is
+*exhausted* and every further answer degrades immediately (same
+conservative direction, O(1) cost). The engine never touches tables or
+warnings.
 
 Environments replay statement-level bindings through the SAME
 :func:`~lhp.core.dependencies._bound_folding.binding_updates` helper the
@@ -64,10 +69,13 @@ def compute_seed_bindings(
     Mirrors codegen's lookup (``_find_function_node`` in
     ``generators/write/snapshot_cdc_source_function.py``): only direct
     children of ``tree.body``, plain ``ast.FunctionDef`` only, FIRST match
-    wins. Kwonly style: each entry binds to the function's matching
-    keyword-only argument name; leftover entries bind as one ``DictValue``
-    to the ``**kwargs`` name when the function has one, else they stay
-    silently unbound. Dict style: the positional parameter at
+    wins. Kwonly style: codegen applies the entries as KEYWORD arguments via
+    ``functools.partial``, which at runtime binds any named parameter — so
+    each entry binds to the function's matching keyword-only OR
+    positional-or-keyword argument name (positional-ONLY params cannot be
+    passed by keyword and are excluded); leftover entries bind as one
+    ``DictValue`` to the ``**kwargs`` name when the function has one, else
+    they stay silently unbound. Dict style: the positional parameter at
     ``dict_arg_index`` (within posonly + args) is bound to the whole
     parameters dict; an out-of-range index is a signature mismatch → NO
     binding at all (locked design L2 — never guess).
@@ -92,10 +100,10 @@ def compute_seed_bindings(
 
     seeded: Dict[str, Bound] = {}
     if bindings.kwonly is not None:
-        kwonly_names = {arg.arg for arg in target.args.kwonlyargs}
+        named = {arg.arg for arg in (*target.args.args, *target.args.kwonlyargs)}
         leftovers: Dict[str, Bound] = {}
         for key, bound in bindings.kwonly.entries.items():
-            if key in kwonly_names:
+            if key in named:
                 seeded[key] = bound
             else:
                 leftovers[key] = bound
@@ -143,8 +151,20 @@ class CallResolutionEngine:
         # Every cycle/depth guard hit bumps this counter. A result computed
         # while ANY guard fired is conservative-but-degraded: it is returned
         # (degradation only ever moves toward "unresolved") but NOT memoized,
-        # so a later clean recomputation can do better.
+        # so a later clean recomputation can do better. Past MAX_GUARD_HITS
+        # the engine is exhausted (see the constant's rationale) and every
+        # oracle query short-circuits to "not statically known".
         self._guard_hits = 0
+
+    @property
+    def exhausted(self) -> bool:
+        """Whether the guard-hit budget is spent (all further answers degrade).
+
+        Monotonic: once True it never resets, so every post-exhaustion query
+        uniformly answers "not statically known" (already-memoized clean
+        results are still served).
+        """
+        return self._guard_hits > MAX_GUARD_HITS
 
     # ---- Public oracle surface ----
 
@@ -161,6 +181,8 @@ class CallResolutionEngine:
         key = (func, name)
         if key in self._param_memo:
             return self._param_memo[key]
+        if self.exhausted:
+            return None
         if key in self._params_in_progress or self._depth >= MAX_CALL_DEPTH:
             self._guard_hits += 1
             return None
@@ -197,6 +219,8 @@ class CallResolutionEngine:
         func = info.node
         if func in self._return_memo:
             return self._return_memo[func]
+        if self.exhausted:
+            return None
         if func in self._returns_in_progress or self._depth >= MAX_CALL_DEPTH:
             self._guard_hits += 1
             return None
@@ -333,9 +357,11 @@ class CallResolutionEngine:
                 if info is not None and (
                     name in info.positional_params or name in info.kwonly_params
                 ):
-                    param = self.resolve_param(func, name)
-                    if param is not None:
-                        return param
+                    # A declared parameter SHADOWS every outer binding: an
+                    # unresolvable parameter must answer "unknown", never
+                    # expose a same-named outer/module value the runtime
+                    # would not see.
+                    return self.resolve_param(func, name)
             return self._module_environment().get(name)
 
         return resolve
@@ -356,6 +382,10 @@ class CallResolutionEngine:
         env: Dict[str, Bound] = (
             dict(self._seed_bindings) if func is self._seed_target else {}
         )
+        if self.exhausted:
+            # Seeds-only, no replay: the replay is exactly the work that
+            # goes combinatorial once nothing memoizes anymore.
+            return env
         self._envs_in_progress[func] = env
         snapshot = self._guard_hits
         try:
@@ -374,6 +404,8 @@ class CallResolutionEngine:
         if self._module_env_partial is not None:
             self._guard_hits += 1
             return self._module_env_partial
+        if self.exhausted:
+            return {}
         env: Dict[str, Bound] = {}
         self._module_env_partial = env
         snapshot = self._guard_hits
@@ -409,9 +441,8 @@ class CallResolutionEngine:
                 if info is not None and (
                     name in info.positional_params or name in info.kwonly_params
                 ):
-                    param = self.resolve_param(func, name)
-                    if param is not None:
-                        return param
+                    # Parameter shadowing: see _name_resolver_for.
+                    return self.resolve_param(func, name)
                 assert outer_resolver is not None
                 return outer_resolver(name)
             return None

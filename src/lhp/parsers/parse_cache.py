@@ -132,8 +132,10 @@ class PersistentParseCache:
             with tempfile.NamedTemporaryFile(
                 dir=self.cache_dir, suffix=".tmp", delete=False
             ) as tmp:
-                tmp.write(data)
+                # Capture the name before writing so the except-branch unlink
+                # also covers a failed write, not just a failed replace.
                 tmp_name = tmp.name
+                tmp.write(data)
             os.replace(tmp_name, self.cache_dir / self._shard_name(resolved_path))
         except Exception as e:
             logger.debug(f"Parse cache write failed for {resolved_path}: {e}")

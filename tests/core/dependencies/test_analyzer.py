@@ -8,6 +8,7 @@ import networkx as nx
 import pytest
 
 from lhp.core.coordination.validation_service import ValidationService
+from lhp.core.dependencies._body_locator import iter_python_bodies, iter_sql_bodies
 from lhp.core.dependencies.analyzer import DependencyAnalyzer
 from lhp.core.dependencies.output import export_to_dot, export_to_json
 from lhp.core.dependencies.service import DependencyAnalysisService
@@ -1091,11 +1092,7 @@ class TestWriteTargetExtraction:
         action = self._make_action(
             write_target={"type": "materialized_view", "sql_path": "sql/mv.sql"}
         )
-        results = list(
-            SourceParser(
-                self.analyzer._flowgroup_file_paths, self.analyzer.project_root
-            )._iter_sql_bodies(action)
-        )
+        results = list(iter_sql_bodies(action))
         # (top-level sql/sql_path), (write_target sql/sql_path)
         assert (None, None) in results
         assert (None, "sql/mv.sql") in results
@@ -1104,11 +1101,7 @@ class TestWriteTargetExtraction:
         action = self._make_action(
             write_target={"type": "materialized_view", "sql": "SELECT 1 FROM x"}
         )
-        results = list(
-            SourceParser(
-                self.analyzer._flowgroup_file_paths, self.analyzer.project_root
-            )._iter_sql_bodies(action)
-        )
+        results = list(iter_sql_bodies(action))
         assert ("SELECT 1 FROM x", None) in results
 
     def test_iter_sql_bodies_handles_pydantic_model_and_dict_forms(self):
@@ -1118,22 +1111,14 @@ class TestWriteTargetExtraction:
                 return {"type": "materialized_view", "sql_path": "sql/mv.sql"}
 
         action = self._make_action(write_target=FakeWriteTarget())
-        results = list(
-            SourceParser(
-                self.analyzer._flowgroup_file_paths, self.analyzer.project_root
-            )._iter_sql_bodies(action)
-        )
+        results = list(iter_sql_bodies(action))
         assert (None, "sql/mv.sql") in results
 
         # Dict form
         action_dict = self._make_action(
             write_target={"type": "materialized_view", "sql_path": "sql/mv.sql"}
         )
-        results_dict = list(
-            SourceParser(
-                self.analyzer._flowgroup_file_paths, self.analyzer.project_root
-            )._iter_sql_bodies(action_dict)
-        )
+        results_dict = list(iter_sql_bodies(action_dict))
         assert (None, "sql/mv.sql") in results_dict
 
     def test_iter_sql_bodies_combines_all_three_sources(self):
@@ -1147,11 +1132,7 @@ class TestWriteTargetExtraction:
                 "sql_path": "c.sql",
             },
         )
-        results = list(
-            SourceParser(
-                self.analyzer._flowgroup_file_paths, self.analyzer.project_root
-            )._iter_sql_bodies(action)
-        )
+        results = list(iter_sql_bodies(action))
         assert ("SELECT 1", "a.sql") in results
         assert ("SELECT 2", "b.sql") in results
         assert ("SELECT 3", "c.sql") in results
@@ -1160,11 +1141,7 @@ class TestWriteTargetExtraction:
         action = self._make_action(
             write_target={"type": "custom", "module_path": "sinks/custom.py"}
         )
-        results = list(
-            SourceParser(
-                self.analyzer._flowgroup_file_paths, self.analyzer.project_root
-            )._iter_python_bodies(action)
-        )
+        results = list(iter_python_bodies(action))
         assert (None, "sinks/custom.py", None) in results
 
     def test_iter_python_bodies_yields_batch_handler_inline(self):
@@ -1174,11 +1151,7 @@ class TestWriteTargetExtraction:
                 "batch_handler": "def handler(df, epoch): spark.table('a.b.c')",
             }
         )
-        results = list(
-            SourceParser(
-                self.analyzer._flowgroup_file_paths, self.analyzer.project_root
-            )._iter_python_bodies(action)
-        )
+        results = list(iter_python_bodies(action))
         assert any(inline and "spark.table" in inline for inline, _, _ in results)
 
     def test_iter_python_bodies_yields_snapshot_cdc_source_function(self):
@@ -1188,11 +1161,7 @@ class TestWriteTargetExtraction:
                 "snapshot_cdc_config": {"source_function": {"file": "cdc/source.py"}},
             }
         )
-        results = list(
-            SourceParser(
-                self.analyzer._flowgroup_file_paths, self.analyzer.project_root
-            )._iter_python_bodies(action)
-        )
+        results = list(iter_python_bodies(action))
         # No `function` key in source_function -> no bindings (never speculate).
         assert (None, "cdc/source.py", None) in results
 
@@ -1200,11 +1169,7 @@ class TestWriteTargetExtraction:
         action = self._make_action(
             type=ActionType.TRANSFORM, module_path="transforms/t.py"
         )
-        results = list(
-            SourceParser(
-                self.analyzer._flowgroup_file_paths, self.analyzer.project_root
-            )._iter_python_bodies(action)
-        )
+        results = list(iter_python_bodies(action))
         assert (None, "transforms/t.py", None) in results
 
     @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
@@ -1435,10 +1400,13 @@ class TestWriteTargetExtraction:
         assert "explicit.src" in external_sources
 
     @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
-    def test_extract_action_sources_sql_does_not_union_explicit(
-        self, mockget_flowgroups
-    ):
-        """SQL action: parser wins — explicit sources suppressed when SQL parser matches."""
+    def test_extract_action_sources_sql_unions_explicit(self, mockget_flowgroups):
+        """SQL action: parsed tables UNION with the explicit source declaration.
+
+        SQL extraction drops bare-$ placeholder tables ($source) on the
+        premise that the declared source carries that edge — so the declared
+        refs must survive alongside the parsed ones.
+        """
         yaml_path = self.temp_dir / "x.yaml"
         sql_file = self.temp_dir / "q.sql"
         sql_file.write_text("SELECT * FROM parser.src")
@@ -1463,8 +1431,7 @@ class TestWriteTargetExtraction:
             graphs.action_graph.nodes["fg.action"].get("external_sources", [])
         )
         assert "parser.src" in external_sources
-        # SQL precedence: explicit is intentionally dropped.
-        assert "explicit.src" not in external_sources
+        assert "explicit.src" in external_sources
 
     @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
     def test_sql_path_file_body_produces_internal_edge(self, mockget_flowgroups):
@@ -1581,3 +1548,107 @@ class TestExtractionWarningPlumbing:
             assert job_result.warnings == [], (
                 f"job '{job_name}' must not carry extraction warnings"
             )
+
+
+class TestPartitionResultByJobStagesAndCrossJob:
+    """Per-job stage assignment and cross-job input logging.
+
+    job_a: p1 (fg1) feeds p2 (fg2) and p4 (fg4) — two stages, the second
+    parallel. job_b: p3 (fg3) reads from fg2, so partitioning drops the
+    fg2 -> fg3 edge and fg2 is a cross-job input of job_b.
+    """
+
+    @staticmethod
+    def _global_graphs() -> DependencyGraphs:
+        action_graph = nx.DiGraph()
+        action_graph.add_node(
+            "fg1.write_bronze", flowgroup="fg1", external_sources=["raw.landing"]
+        )
+        action_graph.add_node("fg2.write_silver", flowgroup="fg2")
+        action_graph.add_node("fg4.write_silver_b", flowgroup="fg4")
+        action_graph.add_node("fg3.write_gold", flowgroup="fg3")
+        action_graph.add_edge("fg1.write_bronze", "fg2.write_silver")
+        action_graph.add_edge("fg1.write_bronze", "fg4.write_silver_b")
+        action_graph.add_edge("fg2.write_silver", "fg3.write_gold")
+
+        flowgroup_graph = nx.DiGraph()
+        flowgroup_graph.add_nodes_from(["fg1", "fg2", "fg4", "fg3"])
+        flowgroup_graph.add_edge("fg1", "fg2")
+        flowgroup_graph.add_edge("fg1", "fg4")
+        flowgroup_graph.add_edge("fg2", "fg3")
+
+        pipeline_graph = nx.DiGraph()
+        for pipeline in ("p1", "p2", "p4", "p3"):
+            pipeline_graph.add_node(pipeline, flowgroup_count=1, action_count=1)
+        pipeline_graph.add_edge("p1", "p2")
+        pipeline_graph.add_edge("p1", "p4")
+        pipeline_graph.add_edge("p2", "p3")
+
+        return DependencyGraphs(
+            action_graph=action_graph,
+            flowgroup_graph=flowgroup_graph,
+            pipeline_graph=pipeline_graph,
+            metadata={},
+        )
+
+    @staticmethod
+    def _flowgroups():
+        return [
+            FlowGroup(pipeline="p1", flowgroup="fg1", job_name="job_a"),
+            FlowGroup(pipeline="p2", flowgroup="fg2", job_name="job_a"),
+            FlowGroup(pipeline="p4", flowgroup="fg4", job_name="job_a"),
+            FlowGroup(pipeline="p3", flowgroup="fg3", job_name="job_b"),
+        ]
+
+    def test_per_job_pipeline_stages_are_populated(self):
+        analyzer = DependencyAnalyzer()
+        global_result = analyzer.analyze(self._global_graphs())
+
+        job_results = analyzer.partition_result_by_job(
+            global_result, self._flowgroups()
+        )
+
+        job_a = job_results["job_a"]
+        assert [set(stage) for stage in job_a.execution_stages] == [
+            {"p1"},
+            {"p2", "p4"},
+        ]
+        assert job_a.pipeline_dependencies["p1"].stage == 0
+        assert job_a.pipeline_dependencies["p1"].can_run_parallel is False
+        assert job_a.pipeline_dependencies["p2"].stage == 1
+        assert job_a.pipeline_dependencies["p2"].can_run_parallel is True
+        assert job_a.pipeline_dependencies["p4"].stage == 1
+        assert job_a.pipeline_dependencies["p4"].can_run_parallel is True
+
+        job_b = job_results["job_b"]
+        assert job_b.pipeline_dependencies["p3"].stage == 0
+        assert job_b.pipeline_dependencies["p3"].can_run_parallel is False
+
+    def test_cross_job_inputs_logged_from_dropped_edges(self, caplog):
+        import logging
+
+        analyzer = DependencyAnalyzer()
+        global_result = analyzer.analyze(self._global_graphs())
+
+        with caplog.at_level(logging.INFO, logger="lhp.core.dependencies.analyzer"):
+            analyzer.partition_result_by_job(global_result, self._flowgroups())
+
+        messages = [record.getMessage() for record in caplog.records]
+        assert "Job 'job_b' depends on 1 source(s) from other jobs: fg2" in messages
+        # job_a has no incoming cross-job edges, so no log line for it.
+        assert not any("Job 'job_a' depends on" in message for message in messages)
+
+
+class TestGetExecutionOrderOnCycles:
+    def test_cyclic_pipeline_graph_returns_empty_instead_of_raising(self):
+        pipeline_graph = nx.DiGraph()
+        pipeline_graph.add_edge("p1", "p2")
+        pipeline_graph.add_edge("p2", "p1")
+        graphs = DependencyGraphs(
+            action_graph=nx.DiGraph(),
+            flowgroup_graph=nx.DiGraph(),
+            pipeline_graph=pipeline_graph,
+            metadata={},
+        )
+
+        assert DependencyAnalyzer().get_execution_order(graphs) == []

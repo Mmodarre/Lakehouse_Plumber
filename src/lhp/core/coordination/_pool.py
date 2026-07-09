@@ -49,6 +49,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 import multiprocessing
+import sys
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import (
@@ -310,6 +311,11 @@ def _run_flowgroup_pool_core(
     if worklist:
         # Workload cap: never spawn more workers than flowgroups.
         workers = min(max(1, max_workers), len(worklist))
+        if sys.platform == "win32":
+            # ProcessPoolExecutor raises ValueError above 61 workers on
+            # Windows (WaitForMultipleObjects handle limit). Same clamp in
+            # core/discovery/_parse_pool.run_parse_pool.
+            workers = min(workers, 61)
         ctx_mp = multiprocessing.get_context("spawn")
         parent_level = logging.getLogger().level
         perf_on = is_perf_enabled()

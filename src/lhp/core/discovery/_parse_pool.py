@@ -33,6 +33,7 @@ from __future__ import annotations
 import logging
 import math
 import multiprocessing
+import sys
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
@@ -147,6 +148,12 @@ def run_parse_pool(paths: Sequence[Path], max_workers: int) -> List[ParsedFileOu
     if n_files == 0:
         return []
     workers = min(max(1, max_workers), max(1, n_files // FILES_PER_WORKER))
+    if sys.platform == "win32":
+        # ProcessPoolExecutor raises ValueError above 61 workers on Windows
+        # (WaitForMultipleObjects handle limit) — and this constructor sits
+        # outside the never-raise guards. Same clamp in
+        # core/coordination/_pool._run_flowgroup_pool_core.
+        workers = min(workers, 61)
     batch_size = max(1, math.ceil(n_files / (workers * 4)))
     batches: List[List[Path]] = [
         list(paths[i : i + batch_size]) for i in range(0, n_files, batch_size)
