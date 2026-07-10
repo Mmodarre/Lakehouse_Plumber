@@ -120,7 +120,23 @@ describe('usePushChannel', () => {
     expect(keys).toContainEqual(['execution-order'])
     expect(keys).toContainEqual(['circular-deps'])
     expect(keys).toContainEqual(['stats'])
-    expect(invalidateSpy).toHaveBeenCalledTimes(13)
+    expect(keys).toContainEqual(['file-content', 'pipelines/a.yaml'])
+    expect(invalidateSpy).toHaveBeenCalledTimes(14)
+  })
+
+  it('file-changed invalidates a per-path file-content key for EACH changed path', () => {
+    const { invalidateSpy } = mount()
+    latestSource().emitMessage(
+      'file-changed',
+      JSON.stringify({ paths: ['lhp.yaml', 'config/pipeline_config_dev.yaml', 42] }),
+    )
+
+    const keys = invalidateSpy.mock.calls.map(([arg]) => arg?.queryKey)
+    expect(keys).toContainEqual(['file-content', 'lhp.yaml'])
+    expect(keys).toContainEqual(['file-content', 'config/pipeline_config_dev.yaml'])
+    // Non-string entries are skipped, never turned into keys.
+    expect(keys).not.toContainEqual(['file-content', 42])
+    expect(invalidateSpy).toHaveBeenCalledTimes(15) // 13 broad + 2 per-path
   })
 
   it('ignores file-changed events it cannot parse', () => {

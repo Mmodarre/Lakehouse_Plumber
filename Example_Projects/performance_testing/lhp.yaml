@@ -89,6 +89,11 @@ operational_metadata:
       expression: "F.current_timestamp()"
       description: "When the record was processed by the pipeline"
       applies_to: ["streaming_table", "materialized_view", "view"]
+event_log:
+  enabled: true
+  catalog: ${catalog}
+  schema: ${meta_schema}
+  name_prefix: evnt_
 
 # event_log:
 #   catalog: "{catalog}"

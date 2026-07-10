@@ -26,8 +26,9 @@ function authHeaders(): Record<string, string> {
   return token ? { 'X-LHP-Token': token } : {}
 }
 
-// Shared non-2xx handler for the JSON and text fetch helpers. Always throws.
-async function raiseApiError(response: Response): Promise<never> {
+// Shared non-2xx handler for the JSON/text fetch helpers and the run-stream
+// opener (./stream). Always throws.
+export async function raiseApiError(response: Response): Promise<never> {
   let detail: ErrorDetail | undefined
   let detailMessage: string | undefined
   try {

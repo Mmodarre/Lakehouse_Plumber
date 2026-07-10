@@ -80,60 +80,78 @@
                     "type": "object",
                     "description": "Column definitions for operational metadata",
                     "additionalProperties": {
-                        "type": "object",
-                        "properties": {
-                            "expression": {
+                        "oneOf": [
+                            {
                                 "type": "string",
-                                "description": "Spark SQL expression for the column"
+                                "description": "Shorthand: a bare string is the Spark SQL expression for the column"
                             },
-                            "description": {
-                                "type": "string",
-                                "description": "Description of the column"
-                            },
-                            "applies_to": {
-                                "type": "array",
-                                "items": {
-                                    "type": "string",
-                                    "enum": ["streaming_table", "materialized_view","view"]
-                                },
-                                "default": ["streaming_table", "materialized_view"],
-                                "description": "Which write target types this column applies to"
-                            },
-                            "additional_imports": {
-                                "type": "array",
-                                "items": {
-                                    "type": "string"
-                                },
-                                "description": "Additional imports needed for this column"
-                            },
-                            "enabled": {
-                                "type": "boolean",
-                                "default": true,
-                                "description": "Whether this column is enabled"
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "expression": {
+                                        "type": "string",
+                                        "description": "Spark SQL expression for the column"
+                                    },
+                                    "description": {
+                                        "type": "string",
+                                        "description": "Description of the column"
+                                    },
+                                    "applies_to": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "enum": ["streaming_table", "materialized_view","view"]
+                                        },
+                                        "default": ["streaming_table", "materialized_view"],
+                                        "description": "Which write target types this column applies to"
+                                    },
+                                    "additional_imports": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "description": "Additional imports needed for this column"
+                                    },
+                                    "enabled": {
+                                        "type": "boolean",
+                                        "default": true,
+                                        "description": "Whether this column is enabled"
+                                    }
+                                }
                             }
-                        },
-                        "required": ["expression"]
+                        ]
                     }
                 },
                 "presets": {
                     "type": "object",
                     "description": "Preset definitions for operational metadata",
                     "additionalProperties": {
-                        "type": "object",
-                        "properties": {
-                            "columns": {
+                        "oneOf": [
+                            {
                                 "type": "array",
                                 "items": {
                                     "type": "string"
                                 },
-                                "description": "List of column names in this preset"
+                                "description": "Shorthand: a bare list is the list of column names in this preset"
                             },
-                            "description": {
-                                "type": "string",
-                                "description": "Description of the preset"
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "columns": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        },
+                                        "description": "List of column names in this preset"
+                                    },
+                                    "description": {
+                                        "type": "string",
+                                        "description": "Description of the preset"
+                                    }
+                                },
+                                "required": ["columns"]
                             }
-                        },
-                        "required": ["columns"]
+                        ]
                     }
                 },
                 "defaults": {
@@ -204,7 +222,6 @@
                 },
                 "job_config_path": {
                     "type": "string",
-                    "minLength": 1,
                     "description": "Relative path (from project root) to the dedicated monitoring job config YAML. Required when monitoring.enabled is true (enforced at validation time)."
                 },
                 "max_concurrent_streams": {
@@ -265,6 +282,65 @@
                     "description": "Maximum concurrent tag operations (the hook's ThreadPoolExecutor max_workers for the one-shot pass over all tables/columns)."
                 }
             }
+        },
+        "test_reporting": {
+            "type": "object",
+            "description": "Test-result reporting configuration. Points at a user-supplied Python callable that publishes test results.",
+            "required": ["module_path", "function_name"],
+            "properties": {
+                "module_path": {
+                    "type": "string",
+                    "description": "Path to the provider Python file (e.g. src/my_publisher.py)"
+                },
+                "function_name": {
+                    "type": "string",
+                    "description": "Name of the callable inside module_path that publishes results"
+                },
+                "config_file": {
+                    "type": "string",
+                    "description": "Optional path to a configuration file passed to the provider"
+                }
+            }
+        },
+        "wheel": {
+            "type": "object",
+            "description": "Per-project wheel packaging configuration (used by pipelines with packaging: wheel)",
+            "properties": {
+                "artifact_volume": {
+                    "type": "string",
+                    "description": "Unity Catalog volume path where built wheels are uploaded (e.g. /Volumes/catalog/schema/volume). Supports LHP substitution tokens; the /Volumes/... shape is validated post-substitution."
+                }
+            }
+        },
+        "sandbox": {
+            "type": "object",
+            "description": "Team-level developer-sandbox policy for lhp generate --sandbox",
+            "properties": {
+                "strategy": {
+                    "type": "string",
+                    "enum": ["table"],
+                    "default": "table",
+                    "description": "Sandbox isolation strategy (only 'table' is supported)"
+                },
+                "table_pattern": {
+                    "type": "string",
+                    "default": "{namespace}_{table}",
+                    "description": "Format pattern for sandboxed table leaf names. Must contain both {namespace} and {table}; literal text between placeholders is limited to letters, digits, and underscores."
+                },
+                "allowed_envs": {
+                    "type": "array",
+                    "description": "Environments where sandbox mode is permitted. Omit to allow all environments; an empty list is rejected.",
+                    "items": {
+                        "type": "string",
+                        "description": "Environment name (e.g. dev)"
+                    }
+                }
+            }
+        },
+        "apply_formatting": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether to run the terminal code-formatting pass over generated Python files. Set to false to skip formatting for faster builds; the AST-parse validity guard (LHP-CFG-031) always runs regardless. The CLI --no-format flag overrides this key."
         }
     }
 } 

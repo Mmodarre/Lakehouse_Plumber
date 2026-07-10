@@ -13,12 +13,12 @@
 project_defaults:
   catalog: ${catalog}
   schema: ${bronze_schema}
-  packaging: source
+  packaging: wheel
   serverless: true
   edition: ADVANCED
   channel: CURRENT
   continuous: false
-  photon: true
+  photon: false
   configuration:
     pipelines.enableTrackHistory: "true"
     spark.databricks.delta.schema.autoMerge.enabled: "true"
@@ -26,7 +26,6 @@ project_defaults:
     project: perf_test_edw
     managed_by: lakehouse_plumber
     env: ${env}
-
 ---
 # Raw layer ingestion — domain A
 pipeline: domain_a_raw
@@ -113,3 +112,14 @@ packaging: source
 tags:
   layer: streaming
   domain: kafka_perf
+---
+pipeline:
+  - domain_a_bronze
+  - domain_a_modelled
+  - domain_b_gold
+  - domain_c_bronze
+  - domain_c_raw
+  - domain_r_bronze
+  - domain_o_bronze
+packaging: source
+serverless: false

@@ -13,6 +13,8 @@ export type SchemaKind =
   | 'template'
   | 'substitution'
   | 'project'
+  | 'pipeline_config'
+  | 'job_config'
 
 /**
  * Fetch a canonical packaged JSON schema by kind.

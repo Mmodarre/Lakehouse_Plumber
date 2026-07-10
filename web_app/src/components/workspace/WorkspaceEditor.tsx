@@ -1,7 +1,8 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
-import { useBlocker, useLocation } from 'react-router-dom'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Loader2, Lock, Minimize2 } from 'lucide-react'
+import { useDirtyGuardSource } from '../../store/dirtyGuardStore'
 import { useWorkspaceStore, isReadOnlyPath } from '../../store/workspaceStore'
 import { useRunStore } from '../../store/runStore'
 import { Badge } from '../ui/badge'
@@ -56,7 +57,6 @@ export function WorkspaceEditor() {
   const captureTimerRef = useRef<number | null>(null)
 
   const [pendingClose, setPendingClose] = useState<string | null>(null)
-  const navDecidedRef = useRef(false)
   const [addFilePath, setAddFilePath] = useState('')
   const [addFileCategory, setAddFileCategory] = useState('')
 
@@ -243,28 +243,28 @@ export function WorkspaceEditor() {
     setActive(null)
   }, [location.key, setActive])
 
-  // Route navigation while any buffer is dirty → confirm discard first. The
-  // dialog's open state derives straight from the blocker (no mirrored
-  // state): proceed/reset re-render and close it.
-  const blocker = useBlocker(anyDirty)
-  const navBlocked = blocker.state === 'blocked'
-
-  const handleNavDiscard = useCallback(() => {
-    navDecidedRef.current = true
+  // Route navigation while any buffer is dirty → confirm discard first.
+  // The prompt itself lives in Layout's NavigationGuard (the app's single
+  // useBlocker); this surface only contributes its dirty state + discard
+  // action to the shared registry so other dirty surfaces (config forms)
+  // are guarded in the SAME prompt instead of being silently dropped.
+  const discardForNav = useCallback(() => {
     applyDiscard()
     setActive(null)
-    if (blocker.state === 'blocked') blocker.proceed()
-  }, [applyDiscard, setActive, blocker])
+  }, [applyDiscard, setActive])
 
-  const handleNavConfirmChange = useCallback(
-    (open: boolean) => {
-      if (open) return
-      // Radix also fires close after the discard action ran — don't reset a
-      // blocker that has already proceeded.
-      if (!navDecidedRef.current && blocker.state === 'blocked') blocker.reset()
-      navDecidedRef.current = false
-    },
-    [blocker],
+  useDirtyGuardSource(
+    'workspace',
+    useMemo(
+      () =>
+        anyDirty
+          ? {
+              message: `Unsaved changes in ${dirtyCount} file(s) will be lost.`,
+              onDiscard: discardForNav,
+            }
+          : null,
+      [anyDirty, dirtyCount, discardForNav],
+    ),
   )
 
   // ── tab handlers ───────────────────────────────────────────
@@ -488,14 +488,6 @@ export function WorkspaceEditor() {
         }}
         description={`Unsaved changes to ${pendingCloseName ?? 'this file'} will be lost.`}
         onDiscard={handleConfirmedClose}
-      />
-
-      {/* Dirty-navigation confirmation (useBlocker) */}
-      <DiscardChangesDialog
-        open={navBlocked}
-        onOpenChange={handleNavConfirmChange}
-        description={`Unsaved changes in ${dirtyCount} file(s) will be lost.`}
-        onDiscard={handleNavDiscard}
       />
 
       {/* 412 stale-write resolution */}

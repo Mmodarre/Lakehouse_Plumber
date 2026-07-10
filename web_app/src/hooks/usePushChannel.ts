@@ -110,6 +110,12 @@ export function usePushChannel(): void {
       for (const key of FILE_CHANGED_KEYS) {
         void queryClient.invalidateQueries({ queryKey: [key] })
       }
+      // Per-path raw-content queries (the Config UI's useConfigFile):
+      // exact keys, so an edit to one file never refetches every open one.
+      for (const path of payload.paths) {
+        if (typeof path !== 'string') continue
+        void queryClient.invalidateQueries({ queryKey: ['file-content', path] })
+      }
     }
 
     const handleRunUpdated = (event: Event) => {

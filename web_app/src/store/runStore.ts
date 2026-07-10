@@ -322,9 +322,12 @@ export function useRunController(): RunController {
       pipeline?: string,
     ) => {
       if (stream.isRunning) return
+      // The run-config binding (set by the pipeline tab's "Use for runs"
+      // toggle, shown in the header chip) applies to BOTH run kinds.
+      const { selectedPipelineConfig } = useUIStore.getState()
       begin(kind)
       stream.start(
-        { path, env, pipeline },
+        { path, env, pipeline, pipeline_config: selectedPipelineConfig ?? undefined },
         {
           onFrame: (frame) => applyFrame(frame),
           onError: (error) => fail(error),

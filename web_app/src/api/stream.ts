@@ -1,5 +1,4 @@
-import type { ErrorDetail } from '../types/api'
-import { ApiError } from './client'
+import { raiseApiError } from './client'
 import { getToken } from '../lib/session-token'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
@@ -9,6 +8,14 @@ export type StreamPath = '/api/validate/stream' | '/api/generate/stream'
 export interface StreamBody {
   env: string
   pipeline?: string
+  /**
+   * Project-relative pipeline_config path the run should use (the IDE
+   * counterpart of the CLI's `--pipeline-config`). Omitted (undefined →
+   * dropped by JSON.stringify) when no run config is selected, keeping the
+   * wire body identical to the pre-selection shape. The backend guards the
+   * path (403 escaping the project root, 404 missing file).
+   */
+  pipeline_config?: string
 }
 
 /**
@@ -40,28 +47,10 @@ export async function startStream(
     signal,
   })
 
-  if (!response.ok) {
-    let detail: ErrorDetail | undefined
-    try {
-      const errorBody = await response.json()
-      detail = errorBody.error ?? errorBody
-    } catch {
-      // non-JSON error response
-    }
-
-    if (detail?.code) {
-      throw new ApiError(response.status, detail)
-    }
-    throw new ApiError(response.status, {
-      code: 'UNKNOWN_ERROR',
-      category: 'unknown',
-      message: `Stream request failed: ${response.status} ${response.statusText}`,
-      details: '',
-      suggestions: [],
-      context: {},
-      http_status: response.status,
-    })
-  }
+  // Shared with fetchApi so plain FastAPI `{detail: "..."}` bodies (the
+  // pipeline_config 403/404 guards) surface their message instead of a
+  // generic "Stream request failed".
+  if (!response.ok) await raiseApiError(response)
 
   return response
 }

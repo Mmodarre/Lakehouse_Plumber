@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Toaster } from '../ui/sonner'
 import { Header } from './Header'
+import { NavigationGuard } from './NavigationGuard'
 import { Sidebar } from './Sidebar'
 import { StatusBar } from './StatusBar'
 import { OfflineBanner } from './OfflineBanner'
@@ -167,6 +168,10 @@ export function Layout() {
         )}
       </div>
       <StatusBar />
+
+      {/* The app's single route blocker: prompts over every dirty-guard
+          source (workspace buffers, config forms) in one dialog. */}
+      <NavigationGuard />
 
       <ErrorBoundary fallback={<ModalErrorFallback onClose={closeModal} />} resetKeys={[modalOpen]}>
         <DetailModal />

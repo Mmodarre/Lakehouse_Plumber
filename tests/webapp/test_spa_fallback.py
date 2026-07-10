@@ -14,7 +14,9 @@ Covers :mod:`lhp.webapp.static_app` in both hermetic modes (``no_static`` /
 - a JSON client on an unknown non-``/api`` path always gets JSON ``404``, even
   with a built SPA;
 - a percent-encoded traversal probe is rejected by the files router with JSON,
-  never an HTML response.
+  never an HTML response;
+- caching: every ``index.html`` response carries ``Cache-Control: no-cache``
+  (fresh shell after a rebuild) while hashed ``/assets`` files are immutable.
 """
 
 from __future__ import annotations
@@ -57,10 +59,16 @@ def test_route_raised_404_detail_preserved(client: TestClient) -> None:
 
 
 def test_root_serves_index_with_static(with_static: TestClient) -> None:
-    """GET / serves the fixture's index.html (marker text) when built."""
+    """GET / serves the fixture's index.html (marker text) when built.
+
+    ``index.html`` must revalidate on every load (``Cache-Control:
+    no-cache``): a heuristically cached shell would keep referencing hashed
+    chunks a newer build has deleted.
+    """
     resp = with_static.get("/")
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/html")
+    assert resp.headers["cache-control"] == "no-cache"
     assert 'id="root"' in resp.text
     assert WITH_STATIC_INDEX_MARKER in resp.text
 
@@ -88,10 +96,15 @@ def test_head_root_ok_without_static(no_static: TestClient) -> None:
 
 
 def test_assets_mount_serves_bundle_file(with_static: TestClient) -> None:
-    """GET /assets/app.js is served by the StaticFiles mount with JS content."""
+    """GET /assets/app.js is served by the StaticFiles mount with JS content.
+
+    Hashed bundle files are immutable — a changed file is a new URL — so they
+    carry far-future caching, NOT the ``no-cache`` the entry points get.
+    """
     resp = with_static.get("/assets/app.js")
     assert resp.status_code == 200
     assert "javascript" in resp.headers["content-type"]
+    assert resp.headers["cache-control"] == "public, max-age=31536000, immutable"
     assert resp.text == "export const marker = 1;\n"
 
 
@@ -110,6 +123,7 @@ def test_client_side_route_serves_index_with_static(with_static: TestClient) -> 
     resp = with_static.get("/flowgroups", headers=_HTML_ACCEPT)
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/html")
+    assert resp.headers["cache-control"] == "no-cache"
     assert 'id="root"' in resp.text
     assert WITH_STATIC_INDEX_MARKER in resp.text
 

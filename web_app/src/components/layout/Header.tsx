@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
   Boxes,
@@ -6,6 +6,7 @@ import {
   ChevronDown,
   ChevronsUpDown,
   CircleCheck,
+  FileCog,
   Layers,
   Loader2,
   PanelLeft,
@@ -13,7 +14,9 @@ import {
   Sparkles,
   Wifi,
   WifiOff,
+  X,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import {
@@ -42,12 +45,14 @@ import { ThemeToggle } from './ThemeToggle'
 import { cn } from '../../lib/utils'
 import { useProject, useHealth } from '../../hooks/useProject'
 import { useEnvironments } from '../../hooks/useEnvironments'
+import { useFileList } from '../../hooks/useFiles'
 import { usePipelines } from '../../hooks/usePipelines'
+import type { FileNode } from '../../types/api'
 import { useUIStore } from '../../store/uiStore'
 import { useRunController, useRunStore } from '../../store/runStore'
 import { useAssistantStore } from '../../store/assistantStore'
 
-// ── Small helpers (not exported) ────────────────────────
+// ── Small helpers (only RunConfigChip is exported, for tests) ──
 
 /** 16px LHP pipe-glyph mark (mirrors public/favicon.svg). */
 function LogoMark() {
@@ -155,12 +160,80 @@ function PipelineCombobox() {
   )
 }
 
+/** Does the files tree contain `path` as a file? (local walk — Header must
+ * not import components/config support modules, which live in the lazy
+ * Config chunk). */
+function treeHasFile(node: FileNode, path: string): boolean {
+  if (node.type === 'file') return node.path === path
+  return (node.children ?? []).some((child) => treeHasFile(child, path))
+}
+
+/**
+ * Run-config indicator: a chip beside the env selector, visible on every
+ * page while a pipeline config is bound to runs (the pipeline tab's "Use
+ * for runs" toggle → uiStore.selectedPipelineConfig). Shows the filename,
+ * carries the full path in its tooltip, and clears via ✕.
+ *
+ * Also the stale-selection guard: the always-mounted Header is the one
+ * place that can watch the files tree from any page, so when the tree
+ * confirms the bound path no longer exists the selection self-clears with
+ * a toast (instead of wedging every future run on the backend's 404).
+ * While the tree is still loading the selection is trusted, mirroring the
+ * Config tab's picker behavior.
+ *
+ * Exported for tests; rendered only by Header.
+ */
+export function RunConfigChip() {
+  const selected = useUIStore((s) => s.selectedPipelineConfig)
+  const setSelected = useUIStore((s) => s.setSelectedPipelineConfig)
+  const { data: tree } = useFileList()
+
+  const stale = selected !== null && tree !== undefined && !treeHasFile(tree, selected)
+  useEffect(() => {
+    if (!stale || selected === null) return
+    // Re-check against the live store: StrictMode re-runs effects, and the
+    // first run already cleared it.
+    if (useUIStore.getState().selectedPipelineConfig !== selected) return
+    setSelected(null)
+    const name = selected.split('/').pop() ?? selected
+    toast.info(`${name} no longer exists — runs use no pipeline config`)
+  }, [stale, selected, setSelected])
+
+  if (selected === null) return null
+  const name = selected.split('/').pop() ?? selected
+
+  return (
+    <Badge
+      variant="outline"
+      title={`Runs use ${selected} for Validate/Generate`}
+      className="max-w-40 gap-1 rounded-sm px-1.5 text-2xs text-muted-foreground lg:max-w-56"
+    >
+      <FileCog className="size-3 shrink-0" aria-hidden="true" />
+      <span className="truncate font-mono">{name}</span>
+      <button
+        type="button"
+        onClick={() => {
+          setSelected(null)
+          toast.info('Runs no longer use a pipeline config')
+        }}
+        aria-label={`Stop using ${name} for runs`}
+        className="shrink-0 rounded-xs text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <X className="size-3" aria-hidden="true" />
+      </button>
+    </Badge>
+  )
+}
+
 const NAV_LINKS = [
   { to: '/', label: 'Dashboard' },
   { to: '/flowgroups', label: 'Flowgroups' },
   { to: '/tables', label: 'Tables' },
   { to: '/validation', label: 'Validation' },
   { to: '/runs', label: 'Runs' },
+  // NavLink default (non-`end`) matching keeps this active for the whole
+  // /config/:section? subtree.
+  { to: '/config', label: 'Config' },
 ]
 
 // Lifecycle resource pages grouped under one "Resources" dropdown so the
@@ -277,6 +350,9 @@ export function Header() {
       <div className="ml-auto flex items-center gap-2">
         {/* Pipeline filter */}
         <PipelineCombobox />
+
+        {/* Run-config indicator (only while a pipeline config is bound) */}
+        <RunConfigChip />
 
         {/* Environment selector */}
         <Select value={selectedEnv} onValueChange={setSelectedEnv}>

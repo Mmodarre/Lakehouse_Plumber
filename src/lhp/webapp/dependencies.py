@@ -1,16 +1,21 @@
 """FastAPI dependency functions for the ``lhp web`` local IDE backend.
 
-The webapp is a single-user local server: one project, one facade. The
+The webapp is a single-user local server over one project. The
 :class:`~lhp.api.LakehousePlumberApplicationFacade` is expensive to build
-(it composes the full service graph) and caches discovered flowgroups, so it
-is created lazily on first use and cached on ``request.app.state`` for the
-lifetime of the process.
+(it composes the full service graph) and caches discovered flowgroups, so
+instances are created lazily on first use and cached on
+``request.app.state.facades`` for the lifetime of the process — a dict keyed
+by the resolved absolute pipeline-config path the facade was built with
+(``None`` for the default, config-less facade; the streaming router keys runs
+by the request's ``pipeline_config``, mirroring the CLI's ``--pipeline-config``
+flag).
 
 Because that cache would otherwise never see edits made through the file-write
-surface, :func:`invalidate_facade` drops the cached instance so the next
+surface, :func:`invalidate_facade` drops every cached instance so the next
 request rebuilds a fresh service graph that re-discovers flowgroups from disk.
 Both the build and the invalidation are serialised by ``_facade_lock`` so a
-concurrent request cannot observe or race a half-swapped ``app.state.facade``.
+concurrent request cannot observe or race a half-swapped
+``app.state.facades``.
 
 Per the ``webapp-uses-public-api`` import contract, this module may import
 only :mod:`lhp.api` / :mod:`lhp.errors` from the ``lhp`` package (plus
@@ -30,9 +35,9 @@ from lhp.api import InspectionFacade, LakehousePlumberApplicationFacade
 from lhp.webapp.settings import WebappSettings
 from lhp.webapp.settings import get_settings as _get_settings
 
-# Serialises the lazy build in :func:`get_facade` against
+# Serialises the lazy builds in :func:`get_facade_for` against
 # :func:`invalidate_facade` so a mutation-driven invalidation and a concurrent
-# read never race the ``app.state.facade`` swap.
+# read never race the ``app.state.facades`` swap.
 _facade_lock = threading.Lock()
 
 
@@ -46,38 +51,76 @@ def get_project_root() -> Path:
     return get_settings().project_root
 
 
-def get_facade(request: Request) -> LakehousePlumberApplicationFacade:
-    """Return the one cached application facade for this process.
+def _cache_key(pipeline_config: Optional[str]) -> Optional[str]:
+    """Canonicalise a pipeline-config path into its facade-cache key.
 
-    Built lazily on first request via
-    :meth:`LakehousePlumberApplicationFacade.for_project` and cached on
-    ``request.app.state.facade`` so every subsequent request reuses the same
-    fully-wired service graph. Uses double-checked locking so the expensive
-    build happens once even under concurrent first requests, and so a rebuild
-    triggered by :func:`invalidate_facade` is observed atomically.
+    Resolved against the PROJECT ROOT (never the process cwd — the server may
+    have been launched from anywhere), so the key and the path handed to
+    ``for_project`` are stable and absolute. An already-absolute input passes
+    through ``Path.__truediv__`` unchanged. ``None`` keys the default facade.
     """
-    facade: Optional[LakehousePlumberApplicationFacade] = getattr(
-        request.app.state, "facade", None
+    if pipeline_config is None:
+        return None
+    return str((get_project_root() / pipeline_config).resolve())
+
+
+def get_facade_for(
+    request: Request, pipeline_config: Optional[str]
+) -> LakehousePlumberApplicationFacade:
+    """Return the cached application facade keyed by ``pipeline_config``.
+
+    ``pipeline_config`` is a pipeline-config YAML path (project-relative or
+    absolute) or ``None`` for the default facade. Built lazily via
+    :meth:`LakehousePlumberApplicationFacade.for_project` — with the resolved
+    absolute path as ``pipeline_config_path`` — and cached in the
+    ``request.app.state.facades`` dict so subsequent requests for the same
+    config reuse the same fully-wired service graph. Uses double-checked
+    locking so the expensive build happens once even under concurrent first
+    requests, and so a rebuild triggered by :func:`invalidate_facade` is
+    observed atomically.
+    """
+    key = _cache_key(pipeline_config)
+    cache: Optional[dict[Optional[str], LakehousePlumberApplicationFacade]] = getattr(
+        request.app.state, "facades", None
     )
-    if facade is not None:
-        return facade
+    if cache is not None:
+        facade = cache.get(key)
+        if facade is not None:
+            return facade
     with _facade_lock:
-        facade = getattr(request.app.state, "facade", None)
+        cache = getattr(request.app.state, "facades", None)
+        if cache is None:
+            cache = {}
+            request.app.state.facades = cache
+        facade = cache.get(key)
         if facade is None:
-            facade = LakehousePlumberApplicationFacade.for_project(get_project_root())
-            request.app.state.facade = facade
+            facade = LakehousePlumberApplicationFacade.for_project(
+                get_project_root(), pipeline_config_path=key
+            )
+            cache[key] = facade
     return facade
 
 
+def get_facade(request: Request) -> LakehousePlumberApplicationFacade:
+    """Return the default (config-less) cached application facade.
+
+    Equivalent to ``get_facade_for(request, None)`` — the facade every DI user
+    outside the streaming router depends on.
+    """
+    return get_facade_for(request, None)
+
+
 def invalidate_facade(app: FastAPI) -> None:
-    """Drop the cached facade so the next request rebuilds it from disk.
+    """Drop every cached facade so the next request rebuilds from disk.
 
     Called after a successful file mutation outside the generated/internal
-    trees so the newly-written (or deleted) flowgroup YAML becomes visible to
-    browse / validate / generate without a server restart.
+    trees so the newly-written (or deleted) YAML becomes visible to browse /
+    validate / generate without a server restart. Clears ALL keys: any config
+    edit may affect every facade regardless of which pipeline-config file it
+    was built with.
     """
     with _facade_lock:
-        app.state.facade = None
+        app.state.facades = {}
 
 
 def get_inspection(request: Request) -> InspectionFacade:

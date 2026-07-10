@@ -97,11 +97,79 @@ Run validation and generation from the Validation page:
 
 .. important::
 
-   IDE generation is a code-generation preview: it always runs with
-   Declarative Automation Bundles support disabled, so it neither runs the
-   bundle preflight nor writes bundle resource files. For a deployable build
-   of a bundle-enabled project, run ``lhp generate`` from the CLI (see
-   :doc:`configure_bundles`).
+   Without a pipeline configuration selected for runs, IDE generation is a
+   code-generation preview: it runs with Declarative Automation Bundles
+   support disabled, so it neither runs the bundle preflight nor writes
+   bundle resource files. For a deployable build of a bundle-enabled
+   project, select a pipeline configuration (see
+   `Use a pipeline configuration for runs`_) or run ``lhp generate`` from
+   the CLI (see :doc:`configure_bundles`).
+
+Edit configuration with forms
+-----------------------------
+
+The Config section edits LHP's three configuration surfaces as forms:
+
+* **Project** — ``lhp.yaml``.
+* **Pipelines** — ``config/pipeline_config*.yaml``: pipeline defaults and
+  per-pipeline overrides.
+* **Jobs** — ``config/job_config*.yaml`` and
+  ``config/monitoring_job_config*.yaml``: orchestration job settings.
+
+The Project tab always edits ``lhp.yaml``; the other two tabs pick a file
+from ``config/``. If the file does not exist yet, create it in place from
+the same templates ``lhp init`` scaffolds, named for an environment
+(``config/pipeline_config_<env>.yaml``).
+
+Form saves preserve the file as you wrote it. A save touches only the
+lines you changed: hand-written comments and key order survive, and keys
+the form does not own — ``run_as`` or ``trigger`` in a job document, for
+example — appear as read-only passthrough chips and are written back
+exactly as they appear on disk. Switching an optional section off removes
+its key entirely, never leaving ``key: null`` behind. One caveat: some
+edits — deleting an entry, for example — rewrite the containing document;
+comments stay with their settings, but placement and spacing can shift.
+
+The pipeline editor lists a file's documents in a rail ordered the way LHP
+merges them: built-in defaults (read-only) → the ``project_defaults``
+document → per-pipeline documents, each naming one pipeline
+(``pipeline: bronze``) or a group (``pipeline: [bronze, silver]``) that
+shares its settings. A pipeline appearing in more than one document gets a
+duplicate badge on each — generation rejects the duplicate.
+
+The job editor renders the keys LHP's job generator understands and passes
+everything else through verbatim. A legacy single-document ``job_config``
+file — read in full as project defaults — shows a banner offering an
+explicit conversion to the multi-document layout; a save never converts
+it. Files whose basename starts with ``monitoring_job_config`` are edited
+as a single flat form instead. Do not convert a file referenced by
+``monitoring.job_config_path`` in ``lhp.yaml``: monitoring job configs
+stay single flat documents by design.
+
+Config forms follow the page-wide conflict rules (see `Combine the IDE
+with other tools`_): a stale save — form over raw-YAML edit, or the
+reverse — is rejected with a reload dialog, and a banner flags on-disk
+changes while a form holds unsaved edits. For anything the forms do not
+cover, **Open raw YAML** opens the same file in the YAML editor, whose
+schema hints cover ``lhp.yaml``, pipeline config, and job config files —
+multi-document files validate per document.
+
+Use a pipeline configuration for runs
+-------------------------------------
+
+IDE runs pass no pipeline configuration by default. To run with one — the
+IDE equivalent of the CLI's ``--pipeline-config`` option — open the file
+on the Pipelines tab and switch on **Use for runs**. A chip beside the
+environment selector names the selection; clear it from the chip or the
+toggle. The selection persists across sessions and stays on the file it
+was enabled for — picking another file never silently changes what runs
+use.
+
+With a pipeline configuration selected, generation on a project with
+``databricks.yml`` runs with Declarative Automation Bundles support
+enabled: alongside ``generated/<env>/``, it wipes and regenerates the
+bundle resource files under ``resources/lhp/``, the same as CLI
+generation. Without one, IDE generation stays a code-only preview.
 
 Combine the IDE with other tools
 --------------------------------

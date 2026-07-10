@@ -1,12 +1,13 @@
 """Facade-invalidation tests: file mutations are visible without a restart.
 
-The application facade is built once and cached on ``app.state.facade``; it
-memoizes flowgroup discovery, so without invalidation an edit made through the
+Application facades are built once and cached in the ``app.state.facades``
+dict (keyed by pipeline-config path, ``None`` for the default facade); they
+memoize flowgroup discovery, so without invalidation an edit made through the
 file-write API would stay invisible to browse / validate / generate until the
 process restarts. The files router now calls
 :func:`lhp.webapp.dependencies.invalidate_facade` after any successful mutation
-outside the generated/internal trees, dropping the cache so the next request
-rebuilds a fresh facade that re-discovers from disk.
+outside the generated/internal trees, dropping the whole cache so the next
+request rebuilds a fresh facade that re-discovers from disk.
 
 These tests pin the two staleness blockers end-to-end:
 
@@ -195,7 +196,7 @@ class TestValidateSeesMutations:
         cleanly, failing this test.
         """
         # Warm the facade cache: browse + a clean validate over the untouched
-        # project build and memoize discovery on app.state.facade.
+        # project build and memoize discovery on the cached default facade.
         assert _NEW_FLOWGROUP_NAME not in _flowgroup_names(mutable_client)
         warm_frames = _run_validate_stream(mutable_client, env="dev")
         assert warm_frames[-1].get("type") == "ValidationCompleted"
@@ -234,7 +235,7 @@ class TestYamlErrorStillInvalidates:
         app = mutable_client.app
         # Warm the cache: a facade-building request caches an instance.
         assert mutable_client.get("/api/flowgroups").status_code == 200
-        assert app.state.facade is not None
+        assert app.state.facades.get(None) is not None
 
         resp = mutable_client.put(
             f"/api/files/{_BROKEN_SYNTAX_PATH}",
@@ -243,8 +244,8 @@ class TestYamlErrorStillInvalidates:
         assert resp.status_code == 200
         assert resp.json()["yaml_error"] is not None
 
-        # The write persisted, so the cached facade was reset.
-        assert app.state.facade is None
+        # The write persisted, so the cached facades were dropped.
+        assert app.state.facades == {}
 
 
 class TestInvalidateFacadeUnit:
@@ -256,14 +257,14 @@ class TestInvalidateFacadeUnit:
         app = mutable_client.app
         # First request builds and caches the facade.
         assert mutable_client.get("/api/project").status_code == 200
-        first = app.state.facade
+        first = app.state.facades.get(None)
         assert first is not None
 
         invalidate_facade(app)
-        assert app.state.facade is None
+        assert app.state.facades == {}
 
         # The next request rebuilds a fresh, distinct instance.
         assert mutable_client.get("/api/project").status_code == 200
-        second = app.state.facade
+        second = app.state.facades.get(None)
         assert second is not None
         assert second is not first
