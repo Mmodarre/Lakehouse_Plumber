@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: dose_response_dim
     target: v_dose_response_silver
     description: "Load dose_response from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_dose_response_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "dose_response_modelled"
 
   - name: tst_dose_response_modelled_completeness

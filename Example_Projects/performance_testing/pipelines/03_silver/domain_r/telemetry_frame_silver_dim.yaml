@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: telemetry_frame
     target: v_telemetry_frame_bronze
     description: "Load telemetry_frame from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_telemetry_frame_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "telemetry_frame_dim"
       mode: "cdc"
       cdc_config:

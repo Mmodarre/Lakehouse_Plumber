@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: free_agent_fct
     target: v_free_agent_silver
     description: "Load free_agent from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_free_agent_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "free_agent_modelled"
 
   - name: tst_free_agent_modelled_completeness

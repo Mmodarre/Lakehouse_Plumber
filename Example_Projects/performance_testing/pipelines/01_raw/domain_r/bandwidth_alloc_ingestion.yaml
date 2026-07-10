@@ -10,7 +10,7 @@ actions:
       - "_processing_timestamp"
     source:
       type: cloudfiles
-      path: "{landing_volume}/bandwidth_alloc/*.parquet"
+      path: "${landing_volume}/bandwidth_alloc/*.parquet"
       format: parquet
       options:
         cloudFiles.format: parquet
@@ -26,8 +26,8 @@ actions:
     source: v_bandwidth_alloc_cloudfiles
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
+      catalog: "${catalog}"
+      schema: "${raw_schema}"
       table: "bandwidth_alloc_raw"
 
   - name: tst_bandwidth_alloc_raw_completeness

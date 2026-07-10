@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: filtration_dim
     target: v_filtration_silver
     description: "Load filtration from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_filtration_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "filtration_modelled"
 
   - name: tst_filtration_modelled_completeness

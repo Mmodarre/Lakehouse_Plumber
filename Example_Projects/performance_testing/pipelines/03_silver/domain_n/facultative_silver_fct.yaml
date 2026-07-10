@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: facultative
     target: v_facultative_bronze
     description: "Load facultative from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_facultative_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "facultative_fct"
       mode: "cdc"
       cdc_config:

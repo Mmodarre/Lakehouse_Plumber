@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.dessert_fct
+        FROM ${catalog}.${silver_schema}.dessert_fct
     target: v_dessert_report
 
   - name: write_dessert_report_mv
@@ -17,8 +17,8 @@ actions:
     source: v_dessert_report
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "dessert_report_mv"
 
   - name: tst_dessert_report_completeness

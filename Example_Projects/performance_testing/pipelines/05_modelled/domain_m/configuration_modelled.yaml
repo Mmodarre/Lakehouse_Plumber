@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: configuration_dim
     target: v_configuration_silver
     description: "Load configuration from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_configuration_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "configuration_modelled"
 
   - name: tst_configuration_modelled_completeness

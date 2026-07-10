@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.setlist_dim
+        FROM ${catalog}.${silver_schema}.setlist_dim
     target: v_setlist_analysis
 
   - name: write_setlist_analysis_mv
@@ -17,8 +17,8 @@ actions:
     source: v_setlist_analysis
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "setlist_analysis_mv"
 
   - name: tst_setlist_analysis_completeness

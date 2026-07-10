@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.chart_position_dim
+        FROM ${catalog}.${silver_schema}.chart_position_dim
     target: v_chart_position_analysis
 
   - name: write_chart_position_analysis_mv
@@ -17,8 +17,8 @@ actions:
     source: v_chart_position_analysis
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "chart_position_analysis_mv"
 
   - name: tst_chart_position_analysis_completeness

@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: flow_cytometry
     target: v_flow_cytometry_bronze
     description: "Load flow_cytometry from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_flow_cytometry_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "flow_cytometry_dim"
       mode: "cdc"
       cdc_config:

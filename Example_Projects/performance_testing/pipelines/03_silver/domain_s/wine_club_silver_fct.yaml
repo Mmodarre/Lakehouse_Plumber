@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: wine_club
     target: v_wine_club_bronze
     description: "Load wine_club from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_wine_club_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "wine_club_fct"
       mode: "cdc"
       cdc_config:

@@ -4,7 +4,7 @@
 prod:
   env: prod
   catalog: acme_edw_prod
-  landing_volume: /Volumes/{catalog}/{raw_schema}/incoming_volume
+  landing_volume: /Volumes/${catalog}/${raw_schema}/incoming_volume
   migration_schema: edw_old
   raw_schema: edw_raw
   bronze_schema: edw_bronze

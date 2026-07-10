@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.restaurant_fct
+        FROM ${catalog}.${silver_schema}.restaurant_fct
     target: v_restaurant_summary
 
   - name: write_restaurant_summary_mv
@@ -17,8 +17,8 @@ actions:
     source: v_restaurant_summary
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "restaurant_summary_mv"
 
   - name: tst_restaurant_summary_completeness

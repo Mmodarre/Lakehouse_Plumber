@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: substitution_dim
     target: v_substitution_silver
     description: "Load substitution from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_substitution_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "substitution_modelled"
 
   - name: tst_substitution_modelled_completeness

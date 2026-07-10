@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: stream_event_dim
     target: v_stream_event_silver
     description: "Load stream_event from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_stream_event_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "stream_event_modelled"
 
   - name: tst_stream_event_modelled_completeness

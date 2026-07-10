@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: contract_deal_dim
     target: v_contract_deal_silver
     description: "Load contract_deal from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_contract_deal_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "contract_deal_modelled"
 
   - name: tst_contract_deal_modelled_completeness

@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: attitude_control_dim
     target: v_attitude_control_silver
     description: "Load attitude_control from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_attitude_control_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "attitude_control_modelled"
 
   - name: tst_attitude_control_modelled_completeness

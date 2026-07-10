@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: lyric_sheet
     target: v_lyric_sheet_bronze
     description: "Load lyric_sheet from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_lyric_sheet_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "lyric_sheet_dim"
       mode: "cdc"
       cdc_config:

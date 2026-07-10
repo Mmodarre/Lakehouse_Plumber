@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: encryption_key_fct
     target: v_encryption_key_silver
     description: "Load encryption_key from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_encryption_key_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "encryption_key_modelled"
 
   - name: tst_encryption_key_modelled_completeness

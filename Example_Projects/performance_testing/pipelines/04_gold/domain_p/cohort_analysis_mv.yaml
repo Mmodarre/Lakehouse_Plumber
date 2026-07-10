@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.cohort_dim
+        FROM ${catalog}.${silver_schema}.cohort_dim
     target: v_cohort_analysis
 
   - name: write_cohort_analysis_mv
@@ -17,8 +17,8 @@ actions:
     source: v_cohort_analysis
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "cohort_analysis_mv"
 
   - name: tst_cohort_analysis_completeness

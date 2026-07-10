@@ -22,7 +22,7 @@ actions:
       - "_processing_timestamp"
     source:
       type: cloudfiles
-      path: "{landing_volume}/{{ landing_folder }}/*.parquet"
+      path: "${landing_volume}/{{ landing_folder }}/*.parquet"
       format: parquet
       options:
         cloudFiles.format: parquet
@@ -40,7 +40,7 @@ actions:
     source: v_{{ table_name }}_cloudfiles
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
+      catalog: "${catalog}"
+      schema: "${raw_schema}"
       table: "{{ table_name }}"
       description: "Write {{ table_name }} to raw layer" 

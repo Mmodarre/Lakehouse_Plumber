@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: playlist_fct
     target: v_playlist_silver
     description: "Load playlist from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_playlist_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "playlist_modelled"
 
   - name: tst_playlist_modelled_completeness

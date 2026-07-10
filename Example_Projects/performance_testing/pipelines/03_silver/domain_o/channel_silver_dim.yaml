@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: channel
     target: v_channel_bronze
     description: "Load channel from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_channel_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "channel_dim"
       mode: "cdc"
       cdc_config:

@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: sentiment_dim
     target: v_sentiment_silver
     description: "Load sentiment from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_sentiment_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "sentiment_modelled"
 
   - name: tst_sentiment_modelled_completeness

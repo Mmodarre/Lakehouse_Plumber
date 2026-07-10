@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: bonus_dim
     target: v_bonus_silver
     description: "Load bonus from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_bonus_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "bonus_modelled"
 
   - name: tst_bonus_modelled_completeness
@@ -62,8 +62,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: commission_fct
     target: v_commission_silver
     description: "Load commission from silver for modelling"
@@ -86,8 +86,8 @@ actions:
     source: v_commission_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "commission_modelled"
 
   - name: tst_commission_modelled_completeness
@@ -116,8 +116,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: overtime_dim
     target: v_overtime_silver
     description: "Load overtime from silver for modelling"
@@ -140,8 +140,8 @@ actions:
     source: v_overtime_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "overtime_modelled"
 
   - name: tst_overtime_modelled_completeness
@@ -170,8 +170,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: attendance_dim
     target: v_attendance_silver
     description: "Load attendance from silver for modelling"
@@ -194,8 +194,8 @@ actions:
     source: v_attendance_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "attendance_modelled"
 
   - name: tst_attendance_modelled_completeness
@@ -224,8 +224,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: badge_fct
     target: v_badge_silver
     description: "Load badge from silver for modelling"
@@ -248,8 +248,8 @@ actions:
     source: v_badge_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "badge_modelled"
 
   - name: tst_badge_modelled_completeness
@@ -278,8 +278,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: workspace_dim
     target: v_workspace_silver
     description: "Load workspace from silver for modelling"
@@ -302,8 +302,8 @@ actions:
     source: v_workspace_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "workspace_modelled"
 
   - name: tst_workspace_modelled_completeness
@@ -332,8 +332,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: team_lead_dim
     target: v_team_lead_silver
     description: "Load team_lead from silver for modelling"
@@ -356,8 +356,8 @@ actions:
     source: v_team_lead_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "team_lead_modelled"
 
   - name: tst_team_lead_modelled_completeness
@@ -386,8 +386,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: org_chart_fct
     target: v_org_chart_silver
     description: "Load org_chart from silver for modelling"
@@ -410,8 +410,8 @@ actions:
     source: v_org_chart_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "org_chart_modelled"
 
   - name: tst_org_chart_modelled_completeness
@@ -440,8 +440,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: headcount_dim
     target: v_headcount_silver
     description: "Load headcount from silver for modelling"
@@ -464,8 +464,8 @@ actions:
     source: v_headcount_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "headcount_modelled"
 
   - name: tst_headcount_modelled_completeness
@@ -494,8 +494,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: requisition_dim
     target: v_requisition_silver
     description: "Load requisition from silver for modelling"
@@ -518,8 +518,8 @@ actions:
     source: v_requisition_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "requisition_modelled"
 
   - name: tst_requisition_modelled_completeness
@@ -548,8 +548,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: background_check_fct
     target: v_background_check_silver
     description: "Load background_check from silver for modelling"
@@ -572,8 +572,8 @@ actions:
     source: v_background_check_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "background_check_modelled"
 
   - name: tst_background_check_modelled_completeness
@@ -602,8 +602,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: drug_test_dim
     target: v_drug_test_silver
     description: "Load drug_test from silver for modelling"
@@ -626,8 +626,8 @@ actions:
     source: v_drug_test_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "drug_test_modelled"
 
   - name: tst_drug_test_modelled_completeness
@@ -656,8 +656,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: exit_interview_dim
     target: v_exit_interview_silver
     description: "Load exit_interview from silver for modelling"
@@ -680,8 +680,8 @@ actions:
     source: v_exit_interview_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "exit_interview_modelled"
 
   - name: tst_exit_interview_modelled_completeness
@@ -710,8 +710,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: alumni_fct
     target: v_alumni_silver
     description: "Load alumni from silver for modelling"
@@ -734,8 +734,8 @@ actions:
     source: v_alumni_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "alumni_modelled"
 
   - name: tst_alumni_modelled_completeness
@@ -764,8 +764,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: mentor_dim
     target: v_mentor_silver
     description: "Load mentor from silver for modelling"
@@ -788,8 +788,8 @@ actions:
     source: v_mentor_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "mentor_modelled"
 
   - name: tst_mentor_modelled_completeness
@@ -818,8 +818,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: skill_matrix_dim
     target: v_skill_matrix_silver
     description: "Load skill_matrix from silver for modelling"
@@ -842,8 +842,8 @@ actions:
     source: v_skill_matrix_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "skill_matrix_modelled"
 
   - name: tst_skill_matrix_modelled_completeness
@@ -872,8 +872,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: competency_fct
     target: v_competency_silver
     description: "Load competency from silver for modelling"
@@ -896,8 +896,8 @@ actions:
     source: v_competency_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "competency_modelled"
 
   - name: tst_competency_modelled_completeness
@@ -926,8 +926,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: succession_plan_dim
     target: v_succession_plan_silver
     description: "Load succession_plan from silver for modelling"
@@ -950,8 +950,8 @@ actions:
     source: v_succession_plan_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "succession_plan_modelled"
 
   - name: tst_succession_plan_modelled_completeness
@@ -980,8 +980,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: workforce_plan_dim
     target: v_workforce_plan_silver
     description: "Load workforce_plan from silver for modelling"
@@ -1004,8 +1004,8 @@ actions:
     source: v_workforce_plan_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "workforce_plan_modelled"
 
   - name: tst_workforce_plan_modelled_completeness
@@ -1034,8 +1034,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: labor_cost_fct
     target: v_labor_cost_silver
     description: "Load labor_cost from silver for modelling"
@@ -1058,8 +1058,8 @@ actions:
     source: v_labor_cost_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "labor_cost_modelled"
 
   - name: tst_labor_cost_modelled_completeness

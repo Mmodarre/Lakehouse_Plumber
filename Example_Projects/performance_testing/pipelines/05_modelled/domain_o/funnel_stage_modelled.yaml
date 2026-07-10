@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: funnel_stage_dim
     target: v_funnel_stage_silver
     description: "Load funnel_stage from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_funnel_stage_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "funnel_stage_modelled"
 
   - name: tst_funnel_stage_modelled_completeness

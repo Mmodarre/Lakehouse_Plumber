@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: venue_fct
     target: v_venue_silver
     description: "Load venue from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_venue_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "venue_modelled"
 
   - name: tst_venue_modelled_completeness

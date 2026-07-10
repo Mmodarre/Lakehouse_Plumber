@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: commutation_dim
     target: v_commutation_silver
     description: "Load commutation from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_commutation_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "commutation_modelled"
 
   - name: tst_commutation_modelled_completeness

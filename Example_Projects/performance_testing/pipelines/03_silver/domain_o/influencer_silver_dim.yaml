@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: influencer
     target: v_influencer_bronze
     description: "Load influencer from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_influencer_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "influencer_dim"
       mode: "cdc"
       cdc_config:

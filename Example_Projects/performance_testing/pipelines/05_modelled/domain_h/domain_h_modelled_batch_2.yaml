@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: planogram_dim
     target: v_planogram_silver
     description: "Load planogram from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_planogram_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "planogram_modelled"
 
   - name: tst_planogram_modelled_completeness
@@ -62,8 +62,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: endcap_fct
     target: v_endcap_silver
     description: "Load endcap from silver for modelling"
@@ -86,8 +86,8 @@ actions:
     source: v_endcap_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "endcap_modelled"
 
   - name: tst_endcap_modelled_completeness
@@ -116,8 +116,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: signage_dim
     target: v_signage_silver
     description: "Load signage from silver for modelling"
@@ -140,8 +140,8 @@ actions:
     source: v_signage_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "signage_modelled"
 
   - name: tst_signage_modelled_completeness
@@ -170,8 +170,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: foot_traffic_dim
     target: v_foot_traffic_silver
     description: "Load foot_traffic from silver for modelling"
@@ -194,8 +194,8 @@ actions:
     source: v_foot_traffic_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "foot_traffic_modelled"
 
   - name: tst_foot_traffic_modelled_completeness
@@ -224,8 +224,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: conversion_rate_fct
     target: v_conversion_rate_silver
     description: "Load conversion_rate from silver for modelling"
@@ -248,8 +248,8 @@ actions:
     source: v_conversion_rate_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "conversion_rate_modelled"
 
   - name: tst_conversion_rate_modelled_completeness
@@ -278,8 +278,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: basket_size_dim
     target: v_basket_size_silver
     description: "Load basket_size from silver for modelling"
@@ -302,8 +302,8 @@ actions:
     source: v_basket_size_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "basket_size_modelled"
 
   - name: tst_basket_size_modelled_completeness
@@ -332,8 +332,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: shrinkage_dim
     target: v_shrinkage_silver
     description: "Load shrinkage from silver for modelling"
@@ -356,8 +356,8 @@ actions:
     source: v_shrinkage_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "shrinkage_modelled"
 
   - name: tst_shrinkage_modelled_completeness
@@ -386,8 +386,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: loss_prevention_fct
     target: v_loss_prevention_silver
     description: "Load loss_prevention from silver for modelling"
@@ -410,8 +410,8 @@ actions:
     source: v_loss_prevention_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "loss_prevention_modelled"
 
   - name: tst_loss_prevention_modelled_completeness
@@ -440,8 +440,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: mystery_shopper_dim
     target: v_mystery_shopper_silver
     description: "Load mystery_shopper from silver for modelling"
@@ -464,8 +464,8 @@ actions:
     source: v_mystery_shopper_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "mystery_shopper_modelled"
 
   - name: tst_mystery_shopper_modelled_completeness
@@ -494,8 +494,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: nps_score_dim
     target: v_nps_score_silver
     description: "Load nps_score from silver for modelling"
@@ -518,8 +518,8 @@ actions:
     source: v_nps_score_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "nps_score_modelled"
 
   - name: tst_nps_score_modelled_completeness
@@ -548,8 +548,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: store_layout_fct
     target: v_store_layout_silver
     description: "Load store_layout from silver for modelling"
@@ -572,8 +572,8 @@ actions:
     source: v_store_layout_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "store_layout_modelled"
 
   - name: tst_store_layout_modelled_completeness
@@ -602,8 +602,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: checkout_lane_dim
     target: v_checkout_lane_silver
     description: "Load checkout_lane from silver for modelling"
@@ -626,8 +626,8 @@ actions:
     source: v_checkout_lane_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "checkout_lane_modelled"
 
   - name: tst_checkout_lane_modelled_completeness
@@ -656,8 +656,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: self_checkout_dim
     target: v_self_checkout_silver
     description: "Load self_checkout from silver for modelling"
@@ -680,8 +680,8 @@ actions:
     source: v_self_checkout_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "self_checkout_modelled"
 
   - name: tst_self_checkout_modelled_completeness
@@ -710,8 +710,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: curbside_fct
     target: v_curbside_silver
     description: "Load curbside from silver for modelling"
@@ -734,8 +734,8 @@ actions:
     source: v_curbside_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "curbside_modelled"
 
   - name: tst_curbside_modelled_completeness
@@ -764,8 +764,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: click_collect_dim
     target: v_click_collect_silver
     description: "Load click_collect from silver for modelling"
@@ -788,8 +788,8 @@ actions:
     source: v_click_collect_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "click_collect_modelled"
 
   - name: tst_click_collect_modelled_completeness
@@ -818,8 +818,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: endless_aisle_dim
     target: v_endless_aisle_silver
     description: "Load endless_aisle from silver for modelling"
@@ -842,8 +842,8 @@ actions:
     source: v_endless_aisle_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "endless_aisle_modelled"
 
   - name: tst_endless_aisle_modelled_completeness
@@ -872,8 +872,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: clienteling_fct
     target: v_clienteling_silver
     description: "Load clienteling from silver for modelling"
@@ -896,8 +896,8 @@ actions:
     source: v_clienteling_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "clienteling_modelled"
 
   - name: tst_clienteling_modelled_completeness
@@ -926,8 +926,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: pos_terminal_dim
     target: v_pos_terminal_silver
     description: "Load pos_terminal from silver for modelling"
@@ -950,8 +950,8 @@ actions:
     source: v_pos_terminal_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "pos_terminal_modelled"
 
   - name: tst_pos_terminal_modelled_completeness
@@ -980,8 +980,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: price_override_dim
     target: v_price_override_silver
     description: "Load price_override from silver for modelling"
@@ -1004,8 +1004,8 @@ actions:
     source: v_price_override_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "price_override_modelled"
 
   - name: tst_price_override_modelled_completeness
@@ -1034,8 +1034,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: rain_check_fct
     target: v_rain_check_silver
     description: "Load rain_check from silver for modelling"
@@ -1058,8 +1058,8 @@ actions:
     source: v_rain_check_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "rain_check_modelled"
 
   - name: tst_rain_check_modelled_completeness

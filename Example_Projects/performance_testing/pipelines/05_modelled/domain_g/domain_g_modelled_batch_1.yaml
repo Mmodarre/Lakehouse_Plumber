@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: property_fct
     target: v_property_silver
     description: "Load property from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_property_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "property_modelled"
 
   - name: tst_property_modelled_completeness
@@ -62,8 +62,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: tenant_dim
     target: v_tenant_silver
     description: "Load tenant from silver for modelling"
@@ -86,8 +86,8 @@ actions:
     source: v_tenant_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "tenant_modelled"
 
   - name: tst_tenant_modelled_completeness
@@ -116,8 +116,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: lease_dim
     target: v_lease_silver
     description: "Load lease from silver for modelling"
@@ -140,8 +140,8 @@ actions:
     source: v_lease_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "lease_modelled"
 
   - name: tst_lease_modelled_completeness
@@ -170,8 +170,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: landlord_fct
     target: v_landlord_silver
     description: "Load landlord from silver for modelling"
@@ -194,8 +194,8 @@ actions:
     source: v_landlord_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "landlord_modelled"
 
   - name: tst_landlord_modelled_completeness
@@ -224,8 +224,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: unit_dim
     target: v_unit_silver
     description: "Load unit from silver for modelling"
@@ -248,8 +248,8 @@ actions:
     source: v_unit_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "unit_modelled"
 
   - name: tst_unit_modelled_completeness
@@ -278,8 +278,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: building_dim
     target: v_building_silver
     description: "Load building from silver for modelling"
@@ -302,8 +302,8 @@ actions:
     source: v_building_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "building_modelled"
 
   - name: tst_building_modelled_completeness
@@ -332,8 +332,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: amenity_fct
     target: v_amenity_silver
     description: "Load amenity from silver for modelling"
@@ -356,8 +356,8 @@ actions:
     source: v_amenity_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "amenity_modelled"
 
   - name: tst_amenity_modelled_completeness
@@ -386,8 +386,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: work_order_dim
     target: v_work_order_silver
     description: "Load work_order from silver for modelling"
@@ -410,8 +410,8 @@ actions:
     source: v_work_order_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "work_order_modelled"
 
   - name: tst_work_order_modelled_completeness
@@ -440,8 +440,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: rent_payment_dim
     target: v_rent_payment_silver
     description: "Load rent_payment from silver for modelling"
@@ -464,8 +464,8 @@ actions:
     source: v_rent_payment_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "rent_payment_modelled"
 
   - name: tst_rent_payment_modelled_completeness
@@ -494,8 +494,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: eviction_fct
     target: v_eviction_silver
     description: "Load eviction from silver for modelling"
@@ -518,8 +518,8 @@ actions:
     source: v_eviction_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "eviction_modelled"
 
   - name: tst_eviction_modelled_completeness
@@ -548,8 +548,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: listing_dim
     target: v_listing_silver
     description: "Load listing from silver for modelling"
@@ -572,8 +572,8 @@ actions:
     source: v_listing_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "listing_modelled"
 
   - name: tst_listing_modelled_completeness
@@ -602,8 +602,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: showing_dim
     target: v_showing_silver
     description: "Load showing from silver for modelling"
@@ -626,8 +626,8 @@ actions:
     source: v_showing_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "showing_modelled"
 
   - name: tst_showing_modelled_completeness
@@ -656,8 +656,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: appraisal_fct
     target: v_appraisal_silver
     description: "Load appraisal from silver for modelling"
@@ -680,8 +680,8 @@ actions:
     source: v_appraisal_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "appraisal_modelled"
 
   - name: tst_appraisal_modelled_completeness
@@ -710,8 +710,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: mortgage_dim
     target: v_mortgage_silver
     description: "Load mortgage from silver for modelling"
@@ -734,8 +734,8 @@ actions:
     source: v_mortgage_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "mortgage_modelled"
 
   - name: tst_mortgage_modelled_completeness
@@ -764,8 +764,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: escrow_dim
     target: v_escrow_silver
     description: "Load escrow from silver for modelling"
@@ -788,8 +788,8 @@ actions:
     source: v_escrow_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "escrow_modelled"
 
   - name: tst_escrow_modelled_completeness
@@ -818,8 +818,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: closing_fct
     target: v_closing_silver
     description: "Load closing from silver for modelling"
@@ -842,8 +842,8 @@ actions:
     source: v_closing_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "closing_modelled"
 
   - name: tst_closing_modelled_completeness
@@ -872,8 +872,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: deed_dim
     target: v_deed_silver
     description: "Load deed from silver for modelling"
@@ -896,8 +896,8 @@ actions:
     source: v_deed_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "deed_modelled"
 
   - name: tst_deed_modelled_completeness
@@ -926,8 +926,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: survey_dim
     target: v_survey_silver
     description: "Load survey from silver for modelling"
@@ -950,8 +950,8 @@ actions:
     source: v_survey_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "survey_modelled"
 
   - name: tst_survey_modelled_completeness
@@ -980,8 +980,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: zoning_fct
     target: v_zoning_silver
     description: "Load zoning from silver for modelling"
@@ -1004,8 +1004,8 @@ actions:
     source: v_zoning_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "zoning_modelled"
 
   - name: tst_zoning_modelled_completeness
@@ -1034,8 +1034,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: permit_dim
     target: v_permit_silver
     description: "Load permit from silver for modelling"
@@ -1058,8 +1058,8 @@ actions:
     source: v_permit_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "permit_modelled"
 
   - name: tst_permit_modelled_completeness

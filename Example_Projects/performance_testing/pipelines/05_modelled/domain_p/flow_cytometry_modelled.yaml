@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: flow_cytometry_dim
     target: v_flow_cytometry_silver
     description: "Load flow_cytometry from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_flow_cytometry_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "flow_cytometry_modelled"
 
   - name: tst_flow_cytometry_modelled_completeness

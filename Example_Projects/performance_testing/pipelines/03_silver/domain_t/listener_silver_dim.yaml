@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: listener
     target: v_listener_bronze
     description: "Load listener from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_listener_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "listener_dim"
       mode: "cdc"
       cdc_config:

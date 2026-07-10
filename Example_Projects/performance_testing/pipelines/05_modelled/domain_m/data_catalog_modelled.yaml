@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: data_catalog_dim
     target: v_data_catalog_silver
     description: "Load data_catalog from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_data_catalog_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "data_catalog_modelled"
 
   - name: tst_data_catalog_modelled_completeness

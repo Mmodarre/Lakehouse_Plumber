@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.fixture_dim
+        FROM ${catalog}.${silver_schema}.fixture_dim
     target: v_fixture_summary
 
   - name: write_fixture_summary_mv
@@ -17,8 +17,8 @@ actions:
     source: v_fixture_summary
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "fixture_summary_mv"
 
   - name: tst_fixture_summary_completeness

@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.eviction_fct
+        FROM ${catalog}.${silver_schema}.eviction_fct
     target: v_eviction_analysis
 
   - name: write_eviction_analysis_mv
@@ -17,8 +17,8 @@ actions:
     source: v_eviction_analysis
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "eviction_analysis_mv"
 
   - name: tst_eviction_analysis_completeness

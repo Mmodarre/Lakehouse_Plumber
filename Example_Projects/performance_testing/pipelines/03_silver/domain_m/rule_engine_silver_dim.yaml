@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: rule_engine
     target: v_rule_engine_bronze
     description: "Load rule_engine from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_rule_engine_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "rule_engine_dim"
       mode: "cdc"
       cdc_config:

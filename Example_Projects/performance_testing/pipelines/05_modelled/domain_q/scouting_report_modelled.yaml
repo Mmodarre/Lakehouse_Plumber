@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: scouting_report_dim
     target: v_scouting_report_silver
     description: "Load scouting_report from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_scouting_report_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "scouting_report_modelled"
 
   - name: tst_scouting_report_modelled_completeness

@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.listener_dim
+        FROM ${catalog}.${silver_schema}.listener_dim
     target: v_listener_summary
 
   - name: write_listener_summary_mv
@@ -17,8 +17,8 @@ actions:
     source: v_listener_summary
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "listener_summary_mv"
 
   - name: tst_listener_summary_completeness

@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: reserve_dim
     target: v_reserve_silver
     description: "Load reserve from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_reserve_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "reserve_modelled"
 
   - name: tst_reserve_modelled_completeness

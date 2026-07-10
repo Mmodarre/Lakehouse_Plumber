@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.rent_payment_dim
+        FROM ${catalog}.${silver_schema}.rent_payment_dim
     target: v_rent_payment_summary
 
   - name: write_rent_payment_summary_mv
@@ -17,8 +17,8 @@ actions:
     source: v_rent_payment_summary
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "rent_payment_summary_mv"
 
   - name: tst_rent_payment_summary_completeness

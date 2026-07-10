@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.endorsement_dim
+        FROM ${catalog}.${silver_schema}.endorsement_dim
     target: v_endorsement_summary
 
   - name: write_endorsement_summary_mv
@@ -17,8 +17,8 @@ actions:
     source: v_endorsement_summary
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "endorsement_summary_mv"
 
   - name: tst_endorsement_summary_completeness

@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: sample_dim
     target: v_sample_silver
     description: "Load sample from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_sample_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "sample_modelled"
 
   - name: tst_sample_modelled_completeness

@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.doctor_dim
+        FROM ${catalog}.${silver_schema}.doctor_dim
     target: v_doctor_analysis
 
   - name: write_doctor_analysis_mv
@@ -17,8 +17,8 @@ actions:
     source: v_doctor_analysis
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "doctor_analysis_mv"
 
   - name: tst_doctor_analysis_completeness

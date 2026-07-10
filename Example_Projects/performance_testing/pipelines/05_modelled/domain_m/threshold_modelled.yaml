@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: threshold_dim
     target: v_threshold_silver
     description: "Load threshold from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_threshold_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "threshold_modelled"
 
   - name: tst_threshold_modelled_completeness

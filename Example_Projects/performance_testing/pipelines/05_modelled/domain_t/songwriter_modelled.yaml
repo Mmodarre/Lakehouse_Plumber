@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: songwriter_fct
     target: v_songwriter_silver
     description: "Load songwriter from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_songwriter_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "songwriter_modelled"
 
   - name: tst_songwriter_modelled_completeness

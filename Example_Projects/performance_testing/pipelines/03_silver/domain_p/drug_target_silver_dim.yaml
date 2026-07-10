@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: drug_target
     target: v_drug_target_bronze
     description: "Load drug_target from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_drug_target_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "drug_target_dim"
       mode: "cdc"
       cdc_config:

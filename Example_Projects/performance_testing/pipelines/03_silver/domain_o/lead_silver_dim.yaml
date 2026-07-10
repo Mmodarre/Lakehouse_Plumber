@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: lead
     target: v_lead_bronze
     description: "Load lead from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_lead_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "lead_dim"
       mode: "cdc"
       cdc_config:

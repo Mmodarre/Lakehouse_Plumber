@@ -38,7 +38,7 @@ actions:
       - "_processing_timestamp"
     source:
       type: cloudfiles
-      path: "{landing_volume}/{{ landing_folder }}/*.csv"
+      path: "${landing_volume}/{{ landing_folder }}/*.csv"
       format: csv
       # Natural YAML object format (was JSON string)
       options:
@@ -61,8 +61,8 @@ actions:
     source: v_{{ table_name }}_cloudfiles
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
+      catalog: "${catalog}"
+      schema: "${raw_schema}"
       table: "{{ table_name }}"
       cluster_columns: "{{ cluster_columns }}"
       description: "Write {{ table_name }} to raw layer" 

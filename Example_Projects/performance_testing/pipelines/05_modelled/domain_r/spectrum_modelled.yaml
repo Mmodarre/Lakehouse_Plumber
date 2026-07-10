@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: spectrum_dim
     target: v_spectrum_silver
     description: "Load spectrum from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_spectrum_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "spectrum_modelled"
 
   - name: tst_spectrum_modelled_completeness

@@ -10,7 +10,7 @@ actions:
           date_trunc('mon', _etl_timestamp) as period,
           count(*) as record_count,
           current_timestamp() as _generated_at
-        FROM {catalog}.{silver_schema}.dna_extract_dim
+        FROM ${catalog}.${silver_schema}.dna_extract_dim
         GROUP BY 1
     target: v_dna_extract_monthly_agg
 
@@ -19,8 +19,8 @@ actions:
     source: v_dna_extract_monthly_agg
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "dna_extract_monthly_agg_mv"
 
   - name: tst_dna_extract_monthly_agg_completeness

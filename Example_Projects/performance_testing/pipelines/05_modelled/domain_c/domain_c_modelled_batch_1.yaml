@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: transaction_fct
     target: v_transaction_silver
     description: "Load transaction from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_transaction_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "transaction_modelled"
 
   - name: tst_transaction_modelled_completeness
@@ -62,8 +62,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: account_dim
     target: v_account_silver
     description: "Load account from silver for modelling"
@@ -86,8 +86,8 @@ actions:
     source: v_account_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "account_modelled"
 
   - name: tst_account_modelled_completeness
@@ -116,8 +116,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: ledger_dim
     target: v_ledger_silver
     description: "Load ledger from silver for modelling"
@@ -140,8 +140,8 @@ actions:
     source: v_ledger_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "ledger_modelled"
 
   - name: tst_ledger_modelled_completeness
@@ -170,8 +170,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: journal_fct
     target: v_journal_silver
     description: "Load journal from silver for modelling"
@@ -194,8 +194,8 @@ actions:
     source: v_journal_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "journal_modelled"
 
   - name: tst_journal_modelled_completeness
@@ -224,8 +224,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: budget_dim
     target: v_budget_silver
     description: "Load budget from silver for modelling"
@@ -248,8 +248,8 @@ actions:
     source: v_budget_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "budget_modelled"
 
   - name: tst_budget_modelled_completeness
@@ -278,8 +278,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: forecast_dim
     target: v_forecast_silver
     description: "Load forecast from silver for modelling"
@@ -302,8 +302,8 @@ actions:
     source: v_forecast_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "forecast_modelled"
 
   - name: tst_forecast_modelled_completeness
@@ -332,8 +332,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: tax_fct
     target: v_tax_silver
     description: "Load tax from silver for modelling"
@@ -356,8 +356,8 @@ actions:
     source: v_tax_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "tax_modelled"
 
   - name: tst_tax_modelled_completeness
@@ -386,8 +386,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: audit_dim
     target: v_audit_silver
     description: "Load audit from silver for modelling"
@@ -410,8 +410,8 @@ actions:
     source: v_audit_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "audit_modelled"
 
   - name: tst_audit_modelled_completeness
@@ -440,8 +440,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: compliance_dim
     target: v_compliance_silver
     description: "Load compliance from silver for modelling"
@@ -464,8 +464,8 @@ actions:
     source: v_compliance_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "compliance_modelled"
 
   - name: tst_compliance_modelled_completeness
@@ -494,8 +494,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: regulation_fct
     target: v_regulation_silver
     description: "Load regulation from silver for modelling"
@@ -518,8 +518,8 @@ actions:
     source: v_regulation_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "regulation_modelled"
 
   - name: tst_regulation_modelled_completeness
@@ -548,8 +548,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: asset_dim
     target: v_asset_silver
     description: "Load asset from silver for modelling"
@@ -572,8 +572,8 @@ actions:
     source: v_asset_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "asset_modelled"
 
   - name: tst_asset_modelled_completeness
@@ -602,8 +602,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: depreciation_dim
     target: v_depreciation_silver
     description: "Load depreciation from silver for modelling"
@@ -626,8 +626,8 @@ actions:
     source: v_depreciation_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "depreciation_modelled"
 
   - name: tst_depreciation_modelled_completeness
@@ -656,8 +656,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: liability_fct
     target: v_liability_silver
     description: "Load liability from silver for modelling"
@@ -680,8 +680,8 @@ actions:
     source: v_liability_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "liability_modelled"
 
   - name: tst_liability_modelled_completeness
@@ -710,8 +710,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: equity_dim
     target: v_equity_silver
     description: "Load equity from silver for modelling"
@@ -734,8 +734,8 @@ actions:
     source: v_equity_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "equity_modelled"
 
   - name: tst_equity_modelled_completeness
@@ -764,8 +764,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: revenue_dim
     target: v_revenue_silver
     description: "Load revenue from silver for modelling"
@@ -788,8 +788,8 @@ actions:
     source: v_revenue_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "revenue_modelled"
 
   - name: tst_revenue_modelled_completeness
@@ -818,8 +818,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: expense_fct
     target: v_expense_silver
     description: "Load expense from silver for modelling"
@@ -842,8 +842,8 @@ actions:
     source: v_expense_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "expense_modelled"
 
   - name: tst_expense_modelled_completeness
@@ -872,8 +872,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: cost_center_dim
     target: v_cost_center_silver
     description: "Load cost_center from silver for modelling"
@@ -896,8 +896,8 @@ actions:
     source: v_cost_center_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "cost_center_modelled"
 
   - name: tst_cost_center_modelled_completeness
@@ -926,8 +926,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: profit_center_dim
     target: v_profit_center_silver
     description: "Load profit_center from silver for modelling"
@@ -950,8 +950,8 @@ actions:
     source: v_profit_center_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "profit_center_modelled"
 
   - name: tst_profit_center_modelled_completeness
@@ -980,8 +980,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: currency_fct
     target: v_currency_silver
     description: "Load currency from silver for modelling"
@@ -1004,8 +1004,8 @@ actions:
     source: v_currency_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "currency_modelled"
 
   - name: tst_currency_modelled_completeness
@@ -1034,8 +1034,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: exchange_rate_dim
     target: v_exchange_rate_silver
     description: "Load exchange_rate from silver for modelling"
@@ -1058,8 +1058,8 @@ actions:
     source: v_exchange_rate_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "exchange_rate_modelled"
 
   - name: tst_exchange_rate_modelled_completeness

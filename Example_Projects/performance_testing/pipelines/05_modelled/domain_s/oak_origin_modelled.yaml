@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: oak_origin_dim
     target: v_oak_origin_silver
     description: "Load oak_origin from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_oak_origin_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "oak_origin_modelled"
 
   - name: tst_oak_origin_modelled_completeness

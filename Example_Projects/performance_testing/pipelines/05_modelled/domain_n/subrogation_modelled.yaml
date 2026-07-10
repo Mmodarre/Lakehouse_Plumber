@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: subrogation_dim
     target: v_subrogation_silver
     description: "Load subrogation from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_subrogation_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "subrogation_modelled"
 
   - name: tst_subrogation_modelled_completeness

@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: release
     target: v_release_bronze
     description: "Load release from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_release_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "release_fct"
       mode: "cdc"
       cdc_config:

@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.return_item_fct
+        FROM ${catalog}.${silver_schema}.return_item_fct
     target: v_return_item_dashboard
 
   - name: write_return_item_dashboard_mv
@@ -17,8 +17,8 @@ actions:
     source: v_return_item_dashboard
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "return_item_dashboard_mv"
 
   - name: tst_return_item_dashboard_completeness

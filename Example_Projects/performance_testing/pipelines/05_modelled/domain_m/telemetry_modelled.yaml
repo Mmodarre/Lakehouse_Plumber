@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: telemetry_dim
     target: v_telemetry_silver
     description: "Load telemetry from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_telemetry_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "telemetry_modelled"
 
   - name: tst_telemetry_modelled_completeness

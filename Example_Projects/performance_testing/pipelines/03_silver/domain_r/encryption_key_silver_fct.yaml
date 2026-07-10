@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: encryption_key
     target: v_encryption_key_bronze
     description: "Load encryption_key from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_encryption_key_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "encryption_key_fct"
       mode: "cdc"
       cdc_config:

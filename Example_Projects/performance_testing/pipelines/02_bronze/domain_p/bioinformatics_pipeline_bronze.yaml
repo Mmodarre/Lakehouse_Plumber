@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
+      catalog: "${catalog}"
+      schema: "${raw_schema}"
       table: bioinformatics_pipeline_raw
     target: v_bioinformatics_pipeline_raw
     description: "Load bioinformatics_pipeline from raw schema"
@@ -43,8 +43,8 @@ actions:
     write_target:
       create_table: true
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: "bioinformatics_pipeline"
 
   - name: tst_bioinformatics_pipeline_bronze_completeness

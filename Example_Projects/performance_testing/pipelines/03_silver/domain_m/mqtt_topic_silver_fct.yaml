@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: mqtt_topic
     target: v_mqtt_topic_bronze
     description: "Load mqtt_topic from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_mqtt_topic_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "mqtt_topic_fct"
       mode: "cdc"
       cdc_config:

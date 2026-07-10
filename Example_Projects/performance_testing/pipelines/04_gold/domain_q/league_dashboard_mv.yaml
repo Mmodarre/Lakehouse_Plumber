@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.league_dim
+        FROM ${catalog}.${silver_schema}.league_dim
     target: v_league_dashboard
 
   - name: write_league_dashboard_mv
@@ -17,8 +17,8 @@ actions:
     source: v_league_dashboard
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "league_dashboard_mv"
 
   - name: tst_league_dashboard_completeness

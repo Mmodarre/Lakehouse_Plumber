@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: nursing_note_dim
     target: v_nursing_note_silver
     description: "Load nursing_note from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_nursing_note_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "nursing_note_modelled"
 
   - name: tst_nursing_note_modelled_completeness
@@ -62,8 +62,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: radiology_fct
     target: v_radiology_silver
     description: "Load radiology from silver for modelling"
@@ -86,8 +86,8 @@ actions:
     source: v_radiology_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "radiology_modelled"
 
   - name: tst_radiology_modelled_completeness
@@ -116,8 +116,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: pathology_dim
     target: v_pathology_silver
     description: "Load pathology from silver for modelling"
@@ -140,8 +140,8 @@ actions:
     source: v_pathology_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "pathology_modelled"
 
   - name: tst_pathology_modelled_completeness
@@ -170,8 +170,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: pharmacy_dim
     target: v_pharmacy_silver
     description: "Load pharmacy from silver for modelling"
@@ -194,8 +194,8 @@ actions:
     source: v_pharmacy_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "pharmacy_modelled"
 
   - name: tst_pharmacy_modelled_completeness
@@ -224,8 +224,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: blood_bank_fct
     target: v_blood_bank_silver
     description: "Load blood_bank from silver for modelling"
@@ -248,8 +248,8 @@ actions:
     source: v_blood_bank_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "blood_bank_modelled"
 
   - name: tst_blood_bank_modelled_completeness
@@ -278,8 +278,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: surgery_dim
     target: v_surgery_silver
     description: "Load surgery from silver for modelling"
@@ -302,8 +302,8 @@ actions:
     source: v_surgery_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "surgery_modelled"
 
   - name: tst_surgery_modelled_completeness
@@ -332,8 +332,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: anesthesia_dim
     target: v_anesthesia_silver
     description: "Load anesthesia from silver for modelling"
@@ -356,8 +356,8 @@ actions:
     source: v_anesthesia_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "anesthesia_modelled"
 
   - name: tst_anesthesia_modelled_completeness
@@ -386,8 +386,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: recovery_fct
     target: v_recovery_silver
     description: "Load recovery from silver for modelling"
@@ -410,8 +410,8 @@ actions:
     source: v_recovery_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "recovery_modelled"
 
   - name: tst_recovery_modelled_completeness
@@ -440,8 +440,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: rehab_dim
     target: v_rehab_silver
     description: "Load rehab from silver for modelling"
@@ -464,8 +464,8 @@ actions:
     source: v_rehab_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "rehab_modelled"
 
   - name: tst_rehab_modelled_completeness
@@ -494,8 +494,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: outpatient_dim
     target: v_outpatient_silver
     description: "Load outpatient from silver for modelling"
@@ -518,8 +518,8 @@ actions:
     source: v_outpatient_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "outpatient_modelled"
 
   - name: tst_outpatient_modelled_completeness
@@ -548,8 +548,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: emergency_fct
     target: v_emergency_silver
     description: "Load emergency from silver for modelling"
@@ -572,8 +572,8 @@ actions:
     source: v_emergency_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "emergency_modelled"
 
   - name: tst_emergency_modelled_completeness
@@ -602,8 +602,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: triage_dim
     target: v_triage_silver
     description: "Load triage from silver for modelling"
@@ -626,8 +626,8 @@ actions:
     source: v_triage_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "triage_modelled"
 
   - name: tst_triage_modelled_completeness
@@ -656,8 +656,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: bed_assignment_dim
     target: v_bed_assignment_silver
     description: "Load bed_assignment from silver for modelling"
@@ -680,8 +680,8 @@ actions:
     source: v_bed_assignment_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "bed_assignment_modelled"
 
   - name: tst_bed_assignment_modelled_completeness
@@ -710,8 +710,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: diet_plan_fct
     target: v_diet_plan_silver
     description: "Load diet_plan from silver for modelling"
@@ -734,8 +734,8 @@ actions:
     source: v_diet_plan_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "diet_plan_modelled"
 
   - name: tst_diet_plan_modelled_completeness
@@ -764,8 +764,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: consent_form_dim
     target: v_consent_form_silver
     description: "Load consent_form from silver for modelling"
@@ -788,8 +788,8 @@ actions:
     source: v_consent_form_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "consent_form_modelled"
 
   - name: tst_consent_form_modelled_completeness
@@ -818,8 +818,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: care_plan_dim
     target: v_care_plan_silver
     description: "Load care_plan from silver for modelling"
@@ -842,8 +842,8 @@ actions:
     source: v_care_plan_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "care_plan_modelled"
 
   - name: tst_care_plan_modelled_completeness
@@ -872,8 +872,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: case_manager_fct
     target: v_case_manager_silver
     description: "Load case_manager from silver for modelling"
@@ -896,8 +896,8 @@ actions:
     source: v_case_manager_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "case_manager_modelled"
 
   - name: tst_case_manager_modelled_completeness
@@ -926,8 +926,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: home_care_dim
     target: v_home_care_silver
     description: "Load home_care from silver for modelling"
@@ -950,8 +950,8 @@ actions:
     source: v_home_care_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "home_care_modelled"
 
   - name: tst_home_care_modelled_completeness
@@ -980,8 +980,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: telemedicine_dim
     target: v_telemedicine_silver
     description: "Load telemedicine from silver for modelling"
@@ -1004,8 +1004,8 @@ actions:
     source: v_telemedicine_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "telemedicine_modelled"
 
   - name: tst_telemedicine_modelled_completeness
@@ -1034,8 +1034,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: wearable_data_fct
     target: v_wearable_data_silver
     description: "Load wearable_data from silver for modelling"
@@ -1058,8 +1058,8 @@ actions:
     source: v_wearable_data_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "wearable_data_modelled"
 
   - name: tst_wearable_data_modelled_completeness

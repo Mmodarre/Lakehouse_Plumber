@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: season
     target: v_season_bronze
     description: "Load season from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_season_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "season_fct"
       mode: "cdc"
       cdc_config:

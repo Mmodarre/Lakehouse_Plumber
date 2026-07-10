@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.campus_dim
+        FROM ${catalog}.${silver_schema}.campus_dim
     target: v_campus_analysis
 
   - name: write_campus_analysis_mv
@@ -17,8 +17,8 @@ actions:
     source: v_campus_analysis
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "campus_analysis_mv"
 
   - name: tst_campus_analysis_completeness

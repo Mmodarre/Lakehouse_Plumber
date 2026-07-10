@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: annotation
     target: v_annotation_bronze
     description: "Load annotation from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_annotation_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "annotation_fct"
       mode: "cdc"
       cdc_config:

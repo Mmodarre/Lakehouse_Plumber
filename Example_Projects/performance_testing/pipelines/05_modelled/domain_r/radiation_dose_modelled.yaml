@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: radiation_dose_dim
     target: v_radiation_dose_silver
     description: "Load radiation_dose from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_radiation_dose_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "radiation_dose_modelled"
 
   - name: tst_radiation_dose_modelled_completeness

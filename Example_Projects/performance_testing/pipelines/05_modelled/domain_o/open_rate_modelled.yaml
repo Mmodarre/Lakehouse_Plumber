@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: open_rate_fct
     target: v_open_rate_silver
     description: "Load open_rate from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_open_rate_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "open_rate_modelled"
 
   - name: tst_open_rate_modelled_completeness

@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: mechanical_royalty
     target: v_mechanical_royalty_bronze
     description: "Load mechanical_royalty from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_mechanical_royalty_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "mechanical_royalty_fct"
       mode: "cdc"
       cdc_config:

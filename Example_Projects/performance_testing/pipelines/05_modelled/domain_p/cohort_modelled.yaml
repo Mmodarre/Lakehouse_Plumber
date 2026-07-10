@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: cohort_dim
     target: v_cohort_silver
     description: "Load cohort from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_cohort_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "cohort_modelled"
 
   - name: tst_cohort_modelled_completeness

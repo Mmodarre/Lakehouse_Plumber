@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: dynamic_ad
     target: v_dynamic_ad_bronze
     description: "Load dynamic_ad from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_dynamic_ad_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "dynamic_ad_fct"
       mode: "cdc"
       cdc_config:

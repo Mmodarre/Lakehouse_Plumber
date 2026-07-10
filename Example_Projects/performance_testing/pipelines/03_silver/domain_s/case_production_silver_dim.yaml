@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: case_production
     target: v_case_production_bronze
     description: "Load case_production from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_case_production_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "case_production_dim"
       mode: "cdc"
       cdc_config:
