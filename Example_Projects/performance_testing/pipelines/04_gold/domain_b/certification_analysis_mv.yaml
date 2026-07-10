@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.certification_fct
+        FROM ${catalog}.${silver_schema}.certification_fct
     target: v_certification_analysis
 
   - name: write_certification_analysis_mv
@@ -17,8 +17,8 @@ actions:
     source: v_certification_analysis
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "certification_analysis_mv"
 
   - name: tst_certification_analysis_completeness

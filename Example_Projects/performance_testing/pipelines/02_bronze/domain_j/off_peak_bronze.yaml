@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
+      catalog: "${catalog}"
+      schema: "${raw_schema}"
       table: off_peak_raw
     target: v_off_peak_raw
     description: "Load off_peak from raw schema"
@@ -43,8 +43,8 @@ actions:
     write_target:
       create_table: true
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: "off_peak"
 
   - name: tst_off_peak_bronze_completeness

@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
+      catalog: "${catalog}"
+      schema: "${raw_schema}"
       table: endless_aisle_raw
     target: v_endless_aisle_raw
     description: "Load endless_aisle from raw schema"
@@ -43,8 +43,8 @@ actions:
     write_target:
       create_table: true
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: "endless_aisle"
 
   - name: tst_endless_aisle_bronze_completeness

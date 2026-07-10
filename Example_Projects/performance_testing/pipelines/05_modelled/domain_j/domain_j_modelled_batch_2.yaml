@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: frequency_dim
     target: v_frequency_silver
     description: "Load frequency from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_frequency_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "frequency_modelled"
 
   - name: tst_frequency_modelled_completeness
@@ -62,8 +62,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: reactive_power_fct
     target: v_reactive_power_silver
     description: "Load reactive_power from silver for modelling"
@@ -86,8 +86,8 @@ actions:
     source: v_reactive_power_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "reactive_power_modelled"
 
   - name: tst_reactive_power_modelled_completeness
@@ -116,8 +116,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: capacitor_bank_dim
     target: v_capacitor_bank_silver
     description: "Load capacitor_bank from silver for modelling"
@@ -140,8 +140,8 @@ actions:
     source: v_capacitor_bank_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "capacitor_bank_modelled"
 
   - name: tst_capacitor_bank_modelled_completeness
@@ -170,8 +170,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: relay_dim
     target: v_relay_silver
     description: "Load relay from silver for modelling"
@@ -194,8 +194,8 @@ actions:
     source: v_relay_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "relay_modelled"
 
   - name: tst_relay_modelled_completeness
@@ -224,8 +224,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: circuit_breaker_fct
     target: v_circuit_breaker_silver
     description: "Load circuit_breaker from silver for modelling"
@@ -248,8 +248,8 @@ actions:
     source: v_circuit_breaker_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "circuit_breaker_modelled"
 
   - name: tst_circuit_breaker_modelled_completeness
@@ -278,8 +278,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: feeder_dim
     target: v_feeder_silver
     description: "Load feeder from silver for modelling"
@@ -302,8 +302,8 @@ actions:
     source: v_feeder_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "feeder_modelled"
 
   - name: tst_feeder_modelled_completeness
@@ -332,8 +332,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: distribution_line_dim
     target: v_distribution_line_silver
     description: "Load distribution_line from silver for modelling"
@@ -356,8 +356,8 @@ actions:
     source: v_distribution_line_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "distribution_line_modelled"
 
   - name: tst_distribution_line_modelled_completeness
@@ -386,8 +386,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: transmission_line_fct
     target: v_transmission_line_silver
     description: "Load transmission_line from silver for modelling"
@@ -410,8 +410,8 @@ actions:
     source: v_transmission_line_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "transmission_line_modelled"
 
   - name: tst_transmission_line_modelled_completeness
@@ -440,8 +440,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: voltage_regulator_dim
     target: v_voltage_regulator_silver
     description: "Load voltage_regulator from silver for modelling"
@@ -464,8 +464,8 @@ actions:
     source: v_voltage_regulator_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "voltage_regulator_modelled"
 
   - name: tst_voltage_regulator_modelled_completeness
@@ -494,8 +494,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: smart_meter_dim
     target: v_smart_meter_silver
     description: "Load smart_meter from silver for modelling"
@@ -518,8 +518,8 @@ actions:
     source: v_smart_meter_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "smart_meter_modelled"
 
   - name: tst_smart_meter_modelled_completeness
@@ -548,8 +548,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: demand_response_fct
     target: v_demand_response_silver
     description: "Load demand_response from silver for modelling"
@@ -572,8 +572,8 @@ actions:
     source: v_demand_response_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "demand_response_modelled"
 
   - name: tst_demand_response_modelled_completeness
@@ -602,8 +602,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: curtailment_dim
     target: v_curtailment_silver
     description: "Load curtailment from silver for modelling"
@@ -626,8 +626,8 @@ actions:
     source: v_curtailment_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "curtailment_modelled"
 
   - name: tst_curtailment_modelled_completeness
@@ -656,8 +656,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: interconnection_dim
     target: v_interconnection_silver
     description: "Load interconnection from silver for modelling"
@@ -680,8 +680,8 @@ actions:
     source: v_interconnection_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "interconnection_modelled"
 
   - name: tst_interconnection_modelled_completeness
@@ -710,8 +710,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: wheeling_fct
     target: v_wheeling_silver
     description: "Load wheeling from silver for modelling"
@@ -734,8 +734,8 @@ actions:
     source: v_wheeling_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "wheeling_modelled"
 
   - name: tst_wheeling_modelled_completeness
@@ -764,8 +764,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: ancillary_service_dim
     target: v_ancillary_service_silver
     description: "Load ancillary_service from silver for modelling"
@@ -788,8 +788,8 @@ actions:
     source: v_ancillary_service_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "ancillary_service_modelled"
 
   - name: tst_ancillary_service_modelled_completeness
@@ -818,8 +818,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: spinning_reserve_dim
     target: v_spinning_reserve_silver
     description: "Load spinning_reserve from silver for modelling"
@@ -842,8 +842,8 @@ actions:
     source: v_spinning_reserve_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "spinning_reserve_modelled"
 
   - name: tst_spinning_reserve_modelled_completeness
@@ -872,8 +872,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: black_start_fct
     target: v_black_start_silver
     description: "Load black_start from silver for modelling"
@@ -896,8 +896,8 @@ actions:
     source: v_black_start_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "black_start_modelled"
 
   - name: tst_black_start_modelled_completeness
@@ -926,8 +926,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: island_mode_dim
     target: v_island_mode_silver
     description: "Load island_mode from silver for modelling"
@@ -950,8 +950,8 @@ actions:
     source: v_island_mode_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "island_mode_modelled"
 
   - name: tst_island_mode_modelled_completeness
@@ -980,8 +980,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: microgrid_dim
     target: v_microgrid_silver
     description: "Load microgrid from silver for modelling"
@@ -1004,8 +1004,8 @@ actions:
     source: v_microgrid_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "microgrid_modelled"
 
   - name: tst_microgrid_modelled_completeness
@@ -1034,8 +1034,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: virtual_power_plant_fct
     target: v_virtual_power_plant_silver
     description: "Load virtual_power_plant from silver for modelling"
@@ -1058,8 +1058,8 @@ actions:
     source: v_virtual_power_plant_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "virtual_power_plant_modelled"
 
   - name: tst_virtual_power_plant_modelled_completeness

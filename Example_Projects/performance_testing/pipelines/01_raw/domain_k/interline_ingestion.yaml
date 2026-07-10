@@ -10,7 +10,7 @@ actions:
       - "_processing_timestamp"
     source:
       type: cloudfiles
-      path: "{landing_volume}/interline/*.parquet"
+      path: "${landing_volume}/interline/*.parquet"
       format: parquet
       options:
         cloudFiles.format: parquet
@@ -26,8 +26,8 @@ actions:
     source: v_interline_cloudfiles
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
+      catalog: "${catalog}"
+      schema: "${raw_schema}"
       table: "interline_raw"
 
   - name: tst_interline_raw_completeness

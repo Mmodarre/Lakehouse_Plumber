@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
+      catalog: "${catalog}"
+      schema: "${raw_schema}"
       table: credit_note_raw
     target: v_credit_note_raw
     description: "Load credit_note from raw schema"
@@ -43,8 +43,8 @@ actions:
     write_target:
       create_table: true
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: "credit_note"
 
   - name: tst_credit_note_bronze_completeness

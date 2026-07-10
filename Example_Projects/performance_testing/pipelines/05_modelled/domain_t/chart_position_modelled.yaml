@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: chart_position_dim
     target: v_chart_position_silver
     description: "Load chart_position from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_chart_position_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "chart_position_modelled"
 
   - name: tst_chart_position_modelled_completeness

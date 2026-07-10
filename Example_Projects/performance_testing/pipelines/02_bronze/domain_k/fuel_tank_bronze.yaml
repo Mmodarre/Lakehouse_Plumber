@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
+      catalog: "${catalog}"
+      schema: "${raw_schema}"
       table: fuel_tank_raw
     target: v_fuel_tank_raw
     description: "Load fuel_tank from raw schema"
@@ -43,8 +43,8 @@ actions:
     write_target:
       create_table: true
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: "fuel_tank"
 
   - name: tst_fuel_tank_bronze_completeness

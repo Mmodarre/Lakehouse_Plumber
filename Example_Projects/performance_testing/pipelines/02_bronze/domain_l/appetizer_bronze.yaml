@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
+      catalog: "${catalog}"
+      schema: "${raw_schema}"
       table: appetizer_raw
     target: v_appetizer_raw
     description: "Load appetizer from raw schema"
@@ -43,8 +43,8 @@ actions:
     write_target:
       create_table: true
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: "appetizer"
 
   - name: tst_appetizer_bronze_completeness

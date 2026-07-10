@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: aggregate_limit
     target: v_aggregate_limit_bronze
     description: "Load aggregate_limit from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_aggregate_limit_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "aggregate_limit_dim"
       mode: "cdc"
       cdc_config:

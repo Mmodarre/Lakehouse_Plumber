@@ -10,7 +10,7 @@ actions:
       - "_processing_timestamp"
     source:
       type: cloudfiles
-      path: "{landing_volume}/medical_exam/*.parquet"
+      path: "${landing_volume}/medical_exam/*.parquet"
       format: parquet
       options:
         cloudFiles.format: parquet
@@ -26,8 +26,8 @@ actions:
     source: v_medical_exam_cloudfiles
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
+      catalog: "${catalog}"
+      schema: "${raw_schema}"
       table: "medical_exam_raw"
 
   - name: tst_medical_exam_raw_completeness

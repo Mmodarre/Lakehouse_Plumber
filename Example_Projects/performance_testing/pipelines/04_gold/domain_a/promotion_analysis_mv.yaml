@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.promotion_fct
+        FROM ${catalog}.${silver_schema}.promotion_fct
     target: v_promotion_analysis
 
   - name: write_promotion_analysis_mv
@@ -17,8 +17,8 @@ actions:
     source: v_promotion_analysis
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "promotion_analysis_mv"
 
   - name: tst_promotion_analysis_completeness

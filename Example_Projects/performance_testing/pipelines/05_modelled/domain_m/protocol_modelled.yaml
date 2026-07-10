@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: protocol_dim
     target: v_protocol_silver
     description: "Load protocol from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_protocol_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "protocol_modelled"
 
   - name: tst_protocol_modelled_completeness

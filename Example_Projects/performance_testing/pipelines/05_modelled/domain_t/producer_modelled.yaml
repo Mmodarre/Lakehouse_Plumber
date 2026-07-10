@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: producer_fct
     target: v_producer_silver
     description: "Load producer from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_producer_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "producer_modelled"
 
   - name: tst_producer_modelled_completeness

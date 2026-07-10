@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: barrel_toast_dim
     target: v_barrel_toast_silver
     description: "Load barrel_toast from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_barrel_toast_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "barrel_toast_modelled"
 
   - name: tst_barrel_toast_modelled_completeness

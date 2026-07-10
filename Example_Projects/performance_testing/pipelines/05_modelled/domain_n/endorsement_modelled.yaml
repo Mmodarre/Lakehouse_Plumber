@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: endorsement_dim
     target: v_endorsement_silver
     description: "Load endorsement from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_endorsement_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "endorsement_modelled"
 
   - name: tst_endorsement_modelled_completeness

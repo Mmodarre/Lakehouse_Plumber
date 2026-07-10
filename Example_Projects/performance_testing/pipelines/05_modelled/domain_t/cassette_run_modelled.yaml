@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: cassette_run_dim
     target: v_cassette_run_silver
     description: "Load cassette_run from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_cassette_run_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "cassette_run_modelled"
 
   - name: tst_cassette_run_modelled_completeness

@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: cd_pressing_dim
     target: v_cd_pressing_silver
     description: "Load cd_pressing from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_cd_pressing_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "cd_pressing_modelled"
 
   - name: tst_cd_pressing_modelled_completeness

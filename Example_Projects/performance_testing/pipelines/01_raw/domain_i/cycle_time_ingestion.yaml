@@ -10,7 +10,7 @@ actions:
       - "_processing_timestamp"
     source:
       type: cloudfiles
-      path: "{landing_volume}/cycle_time/*.parquet"
+      path: "${landing_volume}/cycle_time/*.parquet"
       format: parquet
       options:
         cloudFiles.format: parquet
@@ -26,8 +26,8 @@ actions:
     source: v_cycle_time_cloudfiles
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
+      catalog: "${catalog}"
+      schema: "${raw_schema}"
       table: "cycle_time_raw"
 
   - name: tst_cycle_time_raw_completeness

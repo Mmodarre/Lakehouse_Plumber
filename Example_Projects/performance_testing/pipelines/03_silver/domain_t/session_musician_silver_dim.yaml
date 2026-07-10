@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: session_musician
     target: v_session_musician_bronze
     description: "Load session_musician from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_session_musician_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "session_musician_dim"
       mode: "cdc"
       cdc_config:

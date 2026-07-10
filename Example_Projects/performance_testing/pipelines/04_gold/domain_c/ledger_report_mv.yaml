@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.ledger_dim
+        FROM ${catalog}.${silver_schema}.ledger_dim
     target: v_ledger_report
 
   - name: write_ledger_report_mv
@@ -17,8 +17,8 @@ actions:
     source: v_ledger_report
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "ledger_report_mv"
 
   - name: tst_ledger_report_completeness

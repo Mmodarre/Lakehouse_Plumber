@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
+      catalog: "${catalog}"
+      schema: "${raw_schema}"
       table: dormitory_raw
     target: v_dormitory_raw
     description: "Load dormitory from raw schema"
@@ -42,8 +42,8 @@ actions:
     write_target:
       create_table: true
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: "dormitory"
 
   - name: dormitory_migration_load
@@ -52,8 +52,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
+      catalog: "${catalog}"
+      schema: "${raw_schema}"
       table: dormitory_migration
     target: v_dormitory_migration
     description: "Load dormitory migration data"
@@ -80,8 +80,8 @@ actions:
     write_target:
       create_table: false
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: "dormitory"
 
   - name: tst_dormitory_bronze_mig_completeness

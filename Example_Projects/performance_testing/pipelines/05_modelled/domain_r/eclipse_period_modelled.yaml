@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: eclipse_period_dim
     target: v_eclipse_period_silver
     description: "Load eclipse_period from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_eclipse_period_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "eclipse_period_modelled"
 
   - name: tst_eclipse_period_modelled_completeness

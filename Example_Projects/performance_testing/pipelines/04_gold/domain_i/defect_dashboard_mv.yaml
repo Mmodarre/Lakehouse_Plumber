@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.defect_dim
+        FROM ${catalog}.${silver_schema}.defect_dim
     target: v_defect_dashboard
 
   - name: write_defect_dashboard_mv
@@ -17,8 +17,8 @@ actions:
     source: v_defect_dashboard
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "defect_dashboard_mv"
 
   - name: tst_defect_dashboard_completeness

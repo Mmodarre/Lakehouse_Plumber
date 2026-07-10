@@ -10,7 +10,7 @@ actions:
       - "_processing_timestamp"
     source:
       type: cloudfiles
-      path: "{landing_volume}/skill_matrix/*.parquet"
+      path: "${landing_volume}/skill_matrix/*.parquet"
       format: parquet
       options:
         cloudFiles.format: parquet
@@ -26,8 +26,8 @@ actions:
     source: v_skill_matrix_cloudfiles
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
+      catalog: "${catalog}"
+      schema: "${raw_schema}"
       table: "skill_matrix_raw"
 
   - name: tst_skill_matrix_raw_completeness

@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: broker_dim
     target: v_broker_silver
     description: "Load broker from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_broker_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "broker_modelled"
 
   - name: tst_broker_modelled_completeness

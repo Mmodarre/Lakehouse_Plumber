@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: invoice_line_dim
     target: v_invoice_line_silver
     description: "Load invoice_line from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_invoice_line_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "invoice_line_modelled"
 
   - name: tst_invoice_line_modelled_completeness
@@ -62,8 +62,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: credit_note_fct
     target: v_credit_note_silver
     description: "Load credit_note from silver for modelling"
@@ -86,8 +86,8 @@ actions:
     source: v_credit_note_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "credit_note_modelled"
 
   - name: tst_credit_note_modelled_completeness
@@ -116,8 +116,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: debit_note_dim
     target: v_debit_note_silver
     description: "Load debit_note from silver for modelling"
@@ -140,8 +140,8 @@ actions:
     source: v_debit_note_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "debit_note_modelled"
 
   - name: tst_debit_note_modelled_completeness
@@ -170,8 +170,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: bank_statement_dim
     target: v_bank_statement_silver
     description: "Load bank_statement from silver for modelling"
@@ -194,8 +194,8 @@ actions:
     source: v_bank_statement_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "bank_statement_modelled"
 
   - name: tst_bank_statement_modelled_completeness
@@ -224,8 +224,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: reconciliation_fct
     target: v_reconciliation_silver
     description: "Load reconciliation from silver for modelling"
@@ -248,8 +248,8 @@ actions:
     source: v_reconciliation_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "reconciliation_modelled"
 
   - name: tst_reconciliation_modelled_completeness
@@ -278,8 +278,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: cash_flow_dim
     target: v_cash_flow_silver
     description: "Load cash_flow from silver for modelling"
@@ -302,8 +302,8 @@ actions:
     source: v_cash_flow_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "cash_flow_modelled"
 
   - name: tst_cash_flow_modelled_completeness
@@ -332,8 +332,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: trial_balance_dim
     target: v_trial_balance_silver
     description: "Load trial_balance from silver for modelling"
@@ -356,8 +356,8 @@ actions:
     source: v_trial_balance_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "trial_balance_modelled"
 
   - name: tst_trial_balance_modelled_completeness
@@ -386,8 +386,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: balance_sheet_fct
     target: v_balance_sheet_silver
     description: "Load balance_sheet from silver for modelling"
@@ -410,8 +410,8 @@ actions:
     source: v_balance_sheet_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "balance_sheet_modelled"
 
   - name: tst_balance_sheet_modelled_completeness
@@ -440,8 +440,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: income_statement_dim
     target: v_income_statement_silver
     description: "Load income_statement from silver for modelling"
@@ -464,8 +464,8 @@ actions:
     source: v_income_statement_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "income_statement_modelled"
 
   - name: tst_income_statement_modelled_completeness
@@ -494,8 +494,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: variance_dim
     target: v_variance_silver
     description: "Load variance from silver for modelling"
@@ -518,8 +518,8 @@ actions:
     source: v_variance_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "variance_modelled"
 
   - name: tst_variance_modelled_completeness
@@ -548,8 +548,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: accrual_fct
     target: v_accrual_silver
     description: "Load accrual from silver for modelling"
@@ -572,8 +572,8 @@ actions:
     source: v_accrual_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "accrual_modelled"
 
   - name: tst_accrual_modelled_completeness
@@ -602,8 +602,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: prepayment_dim
     target: v_prepayment_silver
     description: "Load prepayment from silver for modelling"
@@ -626,8 +626,8 @@ actions:
     source: v_prepayment_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "prepayment_modelled"
 
   - name: tst_prepayment_modelled_completeness
@@ -656,8 +656,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: write_off_dim
     target: v_write_off_silver
     description: "Load write_off from silver for modelling"
@@ -680,8 +680,8 @@ actions:
     source: v_write_off_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "write_off_modelled"
 
   - name: tst_write_off_modelled_completeness
@@ -710,8 +710,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: provision_fct
     target: v_provision_silver
     description: "Load provision from silver for modelling"
@@ -734,8 +734,8 @@ actions:
     source: v_provision_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "provision_modelled"
 
   - name: tst_provision_modelled_completeness
@@ -764,8 +764,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: intercompany_dim
     target: v_intercompany_silver
     description: "Load intercompany from silver for modelling"
@@ -788,8 +788,8 @@ actions:
     source: v_intercompany_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "intercompany_modelled"
 
   - name: tst_intercompany_modelled_completeness
@@ -818,8 +818,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: consolidation_dim
     target: v_consolidation_silver
     description: "Load consolidation from silver for modelling"
@@ -842,8 +842,8 @@ actions:
     source: v_consolidation_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "consolidation_modelled"
 
   - name: tst_consolidation_modelled_completeness
@@ -872,8 +872,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: segment_report_fct
     target: v_segment_report_silver
     description: "Load segment_report from silver for modelling"
@@ -896,8 +896,8 @@ actions:
     source: v_segment_report_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "segment_report_modelled"
 
   - name: tst_segment_report_modelled_completeness
@@ -926,8 +926,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: tax_filing_dim
     target: v_tax_filing_silver
     description: "Load tax_filing from silver for modelling"
@@ -950,8 +950,8 @@ actions:
     source: v_tax_filing_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "tax_filing_modelled"
 
   - name: tst_tax_filing_modelled_completeness
@@ -980,8 +980,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: withholding_dim
     target: v_withholding_silver
     description: "Load withholding from silver for modelling"
@@ -1004,8 +1004,8 @@ actions:
     source: v_withholding_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "withholding_modelled"
 
   - name: tst_withholding_modelled_completeness
@@ -1034,8 +1034,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: vat_return_fct
     target: v_vat_return_silver
     description: "Load vat_return from silver for modelling"
@@ -1058,8 +1058,8 @@ actions:
     source: v_vat_return_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "vat_return_modelled"
 
   - name: tst_vat_return_modelled_completeness

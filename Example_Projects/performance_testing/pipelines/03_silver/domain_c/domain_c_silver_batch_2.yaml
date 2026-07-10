@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: invoice_line
     target: v_invoice_line_bronze
     description: "Load invoice_line from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_invoice_line_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "invoice_line_dim"
       mode: "cdc"
       cdc_config:
@@ -58,8 +58,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: credit_note
     target: v_credit_note_bronze
     description: "Load credit_note from bronze for silver layer"
@@ -69,8 +69,8 @@ actions:
     source: v_credit_note_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "credit_note_fct"
       mode: "cdc"
       cdc_config:
@@ -107,8 +107,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: debit_note
     target: v_debit_note_bronze
     description: "Load debit_note from bronze for silver layer"
@@ -118,8 +118,8 @@ actions:
     source: v_debit_note_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "debit_note_dim"
       mode: "cdc"
       cdc_config:
@@ -156,8 +156,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: bank_statement
     target: v_bank_statement_bronze
     description: "Load bank_statement from bronze for silver layer"
@@ -167,8 +167,8 @@ actions:
     source: v_bank_statement_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "bank_statement_dim"
       mode: "cdc"
       cdc_config:
@@ -205,8 +205,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: reconciliation
     target: v_reconciliation_bronze
     description: "Load reconciliation from bronze for silver layer"
@@ -216,8 +216,8 @@ actions:
     source: v_reconciliation_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "reconciliation_fct"
       mode: "cdc"
       cdc_config:
@@ -254,8 +254,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: cash_flow
     target: v_cash_flow_bronze
     description: "Load cash_flow from bronze for silver layer"
@@ -265,8 +265,8 @@ actions:
     source: v_cash_flow_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "cash_flow_dim"
       mode: "cdc"
       cdc_config:
@@ -303,8 +303,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: trial_balance
     target: v_trial_balance_bronze
     description: "Load trial_balance from bronze for silver layer"
@@ -314,8 +314,8 @@ actions:
     source: v_trial_balance_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "trial_balance_dim"
       mode: "cdc"
       cdc_config:
@@ -352,8 +352,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: balance_sheet
     target: v_balance_sheet_bronze
     description: "Load balance_sheet from bronze for silver layer"
@@ -363,8 +363,8 @@ actions:
     source: v_balance_sheet_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "balance_sheet_fct"
       mode: "cdc"
       cdc_config:
@@ -401,8 +401,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: income_statement
     target: v_income_statement_bronze
     description: "Load income_statement from bronze for silver layer"
@@ -412,8 +412,8 @@ actions:
     source: v_income_statement_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "income_statement_dim"
       mode: "cdc"
       cdc_config:
@@ -450,8 +450,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: variance
     target: v_variance_bronze
     description: "Load variance from bronze for silver layer"
@@ -461,8 +461,8 @@ actions:
     source: v_variance_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "variance_dim"
       mode: "cdc"
       cdc_config:
@@ -499,8 +499,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: accrual
     target: v_accrual_bronze
     description: "Load accrual from bronze for silver layer"
@@ -510,8 +510,8 @@ actions:
     source: v_accrual_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "accrual_fct"
       mode: "cdc"
       cdc_config:
@@ -548,8 +548,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: prepayment
     target: v_prepayment_bronze
     description: "Load prepayment from bronze for silver layer"
@@ -559,8 +559,8 @@ actions:
     source: v_prepayment_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "prepayment_dim"
       mode: "cdc"
       cdc_config:
@@ -597,8 +597,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: write_off
     target: v_write_off_bronze
     description: "Load write_off from bronze for silver layer"
@@ -608,8 +608,8 @@ actions:
     source: v_write_off_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "write_off_dim"
       mode: "cdc"
       cdc_config:
@@ -646,8 +646,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: provision
     target: v_provision_bronze
     description: "Load provision from bronze for silver layer"
@@ -657,8 +657,8 @@ actions:
     source: v_provision_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "provision_fct"
       mode: "cdc"
       cdc_config:
@@ -695,8 +695,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: intercompany
     target: v_intercompany_bronze
     description: "Load intercompany from bronze for silver layer"
@@ -706,8 +706,8 @@ actions:
     source: v_intercompany_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "intercompany_dim"
       mode: "cdc"
       cdc_config:
@@ -744,8 +744,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: consolidation
     target: v_consolidation_bronze
     description: "Load consolidation from bronze for silver layer"
@@ -755,8 +755,8 @@ actions:
     source: v_consolidation_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "consolidation_dim"
       mode: "cdc"
       cdc_config:
@@ -793,8 +793,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: segment_report
     target: v_segment_report_bronze
     description: "Load segment_report from bronze for silver layer"
@@ -804,8 +804,8 @@ actions:
     source: v_segment_report_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "segment_report_fct"
       mode: "cdc"
       cdc_config:
@@ -842,8 +842,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: tax_filing
     target: v_tax_filing_bronze
     description: "Load tax_filing from bronze for silver layer"
@@ -853,8 +853,8 @@ actions:
     source: v_tax_filing_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "tax_filing_dim"
       mode: "cdc"
       cdc_config:
@@ -891,8 +891,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: withholding
     target: v_withholding_bronze
     description: "Load withholding from bronze for silver layer"
@@ -902,8 +902,8 @@ actions:
     source: v_withholding_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "withholding_dim"
       mode: "cdc"
       cdc_config:
@@ -940,8 +940,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: vat_return
     target: v_vat_return_bronze
     description: "Load vat_return from bronze for silver layer"
@@ -951,8 +951,8 @@ actions:
     source: v_vat_return_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "vat_return_fct"
       mode: "cdc"
       cdc_config:

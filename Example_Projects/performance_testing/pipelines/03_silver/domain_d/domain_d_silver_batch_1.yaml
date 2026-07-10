@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: patient
     target: v_patient_bronze
     description: "Load patient from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_patient_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "patient_fct"
       mode: "cdc"
       cdc_config:
@@ -58,8 +58,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: doctor
     target: v_doctor_bronze
     description: "Load doctor from bronze for silver layer"
@@ -69,8 +69,8 @@ actions:
     source: v_doctor_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "doctor_dim"
       mode: "cdc"
       cdc_config:
@@ -107,8 +107,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: appointment
     target: v_appointment_bronze
     description: "Load appointment from bronze for silver layer"
@@ -118,8 +118,8 @@ actions:
     source: v_appointment_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "appointment_dim"
       mode: "cdc"
       cdc_config:
@@ -156,8 +156,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: prescription
     target: v_prescription_bronze
     description: "Load prescription from bronze for silver layer"
@@ -167,8 +167,8 @@ actions:
     source: v_prescription_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "prescription_fct"
       mode: "cdc"
       cdc_config:
@@ -205,8 +205,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: diagnosis
     target: v_diagnosis_bronze
     description: "Load diagnosis from bronze for silver layer"
@@ -216,8 +216,8 @@ actions:
     source: v_diagnosis_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "diagnosis_dim"
       mode: "cdc"
       cdc_config:
@@ -254,8 +254,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: treatment
     target: v_treatment_bronze
     description: "Load treatment from bronze for silver layer"
@@ -265,8 +265,8 @@ actions:
     source: v_treatment_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "treatment_dim"
       mode: "cdc"
       cdc_config:
@@ -303,8 +303,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: insurance
     target: v_insurance_bronze
     description: "Load insurance from bronze for silver layer"
@@ -314,8 +314,8 @@ actions:
     source: v_insurance_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "insurance_fct"
       mode: "cdc"
       cdc_config:
@@ -352,8 +352,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: claim
     target: v_claim_bronze
     description: "Load claim from bronze for silver layer"
@@ -363,8 +363,8 @@ actions:
     source: v_claim_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "claim_dim"
       mode: "cdc"
       cdc_config:
@@ -401,8 +401,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: hospital
     target: v_hospital_bronze
     description: "Load hospital from bronze for silver layer"
@@ -412,8 +412,8 @@ actions:
     source: v_hospital_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "hospital_dim"
       mode: "cdc"
       cdc_config:
@@ -450,8 +450,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: ward
     target: v_ward_bronze
     description: "Load ward from bronze for silver layer"
@@ -461,8 +461,8 @@ actions:
     source: v_ward_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "ward_fct"
       mode: "cdc"
       cdc_config:
@@ -499,8 +499,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: lab_test
     target: v_lab_test_bronze
     description: "Load lab_test from bronze for silver layer"
@@ -510,8 +510,8 @@ actions:
     source: v_lab_test_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "lab_test_dim"
       mode: "cdc"
       cdc_config:
@@ -548,8 +548,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: lab_result
     target: v_lab_result_bronze
     description: "Load lab_result from bronze for silver layer"
@@ -559,8 +559,8 @@ actions:
     source: v_lab_result_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "lab_result_dim"
       mode: "cdc"
       cdc_config:
@@ -597,8 +597,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: medication
     target: v_medication_bronze
     description: "Load medication from bronze for silver layer"
@@ -608,8 +608,8 @@ actions:
     source: v_medication_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "medication_fct"
       mode: "cdc"
       cdc_config:
@@ -646,8 +646,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: allergy
     target: v_allergy_bronze
     description: "Load allergy from bronze for silver layer"
@@ -657,8 +657,8 @@ actions:
     source: v_allergy_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "allergy_dim"
       mode: "cdc"
       cdc_config:
@@ -695,8 +695,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: immunization
     target: v_immunization_bronze
     description: "Load immunization from bronze for silver layer"
@@ -706,8 +706,8 @@ actions:
     source: v_immunization_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "immunization_dim"
       mode: "cdc"
       cdc_config:
@@ -744,8 +744,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: referral
     target: v_referral_bronze
     description: "Load referral from bronze for silver layer"
@@ -755,8 +755,8 @@ actions:
     source: v_referral_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "referral_fct"
       mode: "cdc"
       cdc_config:
@@ -793,8 +793,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: discharge
     target: v_discharge_bronze
     description: "Load discharge from bronze for silver layer"
@@ -804,8 +804,8 @@ actions:
     source: v_discharge_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "discharge_dim"
       mode: "cdc"
       cdc_config:
@@ -842,8 +842,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: admission
     target: v_admission_bronze
     description: "Load admission from bronze for silver layer"
@@ -853,8 +853,8 @@ actions:
     source: v_admission_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "admission_dim"
       mode: "cdc"
       cdc_config:
@@ -891,8 +891,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: medical_procedure
     target: v_medical_procedure_bronze
     description: "Load medical_procedure from bronze for silver layer"
@@ -902,8 +902,8 @@ actions:
     source: v_medical_procedure_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "medical_procedure_fct"
       mode: "cdc"
       cdc_config:
@@ -940,8 +940,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: vital_sign
     target: v_vital_sign_bronze
     description: "Load vital_sign from bronze for silver layer"
@@ -951,8 +951,8 @@ actions:
     source: v_vital_sign_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "vital_sign_dim"
       mode: "cdc"
       cdc_config:

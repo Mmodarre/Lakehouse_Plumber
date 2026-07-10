@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: planogram
     target: v_planogram_bronze
     description: "Load planogram from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_planogram_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "planogram_dim"
       mode: "cdc"
       cdc_config:
@@ -58,8 +58,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: endcap
     target: v_endcap_bronze
     description: "Load endcap from bronze for silver layer"
@@ -69,8 +69,8 @@ actions:
     source: v_endcap_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "endcap_fct"
       mode: "cdc"
       cdc_config:
@@ -107,8 +107,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: signage
     target: v_signage_bronze
     description: "Load signage from bronze for silver layer"
@@ -118,8 +118,8 @@ actions:
     source: v_signage_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "signage_dim"
       mode: "cdc"
       cdc_config:
@@ -156,8 +156,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: foot_traffic
     target: v_foot_traffic_bronze
     description: "Load foot_traffic from bronze for silver layer"
@@ -167,8 +167,8 @@ actions:
     source: v_foot_traffic_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "foot_traffic_dim"
       mode: "cdc"
       cdc_config:
@@ -205,8 +205,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: conversion_rate
     target: v_conversion_rate_bronze
     description: "Load conversion_rate from bronze for silver layer"
@@ -216,8 +216,8 @@ actions:
     source: v_conversion_rate_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "conversion_rate_fct"
       mode: "cdc"
       cdc_config:
@@ -254,8 +254,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: basket_size
     target: v_basket_size_bronze
     description: "Load basket_size from bronze for silver layer"
@@ -265,8 +265,8 @@ actions:
     source: v_basket_size_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "basket_size_dim"
       mode: "cdc"
       cdc_config:
@@ -303,8 +303,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: shrinkage
     target: v_shrinkage_bronze
     description: "Load shrinkage from bronze for silver layer"
@@ -314,8 +314,8 @@ actions:
     source: v_shrinkage_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "shrinkage_dim"
       mode: "cdc"
       cdc_config:
@@ -352,8 +352,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: loss_prevention
     target: v_loss_prevention_bronze
     description: "Load loss_prevention from bronze for silver layer"
@@ -363,8 +363,8 @@ actions:
     source: v_loss_prevention_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "loss_prevention_fct"
       mode: "cdc"
       cdc_config:
@@ -401,8 +401,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: mystery_shopper
     target: v_mystery_shopper_bronze
     description: "Load mystery_shopper from bronze for silver layer"
@@ -412,8 +412,8 @@ actions:
     source: v_mystery_shopper_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "mystery_shopper_dim"
       mode: "cdc"
       cdc_config:
@@ -450,8 +450,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: nps_score
     target: v_nps_score_bronze
     description: "Load nps_score from bronze for silver layer"
@@ -461,8 +461,8 @@ actions:
     source: v_nps_score_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "nps_score_dim"
       mode: "cdc"
       cdc_config:
@@ -499,8 +499,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: store_layout
     target: v_store_layout_bronze
     description: "Load store_layout from bronze for silver layer"
@@ -510,8 +510,8 @@ actions:
     source: v_store_layout_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "store_layout_fct"
       mode: "cdc"
       cdc_config:
@@ -548,8 +548,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: checkout_lane
     target: v_checkout_lane_bronze
     description: "Load checkout_lane from bronze for silver layer"
@@ -559,8 +559,8 @@ actions:
     source: v_checkout_lane_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "checkout_lane_dim"
       mode: "cdc"
       cdc_config:
@@ -597,8 +597,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: self_checkout
     target: v_self_checkout_bronze
     description: "Load self_checkout from bronze for silver layer"
@@ -608,8 +608,8 @@ actions:
     source: v_self_checkout_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "self_checkout_dim"
       mode: "cdc"
       cdc_config:
@@ -646,8 +646,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: curbside
     target: v_curbside_bronze
     description: "Load curbside from bronze for silver layer"
@@ -657,8 +657,8 @@ actions:
     source: v_curbside_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "curbside_fct"
       mode: "cdc"
       cdc_config:
@@ -695,8 +695,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: click_collect
     target: v_click_collect_bronze
     description: "Load click_collect from bronze for silver layer"
@@ -706,8 +706,8 @@ actions:
     source: v_click_collect_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "click_collect_dim"
       mode: "cdc"
       cdc_config:
@@ -744,8 +744,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: endless_aisle
     target: v_endless_aisle_bronze
     description: "Load endless_aisle from bronze for silver layer"
@@ -755,8 +755,8 @@ actions:
     source: v_endless_aisle_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "endless_aisle_dim"
       mode: "cdc"
       cdc_config:
@@ -793,8 +793,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: clienteling
     target: v_clienteling_bronze
     description: "Load clienteling from bronze for silver layer"
@@ -804,8 +804,8 @@ actions:
     source: v_clienteling_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "clienteling_fct"
       mode: "cdc"
       cdc_config:
@@ -842,8 +842,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: pos_terminal
     target: v_pos_terminal_bronze
     description: "Load pos_terminal from bronze for silver layer"
@@ -853,8 +853,8 @@ actions:
     source: v_pos_terminal_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "pos_terminal_dim"
       mode: "cdc"
       cdc_config:
@@ -891,8 +891,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: price_override
     target: v_price_override_bronze
     description: "Load price_override from bronze for silver layer"
@@ -902,8 +902,8 @@ actions:
     source: v_price_override_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "price_override_dim"
       mode: "cdc"
       cdc_config:
@@ -940,8 +940,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: rain_check
     target: v_rain_check_bronze
     description: "Load rain_check from bronze for silver layer"
@@ -951,8 +951,8 @@ actions:
     source: v_rain_check_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "rain_check_fct"
       mode: "cdc"
       cdc_config:

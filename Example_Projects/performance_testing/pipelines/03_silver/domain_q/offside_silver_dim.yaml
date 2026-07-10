@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: offside
     target: v_offside_bronze
     description: "Load offside from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_offside_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "offside_dim"
       mode: "cdc"
       cdc_config:

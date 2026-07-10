@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.display_dim
+        FROM ${catalog}.${silver_schema}.display_dim
     target: v_display_dashboard
 
   - name: write_display_dashboard_mv
@@ -17,8 +17,8 @@ actions:
     source: v_display_dashboard
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "display_dashboard_mv"
 
   - name: tst_display_dashboard_completeness

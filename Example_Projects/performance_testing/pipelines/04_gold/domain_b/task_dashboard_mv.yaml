@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.task_fct
+        FROM ${catalog}.${silver_schema}.task_fct
     target: v_task_dashboard
 
   - name: write_task_dashboard_mv
@@ -17,8 +17,8 @@ actions:
     source: v_task_dashboard
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "task_dashboard_mv"
 
   - name: tst_task_dashboard_completeness

@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: taxiway_dim
     target: v_taxiway_silver
     description: "Load taxiway from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_taxiway_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "taxiway_modelled"
 
   - name: tst_taxiway_modelled_completeness
@@ -62,8 +62,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: apron_fct
     target: v_apron_silver
     description: "Load apron from silver for modelling"
@@ -86,8 +86,8 @@ actions:
     source: v_apron_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "apron_modelled"
 
   - name: tst_apron_modelled_completeness
@@ -116,8 +116,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: control_tower_dim
     target: v_control_tower_silver
     description: "Load control_tower from silver for modelling"
@@ -140,8 +140,8 @@ actions:
     source: v_control_tower_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "control_tower_modelled"
 
   - name: tst_control_tower_modelled_completeness
@@ -170,8 +170,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: radar_dim
     target: v_radar_silver
     description: "Load radar from silver for modelling"
@@ -194,8 +194,8 @@ actions:
     source: v_radar_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "radar_modelled"
 
   - name: tst_radar_modelled_completeness
@@ -224,8 +224,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: waypoint_fct
     target: v_waypoint_silver
     description: "Load waypoint from silver for modelling"
@@ -248,8 +248,8 @@ actions:
     source: v_waypoint_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "waypoint_modelled"
 
   - name: tst_waypoint_modelled_completeness
@@ -278,8 +278,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: airspace_dim
     target: v_airspace_silver
     description: "Load airspace from silver for modelling"
@@ -302,8 +302,8 @@ actions:
     source: v_airspace_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "airspace_modelled"
 
   - name: tst_airspace_modelled_completeness
@@ -332,8 +332,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: slot_time_dim
     target: v_slot_time_silver
     description: "Load slot_time from silver for modelling"
@@ -356,8 +356,8 @@ actions:
     source: v_slot_time_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "slot_time_modelled"
 
   - name: tst_slot_time_modelled_completeness
@@ -386,8 +386,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: ground_handling_fct
     target: v_ground_handling_silver
     description: "Load ground_handling from silver for modelling"
@@ -410,8 +410,8 @@ actions:
     source: v_ground_handling_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "ground_handling_modelled"
 
   - name: tst_ground_handling_modelled_completeness
@@ -440,8 +440,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: catering_dim
     target: v_catering_silver
     description: "Load catering from silver for modelling"
@@ -464,8 +464,8 @@ actions:
     source: v_catering_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "catering_modelled"
 
   - name: tst_catering_modelled_completeness
@@ -494,8 +494,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: cargo_hold_dim
     target: v_cargo_hold_silver
     description: "Load cargo_hold from silver for modelling"
@@ -518,8 +518,8 @@ actions:
     source: v_cargo_hold_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "cargo_hold_modelled"
 
   - name: tst_cargo_hold_modelled_completeness
@@ -548,8 +548,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: duty_free_fct
     target: v_duty_free_silver
     description: "Load duty_free from silver for modelling"
@@ -572,8 +572,8 @@ actions:
     source: v_duty_free_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "duty_free_modelled"
 
   - name: tst_duty_free_modelled_completeness
@@ -602,8 +602,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: immigration_dim
     target: v_immigration_silver
     description: "Load immigration from silver for modelling"
@@ -626,8 +626,8 @@ actions:
     source: v_immigration_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "immigration_modelled"
 
   - name: tst_immigration_modelled_completeness
@@ -656,8 +656,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: customs_check_dim
     target: v_customs_check_silver
     description: "Load customs_check from silver for modelling"
@@ -680,8 +680,8 @@ actions:
     source: v_customs_check_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "customs_check_modelled"
 
   - name: tst_customs_check_modelled_completeness
@@ -710,8 +710,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: visa_fct
     target: v_visa_silver
     description: "Load visa from silver for modelling"
@@ -734,8 +734,8 @@ actions:
     source: v_visa_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "visa_modelled"
 
   - name: tst_visa_modelled_completeness
@@ -764,8 +764,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: transit_dim
     target: v_transit_silver
     description: "Load transit from silver for modelling"
@@ -788,8 +788,8 @@ actions:
     source: v_transit_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "transit_modelled"
 
   - name: tst_transit_modelled_completeness
@@ -818,8 +818,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: codeshare_dim
     target: v_codeshare_silver
     description: "Load codeshare from silver for modelling"
@@ -842,8 +842,8 @@ actions:
     source: v_codeshare_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "codeshare_modelled"
 
   - name: tst_codeshare_modelled_completeness
@@ -872,8 +872,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: interline_fct
     target: v_interline_silver
     description: "Load interline from silver for modelling"
@@ -896,8 +896,8 @@ actions:
     source: v_interline_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "interline_modelled"
 
   - name: tst_interline_modelled_completeness
@@ -926,8 +926,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: frequent_flyer_dim
     target: v_frequent_flyer_silver
     description: "Load frequent_flyer from silver for modelling"
@@ -950,8 +950,8 @@ actions:
     source: v_frequent_flyer_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "frequent_flyer_modelled"
 
   - name: tst_frequent_flyer_modelled_completeness
@@ -980,8 +980,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: upgrade_dim
     target: v_upgrade_silver
     description: "Load upgrade from silver for modelling"
@@ -1004,8 +1004,8 @@ actions:
     source: v_upgrade_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "upgrade_modelled"
 
   - name: tst_upgrade_modelled_completeness
@@ -1034,8 +1034,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: standby_fct
     target: v_standby_silver
     description: "Load standby from silver for modelling"
@@ -1058,8 +1058,8 @@ actions:
     source: v_standby_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "standby_modelled"
 
   - name: tst_standby_modelled_completeness

@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.tasting_note_dim
+        FROM ${catalog}.${silver_schema}.tasting_note_dim
     target: v_tasting_note_summary
 
   - name: write_tasting_note_summary_mv
@@ -17,8 +17,8 @@ actions:
     source: v_tasting_note_summary
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "tasting_note_summary_mv"
 
   - name: tst_tasting_note_summary_completeness

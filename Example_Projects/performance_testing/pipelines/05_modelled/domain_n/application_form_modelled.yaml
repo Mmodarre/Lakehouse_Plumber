@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: application_form_dim
     target: v_application_form_silver
     description: "Load application_form from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_application_form_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "application_form_modelled"
 
   - name: tst_application_form_modelled_completeness

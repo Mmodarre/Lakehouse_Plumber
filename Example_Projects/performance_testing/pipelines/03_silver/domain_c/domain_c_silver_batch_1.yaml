@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: transaction
     target: v_transaction_bronze
     description: "Load transaction from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_transaction_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "transaction_fct"
       mode: "cdc"
       cdc_config:
@@ -58,8 +58,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: account
     target: v_account_bronze
     description: "Load account from bronze for silver layer"
@@ -69,8 +69,8 @@ actions:
     source: v_account_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "account_dim"
       mode: "cdc"
       cdc_config:
@@ -107,8 +107,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: ledger
     target: v_ledger_bronze
     description: "Load ledger from bronze for silver layer"
@@ -118,8 +118,8 @@ actions:
     source: v_ledger_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "ledger_dim"
       mode: "cdc"
       cdc_config:
@@ -156,8 +156,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: journal
     target: v_journal_bronze
     description: "Load journal from bronze for silver layer"
@@ -167,8 +167,8 @@ actions:
     source: v_journal_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "journal_fct"
       mode: "cdc"
       cdc_config:
@@ -205,8 +205,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: budget
     target: v_budget_bronze
     description: "Load budget from bronze for silver layer"
@@ -216,8 +216,8 @@ actions:
     source: v_budget_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "budget_dim"
       mode: "cdc"
       cdc_config:
@@ -254,8 +254,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: forecast
     target: v_forecast_bronze
     description: "Load forecast from bronze for silver layer"
@@ -265,8 +265,8 @@ actions:
     source: v_forecast_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "forecast_dim"
       mode: "cdc"
       cdc_config:
@@ -303,8 +303,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: tax
     target: v_tax_bronze
     description: "Load tax from bronze for silver layer"
@@ -314,8 +314,8 @@ actions:
     source: v_tax_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "tax_fct"
       mode: "cdc"
       cdc_config:
@@ -352,8 +352,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: audit
     target: v_audit_bronze
     description: "Load audit from bronze for silver layer"
@@ -363,8 +363,8 @@ actions:
     source: v_audit_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "audit_dim"
       mode: "cdc"
       cdc_config:
@@ -401,8 +401,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: compliance
     target: v_compliance_bronze
     description: "Load compliance from bronze for silver layer"
@@ -412,8 +412,8 @@ actions:
     source: v_compliance_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "compliance_dim"
       mode: "cdc"
       cdc_config:
@@ -450,8 +450,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: regulation
     target: v_regulation_bronze
     description: "Load regulation from bronze for silver layer"
@@ -461,8 +461,8 @@ actions:
     source: v_regulation_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "regulation_fct"
       mode: "cdc"
       cdc_config:
@@ -499,8 +499,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: asset
     target: v_asset_bronze
     description: "Load asset from bronze for silver layer"
@@ -510,8 +510,8 @@ actions:
     source: v_asset_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "asset_dim"
       mode: "cdc"
       cdc_config:
@@ -548,8 +548,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: depreciation
     target: v_depreciation_bronze
     description: "Load depreciation from bronze for silver layer"
@@ -559,8 +559,8 @@ actions:
     source: v_depreciation_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "depreciation_dim"
       mode: "cdc"
       cdc_config:
@@ -597,8 +597,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: liability
     target: v_liability_bronze
     description: "Load liability from bronze for silver layer"
@@ -608,8 +608,8 @@ actions:
     source: v_liability_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "liability_fct"
       mode: "cdc"
       cdc_config:
@@ -646,8 +646,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: equity
     target: v_equity_bronze
     description: "Load equity from bronze for silver layer"
@@ -657,8 +657,8 @@ actions:
     source: v_equity_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "equity_dim"
       mode: "cdc"
       cdc_config:
@@ -695,8 +695,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: revenue
     target: v_revenue_bronze
     description: "Load revenue from bronze for silver layer"
@@ -706,8 +706,8 @@ actions:
     source: v_revenue_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "revenue_dim"
       mode: "cdc"
       cdc_config:
@@ -744,8 +744,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: expense
     target: v_expense_bronze
     description: "Load expense from bronze for silver layer"
@@ -755,8 +755,8 @@ actions:
     source: v_expense_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "expense_fct"
       mode: "cdc"
       cdc_config:
@@ -793,8 +793,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: cost_center
     target: v_cost_center_bronze
     description: "Load cost_center from bronze for silver layer"
@@ -804,8 +804,8 @@ actions:
     source: v_cost_center_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "cost_center_dim"
       mode: "cdc"
       cdc_config:
@@ -842,8 +842,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: profit_center
     target: v_profit_center_bronze
     description: "Load profit_center from bronze for silver layer"
@@ -853,8 +853,8 @@ actions:
     source: v_profit_center_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "profit_center_dim"
       mode: "cdc"
       cdc_config:
@@ -891,8 +891,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: currency
     target: v_currency_bronze
     description: "Load currency from bronze for silver layer"
@@ -902,8 +902,8 @@ actions:
     source: v_currency_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "currency_fct"
       mode: "cdc"
       cdc_config:
@@ -940,8 +940,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: exchange_rate
     target: v_exchange_rate_bronze
     description: "Load exchange_rate from bronze for silver layer"
@@ -951,8 +951,8 @@ actions:
     source: v_exchange_rate_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "exchange_rate_dim"
       mode: "cdc"
       cdc_config:

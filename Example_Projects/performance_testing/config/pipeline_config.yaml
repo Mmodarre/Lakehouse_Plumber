@@ -13,7 +13,7 @@
 project_defaults:
   catalog: ${catalog}
   schema: ${bronze_schema}
-  packaging: wheel
+  packaging: source
   serverless: true
   edition: ADVANCED
   channel: CURRENT

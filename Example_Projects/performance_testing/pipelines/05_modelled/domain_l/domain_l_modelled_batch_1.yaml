@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: restaurant_fct
     target: v_restaurant_silver
     description: "Load restaurant from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_restaurant_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "restaurant_modelled"
 
   - name: tst_restaurant_modelled_completeness
@@ -62,8 +62,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: menu_item_dim
     target: v_menu_item_silver
     description: "Load menu_item from silver for modelling"
@@ -86,8 +86,8 @@ actions:
     source: v_menu_item_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "menu_item_modelled"
 
   - name: tst_menu_item_modelled_completeness
@@ -116,8 +116,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: table_seat_dim
     target: v_table_seat_silver
     description: "Load table_seat from silver for modelling"
@@ -140,8 +140,8 @@ actions:
     source: v_table_seat_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "table_seat_modelled"
 
   - name: tst_table_seat_modelled_completeness
@@ -170,8 +170,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: reservation_fct
     target: v_reservation_silver
     description: "Load reservation from silver for modelling"
@@ -194,8 +194,8 @@ actions:
     source: v_reservation_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "reservation_modelled"
 
   - name: tst_reservation_modelled_completeness
@@ -224,8 +224,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: chef_dim
     target: v_chef_silver
     description: "Load chef from silver for modelling"
@@ -248,8 +248,8 @@ actions:
     source: v_chef_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "chef_modelled"
 
   - name: tst_chef_modelled_completeness
@@ -278,8 +278,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: waiter_dim
     target: v_waiter_silver
     description: "Load waiter from silver for modelling"
@@ -302,8 +302,8 @@ actions:
     source: v_waiter_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "waiter_modelled"
 
   - name: tst_waiter_modelled_completeness
@@ -332,8 +332,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: kitchen_fct
     target: v_kitchen_silver
     description: "Load kitchen from silver for modelling"
@@ -356,8 +356,8 @@ actions:
     source: v_kitchen_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "kitchen_modelled"
 
   - name: tst_kitchen_modelled_completeness
@@ -386,8 +386,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: food_order_dim
     target: v_food_order_silver
     description: "Load food_order from silver for modelling"
@@ -410,8 +410,8 @@ actions:
     source: v_food_order_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "food_order_modelled"
 
   - name: tst_food_order_modelled_completeness
@@ -440,8 +440,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: ingredient_dim
     target: v_ingredient_silver
     description: "Load ingredient from silver for modelling"
@@ -464,8 +464,8 @@ actions:
     source: v_ingredient_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "ingredient_modelled"
 
   - name: tst_ingredient_modelled_completeness
@@ -494,8 +494,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: recipe_fct
     target: v_recipe_silver
     description: "Load recipe from silver for modelling"
@@ -518,8 +518,8 @@ actions:
     source: v_recipe_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "recipe_modelled"
 
   - name: tst_recipe_modelled_completeness
@@ -548,8 +548,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: supplier_contract_dim
     target: v_supplier_contract_silver
     description: "Load supplier_contract from silver for modelling"
@@ -572,8 +572,8 @@ actions:
     source: v_supplier_contract_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "supplier_contract_modelled"
 
   - name: tst_supplier_contract_modelled_completeness
@@ -602,8 +602,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: health_inspection_dim
     target: v_health_inspection_silver
     description: "Load health_inspection from silver for modelling"
@@ -626,8 +626,8 @@ actions:
     source: v_health_inspection_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "health_inspection_modelled"
 
   - name: tst_health_inspection_modelled_completeness
@@ -656,8 +656,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: tip_fct
     target: v_tip_silver
     description: "Load tip from silver for modelling"
@@ -680,8 +680,8 @@ actions:
     source: v_tip_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "tip_modelled"
 
   - name: tst_tip_modelled_completeness
@@ -710,8 +710,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: shift_schedule_dim
     target: v_shift_schedule_silver
     description: "Load shift_schedule from silver for modelling"
@@ -734,8 +734,8 @@ actions:
     source: v_shift_schedule_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "shift_schedule_modelled"
 
   - name: tst_shift_schedule_modelled_completeness
@@ -764,8 +764,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: pantry_dim
     target: v_pantry_silver
     description: "Load pantry from silver for modelling"
@@ -788,8 +788,8 @@ actions:
     source: v_pantry_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "pantry_modelled"
 
   - name: tst_pantry_modelled_completeness
@@ -818,8 +818,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: dish_fct
     target: v_dish_silver
     description: "Load dish from silver for modelling"
@@ -842,8 +842,8 @@ actions:
     source: v_dish_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "dish_modelled"
 
   - name: tst_dish_modelled_completeness
@@ -872,8 +872,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: beverage_dim
     target: v_beverage_silver
     description: "Load beverage from silver for modelling"
@@ -896,8 +896,8 @@ actions:
     source: v_beverage_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "beverage_modelled"
 
   - name: tst_beverage_modelled_completeness
@@ -926,8 +926,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: appetizer_dim
     target: v_appetizer_silver
     description: "Load appetizer from silver for modelling"
@@ -950,8 +950,8 @@ actions:
     source: v_appetizer_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "appetizer_modelled"
 
   - name: tst_appetizer_modelled_completeness
@@ -980,8 +980,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: dessert_fct
     target: v_dessert_silver
     description: "Load dessert from silver for modelling"
@@ -1004,8 +1004,8 @@ actions:
     source: v_dessert_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "dessert_modelled"
 
   - name: tst_dessert_modelled_completeness
@@ -1034,8 +1034,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: special_menu_dim
     target: v_special_menu_silver
     description: "Load special_menu from silver for modelling"
@@ -1058,8 +1058,8 @@ actions:
     source: v_special_menu_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "special_menu_modelled"
 
   - name: tst_special_menu_modelled_completeness

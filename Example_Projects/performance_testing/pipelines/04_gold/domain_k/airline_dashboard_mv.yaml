@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.airline_fct
+        FROM ${catalog}.${silver_schema}.airline_fct
     target: v_airline_dashboard
 
   - name: write_airline_dashboard_mv
@@ -17,8 +17,8 @@ actions:
     source: v_airline_dashboard
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "airline_dashboard_mv"
 
   - name: tst_airline_dashboard_completeness

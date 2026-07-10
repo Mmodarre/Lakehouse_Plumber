@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: transponder_dim
     target: v_transponder_silver
     description: "Load transponder from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_transponder_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "transponder_modelled"
 
   - name: tst_transponder_modelled_completeness

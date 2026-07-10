@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.net_metering_dim
+        FROM ${catalog}.${silver_schema}.net_metering_dim
     target: v_net_metering_analysis
 
   - name: write_net_metering_analysis_mv
@@ -17,8 +17,8 @@ actions:
     source: v_net_metering_analysis
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "net_metering_analysis_mv"
 
   - name: tst_net_metering_analysis_completeness

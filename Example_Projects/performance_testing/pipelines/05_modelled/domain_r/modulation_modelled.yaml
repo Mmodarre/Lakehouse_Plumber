@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: modulation_fct
     target: v_modulation_silver
     description: "Load modulation from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_modulation_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "modulation_modelled"
 
   - name: tst_modulation_modelled_completeness

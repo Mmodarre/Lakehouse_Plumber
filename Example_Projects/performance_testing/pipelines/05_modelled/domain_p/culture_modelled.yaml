@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: culture_fct
     target: v_culture_silver
     description: "Load culture from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_culture_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "culture_modelled"
 
   - name: tst_culture_modelled_completeness

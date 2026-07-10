@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: bonus
     target: v_bonus_bronze
     description: "Load bonus from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_bonus_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "bonus_dim"
       mode: "cdc"
       cdc_config:
@@ -58,8 +58,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: commission
     target: v_commission_bronze
     description: "Load commission from bronze for silver layer"
@@ -69,8 +69,8 @@ actions:
     source: v_commission_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "commission_fct"
       mode: "cdc"
       cdc_config:
@@ -107,8 +107,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: overtime
     target: v_overtime_bronze
     description: "Load overtime from bronze for silver layer"
@@ -118,8 +118,8 @@ actions:
     source: v_overtime_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "overtime_dim"
       mode: "cdc"
       cdc_config:
@@ -156,8 +156,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: attendance
     target: v_attendance_bronze
     description: "Load attendance from bronze for silver layer"
@@ -167,8 +167,8 @@ actions:
     source: v_attendance_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "attendance_dim"
       mode: "cdc"
       cdc_config:
@@ -205,8 +205,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: badge
     target: v_badge_bronze
     description: "Load badge from bronze for silver layer"
@@ -216,8 +216,8 @@ actions:
     source: v_badge_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "badge_fct"
       mode: "cdc"
       cdc_config:
@@ -254,8 +254,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: workspace
     target: v_workspace_bronze
     description: "Load workspace from bronze for silver layer"
@@ -265,8 +265,8 @@ actions:
     source: v_workspace_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "workspace_dim"
       mode: "cdc"
       cdc_config:
@@ -303,8 +303,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: team_lead
     target: v_team_lead_bronze
     description: "Load team_lead from bronze for silver layer"
@@ -314,8 +314,8 @@ actions:
     source: v_team_lead_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "team_lead_dim"
       mode: "cdc"
       cdc_config:
@@ -352,8 +352,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: org_chart
     target: v_org_chart_bronze
     description: "Load org_chart from bronze for silver layer"
@@ -363,8 +363,8 @@ actions:
     source: v_org_chart_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "org_chart_fct"
       mode: "cdc"
       cdc_config:
@@ -401,8 +401,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: headcount
     target: v_headcount_bronze
     description: "Load headcount from bronze for silver layer"
@@ -412,8 +412,8 @@ actions:
     source: v_headcount_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "headcount_dim"
       mode: "cdc"
       cdc_config:
@@ -450,8 +450,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: requisition
     target: v_requisition_bronze
     description: "Load requisition from bronze for silver layer"
@@ -461,8 +461,8 @@ actions:
     source: v_requisition_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "requisition_dim"
       mode: "cdc"
       cdc_config:
@@ -499,8 +499,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: background_check
     target: v_background_check_bronze
     description: "Load background_check from bronze for silver layer"
@@ -510,8 +510,8 @@ actions:
     source: v_background_check_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "background_check_fct"
       mode: "cdc"
       cdc_config:
@@ -548,8 +548,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: drug_test
     target: v_drug_test_bronze
     description: "Load drug_test from bronze for silver layer"
@@ -559,8 +559,8 @@ actions:
     source: v_drug_test_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "drug_test_dim"
       mode: "cdc"
       cdc_config:
@@ -597,8 +597,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: exit_interview
     target: v_exit_interview_bronze
     description: "Load exit_interview from bronze for silver layer"
@@ -608,8 +608,8 @@ actions:
     source: v_exit_interview_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "exit_interview_dim"
       mode: "cdc"
       cdc_config:
@@ -646,8 +646,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: alumni
     target: v_alumni_bronze
     description: "Load alumni from bronze for silver layer"
@@ -657,8 +657,8 @@ actions:
     source: v_alumni_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "alumni_fct"
       mode: "cdc"
       cdc_config:
@@ -695,8 +695,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: mentor
     target: v_mentor_bronze
     description: "Load mentor from bronze for silver layer"
@@ -706,8 +706,8 @@ actions:
     source: v_mentor_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "mentor_dim"
       mode: "cdc"
       cdc_config:
@@ -744,8 +744,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: skill_matrix
     target: v_skill_matrix_bronze
     description: "Load skill_matrix from bronze for silver layer"
@@ -755,8 +755,8 @@ actions:
     source: v_skill_matrix_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "skill_matrix_dim"
       mode: "cdc"
       cdc_config:
@@ -793,8 +793,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: competency
     target: v_competency_bronze
     description: "Load competency from bronze for silver layer"
@@ -804,8 +804,8 @@ actions:
     source: v_competency_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "competency_fct"
       mode: "cdc"
       cdc_config:
@@ -842,8 +842,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: succession_plan
     target: v_succession_plan_bronze
     description: "Load succession_plan from bronze for silver layer"
@@ -853,8 +853,8 @@ actions:
     source: v_succession_plan_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "succession_plan_dim"
       mode: "cdc"
       cdc_config:
@@ -891,8 +891,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: workforce_plan
     target: v_workforce_plan_bronze
     description: "Load workforce_plan from bronze for silver layer"
@@ -902,8 +902,8 @@ actions:
     source: v_workforce_plan_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "workforce_plan_dim"
       mode: "cdc"
       cdc_config:
@@ -940,8 +940,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: labor_cost
     target: v_labor_cost_bronze
     description: "Load labor_cost from bronze for silver layer"
@@ -951,8 +951,8 @@ actions:
     source: v_labor_cost_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "labor_cost_fct"
       mode: "cdc"
       cdc_config:

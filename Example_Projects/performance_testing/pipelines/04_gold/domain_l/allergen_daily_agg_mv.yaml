@@ -10,7 +10,7 @@ actions:
           date_trunc('day', _etl_timestamp) as period,
           count(*) as record_count,
           current_timestamp() as _generated_at
-        FROM {catalog}.{silver_schema}.allergen_dim
+        FROM ${catalog}.${silver_schema}.allergen_dim
         GROUP BY 1
     target: v_allergen_daily_agg
 
@@ -19,8 +19,8 @@ actions:
     source: v_allergen_daily_agg
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "allergen_daily_agg_mv"
 
   - name: tst_allergen_daily_agg_completeness

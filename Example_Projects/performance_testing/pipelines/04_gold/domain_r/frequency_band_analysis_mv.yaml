@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.frequency_band_dim
+        FROM ${catalog}.${silver_schema}.frequency_band_dim
     target: v_frequency_band_analysis
 
   - name: write_frequency_band_analysis_mv
@@ -17,8 +17,8 @@ actions:
     source: v_frequency_band_analysis
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "frequency_band_analysis_mv"
 
   - name: tst_frequency_band_analysis_completeness

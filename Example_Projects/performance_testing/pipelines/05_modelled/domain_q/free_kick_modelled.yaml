@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: free_kick_dim
     target: v_free_kick_silver
     description: "Load free_kick from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_free_kick_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "free_kick_modelled"
 
   - name: tst_free_kick_modelled_completeness

@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: viral_moment_fct
     target: v_viral_moment_silver
     description: "Load viral_moment from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_viral_moment_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "viral_moment_modelled"
 
   - name: tst_viral_moment_modelled_completeness

@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.fermentation_fct
+        FROM ${catalog}.${silver_schema}.fermentation_fct
     target: v_fermentation_dashboard
 
   - name: write_fermentation_dashboard_mv
@@ -17,8 +17,8 @@ actions:
     source: v_fermentation_dashboard
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "fermentation_dashboard_mv"
 
   - name: tst_fermentation_dashboard_completeness

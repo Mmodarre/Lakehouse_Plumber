@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: cuvee_dim
     target: v_cuvee_silver
     description: "Load cuvee from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_cuvee_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "cuvee_modelled"
 
   - name: tst_cuvee_modelled_completeness

@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: ground_station_dim
     target: v_ground_station_silver
     description: "Load ground_station from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_ground_station_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "ground_station_modelled"
 
   - name: tst_ground_station_modelled_completeness

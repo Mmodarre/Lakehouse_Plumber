@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: ad_group_dim
     target: v_ad_group_silver
     description: "Load ad_group from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_ad_group_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "ad_group_modelled"
 
   - name: tst_ad_group_modelled_completeness

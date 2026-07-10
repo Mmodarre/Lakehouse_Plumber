@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: digital_distributor_dim
     target: v_digital_distributor_silver
     description: "Load digital_distributor from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_digital_distributor_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "digital_distributor_modelled"
 
   - name: tst_digital_distributor_modelled_completeness

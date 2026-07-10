@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: podcast_feature_fct
     target: v_podcast_feature_silver
     description: "Load podcast_feature from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_podcast_feature_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "podcast_feature_modelled"
 
   - name: tst_podcast_feature_modelled_completeness

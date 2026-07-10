@@ -1,0 +1,425 @@
+name: domain_u_end_to_end
+version: "1.0"
+description: "Domain U (procurement) end-to-end medallion pattern: raw -> bronze -> silver -> gold -> modelled, repeated per site"
+
+parameters:
+  - name: site_name
+    required: true
+    description: "Site identifier used to namespace landing paths, pipelines, and tables (e.g. site1)"
+
+flowgroups:
+  # ------------------------------------------------------------------
+  # RAW layer - purchase_order (use_template, mirrors domain_t raw)
+  # ------------------------------------------------------------------
+  - pipeline: "domain_u_raw_%{site_name}"
+    flowgroup: "purchase_order_ingestion_%{site_name}"
+    presets:
+      - default_delta_properties
+    use_template: parquet_ingestion_template
+    template_parameters:
+      table_name: "purchase_order_raw_%{site_name}"
+      landing_folder: "%{site_name}/purchase_order"
+      schema_file: nation_schema
+    actions:
+      - name: tst_purchase_order_raw_completeness
+        type: test
+        test_type: completeness
+        source: "v_purchase_order_raw_%{site_name}_cloudfiles"
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-purchase_order-%{site_name}-R01"
+
+      - name: tst_purchase_order_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: "v_purchase_order_raw_%{site_name}_cloudfiles"
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-purchase_order-%{site_name}-R02"
+
+  # ------------------------------------------------------------------
+  # RAW layer - warranty_claim (use_template, mirrors domain_t raw)
+  # ------------------------------------------------------------------
+  - pipeline: "domain_u_raw_%{site_name}"
+    flowgroup: "warranty_claim_ingestion_%{site_name}"
+    presets:
+      - default_delta_properties
+    use_template: parquet_ingestion_template
+    template_parameters:
+      table_name: "warranty_claim_raw_%{site_name}"
+      landing_folder: "%{site_name}/warranty_claim"
+      schema_file: nation_schema
+    actions:
+      - name: tst_warranty_claim_raw_completeness
+        type: test
+        test_type: completeness
+        source: "v_warranty_claim_raw_%{site_name}_cloudfiles"
+        required_columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-warranty_claim-%{site_name}-R01"
+
+      - name: tst_warranty_claim_raw_uniqueness
+        type: test
+        test_type: uniqueness
+        source: "v_warranty_claim_raw_%{site_name}_cloudfiles"
+        columns: [_processing_timestamp]
+        on_violation: warn
+        test_id: "PERF-warranty_claim-%{site_name}-R02"
+
+  # ------------------------------------------------------------------
+  # BRONZE layer - purchase_order (use_template, mirrors domain_t bronze)
+  # ------------------------------------------------------------------
+  - pipeline: "domain_u_bronze_%{site_name}"
+    flowgroup: "purchase_order_bronze_%{site_name}"
+    presets:
+      - default_delta_properties
+    use_template: bronze_cleanse_template
+    template_parameters:
+      entity_name: "purchase_order_%{site_name}"
+      source_table: "purchase_order_raw_%{site_name}"
+    actions:
+      - name: tst_purchase_order_bronze_completeness
+        type: test
+        test_type: completeness
+        source: "v_purchase_order_%{site_name}_cleansed"
+        required_columns: ["purchase_order_%{site_name}_key", _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-purchase_order-%{site_name}-B01"
+
+      - name: tst_purchase_order_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: "v_purchase_order_%{site_name}_cleansed"
+        columns: ["purchase_order_%{site_name}_key"]
+        on_violation: warn
+        test_id: "PERF-purchase_order-%{site_name}-B02"
+
+  # ------------------------------------------------------------------
+  # BRONZE layer - warranty_claim (use_template, mirrors domain_t bronze)
+  # ------------------------------------------------------------------
+  - pipeline: "domain_u_bronze_%{site_name}"
+    flowgroup: "warranty_claim_bronze_%{site_name}"
+    presets:
+      - default_delta_properties
+    use_template: bronze_cleanse_template
+    template_parameters:
+      entity_name: "warranty_claim_%{site_name}"
+      source_table: "warranty_claim_raw_%{site_name}"
+    actions:
+      - name: tst_warranty_claim_bronze_completeness
+        type: test
+        test_type: completeness
+        source: "v_warranty_claim_%{site_name}_cleansed"
+        required_columns: ["warranty_claim_%{site_name}_key", _etl_timestamp]
+        on_violation: warn
+        test_id: "PERF-warranty_claim-%{site_name}-B01"
+
+      - name: tst_warranty_claim_bronze_uniqueness
+        type: test
+        test_type: uniqueness
+        source: "v_warranty_claim_%{site_name}_cleansed"
+        columns: ["warranty_claim_%{site_name}_key"]
+        on_violation: warn
+        test_id: "PERF-warranty_claim-%{site_name}-B02"
+
+  # ------------------------------------------------------------------
+  # SILVER layer - purchase_order (hand-authored SCD2, mirrors *_silver_fct.yaml)
+  # ------------------------------------------------------------------
+  - pipeline: "domain_u_silver_%{site_name}"
+    flowgroup: "purchase_order_silver_fct_%{site_name}"
+    presets:
+      - default_delta_properties
+    actions:
+      - name: "purchase_order_%{site_name}_silver_load"
+        type: load
+        operational_metadata: ["_processing_timestamp"]
+        readMode: stream
+        source:
+          type: delta
+          catalog: "${catalog}"
+          schema: "${bronze_schema}"
+          table: "purchase_order_%{site_name}"
+        target: "v_purchase_order_%{site_name}_bronze"
+        description: "Load purchase_order (%{site_name}) from bronze for silver layer"
+
+      - name: "write_purchase_order_%{site_name}_silver"
+        type: write
+        source: "v_purchase_order_%{site_name}_bronze"
+        write_target:
+          type: streaming_table
+          catalog: "${catalog}"
+          schema: "${silver_schema}"
+          table: "purchase_order_fct_%{site_name}"
+          mode: "cdc"
+          cdc_config:
+            keys: ["purchase_order_%{site_name}_key"]
+            sequence_by: "_etl_timestamp"
+            scd_type: 2
+            ignore_null_updates: true
+            track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+      - name: tst_purchase_order_silver_completeness
+        type: test
+        test_type: completeness
+        source: "v_purchase_order_%{site_name}_bronze"
+        required_columns: ["purchase_order_%{site_name}_key"]
+        on_violation: warn
+        test_id: "PERF-purchase_order-%{site_name}-S01"
+
+      - name: tst_purchase_order_silver_uniqueness
+        type: test
+        test_type: uniqueness
+        source: "v_purchase_order_%{site_name}_bronze"
+        columns: ["purchase_order_%{site_name}_key"]
+        on_violation: warn
+        test_id: "PERF-purchase_order-%{site_name}-S02"
+
+  # ------------------------------------------------------------------
+  # SILVER layer - warranty_claim (hand-authored SCD2, mirrors *_silver_fct.yaml)
+  # ------------------------------------------------------------------
+  - pipeline: "domain_u_silver_%{site_name}"
+    flowgroup: "warranty_claim_silver_fct_%{site_name}"
+    presets:
+      - default_delta_properties
+    actions:
+      - name: "warranty_claim_%{site_name}_silver_load"
+        type: load
+        operational_metadata: ["_processing_timestamp"]
+        readMode: stream
+        source:
+          type: delta
+          catalog: "${catalog}"
+          schema: "${bronze_schema}"
+          table: "warranty_claim_%{site_name}"
+        target: "v_warranty_claim_%{site_name}_bronze"
+        description: "Load warranty_claim (%{site_name}) from bronze for silver layer"
+
+      - name: "write_warranty_claim_%{site_name}_silver"
+        type: write
+        source: "v_warranty_claim_%{site_name}_bronze"
+        write_target:
+          type: streaming_table
+          catalog: "${catalog}"
+          schema: "${silver_schema}"
+          table: "warranty_claim_fct_%{site_name}"
+          mode: "cdc"
+          cdc_config:
+            keys: ["warranty_claim_%{site_name}_key"]
+            sequence_by: "_etl_timestamp"
+            scd_type: 2
+            ignore_null_updates: true
+            track_history_except_column_list: ["_source_file_path", "_processing_timestamp", "_etl_timestamp"]
+
+      - name: tst_warranty_claim_silver_completeness
+        type: test
+        test_type: completeness
+        source: "v_warranty_claim_%{site_name}_bronze"
+        required_columns: ["warranty_claim_%{site_name}_key"]
+        on_violation: warn
+        test_id: "PERF-warranty_claim-%{site_name}-S01"
+
+      - name: tst_warranty_claim_silver_uniqueness
+        type: test
+        test_type: uniqueness
+        source: "v_warranty_claim_%{site_name}_bronze"
+        columns: ["warranty_claim_%{site_name}_key"]
+        on_violation: warn
+        test_id: "PERF-warranty_claim-%{site_name}-S02"
+
+  # ------------------------------------------------------------------
+  # GOLD layer - purchase_order (hand-authored MV, mirrors *_analysis_mv.yaml)
+  # ------------------------------------------------------------------
+  - pipeline: "domain_u_gold_%{site_name}"
+    flowgroup: "purchase_order_analysis_mv_%{site_name}"
+    actions:
+      - name: "purchase_order_%{site_name}_analysis_sql"
+        type: load
+        source:
+          type: sql
+          sql: |
+            SELECT
+              *,
+              current_timestamp() as _report_generated_at
+            FROM ${catalog}.${silver_schema}.purchase_order_fct_%{site_name}
+        target: "v_purchase_order_%{site_name}_analysis"
+
+      - name: "write_purchase_order_%{site_name}_analysis_mv"
+        type: write
+        source: "v_purchase_order_%{site_name}_analysis"
+        write_target:
+          type: materialized_view
+          catalog: "${catalog}"
+          schema: "${gold_schema}"
+          table: "purchase_order_analysis_mv_%{site_name}"
+
+      - name: tst_purchase_order_analysis_completeness
+        type: test
+        test_type: completeness
+        source: "v_purchase_order_%{site_name}_analysis"
+        required_columns: [_report_generated_at]
+        on_violation: warn
+        test_id: "PERF-purchase_order-%{site_name}-G01"
+
+      - name: tst_purchase_order_analysis_uniqueness
+        type: test
+        test_type: uniqueness
+        source: "v_purchase_order_%{site_name}_analysis"
+        columns: [_report_generated_at]
+        on_violation: warn
+        test_id: "PERF-purchase_order-%{site_name}-G02"
+
+  # ------------------------------------------------------------------
+  # GOLD layer - warranty_claim (hand-authored MV, mirrors *_analysis_mv.yaml)
+  # ------------------------------------------------------------------
+  - pipeline: "domain_u_gold_%{site_name}"
+    flowgroup: "warranty_claim_analysis_mv_%{site_name}"
+    actions:
+      - name: "warranty_claim_%{site_name}_analysis_sql"
+        type: load
+        source:
+          type: sql
+          sql: |
+            SELECT
+              *,
+              current_timestamp() as _report_generated_at
+            FROM ${catalog}.${silver_schema}.warranty_claim_fct_%{site_name}
+        target: "v_warranty_claim_%{site_name}_analysis"
+
+      - name: "write_warranty_claim_%{site_name}_analysis_mv"
+        type: write
+        source: "v_warranty_claim_%{site_name}_analysis"
+        write_target:
+          type: materialized_view
+          catalog: "${catalog}"
+          schema: "${gold_schema}"
+          table: "warranty_claim_analysis_mv_%{site_name}"
+
+      - name: tst_warranty_claim_analysis_completeness
+        type: test
+        test_type: completeness
+        source: "v_warranty_claim_%{site_name}_analysis"
+        required_columns: [_report_generated_at]
+        on_violation: warn
+        test_id: "PERF-warranty_claim-%{site_name}-G01"
+
+      - name: tst_warranty_claim_analysis_uniqueness
+        type: test
+        test_type: uniqueness
+        source: "v_warranty_claim_%{site_name}_analysis"
+        columns: [_report_generated_at]
+        on_violation: warn
+        test_id: "PERF-warranty_claim-%{site_name}-G02"
+
+  # ------------------------------------------------------------------
+  # MODELLED layer - purchase_order (hand-authored MV, mirrors *_modelled.yaml)
+  # ------------------------------------------------------------------
+  - pipeline: "domain_u_modelled_%{site_name}"
+    flowgroup: "purchase_order_modelled_%{site_name}"
+    presets:
+      - default_delta_properties
+    actions:
+      - name: "purchase_order_%{site_name}_silver_source"
+        type: load
+        readMode: batch
+        source:
+          type: delta
+          catalog: "${catalog}"
+          schema: "${silver_schema}"
+          table: "purchase_order_fct_%{site_name}"
+        target: "v_purchase_order_%{site_name}_silver"
+        description: "Load purchase_order (%{site_name}) from silver for modelling"
+
+      - name: "purchase_order_%{site_name}_model_transform"
+        type: transform
+        transform_type: sql
+        readMode: batch
+        source: "v_purchase_order_%{site_name}_silver"
+        target: "v_purchase_order_%{site_name}_modelled"
+        sql: |
+          SELECT
+            *,
+            current_timestamp() as _modelled_at,
+            'v1' as _model_version
+          FROM v_purchase_order_%{site_name}_silver
+
+      - name: "write_purchase_order_%{site_name}_modelled"
+        type: write
+        source: "v_purchase_order_%{site_name}_modelled"
+        write_target:
+          type: materialized_view
+          catalog: "${catalog}"
+          schema: "${modelled_schema}"
+          table: "purchase_order_modelled_%{site_name}"
+
+      - name: tst_purchase_order_modelled_completeness
+        type: test
+        test_type: completeness
+        source: "v_purchase_order_%{site_name}_modelled"
+        required_columns: [_modelled_at, _model_version]
+        on_violation: warn
+        test_id: "PERF-purchase_order-%{site_name}-M01"
+
+      - name: tst_purchase_order_modelled_uniqueness
+        type: test
+        test_type: uniqueness
+        source: "v_purchase_order_%{site_name}_modelled"
+        columns: [_modelled_at]
+        on_violation: warn
+        test_id: "PERF-purchase_order-%{site_name}-M02"
+
+  # ------------------------------------------------------------------
+  # MODELLED layer - warranty_claim (hand-authored MV, mirrors *_modelled.yaml)
+  # ------------------------------------------------------------------
+  - pipeline: "domain_u_modelled_%{site_name}"
+    flowgroup: "warranty_claim_modelled_%{site_name}"
+    presets:
+      - default_delta_properties
+    actions:
+      - name: "warranty_claim_%{site_name}_silver_source"
+        type: load
+        readMode: batch
+        source:
+          type: delta
+          catalog: "${catalog}"
+          schema: "${silver_schema}"
+          table: "warranty_claim_fct_%{site_name}"
+        target: "v_warranty_claim_%{site_name}_silver"
+        description: "Load warranty_claim (%{site_name}) from silver for modelling"
+
+      - name: "warranty_claim_%{site_name}_model_transform"
+        type: transform
+        transform_type: sql
+        readMode: batch
+        source: "v_warranty_claim_%{site_name}_silver"
+        target: "v_warranty_claim_%{site_name}_modelled"
+        sql: |
+          SELECT
+            *,
+            current_timestamp() as _modelled_at,
+            'v1' as _model_version
+          FROM v_warranty_claim_%{site_name}_silver
+
+      - name: "write_warranty_claim_%{site_name}_modelled"
+        type: write
+        source: "v_warranty_claim_%{site_name}_modelled"
+        write_target:
+          type: materialized_view
+          catalog: "${catalog}"
+          schema: "${modelled_schema}"
+          table: "warranty_claim_modelled_%{site_name}"
+
+      - name: tst_warranty_claim_modelled_completeness
+        type: test
+        test_type: completeness
+        source: "v_warranty_claim_%{site_name}_modelled"
+        required_columns: [_modelled_at, _model_version]
+        on_violation: warn
+        test_id: "PERF-warranty_claim-%{site_name}-M01"
+
+      - name: tst_warranty_claim_modelled_uniqueness
+        type: test
+        test_type: uniqueness
+        source: "v_warranty_claim_%{site_name}_modelled"
+        columns: [_modelled_at]
+        on_violation: warn
+        test_id: "PERF-warranty_claim-%{site_name}-M02"

@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: provenance_dim
     target: v_provenance_silver
     description: "Load provenance from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_provenance_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "provenance_modelled"
 
   - name: tst_provenance_modelled_completeness

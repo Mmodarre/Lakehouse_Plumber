@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: mass_spec
     target: v_mass_spec_bronze
     description: "Load mass_spec from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_mass_spec_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "mass_spec_dim"
       mode: "cdc"
       cdc_config:

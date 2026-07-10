@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: stream_event
     target: v_stream_event_bronze
     description: "Load stream_event from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_stream_event_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "stream_event_dim"
       mode: "cdc"
       cdc_config:

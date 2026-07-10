@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: press_kit_dim
     target: v_press_kit_silver
     description: "Load press_kit from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_press_kit_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "press_kit_modelled"
 
   - name: tst_press_kit_modelled_completeness

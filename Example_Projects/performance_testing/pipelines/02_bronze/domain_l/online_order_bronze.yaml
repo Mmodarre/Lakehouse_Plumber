@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
+      catalog: "${catalog}"
+      schema: "${raw_schema}"
       table: online_order_raw
     target: v_online_order_raw
     description: "Load online_order from raw schema"
@@ -42,8 +42,8 @@ actions:
     write_target:
       create_table: true
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: "online_order"
 
   - name: online_order_migration_load
@@ -52,8 +52,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
+      catalog: "${catalog}"
+      schema: "${raw_schema}"
       table: online_order_migration
     target: v_online_order_migration
     description: "Load online_order migration data"
@@ -80,8 +80,8 @@ actions:
     write_target:
       create_table: false
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: "online_order"
 
   - name: tst_online_order_bronze_mig_completeness

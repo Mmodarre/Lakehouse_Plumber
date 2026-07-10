@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: application_form
     target: v_application_form_bronze
     description: "Load application_form from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_application_form_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "application_form_dim"
       mode: "cdc"
       cdc_config:

@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.goal_dim
+        FROM ${catalog}.${silver_schema}.goal_dim
     target: v_goal_dashboard
 
   - name: write_goal_dashboard_mv
@@ -17,8 +17,8 @@ actions:
     source: v_goal_dashboard
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "goal_dashboard_mv"
 
   - name: tst_goal_dashboard_completeness

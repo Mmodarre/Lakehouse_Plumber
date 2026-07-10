@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.calibration_dim
+        FROM ${catalog}.${silver_schema}.calibration_dim
     target: v_calibration_analysis
 
   - name: write_calibration_analysis_mv
@@ -17,8 +17,8 @@ actions:
     source: v_calibration_analysis
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "calibration_analysis_mv"
 
   - name: tst_calibration_analysis_completeness

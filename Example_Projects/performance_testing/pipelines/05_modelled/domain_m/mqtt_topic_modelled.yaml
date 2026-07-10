@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: mqtt_topic_fct
     target: v_mqtt_topic_silver
     description: "Load mqtt_topic from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_mqtt_topic_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "mqtt_topic_modelled"
 
   - name: tst_mqtt_topic_modelled_completeness

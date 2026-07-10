@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: social_post
     target: v_social_post_bronze
     description: "Load social_post from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_social_post_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "social_post_dim"
       mode: "cdc"
       cdc_config:

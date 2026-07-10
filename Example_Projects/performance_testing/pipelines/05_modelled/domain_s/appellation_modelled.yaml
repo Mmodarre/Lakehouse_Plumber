@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: appellation_dim
     target: v_appellation_silver
     description: "Load appellation from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_appellation_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "appellation_modelled"
 
   - name: tst_appellation_modelled_completeness

@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: dose_response
     target: v_dose_response_bronze
     description: "Load dose_response from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_dose_response_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "dose_response_dim"
       mode: "cdc"
       cdc_config:

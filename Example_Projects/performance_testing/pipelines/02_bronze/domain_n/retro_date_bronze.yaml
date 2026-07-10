@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
+      catalog: "${catalog}"
+      schema: "${raw_schema}"
       table: retro_date_raw
     target: v_retro_date_raw
     description: "Load retro_date from raw schema"
@@ -42,8 +42,8 @@ actions:
     write_target:
       create_table: true
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: "retro_date"
 
   - name: retro_date_migration_load
@@ -52,8 +52,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
+      catalog: "${catalog}"
+      schema: "${raw_schema}"
       table: retro_date_migration
     target: v_retro_date_migration
     description: "Load retro_date migration data"
@@ -80,8 +80,8 @@ actions:
     write_target:
       create_table: false
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: "retro_date"
 
   - name: tst_retro_date_bronze_mig_completeness

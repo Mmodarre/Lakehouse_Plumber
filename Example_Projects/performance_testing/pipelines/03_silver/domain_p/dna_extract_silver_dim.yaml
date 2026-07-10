@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: dna_extract
     target: v_dna_extract_bronze
     description: "Load dna_extract from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_dna_extract_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "dna_extract_dim"
       mode: "cdc"
       cdc_config:

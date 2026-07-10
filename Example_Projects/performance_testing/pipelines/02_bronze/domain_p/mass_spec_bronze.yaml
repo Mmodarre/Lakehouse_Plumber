@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
+      catalog: "${catalog}"
+      schema: "${raw_schema}"
       table: mass_spec_raw
     target: v_mass_spec_raw
     description: "Load mass_spec from raw schema"
@@ -42,8 +42,8 @@ actions:
     write_target:
       create_table: true
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: "mass_spec"
 
   - name: mass_spec_migration_load
@@ -52,8 +52,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
+      catalog: "${catalog}"
+      schema: "${raw_schema}"
       table: mass_spec_migration
     target: v_mass_spec_migration
     description: "Load mass_spec migration data"
@@ -80,8 +80,8 @@ actions:
     write_target:
       create_table: false
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: "mass_spec"
 
   - name: tst_mass_spec_bronze_mig_completeness

@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: actuary_dim
     target: v_actuary_silver
     description: "Load actuary from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_actuary_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "actuary_modelled"
 
   - name: tst_actuary_modelled_completeness

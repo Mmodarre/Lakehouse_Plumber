@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: pharmacokinetics
     target: v_pharmacokinetics_bronze
     description: "Load pharmacokinetics from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_pharmacokinetics_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "pharmacokinetics_fct"
       mode: "cdc"
       cdc_config:

@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.referral_fct
+        FROM ${catalog}.${silver_schema}.referral_fct
     target: v_referral_dashboard
 
   - name: write_referral_dashboard_mv
@@ -17,8 +17,8 @@ actions:
     source: v_referral_dashboard
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "referral_dashboard_mv"
 
   - name: tst_referral_dashboard_completeness

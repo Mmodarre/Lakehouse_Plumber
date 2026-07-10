@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: listener_dim
     target: v_listener_silver
     description: "Load listener from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_listener_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "listener_modelled"
 
   - name: tst_listener_modelled_completeness

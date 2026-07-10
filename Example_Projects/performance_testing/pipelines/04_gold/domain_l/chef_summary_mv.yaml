@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.chef_dim
+        FROM ${catalog}.${silver_schema}.chef_dim
     target: v_chef_summary
 
   - name: write_chef_summary_mv
@@ -17,8 +17,8 @@ actions:
     source: v_chef_summary
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "chef_summary_mv"
 
   - name: tst_chef_summary_completeness

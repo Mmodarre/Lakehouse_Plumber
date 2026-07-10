@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: bit_error_rate
     target: v_bit_error_rate_bronze
     description: "Load bit_error_rate from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_bit_error_rate_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "bit_error_rate_fct"
       mode: "cdc"
       cdc_config:

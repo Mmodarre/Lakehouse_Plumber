@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
+      catalog: "${catalog}"
+      schema: "${raw_schema}"
       table: cta_raw
     target: v_cta_raw
     description: "Load cta from raw schema"
@@ -42,8 +42,8 @@ actions:
     write_target:
       create_table: true
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: "cta"
 
   - name: cta_migration_load
@@ -52,8 +52,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{raw_schema}"
+      catalog: "${catalog}"
+      schema: "${raw_schema}"
       table: cta_migration
     target: v_cta_migration
     description: "Load cta migration data"
@@ -80,8 +80,8 @@ actions:
     write_target:
       create_table: false
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: "cta"
 
   - name: tst_cta_bronze_mig_completeness

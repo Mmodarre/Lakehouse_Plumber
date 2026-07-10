@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.solar_panel_fct
+        FROM ${catalog}.${silver_schema}.solar_panel_fct
     target: v_solar_panel_analysis
 
   - name: write_solar_panel_analysis_mv
@@ -17,8 +17,8 @@ actions:
     source: v_solar_panel_analysis
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "solar_panel_analysis_mv"
 
   - name: tst_solar_panel_analysis_completeness

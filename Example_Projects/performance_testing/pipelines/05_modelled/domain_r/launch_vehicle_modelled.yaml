@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: launch_vehicle_dim
     target: v_launch_vehicle_silver
     description: "Load launch_vehicle from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_launch_vehicle_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "launch_vehicle_modelled"
 
   - name: tst_launch_vehicle_modelled_completeness

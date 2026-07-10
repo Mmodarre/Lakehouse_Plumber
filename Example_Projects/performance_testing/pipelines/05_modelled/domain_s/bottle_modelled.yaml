@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: bottle_dim
     target: v_bottle_silver
     description: "Load bottle from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_bottle_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "bottle_modelled"
 
   - name: tst_bottle_modelled_completeness

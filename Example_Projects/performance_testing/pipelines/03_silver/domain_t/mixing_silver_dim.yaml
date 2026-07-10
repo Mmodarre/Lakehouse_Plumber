@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: mixing
     target: v_mixing_bronze
     description: "Load mixing from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_mixing_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "mixing_dim"
       mode: "cdc"
       cdc_config:

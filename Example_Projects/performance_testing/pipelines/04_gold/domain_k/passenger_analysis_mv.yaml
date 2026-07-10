@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.passenger_dim
+        FROM ${catalog}.${silver_schema}.passenger_dim
     target: v_passenger_analysis
 
   - name: write_passenger_analysis_mv
@@ -17,8 +17,8 @@ actions:
     source: v_passenger_analysis
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "passenger_analysis_mv"
 
   - name: tst_passenger_analysis_completeness

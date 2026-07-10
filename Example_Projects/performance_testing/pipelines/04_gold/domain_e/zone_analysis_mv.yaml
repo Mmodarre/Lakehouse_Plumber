@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.zone_dim
+        FROM ${catalog}.${silver_schema}.zone_dim
     target: v_zone_analysis
 
   - name: write_zone_analysis_mv
@@ -17,8 +17,8 @@ actions:
     source: v_zone_analysis
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "zone_analysis_mv"
 
   - name: tst_zone_analysis_completeness

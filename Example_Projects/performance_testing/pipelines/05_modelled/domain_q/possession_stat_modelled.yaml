@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: possession_stat_fct
     target: v_possession_stat_silver
     description: "Load possession_stat from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_possession_stat_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "possession_stat_modelled"
 
   - name: tst_possession_stat_modelled_completeness

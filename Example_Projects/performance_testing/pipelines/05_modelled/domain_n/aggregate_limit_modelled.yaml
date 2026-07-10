@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: aggregate_limit_dim
     target: v_aggregate_limit_silver
     description: "Load aggregate_limit from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_aggregate_limit_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "aggregate_limit_modelled"
 
   - name: tst_aggregate_limit_modelled_completeness

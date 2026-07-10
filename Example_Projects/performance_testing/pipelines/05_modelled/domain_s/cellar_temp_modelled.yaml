@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: cellar_temp_dim
     target: v_cellar_temp_silver
     description: "Load cellar_temp from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_cellar_temp_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "cellar_temp_modelled"
 
   - name: tst_cellar_temp_modelled_completeness

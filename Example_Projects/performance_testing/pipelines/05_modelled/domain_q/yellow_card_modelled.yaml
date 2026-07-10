@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: yellow_card_dim
     target: v_yellow_card_silver
     description: "Load yellow_card from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_yellow_card_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "yellow_card_modelled"
 
   - name: tst_yellow_card_modelled_completeness

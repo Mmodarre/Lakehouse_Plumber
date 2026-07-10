@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: dead_letter
     target: v_dead_letter_bronze
     description: "Load dead_letter from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_dead_letter_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "dead_letter_dim"
       mode: "cdc"
       cdc_config:

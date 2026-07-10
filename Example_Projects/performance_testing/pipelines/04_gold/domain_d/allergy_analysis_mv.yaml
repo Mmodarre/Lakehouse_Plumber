@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.allergy_dim
+        FROM ${catalog}.${silver_schema}.allergy_dim
     target: v_allergy_analysis
 
   - name: write_allergy_analysis_mv
@@ -17,8 +17,8 @@ actions:
     source: v_allergy_analysis
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "allergy_analysis_mv"
 
   - name: tst_allergy_analysis_completeness

@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: tiktok_clip_dim
     target: v_tiktok_clip_silver
     description: "Load tiktok_clip from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_tiktok_clip_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "tiktok_clip_modelled"
 
   - name: tst_tiktok_clip_modelled_completeness

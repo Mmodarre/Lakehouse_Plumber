@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: schema_registry
     target: v_schema_registry_bronze
     description: "Load schema_registry from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_schema_registry_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "schema_registry_dim"
       mode: "cdc"
       cdc_config:

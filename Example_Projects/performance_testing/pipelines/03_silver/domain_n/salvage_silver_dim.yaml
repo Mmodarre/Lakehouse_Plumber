@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: salvage
     target: v_salvage_bronze
     description: "Load salvage from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_salvage_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "salvage_dim"
       mode: "cdc"
       cdc_config:

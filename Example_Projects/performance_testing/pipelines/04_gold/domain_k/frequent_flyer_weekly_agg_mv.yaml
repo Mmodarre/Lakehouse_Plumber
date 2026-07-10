@@ -10,7 +10,7 @@ actions:
           date_trunc('week', _etl_timestamp) as period,
           count(*) as record_count,
           current_timestamp() as _generated_at
-        FROM {catalog}.{silver_schema}.frequent_flyer_dim
+        FROM ${catalog}.${silver_schema}.frequent_flyer_dim
         GROUP BY 1
     target: v_frequent_flyer_weekly_agg
 
@@ -19,8 +19,8 @@ actions:
     source: v_frequent_flyer_weekly_agg
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "frequent_flyer_weekly_agg_mv"
 
   - name: tst_frequent_flyer_weekly_agg_completeness

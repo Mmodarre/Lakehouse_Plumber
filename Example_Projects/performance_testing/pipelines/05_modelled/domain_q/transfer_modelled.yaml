@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: transfer_dim
     target: v_transfer_silver
     description: "Load transfer from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_transfer_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "transfer_modelled"
 
   - name: tst_transfer_modelled_completeness

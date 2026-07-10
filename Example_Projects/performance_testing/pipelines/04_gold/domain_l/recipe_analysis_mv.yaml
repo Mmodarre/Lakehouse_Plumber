@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.recipe_fct
+        FROM ${catalog}.${silver_schema}.recipe_fct
     target: v_recipe_analysis
 
   - name: write_recipe_analysis_mv
@@ -17,8 +17,8 @@ actions:
     source: v_recipe_analysis
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "recipe_analysis_mv"
 
   - name: tst_recipe_analysis_completeness

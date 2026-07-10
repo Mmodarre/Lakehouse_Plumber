@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: sync_license
     target: v_sync_license_bronze
     description: "Load sync_license from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_sync_license_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "sync_license_dim"
       mode: "cdc"
       cdc_config:

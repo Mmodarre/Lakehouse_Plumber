@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.tooling_fct
+        FROM ${catalog}.${silver_schema}.tooling_fct
     target: v_tooling_dashboard
 
   - name: write_tooling_dashboard_mv
@@ -17,8 +17,8 @@ actions:
     source: v_tooling_dashboard
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "tooling_dashboard_mv"
 
   - name: tst_tooling_dashboard_completeness

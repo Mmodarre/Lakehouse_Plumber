@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: blend
     target: v_blend_bronze
     description: "Load blend from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_blend_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "blend_dim"
       mode: "cdc"
       cdc_config:

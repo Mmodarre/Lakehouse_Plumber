@@ -9,7 +9,7 @@ actions:
         SELECT
           *,
           current_timestamp() as _report_generated_at
-        FROM {catalog}.{silver_schema}.food_order_dim
+        FROM ${catalog}.${silver_schema}.food_order_dim
     target: v_food_order_dashboard
 
   - name: write_food_order_dashboard_mv
@@ -17,8 +17,8 @@ actions:
     source: v_food_order_dashboard
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{gold_schema}"
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
       table: "food_order_dashboard_mv"
 
   - name: tst_food_order_dashboard_completeness

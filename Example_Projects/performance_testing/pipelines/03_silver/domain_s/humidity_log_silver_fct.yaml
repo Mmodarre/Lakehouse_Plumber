@@ -9,8 +9,8 @@ actions:
     readMode: stream
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{bronze_schema}"
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
       table: humidity_log
     target: v_humidity_log_bronze
     description: "Load humidity_log from bronze for silver layer"
@@ -20,8 +20,8 @@ actions:
     source: v_humidity_log_bronze
     write_target:
       type: streaming_table
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: "humidity_log_fct"
       mode: "cdc"
       cdc_config:

@@ -8,8 +8,8 @@ actions:
     readMode: batch
     source:
       type: delta
-      catalog: "{catalog}"
-      schema: "{silver_schema}"
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
       table: bottling_line_fct
     target: v_bottling_line_silver
     description: "Load bottling_line from silver for modelling"
@@ -32,8 +32,8 @@ actions:
     source: v_bottling_line_modelled
     write_target:
       type: materialized_view
-      catalog: "{catalog}"
-      schema: "{modelled_schema}"
+      catalog: "${catalog}"
+      schema: "${modelled_schema}"
       table: "bottling_line_modelled"
 
   - name: tst_bottling_line_modelled_completeness
