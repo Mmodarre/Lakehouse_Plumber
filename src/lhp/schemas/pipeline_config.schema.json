@@ -1,0 +1,203 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "LakehousePlumber Pipeline Configuration",
+    "description": "Schema for one YAML document of the multi-document pipeline configuration file (config/pipeline_config*.yaml). Each document is either a project_defaults document (applies to ALL pipelines) or a pipeline-specific document keyed by 'pipeline' (string or list of pipeline names). Merge order: built-in defaults (serverless: true, edition: ADVANCED, channel: CURRENT, continuous: false) -> project_defaults -> pipeline-specific. Nested mappings are deep-merged; lists are replaced. Unknown keys are passed through to the generated bundle resource, so new Databricks pipeline fields work without an LHP release.",
+    "oneOf": [
+        {
+            "$ref": "#/definitions/ProjectDefaultsDocument"
+        },
+        {
+            "$ref": "#/definitions/PipelineDocument"
+        }
+    ],
+    "definitions": {
+        "ProjectDefaultsDocument": {
+            "type": "object",
+            "description": "Project-wide defaults applied to every pipeline unless overridden by a pipeline-specific document",
+            "required": ["project_defaults"],
+            "properties": {
+                "project_defaults": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/PipelineSettings"
+                        }
+                    ],
+                    "description": "Settings applied to ALL pipelines unless overridden by a pipeline-specific document"
+                }
+            },
+            "additionalProperties": true
+        },
+        "PipelineDocument": {
+            "allOf": [
+                {
+                    "$ref": "#/definitions/PipelineSettings"
+                }
+            ],
+            "type": "object",
+            "required": ["pipeline"],
+            "properties": {
+                "pipeline": {
+                    "description": "Pipeline name(s) this document configures. A list applies the same configuration to multiple pipelines (each gets an independent deep copy). Use the standalone alias '__eventlog_monitoring' to configure the event-log monitoring pipeline without knowing its resolved name.",
+                    "oneOf": [
+                        {
+                            "type": "string",
+                            "description": "Single pipeline name"
+                        },
+                        {
+                            "type": "array",
+                            "description": "List of pipeline names sharing this configuration",
+                            "minItems": 1,
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        "PipelineSettings": {
+            "type": "object",
+            "description": "Pipeline settings. Every value supports LHP substitution tokens (e.g. ${catalog}). Unknown keys are passed through to the generated bundle resource unchanged.",
+            "properties": {
+                "serverless": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Use serverless compute. When false, a clusters configuration is required."
+                },
+                "edition": {
+                    "type": "string",
+                    "enum": ["CORE", "PRO", "ADVANCED"],
+                    "default": "ADVANCED",
+                    "description": "Pipeline edition (only meaningful when serverless: false)"
+                },
+                "channel": {
+                    "type": "string",
+                    "enum": ["CURRENT", "PREVIEW"],
+                    "default": "CURRENT",
+                    "description": "Runtime channel: CURRENT (stable) or PREVIEW (latest features)"
+                },
+                "continuous": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Continuous (streaming) mode; false runs the pipeline in triggered mode"
+                },
+                "packaging": {
+                    "type": "string",
+                    "enum": ["wheel", "source"],
+                    "default": "source",
+                    "description": "How generated code is deployed: 'source' (notebooks/files) or 'wheel' (built wheel; requires wheel.artifact_volume in lhp.yaml)"
+                },
+                "catalog": {
+                    "type": "string",
+                    "description": "Unity Catalog catalog for the pipeline. Must be set together with 'schema' (in project_defaults or per pipeline). Supports LHP substitution tokens."
+                },
+                "schema": {
+                    "type": "string",
+                    "description": "Unity Catalog schema for the pipeline. Must be set together with 'catalog'. Supports LHP substitution tokens."
+                },
+                "configuration": {
+                    "type": "object",
+                    "description": "Arbitrary pipeline-level Spark/pipeline configuration entries. All values must be strings (quote them).",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "environment": {
+                    "type": "object",
+                    "description": "Pipeline environment specification (e.g. dependencies for serverless pipelines)",
+                    "properties": {
+                        "dependencies": {
+                            "type": "array",
+                            "description": "List of pip requirement specifiers",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "additionalProperties": true
+                },
+                "permissions": {
+                    "type": "array",
+                    "description": "Pipeline-level access control entries. Each entry needs a 'level' and exactly one identity (user_name, group_name, or service_principal_name).",
+                    "items": {
+                        "type": "object",
+                        "required": ["level"],
+                        "properties": {
+                            "level": {
+                                "type": "string",
+                                "description": "Permission level (e.g. CAN_VIEW, CAN_RUN, CAN_MANAGE, CAN_MANAGE_RUN)"
+                            },
+                            "user_name": {
+                                "type": "string",
+                                "description": "User email this entry applies to"
+                            },
+                            "group_name": {
+                                "type": "string",
+                                "description": "Group name this entry applies to"
+                            },
+                            "service_principal_name": {
+                                "type": "string",
+                                "description": "Service principal application ID this entry applies to"
+                            }
+                        },
+                        "oneOf": [
+                            {
+                                "required": ["user_name"]
+                            },
+                            {
+                                "required": ["group_name"]
+                            },
+                            {
+                                "required": ["service_principal_name"]
+                            }
+                        ],
+                        "additionalProperties": true
+                    }
+                },
+                "clusters": {
+                    "type": "array",
+                    "description": "Cluster configuration (required when serverless: false). Passed through to the generated bundle resource.",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                    }
+                },
+                "notifications": {
+                    "type": "array",
+                    "description": "Email notification blocks (email_recipients + alerts). Passed through to the generated bundle resource; replaces (not appends to) any inherited value.",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                    }
+                },
+                "tags": {
+                    "type": "object",
+                    "description": "Custom tags for cost tracking and organization (non-serverless pipelines). Passed through to the generated bundle resource.",
+                    "additionalProperties": true
+                },
+                "photon": {
+                    "type": "boolean",
+                    "description": "Enable the Photon engine (only meaningful when serverless: false). Passed through to the generated bundle resource."
+                },
+                "event_log": {
+                    "description": "Per-pipeline event log override. An object fully replaces the lhp.yaml event_log setting for this pipeline; 'false' disables event logging for this pipeline only.",
+                    "oneOf": [
+                        {
+                            "type": "boolean"
+                        },
+                        {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    ]
+                },
+                "run_as": {
+                    "type": "object",
+                    "description": "Identity the pipeline runs as (e.g. service_principal_name). Passed through to the generated bundle resource.",
+                    "additionalProperties": true
+                }
+            },
+            "additionalProperties": true
+        }
+    }
+}

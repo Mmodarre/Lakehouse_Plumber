@@ -50,6 +50,15 @@ export const router = createBrowserRouter([
           Component: (await import('./pages/RunHistoryPage')).RunHistoryPage,
         }),
       },
+      // Config section (project / pipeline / job tabs, URL-synced via the
+      // optional :section param). MUST stay lazy: this chunk is the only
+      // importer of lib/yaml-doc + lib/config-model (the yaml stack).
+      {
+        path: 'config/:section?',
+        lazy: async () => ({
+          Component: (await import('./pages/ConfigurationPage')).ConfigurationPage,
+        }),
+      },
       // First-run scaffolding wizard (health project_state === 'no_project').
       // Rendering it automatically in Layout's no_project branch is a
       // post-4A integration step; until then it is reachable at /init.

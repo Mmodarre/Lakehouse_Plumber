@@ -1,0 +1,251 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "LakehousePlumber Job Configuration",
+    "description": "Schema for one YAML document of the orchestration job configuration file (config/job_config*.yaml) and the monitoring job configuration file (config/monitoring_job_config*.yaml). A document is either a project_defaults document (applies to ALL jobs), a job-specific document keyed by 'job_name' (string or list of job names), or a flat settings document (the whole document is treated as project defaults — the single-document legacy format, and the required format for monitoring job configs). Merge order: built-in defaults (max_concurrent_runs: 1, queue.enabled: true, performance_target: STANDARD) -> project_defaults -> job-specific. Nested mappings are deep-merged; lists are replaced. Unknown keys are rendered verbatim into the generated job YAML, so new Databricks Jobs API fields work without an LHP release.",
+    "oneOf": [
+        {
+            "$ref": "#/definitions/ProjectDefaultsDocument"
+        },
+        {
+            "$ref": "#/definitions/JobDocument"
+        },
+        {
+            "$ref": "#/definitions/FlatSettingsDocument"
+        }
+    ],
+    "definitions": {
+        "ProjectDefaultsDocument": {
+            "type": "object",
+            "description": "Project-wide defaults applied to every job unless overridden by a job-specific document",
+            "required": ["project_defaults"],
+            "properties": {
+                "project_defaults": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/JobSettings"
+                        }
+                    ],
+                    "description": "Settings applied to ALL jobs unless overridden by a job-specific document"
+                }
+            },
+            "additionalProperties": true
+        },
+        "JobDocument": {
+            "allOf": [
+                {
+                    "$ref": "#/definitions/JobSettings"
+                }
+            ],
+            "type": "object",
+            "required": ["job_name"],
+            "properties": {
+                "job_name": {
+                    "description": "Job name(s) this document configures. A list applies the same configuration to multiple jobs (each gets an independent deep copy).",
+                    "oneOf": [
+                        {
+                            "type": "string",
+                            "description": "Single job name"
+                        },
+                        {
+                            "type": "array",
+                            "description": "List of job names sharing this configuration",
+                            "minItems": 1,
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        "FlatSettingsDocument": {
+            "allOf": [
+                {
+                    "$ref": "#/definitions/JobSettings"
+                }
+            ],
+            "not": {
+                "anyOf": [
+                    {
+                        "required": ["project_defaults"]
+                    },
+                    {
+                        "required": ["job_name"]
+                    }
+                ]
+            },
+            "description": "Flat settings document: the whole document is treated as project defaults. This is the single-document legacy format and the required format for monitoring job configs (no project_defaults wrapper, no job_name key)."
+        },
+        "JobSettings": {
+            "type": "object",
+            "description": "Job settings. Every value supports LHP substitution tokens (e.g. ${bundle_target}). Keys not listed here (git_source, parameters, environments, edit_mode, budget_policy_id, ...) are rendered verbatim into the generated job YAML.",
+            "properties": {
+                "max_concurrent_runs": {
+                    "type": "integer",
+                    "default": 1,
+                    "description": "Maximum number of concurrent runs of the job"
+                },
+                "queue": {
+                    "type": "object",
+                    "description": "Job queue settings (default: enabled). When enabled, runs wait in queue once max_concurrent_runs is reached.",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "default": true,
+                            "description": "Whether queueing is enabled"
+                        }
+                    },
+                    "additionalProperties": true
+                },
+                "performance_target": {
+                    "type": "string",
+                    "default": "STANDARD",
+                    "examples": ["STANDARD", "PERFORMANCE_OPTIMIZED"],
+                    "description": "Performance target for job execution: STANDARD (cost-effective) or PERFORMANCE_OPTIMIZED (faster startup, higher cost)"
+                },
+                "timeout_seconds": {
+                    "type": "integer",
+                    "description": "Job-level timeout in seconds (e.g. 3600 = 1 hour)"
+                },
+                "tags": {
+                    "type": "object",
+                    "description": "Tags for cost tracking, organization, and monitoring. Deep-merged with inherited tags.",
+                    "additionalProperties": true
+                },
+                "email_notifications": {
+                    "type": "object",
+                    "description": "Email notifications for job lifecycle events",
+                    "properties": {
+                        "on_start": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Email addresses notified when a run starts"
+                        },
+                        "on_success": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Email addresses notified when a run succeeds"
+                        },
+                        "on_failure": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Email addresses notified when a run fails"
+                        }
+                    },
+                    "additionalProperties": true
+                },
+                "webhook_notifications": {
+                    "type": "object",
+                    "description": "Webhook notifications for external integrations (entries reference notification destination IDs)",
+                    "additionalProperties": true
+                },
+                "permissions": {
+                    "type": "array",
+                    "description": "Job-level access control entries (level plus one identity: user_name, group_name, or service_principal_name)",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "level": {
+                                "type": "string",
+                                "description": "Permission level (e.g. CAN_VIEW, CAN_MANAGE_RUN, CAN_MANAGE)"
+                            },
+                            "user_name": {
+                                "type": "string",
+                                "description": "User email this entry applies to"
+                            },
+                            "group_name": {
+                                "type": "string",
+                                "description": "Group name this entry applies to"
+                            },
+                            "service_principal_name": {
+                                "type": "string",
+                                "description": "Service principal application ID this entry applies to"
+                            }
+                        },
+                        "additionalProperties": true
+                    }
+                },
+                "schedule": {
+                    "type": "object",
+                    "description": "Cron schedule for the job",
+                    "properties": {
+                        "quartz_cron_expression": {
+                            "type": "string",
+                            "description": "Quartz cron expression (e.g. '0 0 2 * * ?')"
+                        },
+                        "timezone_id": {
+                            "type": "string",
+                            "description": "Timezone ID (e.g. America/New_York)"
+                        },
+                        "pause_status": {
+                            "type": "string",
+                            "description": "PAUSED or UNPAUSED"
+                        }
+                    },
+                    "additionalProperties": true
+                },
+                "trigger": {
+                    "type": "object",
+                    "description": "Job trigger block (file_arrival, periodic, table_update, ...). Rendered verbatim into the generated job YAML.",
+                    "additionalProperties": true
+                },
+                "continuous": {
+                    "type": "object",
+                    "description": "Continuous job block (e.g. pause_status). Rendered verbatim into the generated job YAML.",
+                    "additionalProperties": true
+                },
+                "run_as": {
+                    "type": "object",
+                    "description": "Identity the job runs as (e.g. service_principal_name). Rendered verbatim into the generated job YAML.",
+                    "additionalProperties": true
+                },
+                "git_source": {
+                    "type": "object",
+                    "description": "Remote Git source for the job. Rendered verbatim into the generated job YAML.",
+                    "additionalProperties": true
+                },
+                "health": {
+                    "type": "object",
+                    "description": "Job health rules. Rendered verbatim into the generated job YAML.",
+                    "additionalProperties": true
+                },
+                "notebook_cluster": {
+                    "type": "object",
+                    "description": "Cluster overrides for the monitoring job's union notebook task (monitoring job configs only)",
+                    "properties": {
+                        "spark_version": {
+                            "type": "string",
+                            "description": "Databricks runtime version (e.g. 15.4.x-scala2.12)"
+                        },
+                        "node_type_id": {
+                            "type": "string",
+                            "description": "Worker node type"
+                        },
+                        "num_workers": {
+                            "type": "integer",
+                            "description": "Number of workers"
+                        }
+                    },
+                    "additionalProperties": true
+                },
+                "generate_master_job": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "LHP control knob: whether to generate the master orchestration job. Never emitted into the rendered job YAML."
+                },
+                "master_job_name": {
+                    "type": ["string", "null"],
+                    "default": null,
+                    "description": "LHP control knob: override the master orchestration job's name. Never emitted into the rendered job YAML."
+                }
+            },
+            "additionalProperties": true
+        }
+    }
+}

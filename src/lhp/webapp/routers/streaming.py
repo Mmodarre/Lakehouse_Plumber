@@ -10,7 +10,7 @@ The sync→async bridge, frame protocol, §5.7 ordering, terminal-error framing,
 and single-run serialization all live in
 :mod:`lhp.webapp.services.stream_adapter`. This router only:
 
-1. validates the JSON body (``{env, pipeline?}``),
+1. validates the JSON body (``{env, pipeline?, pipeline_config?}``),
 2. binds the facade method into a zero-config ``run(progress) -> Iterator``
    via :func:`functools.partial` (every kwarg bound EXCEPT ``progress`` — the
    adapter injects the sink as ``progress=``), and
@@ -22,12 +22,17 @@ and single-run serialization all live in
 ``pipeline`` (optional) maps to the facade's ``pipeline_filter`` — the
 single-pipeline selection filter; ``None`` runs the whole project.
 
-Bundle sync is intentionally OFF for the IDE stream (``bundle_enabled=False``):
-the DI facade is built via ``for_project`` with no ``pipeline_config_path``, so
-the bundle preflight would have nothing to check; the IDE generate stream is a
-code-generation preview, not a bundle deploy. (The bundle-detection helper also
-lives in :mod:`lhp.bundle`, which this module may not import under the
-``webapp-uses-public-api`` boundary contract — §5.3.)
+``pipeline_config`` (optional) is the IDE counterpart of the CLI's
+``--pipeline-config/-pc`` flag: a project-relative pipeline-config YAML path.
+Without it the run uses the default (config-less) DI facade with
+``bundle_enabled=False`` — a pure code-generation / validation preview, the
+pre-existing behavior. With it the facade is obtained keyed by the resolved
+path (:func:`~lhp.webapp.dependencies.get_facade_for`) and ``bundle_enabled``
+mirrors the CLI decision via :func:`lhp.api.should_enable_bundle_support`
+(``databricks.yml`` presence). The path is guarded like the files router:
+escaping the project root → 403, missing file → 404. (The detection helper is
+re-exported by :mod:`lhp.api`, so the ``webapp-uses-public-api`` boundary
+contract — §5.3 — still holds: no :mod:`lhp.bundle` import here.)
 
 Per that contract this module imports ONLY :mod:`lhp.api` from the ``lhp``
 package, plus FastAPI / pydantic / the in-package adapter + DI helpers.
@@ -42,12 +47,17 @@ import functools
 from collections.abc import Iterator
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from lhp.api import LakehousePlumberApplicationFacade, LHPEvent, ProgressSink
-from lhp.webapp.dependencies import get_facade, get_project_root
+from lhp.api import (
+    LakehousePlumberApplicationFacade,
+    LHPEvent,
+    ProgressSink,
+    should_enable_bundle_support,
+)
+from lhp.webapp.dependencies import get_facade_for, get_project_root
 from lhp.webapp.services.run_recorder import record_ndjson
 from lhp.webapp.services.stream_adapter import stream_events
 
@@ -62,7 +72,10 @@ class StreamRunRequest(BaseModel):
     ``env`` selects the substitution environment (e.g. ``"dev"``). ``pipeline``
     is the optional single-pipeline filter — ``None`` (the default) runs the
     whole project; a name restricts the run to that one pipeline (maps to the
-    facade's ``pipeline_filter``).
+    facade's ``pipeline_filter``). ``pipeline_config`` is the optional
+    project-relative pipeline-config YAML path (the CLI's
+    ``--pipeline-config``); when set, bundle support mirrors the CLI's
+    ``databricks.yml`` detection.
     """
 
     env: str = Field(..., min_length=1, description="Substitution environment.")
@@ -70,13 +83,63 @@ class StreamRunRequest(BaseModel):
         default=None,
         description="Optional single-pipeline filter; null runs the whole project.",
     )
+    pipeline_config: str | None = Field(
+        default=None,
+        min_length=1,
+        description=(
+            "Optional project-relative pipeline-config YAML path (e.g. "
+            "'config/pipeline_config_dev.yaml'); null runs without a pipeline "
+            "config, with bundle support off."
+        ),
+    )
+
+
+def _resolve_pipeline_config(project_root: Path, pipeline_config: str) -> Path:
+    """Resolve the request's config path inside the project root, or refuse.
+
+    Mirrors the files router's guard mapping: a target resolving outside the
+    project root (symlinks followed) → 403; an in-root target that is not an
+    existing file → 404.
+    """
+    resolved = (project_root / pipeline_config).resolve()
+    if not resolved.is_relative_to(project_root.resolve()):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"Path traversal not allowed: {pipeline_config!r} resolves "
+                f"outside the project root"
+            ),
+        )
+    if not resolved.is_file():
+        raise HTTPException(
+            status_code=404, detail=f"File not found: {pipeline_config}"
+        )
+    return resolved
+
+
+def _facade_and_bundle(
+    request: Request, project_root: Path, pipeline_config: str | None
+) -> tuple[LakehousePlumberApplicationFacade, bool]:
+    """Resolve the run's facade and bundle flag from the optional config path.
+
+    No ``pipeline_config`` → the default (``None``-keyed) facade with
+    ``bundle_enabled=False``, exactly the config-less behavior. With one: guard
+    it (403 traversal / 404 missing), key the facade cache by the resolved
+    absolute path, and take the CLI's bundle decision
+    (:func:`lhp.api.should_enable_bundle_support` — ``databricks.yml``
+    presence; the IDE has no ``--no-bundle`` override).
+    """
+    if pipeline_config is None:
+        return get_facade_for(request, None), False
+    resolved = _resolve_pipeline_config(project_root, pipeline_config)
+    facade = get_facade_for(request, str(resolved))
+    return facade, should_enable_bundle_support(project_root)
 
 
 @router.post("/validate/stream")
 def validate_stream(
     body: StreamRunRequest,
     request: Request,
-    facade: LakehousePlumberApplicationFacade = Depends(get_facade),
     project_root: Path = Depends(get_project_root),
 ) -> StreamingResponse:
     """Stream a validation run as NDJSON frames.
@@ -88,11 +151,15 @@ def validate_stream(
     ``ValidationCompleted`` (``success=false`` + issues), not raised.
     The run is recorded into SQLite run history (see ``/api/runs``).
     """
+    facade, bundle_enabled = _facade_and_bundle(
+        request, project_root, body.pipeline_config
+    )
     run = functools.partial(
         _validate_run,
         facade,
         env=body.env,
         pipeline_filter=body.pipeline,
+        bundle_enabled=bundle_enabled,
     )
     frames = record_ndjson(
         stream_events(run),
@@ -109,7 +176,6 @@ def validate_stream(
 def generate_stream(
     body: StreamRunRequest,
     request: Request,
-    facade: LakehousePlumberApplicationFacade = Depends(get_facade),
     project_root: Path = Depends(get_project_root),
 ) -> StreamingResponse:
     """Stream a generation run as NDJSON frames.
@@ -120,6 +186,9 @@ def generate_stream(
     matching the ``lhp generate`` CLI default.
     The run is recorded into SQLite run history (see ``/api/runs``).
     """
+    facade, bundle_enabled = _facade_and_bundle(
+        request, project_root, body.pipeline_config
+    )
     output_dir = project_root / "generated" / body.env
     run = functools.partial(
         _generate_run,
@@ -127,6 +196,7 @@ def generate_stream(
         env=body.env,
         pipeline_filter=body.pipeline,
         output_dir=output_dir,
+        bundle_enabled=bundle_enabled,
     )
     frames = record_ndjson(
         stream_events(run),
@@ -145,6 +215,7 @@ def _validate_run(
     *,
     env: str,
     pipeline_filter: str | None,
+    bundle_enabled: bool,
 ) -> Iterator[LHPEvent]:
     """Bind ``facade.validate_pipelines`` keywords; the adapter injects ``progress``.
 
@@ -157,7 +228,7 @@ def _validate_run(
     return facade.validate_pipelines(
         env=env,
         pipeline_filter=pipeline_filter,
-        bundle_enabled=False,
+        bundle_enabled=bundle_enabled,
         progress=progress,
     )
 
@@ -169,12 +240,13 @@ def _generate_run(
     env: str,
     pipeline_filter: str | None,
     output_dir: Path,
+    bundle_enabled: bool,
 ) -> Iterator[LHPEvent]:
     """Bind ``facade.generate_pipelines`` keywords; the adapter injects ``progress``."""
     return facade.generate_pipelines(
         env=env,
         pipeline_filter=pipeline_filter,
         output_dir=output_dir,
-        bundle_enabled=False,
+        bundle_enabled=bundle_enabled,
         progress=progress,
     )

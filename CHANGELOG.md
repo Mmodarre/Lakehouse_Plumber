@@ -270,6 +270,50 @@ silently missing edges.
     (`api/responses.py`): install dir, skill version, previous version,
     `installed`/`updated` action, installed files, and `CLAUDE.md`
     routing-block status. Both are `:stability:` provisional.
+- **Web IDE Configuration UI.** The `lhp web` IDE gains a Config section
+  that edits all three configuration surfaces as forms — `lhp.yaml`
+  (project), `config/pipeline_config*.yaml` (pipeline defaults,
+  per-pipeline overrides, and anonymous groups `pipeline: [a, b]`), and
+  `config/job_config*.yaml` / `config/monitoring_job_config*.yaml`
+  (orchestration jobs) — with a per-tab file picker and
+  create-from-template for missing files, backed by a new
+  `GET /api/config-templates/{kind}` endpoint serving the packaged
+  `lhp init` templates:
+  - **Comment- and passthrough-preserving saves.** Form saves round-trip
+    the file through a YAML Document-API layer: only the changed lines are
+    touched, hand-written comments and key order survive, unknown
+    ("passthrough") keys are shown as read-only chips and written back
+    verbatim, and disabling an optional section removes its key entirely
+    (never `key: null`). Deleting an entry rewrites only the containing
+    document — comments move with their settings, but placement can shift.
+  - **Precedence rail.** The pipeline and job editors list a file's
+    documents ordered the way the loaders merge them — built-in defaults
+    (read-only) → `project_defaults` → per-pipeline/per-job documents —
+    with cross-document duplicate-pipeline badges. Legacy single-document
+    `job_config` files get an explicit "Convert to multi-document format"
+    action (a save never converts silently); monitoring job configs are
+    edited as the flat single document their loader mandates.
+  - **Run wiring.** A "Use for runs" toggle binds a pipeline config file
+    to IDE Validate/Generate — the CLI `-pc`/`--pipeline-config`
+    equivalent, carried as the new optional `pipeline_config` field on the
+    run-stream request — with the active selection shown in a header chip.
+    With a config bound, generation on a project with `databricks.yml`
+    runs with bundle support enabled and regenerates `resources/lhp/`, so
+    bundle resource generation is now reachable from the IDE; without one,
+    IDE generation keeps its bundle-disabled preview behavior. Backend
+    facades are cached per config path.
+  - **JSON schemas for config files.** New `pipeline_config.schema.json`
+    and `job_config.schema.json` describe the multi-document layouts and
+    drive Monaco YAML hints for `config/pipeline_config*` /
+    `config/job_config*` / `config/monitoring_job_config*` files
+    (validated per document); `project.schema.json` is refreshed against
+    the Pydantic model (adds `test_reporting`, `wheel`, `sandbox`,
+    `apply_formatting`) with a schema-model parity test.
+  - **Conflict handling matches the editor.** Stale saves are rejected in
+    both directions (form save over a raw-YAML edit and vice versa) with a
+    reload dialog, and a banner flags on-disk changes while a form holds
+    unsaved edits. "Open raw YAML" remains the escape hatch for anything
+    the forms do not cover.
 - **`lhp init <name> --sample` — scaffold a complete, runnable sample
   project.** The new flag generates a TPC-H medallion-architecture project:
   bronze ingestion via `delta` and `cloudfiles` loads, silver CDC in both
@@ -490,6 +534,14 @@ silently missing edges.
 
 ### Fixed
 
+- **YAML schema validation in the web IDE was silently dead.**
+  monaco-editor 0.53 changed its web-worker bootstrap, and the frozen
+  `monaco-worker-manager` package that `monaco-yaml` still depends on never
+  spawned the YAML language worker under it — so schema diagnostics
+  (including for `lhp.yaml` and flowgroup files) were never produced for
+  any YAML file. An in-repo worker-manager shim replicating the maintained
+  monaco bootstrap, aliased over the frozen package at build time, restores
+  schema validation in the editor.
 - **SQL extraction no longer drops the explicit `source:` declaration.** When
   a SQL body parsed to real tables, the declared `source:` refs were
   discarded — breaking the documented premise that `$source`-placeholder

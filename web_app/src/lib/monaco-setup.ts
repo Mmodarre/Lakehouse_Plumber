@@ -100,6 +100,11 @@ export function monacoThemeFor(resolved: 'light' | 'dark'): 'lhp-light' | 'lhp-d
  * project-relative portion of the URI:
  *   - `pipelines/` flowgroups may be nested arbitrarily, hence the `**` segment.
  *   - `lhp.yaml` lives at the project root, so an exact filename suffix suffices.
+ *   - `config/` pipeline/job configs are name-prefixed files directly under
+ *     `config/` (e.g. `config/pipeline_config_dev.yaml`), hence the `*` after
+ *     the prefix. `monitoring_job_config*` files are job-config-shaped, so
+ *     they share the `job_config` schema (and cannot collide with the
+ *     `config/job_config*` patterns — the `config/` segment anchors the prefix).
  */
 const SCHEMA_FILE_MATCH: Record<SchemaKind, string[]> = {
   flowgroup: ['pipelines/**/*.yaml', 'pipelines/**/*.yml'],
@@ -107,6 +112,13 @@ const SCHEMA_FILE_MATCH: Record<SchemaKind, string[]> = {
   template: ['templates/**/*.yaml', 'templates/**/*.yml'],
   substitution: ['substitutions/*.yaml', 'substitutions/*.yml'],
   project: ['lhp.yaml', 'lhp.yml'],
+  pipeline_config: ['config/pipeline_config*.yaml', 'config/pipeline_config*.yml'],
+  job_config: [
+    'config/job_config*.yaml',
+    'config/job_config*.yml',
+    'config/monitoring_job_config*.yaml',
+    'config/monitoring_job_config*.yml',
+  ],
 }
 
 let yamlConfigured = false

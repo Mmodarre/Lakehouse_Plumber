@@ -33,7 +33,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   transport.isRunning = false
   useRunStore.getState().reset()
-  useUIStore.setState({ selectedEnv: 'dev', pipelineFilter: null })
+  useUIStore.setState({ selectedEnv: 'dev', pipelineFilter: null, selectedPipelineConfig: null })
 })
 
 describe('useRunController', () => {
@@ -74,6 +74,43 @@ describe('useRunController', () => {
       env: 'prod',
       pipeline: 'sales',
     })
+  })
+
+  it('passes the selected pipeline config to a validate run', () => {
+    useUIStore.setState({ selectedPipelineConfig: 'config/pipeline_config_dev.yaml' })
+    const { result } = renderHook(() => useRunController())
+    result.current.startValidate()
+
+    expect(transport.start.mock.calls[0][0]).toEqual({
+      path: '/api/validate/stream',
+      env: 'dev',
+      pipeline: undefined,
+      pipeline_config: 'config/pipeline_config_dev.yaml',
+    })
+  })
+
+  it('passes the selected pipeline config to a generate run', () => {
+    useUIStore.setState({ selectedPipelineConfig: 'config/pipeline_config_prod.yaml' })
+    const { result } = renderHook(() => useRunController())
+    result.current.startGenerate()
+
+    expect(transport.start.mock.calls[0][0]).toEqual({
+      path: '/api/generate/stream',
+      env: 'dev',
+      pipeline: undefined,
+      pipeline_config: 'config/pipeline_config_prod.yaml',
+    })
+  })
+
+  it('sends no pipeline_config while none is selected (both kinds)', () => {
+    const { result } = renderHook(() => useRunController())
+    result.current.startValidate()
+    expect(transport.start.mock.calls[0][0].pipeline_config).toBeUndefined()
+
+    // The wire-level key omission for undefined is pinned in
+    // src/api/__tests__/stream.test.ts (JSON.stringify drops it).
+    result.current.startGenerate()
+    expect(transport.start.mock.calls[1]?.[0].pipeline_config).toBeUndefined()
   })
 
   it('ignores a start while the transport is already running', () => {

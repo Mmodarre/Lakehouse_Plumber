@@ -63,6 +63,7 @@ _ROUTER_MODULES: tuple[str, ...] = (
     "environments",
     "dependencies",
     "schemas",
+    "config_templates",
     "files",
     "streaming",
     "runs",

@@ -20,6 +20,14 @@ export function fetchFileContentWithMeta(
   return fetchApiTextWithMeta(`/files/${encodePath(path)}`)
 }
 
+// Sentinel `If-Match` token for CREATE-ONLY writes. Real ETags are 16 hex
+// chars (sha256[:16]), so this value can never match one: when the target
+// already exists the backend rejects the PUT with 412 (no write), and when
+// it does not exist the conditional check is skipped and the file is
+// created — an atomic fail-if-exists, serialized by the backend's
+// process-wide mutation lock (src/lhp/webapp/routers/files.py).
+export const IF_MATCH_CREATE_ONLY = 'create-only'
+
 // `PUT /api/files/{path}`. When `etag` is provided it is sent as a quoted
 // `If-Match` header; a backend that enforces ETags then returns 412 on a
 // stale write. Omitting `etag` (new files / older backend) skips the header.

@@ -1,9 +1,14 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 
 export type SelectedNode = {
   type: 'flowgroup' | 'preset' | 'template' | 'pipeline'
   name: string
 } | null
+
+/** The two file-backed Config tabs (kept dependency-free on purpose: the
+ * persisted slice below must never import config components). */
+export type ConfigFileTab = 'pipeline' | 'job'
 
 interface UIState {
   // Environment
@@ -50,48 +55,84 @@ interface UIState {
   openFlowgroupEditor: (name: string, pipeline: string) => void
   openFlowgroupEditorCreate: (name: string, pipeline: string, filePath: string) => void
   closeFlowgroupEditor: () => void
+
+  // Config section — per-tab file selection (persisted; see `partialize`)
+  selectedConfigFiles: Record<ConfigFileTab, string | null>
+  setSelectedConfigFile: (tab: ConfigFileTab, path: string | null) => void
+
+  // Run configuration — the pipeline_config file Validate/Generate use
+  // (persisted). Deliberately SEPARATE from selectedConfigFiles: picking a
+  // file in the pipeline tab never implicitly changes what runs use; only
+  // the explicit "Use for runs" toggle (or the header chip's clear) does.
+  selectedPipelineConfig: string | null
+  setSelectedPipelineConfig: (path: string | null) => void
 }
 
-export const useUIStore = create<UIState>((set) => ({
-  // Environment
-  selectedEnv: 'dev',
-  setSelectedEnv: (env) => set({ selectedEnv: env }),
+export const useUIStore = create<UIState>()(
+  persist(
+    (set) => ({
+      // Environment
+      selectedEnv: 'dev',
+      setSelectedEnv: (env) => set({ selectedEnv: env }),
 
-  // Graph
-  pipelineFilter: null,
-  setPipelineFilter: (pipeline) => set({ pipelineFilter: pipeline }),
+      // Graph
+      pipelineFilter: null,
+      setPipelineFilter: (pipeline) => set({ pipelineFilter: pipeline }),
 
-  // Detail modal
-  selectedNode: null,
-  setSelectedNode: (node) => set({ selectedNode: node }),
-  modalOpen: false,
-  openModal: (node) => set({ selectedNode: node, modalOpen: true }),
-  closeModal: () => set({ modalOpen: false, selectedNode: null }),
+      // Detail modal
+      selectedNode: null,
+      setSelectedNode: (node) => set({ selectedNode: node }),
+      modalOpen: false,
+      openModal: (node) => set({ selectedNode: node, modalOpen: true }),
+      closeModal: () => set({ modalOpen: false, selectedNode: null }),
 
-  // Sidebar
-  sidebarOpen: true,
-  toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+      // Sidebar
+      sidebarOpen: true,
+      toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
 
-  // Drill-down navigation
-  drillPipeline: null,
-  openPipelineModal: (name) => set({ drillPipeline: name, drillFlowgroup: null }),
-  closePipelineModal: () => set({ drillPipeline: null, drillFlowgroup: null }),
-  drillFlowgroup: null,
-  openFlowgroupModal: (name, pipeline) => set({ drillFlowgroup: { name, pipeline } }),
-  closeFlowgroupModal: () => set({ drillFlowgroup: null }),
+      // Drill-down navigation
+      drillPipeline: null,
+      openPipelineModal: (name) => set({ drillPipeline: name, drillFlowgroup: null }),
+      closePipelineModal: () => set({ drillPipeline: null, drillFlowgroup: null }),
+      drillFlowgroup: null,
+      openFlowgroupModal: (name, pipeline) => set({ drillFlowgroup: { name, pipeline } }),
+      closeFlowgroupModal: () => set({ drillFlowgroup: null }),
 
-  // Create flowgroup dialog
-  createFlowgroupDialog: false,
-  openCreateFlowgroupDialog: () => set({ createFlowgroupDialog: true }),
-  closeCreateFlowgroupDialog: () => set({ createFlowgroupDialog: false }),
-
-  // Flowgroup open/create request (consumed by the workspace bridge)
-  flowgroupEditor: null,
-  openFlowgroupEditor: (name, pipeline) => set({ flowgroupEditor: { name, pipeline } }),
-  openFlowgroupEditorCreate: (name, pipeline, filePath) =>
-    set({
-      flowgroupEditor: { name, pipeline, mode: 'create', filePath },
+      // Create flowgroup dialog
       createFlowgroupDialog: false,
+      openCreateFlowgroupDialog: () => set({ createFlowgroupDialog: true }),
+      closeCreateFlowgroupDialog: () => set({ createFlowgroupDialog: false }),
+
+      // Flowgroup open/create request (consumed by the workspace bridge)
+      flowgroupEditor: null,
+      openFlowgroupEditor: (name, pipeline) => set({ flowgroupEditor: { name, pipeline } }),
+      openFlowgroupEditorCreate: (name, pipeline, filePath) =>
+        set({
+          flowgroupEditor: { name, pipeline, mode: 'create', filePath },
+          createFlowgroupDialog: false,
+        }),
+      closeFlowgroupEditor: () => set({ flowgroupEditor: null }),
+
+      // Config section file selection (persisted)
+      selectedConfigFiles: { pipeline: null, job: null },
+      setSelectedConfigFile: (tab, path) =>
+        set((s) => ({
+          selectedConfigFiles: { ...s.selectedConfigFiles, [tab]: path },
+        })),
+
+      // Run pipeline-config selection (persisted)
+      selectedPipelineConfig: null,
+      setSelectedPipelineConfig: (path) => set({ selectedPipelineConfig: path }),
     }),
-  closeFlowgroupEditor: () => set({ flowgroupEditor: null }),
-}))
+    {
+      name: 'lhp-ui',
+      // Everything else in this store is deliberately session-only; only the
+      // Config tabs' file selection and the run-config binding survive a
+      // reload.
+      partialize: (s) => ({
+        selectedConfigFiles: s.selectedConfigFiles,
+        selectedPipelineConfig: s.selectedPipelineConfig,
+      }),
+    },
+  ),
+)

@@ -17,6 +17,20 @@ export default defineConfig(({ mode }) => ({
   ],
   resolve: {
     alias: {
+      // Listed before the bare-package alias below: string aliases also match
+      // "<find>/..." sub-paths, and the worker-side module must keep resolving
+      // to the real package (its handshake is still correct).
+      'monaco-worker-manager/worker': path.resolve(
+        __dirname,
+        'node_modules/monaco-worker-manager/worker.js'
+      ),
+      // monaco-worker-manager's main-thread half predates monaco-editor
+      // >= 0.53's createWebWorker API and silently breaks YAML validation;
+      // see src/lib/yaml-worker-manager.ts for the full story.
+      'monaco-worker-manager': path.resolve(
+        __dirname,
+        './src/lib/yaml-worker-manager.ts'
+      ),
       '@': path.resolve(__dirname, './src'),
     },
   },
@@ -24,7 +38,9 @@ export default defineConfig(({ mode }) => ({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        // Override when the backend runs on a non-default port:
+        // LHP_WEB_API_TARGET=http://localhost:8137 npm run dev
+        target: process.env.LHP_WEB_API_TARGET ?? 'http://localhost:8000',
         changeOrigin: true,
         configure: (proxy) => {
           proxy.on('proxyReq', (_proxyReq, _req, res) => {

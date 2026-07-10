@@ -386,6 +386,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/config-templates/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Config Template
+         * @description Return the raw packaged ``config/<kind>_env.yaml.tmpl`` template text.
+         *
+         *     The body is the template file itself (``text/plain``, no envelope),
+         *     suitable for direct use as initial file content by the frontend.
+         *
+         *     Raises:
+         *         HTTPException: 404 if ``kind`` is malformed, not allow-listed, or the
+         *             packaged resource is missing.
+         */
+        get: operations["get_config_template_api_config_templates__kind__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/dependencies": {
         parameters: {
             query?: never;
@@ -2074,7 +2101,10 @@ export interface components {
          *     ``env`` selects the substitution environment (e.g. ``"dev"``). ``pipeline``
          *     is the optional single-pipeline filter — ``None`` (the default) runs the
          *     whole project; a name restricts the run to that one pipeline (maps to the
-         *     facade's ``pipeline_filter``).
+         *     facade's ``pipeline_filter``). ``pipeline_config`` is the optional
+         *     project-relative pipeline-config YAML path (the CLI's
+         *     ``--pipeline-config``); when set, bundle support mirrors the CLI's
+         *     ``databricks.yml`` detection.
          */
         StreamRunRequest: {
             /**
@@ -2087,6 +2117,11 @@ export interface components {
              * @description Optional single-pipeline filter; null runs the whole project.
              */
             pipeline?: string | null;
+            /**
+             * Pipeline Config
+             * @description Optional project-relative pipeline-config YAML path (e.g. 'config/pipeline_config_dev.yaml'); null runs without a pipeline config, with bundle support off.
+             */
+            pipeline_config?: string | null;
         };
         /**
          * SubstitutionResolvedResponse
@@ -2742,6 +2777,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BlueprintListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_config_template_api_config_templates__kind__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
                 };
             };
             /** @description Validation Error */
