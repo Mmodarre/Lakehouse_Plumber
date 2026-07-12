@@ -3,6 +3,7 @@ import { useCircularDeps } from '../../hooks/useDependencyGraph'
 import { useUIStore } from '../../store/uiStore'
 import { Button } from '../ui/button'
 import { GraphSearchInput } from './GraphSearchInput'
+import { GraphStaleBadge } from './GraphStaleBadge'
 
 interface GraphControlsProps {
   query: string
@@ -42,6 +43,8 @@ export function GraphControls({
       />
 
       <div className="flex-1" />
+
+      <GraphStaleBadge />
 
       <Button size="xs" variant="outline" onClick={() => openCreateFlowgroupDialog()}>
         <Plus aria-hidden="true" />

@@ -31,6 +31,45 @@ class TestParseCache:
 
         assert first == second == "x = 1\n"
 
+    def test_read_text_captures_stat_at_read_time(self, tmp_path):
+        """The recorded ``(mtime_ns, size)`` is the state AT READ TIME, not a
+        later stat. This is the graph-cache invariant: a body edited after the
+        build read it must drift the body manifest so a later load MISSES
+        instead of serving a stale graph."""
+        target = tmp_path / "helper.py"
+        target.write_text("x = 1\n")
+        st_before = target.stat()
+        cache = ParseCache()
+
+        cache.read_text(target)
+        # An edit landing DURING the build, after the read (longer -> new size).
+        target.write_text("x = 2  # edited mid-build, changes size\n")
+        st_after = target.stat()
+
+        recorded = cache.recorded_reads()
+        assert recorded[target] == (st_before.st_mtime_ns, st_before.st_size)
+        assert recorded[target] != (st_after.st_mtime_ns, st_after.st_size)
+
+    def test_recorded_stat_survives_memo_hit_after_edit(self, tmp_path):
+        """A re-read that hits the memo returns the ORIGINAL bytes and keeps the
+        ORIGINAL read-time stat. Recording a fresh stat on the memo hit would
+        stamp a post-edit stat over a graph built from pre-edit bytes -- exactly
+        the stale HIT this capture prevents."""
+        target = tmp_path / "helper.py"
+        target.write_text("x = 1\n")
+        st_before = target.stat()
+        cache = ParseCache()
+
+        first = cache.read_text(target)
+        target.write_text("x = 2  # edited mid-build, changes size\n")
+        second = cache.read_text(target)  # memo hit -> original bytes
+
+        assert first == second == "x = 1\n"
+        assert cache.recorded_reads()[target] == (
+            st_before.st_mtime_ns,
+            st_before.st_size,
+        )
+
     def test_parse_python_memoizes_by_content(self):
         cache = ParseCache()
         code = 'def f():\n    return "cat.sch.t"\n'
@@ -97,7 +136,7 @@ class TestBuilderParsesSharedHelperOnce:
         assert index_spy.call_count == 1
         # ...while extraction still ran per action (each records the read).
         for i in range(3):
-            node = graphs.action_graph.nodes[f"fg_{i}.act_{i}"]
+            node = graphs.action_graph.nodes[f"p1.fg_{i}.act_{i}"]
             assert "cat.sch.orders" in node["external_sources"]
 
 

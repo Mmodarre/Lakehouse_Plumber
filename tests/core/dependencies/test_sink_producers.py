@@ -145,10 +145,12 @@ class TestDeltaSinkProducerRegistration:
 
         graph = _build([producer, consumer])
 
-        assert graph.has_edge("producer_fg.sink_events", "consumer_fg.read_events")
-        edge = graph.edges["producer_fg.sink_events", "consumer_fg.read_events"]
+        assert graph.has_edge(
+            "p1.producer_fg.sink_events", "p2.consumer_fg.read_events"
+        )
+        edge = graph.edges["p1.producer_fg.sink_events", "p2.consumer_fg.read_events"]
         assert edge["dependency_type"] == "internal"
-        assert "external_sources" not in graph.nodes["consumer_fg.read_events"]
+        assert "external_sources" not in graph.nodes["p2.consumer_fg.read_events"]
 
     def test_delta_sink_case_and_backtick_variant_match(self):
         """Sink tableName `Cat.Stg.Events`; reader `` `cat`.`stg`.`events` ``."""
@@ -168,7 +170,9 @@ class TestDeltaSinkProducerRegistration:
 
         graph = _build([producer, consumer])
 
-        assert graph.has_edge("producer_fg.sink_events", "consumer_fg.read_events")
+        assert graph.has_edge(
+            "p1.producer_fg.sink_events", "p2.consumer_fg.read_events"
+        )
 
     def test_delta_sink_two_part_reader_unique_catalog_match(self):
         """Sink to `cat.stg.events`; 2-part reader `stg.events` (unique) -> edge."""
@@ -188,8 +192,10 @@ class TestDeltaSinkProducerRegistration:
 
         graph = _build([producer, consumer])
 
-        assert graph.has_edge("producer_fg.sink_events", "consumer_fg.read_events")
-        assert "external_sources" not in graph.nodes["consumer_fg.read_events"]
+        assert graph.has_edge(
+            "p1.producer_fg.sink_events", "p2.consumer_fg.read_events"
+        )
+        assert "external_sources" not in graph.nodes["p2.consumer_fg.read_events"]
 
 
 @pytest.mark.unit
@@ -214,8 +220,8 @@ class TestNonTableSinksStayExternal:
 
         graph = _build([producer, consumer])
 
-        assert not graph.has_edge("producer_fg.sink_kafka", "consumer_fg.read_x")
-        assert graph.nodes["consumer_fg.read_x"].get("external_sources") == [
+        assert not graph.has_edge("p1.producer_fg.sink_kafka", "p2.consumer_fg.read_x")
+        assert graph.nodes["p2.consumer_fg.read_x"].get("external_sources") == [
             "cat.stg.events"
         ]
 
@@ -270,8 +276,8 @@ class TestNonTableSinksStayExternal:
 
         graph = _build([producer, consumer])
 
-        assert not graph.has_edge("producer_fg.sink_path", "consumer_fg.read_x")
-        assert graph.nodes["consumer_fg.read_x"].get("external_sources") == [
+        assert not graph.has_edge("p1.producer_fg.sink_path", "p2.consumer_fg.read_x")
+        assert graph.nodes["p2.consumer_fg.read_x"].get("external_sources") == [
             "cat.stg.events"
         ]
 
@@ -296,5 +302,5 @@ class TestNonSinkRegistrationUnchanged:
 
         graph = _build([producer, consumer])
 
-        assert graph.has_edge("producer_fg.write_t", "consumer_fg.read_events")
-        assert "external_sources" not in graph.nodes["consumer_fg.read_events"]
+        assert graph.has_edge("p1.producer_fg.write_t", "p2.consumer_fg.read_events")
+        assert "external_sources" not in graph.nodes["p2.consumer_fg.read_events"]

@@ -5,6 +5,7 @@ from ._table_sites import PythonTableSite, PythonTableSitesResult, SourceSpan
 from .analyzer import DependencyAnalyzer
 from .builder import DependencyGraphBuilder
 from .dependency_resolver import DependencyResolver
+from .graph_cache import PersistentGraphCache
 from .output import DependencyOutputFormatter
 from .output_writer import DependencyOutputWriter
 from .python_parser import collect_python_table_sites
@@ -17,6 +18,7 @@ __all__ = [
     "DependencyOutputFormatter",
     "DependencyOutputWriter",
     "DependencyResolver",
+    "PersistentGraphCache",
     "PythonTableSite",
     "PythonTableSitesResult",
     "SourceSpan",

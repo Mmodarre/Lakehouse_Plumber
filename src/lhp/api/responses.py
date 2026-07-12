@@ -310,8 +310,10 @@ class DependencyGraphView:
 
     Networkx-free projection of the internal graph for ``level``
     (``action`` / ``flowgroup`` / ``pipeline``). Node ids are pipeline
-    names, flowgroup names, or ``{flowgroup}.{action}`` keys depending
-    on the level.
+    names, ``{pipeline}.{flowgroup}`` keys, or
+    ``{pipeline}.{flowgroup}.{action}`` keys depending on the level
+    (flowgroup / action ids are pipeline-qualified so same-named
+    flowgroups in sibling pipelines do not collide).
 
     :stability: provisional
     """
@@ -338,7 +340,7 @@ class DependencyAnalysisResult:
     opt-in level snapshots (:class:`DependencyGraphView`): ``None`` by
     default, populated together when the analysis is requested with
     ``include_graphs=True`` (see
-    :meth:`InspectionFacade.analyze_dependencies`).
+    :meth:`DependencyFacade.analyze_dependencies`).
 
     :stability: provisional
     """
@@ -381,7 +383,7 @@ class DependencyOutputEntry:
 class DependencyOutputsResult:
     """Outcome of writing dependency-analysis outputs to disk.
 
-    Returned by :meth:`InspectionFacade.save_dependency_outputs`.
+    Returned by :meth:`DependencyFacade.save_dependency_outputs`.
     ``entries`` enumerates every generated file with its format name
     and optional job-name label, preserving the multi-job ``job`` format
     structure (per-job + ``_master``). Failures surface as
@@ -396,6 +398,30 @@ class DependencyOutputsResult:
     output_dir: Optional[Path] = None
     error_message: Optional[str] = None
     error_code: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class DependencyStalenessResult:
+    """Freshness metadata for the persisted dependency-graph build.
+
+    Returned by :meth:`DependencyFacade.describe_graph_staleness`. Backs the
+    ``lhp web`` serve-stale model: the IDE serves the last-good graph while the
+    project is edited and rebuilds only on an explicit Refresh.
+
+    ``fingerprint`` is the persisted build's identity (the graph cache version
+    tag — LHP version + schema version + model-field hash), ``""`` when no
+    cache is available. ``built_at`` is the last build's timestamp (ISO-8601
+    UTC) or ``None`` when nothing has been persisted yet. ``stale`` is the
+    facade's own cheap view — ``True`` when no persisted build exists; the live
+    edit signal is surfaced by the webapp's watcher-set flag, not recomputed
+    here (a full content re-hash is never done on a poll).
+
+    :stability: provisional
+    """
+
+    stale: bool
+    fingerprint: str
+    built_at: Optional[str] = None
 
 
 @dataclass(frozen=True)

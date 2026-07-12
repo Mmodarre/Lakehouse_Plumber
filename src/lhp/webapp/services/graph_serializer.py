@@ -2,7 +2,7 @@
 
 Consumes the public, networkx-free
 :class:`lhp.api.DependencyAnalysisResult` returned by
-:meth:`InspectionFacade.analyze_dependencies` and projects it onto the
+:meth:`DependencyFacade.analyze_dependencies` and projects it onto the
 React-Flow-facing ``GraphResponse`` / ``GraphNode`` / ``GraphEdge`` schemas in
 :mod:`lhp.webapp.schemas.dependency`.
 
@@ -37,6 +37,8 @@ from lhp.api import (
     DependencyGraphView,
 )
 from lhp.webapp.schemas.dependency import (
+    CrossPipelineConnection,
+    CrossPipelineSummary,
     GraphEdge,
     GraphMetadata,
     GraphNode,
@@ -51,7 +53,7 @@ def serialize_pipeline_graph(result: DependencyAnalysisResult) -> GraphResponse:
 
     Args:
         result: The public, networkx-free dependency-analysis result returned
-            by :meth:`InspectionFacade.analyze_dependencies`.
+            by :meth:`DependencyFacade.analyze_dependencies`.
 
     Returns:
         A :class:`GraphResponse` with pipeline + external-source nodes,
@@ -192,7 +194,7 @@ def serialize_action_graph(result: DependencyAnalysisResult) -> GraphResponse:
 
     Returns:
         A :class:`GraphResponse` with action + external-source nodes
-        (action ids are ``{flowgroup}.{action}``), action-to-action edges,
+        (action ids are ``{pipeline}.{flowgroup}.{action}``), action-to-action edges,
         and metadata (level ``"action"``, cycle summary, external sources).
 
     Raises:
@@ -322,3 +324,70 @@ def _append_external_sources(
                     )
                 )
             edges.append(GraphEdge(source=source, target=view_node.id, type="external"))
+
+
+def summarize_cross_pipeline(
+    result: DependencyAnalysisResult, pipeline: str
+) -> CrossPipelineSummary:
+    """Derive cross-pipeline / external badge data for one pipeline.
+
+    Projects the FULL flowgroup graph via :func:`serialize_flowgroup_graph`,
+    then — mirroring the frontend ``computeExternalConnections`` and this
+    module's :func:`_edge_display_type` — collects every ``cross_pipeline`` /
+    ``external`` edge incident on a flowgroup in ``pipeline``. Direction is
+    relative to ``pipeline``: a flowgroup here that FEEDS the connected node is
+    ``"downstream"`` (matching the edge source's ``downstream`` connection in
+    ``computeExternalConnections``); one that READS from it is ``"upstream"``.
+
+    Pipeline / flowgroup values are read from the node DATA ATTRIBUTES
+    (``GraphNode.pipeline`` / ``GraphNode.flowgroup``), never parsed from the
+    node id string, so a later node-id format change cannot break this.
+
+    Args:
+        result: A dependency-analysis result produced over the FULL project
+            (``pipeline_filter=None``) with ``include_graphs=True``.
+        pipeline: The pipeline whose flowgroups' badges are wanted.
+
+    Returns:
+        A :class:`CrossPipelineSummary` keyed by the source flowgroup's qualified
+        node id (``pipeline.flowgroup``); only
+        flowgroups with at least one cross-pipeline / external connection appear.
+    """
+    graph = serialize_flowgroup_graph(result)
+    node_by_id = {node.id: node for node in graph.nodes}
+    connections: dict[str, list[CrossPipelineConnection]] = {}
+
+    def _display_name(node: GraphNode) -> str:
+        # Human-readable and node-id-format-independent: prefer the flowgroup
+        # attribute; external-source nodes have no flowgroup, so fall back to
+        # their label (the source name).
+        return node.flowgroup or node.label
+
+    def _record(owner: GraphNode, other: GraphNode, direction: str) -> None:
+        # Key by the qualified node id (``pipeline.flowgroup``) so the frontend
+        # ``extConns.get(elkNode.id)`` lookup hits: the drill graph's node ids
+        # are the same qualified ids. ``owner.flowgroup`` is the BARE name and
+        # would miss (and collide across same-named flowgroups in sibling
+        # pipelines). ``target``/``target_pipeline`` stay owner-independent.
+        connections.setdefault(owner.id, []).append(
+            CrossPipelineConnection(
+                direction=direction,
+                target=_display_name(other),
+                target_pipeline=other.pipeline,
+            )
+        )
+
+    for edge in graph.edges:
+        if edge.type not in ("cross_pipeline", "external"):
+            continue
+        source = node_by_id.get(edge.source)
+        target = node_by_id.get(edge.target)
+        if source is None or target is None:
+            continue
+        # Edge is source -> target (source produces data the target reads).
+        if source.pipeline == pipeline:
+            _record(source, target, "downstream")
+        if target.pipeline == pipeline:
+            _record(target, source, "upstream")
+
+    return CrossPipelineSummary(pipeline=pipeline, connections=connections)

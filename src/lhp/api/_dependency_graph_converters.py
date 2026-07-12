@@ -4,7 +4,7 @@ Underscore-prefixed module: not part of :mod:`lhp.api`'s public surface.
 External callers MUST NOT import from here.
 
 Holds the per-level graph projection used by
-:meth:`InspectionFacade.analyze_dependencies` when a consumer opts in via
+:meth:`DependencyFacade.analyze_dependencies` when a consumer opts in via
 ``include_graphs=True``. The projection is a flat walk over the node / edge
 attribute dicts stamped by the internal graph builder — no live graph
 objects reach the DTOs.
@@ -49,7 +49,11 @@ def _node_to_view(
     }
     return DependencyGraphNodeView(
         id=node_id,
-        label=str(attrs.get("action_name") or node_id),
+        label=str(
+            attrs.get("action_name")
+            or (attrs.get("flowgroup") if level == "flowgroup" else None)
+            or node_id
+        ),
         type=str(attrs.get("type") or level),
         pipeline=str(attrs.get("pipeline") or (node_id if level == "pipeline" else "")),
         flowgroup=str(

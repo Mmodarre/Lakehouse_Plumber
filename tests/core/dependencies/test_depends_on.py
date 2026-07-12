@@ -81,14 +81,14 @@ class TestDependsOnEscapeHatch:
 
         graph = _build([producer, consumer])
 
-        assert graph.has_edge("producer_fg.write_a", "consumer_fg.b")
+        assert graph.has_edge("p1.producer_fg.write_a", "p2.consumer_fg.b")
         assert (
-            graph.get_edge_data("producer_fg.write_a", "consumer_fg.b")[
+            graph.get_edge_data("p1.producer_fg.write_a", "p2.consumer_fg.b")[
                 "dependency_type"
             ]
             == "internal"
         )
-        assert "external_sources" not in graph.nodes["consumer_fg.b"]
+        assert "external_sources" not in graph.nodes["p2.consumer_fg.b"]
 
     def test_depends_on_entry_is_canonicalized(self):
         """A case-variant / backtick-quoted ``depends_on`` entry still matches."""
@@ -108,7 +108,7 @@ class TestDependsOnEscapeHatch:
 
         graph = _build([producer, consumer])
 
-        assert graph.has_edge("producer_fg.write_a", "consumer_fg.b")
+        assert graph.has_edge("p1.producer_fg.write_a", "p2.consumer_fg.b")
 
     def test_depends_on_is_additive_to_parseable_source(self):
         """``depends_on`` adds an edge ON TOP of the action's parseable source."""
@@ -144,9 +144,9 @@ class TestDependsOnEscapeHatch:
         graph = _build([producer, view_producer, consumer])
 
         # parseable source edge (view, same pipeline)
-        assert graph.has_edge("view_fg.make_view", "consumer_fg.b")
+        assert graph.has_edge("p2.view_fg.make_view", "p2.consumer_fg.b")
         # depends_on edge (global table)
-        assert graph.has_edge("producer_fg.write_a", "consumer_fg.b")
+        assert graph.has_edge("p1.producer_fg.write_a", "p2.consumer_fg.b")
 
     def test_depends_on_with_no_producer_stays_external(self):
         """A ``depends_on`` table with no producer is external, not a phantom edge."""
@@ -165,7 +165,7 @@ class TestDependsOnEscapeHatch:
 
         graph = _build([consumer])
 
-        assert graph.nodes["consumer_fg.b"].get("external_sources") == [
+        assert graph.nodes["p1.consumer_fg.b"].get("external_sources") == [
             "nocat.nosch.notable"
         ]
 
@@ -180,8 +180,8 @@ class TestDependsOnEscapeHatch:
 
         graph = _build([producer, consumer])
 
-        assert not graph.has_edge("producer_fg.write_a", "consumer_fg.b")
-        assert "external_sources" not in graph.nodes["consumer_fg.b"]
+        assert not graph.has_edge("p1.producer_fg.write_a", "p2.consumer_fg.b")
+        assert "external_sources" not in graph.nodes["p2.consumer_fg.b"]
 
 
 @pytest.mark.unit
@@ -225,7 +225,7 @@ class TestDependsOnSuppression:
 
         # The declared upstream forms the INTERNAL edge...
         assert graphs.action_graph.has_edge(
-            "producer_fg.write_a", "consumer_fg.opaque_act"
+            "p1.producer_fg.write_a", "p2.consumer_fg.opaque_act"
         )
         # ...and the action's opaque-read advisory is suppressed.
         assert graphs.extraction_warnings == []
@@ -267,7 +267,7 @@ class TestTrustDependsOn:
         graph = builder.build_from_flowgroups(
             [producer, consumer], file_paths={}, trust_depends_on=True
         ).action_graph
-        assert graph.has_edge("producer_fg.write_a", "consumer_fg.b")
+        assert graph.has_edge("p1.producer_fg.write_a", "p2.consumer_fg.b")
 
     def test_default_mode_still_extracts_bodies(self):
         from lhp.errors import LHPError
@@ -298,7 +298,7 @@ class TestTrustDependsOn:
         graph = builder.build_from_flowgroups(
             [producer, consumer], file_paths={}, trust_depends_on=True
         ).action_graph
-        assert graph.has_edge("producer_fg.write_a", "consumer_fg.b")
+        assert graph.has_edge("p1.producer_fg.write_a", "p2.consumer_fg.b")
 
     def test_trust_unions_explicit_source_with_depends_on(self):
         producer_a = _producer_fg("p1", "cat", "sch", "a")
@@ -319,8 +319,8 @@ class TestTrustDependsOn:
         graph = builder.build_from_flowgroups(
             [producer_a, consumer], file_paths={}, trust_depends_on=True
         ).action_graph
-        assert graph.has_edge("producer_fg.write_a", "consumer_fg.b")
-        externals = graph.nodes["consumer_fg.b"].get("external_sources", [])
+        assert graph.has_edge("p1.producer_fg.write_a", "p2.consumer_fg.b")
+        externals = graph.nodes["p2.consumer_fg.b"].get("external_sources", [])
         assert "cat.sch.other" in externals
 
 
@@ -348,7 +348,7 @@ class TestViewMatchCanonicalization:
             ],
         )
         graph = _build([fg])
-        assert graph.has_edge("fg.prep", "fg.consume")
+        assert graph.has_edge("p1.fg.prep", "p1.fg.consume")
 
     def test_parsed_case_variant_source_matches_view(self):
         fg = FlowGroup(
@@ -370,7 +370,7 @@ class TestViewMatchCanonicalization:
             ],
         )
         graph = _build([fg])
-        assert graph.has_edge("fg.prep", "fg.consume")
+        assert graph.has_edge("p1.fg.prep", "p1.fg.consume")
 
     def test_same_named_view_in_sibling_pipeline_stays_scoped(self):
         producer_p1 = FlowGroup(
@@ -398,4 +398,4 @@ class TestViewMatchCanonicalization:
             ],
         )
         graph = _build([producer_p1, consumer_p2])
-        assert not graph.has_edge("fg1.prep", "fg2.consume")
+        assert not graph.has_edge("p1.fg1.prep", "p2.fg2.consume")

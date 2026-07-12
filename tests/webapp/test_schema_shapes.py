@@ -19,6 +19,8 @@ from lhp.webapp.schemas.common import (
 )
 from lhp.webapp.schemas.dependency import (
     CircularDependencyResponse,
+    CrossPipelineConnection,
+    CrossPipelineSummary,
     DependencyResponse,
     ExecutionOrderResponse,
     ExportResponse,
@@ -369,6 +371,32 @@ def test_external_sources_response_fields() -> None:
 def test_export_response_fields() -> None:
     dumped = ExportResponse(format="dot", content="digraph {}").model_dump()
     assert set(dumped) == {"format", "content"}
+
+
+def test_cross_pipeline_connection_fields() -> None:
+    dumped = CrossPipelineConnection(
+        direction="downstream", target="fg_c", target_pipeline="silver"
+    ).model_dump()
+    assert set(dumped) == {"direction", "target", "target_pipeline"}
+
+
+def test_cross_pipeline_summary_fields() -> None:
+    dumped = CrossPipelineSummary(
+        pipeline="bronze",
+        connections={
+            "fg_b": [
+                CrossPipelineConnection(
+                    direction="upstream", target="fg_d", target_pipeline="gold"
+                )
+            ]
+        },
+    ).model_dump()
+    assert set(dumped) == {"pipeline", "connections"}
+    assert set(dumped["connections"]["fg_b"][0]) == {
+        "direction",
+        "target",
+        "target_pipeline",
+    }
 
 
 # --- table ------------------------------------------------------------------

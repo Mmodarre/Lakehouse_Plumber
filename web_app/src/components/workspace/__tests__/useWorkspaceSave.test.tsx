@@ -38,9 +38,10 @@ const mockWriteFile = vi.mocked(writeFile)
 const mockToastError = vi.mocked(toast.error)
 const mockToastDismiss = vi.mocked(toast.dismiss)
 
+let queryClient: QueryClient
+
 function wrapper({ children }: { children: ReactNode }) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 }
 
 /** Render the hook with a fake live editor whose text can drift ahead of the
@@ -84,12 +85,43 @@ describe('useWorkspaceSave', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
+    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     useWorkspaceStore.setState({
       buffers: [],
       activePath: null,
       projectRoot: null,
       restoredDirtyCount: 0,
     })
+  })
+
+  it('first save of a new flowgroup YAML invalidates inspection caches but NOT the graph keys (serve-stale)', async () => {
+    // Under serve-stale a brand-new flowgroup misses the graph cache, so a
+    // graph-key invalidation here would force an ungated cold rebuild and a
+    // contradictory freshly-rebuilt-graph + stale-badge state. The watcher's
+    // graph-stale mark drives the badge; Refresh owns the single rebuild.
+    const path = 'pipelines/bronze/new_fg.yaml'
+    useWorkspaceStore
+      .getState()
+      .openBuffer(path, { content: 'pipeline: bronze\nflowgroup: new_fg\n', isNew: true, exists: false })
+    const { result } = setup(path)
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    mockWriteFile.mockResolvedValueOnce({ etag: 'e1' } as Awaited<ReturnType<typeof writeFile>>)
+
+    let ok = false
+    await act(async () => {
+      ok = await result.current.saveBuffer(path)
+    })
+    expect(ok).toBe(true)
+
+    const keys = invalidateSpy.mock.calls.map(([arg]) => arg?.queryKey)
+    // Inspection caches must still refetch so the new file shows in tree/lists.
+    expect(keys).toContainEqual(['files'])
+    expect(keys).toContainEqual(['flowgroups'])
+    expect(keys).toContainEqual(['pipelines'])
+    // Graph keys must NOT be invalidated on the new-flowgroup save path.
+    expect(keys).not.toContainEqual(['dep-graph'])
+    expect(keys).not.toContainEqual(['execution-order'])
+    expect(keys).not.toContainEqual(['circular-deps'])
   })
 
   it('412 lifecycle: stale toast, Resolve reads CURRENT content, keep-mine re-PUTs it with the fresh etag and ends clean', async () => {

@@ -1,7 +1,7 @@
 """Written-file listing for the ``dag`` command.
 
 Renders the file paths produced by
-:meth:`lhp.api.InspectionFacade.save_dependency_outputs` (a frozen
+:meth:`lhp.api.DependencyFacade.save_dependency_outputs` (a frozen
 :class:`lhp.api.DependencyOutputsResult`). The command passes its **stdout**
 console here so the paths are the pipeable primary data stream
 (``lhp dag --format json | xargs cat``); the analysis view goes to stderr via

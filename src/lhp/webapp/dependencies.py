@@ -32,6 +32,7 @@ from typing import Optional
 from fastapi import FastAPI, Request
 
 from lhp.api import (
+    DependencyFacade,
     InspectionFacade,
     LakehousePlumberApplicationFacade,
     SandboxFacade,
@@ -127,9 +128,39 @@ def invalidate_facade(app: FastAPI) -> None:
         app.state.facades = {}
 
 
+def invalidate_discovery_caches(app: FastAPI) -> None:
+    """Refresh every cached facade's flowgroup discovery WITHOUT dropping it.
+
+    The targeted counterpart to :func:`invalidate_facade`, called by the file
+    watcher on a graph-relevant edit made outside the write API. Dropping the
+    whole facade would also nuke the in-process dependency-graph memo and
+    defeat serve-stale, so this clears ONLY each facade's discovery memo (via
+    :meth:`~lhp.api.InspectionFacade.invalidate_discovery_cache`): the
+    inspection reads (``/api/flowgroups``, ``/api/project``, stats, tables, …)
+    re-read the edited project from disk on their next call, while the
+    dependency-graph endpoints keep serving the last-good graph from the
+    untouched memo until an explicit ``POST /api/dependencies/refresh``.
+    Serialised by ``_facade_lock`` against the lazy builds in
+    :func:`get_facade_for`.
+    """
+    with _facade_lock:
+        cache: Optional[dict[Optional[str], LakehousePlumberApplicationFacade]] = (
+            getattr(app.state, "facades", None)
+        )
+        if not cache:
+            return
+        for facade in cache.values():
+            facade.inspection.invalidate_discovery_cache()
+
+
 def get_inspection(request: Request) -> InspectionFacade:
     """Return the read-only inspection facade from the cached application facade."""
     return get_facade(request).inspection
+
+
+def get_dependency(request: Request) -> DependencyFacade:
+    """Return the dependency-analysis facade from the cached application facade."""
+    return get_facade(request).dependency
 
 
 def get_sandbox(request: Request) -> SandboxFacade:

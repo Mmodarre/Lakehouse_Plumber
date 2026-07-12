@@ -3,6 +3,7 @@ import { renderHook } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { usePushChannel } from '../usePushChannel'
+import { useGraphStalenessStore } from '../../store/graphStalenessStore'
 
 // jsdom has no EventSource; install a controllable stub. The hook reads the
 // static CLOSED constant off the global, so the stub must carry the
@@ -87,6 +88,7 @@ beforeEach(() => {
   MockEventSource.instances = []
   vi.stubGlobal('EventSource', MockEventSource)
   vi.spyOn(console, 'debug').mockImplementation(() => {})
+  useGraphStalenessStore.setState({ isStale: false })
 })
 
 afterEach(() => {
@@ -102,7 +104,7 @@ describe('usePushChannel', () => {
     expect(latestSource().url).toBe('/api/events')
   })
 
-  it('file-changed invalidates every file-derived query key', () => {
+  it('file-changed invalidates every file-derived query key except dep-graph', () => {
     const { invalidateSpy } = mount()
     latestSource().emitMessage('file-changed', fileChangedPayload)
 
@@ -116,12 +118,14 @@ describe('usePushChannel', () => {
     expect(keys).toContainEqual(['pipeline'])
     expect(keys).toContainEqual(['pipeline-flowgroups'])
     expect(keys).toContainEqual(['tables'])
-    expect(keys).toContainEqual(['dep-graph'])
     expect(keys).toContainEqual(['execution-order'])
     expect(keys).toContainEqual(['circular-deps'])
     expect(keys).toContainEqual(['stats'])
     expect(keys).toContainEqual(['file-content', 'pipelines/a.yaml'])
-    expect(invalidateSpy).toHaveBeenCalledTimes(14)
+    // The dependency graph is served stale-tolerant: a file change never
+    // refetches it — the `graph-stale` event flips a flag instead.
+    expect(keys).not.toContainEqual(['dep-graph'])
+    expect(invalidateSpy).toHaveBeenCalledTimes(13)
   })
 
   it('file-changed invalidates a per-path file-content key for EACH changed path', () => {
@@ -136,7 +140,7 @@ describe('usePushChannel', () => {
     expect(keys).toContainEqual(['file-content', 'config/pipeline_config_dev.yaml'])
     // Non-string entries are skipped, never turned into keys.
     expect(keys).not.toContainEqual(['file-content', 42])
-    expect(invalidateSpy).toHaveBeenCalledTimes(15) // 13 broad + 2 per-path
+    expect(invalidateSpy).toHaveBeenCalledTimes(14) // 12 broad + 2 per-path
   })
 
   it('ignores file-changed events it cannot parse', () => {
@@ -148,6 +152,19 @@ describe('usePushChannel', () => {
     source.emitMessage('file-changed', 12345) // non-string data
     source.emitPlainEvent('file-changed') // not a MessageEvent
 
+    expect(invalidateSpy).not.toHaveBeenCalled()
+  })
+
+  it('graph-stale sets the client stale flag without refetching the graph', () => {
+    const { invalidateSpy } = mount()
+    expect(useGraphStalenessStore.getState().isStale).toBe(false)
+
+    latestSource().emitMessage('graph-stale', JSON.stringify({ paths: ['pipelines/a.yaml'] }))
+
+    expect(useGraphStalenessStore.getState().isStale).toBe(true)
+    // The graph is never refetched on a stale event.
+    const keys = invalidateSpy.mock.calls.map(([arg]) => arg?.queryKey)
+    expect(keys).not.toContainEqual(['dep-graph'])
     expect(invalidateSpy).not.toHaveBeenCalled()
   })
 

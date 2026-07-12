@@ -54,12 +54,46 @@ class ParseCache:
         self._py_parsed: Dict[str, Optional[Tuple[ast.Module, FunctionIndex]]] = {}
         self._sql_result: Dict[str, SqlExtractionResult] = {}
         self._py_extraction: Dict[Tuple[str, object], "PythonExtractionResult"] = {}
+        # ``(mtime_ns, size)`` captured at the moment each path's bytes were
+        # actually read. Lives as long as ``_file_content`` (the bytes it
+        # attests to), so a later memo hit reports the read-time stat rather
+        # than a fresher on-disk state.
+        self._read_stats: Dict[Path, Tuple[int, int]] = {}
+        # Path -> read-time ``(mtime_ns, size)`` for every ``read_text`` during
+        # the CURRENT build, for the persistent graph cache's body manifest.
+        # Recorded on every call so a second build reusing memoized bytes still
+        # reports the file (with the stat matching those bytes); reset per build.
+        self._recorded_reads: Dict[Path, Tuple[int, int]] = {}
 
     def read_text(self, path: Path) -> str:
-        """Read ``path`` once per run (UTF-8); later calls reuse the bytes."""
+        """Read ``path`` once per run (UTF-8); later calls reuse the bytes.
+
+        The ``(mtime_ns, size)`` recorded for the graph-cache body manifest is
+        captured immediately before the bytes are read (mirroring
+        :class:`~lhp.parsers.parse_cache.PersistentParseCache`), so it attests
+        to the exact content this build parsed. A memo hit reuses that same
+        read-time stat instead of re-statting, so a body edited AFTER this
+        build read it always drifts the manifest on the next ``load`` (MISS):
+        a HIT can never serve a graph stale w.r.t. a transform body.
+        """
         if path not in self._file_content:
+            st = path.stat()
             self._file_content[path] = path.read_text(encoding="utf-8")
+            self._read_stats[path] = (st.st_mtime_ns, st.st_size)
+        self._recorded_reads[path] = self._read_stats[path]
         return self._file_content[path]
+
+    def reset_recorded_reads(self) -> None:
+        """Clear the recorded-reads map at the start of a build."""
+        self._recorded_reads.clear()
+
+    def recorded_reads(self) -> Dict[Path, Tuple[int, int]]:
+        """Return a copy of ``{path: (mtime_ns, size)}`` read since the reset.
+
+        Each stat was captured when the file's bytes were read, so the map is
+        safe to persist directly as the graph-cache body manifest.
+        """
+        return dict(self._recorded_reads)
 
     def parse_python(self, code: str) -> Optional[Tuple[ast.Module, FunctionIndex]]:
         """The parsed tree + function index for ``code``, or ``None``.

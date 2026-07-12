@@ -3,9 +3,11 @@ import { useQueryClient } from '@tanstack/react-query'
 import {
   createPushSource,
   FILE_CHANGED_EVENT,
+  GRAPH_STALE_EVENT,
   RUN_UPDATED_EVENT,
 } from '../api/push'
 import type { FileChangedPayload, RunUpdatedPayload } from '../api/push'
+import { useGraphStalenessStore } from '../store/graphStalenessStore'
 
 // ── usePushChannel — server-push → query invalidation ────────
 //
@@ -31,6 +33,11 @@ const MAX_BACKOFF_MS = 30_000
 // ['flowgroups', pipeline]; note 'flowgroup' does NOT prefix-match
 // 'flowgroup-related-files' (element-wise equality), so each key is
 // listed explicitly.
+//
+// 'dep-graph' is deliberately ABSENT: the dependency graph is served
+// stale-tolerant. A graph-relevant edit rides its own `graph-stale` event
+// (handled below) which flips a client flag + surfaces a manual Refresh,
+// instead of refetching the whole graph on every keystroke.
 const FILE_CHANGED_KEYS = [
   'files',
   'flowgroups',
@@ -41,7 +48,6 @@ const FILE_CHANGED_KEYS = [
   'pipeline',
   'pipeline-flowgroups',
   'tables',
-  'dep-graph',
   'execution-order',
   'circular-deps',
   'stats',
@@ -118,6 +124,13 @@ export function usePushChannel(): void {
       }
     }
 
+    const handleGraphStale = () => {
+      // Serve-stale: flip the client flag and let the toolbar offer a manual
+      // Refresh. Deliberately does NOT refetch the graph. The payload (the
+      // changed paths) is unused — the flag is app-wide, not per-path.
+      useGraphStalenessStore.getState().markStale()
+    }
+
     const handleRunUpdated = (event: Event) => {
       const payload = parseEventData(event)
       if (!isRunUpdatedPayload(payload)) return
@@ -147,6 +160,7 @@ export function usePushChannel(): void {
       }
 
       next.addEventListener(FILE_CHANGED_EVENT, handleFileChanged)
+      next.addEventListener(GRAPH_STALE_EVENT, handleGraphStale)
       next.addEventListener(RUN_UPDATED_EVENT, handleRunUpdated)
 
       next.onerror = () => {

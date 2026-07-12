@@ -17,11 +17,17 @@ from lhp.api import (
     DependencyGraphNodeView,
     DependencyGraphView,
 )
-from lhp.webapp.schemas.dependency import GraphEdge, GraphNode, GraphResponse
+from lhp.webapp.schemas.dependency import (
+    CrossPipelineSummary,
+    GraphEdge,
+    GraphNode,
+    GraphResponse,
+)
 from lhp.webapp.services.graph_serializer import (
     serialize_action_graph,
     serialize_flowgroup_graph,
     serialize_pipeline_graph,
+    summarize_cross_pipeline,
 )
 
 pytestmark = pytest.mark.webapp
@@ -401,3 +407,147 @@ class TestSerializeActionGraph:
     def test_missing_snapshot_raises_value_error(self):
         with pytest.raises(ValueError, match="include_graphs"):
             serialize_action_graph(_result())
+
+
+class TestSummarizeCrossPipeline:
+    """Server-side cross-pipeline / external badge summary for one pipeline.
+
+    Mirrors the frontend ``computeExternalConnections`` but filtered to the
+    queried pipeline and computed off the FULL (unscoped) flowgroup graph, so
+    the real target pipelines survive.
+    """
+
+    def _result(self) -> DependencyAnalysisResult:
+        # bronze: fg_a (reads external raw.landing) -> fg_b (internal, same
+        # pipeline); fg_b -> fg_c (bronze feeds silver); fg_d -> fg_b (gold
+        # feeds bronze).
+        graph = DependencyGraphView(
+            level="flowgroup",
+            nodes=(
+                _fg_node("fg_a", "bronze", external_sources=["raw.landing"]),
+                _fg_node("fg_b", "bronze"),
+                _fg_node("fg_c", "silver"),
+                _fg_node("fg_d", "gold"),
+            ),
+            edges=(
+                DependencyGraphEdgeView(source="fg_a", target="fg_b", type="flowgroup"),
+                DependencyGraphEdgeView(source="fg_b", target="fg_c", type="flowgroup"),
+                DependencyGraphEdgeView(source="fg_d", target="fg_b", type="flowgroup"),
+            ),
+        )
+        return DependencyAnalysisResult(
+            pipeline_dependencies={"bronze": (), "silver": ("bronze",), "gold": ()},
+            execution_stages=(("bronze", "gold"), ("silver",)),
+            external_sources=("raw.landing",),
+            total_pipelines=3,
+            total_external_sources=1,
+            flowgroup_graph=graph,
+        )
+
+    def test_echoes_queried_pipeline(self):
+        summary = summarize_cross_pipeline(self._result(), "bronze")
+        assert isinstance(summary, CrossPipelineSummary)
+        assert summary.pipeline == "bronze"
+
+    def test_only_connected_flowgroups_are_keys(self):
+        # fg_a (external) and fg_b (two cross-pipeline edges) connect; no other
+        # bronze flowgroup does.
+        summary = summarize_cross_pipeline(self._result(), "bronze")
+        assert set(summary.connections) == {"fg_a", "fg_b"}
+
+    def test_outgoing_cross_pipeline_is_downstream(self):
+        # fg_b -> fg_c: bronze FEEDS silver, so from bronze it is downstream.
+        summary = summarize_cross_pipeline(self._result(), "bronze")
+        downstream = [
+            c for c in summary.connections["fg_b"] if c.direction == "downstream"
+        ]
+        assert len(downstream) == 1
+        assert downstream[0].target == "fg_c"
+        assert downstream[0].target_pipeline == "silver"
+
+    def test_incoming_cross_pipeline_is_upstream(self):
+        # fg_d -> fg_b: gold FEEDS bronze, so from bronze it is upstream.
+        summary = summarize_cross_pipeline(self._result(), "bronze")
+        upstream = [c for c in summary.connections["fg_b"] if c.direction == "upstream"]
+        assert len(upstream) == 1
+        assert upstream[0].target == "fg_d"
+        assert upstream[0].target_pipeline == "gold"
+
+    def test_external_source_is_upstream_with_empty_target_pipeline(self):
+        summary = summarize_cross_pipeline(self._result(), "bronze")
+        conns = summary.connections["fg_a"]
+        assert len(conns) == 1
+        assert conns[0].direction == "upstream"
+        assert conns[0].target == "raw.landing"
+        # External sources carry no owning pipeline — the badge falls back to
+        # the source name for its label.
+        assert conns[0].target_pipeline == ""
+
+    def test_internal_same_pipeline_edge_is_excluded(self):
+        # fg_a -> fg_b is bronze->bronze (internal); it must not surface as a
+        # cross-pipeline connection on either endpoint.
+        summary = summarize_cross_pipeline(self._result(), "bronze")
+        assert all(c.target != "fg_b" for c in summary.connections.get("fg_a", []))
+        assert all(c.target != "fg_a" for c in summary.connections.get("fg_b", []))
+
+    def test_target_pipeline_perspective_flips_for_other_pipeline(self):
+        # The same fg_b -> fg_c edge is downstream from bronze but upstream
+        # from silver, and target_pipeline points back at bronze.
+        summary = summarize_cross_pipeline(self._result(), "silver")
+        assert set(summary.connections) == {"fg_c"}
+        conn = summary.connections["fg_c"][0]
+        assert conn.direction == "upstream"
+        assert conn.target == "fg_b"
+        assert conn.target_pipeline == "bronze"
+
+    def test_unknown_pipeline_yields_no_connections(self):
+        summary = summarize_cross_pipeline(self._result(), "does_not_exist")
+        assert summary.pipeline == "does_not_exist"
+        assert summary.connections == {}
+
+    def test_missing_snapshot_raises_value_error(self):
+        with pytest.raises(ValueError, match="include_graphs"):
+            summarize_cross_pipeline(_result(), "bronze")
+
+    def test_derivation_survives_node_id_format_change(self):
+        # Robustness guard for the node-id format: connections are keyed by the
+        # node id (whatever its format), while the connection FIELDS (target /
+        # target_pipeline / direction) are read from node ATTRIBUTES, never
+        # parsed from the id — so an id format change moves the key only.
+        graph = DependencyGraphView(
+            level="flowgroup",
+            nodes=(
+                DependencyGraphNodeView(
+                    id="bronze.fg_b.write",
+                    label="fg_b",
+                    type="flowgroup",
+                    pipeline="bronze",
+                    flowgroup="fg_b",
+                ),
+                DependencyGraphNodeView(
+                    id="silver.fg_c.load",
+                    label="fg_c",
+                    type="flowgroup",
+                    pipeline="silver",
+                    flowgroup="fg_c",
+                ),
+            ),
+            edges=(
+                DependencyGraphEdgeView(
+                    source="bronze.fg_b.write",
+                    target="silver.fg_c.load",
+                    type="flowgroup",
+                ),
+            ),
+        )
+        result = DependencyAnalysisResult(
+            pipeline_dependencies={"bronze": (), "silver": ("bronze",)},
+            total_pipelines=2,
+            flowgroup_graph=graph,
+        )
+        summary = summarize_cross_pipeline(result, "bronze")
+        assert set(summary.connections) == {"bronze.fg_b.write"}
+        conn = summary.connections["bronze.fg_b.write"][0]
+        assert conn.direction == "downstream"
+        assert conn.target == "fg_c"
+        assert conn.target_pipeline == "silver"

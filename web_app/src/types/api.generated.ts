@@ -453,6 +453,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/dependencies/cross-pipeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Cross Pipeline Summary
+         * @description Cross-pipeline / external badge data for ONE pipeline (cheap).
+         *
+         *     Backed by ONE FULL (unscoped) ``analyze_dependencies(include_graphs=True)``
+         *     call — cheap thanks to the persisted + memoized graph cache — from which the
+         *     small per-flowgroup cross-pipeline summary is derived server-side. Lets the
+         *     drill-down badge layer skip transferring and recomputing the whole project
+         *     flowgroup graph client-side; the target pipelines it needs survive only in
+         *     the full (unscoped) analysis.
+         */
+        get: operations["get_cross_pipeline_summary_api_dependencies_cross_pipeline_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/dependencies/execution-order": {
         parameters: {
             query?: never;
@@ -559,6 +586,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/dependencies/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh Dependencies
+         * @description Force a fresh dependency-graph build and clear the stale flag.
+         *
+         *     Bypasses the serve-stale caches (in-process memo + on-disk graph cache),
+         *     re-reads the project from disk, rebuilds, and re-persists — then clears
+         *     ``app.state.graph_stale`` and returns the new build's metadata. This is the
+         *     only path that rebuilds the graph after an edit; every graph GET keeps
+         *     serving the last-good result until it completes.
+         */
+        post: operations["refresh_dependencies_api_dependencies_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/dependencies/staleness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Staleness
+         * @description Report whether the served dependency graph is stale (O(1)).
+         *
+         *     Reads the per-app ``graph_stale`` flag (set by the file watcher on a
+         *     graph-relevant edit, cleared by ``POST /refresh``); when that flag is
+         *     unset it falls back to the facade's cheap persisted-shard metadata. Never
+         *     re-hashes or rebuilds the project — the graph GET endpoints keep serving
+         *     the last-good result regardless of this answer.
+         */
+        get: operations["get_staleness_api_dependencies_staleness_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/environments": {
         parameters: {
             query?: never;
@@ -616,7 +695,8 @@ export interface paths {
         };
         /**
          * Events
-         * @description Open the live-update SSE stream (``run-updated`` / ``file-changed``).
+         * @description Open the live-update SSE stream (``run-updated`` / ``file-changed`` /
+         *     ``graph-stale``).
          */
         get: operations["events_api_events_get"];
         put?: never;
@@ -1373,6 +1453,50 @@ export interface components {
             has_circular: boolean;
             /** Total Cycles */
             total_cycles: number;
+        };
+        /**
+         * CrossPipelineConnection
+         * @description One cross-pipeline (or external) connection for a flowgroup in the queried pipeline.
+         *
+         *     Mirrors the frontend ``ExternalConnection`` badge model. ``direction`` is
+         *     relative to the queried pipeline: ``"upstream"`` means the connected node
+         *     feeds a flowgroup here, ``"downstream"`` means a flowgroup here feeds the
+         *     connected node. ``target`` is the connected node's human-readable name (the
+         *     other flowgroup's name, or an external-source name) and ``target_pipeline``
+         *     is that node's owning pipeline (``""`` for a genuine external source).
+         */
+        CrossPipelineConnection: {
+            /** Direction */
+            direction: string;
+            /**
+             * Target
+             * @description Connected node name (flowgroup or external source)
+             */
+            target: string;
+            /**
+             * Target Pipeline
+             * @description Owning pipeline of the connected node ('' if external)
+             */
+            target_pipeline: string;
+        };
+        /**
+         * CrossPipelineSummary
+         * @description Compact cross-pipeline / external badge data for ONE pipeline.
+         *
+         *     ``connections`` maps each flowgroup NAME in ``pipeline`` to its list of
+         *     cross-pipeline / external connections. Derived server-side from the FULL
+         *     (unscoped) flowgroup graph so the real ``target_pipeline`` survives — a
+         *     pipeline-scoped graph erases it to an empty external node. Only flowgroups
+         *     with at least one such connection appear as keys, so the frontend badge
+         *     layer can consume it without transferring the whole project graph.
+         */
+        CrossPipelineSummary: {
+            /** Connections */
+            connections?: {
+                [key: string]: components["schemas"]["CrossPipelineConnection"][];
+            };
+            /** Pipeline */
+            pipeline: string;
         };
         /**
          * DaemonStartResponse
@@ -2179,6 +2303,22 @@ export interface components {
             skill_version: string;
         };
         /**
+         * StalenessResponse
+         * @description Dependency-graph freshness for the serve-stale + manual-refresh model.
+         *
+         *     ``stale`` drives the Refresh affordance in the SPA; ``fingerprint`` is the
+         *     last persisted build's identity and ``built_at`` its ISO-8601 UTC timestamp
+         *     (``None`` when nothing has been persisted yet).
+         */
+        StalenessResponse: {
+            /** Built At */
+            built_at?: string | null;
+            /** Fingerprint */
+            fingerprint: string;
+            /** Stale */
+            stale: boolean;
+        };
+        /**
          * StreamRunRequest
          * @description Request body for the validate / generate stream endpoints.
          *
@@ -2965,6 +3105,38 @@ export interface operations {
             };
         };
     };
+    get_cross_pipeline_summary_api_dependencies_cross_pipeline_get: {
+        parameters: {
+            query: {
+                /** @description Pipeline whose cross-pipeline badges are wanted */
+                pipeline: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrossPipelineSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_execution_order_api_dependencies_execution_order_get: {
         parameters: {
             query?: {
@@ -3100,6 +3272,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GraphResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refresh_dependencies_api_dependencies_refresh_post: {
+        parameters: {
+            query?: {
+                /** @description Filter by pipeline */
+                pipeline?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StalenessResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_staleness_api_dependencies_staleness_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by pipeline */
+                pipeline?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StalenessResponse"];
                 };
             };
             /** @description Validation Error */

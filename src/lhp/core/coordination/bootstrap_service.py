@@ -90,6 +90,26 @@ class FlowgroupBootstrapService(BaseFlowgroupBootstrapService):
         self._discovery_cache = tuple(flowgroups)
         return self._discovery_cache
 
+    def reset_discovery_cache(self) -> None:
+        """Drop the invocation-scoped discovery memo and its derived state.
+
+        Forces the next :meth:`discover_all_flowgroups` to re-read the project
+        from disk (blueprints and monitoring re-expanded), so an edit made
+        outside the current process becomes visible without discarding the
+        whole service graph. Clears ONLY discovery-derived state: the persisted
+        graph cache and any in-process dependency-graph memo live elsewhere and
+        are left untouched.
+
+        Also resets the discovery service's lazily-built source-path index so a
+        newly added / renamed / moved flowgroup resolves to its YAML file on the
+        next :meth:`find_source_yaml_for_flowgroup` (the index memoizes misses
+        as ``None`` and never re-scans on its own).
+        """
+        self._discovery_cache = None
+        self._synthetic_contexts = {}
+        self._monitoring_result = None
+        self._discovery.reset_source_path_index()  # type: ignore[attr-defined]  # concrete-only method; ABC narrows surface to discover_flowgroups
+
     def make_context(self, fg: FlowGroup) -> FlowGroupContext:
         """Wrap a FlowGroup in its FlowGroupContext for the worker boundary.
 

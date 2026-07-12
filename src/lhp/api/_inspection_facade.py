@@ -4,29 +4,16 @@ Underscore-prefixed: not part of the import surface; external callers
 MUST import :class:`InspectionFacade` from :mod:`lhp.api` (re-exported
 via :mod:`lhp.api.facade`). This split exists purely to keep
 ``lhp/api/facade.py`` under the constitution §3.3 soft cap (500 lines)
-while the inspection surface absorbs thirteen read-only methods plus
-the two dependency-output paths.
+while the inspection surface absorbs its read-only methods (plus one
+cache-management method).
 
 :stability: internal
 """
 
-# JUSTIFIED: This module's :class:`InspectionFacade` exposes fifteen
-# public methods — exactly at the §3.2 hard cap (justification required
-# from 10; nothing beyond 15 may be added) — explicitly enumerated in
-# the class docstring to satisfy the constitution's exception clause.
-# The methods are cohesive — all read-only project introspection plus
-# the two dependency-output paths — and splitting further would
-# fracture a single semantic group across multiple facades. The same
-# cohesion justifies the §3.3 size overage (>500 lines): heavy
-# DTO-conversion bodies live in :mod:`lhp.api._inspection_converters`;
-# what remains is the per-method delegation surface plus the
-# dependency-output enumeration path.
-# TODO(INSPECTION-FACADE-SPLIT): the §3.2 method cap is now HIT — a sixteenth method REQUIRES splitting InspectionFacade into sub-facades grouped by DTO family; see LOCAL/REMAINING_WORK.md §9.5.
 from __future__ import annotations
 
 import copy
 import logging
-from dataclasses import replace
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -36,15 +23,11 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
-    Union,
-    cast,
 )
 
-from lhp.api._dependency_graph_converters import _graph_to_view
 from lhp.api._inspection_converters import (
     _build_stats_result,
     _build_substitution_manager_for_env,
-    _dependency_result_to_view,
     _duplicates_to_validation_response,
     _flowgroup_file_paths,
     _flowgroup_to_processed_view,
@@ -56,9 +39,6 @@ from lhp.api._inspection_converters import (
 )
 from lhp.api._listings import _build_blueprint_views
 from lhp.api.responses import (
-    DependencyAnalysisResult,
-    DependencyOutputEntry,
-    DependencyOutputsResult,
     StatsResult,
     ValidationResponse,
 )
@@ -84,9 +64,8 @@ if TYPE_CHECKING:
 class InspectionFacade:
     """Inspection / read-only operations on a constructed project.
 
-    Fifteen public methods grouped by responsibility — inspection-style
-    read-only / informational operations plus the two dependency-output
-    paths:
+    Fourteen public methods grouped by responsibility — inspection-style
+    read-only / informational operations:
 
     - ``list_flowgroups``
     - ``process_flowgroup``
@@ -99,14 +78,17 @@ class InspectionFacade:
     - ``list_presets``
     - ``resolve_preset``
     - ``list_templates``
-    - ``analyze_dependencies``
-    - ``save_dependency_outputs``
     - ``validate_duplicate_flowgroups``
     - ``build_substitution_view``
 
-    All return frozen DTOs from :mod:`lhp.api.views` /
-    :mod:`lhp.api.responses`. No method mutates state; this facade is
-    read-only.
+    plus one cache-management operation:
+
+    - ``invalidate_discovery_cache``
+
+    The read methods return frozen DTOs from :mod:`lhp.api.views` /
+    :mod:`lhp.api.responses` and never mutate project state.
+    ``invalidate_discovery_cache`` is the sole exception: it clears the
+    memoized flowgroup discovery so the next read re-reads disk.
 
     :stability: provisional
     """
@@ -350,159 +332,6 @@ class InspectionFacade:
             views.append(_template_to_view(template, path))
         return tuple(views)
 
-    def analyze_dependencies(
-        self,
-        *,
-        pipeline_filter: Optional[str] = None,
-        blueprint_filter: Optional[str] = None,
-        trust_depends_on: bool = False,
-        include_graphs: bool = False,
-    ) -> DependencyAnalysisResult:
-        """Run dependency analysis and return a frozen, flattened result.
-
-        ``pipeline_filter`` restricts the graph to the named pipeline.
-        ``blueprint_filter`` restricts the graph to synthetic flowgroups
-        expanded from the named blueprint. Blueprint expansion is always
-        full — one node per blueprint × instance × spec — so pipelines a
-        blueprint parameterizes per instance are never dropped. Analysis
-        is memoized per option triple: a subsequent
-        :meth:`save_dependency_outputs` with the same options reuses this
-        call's analysis.
-
-        ``trust_depends_on`` (opt-in) makes a non-empty ``depends_on``
-        AUTHORITATIVE for its action: SQL/Python bodies are not read or
-        parsed for that action, and its source set is exactly the explicit
-        ``source:`` declarations plus the declared ``depends_on`` entries.
-        Default (False) keeps the additive contract — declared entries
-        union on top of parsed sources. Trust mode is a performance
-        escape hatch for large projects whose actions fully declare their
-        upstreams; an action whose declarations are incomplete loses the
-        parsed edges for its undeclared reads.
-
-        ``include_graphs`` (opt-in) additionally populates the result's
-        ``action_graph`` / ``flowgroup_graph`` / ``pipeline_graph``
-        fields with frozen, networkx-free :class:`DependencyGraphView`
-        snapshots of the three graph levels. Default (False) leaves
-        them ``None`` — the flattened summary alone. Same return type
-        either way; only the optional fields' population changes (the
-        constitution's sanctioned opt-in-field pattern, §13.7).
-
-        The result's ``warnings`` may carry ``LHP-DEP-002`` /
-        ``LHP-DEP-003`` advisory codes (never raised), aggregated per
-        unresolved read SITE with the affected actions enumerated, each
-        suggesting an explicit ``depends_on`` declaration.
-
-        :stability: provisional
-        :raises lhp.errors.LHPError: ``LHP-CFG-*`` / ``LHP-VAL-*`` /
-            ``LHP-FILE-*`` / ``LHP-MULT-*`` propagated from flowgroup
-            discovery and dependency analysis.
-        """
-        internal = self._orchestrator.dependencies.analyze_project(
-            pipeline_filter=pipeline_filter,
-            blueprint_filter=blueprint_filter,
-            trust_depends_on=trust_depends_on,
-        )
-        view = _dependency_result_to_view(internal)
-        if not include_graphs:
-            return view
-        return replace(
-            view,
-            action_graph=_graph_to_view(internal.graphs.action_graph, "action"),
-            flowgroup_graph=_graph_to_view(
-                internal.graphs.flowgroup_graph, "flowgroup"
-            ),
-            pipeline_graph=_graph_to_view(internal.graphs.pipeline_graph, "pipeline"),
-        )
-
-    def save_dependency_outputs(
-        self,
-        *,
-        formats: Sequence[str],
-        output_dir: Path,
-        pipeline_filter: Optional[str] = None,
-        blueprint_filter: Optional[str] = None,
-        trust_depends_on: bool = False,
-        job_name: Optional[str] = None,
-        job_config_path: Optional[str] = None,
-        bundle_output: bool = False,
-    ) -> DependencyOutputsResult:
-        """Run dependency analysis and write requested outputs to disk.
-
-        ``formats`` accepts any combination of ``"dot"``, ``"json"``,
-        ``"text"``, ``"job"``, or ``"all"`` (expands to all four).
-        Filter and ``trust_depends_on`` parameters mirror
-        :meth:`analyze_dependencies` (and share its memoized analysis).
-        ``job_name`` / ``job_config_path`` / ``bundle_output`` shape the
-        ``"job"`` format only and have no effect on the others. The
-        ``"job"`` format is a whole-project deployment artifact: when a
-        pipeline/blueprint filter is active it is skipped with a logged
-        warning instead of being written from a different flowgroup set
-        than the filtered analysis outputs.
-
-        Returns a frozen :class:`DependencyOutputsResult` enumerating
-        every generated file with its format name and optional job-name
-        label.
-
-        :stability: provisional
-        :raises lhp.errors.LHPError: ``LHP-CFG-*`` / ``LHP-VAL-*`` /
-            ``LHP-FILE-*`` / ``LHP-MULT-*`` propagated from discovery
-            and analysis, plus ``LHP-IO-*`` / :class:`OSError` for
-            filesystem failures while writing the requested formats.
-        """
-        from lhp.core.dependencies import DependencyOutputWriter
-
-        dep_service = self._orchestrator.dependencies
-        internal = dep_service.analyze_project(
-            pipeline_filter=pipeline_filter,
-            blueprint_filter=blueprint_filter,
-            trust_depends_on=trust_depends_on,
-        )
-
-        output_manager = DependencyOutputWriter()
-        # ``save_outputs`` is typed ``Dict[str, Path]`` but the multi-job
-        # branch returns a nested ``Dict[str, Path]`` value per format —
-        # the cast lets mypy see both legs of the isinstance below.
-        generated = cast(
-            Dict[str, Union[Path, Dict[str, Path]]],
-            output_manager.save_outputs(
-                dep_service,
-                internal,
-                list(formats),
-                output_dir,
-                job_name,
-                job_config_path,
-                bundle_output,
-                trust_depends_on=trust_depends_on,
-                filters_active=bool(pipeline_filter or blueprint_filter),
-            ),
-        )
-
-        entries: List[DependencyOutputEntry] = []
-        for format_name, path_or_dict in generated.items():
-            if isinstance(path_or_dict, dict):
-                for sub_name, sub_path in path_or_dict.items():
-                    entries.append(
-                        DependencyOutputEntry(
-                            format_name=format_name,
-                            label=sub_name,
-                            path=sub_path,
-                        )
-                    )
-            else:
-                entries.append(
-                    DependencyOutputEntry(
-                        format_name=format_name,
-                        label="",
-                        path=path_or_dict,
-                    )
-                )
-
-        return DependencyOutputsResult(
-            success=True,
-            entries=tuple(entries),
-            output_dir=output_dir,
-        )
-
     def build_substitution_view(self, env: str) -> SubstitutionView:
         """Build a frozen view of the resolved substitution context for ``env``.
 
@@ -580,3 +409,20 @@ class InspectionFacade:
             :class:`ValidationResponse` rather than raised (§4.8).
         """
         return _duplicates_to_validation_response(flowgroups)
+
+    def invalidate_discovery_cache(self) -> None:
+        """Drop the memoized flowgroup discovery so the next read re-reads disk.
+
+        The one cache-management operation on this otherwise read-only facade:
+        it clears the orchestrator's flowgroup-discovery memo (and the
+        synthetic-flowgroup / monitoring state derived from it) so a project
+        edit made outside this process becomes visible to the inspection reads
+        above without rebuilding the whole service graph. Deliberately narrow —
+        it does NOT touch the dependency-analysis graph memo or the persisted
+        graph cache (which back the ``lhp web`` serve-stale model and are
+        refreshed only by an explicit graph rebuild).
+
+        :stability: provisional
+        :raises: None.
+        """
+        self._orchestrator.bootstrap.reset_discovery_cache()

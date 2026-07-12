@@ -9,7 +9,7 @@ All three graph levels are covered (``/graph/pipeline``, ``/graph/flowgroup``,
 
 import pytest
 
-from lhp.webapp.schemas.dependency import GraphResponse
+from lhp.webapp.schemas.dependency import CrossPipelineSummary, GraphResponse
 
 pytestmark = pytest.mark.webapp
 
@@ -114,7 +114,8 @@ class TestGetFlowgroupGraph:
         assert flowgroup_nodes
         for node in flowgroup_nodes:
             assert node["pipeline"]
-            assert node["flowgroup"] == node["id"]
+            assert node["flowgroup"]
+            assert node["id"] == f"{node['pipeline']}.{node['flowgroup']}"
 
     def test_edge_endpoints_reference_existing_nodes(self, client):
         data = client.get("/api/dependencies/graph/flowgroup").json()
@@ -178,7 +179,7 @@ class TestGetActionGraph:
             "external",
         }
 
-    def test_action_nodes_are_keyed_flowgroup_dot_action(self, client):
+    def test_action_nodes_are_keyed_pipeline_dot_flowgroup_dot_action(self, client):
         # The frontend narrows the graph to one flowgroup client-side via the
         # node's ``flowgroup`` field, so both the key format and the field
         # must hold for every action node.
@@ -187,8 +188,10 @@ class TestGetActionGraph:
         assert action_nodes
         for node in action_nodes:
             assert node["flowgroup"]
-            assert node["id"].startswith(f"{node['flowgroup']}.")
-            assert node["label"] == node["id"].removeprefix(f"{node['flowgroup']}.")
+            assert node["id"].startswith(f"{node['pipeline']}.{node['flowgroup']}.")
+            assert node["label"] == node["id"].removeprefix(
+                f"{node['pipeline']}.{node['flowgroup']}."
+            )
 
     def test_filter_by_pipeline_narrows_nodes(self, client):
         full = client.get("/api/dependencies/graph/action").json()
@@ -261,3 +264,121 @@ class TestExternalSources:
         assert "sources" in data
         assert "total" in data
         assert isinstance(data["sources"], list)
+
+
+class TestStaleness:
+    """Tests for GET /api/dependencies/staleness (serve-stale freshness)."""
+
+    def test_returns_200_with_schema(self, client):
+        resp = client.get("/api/dependencies/staleness")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert set(data) >= {"stale", "fingerprint", "built_at"}
+        assert isinstance(data["stale"], bool)
+        assert isinstance(data["fingerprint"], str)
+
+    def test_default_is_not_stale(self, client):
+        # create_app seeds app.state.graph_stale=False.
+        assert client.get("/api/dependencies/staleness").json()["stale"] is False
+
+    def test_reflects_watcher_stale_flag(self, client):
+        client.app.state.graph_stale = True
+        assert client.get("/api/dependencies/staleness").json()["stale"] is True
+
+
+class TestRefresh:
+    """Tests for POST /api/dependencies/refresh (force rebuild + clear flag)."""
+
+    def test_refresh_clears_flag_and_reports_fresh(self, client):
+        client.app.state.graph_stale = True
+        resp = client.post("/api/dependencies/refresh")
+        assert resp.status_code == 200
+        assert resp.json()["stale"] is False
+        # Flag cleared server-side -> subsequent staleness reads as fresh.
+        assert client.get("/api/dependencies/staleness").json()["stale"] is False
+
+    def test_graph_get_still_served_while_stale(self, client):
+        # A stale graph must keep serving the last-good result (not gated).
+        client.app.state.graph_stale = True
+        resp = client.get("/api/dependencies/graph/pipeline")
+        assert resp.status_code == 200
+        assert resp.json()["nodes"]
+
+
+class TestCrossPipeline:
+    """Tests for GET /api/dependencies/cross-pipeline (flowgroup badge data)."""
+
+    def test_missing_pipeline_param_is_422(self, client):
+        # ``pipeline`` is a required query param.
+        assert client.get("/api/dependencies/cross-pipeline").status_code == 422
+
+    def test_returns_200_and_echoes_pipeline(self, client):
+        resp = client.get(
+            "/api/dependencies/cross-pipeline", params={"pipeline": "acmi_edw_bronze"}
+        )
+        assert resp.status_code == 200
+        summary = CrossPipelineSummary.model_validate(resp.json())
+        assert summary.pipeline == "acmi_edw_bronze"
+        # This pipeline is wired to others in the fixture, so it has connections.
+        assert summary.connections
+
+    def test_no_connection_targets_the_queried_pipeline(self, client):
+        # Every connection is cross-pipeline (or external): none may point back
+        # at the queried pipeline, proving internal same-pipeline edges are
+        # excluded.
+        data = client.get(
+            "/api/dependencies/cross-pipeline", params={"pipeline": "acmi_edw_bronze"}
+        ).json()
+        for conns in data["connections"].values():
+            for conn in conns:
+                assert conn["target_pipeline"] != "acmi_edw_bronze"
+                assert conn["direction"] in {"upstream", "downstream"}
+
+    def test_unknown_pipeline_yields_empty_connections(self, client):
+        data = client.get(
+            "/api/dependencies/cross-pipeline", params={"pipeline": "does_not_exist"}
+        ).json()
+        assert data["pipeline"] == "does_not_exist"
+        assert data["connections"] == {}
+
+    def test_matches_frontend_external_connections_over_full_graph(self, client):
+        # Parity guard: the server-side summary must equal what the frontend's
+        # ``computeExternalConnections`` derives from the FULL flowgroup graph
+        # filtered to the queried pipeline (the over-fetch this endpoint
+        # replaces).
+        pipeline = "acmi_edw_bronze"
+        endpoint = client.get(
+            "/api/dependencies/cross-pipeline", params={"pipeline": pipeline}
+        ).json()
+        endpoint_set = {
+            (fg, c["direction"], c["target"], c["target_pipeline"])
+            for fg, conns in endpoint["connections"].items()
+            for c in conns
+        }
+
+        full = client.get("/api/dependencies/graph/flowgroup").json()
+        node_by_id = {n["id"]: n for n in full["nodes"]}
+
+        def display(node):
+            return node["flowgroup"] or node["label"]
+
+        expected = set()
+        for edge in full["edges"]:
+            if edge["type"] not in ("external", "cross_pipeline"):
+                continue
+            source = node_by_id.get(edge["source"])
+            target = node_by_id.get(edge["target"])
+            if source is None or target is None:
+                continue
+            # Connections are keyed by the owner's qualified node id; the
+            # target/target_pipeline fields stay attribute-derived.
+            if source["pipeline"] == pipeline:
+                expected.add(
+                    (source["id"], "downstream", display(target), target["pipeline"])
+                )
+            if target["pipeline"] == pipeline:
+                expected.add(
+                    (target["id"], "upstream", display(source), source["pipeline"])
+                )
+
+        assert endpoint_set == expected

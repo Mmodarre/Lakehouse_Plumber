@@ -1,4 +1,4 @@
-import type { GraphNode, GraphEdge } from '../types/api'
+import type { GraphNode, GraphEdge, CrossPipelineSummary } from '../types/api'
 import type { ExternalConnection } from '../types/graph'
 
 /**
@@ -39,6 +39,32 @@ export function computeExternalConnections(
       })
       result.set(edge.target, targetConns)
     }
+  }
+
+  return result
+}
+
+/**
+ * Adapts the compact `GET /api/dependencies/cross-pipeline` payload into the
+ * `nodeId → ExternalConnection[]` map the badge layer consumes. The endpoint
+ * is derived server-side from the FULL flowgroup graph, so `target_pipeline`
+ * survives here (a pipeline-scoped client graph erases it) — the badge can
+ * still drill into the connected pipeline.
+ */
+export function crossPipelineSummaryToMap(
+  summary: CrossPipelineSummary,
+): Map<string, ExternalConnection[]> {
+  const result = new Map<string, ExternalConnection[]>()
+
+  for (const [flowgroup, conns] of Object.entries(summary.connections ?? {})) {
+    result.set(
+      flowgroup,
+      conns.map((c) => ({
+        direction: c.direction === 'upstream' ? 'upstream' : 'downstream',
+        targetNodeId: c.target,
+        targetPipeline: c.target_pipeline,
+      })),
+    )
   }
 
   return result

@@ -111,12 +111,12 @@ class DependencyAnalyzer:
 
         for job_name in sorted(job_groups.keys()):
             job_flowgroups = job_groups[job_name]
-            job_fg_names = {fg.flowgroup for fg in job_flowgroups}
+            job_fg_names = {f"{fg.pipeline}.{fg.flowgroup}" for fg in job_flowgroups}
             job_pipeline_names = {fg.pipeline for fg in job_flowgroups}
 
             job_action_graph = nx.DiGraph()
             for node, data in global_result.graphs.action_graph.nodes(data=True):
-                if data.get("flowgroup") in job_fg_names:
+                if f"{data.get('pipeline')}.{data.get('flowgroup')}" in job_fg_names:
                     job_action_graph.add_node(node, **data)
 
             for u, v, data in global_result.graphs.action_graph.edges(data=True):

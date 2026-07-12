@@ -248,7 +248,7 @@ def test_edges_and_external_sources_sorted(tmp_path):
             assert list(graph.successors(node)) == sorted(graph.successors(node))
             assert list(graph.predecessors(node)) == sorted(graph.predecessors(node))
 
-    assert graphs.flowgroup_graph.nodes["fg_hub"]["external_sources"] == [
+    assert graphs.flowgroup_graph.nodes["p_hub.fg_hub"]["external_sources"] == [
         "src.alpha",
         "src.echo",
         "src.zulu",
@@ -269,15 +269,15 @@ def test_edges_and_external_sources_sorted(tmp_path):
         "p_mid",
         "p_zeta",
     ]
-    assert list(graphs.flowgroup_graph.successors("fg_hub")) == [
-        "fg_beta",
-        "fg_mid",
-        "fg_zeta",
+    assert list(graphs.flowgroup_graph.successors("p_hub.fg_hub")) == [
+        "p_beta.fg_beta",
+        "p_mid.fg_mid",
+        "p_zeta.fg_zeta",
     ]
-    assert list(graphs.flowgroup_graph.predecessors("fg_sink")) == [
-        "fg_beta",
-        "fg_mid",
-        "fg_zeta",
+    assert list(graphs.flowgroup_graph.predecessors("p_sink.fg_sink")) == [
+        "p_beta.fg_beta",
+        "p_mid.fg_mid",
+        "p_zeta.fg_zeta",
     ]
 
     result = DependencyAnalyzer().analyze(graphs)

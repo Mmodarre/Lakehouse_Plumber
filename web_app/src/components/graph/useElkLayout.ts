@@ -1,11 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import ELK, { type ElkNode, type ElkExtendedEdge } from 'elkjs/lib/elk.bundled.js'
+import ELK, { type ElkNode, type ElkExtendedEdge } from 'elkjs/lib/elk-api.js'
 import type { Node, Edge } from '@xyflow/react'
 import type { GraphNode, GraphEdge } from '../../types/api'
 import type { ExternalConnection } from '../../types/graph'
 import { computeExternalConnections } from '../../utils/externalConnections'
 
-const elk = new ELK()
+// Run ELK layout in a Web Worker so large-graph layout never blocks the main
+// thread. elk-worker.min.js is a classic (non-ESM) script, so the worker is
+// pinned to { type: 'classic' } here rather than via a global worker.format:'es'
+// in vite.config.ts — a global 'es' would break the Monaco ?worker chunks. The
+// factory ignores elk-api's (undefined) workerUrl arg and lets Vite bundle the
+// worker via the new URL(..., import.meta.url) pattern.
+const elk = new ELK({
+  workerFactory: () =>
+    new Worker(new URL('elkjs/lib/elk-worker.min.js', import.meta.url), {
+      type: 'classic',
+    }),
+})
 
 // Node dimensions — must stay in sync with the NodeCard width classes
 // (w-60 actions, w-75 flowgroups). Flowgroup names are longer, need wider cards.
@@ -76,6 +87,13 @@ function toReactFlowNodes(
       id: elkNode.id,
       type: resolveNodeType(apiNode.type),
       position: { x: elkNode.x ?? 0, y: elkNode.y ?? 0 },
+      // Dimension hints for onlyRenderVisibleElements culling. ELK echoes back
+      // the sizes it laid out with; fall back to the same constants so the cull
+      // box matches the node box. initialWidth/initialHeight (not width/height)
+      // so the wrapper releases to the content-sized card after measurement,
+      // keeping <Handle> anchors flush on the variable-width max-w-60 nodes.
+      initialWidth: elkNode.width ?? getNodeWidth(apiNode),
+      initialHeight: elkNode.height ?? NODE_HEIGHT,
       data: {
         label: apiNode.label,
         pipeline: apiNode.pipeline,

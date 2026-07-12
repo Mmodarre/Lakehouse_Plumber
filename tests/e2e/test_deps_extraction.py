@@ -230,7 +230,9 @@ class TestDepsExtraction:
         import re
 
         edges = re.findall(r'"([^"]+)"\s*->\s*"([^"]+)"', dot)
-        incoming_to_mv = [e for e in edges if e[1] == "e2e_orders_summary_mv"]
+        # Flowgroup graph node ids are pipeline-qualified (``pipeline.flowgroup``),
+        # so the mv flowgroup surfaces as ``gold_load.e2e_orders_summary_mv``.
+        incoming_to_mv = [e for e in edges if e[1] == "gold_load.e2e_orders_summary_mv"]
 
         assert len(incoming_to_mv) >= 1, (
             "Regression sentinel: e2e_orders_summary_mv must have ≥1 incoming "

@@ -17,7 +17,7 @@ interface MockElkGraph extends Record<string, unknown> {
   children?: MockElkChild[]
 }
 
-vi.mock('elkjs/lib/elk.bundled.js', () => ({
+vi.mock('elkjs/lib/elk-api.js', () => ({
   default: class MockElk {
     async layout(graph: MockElkGraph): Promise<MockElkGraph> {
       layoutSpy(graph)
