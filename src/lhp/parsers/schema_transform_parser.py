@@ -80,7 +80,9 @@ class SchemaTransformParser:
             )
 
         try:
-            parsed = yaml.load(schema_str, Loader=SAFE_LOADER)
+            # SAFE_LOADER is yaml.CSafeLoader/SafeLoader (see yaml_loader);
+            # bandit cannot resolve the alias to a safe loader.
+            parsed = yaml.load(schema_str, Loader=SAFE_LOADER)  # nosec B506
         except yaml.YAMLError as e:
             # Likely plain arrow format with inconsistent colons — fall back
             logger.debug(

@@ -108,12 +108,15 @@ def open_browser_when_ready(
     browser configured) must not bring the server down. Returns the thread so
     callers/tests can join it.
     """
+    if not health_url.startswith(("http://", "https://")):
+        raise ValueError(f"health_url must be an http(s) URL, got {health_url!r}")
 
     def _poll_then_open() -> None:
         deadline = time.monotonic() + timeout_s
         while time.monotonic() < deadline:
             try:
-                with urllib.request.urlopen(
+                # Scheme pinned to http(s) by the guard above.
+                with urllib.request.urlopen(  # nosec B310
                     health_url, timeout=_READINESS_REQUEST_TIMEOUT_S
                 ) as response:
                     if response.status == 200:
