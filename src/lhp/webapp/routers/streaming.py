@@ -142,7 +142,9 @@ def _facade_and_bundle(
         return get_facade_for(request, None), False
     resolved = _resolve_pipeline_config(project_root, pipeline_config)
     facade = get_facade_for(request, str(resolved))
-    return facade, should_enable_bundle_support(project_root)
+    # Bundle detection keys off the server-configured root, never anything
+    # request-derived — read it from settings rather than the view parameter.
+    return facade, should_enable_bundle_support(get_project_root())
 
 
 def _reject_sandbox_with_pipeline_filter(body: StreamRunRequest) -> None:
