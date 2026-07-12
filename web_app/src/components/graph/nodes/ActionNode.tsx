@@ -1,24 +1,6 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import {
-  ArrowDownToLine,
-  CircleHelp,
-  Database,
-  FlaskConical,
-  Wand2,
-  type LucideIcon,
-} from 'lucide-react'
 import { NodeCard, NODE_HANDLE_CLASS } from './NodeCard'
-
-// Kind identity resolves to the shared --kind-* tokens (same palette as the
-// table badges) — chip tint always paired with a distinct icon.
-const KIND_STYLES: Record<string, { chip: string; icon: LucideIcon }> = {
-  load: { chip: 'bg-kind-load/12 text-kind-load', icon: ArrowDownToLine },
-  transform: { chip: 'bg-kind-transform/12 text-kind-transform', icon: Wand2 },
-  write: { chip: 'bg-kind-write/12 text-kind-write', icon: Database },
-  test: { chip: 'bg-kind-test/12 text-kind-test', icon: FlaskConical },
-}
-
-const FALLBACK_STYLE = { chip: 'bg-muted text-muted-foreground', icon: CircleHelp }
+import { KIND_STYLES, FALLBACK_KIND_STYLE } from './kindStyles'
 
 function getTypeLabel(
   nodeType: string,
@@ -64,7 +46,7 @@ export function ActionNode({ data, selected }: NodeProps) {
 
   const typeLabel = getTypeLabel(nodeType, sourceType, transformType, writeType, testType)
   const writeInfo = nodeType === 'write' ? getWriteInfo(writeMode, scdType) : null
-  const kind = KIND_STYLES[nodeType] ?? FALLBACK_STYLE
+  const kind = KIND_STYLES[nodeType] ?? FALLBACK_KIND_STYLE
 
   return (
     <>

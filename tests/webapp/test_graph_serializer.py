@@ -11,9 +11,18 @@ serializer emits the edge ``D -> P`` (source = dependency, target = dependent).
 
 import pytest
 
-from lhp.api import DependencyAnalysisResult
+from lhp.api import (
+    DependencyAnalysisResult,
+    DependencyGraphEdgeView,
+    DependencyGraphNodeView,
+    DependencyGraphView,
+)
 from lhp.webapp.schemas.dependency import GraphEdge, GraphNode, GraphResponse
-from lhp.webapp.services.graph_serializer import serialize_pipeline_graph
+from lhp.webapp.services.graph_serializer import (
+    serialize_action_graph,
+    serialize_flowgroup_graph,
+    serialize_pipeline_graph,
+)
 
 pytestmark = pytest.mark.webapp
 
@@ -228,3 +237,167 @@ def test_emitted_schema_field_names_are_frontend_facing():
     assert edge.source == "q"
     assert edge.target == "p"
     assert edge.type == "pipeline"
+
+
+def _fg_node(
+    flowgroup: str, pipeline: str, external_sources: list[str] | None = None
+) -> DependencyGraphNodeView:
+    metadata: dict = {"action_count": 1}
+    if external_sources is not None:
+        metadata["external_sources"] = external_sources
+    return DependencyGraphNodeView(
+        id=flowgroup,
+        label=flowgroup,
+        type="flowgroup",
+        pipeline=pipeline,
+        flowgroup=flowgroup,
+        metadata=metadata,
+    )
+
+
+def _action_node(
+    flowgroup: str, action: str, action_type: str, pipeline: str
+) -> DependencyGraphNodeView:
+    return DependencyGraphNodeView(
+        id=f"{flowgroup}.{action}",
+        label=action,
+        type=action_type,
+        pipeline=pipeline,
+        flowgroup=flowgroup,
+    )
+
+
+class TestSerializeFlowgroupGraph:
+    """Level serializer for the pipeline drill modal."""
+
+    def _build(self) -> GraphResponse:
+        graph = DependencyGraphView(
+            level="flowgroup",
+            nodes=(
+                _fg_node("fg_a", "bronze", external_sources=["raw.landing"]),
+                _fg_node("fg_b", "bronze"),
+                _fg_node("fg_c", "silver"),
+            ),
+            edges=(
+                DependencyGraphEdgeView(source="fg_a", target="fg_b", type="flowgroup"),
+                DependencyGraphEdgeView(source="fg_b", target="fg_c", type="flowgroup"),
+            ),
+        )
+        result = DependencyAnalysisResult(
+            pipeline_dependencies={"bronze": (), "silver": ("bronze",)},
+            execution_stages=(("bronze",), ("silver",)),
+            external_sources=("raw.landing",),
+            total_pipelines=2,
+            total_external_sources=1,
+            flowgroup_graph=graph,
+        )
+        return serialize_flowgroup_graph(result)
+
+    def test_level_is_flowgroup(self):
+        response = self._build()
+        assert response.metadata.level == "flowgroup"
+
+    def test_flowgroup_nodes_projected(self):
+        response = self._build()
+        node = _node_by_id(response, "fg_a")
+        assert node.type == "flowgroup"
+        assert node.pipeline == "bronze"
+        assert node.flowgroup == "fg_a"
+        assert node.metadata["action_count"] == 1
+
+    def test_same_pipeline_edge_is_internal(self):
+        response = self._build()
+        edge = next(
+            e for e in response.edges if e.source == "fg_a" and e.target == "fg_b"
+        )
+        assert edge.type == "internal"
+
+    def test_cross_pipeline_edge_is_classified(self):
+        response = self._build()
+        edge = next(
+            e for e in response.edges if e.source == "fg_b" and e.target == "fg_c"
+        )
+        assert edge.type == "cross_pipeline"
+
+    def test_external_source_becomes_node_with_edge(self):
+        response = self._build()
+        node = _node_by_id(response, "raw.landing")
+        assert node.type == "external"
+        assert node.metadata.get("external") is True
+        assert ("raw.landing", "fg_a") in _edge_pairs(response)
+        external_edge = next(e for e in response.edges if e.source == "raw.landing")
+        assert external_edge.type == "external"
+
+    def test_metadata_counts_include_external(self):
+        response = self._build()
+        assert response.metadata.total_nodes == 4  # 3 flowgroups + 1 external
+        assert response.metadata.total_edges == 3  # 2 flowgroup + 1 external
+        assert response.metadata.stages == 2
+
+    def test_missing_snapshot_raises_value_error(self):
+        with pytest.raises(ValueError, match="include_graphs"):
+            serialize_flowgroup_graph(_result())
+
+
+class TestSerializeActionGraph:
+    """Level serializer for the flowgroup drill modal."""
+
+    def _build(self) -> GraphResponse:
+        graph = DependencyGraphView(
+            level="action",
+            nodes=(
+                _action_node("fg_a", "load_x", "load", "bronze"),
+                _action_node("fg_a", "write_x", "write", "bronze"),
+                _action_node("fg_b", "load_y", "load", "bronze"),
+                _action_node("fg_c", "load_z", "load", "silver"),
+            ),
+            edges=(
+                DependencyGraphEdgeView(
+                    source="fg_a.load_x", target="fg_a.write_x", type="internal"
+                ),
+                DependencyGraphEdgeView(
+                    source="fg_a.write_x", target="fg_b.load_y", type="internal"
+                ),
+                DependencyGraphEdgeView(
+                    source="fg_a.write_x", target="fg_c.load_z", type="internal"
+                ),
+            ),
+        )
+        result = DependencyAnalysisResult(
+            pipeline_dependencies={"bronze": (), "silver": ("bronze",)},
+            execution_stages=(("bronze",), ("silver",)),
+            total_pipelines=2,
+            action_graph=graph,
+        )
+        return serialize_action_graph(result)
+
+    def test_level_is_action(self):
+        response = self._build()
+        assert response.metadata.level == "action"
+
+    def test_action_nodes_projected_with_flowgroup(self):
+        response = self._build()
+        node = _node_by_id(response, "fg_a.load_x")
+        assert node.type == "load"
+        assert node.label == "load_x"
+        assert node.flowgroup == "fg_a"
+        assert node.pipeline == "bronze"
+
+    def test_same_flowgroup_edge_is_internal(self):
+        response = self._build()
+        edge = next(e for e in response.edges if e.target == "fg_a.write_x")
+        assert edge.type == "internal"
+
+    def test_cross_flowgroup_same_pipeline_edge(self):
+        response = self._build()
+        edge = next(e for e in response.edges if e.target == "fg_b.load_y")
+        assert edge.type == "cross_flowgroup"
+
+    def test_cross_pipeline_edge(self):
+        response = self._build()
+        edge = next(e for e in response.edges if e.target == "fg_c.load_z")
+        assert edge.type == "cross_pipeline"
+
+    def test_missing_snapshot_raises_value_error(self):
+        with pytest.raises(ValueError, match="include_graphs"):
+            serialize_action_graph(_result())

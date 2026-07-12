@@ -105,11 +105,15 @@ def get_project_stats(
 
 
 def _relative_path(path: Path, project_root: Path) -> str:
-    """Return ``path`` relative to ``project_root``, or as-is if outside."""
+    """Return ``path`` relative to ``project_root``, or as-is if outside.
+
+    Always POSIX separators: the frontend and file_io key files by
+    forward-slash paths regardless of the host OS.
+    """
     try:
-        return str(path.relative_to(project_root))
+        return path.relative_to(project_root).as_posix()
     except ValueError:
-        return str(path)
+        return path.as_posix()
 
 
 @router.post("/init", response_model=InitProjectResponse)

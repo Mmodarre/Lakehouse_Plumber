@@ -268,6 +268,60 @@ class DependencyWarningView:
 
 
 @dataclass(frozen=True)
+class DependencyGraphNodeView:
+    """One node of a dependency-graph level snapshot.
+
+    ``type`` is the node kind: an action type (``load`` / ``transform`` /
+    ``write`` / ``test``) at action level, otherwise the level name
+    (``flowgroup`` / ``pipeline``). ``metadata`` carries the remaining
+    graph-node attributes (e.g. ``target``, ``action_count``,
+    ``flowgroup_count``, ``external_sources``) as flat JSON values.
+
+    :stability: provisional
+    """
+
+    id: str
+    label: str
+    type: str
+    pipeline: str = ""
+    flowgroup: str = ""
+    metadata: Mapping[str, JSONValue] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class DependencyGraphEdgeView:
+    """One directed dependency edge: ``source`` produces data ``target`` reads.
+
+    ``type`` is the graph's dependency kind for the edge's level
+    (``internal`` at action level, ``flowgroup`` / ``pipeline`` at the
+    derived levels).
+
+    :stability: provisional
+    """
+
+    source: str
+    target: str
+    type: str = "internal"
+
+
+@dataclass(frozen=True)
+class DependencyGraphView:
+    """Frozen nodes-and-edges snapshot of one dependency-graph level.
+
+    Networkx-free projection of the internal graph for ``level``
+    (``action`` / ``flowgroup`` / ``pipeline``). Node ids are pipeline
+    names, flowgroup names, or ``{flowgroup}.{action}`` keys depending
+    on the level.
+
+    :stability: provisional
+    """
+
+    level: str
+    nodes: Tuple[DependencyGraphNodeView, ...] = ()
+    edges: Tuple[DependencyGraphEdgeView, ...] = ()
+
+
+@dataclass(frozen=True)
 class DependencyAnalysisResult:
     """Outcome of pipeline-level dependency analysis.
 
@@ -280,6 +334,12 @@ class DependencyAnalysisResult:
     advisory extraction warnings (:class:`DependencyWarningView`,
     codes ``LHP-DEP-002`` / ``LHP-DEP-003``) — never raised as errors.
 
+    ``action_graph`` / ``flowgroup_graph`` / ``pipeline_graph`` are
+    opt-in level snapshots (:class:`DependencyGraphView`): ``None`` by
+    default, populated together when the analysis is requested with
+    ``include_graphs=True`` (see
+    :meth:`InspectionFacade.analyze_dependencies`).
+
     :stability: provisional
     """
 
@@ -290,6 +350,9 @@ class DependencyAnalysisResult:
     total_pipelines: int = 0
     total_external_sources: int = 0
     warnings: Tuple[DependencyWarningView, ...] = ()
+    action_graph: Optional[DependencyGraphView] = None
+    flowgroup_graph: Optional[DependencyGraphView] = None
+    pipeline_graph: Optional[DependencyGraphView] = None
 
     @property
     def has_cycles(self) -> bool:
@@ -503,6 +566,50 @@ class GenerationPlan:
     output_location: Optional[Path]
     pipeline_count: int
     file_count: int
+
+
+@dataclass(frozen=True)
+class SandboxScopeResult:
+    """Developer-sandbox profile and its resolved pipeline scope for one env.
+
+    Read-only projection returned by
+    :meth:`SandboxFacade.describe_scope`: the personal
+    ``.lhp/profile.yaml`` selection plus the concrete pipelines a
+    ``--sandbox`` run would cover, resolving the profile's globs against
+    the discovered pipelines exactly as the CLI does (monitoring pipeline
+    excluded).
+
+    ``profile_exists`` reports whether ``.lhp/profile.yaml`` is present on
+    disk. When it is absent this is the normal "not opted in" state:
+    ``profile_exists`` is ``False``, ``namespace`` is ``None``,
+    ``patterns`` / ``resolved_pipelines`` are empty, and ``error`` is
+    ``None`` (``allowed_envs`` is still reported from the team policy).
+
+    ``error`` carries the human-readable message of a sandbox-specific
+    failure that is surfaced rather than raised, so the caller can always
+    render the panel: a malformed profile (``LHP-CFG-064``), a profile
+    whose scope entries match no pipeline (``LHP-VAL-064``), or an ``env``
+    the team policy does not sandbox-enable (``LHP-CFG-065``). It is
+    ``None`` on the success path. Project-level failures (e.g. an
+    unloadable ``lhp.yaml``) still raise, exactly as other reads do.
+
+    ``namespace`` is the profile's sandbox namespace (``None`` when no
+    loadable profile exists); ``patterns`` are the raw ``pipelines`` entries
+    (names / globs) declared in the profile, verbatim; ``resolved_pipelines``
+    are the concrete names those patterns expand to (monitoring excluded),
+    empty when resolution failed or no profile exists; ``allowed_envs`` are
+    the environments the team ``sandbox:`` policy permits, or ``None`` when
+    unrestricted.
+
+    :stability: provisional
+    """
+
+    profile_exists: bool = False
+    namespace: Optional[str] = None
+    patterns: Tuple[str, ...] = ()
+    resolved_pipelines: Tuple[str, ...] = ()
+    allowed_envs: Optional[Tuple[str, ...]] = None
+    error: Optional[str] = None
 
 
 # ``ValidationIssueView`` / ``PipelineStats`` are referenced by string

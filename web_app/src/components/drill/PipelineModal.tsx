@@ -1,12 +1,12 @@
 import { ReactFlowProvider } from '@xyflow/react'
-import { X } from 'lucide-react'
+import { Plus, X } from 'lucide-react'
 import { useUIStore } from '../../store/uiStore'
 import { Button } from '../ui/button'
 import { Dialog, DialogContent, DialogTitle } from '../ui/dialog'
 import { FlowgroupMiniGraph } from './FlowgroupMiniGraph'
 
 export function PipelineModal() {
-  const { drillPipeline, closePipelineModal, openModal } = useUIStore()
+  const { drillPipeline, closePipelineModal, openModal, openCreateFlowgroupDialog } = useUIStore()
 
   // Escape cascade (flowgroup first, then pipeline) is handled by Radix's
   // dismissable-layer stack: the FlowgroupModal dialog opens later, so it sits
@@ -37,6 +37,13 @@ export function PipelineModal() {
             </DialogTitle>
           </div>
           <div className="ml-3 flex shrink-0 items-center gap-2">
+            <Button
+              size="sm"
+              onClick={() => openCreateFlowgroupDialog({ pipeline: drillPipeline })}
+            >
+              <Plus aria-hidden="true" />
+              New flowgroup
+            </Button>
             <Button
               variant="outline"
               size="sm"

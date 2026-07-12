@@ -33,7 +33,12 @@ beforeEach(() => {
   vi.clearAllMocks()
   transport.isRunning = false
   useRunStore.getState().reset()
-  useUIStore.setState({ selectedEnv: 'dev', pipelineFilter: null, selectedPipelineConfig: null })
+  useUIStore.setState({
+    selectedEnv: 'dev',
+    pipelineFilter: null,
+    selectedPipelineConfig: null,
+    sandboxEnabled: false,
+  })
 })
 
 describe('useRunController', () => {
@@ -146,5 +151,40 @@ describe('useRunController', () => {
     expect(result.current.isRunning).toBe(false)
     result.current.abort()
     expect(transport.abort).toHaveBeenCalledTimes(1)
+  })
+
+  it('sends sandbox:true and no pipeline when the sandbox toggle is on', () => {
+    useUIStore.setState({ sandboxEnabled: true, pipelineFilter: 'bronze' })
+    const { result } = renderHook(() => useRunController())
+    result.current.startGenerate()
+
+    // The stale pipeline filter is dropped — sandbox scope owns the run.
+    expect(transport.start.mock.calls[0][0]).toEqual({
+      path: '/api/generate/stream',
+      env: 'dev',
+      pipeline: undefined,
+      sandbox: true,
+    })
+    expect(useRunStore.getState().sandbox).toBe(true)
+  })
+
+  it('leaves the designer\'s pipeline-scoped validate untouched by the toggle', () => {
+    // An explicit pipeline (the designer inspecting one flowgroup) stays
+    // pipeline-scoped even while the global sandbox toggle is on.
+    useUIStore.setState({ sandboxEnabled: true })
+    const { result } = renderHook(() => useRunController())
+    result.current.startValidate('dev', 'sales')
+
+    const body = transport.start.mock.calls[0][0]
+    expect(body.pipeline).toBe('sales')
+    expect(body.sandbox).toBeUndefined()
+    expect(useRunStore.getState().sandbox).toBe(false)
+  })
+
+  it('records a non-sandbox run when the toggle is off', () => {
+    const { result } = renderHook(() => useRunController())
+    result.current.startValidate()
+    expect(transport.start.mock.calls[0][0].sandbox).toBeUndefined()
+    expect(useRunStore.getState().sandbox).toBe(false)
   })
 })

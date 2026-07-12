@@ -48,11 +48,15 @@ async def list_blueprints(
 
 
 def _relative_source(file_path: Path, project_root: Path) -> str:
-    """Return ``file_path`` relative to ``project_root``, or as-is if outside."""
+    """Return ``file_path`` relative to ``project_root``, or as-is if outside.
+
+    Always POSIX separators: the frontend and file_io key files by
+    forward-slash paths regardless of the host OS.
+    """
     try:
-        return str(file_path.relative_to(project_root))
+        return file_path.relative_to(project_root).as_posix()
     except ValueError:
-        return str(file_path)
+        return file_path.as_posix()
 
 
 def _view_to_summary(view: BlueprintView, project_root: Path) -> BlueprintSummary:

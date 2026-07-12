@@ -5,7 +5,7 @@ presets:
 actions:
   - name: dessert_raw_load
     type: load
-    operational_metadata: ["_processing_timestamp"]
+    operational_metadata: [ "_processing_timestamp" ]
     readMode: stream
     source:
       type: delta
@@ -46,12 +46,14 @@ actions:
       catalog: "${catalog}"
       schema: "${bronze_schema}"
       table: "dessert"
+      temporary: false
+      cluster_by_auto: false
 
   - name: tst_dessert_bronze_completeness
     type: test
     test_type: completeness
     source: v_dessert_bronze_cleaned
-    required_columns: [dessert_key, _etl_timestamp]
+    required_columns: [ dessert_key, _etl_timestamp ]
     on_violation: warn
     test_id: "PERF-dessert-B01"
 
@@ -59,6 +61,6 @@ actions:
     type: test
     test_type: uniqueness
     source: v_dessert_bronze_cleaned
-    columns: [dessert_key]
+    columns: [ dessert_key ]
     on_violation: warn
     test_id: "PERF-dessert-B02"

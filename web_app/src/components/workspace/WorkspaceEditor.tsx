@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { Loader2, Lock, Minimize2 } from 'lucide-react'
 import { useDirtyGuardSource } from '../../store/dirtyGuardStore'
 import { useWorkspaceStore, isReadOnlyPath } from '../../store/workspaceStore'
+import type { DesignerTab } from '../../store/workspaceStore'
 import { useRunStore } from '../../store/runStore'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
@@ -14,11 +15,13 @@ import { ConflictDialog } from '../editor/ConflictDialog'
 import { isYamlPath } from '../editor/yamlSaveSupport'
 import { useBeforeUnloadGuard } from '../../hooks/useBeforeUnloadGuard'
 import { EditorTabBar } from './EditorTabBar'
+import type { WorkspaceTabInfo } from './EditorTabBar'
 import { ADD_FILE_OPTIONS, loadBufferContent } from './flowgroupBuffers'
 import { useWorkspaceSave } from './useWorkspaceSave'
 import type { MonacoEditorHandle } from '../editor/MonacoEditorWrapper'
 
 const MonacoEditorWrapper = lazy(() => import('../editor/MonacoEditorWrapper'))
+const DesignerCanvas = lazy(() => import('../designer/DesignerCanvas'))
 
 /** Debounce for syncing typed content into the (persisted) store. Keystrokes
  * themselves only flip the idempotent dirty flag — see workspaceStore. */
@@ -35,15 +38,18 @@ function EditorSkeleton() {
 /**
  * The persistent workspace: a docked tab strip + Monaco editor hosted in the
  * Layout center region (replaces the retired file/flowgroup editor modals).
- * The tab strip stays docked while buffers are open; the editor body shows
- * when a buffer is focused (activePath), the routed page otherwise.
+ * The tab strip stays docked while tabs are open; the body shows Monaco when
+ * a file buffer is focused, the designer canvas when a designer tab is
+ * focused (activePath), and the routed page otherwise.
  */
 export function WorkspaceEditor() {
   const buffers = useWorkspaceStore((s) => s.buffers)
+  const tabs = useWorkspaceStore((s) => s.tabs)
   const activePath = useWorkspaceStore((s) => s.activePath)
   const setActive = useWorkspaceStore((s) => s.setActive)
   const openBuffer = useWorkspaceStore((s) => s.openBuffer)
   const closeBuffer = useWorkspaceStore((s) => s.closeBuffer)
+  const closeDesignerTab = useWorkspaceStore((s) => s.closeDesignerTab)
   const updateContent = useWorkspaceStore((s) => s.updateContent)
   const setDirty = useWorkspaceStore((s) => s.setDirty)
   const discardDirty = useWorkspaceStore((s) => s.discardDirty)
@@ -60,8 +66,12 @@ export function WorkspaceEditor() {
   const [addFilePath, setAddFilePath] = useState('')
   const [addFileCategory, setAddFileCategory] = useState('')
 
+  // A designer tab id never collides with a buffer path, so at most one of
+  // these resolves; `focused` covers both tab kinds.
   const activeBuffer = buffers.find((b) => b.path === activePath) ?? null
-  const focused = activeBuffer !== null
+  const activeDesigner =
+    tabs.find((t): t is DesignerTab => t.kind === 'designer' && t.id === activePath) ?? null
+  const focused = activeBuffer !== null || activeDesigner !== null
   const isReadOnly = activeBuffer ? isReadOnlyPath(activeBuffer.path) : false
   // A buffer whose content fetch failed holds no real text — block editing
   // and saving until a retry succeeds so '' can never overwrite the file.
@@ -281,18 +291,23 @@ export function WorkspaceEditor() {
   )
 
   const handleCloseTab = useCallback(
-    (path: string) => {
-      const buf = useWorkspaceStore.getState().buffers.find((b) => b.path === path)
-      if (!buf) return
+    (id: string) => {
+      const buf = useWorkspaceStore.getState().buffers.find((b) => b.path === id)
+      if (!buf) {
+        // Designer tabs are never dirty — close without confirmation
+        // (no-op for ids that aren't an open designer tab either).
+        closeDesignerTab(id)
+        return
+      }
       if (buf.isDirty) {
-        setPendingClose(path)
+        setPendingClose(id)
         return
       }
       cancelCapture()
-      toast.dismiss(`stale:${path}`)
-      closeBuffer(path)
+      toast.dismiss(`stale:${id}`)
+      closeBuffer(id)
     },
-    [cancelCapture, closeBuffer],
+    [cancelCapture, closeBuffer, closeDesignerTab],
   )
 
   const handleConfirmedClose = useCallback(() => {
@@ -345,17 +360,33 @@ export function WorkspaceEditor() {
 
   const pendingCloseName = pendingClose?.split('/').pop() ?? pendingClose
 
+  // Join the ordered tab strip with buffer state (file tabs pull their
+  // display fields from the buffer; a ref without a buffer never happens
+  // post-boot-reconcile, but render nothing for it rather than crash).
+  const tabInfos = tabs.flatMap((t): WorkspaceTabInfo[] => {
+    if (t.kind === 'designer') {
+      return [
+        {
+          kind: 'designer',
+          id: t.id,
+          pipeline: t.pipeline,
+          flowgroup: t.flowgroup,
+          docKind: t.docKind,
+        },
+      ]
+    }
+    const b = buffers.find((x) => x.path === t.path)
+    return b
+      ? [{ kind: 'file', path: b.path, category: b.category, exists: b.exists, isDirty: b.isDirty }]
+      : []
+  })
+
   return (
     <div className={cn('flex flex-col', focused && 'min-h-0 flex-1')}>
-      {/* Tab strip row (always docked while buffers are open) */}
+      {/* Tab strip row (always docked while tabs are open) */}
       <div className="flex items-center border-b border-border bg-sidebar">
         <EditorTabBar
-          tabs={buffers.map((b) => ({
-            path: b.path,
-            category: b.category,
-            exists: b.exists,
-            isDirty: b.isDirty,
-          }))}
+          tabs={tabInfos}
           activePath={activePath}
           addFileOptions={ADD_FILE_OPTIONS}
           onSelectTab={handleTabSelect}
@@ -437,7 +468,20 @@ export function WorkspaceEditor() {
       )}
 
       {/* Editor body — bg-card matches the lhp-* Monaco themes */}
-      {focused && (
+      {focused && activeDesigner && (
+        <div className="flex min-h-0 flex-1 flex-col bg-card">
+          <Suspense fallback={<EditorSkeleton />}>
+            <DesignerCanvas
+              key={activeDesigner.id}
+              pipeline={activeDesigner.pipeline}
+              flowgroup={activeDesigner.flowgroup}
+              filePath={activeDesigner.filePath}
+              docKind={activeDesigner.docKind}
+            />
+          </Suspense>
+        </div>
+      )}
+      {focused && !activeDesigner && (
         <div className="flex min-h-0 flex-1 flex-col bg-card">
           {activeBuffer && loadFailed && (
             <div className="flex items-center gap-3 border-b border-border bg-muted px-4 py-2 text-xs">

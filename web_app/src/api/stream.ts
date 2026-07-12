@@ -16,6 +16,13 @@ export interface StreamBody {
    * path (403 escaping the project root, 404 missing file).
    */
   pipeline_config?: string
+  /**
+   * Developer-sandbox mode (the CLI's `--sandbox`): scope and namespace come
+   * from `.lhp/profile.yaml`. Mutually exclusive with `pipeline` (the backend
+   * 422s if both are set), so the controller drops `pipeline` when this is on.
+   * Omitted (undefined) for a normal run, keeping the wire body unchanged.
+   */
+  sandbox?: boolean
 }
 
 /**

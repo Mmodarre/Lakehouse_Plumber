@@ -1,11 +1,19 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { FilePlus2 } from 'lucide-react'
+import { Boxes, FilePlus2 } from 'lucide-react'
 import { useFileList } from '../../hooks/useFiles'
-import { useWorkspaceStore } from '../../store/workspaceStore'
+import { useFlowgroups } from '../../hooks/useFlowgroups'
+import { useWorkspaceStore, designerTemplateTabId } from '../../store/workspaceStore'
+import { useUIStore } from '../../store/uiStore'
+import { useSandboxScope } from '../sandbox/useSandboxScope'
+import {
+  buildSourceFileToPipeline,
+  filterFileTreeForScope,
+} from '../sandbox/scopeFilter'
 import { fetchFileContentWithMeta, writeFile, deleteFile } from '../../api/files'
 import { errorMessage } from '../../lib/errors'
+import { parseFlowgroupFile, selectTemplate } from '../../lib/flowgroup-doc'
 import { SkeletonLoader } from '../common/SkeletonLoader'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -23,15 +31,31 @@ import { FileTreeItem } from './FileTreeItem'
 
 export function FileBrowser() {
   const { data, isLoading } = useFileList()
+  const { data: flowgroups } = useFlowgroups()
+  const scope = useSandboxScope()
   const openBuffer = useWorkspaceStore((s) => s.openBuffer)
   const setActiveBuffer = useWorkspaceStore((s) => s.setActive)
+  const openDesignerTemplateTab = useWorkspaceStore((s) => s.openDesignerTemplateTab)
   const activeFilePath = useWorkspaceStore((s) => s.activePath)
+  const openCreateFlowgroupDialog = useUIStore((s) => s.openCreateFlowgroupDialog)
   const queryClient = useQueryClient()
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
   const [creating, setCreating] = useState(false)
   const [newPath, setNewPath] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<string | null>(null)
+
+  // Sandbox mode hides pipelines/ files whose pipeline is out of scope. Shared
+  // config (lhp.yaml, substitutions/, presets/, …) has no flowgroup mapping,
+  // so it always stays visible; scope === null leaves the tree untouched.
+  const sourceMap = useMemo(
+    () => buildSourceFileToPipeline(flowgroups?.flowgroups ?? []),
+    [flowgroups],
+  )
+  const scopedTree = useMemo(
+    () => (data ? filterFileTreeForScope(data, sourceMap, scope) : undefined),
+    [data, sourceMap, scope],
+  )
 
   const handleToggle = useCallback((path: string) => {
     setExpandedPaths((prev) => {
@@ -47,19 +71,37 @@ export function FileBrowser() {
 
   const handleFileClick = useCallback(
     async (path: string) => {
-      // Already open in the workspace → just focus it (never clobber edits).
-      if (useWorkspaceStore.getState().buffers.some((b) => b.path === path)) {
+      const ws = useWorkspaceStore.getState()
+      // Already open as a text buffer → just focus it (never clobber edits).
+      if (ws.buffers.some((b) => b.path === path)) {
         setActiveBuffer(path)
+        return
+      }
+      // Already open as a template designer tab → focus that.
+      const templateTabId = designerTemplateTabId(path)
+      if (ws.tabs.some((t) => t.kind === 'designer' && t.id === templateTabId)) {
+        setActiveBuffer(templateTabId)
         return
       }
       try {
         const { content, etag } = await fetchFileContentWithMeta(path)
+        // A file under templates/ that parses as a template opens on the
+        // designer canvas (Parameters panel + action forms); anything else —
+        // including a non-template YAML that happens to live there — as text.
+        if (isTemplatePath(path)) {
+          const file = parseFlowgroupFile(content)
+          const template = file.errors.length === 0 ? selectTemplate(file) : undefined
+          if (template) {
+            openDesignerTemplateTab(template.info.name || filenameStem(path), path)
+            return
+          }
+        }
         openBuffer(path, { content, etag, exists: true })
       } catch (err) {
         toast.error(errorMessage(err, 'Failed to open file'))
       }
     },
-    [openBuffer, setActiveBuffer],
+    [openBuffer, setActiveBuffer, openDesignerTemplateTab],
   )
 
   const startCreate = useCallback(() => {
@@ -115,16 +157,28 @@ export function FileBrowser() {
         <span className="text-2xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
           File Browser
         </span>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          onClick={startCreate}
-          aria-label="New file"
-          title="New file"
-          className="text-muted-foreground"
-        >
-          <FilePlus2 />
-        </Button>
+        <div className="flex items-center gap-0.5">
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={() => openCreateFlowgroupDialog()}
+            aria-label="New flowgroup"
+            title="New flowgroup"
+            className="text-muted-foreground"
+          >
+            <Boxes />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={startCreate}
+            aria-label="New file"
+            title="New file"
+            className="text-muted-foreground"
+          >
+            <FilePlus2 />
+          </Button>
+        </div>
       </div>
 
       {creating && (
@@ -153,7 +207,7 @@ export function FileBrowser() {
 
       {/* Junk filter (dotfiles like .DS_Store) — FileTreeItem applies the
           same predicate to nested children. */}
-      {data?.children?.filter((node) => !node.name.startsWith('.')).map((node) => (
+      {scopedTree?.children?.filter((node) => !node.name.startsWith('.')).map((node) => (
         <FileTreeItem
           key={node.path}
           node={node}
@@ -195,4 +249,16 @@ export function FileBrowser() {
       </AlertDialog>
     </div>
   )
+}
+
+/** A YAML file under templates/ — the designer's template-authoring surface. */
+function isTemplatePath(path: string): boolean {
+  return /^templates\//.test(path) && /\.ya?ml$/i.test(path)
+}
+
+/** Filename without its extension, as a display fallback when a template
+ * declares no `name`. */
+function filenameStem(path: string): string {
+  const name = path.split('/').pop() ?? path
+  return name.replace(/\.[^.]+$/, '')
 }

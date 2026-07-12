@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import copy
 import logging
+from dataclasses import replace
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -39,6 +40,7 @@ from typing import (
     cast,
 )
 
+from lhp.api._dependency_graph_converters import _graph_to_view
 from lhp.api._inspection_converters import (
     _build_stats_result,
     _build_substitution_manager_for_env,
@@ -354,6 +356,7 @@ class InspectionFacade:
         pipeline_filter: Optional[str] = None,
         blueprint_filter: Optional[str] = None,
         trust_depends_on: bool = False,
+        include_graphs: bool = False,
     ) -> DependencyAnalysisResult:
         """Run dependency analysis and return a frozen, flattened result.
 
@@ -376,6 +379,14 @@ class InspectionFacade:
         upstreams; an action whose declarations are incomplete loses the
         parsed edges for its undeclared reads.
 
+        ``include_graphs`` (opt-in) additionally populates the result's
+        ``action_graph`` / ``flowgroup_graph`` / ``pipeline_graph``
+        fields with frozen, networkx-free :class:`DependencyGraphView`
+        snapshots of the three graph levels. Default (False) leaves
+        them ``None`` — the flattened summary alone. Same return type
+        either way; only the optional fields' population changes (the
+        constitution's sanctioned opt-in-field pattern, §13.7).
+
         The result's ``warnings`` may carry ``LHP-DEP-002`` /
         ``LHP-DEP-003`` advisory codes (never raised), aggregated per
         unresolved read SITE with the affected actions enumerated, each
@@ -391,7 +402,17 @@ class InspectionFacade:
             blueprint_filter=blueprint_filter,
             trust_depends_on=trust_depends_on,
         )
-        return _dependency_result_to_view(internal)
+        view = _dependency_result_to_view(internal)
+        if not include_graphs:
+            return view
+        return replace(
+            view,
+            action_graph=_graph_to_view(internal.graphs.action_graph, "action"),
+            flowgroup_graph=_graph_to_view(
+                internal.graphs.flowgroup_graph, "flowgroup"
+            ),
+            pipeline_graph=_graph_to_view(internal.graphs.pipeline_graph, "pipeline"),
+        )
 
     def save_dependency_outputs(
         self,

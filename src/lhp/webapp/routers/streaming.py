@@ -10,7 +10,7 @@ The sync→async bridge, frame protocol, §5.7 ordering, terminal-error framing,
 and single-run serialization all live in
 :mod:`lhp.webapp.services.stream_adapter`. This router only:
 
-1. validates the JSON body (``{env, pipeline?, pipeline_config?}``),
+1. validates the JSON body (``{env, pipeline?, pipeline_config?, sandbox?}``),
 2. binds the facade method into a zero-config ``run(progress) -> Iterator``
    via :func:`functools.partial` (every kwarg bound EXCEPT ``progress`` — the
    adapter injects the sink as ``progress=``), and
@@ -75,7 +75,9 @@ class StreamRunRequest(BaseModel):
     facade's ``pipeline_filter``). ``pipeline_config`` is the optional
     project-relative pipeline-config YAML path (the CLI's
     ``--pipeline-config``); when set, bundle support mirrors the CLI's
-    ``databricks.yml`` detection.
+    ``databricks.yml`` detection. ``sandbox`` (default ``false``) switches the
+    run to developer-sandbox mode — scope and namespace come from
+    ``.lhp/profile.yaml`` — and is mutually exclusive with ``pipeline``.
     """
 
     env: str = Field(..., min_length=1, description="Substitution environment.")
@@ -90,6 +92,13 @@ class StreamRunRequest(BaseModel):
             "Optional project-relative pipeline-config YAML path (e.g. "
             "'config/pipeline_config_dev.yaml'); null runs without a pipeline "
             "config, with bundle support off."
+        ),
+    )
+    sandbox: bool = Field(
+        default=False,
+        description=(
+            "Developer-sandbox mode: scope and namespace come from "
+            ".lhp/profile.yaml. Mutually exclusive with 'pipeline'."
         ),
     )
 
@@ -136,6 +145,26 @@ def _facade_and_bundle(
     return facade, should_enable_bundle_support(project_root)
 
 
+def _reject_sandbox_with_pipeline_filter(body: StreamRunRequest) -> None:
+    """Refuse sandbox mode combined with the single-pipeline filter.
+
+    Sandbox scope is profile-driven (``.lhp/profile.yaml``), so it cannot be
+    narrowed with the request's ``pipeline`` filter. The CLI rejects
+    ``--sandbox`` + ``-p/--pipeline`` with a native Click usage error (exit 2)
+    before any facade work; the HTTP analogue is a 422 raised up front, before
+    the run stream is opened (the facade would otherwise raise ``ValueError``
+    only once the stream is iterated).
+    """
+    if body.sandbox and body.pipeline is not None:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "sandbox mode cannot be combined with a single-pipeline "
+                "filter: sandbox scope comes from .lhp/profile.yaml"
+            ),
+        )
+
+
 @router.post("/validate/stream")
 def validate_stream(
     body: StreamRunRequest,
@@ -151,6 +180,7 @@ def validate_stream(
     ``ValidationCompleted`` (``success=false`` + issues), not raised.
     The run is recorded into SQLite run history (see ``/api/runs``).
     """
+    _reject_sandbox_with_pipeline_filter(body)
     facade, bundle_enabled = _facade_and_bundle(
         request, project_root, body.pipeline_config
     )
@@ -160,6 +190,7 @@ def validate_stream(
         env=body.env,
         pipeline_filter=body.pipeline,
         bundle_enabled=bundle_enabled,
+        sandbox=body.sandbox,
     )
     frames = record_ndjson(
         stream_events(run),
@@ -186,6 +217,7 @@ def generate_stream(
     matching the ``lhp generate`` CLI default.
     The run is recorded into SQLite run history (see ``/api/runs``).
     """
+    _reject_sandbox_with_pipeline_filter(body)
     facade, bundle_enabled = _facade_and_bundle(
         request, project_root, body.pipeline_config
     )
@@ -197,6 +229,7 @@ def generate_stream(
         pipeline_filter=body.pipeline,
         output_dir=output_dir,
         bundle_enabled=bundle_enabled,
+        sandbox=body.sandbox,
     )
     frames = record_ndjson(
         stream_events(run),
@@ -216,6 +249,7 @@ def _validate_run(
     env: str,
     pipeline_filter: str | None,
     bundle_enabled: bool,
+    sandbox: bool,
 ) -> Iterator[LHPEvent]:
     """Bind ``facade.validate_pipelines`` keywords; the adapter injects ``progress``.
 
@@ -230,6 +264,7 @@ def _validate_run(
         pipeline_filter=pipeline_filter,
         bundle_enabled=bundle_enabled,
         progress=progress,
+        sandbox=sandbox,
     )
 
 
@@ -241,6 +276,7 @@ def _generate_run(
     pipeline_filter: str | None,
     output_dir: Path,
     bundle_enabled: bool,
+    sandbox: bool,
 ) -> Iterator[LHPEvent]:
     """Bind ``facade.generate_pipelines`` keywords; the adapter injects ``progress``."""
     return facade.generate_pipelines(
@@ -249,4 +285,5 @@ def _generate_run(
         output_dir=output_dir,
         bundle_enabled=bundle_enabled,
         progress=progress,
+        sandbox=sandbox,
     )

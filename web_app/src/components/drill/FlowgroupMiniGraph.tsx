@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import {
   ReactFlow,
   Background,
@@ -10,8 +10,10 @@ import {
 } from '@xyflow/react'
 
 import { useDependencyGraph } from '../../hooks/useDependencyGraph'
+import { useFlowgroups } from '../../hooks/useFlowgroups'
 import { ApiError } from '../../api/client'
 import { useUIStore } from '../../store/uiStore'
+import { useWorkspaceStore } from '../../store/workspaceStore'
 import { useElkLayout } from '../graph/useElkLayout'
 import { useGraphSearch } from '../graph/useGraphSearch'
 import { GraphSearchInput } from '../graph/GraphSearchInput'
@@ -31,13 +33,28 @@ const edgeTypes: EdgeTypes = {
   dependency: DependencyEdge,
 }
 
+/** Wait for a possible second click before treating a click as a single
+ * click — the modal a single click opens would swallow the double-click. */
+const DOUBLE_CLICK_GRACE_MS = 250
+
 export function FlowgroupMiniGraph({ pipeline }: { pipeline: string }) {
-  const { openFlowgroupModal } = useUIStore()
+  const { openFlowgroupModal, closePipelineModal } = useUIStore()
+  const openDesignerTab = useWorkspaceStore((s) => s.openDesignerTab)
   // Filtered graph for layout (only this pipeline's flowgroups)
   const { data, isLoading, error } = useDependencyGraph('flowgroup', pipeline)
   // Full graph for computing cross-pipeline external connections
   const { data: fullData } = useDependencyGraph('flowgroup')
+  // Flowgroup summaries carry source_file — the designer tab's file identity.
+  const { data: flowgroupList } = useFlowgroups(pipeline)
   const { fitView } = useReactFlow()
+  const clickTimerRef = useRef<number | null>(null)
+
+  useEffect(
+    () => () => {
+      if (clickTimerRef.current !== null) window.clearTimeout(clickTimerRef.current)
+    },
+    [],
+  )
 
   const apiNodes = useMemo(() => data?.nodes ?? [], [data])
   const apiEdges = useMemo(() => data?.edges ?? [], [data])
@@ -60,13 +77,39 @@ export function FlowgroupMiniGraph({ pipeline }: { pipeline: string }) {
     }
   }, [layoutNodes, isLayouting, fitView])
 
+  // Single click keeps its drill behavior, but deferred one grace period so
+  // a double-click (which opens the designer) can cancel it.
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: { id: string; type?: string }) => {
-      if (node.type === 'flowgroup') {
+      if (node.type !== 'flowgroup') return
+      if (clickTimerRef.current !== null) window.clearTimeout(clickTimerRef.current)
+      clickTimerRef.current = window.setTimeout(() => {
+        clickTimerRef.current = null
         openFlowgroupModal(node.id, pipeline)
-      }
+      }, DOUBLE_CLICK_GRACE_MS)
     },
     [openFlowgroupModal, pipeline],
+  )
+
+  const onNodeDoubleClick = useCallback(
+    (_: React.MouseEvent, node: { id: string; type?: string }) => {
+      if (node.type !== 'flowgroup') return
+      if (clickTimerRef.current !== null) {
+        window.clearTimeout(clickTimerRef.current)
+        clickTimerRef.current = null
+      }
+      const summary = flowgroupList?.flowgroups.find((f) => f.name === node.id)
+      if (summary === undefined) {
+        // No file identity available — fall back to the drill modal.
+        openFlowgroupModal(node.id, pipeline)
+        return
+      }
+      openDesignerTab(pipeline, node.id, summary.source_file)
+      // The canvas opens in the workspace behind this dialog — close the
+      // drill stack so it is visible.
+      closePipelineModal()
+    },
+    [flowgroupList, openDesignerTab, closePipelineModal, openFlowgroupModal, pipeline],
   )
 
   const fitToMatches = useCallback(() => {
@@ -124,6 +167,10 @@ export function FlowgroupMiniGraph({ pipeline }: { pipeline: string }) {
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           onNodeClick={onNodeClick}
+          onNodeDoubleClick={onNodeDoubleClick}
+          // Double-click is claimed by "open in designer" — zooming under it
+          // right as the drill stack closes would be jarring.
+          zoomOnDoubleClick={false}
           fitView
           minZoom={0.1}
           maxZoom={2}

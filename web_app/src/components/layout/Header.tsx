@@ -42,6 +42,7 @@ import {
   SelectValue,
 } from '../ui/select'
 import { ThemeToggle } from './ThemeToggle'
+import { SandboxControl } from '../sandbox/SandboxControl'
 import { cn } from '../../lib/utils'
 import { useProject, useHealth } from '../../hooks/useProject'
 import { useEnvironments } from '../../hooks/useEnvironments'
@@ -99,8 +100,10 @@ function HealthIndicator({ ok, pending }: { ok: boolean; pending: boolean }) {
   )
 }
 
-/** Searchable pipeline filter (shadcn combobox = popover + command). */
-function PipelineCombobox() {
+/** Searchable pipeline filter (shadcn combobox = popover + command).
+ * Disabled while sandbox mode is on — scope then comes from
+ * .lhp/profile.yaml and a single-pipeline filter would conflict with it. */
+function PipelineCombobox({ disabled = false }: { disabled?: boolean }) {
   const { data: pipelines } = usePipelines()
   const pipelineFilter = useUIStore((s) => s.pipelineFilter)
   const setPipelineFilter = useUIStore((s) => s.setPipelineFilter)
@@ -120,11 +123,17 @@ function PipelineCombobox() {
           role="combobox"
           aria-expanded={open}
           aria-label="Filter by pipeline"
+          disabled={disabled}
+          title={
+            disabled
+              ? 'Pipeline scope comes from your sandbox profile while sandbox mode is on'
+              : undefined
+          }
           className="w-44 justify-between font-normal"
         >
           <span className="flex min-w-0 items-center gap-1.5">
             <Boxes className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <span className="truncate">{pipelineFilter ?? 'All pipelines'}</span>
+            <span className="truncate">{disabled ? 'Sandbox scope' : pipelineFilter ?? 'All pipelines'}</span>
           </span>
           <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
         </Button>
@@ -290,7 +299,8 @@ export function Header() {
   const { data: project } = useProject()
   const { data: health, isError: healthError, isPending: healthPending } = useHealth()
   const { data: envData } = useEnvironments()
-  const { selectedEnv, setSelectedEnv, pipelineFilter, sidebarOpen, toggleSidebar } = useUIStore()
+  const { selectedEnv, setSelectedEnv, pipelineFilter, sidebarOpen, toggleSidebar, sandboxEnabled } =
+    useUIStore()
   const { isRunning, startValidate, startGenerate } = useRunController()
   const runKind = useRunStore((s) => s.runKind)
   const assistantOpen = useAssistantStore((s) => s.panelOpen)
@@ -348,8 +358,11 @@ export function Header() {
       </nav>
 
       <div className="ml-auto flex items-center gap-2">
-        {/* Pipeline filter */}
-        <PipelineCombobox />
+        {/* Sandbox mode (scope from .lhp/profile.yaml) */}
+        <SandboxControl />
+
+        {/* Pipeline filter — disabled while sandbox mode owns the scope */}
+        <PipelineCombobox disabled={sandboxEnabled} />
 
         {/* Run-config indicator (only while a pipeline config is bound) */}
         <RunConfigChip />
@@ -375,7 +388,7 @@ export function Header() {
           size="sm"
           onClick={() => startValidate()}
           disabled={isRunning}
-          title={`Validate ${pipelineFilter ?? 'all pipelines'} (${selectedEnv})`}
+          title={`Validate ${sandboxEnabled ? 'sandbox scope' : pipelineFilter ?? 'all pipelines'} (${selectedEnv})`}
         >
           {isRunning && runKind === 'validate' ? (
             <Loader2 className="animate-spin" aria-hidden="true" />
@@ -390,7 +403,7 @@ export function Header() {
           size="sm"
           onClick={() => startGenerate()}
           disabled={isRunning}
-          title={`Generate ${pipelineFilter ?? 'all pipelines'} (${selectedEnv})`}
+          title={`Generate ${sandboxEnabled ? 'sandbox scope' : pipelineFilter ?? 'all pipelines'} (${selectedEnv})`}
         >
           {isRunning && runKind === 'generate' ? (
             <Loader2 className="animate-spin" aria-hidden="true" />

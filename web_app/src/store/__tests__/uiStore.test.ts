@@ -9,6 +9,7 @@ beforeEach(() => {
   useUIStore.setState({
     selectedConfigFiles: { pipeline: null, job: null },
     selectedPipelineConfig: null,
+    sandboxEnabled: false,
   })
 })
 
@@ -39,6 +40,23 @@ describe('uiStore — selectedPipelineConfig', () => {
     expect(slice).toEqual({
       selectedConfigFiles: { pipeline: null, job: null },
       selectedPipelineConfig: 'config/pipeline_config_dev.yaml',
+      sandboxEnabled: false,
     })
+  })
+})
+
+describe('uiStore — sandboxEnabled', () => {
+  it('defaults to false and round-trips through setter and toggle', () => {
+    expect(useUIStore.getState().sandboxEnabled).toBe(false)
+    useUIStore.getState().setSandboxEnabled(true)
+    expect(useUIStore.getState().sandboxEnabled).toBe(true)
+    useUIStore.getState().toggleSandbox()
+    expect(useUIStore.getState().sandboxEnabled).toBe(false)
+  })
+
+  it('is part of the persisted slice', () => {
+    useUIStore.getState().setSandboxEnabled(true)
+    const { partialize } = useUIStore.persist.getOptions()
+    expect(partialize!(useUIStore.getState())).toMatchObject({ sandboxEnabled: true })
   })
 })

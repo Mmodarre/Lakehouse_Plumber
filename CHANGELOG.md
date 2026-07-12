@@ -314,6 +314,40 @@ silently missing edges.
     reload dialog, and a banner flags on-disk changes while a form holds
     unsaved edits. "Open raw YAML" remains the escape hatch for anything
     the forms do not cover.
+- **Web IDE Designer — a visual flowgroup builder.** The `lhp web` IDE gains a
+  Designer that drills from a pipeline down through its flowgroups to a
+  per-flowgroup action graph, then into a canvas that edits one flowgroup as a
+  node-and-edge diagram instead of raw YAML:
+  - **Drill-down graph levels.** The dependency views navigate
+    pipeline → flowgroup → action graph. Action edges are derived client-side
+    from each action's `source` / `sources` / `view` / `table` and labelled
+    with the view name they carry (a "named-pipe" edge visual); manual
+    `depends_on` links render as a distinct edge kind. Derivation needs no
+    server round-trip, so the graph renders for unsaved files too.
+  - **Flowgroup Designer canvas tab.** A flowgroup opens as a canvas of
+    load / transform / write / test action nodes; selecting a node opens a
+    per-action form generated from that sub-type's spec (one for every
+    load/transform/write/test sub-type). Forms edit explicit YAML only —
+    clearing a control deletes the key (never writes `''` / `null`) and keys
+    the spec does not name are left untouched; soft-validation hints show on
+    the field but never block a write. SQL / Python / expectations fields open
+    in a Monaco modal or as a companion file, and a fan-in affordance appends a
+    producer view to an action's `source`.
+  - **Immediate, comment-preserving write-through.** Each committed field edit
+    PUTs the flowgroup file instantly through the shared YAML Document layer:
+    only the changed node is touched, hand-written comments and key order
+    survive, and edits serialize on a promise chain so a second edit applies on
+    top of the first (a stale save raises the same `412` conflict dialog as the
+    editor). Structural list/map edits are index-safe under rapid clicks: adds
+    resolve their position from the freshly-parsed document and destructive
+    controls are disabled while a write is in flight.
+  - **Creation flows.** New actions come from an action palette; a flowgroup is
+    created blank, from a template (`use_template` with its parameters), or from
+    a blueprint — and templates themselves are authored on the same canvas with
+    a parameters panel.
+  - **Dev-sandbox scope toggle.** A toggle surfaces the developer-sandbox scope
+    (`SandboxFacade.describe_scope`) — whether `.lhp/profile.yaml` opts in and
+    which pipelines a `--sandbox` run would cover.
 - **`lhp init <name> --sample` — scaffold a complete, runnable sample
   project.** The new flag generates a TPC-H medallion-architecture project:
   bronze ingestion via `delta` and `cloudfiles` loads, silver CDC in both

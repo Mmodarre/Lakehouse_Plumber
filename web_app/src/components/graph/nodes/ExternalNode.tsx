@@ -1,8 +1,9 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { Cloud } from 'lucide-react'
 import { NodeCard, NODE_HANDLE_CLASS } from './NodeCard'
+import { canvasNodeDomId } from './nodeDom'
 
-export function ExternalNode({ data, selected }: NodeProps) {
+export function ExternalNode({ id, data, selected }: NodeProps) {
   const label = (data.label as string) ?? ''
   const searchMatch = data.searchMatch as boolean | undefined
   const searchDimmed = data.searchDimmed as boolean | undefined
@@ -19,6 +20,7 @@ export function ExternalNode({ data, selected }: NodeProps) {
         searchDimmed={searchDimmed}
         dashed
         muted
+        id={canvasNodeDomId(id)}
         className="max-w-60"
       />
       <Handle type="source" position={Position.Right} className={NODE_HANDLE_CLASS} />

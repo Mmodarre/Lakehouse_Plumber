@@ -39,6 +39,9 @@ export interface RunProgress {
 interface RunState {
   /** Which run is in flight (or was, until reset). */
   runKind: RunKind | null
+  /** True when the current/last run was launched in developer-sandbox mode
+   * (scope + namespace from .lhp/profile.yaml). Drives the Sandbox run badge. */
+  sandbox: boolean
   /** True while the stream is open. */
   isRunning: boolean
   /** Most recent phase label from the server (e.g. "Validating"). */
@@ -56,8 +59,9 @@ interface RunState {
   infoLog: string[]
 
   // Actions
-  /** Mark a run as started; clears prior run state. */
-  begin: (kind: RunKind) => void
+  /** Mark a run as started; clears prior run state. `sandbox` records whether
+   * the run was launched in developer-sandbox mode. */
+  begin: (kind: RunKind, sandbox?: boolean) => void
   /** Fold one decoded frame into run state. */
   applyFrame: (frame: StreamFrame) => void
   /** Record an out-of-band failure (HTTP/transport error from the hook). */
@@ -85,6 +89,7 @@ const YAML_SYNTAX_ISSUE_CODE = 'YAML-SYNTAX'
 
 const initialState = {
   runKind: null as RunKind | null,
+  sandbox: false,
   isRunning: false,
   phase: null as string | null,
   progress: null as RunProgress | null,
@@ -147,10 +152,11 @@ function collectGenerationIssues(
 export const useRunStore = create<RunState>((set) => ({
   ...initialState,
 
-  begin: (kind) =>
+  begin: (kind, sandbox = false) =>
     set({
       ...initialState,
       runKind: kind,
+      sandbox,
       isRunning: true,
     }),
 
@@ -320,14 +326,24 @@ export function useRunController(): RunController {
       path: '/api/validate/stream' | '/api/generate/stream',
       env: string,
       pipeline?: string,
+      sandbox = false,
     ) => {
       if (stream.isRunning) return
       // The run-config binding (set by the pipeline tab's "Use for runs"
       // toggle, shown in the header chip) applies to BOTH run kinds.
       const { selectedPipelineConfig } = useUIStore.getState()
-      begin(kind)
+      begin(kind, sandbox)
       stream.start(
-        { path, env, pipeline, pipeline_config: selectedPipelineConfig ?? undefined },
+        {
+          path,
+          env,
+          // Sandbox mode takes its scope from .lhp/profile.yaml and is mutually
+          // exclusive with a single-pipeline filter, so drop the pipeline when
+          // it is on (the backend 422s if both are sent).
+          pipeline: sandbox ? undefined : pipeline,
+          pipeline_config: selectedPipelineConfig ?? undefined,
+          ...(sandbox ? { sandbox: true } : {}),
+        },
         {
           onFrame: (frame) => applyFrame(frame),
           onError: (error) => fail(error),
@@ -340,12 +356,16 @@ export function useRunController(): RunController {
 
   const startValidate = useCallback(
     (env?: string, pipeline?: string) => {
-      const { selectedEnv, pipelineFilter } = useUIStore.getState()
+      const { selectedEnv, pipelineFilter, sandboxEnabled } = useUIStore.getState()
+      // An explicit pipeline (e.g. the designer validating one flowgroup)
+      // stays pipeline-scoped and ignores the global sandbox toggle.
+      const sandbox = sandboxEnabled && pipeline === undefined
       startRun(
         'validate',
         '/api/validate/stream',
         env ?? selectedEnv,
         pipeline ?? pipelineFilter ?? undefined,
+        sandbox,
       )
     },
     [startRun],
@@ -353,12 +373,14 @@ export function useRunController(): RunController {
 
   const startGenerate = useCallback(
     (env?: string, pipeline?: string) => {
-      const { selectedEnv, pipelineFilter } = useUIStore.getState()
+      const { selectedEnv, pipelineFilter, sandboxEnabled } = useUIStore.getState()
+      const sandbox = sandboxEnabled && pipeline === undefined
       startRun(
         'generate',
         '/api/generate/stream',
         env ?? selectedEnv,
         pipeline ?? pipelineFilter ?? undefined,
+        sandbox,
       )
     },
     [startRun],

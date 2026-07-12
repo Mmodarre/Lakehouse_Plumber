@@ -52,7 +52,17 @@
  * - Mutations throw on a handle with parse errors; callers must block
  *   form editing on broken files.
  */
-import { CST, Document, isCollection, isMap, isScalar, parse, parseAllDocuments, visit } from 'yaml'
+import {
+  CST,
+  Document,
+  isCollection,
+  isMap,
+  isScalar,
+  isSeq,
+  parse,
+  parseAllDocuments,
+  visit,
+} from 'yaml'
 import type { Node, Pair, Scalar, YAMLError, YAMLMap } from 'yaml'
 
 /** Path into a document, as accepted by `Document.getIn`/`setIn`. */
@@ -255,6 +265,39 @@ export function deletePath(handle: ConfigFileHandle, docIndex: number, path: Yam
 /** Plain-JS snapshot of one document (wraps `Document.toJS`). */
 export function toJS(handle: ConfigFileHandle, docIndex: number): unknown {
   return entryAt(state(handle), docIndex).doc.toJS()
+}
+
+/**
+ * Insert `value` into the sequence at `path` at position `index`
+ * (`0 <= index <= length`); later items shift up one. The inserted subtree
+ * is built quote-safe like `setPath`'s. This is a structural edit: it
+ * rewrites the containing document (sibling documents keep their exact
+ * bytes; see the module header for what a rewrite normalizes). Throws if
+ * the handle has parse errors, `path` is not a sequence, or `index` is out
+ * of range.
+ */
+export function insertListItem(
+  handle: ConfigFileHandle,
+  docIndex: number,
+  path: YamlPath,
+  index: number,
+  value: unknown,
+): void {
+  const h = state(handle)
+  assertMutable(h)
+  const entry = entryAt(h, docIndex)
+  const doc = entry.doc
+  const node = path.length === 0 ? doc.contents : doc.getIn(path, true)
+  if (!isSeq(node)) {
+    throw new Error(`No sequence at [${path.join(', ')}] in document ${docIndex}`)
+  }
+  if (!Number.isInteger(index) || index < 0 || index > node.items.length) {
+    throw new RangeError(
+      `Insert index ${index} out of range (sequence has ${node.items.length} item(s))`,
+    )
+  }
+  node.items.splice(index, 0, buildValueNode(doc, value === undefined ? null : value))
+  entry.rewritten = true
 }
 
 /**

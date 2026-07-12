@@ -3,6 +3,7 @@ import type { LucideIcon } from 'lucide-react'
 import { useRunController, useRunStore } from '../../store/runStore'
 import type { RunTerminal } from '../../store/runStore'
 import { ValidationResults } from './ValidationResults'
+import { SandboxRunBadge } from '../sandbox/SandboxRunBadge'
 import { EmptyState } from '../common/EmptyState'
 import { cn } from '@/lib/utils'
 
@@ -126,6 +127,9 @@ export function ValidationPanel() {
 
   return (
     <div className="space-y-4">
+      {/* Sandbox-mode marker (renders only for a sandbox run) */}
+      <SandboxRunBadge />
+
       {/* Live phase + progress */}
       {isRunning && (
         <div className="space-y-3 rounded-lg border border-border bg-card px-4 py-3">

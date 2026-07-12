@@ -81,6 +81,41 @@
   color: var(--muted-foreground);
 }
 
+/* Designer named-pipe edges. The stroke stays recessive (identity lives on the
+ * kind-colored ports and the chip dot); kind is encoded by dash, not hue. Data
+ * edges are solid; depends_on edges carry an honest dashed rhythm. Dash values
+ * are normalized to the path (each edge sets pathLength="1"), so density reads
+ * the same on short and long edges. */
+.lhp-edge--data {
+  stroke-dasharray: none;
+}
+.lhp-edge--depends {
+  stroke-dasharray: 0.045 0.03;
+}
+
+/* The one orchestrated motion: a freshly added action's edge draws on once,
+ * from producer to consumer. The keyframe owns stroke-dasharray during the
+ * animation, so it draws on over both solid and dashed edges and each settles
+ * back to its steady dash afterward. Gated by prefers-reduced-motion below and
+ * by the JS gate (drawOnEdgeClass) that only adds this class when motion is
+ * allowed and the edge is new. */
+@keyframes lhp-edge-draw {
+  from {
+    stroke-dasharray: 0 1;
+  }
+  to {
+    stroke-dasharray: 1 0;
+  }
+}
+.lhp-edge--drawon {
+  animation: lhp-edge-draw 420ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .lhp-edge--drawon {
+    animation: none;
+  }
+}
+
 /* Transition utilities for layout panels */
 .panel-transition {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);

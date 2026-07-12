@@ -1,13 +1,16 @@
 import { ReactFlowProvider } from '@xyflow/react'
 import { X } from 'lucide-react'
 import { useUIStore } from '../../store/uiStore'
+import { useWorkspaceStore } from '../../store/workspaceStore'
 import { useFlowgroupDetail } from '../../hooks/useFlowgroups'
 import { Button } from '../ui/button'
 import { Dialog, DialogContent, DialogTitle } from '../ui/dialog'
 import { ActionMiniGraph } from './ActionMiniGraph'
 
 export function FlowgroupModal() {
-  const { drillFlowgroup, closeFlowgroupModal, openModal, openFlowgroupEditor } = useUIStore()
+  const { drillFlowgroup, closeFlowgroupModal, closePipelineModal, openModal, openFlowgroupEditor } =
+    useUIStore()
+  const openDesignerTab = useWorkspaceStore((s) => s.openDesignerTab)
   const { data: detail } = useFlowgroupDetail(drillFlowgroup?.name ?? null)
 
   // Escape closes this dialog before the PipelineModal below it — Radix's
@@ -40,6 +43,19 @@ export function FlowgroupModal() {
             </DialogTitle>
           </div>
           <div className="ml-3 flex shrink-0 items-center gap-2">
+            <Button
+              size="sm"
+              disabled={!sourceFile}
+              onClick={() => {
+                if (!sourceFile) return
+                openDesignerTab(drillFlowgroup.pipeline, drillFlowgroup.name, sourceFile)
+                // The canvas opens in the workspace behind the drill dialogs —
+                // close the whole drill stack so it is visible.
+                closePipelineModal()
+              }}
+            >
+              Open in Designer
+            </Button>
             <Button
               variant="outline"
               size="sm"

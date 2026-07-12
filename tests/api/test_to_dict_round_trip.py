@@ -36,6 +36,9 @@ from lhp.api import (
     BundleSyncResult,
     BundleValidationResult,
     DependencyAnalysisResult,
+    DependencyGraphEdgeView,
+    DependencyGraphNodeView,
+    DependencyGraphView,
     DependencyOutputEntry,
     DependencyOutputsResult,
     DependencyWarningView,
@@ -190,6 +193,25 @@ _dep_warning = DependencyWarningView(
     ),
     affected_count=2,
 )
+_graph_node = DependencyGraphNodeView(
+    id="customer_ingest.load_customer",
+    label="load_customer",
+    type="load",
+    pipeline="bronze",
+    flowgroup="customer_ingest",
+    # ``external_sources`` mirrors production: the converter stores the nx
+    # attribute's list value as-is, so the sample keeps a list (not a tuple)
+    # for exact round-trip equality.
+    metadata={"target": "v_customer_raw", "external_sources": ["raw.customer"]},
+)
+_graph_edge = DependencyGraphEdgeView(
+    source="customer_ingest.load_customer",
+    target="customer_ingest.write_customer",
+    type="internal",
+)
+_graph_view = DependencyGraphView(
+    level="action", nodes=(_graph_node,), edges=(_graph_edge,)
+)
 
 _INSTANCES = [
     pytest.param(
@@ -291,6 +313,41 @@ _INSTANCES = [
         ),
         id="DependencyAnalysisResult",
     ),
+    pytest.param(
+        DependencyAnalysisResult(
+            pipeline_dependencies={"bronze": ()},
+            execution_stages=(("bronze",),),
+            external_sources=("raw.customer",),
+            total_pipelines=1,
+            total_external_sources=1,
+            action_graph=_graph_view,
+            flowgroup_graph=DependencyGraphView(
+                level="flowgroup",
+                nodes=(
+                    DependencyGraphNodeView(
+                        id="customer_ingest",
+                        label="customer_ingest",
+                        type="flowgroup",
+                        pipeline="bronze",
+                        flowgroup="customer_ingest",
+                        metadata={"action_count": 2},
+                    ),
+                ),
+            ),
+            pipeline_graph=DependencyGraphView(
+                level="pipeline",
+                nodes=(
+                    DependencyGraphNodeView(
+                        id="bronze", label="bronze", type="pipeline", pipeline="bronze"
+                    ),
+                ),
+            ),
+        ),
+        id="DependencyAnalysisResultWithGraphs",
+    ),
+    pytest.param(_graph_view, id="DependencyGraphView"),
+    pytest.param(_graph_node, id="DependencyGraphNodeView"),
+    pytest.param(_graph_edge, id="DependencyGraphEdgeView"),
     pytest.param(_dep_warning, id="DependencyWarningView"),
     pytest.param(_affected, id="AffectedActionView"),
     pytest.param(_dep_entry, id="DependencyOutputEntry"),
