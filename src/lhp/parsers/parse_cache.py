@@ -90,7 +90,10 @@ class PersistentParseCache:
         shard = self.cache_dir / self._shard_name(resolved_path)
         try:
             with open(shard, "rb") as f:
-                payload = pickle.load(f)
+                # Trusted-local data: shards live in the project's own cache
+                # dir and are written only by LHP; anything foreign fails the
+                # key check below and degrades to a miss.
+                payload = pickle.load(f)  # nosec B301
             if (
                 not isinstance(payload, dict)
                 or payload.get("key") != self._key(resolved_path, mtime_ns, size)
