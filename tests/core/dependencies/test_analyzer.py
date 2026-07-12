@@ -110,9 +110,9 @@ class TestDependencyAnalysisService:
         # Check action graph
         action_graph = graphs.action_graph
         expected_actions = [
-            "customer_processing.load_customers",
-            "customer_processing.transform_customers",
-            "order_processing.load_orders",
+            "customer_pipeline.customer_processing.load_customers",
+            "customer_pipeline.customer_processing.transform_customers",
+            "order_pipeline.order_processing.load_orders",
         ]
 
         assert len(action_graph.nodes) == 3
@@ -121,8 +121,8 @@ class TestDependencyAnalysisService:
 
         # Check dependency between actions within the same flowgroup
         assert action_graph.has_edge(
-            "customer_processing.load_customers",
-            "customer_processing.transform_customers",
+            "customer_pipeline.customer_processing.load_customers",
+            "customer_pipeline.customer_processing.transform_customers",
         )
 
     @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
@@ -162,11 +162,11 @@ class TestDependencyAnalysisService:
         # Check flowgroup graph
         flowgroup_graph = graphs.flowgroup_graph
         assert len(flowgroup_graph.nodes) == 2
-        assert "customers" in flowgroup_graph.nodes
-        assert "orders" in flowgroup_graph.nodes
+        assert "pipeline1.customers" in flowgroup_graph.nodes
+        assert "pipeline2.orders" in flowgroup_graph.nodes
 
         # Check dependency between flowgroups
-        assert flowgroup_graph.has_edge("customers", "orders")
+        assert flowgroup_graph.has_edge("pipeline1.customers", "pipeline2.orders")
 
     @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
     def test_build_pipeline_graph(self, mockget_flowgroups):
@@ -471,7 +471,7 @@ class TestDependencyAnalysisService:
         mock_extract_sql.assert_called()
 
         # Check that external sources were identified
-        action_id = "test_fg.sql_action"
+        action_id = "test_pipeline.test_fg.sql_action"
         assert action_id in graphs.action_graph.nodes
         external_sources = graphs.action_graph.nodes[action_id].get(
             "external_sources", []
@@ -499,9 +499,15 @@ class TestDependencyAnalysisService:
         flowgroup = self.create_mock_flowgroup("test_fg", "test_pipeline", actions)
         mockget_flowgroups.return_value = [flowgroup]
 
-        # Mock file existence
+        # Mock file existence. The parse cache now stats each body at read time
+        # (to record its read-time size/mtime for the graph cache), so stat must
+        # be mocked alongside read_text for this filesystem-free unit test.
         with (
             patch("pathlib.Path.exists", return_value=True),
+            patch(
+                "pathlib.Path.stat",
+                return_value=Mock(st_mtime_ns=1, st_size=1),
+            ),
             patch(
                 "pathlib.Path.read_text",
                 return_value='spark.sql("SELECT * FROM silver.processed_data")',
@@ -513,7 +519,7 @@ class TestDependencyAnalysisService:
         mock_extract_python.assert_called()
 
         # Check that external sources were identified
-        action_id = "test_fg.python_action"
+        action_id = "test_pipeline.test_fg.python_action"
         assert action_id in graphs.action_graph.nodes
         external_sources = graphs.action_graph.nodes[action_id].get(
             "external_sources", []
@@ -549,7 +555,7 @@ class TestDependencyAnalysisService:
             graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
 
         # Verify the SQL file was processed
-        action_id = "test_fg.sql_file_action"
+        action_id = "test_pipeline.test_fg.sql_file_action"
         assert action_id in graphs.action_graph.nodes
         external_sources = graphs.action_graph.nodes[action_id].get(
             "external_sources", []
@@ -729,7 +735,9 @@ class TestDependencyAnalysisService:
             graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
 
         # Check that dependency was established
-        assert graphs.action_graph.has_edge("writer.write_action", "reader.load_action")
+        assert graphs.action_graph.has_edge(
+            "pipeline1.writer.write_action", "pipeline2.reader.load_action"
+        )
 
     @patch("lhp.core.dependencies.service.DependencyAnalysisService.get_flowgroups")
     def test_empty_graphs_metadata(self, mockget_flowgroups):
@@ -805,7 +813,11 @@ class TestDependencyAnalysisService:
 
         graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
         flowgroup_graph = graphs.flowgroup_graph
-        site_names = {"site_a_raw", "site_b_raw", "site_c_raw"}
+        site_names = {
+            "site_a_pipeline.site_a_raw",
+            "site_b_pipeline.site_b_raw",
+            "site_c_pipeline.site_c_raw",
+        }
         for src in site_names:
             for dst in site_names:
                 if src == dst:
@@ -1200,7 +1212,7 @@ class TestWriteTargetExtraction:
         ):
             graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
 
-        action_id = "gold_fg.action"
+        action_id = "gold_pipeline.gold_fg.action"
         assert action_id in graphs.action_graph.nodes
         external_sources = graphs.action_graph.nodes[action_id].get(
             "external_sources", []
@@ -1257,7 +1269,7 @@ class TestWriteTargetExtraction:
 
         graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
 
-        action_id = "sink_fg.action"
+        action_id = "p.sink_fg.action"
         external_sources = graphs.action_graph.nodes[action_id].get(
             "external_sources", []
         )
@@ -1394,7 +1406,7 @@ class TestWriteTargetExtraction:
 
         graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
         external_sources = set(
-            graphs.action_graph.nodes["fg.action"].get("external_sources", [])
+            graphs.action_graph.nodes["p.fg.action"].get("external_sources", [])
         )
         assert "parser.src" in external_sources
         assert "explicit.src" in external_sources
@@ -1428,7 +1440,7 @@ class TestWriteTargetExtraction:
         ):
             graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
         external_sources = set(
-            graphs.action_graph.nodes["fg.action"].get("external_sources", [])
+            graphs.action_graph.nodes["p.fg.action"].get("external_sources", [])
         )
         assert "parser.src" in external_sources
         assert "explicit.src" in external_sources
@@ -1474,8 +1486,8 @@ class TestWriteTargetExtraction:
 
         graphs = self.analyzer.build_graphs(self.analyzer.get_flowgroups())
 
-        upstream_id = "medallion_fg.build_silver"
-        downstream_id = "medallion_fg.build_gold"
+        upstream_id = "medallion_pipeline.medallion_fg.build_silver"
+        downstream_id = "medallion_pipeline.medallion_fg.build_gold"
         # Internal edge from producer -> consumer.
         assert graphs.action_graph.has_edge(upstream_id, downstream_id)
         assert (
@@ -1562,20 +1574,23 @@ class TestPartitionResultByJobStagesAndCrossJob:
     def _global_graphs() -> DependencyGraphs:
         action_graph = nx.DiGraph()
         action_graph.add_node(
-            "fg1.write_bronze", flowgroup="fg1", external_sources=["raw.landing"]
+            "p1.fg1.write_bronze",
+            flowgroup="fg1",
+            pipeline="p1",
+            external_sources=["raw.landing"],
         )
-        action_graph.add_node("fg2.write_silver", flowgroup="fg2")
-        action_graph.add_node("fg4.write_silver_b", flowgroup="fg4")
-        action_graph.add_node("fg3.write_gold", flowgroup="fg3")
-        action_graph.add_edge("fg1.write_bronze", "fg2.write_silver")
-        action_graph.add_edge("fg1.write_bronze", "fg4.write_silver_b")
-        action_graph.add_edge("fg2.write_silver", "fg3.write_gold")
+        action_graph.add_node("p2.fg2.write_silver", flowgroup="fg2", pipeline="p2")
+        action_graph.add_node("p4.fg4.write_silver_b", flowgroup="fg4", pipeline="p4")
+        action_graph.add_node("p3.fg3.write_gold", flowgroup="fg3", pipeline="p3")
+        action_graph.add_edge("p1.fg1.write_bronze", "p2.fg2.write_silver")
+        action_graph.add_edge("p1.fg1.write_bronze", "p4.fg4.write_silver_b")
+        action_graph.add_edge("p2.fg2.write_silver", "p3.fg3.write_gold")
 
         flowgroup_graph = nx.DiGraph()
-        flowgroup_graph.add_nodes_from(["fg1", "fg2", "fg4", "fg3"])
-        flowgroup_graph.add_edge("fg1", "fg2")
-        flowgroup_graph.add_edge("fg1", "fg4")
-        flowgroup_graph.add_edge("fg2", "fg3")
+        flowgroup_graph.add_nodes_from(["p1.fg1", "p2.fg2", "p4.fg4", "p3.fg3"])
+        flowgroup_graph.add_edge("p1.fg1", "p2.fg2")
+        flowgroup_graph.add_edge("p1.fg1", "p4.fg4")
+        flowgroup_graph.add_edge("p2.fg2", "p3.fg3")
 
         pipeline_graph = nx.DiGraph()
         for pipeline in ("p1", "p2", "p4", "p3"):
@@ -1634,7 +1649,7 @@ class TestPartitionResultByJobStagesAndCrossJob:
             analyzer.partition_result_by_job(global_result, self._flowgroups())
 
         messages = [record.getMessage() for record in caplog.records]
-        assert "Job 'job_b' depends on 1 source(s) from other jobs: fg2" in messages
+        assert "Job 'job_b' depends on 1 source(s) from other jobs: p2.fg2" in messages
         # job_a has no incoming cross-job edges, so no log line for it.
         assert not any("Job 'job_a' depends on" in message for message in messages)
 

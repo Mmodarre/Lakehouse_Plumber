@@ -11,7 +11,9 @@ import {
 
 import { useDependencyGraph } from '../../hooks/useDependencyGraph'
 import { ApiError } from '../../api/client'
+import { useGraphStalenessStore } from '../../store/graphStalenessStore'
 import { useElkLayout } from '../graph/useElkLayout'
+import { GraphStaleBadge } from '../graph/GraphStaleBadge'
 import { ActionNode } from '../graph/nodes/ActionNode'
 import { ExternalNode } from '../graph/nodes/ExternalNode'
 import { DependencyEdge, EdgeMarkerDefs } from '../graph/edges/DependencyEdge'
@@ -34,6 +36,8 @@ const edgeTypes: EdgeTypes = {
 export function ActionMiniGraph({ pipeline, flowgroup }: { pipeline: string; flowgroup: string }) {
   const { data, isLoading, error } = useDependencyGraph('action', pipeline)
   const { fitView } = useReactFlow()
+  // No search header here — the stale badge gets a header bar only while stale.
+  const isStale = useGraphStalenessStore((s) => s.isStale)
 
   // Filter nodes/edges to only those belonging to this flowgroup
   const filteredNodes = useMemo(() => {
@@ -87,20 +91,30 @@ export function ActionMiniGraph({ pipeline, flowgroup }: { pipeline: string; flo
   }
 
   return (
-    <ReactFlow
-      nodes={nodes}
-      edges={edges}
-      nodeTypes={nodeTypes}
-      edgeTypes={edgeTypes}
-      fitView
-      minZoom={0.1}
-      maxZoom={2}
-      proOptions={{ hideAttribution: true }}
-    >
-      <EdgeMarkerDefs />
-      {/* Dot grid + chrome colors come from the tokened .react-flow CSS block */}
-      <Background variant={BackgroundVariant.Dots} gap={20} size={1.2} />
-      <Controls showInteractive={false} position="top-right" />
-    </ReactFlow>
+    <div className="flex h-full flex-col">
+      {isStale && (
+        <div className="flex items-center justify-end border-b border-border bg-card px-3 py-1.5">
+          <GraphStaleBadge />
+        </div>
+      )}
+      <div className="flex-1">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          onlyRenderVisibleElements
+          fitView
+          minZoom={0.1}
+          maxZoom={2}
+          proOptions={{ hideAttribution: true }}
+        >
+          <EdgeMarkerDefs />
+          {/* Dot grid + chrome colors come from the tokened .react-flow CSS block */}
+          <Background variant={BackgroundVariant.Dots} gap={20} size={1.2} />
+          <Controls showInteractive={false} position="top-right" />
+        </ReactFlow>
+      </div>
+    </div>
   )
 }

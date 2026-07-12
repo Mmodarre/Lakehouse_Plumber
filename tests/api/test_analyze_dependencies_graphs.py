@@ -91,7 +91,7 @@ class TestIncludeGraphsOptIn:
     def test_default_leaves_graphs_none(
         self, facade: LakehousePlumberApplicationFacade
     ) -> None:
-        result = facade.inspection.analyze_dependencies()
+        result = facade.dependency.analyze_dependencies()
         assert result.action_graph is None
         assert result.flowgroup_graph is None
         assert result.pipeline_graph is None
@@ -99,7 +99,7 @@ class TestIncludeGraphsOptIn:
     def test_opt_in_populates_all_three_levels(
         self, facade: LakehousePlumberApplicationFacade
     ) -> None:
-        result = facade.inspection.analyze_dependencies(include_graphs=True)
+        result = facade.dependency.analyze_dependencies(include_graphs=True)
         assert isinstance(result.action_graph, DependencyGraphView)
         assert isinstance(result.flowgroup_graph, DependencyGraphView)
         assert isinstance(result.pipeline_graph, DependencyGraphView)
@@ -109,21 +109,21 @@ class TestIncludeGraphsOptIn:
 
 
 class TestActionGraphProjection:
-    def test_nodes_are_keyed_flowgroup_dot_action(
+    def test_nodes_are_keyed_pipeline_dot_flowgroup_dot_action(
         self, facade: LakehousePlumberApplicationFacade
     ) -> None:
-        graph = facade.inspection.analyze_dependencies(include_graphs=True).action_graph
+        graph = facade.dependency.analyze_dependencies(include_graphs=True).action_graph
         assert graph is not None
         assert {n.id for n in graph.nodes} == {
-            f"{FLOWGROUP}.load_customers",
-            f"{FLOWGROUP}.clean_customers",
-            f"{FLOWGROUP}.write_customers",
+            f"{PIPELINE}.{FLOWGROUP}.load_customers",
+            f"{PIPELINE}.{FLOWGROUP}.clean_customers",
+            f"{PIPELINE}.{FLOWGROUP}.write_customers",
         }
 
     def test_node_projection_fields(
         self, facade: LakehousePlumberApplicationFacade
     ) -> None:
-        graph = facade.inspection.analyze_dependencies(include_graphs=True).action_graph
+        graph = facade.dependency.analyze_dependencies(include_graphs=True).action_graph
         assert graph is not None
         load = next(n for n in graph.nodes if n.label == "load_customers")
         assert load.type == "load"
@@ -134,12 +134,18 @@ class TestActionGraphProjection:
     def test_edges_follow_the_view_chain(
         self, facade: LakehousePlumberApplicationFacade
     ) -> None:
-        graph = facade.inspection.analyze_dependencies(include_graphs=True).action_graph
+        graph = facade.dependency.analyze_dependencies(include_graphs=True).action_graph
         assert graph is not None
         pairs = {(e.source, e.target) for e in graph.edges}
         assert pairs == {
-            (f"{FLOWGROUP}.load_customers", f"{FLOWGROUP}.clean_customers"),
-            (f"{FLOWGROUP}.clean_customers", f"{FLOWGROUP}.write_customers"),
+            (
+                f"{PIPELINE}.{FLOWGROUP}.load_customers",
+                f"{PIPELINE}.{FLOWGROUP}.clean_customers",
+            ),
+            (
+                f"{PIPELINE}.{FLOWGROUP}.clean_customers",
+                f"{PIPELINE}.{FLOWGROUP}.write_customers",
+            ),
         }
         assert all(e.type == "internal" for e in graph.edges)
 
@@ -148,12 +154,14 @@ class TestDerivedLevels:
     def test_flowgroup_graph_projection(
         self, facade: LakehousePlumberApplicationFacade
     ) -> None:
-        graph = facade.inspection.analyze_dependencies(
+        graph = facade.dependency.analyze_dependencies(
             include_graphs=True
         ).flowgroup_graph
         assert graph is not None
         (node,) = graph.nodes
-        assert node.id == FLOWGROUP
+        assert node.id == f"{PIPELINE}.{FLOWGROUP}"
+        # Label stays the bare flowgroup name — NOT the qualified id.
+        assert node.label == FLOWGROUP
         assert node.flowgroup == FLOWGROUP
         assert node.pipeline == PIPELINE
         assert node.type == "flowgroup"
@@ -163,7 +171,7 @@ class TestDerivedLevels:
     def test_pipeline_graph_projection(
         self, facade: LakehousePlumberApplicationFacade
     ) -> None:
-        graph = facade.inspection.analyze_dependencies(
+        graph = facade.dependency.analyze_dependencies(
             include_graphs=True
         ).pipeline_graph
         assert graph is not None
@@ -176,7 +184,7 @@ class TestDerivedLevels:
     def test_unknown_pipeline_filter_yields_empty_graphs(
         self, facade: LakehousePlumberApplicationFacade
     ) -> None:
-        result = facade.inspection.analyze_dependencies(
+        result = facade.dependency.analyze_dependencies(
             pipeline_filter="does_not_exist", include_graphs=True
         )
         assert result.action_graph is not None

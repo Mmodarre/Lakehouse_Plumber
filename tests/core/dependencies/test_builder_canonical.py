@@ -72,8 +72,8 @@ class TestCanonicalTableMatching:
 
         graph = _build([producer, consumer])
 
-        assert graph.has_edge("producer_fg.write_t", "consumer_fg.read_t")
-        assert "external_sources" not in graph.nodes["consumer_fg.read_t"]
+        assert graph.has_edge("p1.producer_fg.write_t", "p2.consumer_fg.read_t")
+        assert "external_sources" not in graph.nodes["p2.consumer_fg.read_t"]
 
     def test_backtick_quoted_match(self):
         """Reader `` `mycat`.`myschema`.`mytable` `` matches a plain producer."""
@@ -93,7 +93,7 @@ class TestCanonicalTableMatching:
 
         graph = _build([producer, consumer])
 
-        assert graph.has_edge("producer_fg.write_t", "consumer_fg.read_t")
+        assert graph.has_edge("p1.producer_fg.write_t", "p2.consumer_fg.read_t")
 
     def test_two_part_to_three_part_unique_catalog_match(self):
         """Producer `cat.sch.tbl`, reader `sch.tbl` (unique catalog) -> edge."""
@@ -113,7 +113,7 @@ class TestCanonicalTableMatching:
 
         graph = _build([producer, consumer])
 
-        assert graph.has_edge("producer_fg.write_t", "consumer_fg.read_t")
+        assert graph.has_edge("p1.producer_fg.write_t", "p2.consumer_fg.read_t")
 
     def test_ambiguous_two_part_against_two_catalogs_no_edge(self):
         """Producers `catA.sch.tbl` AND `catB.sch.tbl`, reader `sch.tbl` -> NO edge.
@@ -145,10 +145,12 @@ class TestCanonicalTableMatching:
 
         graph = _build([producer_a, producer_b, consumer])
 
-        assert not graph.has_edge("producer_a_fg.write_a", "consumer_fg.read_t")
-        assert not graph.has_edge("producer_b_fg.write_b", "consumer_fg.read_t")
+        assert not graph.has_edge("p1.producer_a_fg.write_a", "p3.consumer_fg.read_t")
+        assert not graph.has_edge("p2.producer_b_fg.write_b", "p3.consumer_fg.read_t")
         # Stays external, not internal.
-        assert graph.nodes["consumer_fg.read_t"].get("external_sources") == ["sch.tbl"]
+        assert graph.nodes["p3.consumer_fg.read_t"].get("external_sources") == [
+            "sch.tbl"
+        ]
 
     def test_views_remain_pipeline_scoped_not_canonicalized(self):
         """A same-named view in a sibling pipeline must NOT match (no globalizing).
@@ -171,5 +173,36 @@ class TestCanonicalTableMatching:
 
         graph = _build([pipeline1, pipeline2])
 
-        assert not graph.has_edge("fg1.make_view", "fg2.use_view")
-        assert graph.nodes["fg2.use_view"].get("external_sources") == ["v_shared"]
+        assert not graph.has_edge("p1.fg1.make_view", "p2.fg2.use_view")
+        assert graph.nodes["p2.fg2.use_view"].get("external_sources") == ["v_shared"]
+
+
+@pytest.mark.unit
+class TestPipelineQualifiedNodeIds:
+    def test_same_flowgroup_name_across_pipelines_yields_distinct_nodes(self):
+        """Two flowgroups BOTH named `orders`, in pipelines `bronze` and `silver`,
+        must produce distinct pipeline-qualified nodes at the flowgroup AND action
+        levels — the pre-qualification id format merged them into one node."""
+        bronze_orders = _flowgroup(
+            "orders",
+            "bronze",
+            [_transform_reader("load_orders", "raw.orders", "v_orders")],
+        )
+        silver_orders = _flowgroup(
+            "orders",
+            "silver",
+            [_transform_reader("load_orders", "ext.orders", "v_orders")],
+        )
+
+        builder = DependencyGraphBuilder(project_root=Path("/tmp/nonexistent_lhp_root"))
+        graphs = builder.build_from_flowgroups(
+            [bronze_orders, silver_orders], file_paths={}
+        )
+
+        # Flowgroup level: two distinct qualified nodes, not one merged `orders`.
+        assert set(graphs.flowgroup_graph.nodes) == {"bronze.orders", "silver.orders"}
+        # Action level: same-named actions stay distinct under their pipelines.
+        assert set(graphs.action_graph.nodes) == {
+            "bronze.orders.load_orders",
+            "silver.orders.load_orders",
+        }

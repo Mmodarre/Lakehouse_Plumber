@@ -118,7 +118,7 @@ def _run_all_operations(facade, output_dir: Path):
 
     validate_events = list(facade.validation.validate_pipelines(env="dev"))
 
-    analysis = facade.inspection.analyze_dependencies()
+    analysis = facade.dependency.analyze_dependencies()
     analysis_projection = (
         {k: tuple(v) for k, v in analysis.pipeline_dependencies.items()},
         analysis.execution_stages,

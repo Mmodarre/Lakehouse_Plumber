@@ -9,7 +9,9 @@ event as an SSE frame::
     data: <compact JSON>
 
 Producers today: the run recorder (``run-updated``) and the file watcher
-(``file-changed``). While the bus is idle, a comment heartbeat (``: ping``)
+(``file-changed`` on any change, plus ``graph-stale`` when a graph-relevant
+edit means the dependency graph should be manually refreshed). While the bus
+is idle, a comment heartbeat (``: ping``)
 is emitted every :data:`HEARTBEAT_SECONDS` so proxies and the browser can
 tell a quiet stream from a dead one. On reconnect the SPA re-fetches all
 state, so dropped events (bounded queue, see the bus) are recoverable and
@@ -85,7 +87,8 @@ async def _event_stream(request: Request) -> AsyncIterator[str]:
 
 @router.get("/events")
 async def events(request: Request) -> StreamingResponse:
-    """Open the live-update SSE stream (``run-updated`` / ``file-changed``)."""
+    """Open the live-update SSE stream (``run-updated`` / ``file-changed`` /
+    ``graph-stale``)."""
     return StreamingResponse(
         _event_stream(request),
         media_type=_SSE_MEDIA_TYPE,

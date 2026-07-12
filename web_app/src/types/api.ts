@@ -136,6 +136,9 @@ export type GraphMetadata = Schemas['GraphMetadata']
 export type GraphResponse = Schemas['GraphResponse']
 export type ExecutionOrderResponse = Schemas['ExecutionOrderResponse']
 export type CircularDependencyResponse = Schemas['CircularDependencyResponse']
+export type StalenessResponse = Schemas['StalenessResponse']
+export type CrossPipelineConnection = Schemas['CrossPipelineConnection']
+export type CrossPipelineSummary = Schemas['CrossPipelineSummary']
 
 // ── Runs (run history) ───────────────────────────────────
 

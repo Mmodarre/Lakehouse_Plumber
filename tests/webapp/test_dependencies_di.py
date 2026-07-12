@@ -84,6 +84,21 @@ def test_get_inspection_derives_from_cached_facade(
     assert client.get("/inspection-matches-facade").json()["same"] is True
 
 
+def test_get_dependency_derives_from_cached_facade(
+    _point_at_fixture: None,
+) -> None:
+    app = FastAPI()
+
+    @app.get("/dependency-matches-facade")
+    def _matches(request: Request) -> dict[str, bool]:
+        facade = get_facade(request)
+        dependency = dependencies.get_dependency(request)
+        return {"same": dependency is facade.dependency}
+
+    client = TestClient(app)
+    assert client.get("/dependency-matches-facade").json()["same"] is True
+
+
 # --- Keyed facade cache (pipeline_config) ------------------------------------
 #
 # ``get_facade_for`` keys the cache by the RESOLVED ABSOLUTE pipeline-config

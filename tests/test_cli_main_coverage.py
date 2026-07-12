@@ -213,10 +213,10 @@ class TestCommandRouting:
         with runner.isolated_filesystem():
             self._make_project(Path.cwd())
             with patch(
-                "lhp.api._inspection_facade.InspectionFacade.analyze_dependencies"
+                "lhp.api._dependency_facade.DependencyFacade.analyze_dependencies"
             ) as mock_analyze:
                 with patch(
-                    "lhp.api._inspection_facade.InspectionFacade.save_dependency_outputs"
+                    "lhp.api._dependency_facade.DependencyFacade.save_dependency_outputs"
                 ) as mock_save:
                     result = runner.invoke(
                         cli, ["deps", "--format", "json"], catch_exceptions=False
@@ -239,10 +239,10 @@ class TestCommandRouting:
             self._make_project(Path.cwd())
             Path("cfg.yaml").write_text("{}\n")
             with patch(
-                "lhp.api._inspection_facade.InspectionFacade.analyze_dependencies"
+                "lhp.api._dependency_facade.DependencyFacade.analyze_dependencies"
             ) as mock_analyze:
                 with patch(
-                    "lhp.api._inspection_facade.InspectionFacade.save_dependency_outputs"
+                    "lhp.api._dependency_facade.DependencyFacade.save_dependency_outputs"
                 ) as mock_save:
                     result = runner.invoke(
                         cli,

@@ -9,7 +9,7 @@ import {
   type EdgeTypes,
 } from '@xyflow/react'
 
-import { useDependencyGraph } from '../../hooks/useDependencyGraph'
+import { useDependencyGraph, useCrossPipelineConnections } from '../../hooks/useDependencyGraph'
 import { useFlowgroups } from '../../hooks/useFlowgroups'
 import { ApiError } from '../../api/client'
 import { useUIStore } from '../../store/uiStore'
@@ -17,12 +17,12 @@ import { useWorkspaceStore } from '../../store/workspaceStore'
 import { useElkLayout } from '../graph/useElkLayout'
 import { useGraphSearch } from '../graph/useGraphSearch'
 import { GraphSearchInput } from '../graph/GraphSearchInput'
+import { GraphStaleBadge } from '../graph/GraphStaleBadge'
 import { FlowgroupNode } from '../graph/nodes/FlowgroupNode'
 import { ExternalNode } from '../graph/nodes/ExternalNode'
 import { DependencyEdge, EdgeMarkerDefs } from '../graph/edges/DependencyEdge'
 import { LoadingSpinner } from '../common/LoadingSpinner'
 import { EmptyState } from '../common/EmptyState'
-import { computeExternalConnections } from '../../utils/externalConnections'
 
 const nodeTypes: NodeTypes = {
   flowgroup: FlowgroupNode,
@@ -42,8 +42,8 @@ export function FlowgroupMiniGraph({ pipeline }: { pipeline: string }) {
   const openDesignerTab = useWorkspaceStore((s) => s.openDesignerTab)
   // Filtered graph for layout (only this pipeline's flowgroups)
   const { data, isLoading, error } = useDependencyGraph('flowgroup', pipeline)
-  // Full graph for computing cross-pipeline external connections
-  const { data: fullData } = useDependencyGraph('flowgroup')
+  // Compact cross-pipeline badge data — derived server-side, no whole-project fetch
+  const { data: extConns } = useCrossPipelineConnections(pipeline)
   // Flowgroup summaries carry source_file — the designer tab's file identity.
   const { data: flowgroupList } = useFlowgroups(pipeline)
   const { fitView } = useReactFlow()
@@ -59,13 +59,6 @@ export function FlowgroupMiniGraph({ pipeline }: { pipeline: string }) {
   const apiNodes = useMemo(() => data?.nodes ?? [], [data])
   const apiEdges = useMemo(() => data?.edges ?? [], [data])
 
-  // Compute external connections from the full (unfiltered) graph
-  // so we can show badges on flowgroups that connect to other pipelines
-  const extConns = useMemo(() => {
-    if (!fullData?.nodes || !fullData?.edges) return undefined
-    return computeExternalConnections(fullData.nodes, fullData.edges)
-  }, [fullData])
-
   const { nodes: layoutNodes, edges: layoutEdges, isLayouting } = useElkLayout(apiNodes, apiEdges, extConns)
 
   const search = useGraphSearch(layoutNodes, layoutEdges)
@@ -80,31 +73,35 @@ export function FlowgroupMiniGraph({ pipeline }: { pipeline: string }) {
   // Single click keeps its drill behavior, but deferred one grace period so
   // a double-click (which opens the designer) can cancel it.
   const onNodeClick = useCallback(
-    (_: React.MouseEvent, node: { id: string; type?: string }) => {
+    (_: React.MouseEvent, node: { id: string; type?: string; data: Record<string, unknown> }) => {
       if (node.type !== 'flowgroup') return
+      // node.id is the pipeline-qualified id; the bare flowgroup name lives on
+      // node.data.flowgroup, which is what the modal/designer APIs expect.
+      const flowgroupName = node.data.flowgroup as string
       if (clickTimerRef.current !== null) window.clearTimeout(clickTimerRef.current)
       clickTimerRef.current = window.setTimeout(() => {
         clickTimerRef.current = null
-        openFlowgroupModal(node.id, pipeline)
+        openFlowgroupModal(flowgroupName, pipeline)
       }, DOUBLE_CLICK_GRACE_MS)
     },
     [openFlowgroupModal, pipeline],
   )
 
   const onNodeDoubleClick = useCallback(
-    (_: React.MouseEvent, node: { id: string; type?: string }) => {
+    (_: React.MouseEvent, node: { id: string; type?: string; data: Record<string, unknown> }) => {
       if (node.type !== 'flowgroup') return
+      const flowgroupName = node.data.flowgroup as string
       if (clickTimerRef.current !== null) {
         window.clearTimeout(clickTimerRef.current)
         clickTimerRef.current = null
       }
-      const summary = flowgroupList?.flowgroups.find((f) => f.name === node.id)
+      const summary = flowgroupList?.flowgroups.find((f) => f.name === flowgroupName)
       if (summary === undefined) {
         // No file identity available — fall back to the drill modal.
-        openFlowgroupModal(node.id, pipeline)
+        openFlowgroupModal(flowgroupName, pipeline)
         return
       }
-      openDesignerTab(pipeline, node.id, summary.source_file)
+      openDesignerTab(pipeline, flowgroupName, summary.source_file)
       // The canvas opens in the workspace behind this dialog — close the
       // drill stack so it is visible.
       closePipelineModal()
@@ -148,7 +145,7 @@ export function FlowgroupMiniGraph({ pipeline }: { pipeline: string }) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-border bg-card px-3 py-1.5">
+      <div className="flex items-center gap-3 border-b border-border bg-card px-3 py-1.5">
         <GraphSearchInput
           query={search.query}
           onQueryChange={search.setQuery}
@@ -159,6 +156,8 @@ export function FlowgroupMiniGraph({ pipeline }: { pipeline: string }) {
           onFitToMatches={fitToMatches}
           placeholder="Search flowgroups..."
         />
+        <div className="flex-1" />
+        <GraphStaleBadge />
       </div>
       <div className="flex-1">
         <ReactFlow
@@ -171,6 +170,7 @@ export function FlowgroupMiniGraph({ pipeline }: { pipeline: string }) {
           // Double-click is claimed by "open in designer" — zooming under it
           // right as the drill stack closes would be jarring.
           zoomOnDoubleClick={false}
+          onlyRenderVisibleElements
           fitView
           minZoom={0.1}
           maxZoom={2}

@@ -119,21 +119,57 @@ def test_diff_identical_snapshots_is_empty() -> None:
 
 
 # ---------------------------------------------------------------------------
+# _is_graph_relevant
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "rel, expected",
+    [
+        ("lhp.yaml", True),
+        ("pipelines/raw/fg.yaml", True),
+        ("presets/bronze.yaml", True),
+        ("templates/t.yaml", True),
+        ("substitutions/dev.yaml", True),
+        ("blueprints/bp.yaml", True),
+        ("py_functions/helper.py", True),
+        ("pipelines/raw/transform.sql", True),
+        ("docs/readme.md", False),
+        ("data/seed.csv", False),
+        ("generated/dev/pipeline.py", False),  # ignored prefix wins over .py
+        (".lhp/cache/x.py", False),
+        (".git/hooks/pre-commit.py", False),
+    ],
+)
+def test_is_graph_relevant(rel: str, expected: bool) -> None:
+    assert file_watcher._is_graph_relevant(rel) is expected
+
+
+# ---------------------------------------------------------------------------
 # _tick (one deterministic watch iteration)
 # ---------------------------------------------------------------------------
 
 
 def _stub_app(project_root: Path) -> FastAPI:
-    """Real FastAPI carrier for state: real EventBus, settings stub."""
+    """Real FastAPI carrier for state: real EventBus, settings stub.
+
+    ``graph_stale`` is seeded False, mirroring ``create_app`` — the serve-stale
+    flag the watcher sets on a graph-relevant edit.
+    """
     app = FastAPI()
     app.state.settings = SimpleNamespace(project_root=project_root)
     app.state.event_bus = EventBus()
+    app.state.graph_stale = False
     return app
 
 
-def test_tick_yaml_change_invalidates_and_publishes(
+def test_tick_graph_relevant_change_marks_stale_without_invalidating(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """A source-YAML edit serves stale: flag + graph-stale + file-changed, NO
+    facade drop (dropping it would nuke the in-process graph memo). The
+    discovery memo IS cleared (via invalidate_discovery_caches) so inspection
+    reads still reflect the edit."""
     project = tmp_path / "proj"
     _write(project, "lhp.yaml", "name: t\n")
     yaml_file = _write(project, "pipelines/fg.yaml", "pipeline: p1\n")
@@ -141,24 +177,77 @@ def test_tick_yaml_change_invalidates_and_publishes(
     app = _stub_app(project)
     queue = app.state.event_bus.subscribe()
     invalidated: list[FastAPI] = []
+    discovery_cleared: list[FastAPI] = []
     monkeypatch.setattr(file_watcher, "invalidate_facade", invalidated.append)
+    monkeypatch.setattr(
+        file_watcher, "invalidate_discovery_caches", discovery_cleared.append
+    )
 
     async def scenario() -> None:
         baseline = await file_watcher._tick(app, None)
         # Baseline scan establishes state and publishes NOTHING.
         assert not invalidated
+        assert not discovery_cleared
         assert queue.empty()
+        assert app.state.graph_stale is False
         assert "pipelines/fg.yaml" in baseline
 
         yaml_file.write_text("pipeline: p1\nflowgroup: fg\n", encoding="utf-8")
         snapshot = await file_watcher._tick(app, baseline)
 
-        assert invalidated == [app]
+        # Serve-stale: the facade is NOT dropped, but the discovery memo IS
+        # cleared so inspection reads reflect the edit.
+        assert invalidated == []
+        assert discovery_cleared == [app]
+        assert app.state.graph_stale is True
+        # graph-stale is published first, then the generic file-changed.
+        assert queue.get_nowait() == {
+            "event": "graph-stale",
+            "data": {"paths": ["pipelines/fg.yaml"]},
+        }
         assert queue.get_nowait() == {
             "event": "file-changed",
             "data": {"paths": ["pipelines/fg.yaml"]},
         }
         assert snapshot["pipelines/fg.yaml"] != baseline["pipelines/fg.yaml"]
+
+    asyncio.run(scenario())
+
+
+def test_tick_non_graph_change_invalidates_without_marking_stale(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A non-graph change (docs / data) keeps today's behavior for the OTHER
+    caches: invalidate the facade + publish file-changed, but do not mark the
+    dependency graph stale or emit graph-stale."""
+    project = tmp_path / "proj"
+    _write(project, "lhp.yaml", "name: t\n")
+    _write(project, "docs/readme.md", "hello\n")
+
+    app = _stub_app(project)
+    queue = app.state.event_bus.subscribe()
+    invalidated: list[FastAPI] = []
+    discovery_cleared: list[FastAPI] = []
+    monkeypatch.setattr(file_watcher, "invalidate_facade", invalidated.append)
+    monkeypatch.setattr(
+        file_watcher, "invalidate_discovery_caches", discovery_cleared.append
+    )
+
+    async def scenario() -> None:
+        baseline = await file_watcher._tick(app, None)
+        (project / "docs" / "readme.md").write_text("hello world\n", encoding="utf-8")
+        await file_watcher._tick(app, baseline)
+
+        assert invalidated == [app]
+        # A non-graph change drops the whole facade; the discovery-only path is
+        # not taken.
+        assert discovery_cleared == []
+        assert app.state.graph_stale is False
+        assert queue.get_nowait() == {
+            "event": "file-changed",
+            "data": {"paths": ["docs/readme.md"]},
+        }
+        assert queue.empty()  # no graph-stale event
 
     asyncio.run(scenario())
 
@@ -204,6 +293,12 @@ def test_tick_delete_publishes_removed_path(
         doomed.unlink()
         await file_watcher._tick(app, baseline)
 
+        # A deleted source YAML is graph-relevant: graph-stale then file-changed.
+        assert app.state.graph_stale is True
+        assert queue.get_nowait() == {
+            "event": "graph-stale",
+            "data": {"paths": ["pipelines/doomed.yaml"]},
+        }
         assert queue.get_nowait() == {
             "event": "file-changed",
             "data": {"paths": ["pipelines/doomed.yaml"]},

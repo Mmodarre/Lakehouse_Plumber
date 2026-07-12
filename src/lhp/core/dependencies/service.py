@@ -42,6 +42,7 @@ from .builder import DependencyGraphBuilder
 
 if TYPE_CHECKING:
     from ..processing.substitution import EnhancedSubstitutionManager
+    from .graph_cache import PersistentGraphCache
 
 
 class DependencyAnalysisService(BaseDependencyAnalysisService):
@@ -50,7 +51,7 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
     :stability: provisional
     """
 
-    # This class exposes 9 public methods (within the constitution §3.2 cap of
+    # This class exposes 10 public methods (at the constitution §3.2 cap of
     # 10). It is the single composition root for the whole dependency subsystem
     # and owns four distinct concerns that share the cached `_flowgroups` /
     # `_flowgroup_file_paths` / `_blueprint_provenance` state:
@@ -63,7 +64,9 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
     #   - the ABC-required graph verbs (`build_graphs`, `analyze`, `export`)
     #     plus the memoized `analyze_project` entry point (one build+analyze
     #     per `(pipeline_filter, blueprint_filter)` per service instance —
-    #     the `dag` command's analyze and save paths share one analysis);
+    #     the `dag` command's analyze and save paths share one analysis;
+    #     `force_rebuild` re-reads disk and re-persists for the webapp Refresh)
+    #     and `describe_cached_graph` (cheap persisted-shard staleness metadata);
     #   - graph-derived queries (`get_execution_order`,
     #     `detect_circular_dependencies`);
     #   - job-level orchestration (`analyze_dependencies_by_job`) plus
@@ -82,6 +85,7 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         *,
         config_validator: Optional[ConfigValidator] = None,
         persistent_parse_cache: Optional[PersistentParseCache] = None,
+        persistent_graph_cache: Optional["PersistentGraphCache"] = None,
         max_workers: Optional[int] = None,
     ) -> None:
         # Public attribute — output.py:587 / 616 / 636 reads it directly.
@@ -142,6 +146,11 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         self._analysis_memo: Dict[
             Tuple[Optional[str], Optional[str], bool], DependencyAnalysisResult
         ] = {}
+        # Persistent on-disk graph cache (survives restarts); ``None`` when the
+        # orchestrator disabled it (``no_cache`` / ``LHP_NO_CACHE``) or for
+        # legacy direct construction. Keyed by the SAME option triple as the
+        # in-process memo above, so disk scoping == memo scoping.
+        self._graph_cache: Optional["PersistentGraphCache"] = persistent_graph_cache
         self._flowgroup_file_paths: Dict[str, Path] = {}
         self._blueprint_provenance: Dict[Tuple[str, str], BlueprintProvenance] = {}
 
@@ -308,6 +317,7 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         blueprint_filter: Optional[str] = None,
         *,
         trust_depends_on: bool = False,
+        force_rebuild: bool = False,
     ) -> DependencyAnalysisResult:
         """Discover, build and analyze — once per option triple, memoized.
 
@@ -315,22 +325,101 @@ class DependencyAnalysisService(BaseDependencyAnalysisService):
         command's analyze and save paths (and the job-orchestration global
         pass) all share ONE discovery + graph build + analysis per service
         instance and (filter, filter, trust) combination.
+
+        Lookup order is memo -> persistent disk cache -> build. A disk HIT
+        (fresh process / restarted ``lhp web``) skips discovery + parse +
+        build entirely; a disk MISS builds as before and saves the result
+        keyed by every file the build read (see :mod:`.graph_cache`).
+
+        ``force_rebuild`` (the webapp Refresh) bypasses BOTH the in-process
+        memo AND the on-disk graph cache: it re-reads the project from disk
+        (dropping the cached flowgroup discovery), forces a fresh build, and
+        RE-PERSISTS the shard. The default (False) path is unchanged.
         """
         key = (pipeline_filter, blueprint_filter, trust_depends_on)
-        if key not in self._analysis_memo:
-            flowgroups = self.get_flowgroups(
-                pipeline_filter=pipeline_filter, blueprint_filter=blueprint_filter
-            )
-            with perf_timer(
-                f"dependency_graph_build [{len(flowgroups)} flowgroups]",
-                phase=True,
-            ):
-                graphs = self.build_graphs(
-                    flowgroups, trust_depends_on=trust_depends_on
-                )
-            with perf_timer("dependency_analysis", phase=True):
-                self._analysis_memo[key] = self._analyzer.analyze(graphs)
-        return self._analysis_memo[key]
+        if force_rebuild:
+            # Refresh: drop the in-process discovery snapshot so
+            # ``get_flowgroups`` re-globs + re-parses (the caching YAML parser
+            # is mtime-keyed, so edits since the last build are picked up),
+            # then fall through past the memo + disk-load short-circuits.
+            self._reset_discovery_state()
+        elif key in self._analysis_memo:
+            return self._analysis_memo[key]
+        if not force_rebuild:
+            cached = self._load_cached_graph(key)
+            if cached is not None:
+                self._analysis_memo[key] = cached
+                return cached
+        flowgroups = self.get_flowgroups(
+            pipeline_filter=pipeline_filter, blueprint_filter=blueprint_filter
+        )
+        with perf_timer(
+            f"dependency_graph_build [{len(flowgroups)} flowgroups]",
+            phase=True,
+        ):
+            self._builder.reset_body_read_recording()
+            graphs = self.build_graphs(flowgroups, trust_depends_on=trust_depends_on)
+        with perf_timer("dependency_analysis", phase=True):
+            result = self._analyzer.analyze(graphs)
+        self._save_cached_graph(key, result)
+        self._analysis_memo[key] = result
+        return result
+
+    def _reset_discovery_state(self) -> None:
+        """Drop the cached flowgroup discovery so the next build re-reads disk.
+
+        ``get_flowgroups`` memoizes discovery in ``self._flowgroups`` for the
+        life of the service instance (the long-lived ``lhp web`` facade). A
+        ``force_rebuild`` must reflect edits made since that snapshot, so this
+        clears the discovery caches; the underlying caching YAML parser is
+        mtime-keyed, so re-discovery re-parses only the files that changed.
+        """
+        self._flowgroups = None
+        self._flowgroup_file_paths = {}
+        self._blueprint_provenance = {}
+
+    def describe_cached_graph(
+        self,
+        pipeline_filter: Optional[str] = None,
+        blueprint_filter: Optional[str] = None,
+        *,
+        trust_depends_on: bool = False,
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """Cheap ``(built_at, fingerprint)`` metadata for the persisted shard.
+
+        Backs the webapp's ``GET /api/dependencies/staleness`` fallback. Both
+        are ``None`` when the persistent graph cache is disabled (``no_cache``
+        / ``LHP_NO_CACHE``); otherwise ``built_at`` is ``None`` only when
+        nothing has been persisted yet for the option triple. Delegates to
+        :meth:`PersistentGraphCache.describe` — one ``os.stat``, never an
+        unpickle, so the staleness poll stays cheap.
+        """
+        if self._graph_cache is None:
+            return None, None
+        key = (pipeline_filter, blueprint_filter, trust_depends_on)
+        return self._graph_cache.describe(key)
+
+    def _load_cached_graph(
+        self, key: Tuple[Optional[str], Optional[str], bool]
+    ) -> Optional[DependencyAnalysisResult]:
+        """Load a result from the persistent graph cache, or ``None``.
+
+        Returns ``None`` when the cache is disabled/absent or on any miss;
+        the cache degrades and never raises.
+        """
+        if self._graph_cache is None:
+            return None
+        return self._graph_cache.load(key)
+
+    def _save_cached_graph(
+        self,
+        key: Tuple[Optional[str], Optional[str], bool],
+        result: DependencyAnalysisResult,
+    ) -> None:
+        """Persist ``result`` keyed by the files the just-finished build read."""
+        if self._graph_cache is None:
+            return
+        self._graph_cache.save(key, result, self._builder.recorded_body_reads())
 
     def _discover_and_process_all_flowgroups(self) -> List[FlowGroup]:
         """Discover flowgroups (on-disk + synthetic) and process them once.

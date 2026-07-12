@@ -1,6 +1,6 @@
 """``dag`` command: pipeline dependency analysis + output generation.
 
-Parses options, calls the inspection facade twice (analyze + save outputs),
+Parses options, calls the dependency facade twice (analyze + save outputs),
 renders the analysis to stderr and the written paths to stdout, and lets
 ``cli_error_boundary`` map any domain error to an exit code. A hidden ``deps``
 alias forwards here with a ``DeprecationWarning`` for backward compatibility.
@@ -57,14 +57,14 @@ def dag(
 
     # Both facade calls route through the service's memoized
     # analyze_project, so the project is discovered and analyzed once.
-    analysis = facade.inspection.analyze_dependencies(
+    analysis = facade.dependency.analyze_dependencies(
         pipeline_filter=pipeline,
         blueprint_filter=blueprint,
         trust_depends_on=trust_depends_on,
     )
     dag_presenter.render_analysis(analysis, console=_console_module.err_console)
 
-    outputs = facade.inspection.save_dependency_outputs(
+    outputs = facade.dependency.save_dependency_outputs(
         formats=output_format,
         output_dir=output_dir,
         pipeline_filter=pipeline,

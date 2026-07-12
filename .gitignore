@@ -100,6 +100,12 @@ web_app/*.sw?
 .claude/settings.json
 Example_Projects/Bupa/
 Example_Projects/performance_testing/.lhp/
+# LHP local caches/state must never be tracked, in ANY project location. The parse cache and
+# the persistent graph cache both write to <project_root>/.lhp/cache/; the webapp writes
+# .lhp/webapp.db, logs and state. Ignoring .lhp/ globally prevents these from polluting the
+# repo (e.g. the e2e fixture testing_project when a webapp test analyzes it in place).
+.lhp/
+.lhp_state.json
 PERFORMANCE_ANALYSIS.md
 Example_Projects/performance_testing/generated/
 Example_Projects/performance_testing/.lhp_state.json

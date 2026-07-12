@@ -459,6 +459,16 @@ silently missing edges.
 
 ### Changed
 
+- **Dependency-graph node ids are now pipeline-qualified.** The provisional
+  `DependencyGraphNodeView.id` value changed shape: flowgroup nodes are keyed
+  `{pipeline}.{flowgroup}` and action nodes `{pipeline}.{flowgroup}.{action}`
+  (pipeline nodes are unchanged). This closes a collision where two
+  same-named flowgroups in different pipelines merged into one graph node.
+  Node `label`/`flowgroup`/`pipeline` fields stay bare; only the `id` value
+  is qualified. Consequently `lhp dag` / `lhp deps` **DOT and text** output now
+  render pipeline-qualified node names (the same collision previously merged
+  same-named flowgroups in those outputs too); the `job` / JSON pipeline outputs
+  are unaffected.
 - **SQL table extraction is now parser-based.** Dependency analysis parses SQL
   with `sqlglot` (Spark/Databricks dialect) instead of regexes, replacing the
   legacy regex SQL parser.
@@ -493,10 +503,31 @@ silently missing edges.
   emits a `DeprecationWarning`. `--blueprint <name>` (restrict analysis to one
   blueprint) is unchanged.
 - **Removed the `expand_blueprints` keyword argument** from the provisional
-  `InspectionFacade.analyze_dependencies` and
-  `InspectionFacade.save_dependency_outputs` (constitution §1.13
+  `DependencyFacade.analyze_dependencies` and
+  `DependencyFacade.save_dependency_outputs` (constitution §1.13
   provisional-API removal notice). Dependency analysis is always fully
   expanded; the parameter no longer had any effect.
+- **`analyze_dependencies` / `save_dependency_outputs` moved to a new
+  `DependencyFacade`.** The two provisional dependency methods relocate from
+  `facade.inspection.*` to `facade.dependency.*` (home
+  `lhp/api/_dependency_facade.py`, re-exported from `lhp.api`); this is a hard
+  move with no compatibility alias left on `InspectionFacade` (constitution
+  §1.13 provisional-API relocation notice). Signatures and behavior are
+  unchanged. The split keeps `InspectionFacade` under the §3.2
+  15-public-method cap and gives the dependency surface room to grow its own
+  refresh/persistence paths.
+- **`lhp web` serves the dependency graph stale and rebuilds only on an
+  explicit Refresh.** While the project is edited the IDE now serves the
+  last-good dependency graph instead of rebuilding on every file change: the
+  file watcher marks the graph stale (a new `graph-stale` SSE event) rather
+  than dropping the cached facade, `GET /api/dependencies/staleness` reports
+  freshness in O(1) from a per-app flag, and `POST /api/dependencies/refresh`
+  forces a fresh rebuild. Backed by a new keyword-only `force_rebuild`
+  parameter on `DependencyFacade.analyze_dependencies` (bypasses the in-process
+  memo and the on-disk graph cache, re-reads disk, and re-persists — a §1.13
+  provisional-API minor addition) plus a new provisional
+  `DependencyFacade.describe_graph_staleness` method returning the new
+  provisional `DependencyStalenessResult` DTO.
 - **Public API `DependencyWarningView` gained `edit_yaml_path`,
   `affected_actions`, and `affected_count`; new `AffectedActionView` DTO**
   exported from `lhp.api` (both `:stability:` provisional). In the JSON

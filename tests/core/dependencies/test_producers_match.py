@@ -141,13 +141,13 @@ class TestMatchProducedTableParity:
 
         assert match_table_producers(
             "silver.orders", table_producers, table_short_to_catalogs
-        ) == ["fg_main.wr_orders"]
+        ) == ["p1.fg_main.wr_orders"]
         assert match_table_producers(
             "anycat.stg.events", table_producers, table_short_to_catalogs
-        ) == ["fg_other.wr_sink"]
+        ) == ["p2.fg_other.wr_sink"]
         assert match_table_producers(
             "cat_b.gold.daily", table_producers, table_short_to_catalogs
-        ) == ["fg_other.wr_dup_b"]
+        ) == ["p2.fg_other.wr_dup_b"]
 
     def test_no_match_semantics(self):
         """No match is ``None`` from the key fn and ``[]`` from the delegate."""

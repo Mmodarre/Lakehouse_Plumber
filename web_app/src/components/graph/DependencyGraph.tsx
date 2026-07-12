@@ -164,6 +164,7 @@ export function GraphCanvas({ nodes, edges, onNodeClick }: GraphCanvasProps) {
       nodeTypes={nodeTypes}
       edgeTypes={edgeTypes}
       onNodeClick={onNodeClick}
+      onlyRenderVisibleElements
       fitView
       minZoom={0.1}
       maxZoom={2}

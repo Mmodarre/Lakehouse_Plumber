@@ -432,6 +432,19 @@ class FlowgroupDiscoveryService(BaseFlowgroupDiscoveryService):
                         self._source_path_index = self._build_source_path_index()
         return self._source_path_index.get((flowgroup.pipeline, flowgroup.flowgroup))
 
+    def reset_source_path_index(self) -> None:
+        """Drop the lazily-built source-path index so the next lookup rebuilds it.
+
+        Called after a flowgroup is added, renamed, or moved outside this
+        process (e.g. an out-of-API edit while ``lhp web`` serves stale). The
+        next :meth:`find_source_yaml_for_flowgroup` re-scans disk instead of
+        returning a stale ``None`` for the new (pipeline, flowgroup) key —
+        edited-in-place flowgroups keep the same path so they were never
+        affected, but adds/renames/moves need the index rebuilt.
+        """
+        with self._index_lock:
+            self._source_path_index = None
+
     def register_synthetic_sources(
         self, synthetic_sources: Dict[Tuple[str, str], Path]
     ) -> None:

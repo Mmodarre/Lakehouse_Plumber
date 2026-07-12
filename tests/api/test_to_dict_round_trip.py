@@ -41,6 +41,7 @@ from lhp.api import (
     DependencyGraphView,
     DependencyOutputEntry,
     DependencyOutputsResult,
+    DependencyStalenessResult,
     DependencyWarningView,
     FlowgroupView,
     GeneratedCodeView,
@@ -356,6 +357,14 @@ _INSTANCES = [
             success=True, entries=(_dep_entry,), output_dir=Path("out")
         ),
         id="DependencyOutputsResult",
+    ),
+    pytest.param(
+        DependencyStalenessResult(
+            stale=False,
+            fingerprint="0.9.1|1|b5ef523f5e8f50cb",
+            built_at="2026-07-12T07:36:30.729061+00:00",
+        ),
+        id="DependencyStalenessResult",
     ),
     pytest.param(
         BundleSyncResult(

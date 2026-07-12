@@ -121,12 +121,15 @@ export function useWorkspaceSave({
         queryClient.invalidateQueries({ queryKey: ['files'] })
         if (wasNew && isYaml) {
           // First save of a new flowgroup YAML changes the project topology
-          // (the retired create-modal's post-create invalidations).
+          // (the retired create-modal's post-create invalidations). Refetch the
+          // inspection caches so the new file appears in the tree/lists — but do
+          // NOT invalidate the graph keys: under serve-stale a brand-new
+          // flowgroup misses the graph cache, so that would force an ungated
+          // cold rebuild and leave a freshly-rebuilt-graph + stale-badge state.
+          // The file watcher's graph-stale mark drives the badge; the user's
+          // Refresh owns the single rebuild. (Mirrors CreateFlowgroupDialog.)
           queryClient.invalidateQueries({ queryKey: ['flowgroups'] })
           queryClient.invalidateQueries({ queryKey: ['pipelines'] })
-          queryClient.invalidateQueries({ queryKey: ['dep-graph'] })
-          queryClient.invalidateQueries({ queryKey: ['execution-order'] })
-          queryClient.invalidateQueries({ queryKey: ['circular-deps'] })
         }
         return true
       } catch (err) {

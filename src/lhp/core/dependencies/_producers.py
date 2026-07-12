@@ -54,7 +54,7 @@ def build_producer_indexes(
         for action in flowgroup.actions:
             if action.type != ActionType.WRITE or not action.write_target:
                 continue
-            action_id = f"{flowgroup.flowgroup}.{action.name}"
+            action_id = f"{flowgroup.pipeline}.{flowgroup.flowgroup}.{action.name}"
             wt = _write_target_as_dict(action.write_target)
 
             catalog, schema, table = _read_write_target(wt)

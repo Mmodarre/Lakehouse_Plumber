@@ -69,8 +69,56 @@ class ExternalSourcesResponse(BaseModel):
     total: int
 
 
+class StalenessResponse(BaseModel):
+    """Dependency-graph freshness for the serve-stale + manual-refresh model.
+
+    ``stale`` drives the Refresh affordance in the SPA; ``fingerprint`` is the
+    last persisted build's identity and ``built_at`` its ISO-8601 UTC timestamp
+    (``None`` when nothing has been persisted yet).
+    """
+
+    stale: bool
+    fingerprint: str
+    built_at: str | None = None
+
+
 class ExportResponse(BaseModel):
     """Exported dependency data in requested format."""
 
     format: str  # "dot", "json", "text"
     content: str  # The exported content as string
+
+
+class CrossPipelineConnection(BaseModel):
+    """One cross-pipeline (or external) connection for a flowgroup in the queried pipeline.
+
+    Mirrors the frontend ``ExternalConnection`` badge model. ``direction`` is
+    relative to the queried pipeline: ``"upstream"`` means the connected node
+    feeds a flowgroup here, ``"downstream"`` means a flowgroup here feeds the
+    connected node. ``target`` is the connected node's human-readable name (the
+    other flowgroup's name, or an external-source name) and ``target_pipeline``
+    is that node's owning pipeline (``""`` for a genuine external source).
+    """
+
+    direction: str  # "upstream" | "downstream"
+    target: str = Field(
+        description="Connected node name (flowgroup or external source)"
+    )
+    target_pipeline: str = Field(
+        description="Owning pipeline of the connected node ('' if external)"
+    )
+
+
+class CrossPipelineSummary(BaseModel):
+    """Compact cross-pipeline / external badge data for ONE pipeline.
+
+    ``connections`` maps each flowgroup NAME in ``pipeline`` to its list of
+    cross-pipeline / external connections. Derived server-side from the FULL
+    (unscoped) flowgroup graph so the real ``target_pipeline`` survives — a
+    pipeline-scoped graph erases it to an empty external node. Only flowgroups
+    with at least one such connection appear as keys, so the frontend badge
+    layer can consume it without transferring the whole project graph.
+    """
+
+    pipeline: str
+    connections: dict[str, list[CrossPipelineConnection]] = Field(default_factory=dict)

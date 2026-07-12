@@ -15,6 +15,12 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
 export const FILE_CHANGED_EVENT = 'file-changed'
 /** SSE `event:` name for validate/generate run lifecycle updates. */
 export const RUN_UPDATED_EVENT = 'run-updated'
+/**
+ * SSE `event:` name fired when a graph-relevant edit made the served
+ * dependency graph stale. The SPA sets a client stale flag (surfacing a
+ * "Refresh" affordance) rather than refetching the graph.
+ */
+export const GRAPH_STALE_EVENT = 'graph-stale'
 
 export type { FileChangedPayload, RunUpdatedPayload } from '../types/push'
 

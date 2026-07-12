@@ -107,6 +107,19 @@ class DependencyGraphBuilder:
         self._parse_cache = ParseCache()
         self.logger = logging.getLogger(__name__)
 
+    def reset_body_read_recording(self) -> None:
+        """Reset the per-build record of body files read (graph-cache manifest).
+
+        The service calls this immediately before each build so
+        :meth:`recorded_body_reads` reports exactly the files THIS build read.
+        """
+        self._parse_cache.reset_recorded_reads()
+
+    def recorded_body_reads(self) -> Dict[Path, Tuple[int, int]]:
+        """Return ``{path: (mtime_ns, size)}`` for the ``.py`` / ``.sql`` body
+        files read during the last build, each stat captured at read time."""
+        return self._parse_cache.recorded_reads()
+
     def build_from_flowgroups(
         self,
         flowgroups: List[FlowGroup],
@@ -187,7 +200,7 @@ class DependencyGraphBuilder:
 
         for flowgroup in flowgroups:
             for action in flowgroup.actions:
-                action_id = f"{flowgroup.flowgroup}.{action.name}"
+                action_id = f"{flowgroup.pipeline}.{flowgroup.flowgroup}.{action.name}"
 
                 # Add node with metadata
                 graph.add_node(
@@ -235,7 +248,9 @@ class DependencyGraphBuilder:
         ):
             for flowgroup in flowgroups:
                 for action in flowgroup.actions:
-                    action_id = f"{flowgroup.flowgroup}.{action.name}"
+                    action_id = (
+                        f"{flowgroup.pipeline}.{flowgroup.flowgroup}.{action.name}"
+                    )
                     action_sources = source_parser.extract_action_sources(
                         action, flowgroup.flowgroup
                     )
@@ -277,7 +292,7 @@ class DependencyGraphBuilder:
 
             # Collect external sources from all actions in this flowgroup
             for action in flowgroup.actions:
-                action_id = f"{flowgroup.flowgroup}.{action.name}"
+                action_id = f"{flowgroup.pipeline}.{flowgroup.flowgroup}.{action.name}"
                 if action_id in action_graph.nodes:
                     node_external_sources = action_graph.nodes[action_id].get(
                         "external_sources", []
@@ -285,8 +300,9 @@ class DependencyGraphBuilder:
                     external_sources.update(node_external_sources)
 
             graph.add_node(
-                flowgroup.flowgroup,
+                f"{flowgroup.pipeline}.{flowgroup.flowgroup}",
                 pipeline=flowgroup.pipeline,
+                flowgroup=flowgroup.flowgroup,
                 action_count=action_count,
                 external_sources=sorted(external_sources),
             )
@@ -294,8 +310,10 @@ class DependencyGraphBuilder:
         flowgroup_deps = set()
 
         for source_action, target_action in action_graph.edges():
-            source_fg = action_graph.nodes[source_action]["flowgroup"]
-            target_fg = action_graph.nodes[target_action]["flowgroup"]
+            source_node = action_graph.nodes[source_action]
+            target_node = action_graph.nodes[target_action]
+            source_fg = f"{source_node['pipeline']}.{source_node['flowgroup']}"
+            target_fg = f"{target_node['pipeline']}.{target_node['flowgroup']}"
 
             if source_fg != target_fg:
                 flowgroup_deps.add((source_fg, target_fg))
@@ -320,8 +338,9 @@ class DependencyGraphBuilder:
             pipeline_info[pipeline]["flowgroups"] += 1
             pipeline_info[pipeline]["actions"] += len(flowgroup.actions)
 
-            if flowgroup.flowgroup in flowgroup_graph.nodes:
-                fg_external_sources = flowgroup_graph.nodes[flowgroup.flowgroup].get(
+            fg_key = f"{flowgroup.pipeline}.{flowgroup.flowgroup}"
+            if fg_key in flowgroup_graph.nodes:
+                fg_external_sources = flowgroup_graph.nodes[fg_key].get(
                     "external_sources", []
                 )
                 pipeline_info[pipeline]["external_sources"].update(fg_external_sources)

@@ -1,7 +1,7 @@
 """Application facade — single entry point for LHP runtime operations.
 
-Composes six sub-facades (generation, validation, inspection, bundle,
-wheel, sandbox) that group related operations. Constructed exclusively via
+Composes seven sub-facades (generation, validation, inspection, bundle,
+wheel, sandbox, dependency) that group related operations. Constructed exclusively via
 :meth:`LakehousePlumberApplicationFacade.for_project`; the composition
 root lives in :mod:`lhp.core.coordination.layers`.
 
@@ -21,6 +21,9 @@ from typing import (
 )
 
 from lhp.api._bundle_facade import BundleFacade as BundleFacade  # re-export (§1.10)
+from lhp.api._dependency_facade import (
+    DependencyFacade as DependencyFacade,  # re-export (§1.10)
+)
 from lhp.api._generation_facade import (
     GenerationFacade as GenerationFacade,  # re-export (§1.10)
 )
@@ -47,7 +50,7 @@ if TYPE_CHECKING:
 class LakehousePlumberApplicationFacade:
     """Top-level application facade.
 
-    Composes six sub-facades that group related operations:
+    Composes seven sub-facades that group related operations:
 
     - ``generation`` — batch generation runs.
     - ``validation`` — config validation.
@@ -55,6 +58,7 @@ class LakehousePlumberApplicationFacade:
     - ``bundle`` — Asset Bundle operations.
     - ``wheel`` — built-wheel inspection / extraction.
     - ``sandbox`` — developer-sandbox scope inspection.
+    - ``dependency`` — dependency-graph analysis and output generation.
 
     Constructed exclusively via :meth:`for_project`. The bare
     ``__init__(...)`` form is internal — external callers must route
@@ -75,6 +79,7 @@ class LakehousePlumberApplicationFacade:
         self.bundle = BundleFacade(orchestrator)
         self.wheel = WheelFacade(orchestrator)
         self.sandbox = SandboxFacade(orchestrator)
+        self.dependency = DependencyFacade(orchestrator)
 
     @classmethod
     def for_project(

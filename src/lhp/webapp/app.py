@@ -109,8 +109,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             sqlite_store.mark_orphaned_runs_failed, settings.project_root
         )
         # Live updates only for a real project: the watcher polls the tree,
-        # invalidates the cached facade on change, and publishes file-changed
-        # bus events for the SSE endpoint.
+        # marks the dependency graph stale (serve-stale) or invalidates the
+        # cached facade depending on what changed, and publishes file-changed /
+        # graph-stale bus events for the SSE endpoint.
         watcher_task = asyncio.create_task(
             file_watcher.watch(app), name="lhp-file-watcher"
         )
@@ -174,6 +175,11 @@ def create_app() -> FastAPI:
     # Server-push fan-out (run-updated today; file-watcher events later). One
     # bus per app instance, shared by the run recorder and a future SSE endpoint.
     app.state.event_bus = EventBus()
+    # Serve-stale dependency graph: the watcher sets this True on a
+    # graph-relevant edit; POST /api/dependencies/refresh clears it. Seeded
+    # False so GET /api/dependencies/staleness is O(1) and never falls through
+    # to the facade metadata in normal operation.
+    app.state.graph_stale = False
 
     # Middleware (Starlette: last added = outermost). Effective request order:
     # TrustedHost -> OriginGuard -> TokenGuard -> RequestLogging -> routes.

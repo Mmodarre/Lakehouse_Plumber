@@ -76,7 +76,11 @@ from .._interfaces import (
 )
 from ..codegen.coordinator import CodeGenerationService
 from ..codegen.formatter import format_generated_tree
-from ..dependencies import DependencyAnalysisService, DependencyResolver
+from ..dependencies import (
+    DependencyAnalysisService,
+    DependencyResolver,
+    PersistentGraphCache,
+)
 from ..discovery.blueprint_discoverer import BlueprintDiscoverer
 from ..discovery.flowgroup_discoverer import FlowgroupDiscoveryService
 from ..loaders import PipelineConfigLoader, ProjectConfigLoader
@@ -227,6 +231,21 @@ class ActionOrchestrator:
             self._persistent_parse_cache = PersistentParseCache(
                 project_root / ".lhp" / "cache" / "parse"
             )
+        # Persistent graph build-cache: same on/off gate as the parse cache.
+        # Survives restarts so a fresh ``lhp dag`` / restarted ``lhp web``
+        # serves the assembled dependency graph on a HIT, skipping the
+        # discovery + parse + build the parse cache alone cannot avoid.
+        self._persistent_graph_cache: Optional[PersistentGraphCache] = None
+        if disable_parse_cache:
+            self.logger.debug(
+                "Persistent graph cache disabled (no_cache flag or LHP_NO_CACHE)"
+            )
+        else:
+            self._persistent_graph_cache = PersistentGraphCache(
+                project_root / ".lhp" / "cache" / "graph",
+                project_root,
+            )
+            self._persistent_graph_cache.sweep()
         self._cached_yaml_parser = CachingYAMLParser(
             self.yaml_parser, persistent_cache=self._persistent_parse_cache
         )
@@ -273,6 +292,7 @@ class ActionOrchestrator:
             validation_service=self.validation,
             config_validator=config_validator,
             persistent_parse_cache=self._persistent_parse_cache,
+            persistent_graph_cache=self._persistent_graph_cache,
             max_workers=self.max_workers,
         )
         self.monitoring: BaseMonitoringFinalizerService = MonitoringFinalizerService(

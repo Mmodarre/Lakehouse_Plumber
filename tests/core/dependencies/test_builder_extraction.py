@@ -108,7 +108,7 @@ class TestBindingDrivenEdges:
         graphs = _build(tmp_path, [_producer_fg(), consumer])
 
         assert graphs.action_graph.has_edge(
-            "producer_fg.write_orders", "cdc_fg.apply_cdc"
+            "p1.producer_fg.write_orders", "p2.cdc_fg.apply_cdc"
         )
         assert graphs.extraction_warnings == []
 
@@ -152,10 +152,10 @@ class TestBindingDrivenEdges:
         graphs = _build(tmp_path, [producer, consumer])
 
         assert graphs.action_graph.has_edge(
-            "producer_fg.write_a", "consumer_fg.combine_act"
+            "p1.producer_fg.write_a", "p2.consumer_fg.combine_act"
         )
         assert graphs.action_graph.has_edge(
-            "producer_fg.write_b", "consumer_fg.combine_act"
+            "p1.producer_fg.write_b", "p2.consumer_fg.combine_act"
         )
         assert graphs.extraction_warnings == []
 
@@ -187,7 +187,7 @@ class TestBindingDrivenEdges:
         graphs = _build(tmp_path, [_producer_fg(), consumer])
 
         assert graphs.action_graph.has_edge(
-            "producer_fg.write_orders", "load_fg.load_orders"
+            "p1.producer_fg.write_orders", "p2.load_fg.load_orders"
         )
         assert graphs.extraction_warnings == []
 
@@ -225,7 +225,7 @@ class TestExtractionWarningThreading:
         assert warning.action == "opaque_act"
         assert warning.file_path == str(tmp_path / "transforms/opaque.py")
         # Opaque read forms NO edge — never speculate.
-        assert graphs.action_graph.in_degree("opaque_fg.opaque_act") == 0
+        assert graphs.action_graph.in_degree("p2.opaque_fg.opaque_act") == 0
 
     def test_duplicate_identical_warnings_dedupe_to_one(self, tmp_path):
         # Two identical opaque reads on the SAME line share one warning SITE
