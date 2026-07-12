@@ -7,6 +7,7 @@ import { usePipelines } from '../../hooks/usePipelines'
 import { useUIStore } from '../../store/uiStore'
 import { fetchFileContentWithMeta, writeFile } from '../../api/files'
 import { errorMessage } from '../../lib/errors'
+import type { SandboxScope } from '../../types/api'
 import { assembleProfileYaml, normalizePipelines } from './profileYaml'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -137,6 +138,18 @@ export function SandboxPickerDialog({ open, onOpenChange }: SandboxPickerDialogP
         existingSource,
       )
       await writeFile(PROFILE_PATH, yaml, etag)
+      // Reflect the just-saved scope in the cache immediately. The ['sandbox']
+      // refetch below runs a cold, slow flowgroup discovery; until it lands,
+      // react-query keeps serving the pre-save scope, so the header pill and a
+      // reopened picker would otherwise show the OLD (or empty) scope.
+      queryClient.setQueryData<SandboxScope>(['sandbox'], (prev) => ({
+        ...prev,
+        profile_exists: true,
+        namespace,
+        patterns: resolvedPipelines,
+        resolved_pipelines: resolvedPipelines,
+        error: null,
+      }))
       queryClient.invalidateQueries({ queryKey: ['sandbox'] })
       queryClient.invalidateQueries({ queryKey: ['files'] })
       setSandboxEnabled(true)

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
@@ -72,5 +72,13 @@ describe('SandboxControl', () => {
     renderControl({ profile_exists: true, resolved_pipelines: ['bronze'] }, false)
     await userEvent.setup().click(screen.getByRole('switch'))
     expect(useUIStore.getState().sandboxEnabled).toBe(true)
+  })
+
+  it('turns a persisted toggle off when the resolved scope reports no profile', async () => {
+    // sandboxEnabled survives reloads / project switches in localStorage, so a
+    // stale `true` can outlive its profile. Once the scope view resolves with
+    // no profile, the control must reconcile the toggle back off.
+    renderControl({ profile_exists: false }, true)
+    await waitFor(() => expect(useUIStore.getState().sandboxEnabled).toBe(false))
   })
 })

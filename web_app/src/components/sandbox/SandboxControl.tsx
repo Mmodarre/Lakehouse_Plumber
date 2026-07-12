@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Beaker } from 'lucide-react'
 import { useSandbox } from '../../hooks/useSandbox'
 import { useUIStore } from '../../store/uiStore'
@@ -31,6 +31,17 @@ export function SandboxControl() {
   }
 
   const pill = pillState(enabled, profileExists, hasError, count)
+
+  // Keep the persisted toggle honest. `sandboxEnabled` survives reloads and
+  // project switches in localStorage, so a stale `true` can outlive its
+  // profile. Once the scope view has resolved and reports no profile, turn the
+  // toggle back off — the invariant `onToggle` enforces on the way in — so a
+  // profileless run can't send `--sandbox` (which the backend rejects).
+  useEffect(() => {
+    if (enabled && data && !data.profile_exists) {
+      setEnabled(false)
+    }
+  }, [enabled, data, setEnabled])
 
   return (
     <div className="flex items-center gap-1.5">
