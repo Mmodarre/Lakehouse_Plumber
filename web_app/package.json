@@ -15,9 +15,9 @@
   },
   "size-limit": [
     {
-      "name": "app code (dist/assets/index-*.js, brotli)",
+      "name": "app code (dist/assets/index-*.js, brotli; 108→150 KB for the Designer + Config UI)",
       "path": "dist/assets/index-*.js",
-      "limit": "108 KB"
+      "limit": "150 KB"
     },
     {
       "name": "total JS payload (all chunks + workers, brotli; 1.85→1.95 MB for the lazy assistant markdown stack ≈ +40-50 KB)",

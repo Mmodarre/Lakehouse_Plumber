@@ -284,6 +284,18 @@ jobs:
         cache: npm
         cache-dependency-path: web_app/package-lock.json
 
+    # A lockfile regenerated behind a corporate npm proxy bakes proxy-host
+    # `resolved` URLs into package-lock.json; runners cannot reach them and
+    # `npm ci` dies after minutes of retries with an opaque npm crash. Fail
+    # fast with the actual cause instead.
+    - name: Verify lockfile resolves against the public npm registry
+      run: |
+        if grep -q 'npm-proxy\.dev\.databricks\.com' web_app/package-lock.json; then
+          echo "::error file=web_app/package-lock.json::package-lock.json contains npm-proxy.dev.databricks.com resolved URLs (lockfile was regenerated behind the corporate proxy). Rewrite them to https://registry.npmjs.org/ before committing."
+          exit 1
+        fi
+      shell: bash
+
     - name: Install frontend dependencies
       run: npm ci
       working-directory: web_app
@@ -438,13 +450,17 @@ jobs:
         base="${{ github.event.pull_request.base.sha }}"
         head="${{ github.event.pull_request.head.sha }}"
 
+        # No `git diff | grep -q` pipelines here: under pipefail, grep -q
+        # exiting at the first match SIGPIPEs git on large diffs (status 141),
+        # silently turning a true condition false.
         version_changed=false
-        if git diff "$base" "$head" -- pyproject.toml | grep -qE '^[+-]version = '; then
+        pyproject_diff=$(git diff "$base" "$head" -- pyproject.toml)
+        if grep -qE '^[+-]version = ' <<< "$pyproject_diff"; then
           version_changed=true
         fi
 
         changelog_changed=false
-        if git diff --name-only "$base" "$head" | grep -qx 'CHANGELOG.md'; then
+        if ! git diff --quiet "$base" "$head" -- CHANGELOG.md; then
           changelog_changed=true
         fi
 

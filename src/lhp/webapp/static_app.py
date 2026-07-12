@@ -18,7 +18,7 @@ import importlib.resources
 import logging
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
@@ -55,7 +55,7 @@ class _ImmutableStaticFiles(StaticFiles):
     changed file is a NEW URL — cached copies can never go stale.
     """
 
-    def file_response(self, *args, **kwargs) -> Response:
+    def file_response(self, *args: Any, **kwargs: Any) -> Response:
         response = super().file_response(*args, **kwargs)
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
         return response

@@ -165,7 +165,7 @@ def _approval_params(
     command) the key is omitted and the card shows no such button.
     """
     preview = json.dumps(tool_input, separators=(",", ":"), default=str)
-    params = {
+    params: dict[str, Any] = {
         "message": context.title or f"Claude wants to use {tool_name}",
         "phase": "tool_use",
         "policy_name": context.display_name or tool_name,
