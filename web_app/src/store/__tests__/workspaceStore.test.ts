@@ -365,3 +365,233 @@ describe('workspaceStore', () => {
     expect(useWorkspaceStore.getState().restoredDirtyCount).toBe(0)
   })
 })
+
+describe('workspaceStore tab union (designer tabs)', () => {
+  it('openDesignerTab opens an identity-only tab and activates it', async () => {
+    const { useWorkspaceStore, designerTabId } = await loadStore()
+    useWorkspaceStore.getState().openDesignerTab('bronze', 'orders', 'pipelines/bronze/orders.yaml')
+    const s = useWorkspaceStore.getState()
+    expect(s.tabs).toEqual([
+      {
+        kind: 'designer',
+        id: 'designer:bronze/orders',
+        pipeline: 'bronze',
+        flowgroup: 'orders',
+        filePath: 'pipelines/bronze/orders.yaml',
+      },
+    ])
+    expect(designerTabId('bronze', 'orders')).toBe('designer:bronze/orders')
+    expect(s.activePath).toBe('designer:bronze/orders')
+    // No buffer materialises for a designer tab.
+    expect(s.buffers).toHaveLength(0)
+  })
+
+  it('openDesignerTab is idempotent: re-opening focuses, never duplicates or churns', async () => {
+    const { useWorkspaceStore } = await loadStore()
+    useWorkspaceStore.getState().openDesignerTab('p', 'f', 'pipelines/p/f.yaml')
+    useWorkspaceStore.getState().openBuffer('a.yaml', { content: '' })
+    expect(useWorkspaceStore.getState().activePath).toBe('a.yaml')
+
+    // Re-open: focuses the existing tab, keeps its identity and position.
+    useWorkspaceStore.getState().openDesignerTab('p', 'f', 'pipelines/p/f.yaml')
+    let s = useWorkspaceStore.getState()
+    expect(s.activePath).toBe('designer:p/f')
+    expect(s.tabs).toHaveLength(2)
+    expect(s.tabs[0]).toMatchObject({ kind: 'designer', id: 'designer:p/f' })
+
+    // Re-open while already active → no state churn at all.
+    const before = s.tabs
+    useWorkspaceStore.getState().openDesignerTab('p', 'f', 'pipelines/p/f.yaml')
+    s = useWorkspaceStore.getState()
+    expect(s.tabs).toBe(before)
+  })
+
+  it('re-opening with a different filePath refreshes the same tab in place (moved file)', async () => {
+    const { useWorkspaceStore } = await loadStore()
+    useWorkspaceStore.getState().openDesignerTab('p', 'f', 'pipelines/p/f.yaml')
+    useWorkspaceStore.getState().openBuffer('a.yaml', { content: '' })
+
+    // Background designer tab: focus + filePath refresh, no duplicate.
+    useWorkspaceStore.getState().openDesignerTab('p', 'f', 'pipelines/p/f_moved.yaml')
+    let s = useWorkspaceStore.getState()
+    expect(s.activePath).toBe('designer:p/f')
+    expect(s.tabs).toHaveLength(2)
+    expect(s.tabs[0]).toEqual({
+      kind: 'designer',
+      id: 'designer:p/f',
+      pipeline: 'p',
+      flowgroup: 'f',
+      filePath: 'pipelines/p/f_moved.yaml',
+    })
+
+    // Already-active tab: filePath still refreshes in place.
+    useWorkspaceStore.getState().openDesignerTab('p', 'f', 'pipelines/p/f_moved_again.yaml')
+    s = useWorkspaceStore.getState()
+    expect(s.activePath).toBe('designer:p/f')
+    expect(s.tabs).toHaveLength(2)
+    expect(s.tabs[0]).toMatchObject({ filePath: 'pipelines/p/f_moved_again.yaml' })
+
+    // Unchanged path stays churn-free.
+    const before = s.tabs
+    useWorkspaceStore.getState().openDesignerTab('p', 'f', 'pipelines/p/f_moved_again.yaml')
+    expect(useWorkspaceStore.getState().tabs).toBe(before)
+  })
+
+  it('tabs interleave kinds in open order (file tabs are refs to buffers)', async () => {
+    const { useWorkspaceStore, workspaceTabId } = await loadStore()
+    useWorkspaceStore.getState().openBuffer('a.yaml', { content: '' })
+    useWorkspaceStore.getState().openDesignerTab('p', 'f', 'pipelines/p/f.yaml')
+    useWorkspaceStore.getState().openBuffer('b.yaml', { content: '' })
+    const s = useWorkspaceStore.getState()
+    expect(s.tabs.map(workspaceTabId)).toEqual(['a.yaml', 'designer:p/f', 'b.yaml'])
+    expect(s.buffers.map((b) => b.path)).toEqual(['a.yaml', 'b.yaml'])
+  })
+
+  it('closing the active tab focuses the neighbour regardless of kind', async () => {
+    const { useWorkspaceStore } = await loadStore()
+    useWorkspaceStore.getState().openBuffer('a.yaml', { content: '' })
+    useWorkspaceStore.getState().openDesignerTab('p', 'f', 'pipelines/p/f.yaml')
+    useWorkspaceStore.getState().openBuffer('b.yaml', { content: '' })
+
+    // Active file tab closes → the designer neighbour slides into focus.
+    useWorkspaceStore.getState().setActive('a.yaml')
+    useWorkspaceStore.getState().closeBuffer('a.yaml')
+    expect(useWorkspaceStore.getState().activePath).toBe('designer:p/f')
+
+    // Active designer tab closes → the file neighbour takes focus.
+    useWorkspaceStore.getState().closeDesignerTab('designer:p/f')
+    expect(useWorkspaceStore.getState().activePath).toBe('b.yaml')
+
+    // Last tab closes → back to page view.
+    useWorkspaceStore.getState().closeBuffer('b.yaml')
+    expect(useWorkspaceStore.getState().activePath).toBeNull()
+    expect(useWorkspaceStore.getState().tabs).toHaveLength(0)
+  })
+
+  it('closeDesignerTab ignores unknown ids and file paths', async () => {
+    const { useWorkspaceStore } = await loadStore()
+    useWorkspaceStore.getState().openBuffer('a.yaml', { content: '' })
+    useWorkspaceStore.getState().openDesignerTab('p', 'f', 'pipelines/p/f.yaml')
+    const before = useWorkspaceStore.getState().tabs
+    useWorkspaceStore.getState().closeDesignerTab('designer:ghost/ghost')
+    // A file path is not a designer id — never closes the file tab.
+    useWorkspaceStore.getState().closeDesignerTab('a.yaml')
+    expect(useWorkspaceStore.getState().tabs).toBe(before)
+  })
+
+  it('setActive accepts a designer tab id and still rejects unknown ids', async () => {
+    const { useWorkspaceStore } = await loadStore()
+    useWorkspaceStore.getState().openDesignerTab('p', 'f', 'pipelines/p/f.yaml')
+    useWorkspaceStore.getState().openBuffer('a.yaml', { content: '' })
+    useWorkspaceStore.getState().setActive('designer:p/f')
+    expect(useWorkspaceStore.getState().activePath).toBe('designer:p/f')
+    useWorkspaceStore.getState().setActive('designer:ghost/ghost')
+    expect(useWorkspaceStore.getState().activePath).toBe('designer:p/f')
+  })
+
+  it('closeAllBuffers and ensureProjectScope clear designer tabs too', async () => {
+    const { useWorkspaceStore } = await loadStore()
+    useWorkspaceStore.getState().ensureProjectScope('/proj/a')
+    useWorkspaceStore.getState().openBuffer('a.yaml', { content: '' })
+    useWorkspaceStore.getState().openDesignerTab('p', 'f', 'pipelines/p/f.yaml')
+    useWorkspaceStore.getState().closeAllBuffers()
+    expect(useWorkspaceStore.getState().tabs).toHaveLength(0)
+    expect(useWorkspaceStore.getState().activePath).toBeNull()
+
+    useWorkspaceStore.getState().openDesignerTab('p', 'f', 'pipelines/p/f.yaml')
+    useWorkspaceStore.getState().ensureProjectScope('/proj/b')
+    expect(useWorkspaceStore.getState().tabs).toHaveLength(0)
+  })
+
+  it('discardDirty keeps a focused designer tab and drops dropped scaffolds’ tab refs', async () => {
+    const { useWorkspaceStore, workspaceTabId } = await loadStore()
+    useWorkspaceStore.getState().openBuffer('a.yaml', { content: 'orig', exists: true })
+    useWorkspaceStore.getState().updateContent('a.yaml', 'edited')
+    useWorkspaceStore.getState().openBuffer('scaffold.yaml', {
+      content: 'pipeline: p\n',
+      originalContent: '',
+      isDirty: true,
+      isNew: true,
+      exists: false,
+    })
+    useWorkspaceStore.getState().openDesignerTab('p', 'f', 'pipelines/p/f.yaml')
+    useWorkspaceStore.getState().discardDirty()
+    const s = useWorkspaceStore.getState()
+    // The never-saved scaffold's tab ref is gone with its buffer.
+    expect(s.tabs.map(workspaceTabId)).toEqual(['a.yaml', 'designer:p/f'])
+    // Designer tabs are never dirty — the active one stays focused.
+    expect(s.activePath).toBe('designer:p/f')
+  })
+
+  it('designer tabs persist identity and restore on a fresh boot', async () => {
+    const first = await loadStore()
+    first.useWorkspaceStore.getState().openBuffer('a.yaml', {
+      content: 'orig',
+      etag: 'e1',
+      exists: true,
+    })
+    first.useWorkspaceStore.getState().openDesignerTab('p', 'f', 'pipelines/p/f.yaml')
+
+    const second = await loadStore({ keepStorage: true })
+    const s = second.useWorkspaceStore.getState()
+    expect(s.tabs).toHaveLength(2)
+    expect(s.tabs[1]).toEqual({
+      kind: 'designer',
+      id: 'designer:p/f',
+      pipeline: 'p',
+      flowgroup: 'f',
+      filePath: 'pipelines/p/f.yaml',
+    })
+    // The active designer tab survives the reload.
+    expect(s.activePath).toBe('designer:p/f')
+  })
+
+  it('rebuilds file tab refs for payloads persisted before the tab union existed', async () => {
+    localStorage.clear()
+    const buffer = {
+      path: 'a.yaml',
+      language: 'yaml',
+      category: 'yaml',
+      content: '',
+      originalContent: '',
+      isDirty: false,
+      isSaving: false,
+      etag: 'e1',
+      exists: true,
+      isNew: false,
+      loading: true,
+      loadFailed: false,
+    }
+    localStorage.setItem(
+      'lhp-workspace',
+      JSON.stringify({
+        state: { buffers: [buffer], activePath: 'a.yaml', projectRoot: '/p' },
+        version: 0,
+      }),
+    )
+    const { useWorkspaceStore } = await loadStore({ keepStorage: true })
+    const s = useWorkspaceStore.getState()
+    expect(s.tabs).toEqual([{ kind: 'file', path: 'a.yaml' }])
+    expect(s.activePath).toBe('a.yaml')
+  })
+
+  it('drops stray file tab refs and a stale active designer id on boot', async () => {
+    localStorage.clear()
+    localStorage.setItem(
+      'lhp-workspace',
+      JSON.stringify({
+        state: {
+          buffers: [],
+          tabs: [{ kind: 'file', path: 'ghost.yaml' }],
+          activePath: 'designer:p/f',
+          projectRoot: '/p',
+        },
+        version: 0,
+      }),
+    )
+    const { useWorkspaceStore } = await loadStore({ keepStorage: true })
+    const s = useWorkspaceStore.getState()
+    expect(s.tabs).toHaveLength(0)
+    expect(s.activePath).toBeNull()
+  })
+})

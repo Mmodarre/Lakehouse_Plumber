@@ -42,7 +42,11 @@ export function ExternalBadge({ connections }: { connections: ExternalConnection
 
   const handleSelect = (conn: ExternalConnection, e: React.MouseEvent) => {
     e.stopPropagation()
-    openPipelineModal(conn.targetPipeline)
+    // Cross-pipeline edges carry a target pipeline to drill into; plain
+    // external sources (an existing table, another flowgroup's view) have no
+    // pipeline — opening the drill modal with an empty id would show the full
+    // unfiltered graph under a blank title, so skip it.
+    if (conn.targetPipeline !== '') openPipelineModal(conn.targetPipeline)
     setDropdownOpen(false)
   }
 
@@ -89,7 +93,11 @@ export function ExternalBadge({ connections }: { connections: ExternalConnection
                 ) : (
                   <ArrowRight className="size-3 shrink-0 text-warning" aria-hidden="true" />
                 )}
-                <span className="truncate font-mono">{conn.targetPipeline}</span>
+                {/* Fall back to the source/target node name when the connection
+                    has no pipeline to drill into (a plain external source). */}
+                <span className="truncate font-mono">
+                  {conn.targetPipeline !== '' ? conn.targetPipeline : conn.targetNodeId}
+                </span>
               </button>
             ))}
           </div>

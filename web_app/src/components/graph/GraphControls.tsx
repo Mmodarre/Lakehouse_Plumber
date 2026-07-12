@@ -1,5 +1,7 @@
-import { TriangleAlert } from 'lucide-react'
+import { Plus, TriangleAlert } from 'lucide-react'
 import { useCircularDeps } from '../../hooks/useDependencyGraph'
+import { useUIStore } from '../../store/uiStore'
+import { Button } from '../ui/button'
 import { GraphSearchInput } from './GraphSearchInput'
 
 interface GraphControlsProps {
@@ -24,6 +26,7 @@ export function GraphControls({
   placeholder,
 }: GraphControlsProps) {
   const { data: circular } = useCircularDeps()
+  const openCreateFlowgroupDialog = useUIStore((s) => s.openCreateFlowgroupDialog)
 
   return (
     <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-1.5">
@@ -39,6 +42,11 @@ export function GraphControls({
       />
 
       <div className="flex-1" />
+
+      <Button size="xs" variant="outline" onClick={() => openCreateFlowgroupDialog()}>
+        <Plus aria-hidden="true" />
+        New flowgroup
+      </Button>
 
       {circular?.has_circular && (
         <div className="flex items-center gap-1.5 rounded-md border border-warning/25 bg-warning/10 px-2 py-1 text-2xs text-foreground">

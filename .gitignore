@@ -120,3 +120,18 @@ HOW_TO_CREATE_BLUEPRINTS.md
 # `git add -f .perf_runs/v0.X.Y/` if desired.
 .perf_runs/
 
+.superpowers/sdd/final.patch
+.superpowers/sdd/progress.md
+.superpowers/sdd/task-1.patch
+.superpowers/sdd/task-2.patch
+.superpowers/sdd/task-3.patch
+.superpowers/sdd/task-4.patch
+.superpowers/sdd/task-5.patch
+.superpowers/sdd/task-6.patch
+.superpowers/sdd/task-7.patch
+.superpowers/sdd/task-8.patch
+.superpowers/sdd/task-9.patch
+.superpowers/sdd/task-10.patch
+.superpowers/sdd/task-11.patch
+.superpowers/sdd/task-12.patch
+.superpowers/sdd/task-13.patch

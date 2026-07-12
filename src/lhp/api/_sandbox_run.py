@@ -29,9 +29,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Optional, Sequence
 
-from lhp.core.coordination.monitoring_pipeline_builder import (
-    resolve_monitoring_pipeline_name,
-)
+from lhp.core.coordination import resolve_monitoring_pipeline_name
 from lhp.core.loaders import load_sandbox_profile
 from lhp.core.sandbox import resolve_sandbox_run
 

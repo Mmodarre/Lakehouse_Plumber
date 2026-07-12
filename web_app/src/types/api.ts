@@ -67,6 +67,7 @@ export type TableListResponse = Schemas['TableListResponse']
 
 export type FlowgroupDetailResponse = Schemas['FlowgroupDetailResponse']
 export type ResolvedFlowgroupResponse = Schemas['ResolvedFlowgroupResponse']
+export type FlowgroupActionSummary = Schemas['FlowgroupActionSummary']
 
 // Refinement of the generated schema: `category` is narrowed to the known
 // file categories (the wire type is a plain string).
@@ -107,6 +108,12 @@ export interface EnvironmentListResponse {
 // `GET /api/environments/{env}/resolved` — resolved substitution context.
 export type SecretReferenceSummary = Schemas['SecretReferenceSummary']
 export type SubstitutionResolvedResponse = Schemas['SubstitutionResolvedResponse']
+
+// ── Sandbox ──────────────────────────────────────────────
+
+// `GET /api/sandbox` — the developer's `.lhp/profile.yaml` selection plus the
+// concrete pipeline scope `lhp generate --sandbox` would run.
+export type SandboxScope = Schemas['SandboxResponse']
 
 // ── Blueprints ───────────────────────────────────────────
 

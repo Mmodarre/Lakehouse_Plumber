@@ -14,6 +14,8 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import { useFlowgroups } from '../../hooks/useFlowgroups'
 import { useUIStore } from '../../store/uiStore'
+import { useSandboxScope } from '../sandbox/useSandboxScope'
+import { filterFlowgroupsForScope } from '../sandbox/scopeFilter'
 import type { FlowgroupSummary } from '../../types/api'
 import { EmptyState } from '../common/EmptyState'
 import { TableSkeleton } from '../common/SkeletonLoader'
@@ -130,6 +132,7 @@ function HeaderLabel({ label }: { label: string }) {
 
 export function FlowgroupTable() {
   const { data, isLoading } = useFlowgroups()
+  const scope = useSandboxScope()
   const openFlowgroupEditor = useUIStore((s) => s.openFlowgroupEditor)
   const openCreateFlowgroupDialog = useUIStore((s) => s.openCreateFlowgroupDialog)
   const [filter, setFilter] = useState('')
@@ -152,7 +155,9 @@ export function FlowgroupTable() {
 
   const filtered = useMemo(() => {
     if (!data?.flowgroups) return []
-    let items = data.flowgroups
+    // Sandbox mode narrows the table to in-scope pipelines before the
+    // name/type filters and sort run.
+    let items = filterFlowgroupsForScope(data.flowgroups, scope)
 
     if (filter) {
       const q = filter.toLowerCase()
@@ -175,7 +180,7 @@ export function FlowgroupTable() {
     })
 
     return items
-  }, [data, filter, typeFilter, sortKey, sortDir])
+  }, [data, scope, filter, typeFilter, sortKey, sortDir])
 
   const allTypes = useMemo(() => {
     if (!data?.flowgroups) return []
@@ -237,7 +242,7 @@ export function FlowgroupTable() {
         </Select>
 
         <div className="ml-auto">
-          <Button size="sm" onClick={openCreateFlowgroupDialog}>
+          <Button size="sm" onClick={() => openCreateFlowgroupDialog()}>
             <Plus aria-hidden="true" />
             New Flowgroup
           </Button>
@@ -265,7 +270,7 @@ export function FlowgroupTable() {
                     },
                     variant: 'outline',
                   }
-                : { label: 'New Flowgroup', onClick: openCreateFlowgroupDialog }
+                : { label: 'New Flowgroup', onClick: () => openCreateFlowgroupDialog() }
             }
           />
         ) : (

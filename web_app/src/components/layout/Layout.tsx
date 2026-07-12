@@ -87,7 +87,7 @@ export function Layout() {
   // Narrow boolean selectors on purpose: keystrokes and per-buffer updates
   // inside the workspace never change these values, so typing in the editor
   // cannot re-render the app shell (the P3 idempotent-setter lesson).
-  const hasBuffers = useWorkspaceStore((s) => s.buffers.length > 0)
+  const hasTabs = useWorkspaceStore((s) => s.tabs.length > 0)
   const editorFocused = useWorkspaceStore((s) => s.activePath !== null)
   const closeAllBuffers = useWorkspaceStore((s) => s.closeAllBuffers)
   const ensureProjectScope = useWorkspaceStore((s) => s.ensureProjectScope)
@@ -102,7 +102,7 @@ export function Layout() {
   }, [projectRoot, ensureProjectScope])
 
   const noProject = health?.project_state === 'no_project'
-  const showWorkspace = hasBuffers && !noProject
+  const showWorkspace = hasTabs && !noProject
 
   return (
     <div className="flex h-screen flex-col bg-background">

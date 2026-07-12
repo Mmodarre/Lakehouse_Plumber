@@ -37,6 +37,7 @@ from lhp.core.coordination.executor import (
 from lhp.core.coordination.monitoring_pipeline_builder import (
     MonitoringBuildResult,
     MonitoringPipelineBuilder,
+    resolve_monitoring_pipeline_name,
 )
 from lhp.core.coordination.monitoring_service import MonitoringFinalizerService
 from lhp.core.coordination.validation_service import ValidationService
@@ -67,4 +68,5 @@ __all__ = [
     "PipelineExecutionService",
     "PipelineValidationOutcome",
     "ValidationService",
+    "resolve_monitoring_pipeline_name",
 ]

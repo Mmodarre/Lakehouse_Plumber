@@ -20,6 +20,17 @@ function isTokenized(label: string): boolean {
   return label.includes('${') || label.includes('.')
 }
 
+/**
+ * Kind-colored wiring ports for the designer canvas — the pipe mouths a
+ * named-view edge plugs into. `colorClass` is a solid --kind-* fill; the ring
+ * halo seats the nub on the card border. Omitted on the dashboard graph.
+ */
+export interface NodeCardPort {
+  colorClass: string
+  input?: boolean
+  output?: boolean
+}
+
 interface NodeCardProps {
   label: string
   sublabel: string
@@ -33,9 +44,27 @@ interface NodeCardProps {
   dashed?: boolean
   /** De-emphasized label (external sources). */
   muted?: boolean
+  /** Kind-colored input/output ports (designer canvas only). */
+  port?: NodeCardPort
+  /** DOM id for the card root — see canvasNodeDomId (for aria-activedescendant). */
+  id?: string
   /** Per-node-type width constraints; defaults to min-w-50 / max-w-75. */
   className?: string
   children?: ReactNode
+}
+
+/** A single kind-colored port nub, seated on the card edge (decorative). */
+function PortNub({ side, colorClass }: { side: 'left' | 'right'; colorClass: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'absolute top-1/2 size-2.5 -translate-y-1/2 rounded-full ring-2 ring-card',
+        side === 'left' ? '-left-[5px]' : '-right-[5px]',
+        colorClass,
+      )}
+    />
+  )
 }
 
 export function NodeCard({
@@ -48,11 +77,14 @@ export function NodeCard({
   searchDimmed,
   dashed,
   muted,
+  port,
+  id,
   className,
   children,
 }: NodeCardProps) {
   return (
     <div
+      id={id}
       title={label}
       className={cn(
         'relative flex min-w-50 max-w-75 items-center gap-2.5 rounded-lg border bg-card px-3 py-2 shadow-xs',
@@ -67,6 +99,8 @@ export function NodeCard({
         className,
       )}
     >
+      {port?.input && <PortNub side="left" colorClass={port.colorClass} />}
+      {port?.output && <PortNub side="right" colorClass={port.colorClass} />}
       <span
         className={cn(
           'flex size-6 shrink-0 items-center justify-center rounded-md',

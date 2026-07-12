@@ -48,7 +48,9 @@ def _relative_source(file_path: Optional[Path], project_root: Path) -> str:
     if file_path is None:
         return ""
     try:
-        return str(file_path.relative_to(project_root))
+        # POSIX separators: the frontend and file_io key files by forward-slash
+        # paths regardless of the host OS.
+        return file_path.relative_to(project_root).as_posix()
     except ValueError:
         return ""
 

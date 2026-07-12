@@ -17,6 +17,8 @@ import { ChevronRight, Cloud } from 'lucide-react'
 
 import { useDependencyGraph } from '../../hooks/useDependencyGraph'
 import { useUIStore } from '../../store/uiStore'
+import { useSandboxScope } from '../sandbox/useSandboxScope'
+import { filterGraphForScope } from '../sandbox/scopeFilter'
 import type { GraphNode } from '../../types/api'
 import { cn } from '../../lib/utils'
 import { useElkLayout } from './useElkLayout'
@@ -183,14 +185,21 @@ export function GraphCanvas({ nodes, edges, onNodeClick }: GraphCanvasProps) {
 
 export function DependencyGraphWithControls() {
   const { pipelineFilter, openPipelineModal } = useUIStore()
+  const scope = useSandboxScope()
+  // While sandbox mode narrows the scope, fetch the whole project and filter
+  // client-side — the header pipeline filter is disabled in that mode.
   const { data, isLoading, error } = useDependencyGraph(
     'pipeline',
-    pipelineFilter ?? undefined,
+    scope ? undefined : pipelineFilter ?? undefined,
   )
   const { fitView } = useReactFlow()
 
-  const apiNodes = useMemo(() => data?.nodes ?? [], [data])
-  const apiEdges = useMemo(() => data?.edges ?? [], [data])
+  const scoped = useMemo(
+    () => filterGraphForScope(data?.nodes ?? [], data?.edges ?? [], scope),
+    [data, scope],
+  )
+  const apiNodes = scoped.nodes
+  const apiEdges = scoped.edges
 
   const connectedIds = useMemo(() => {
     const ids = new Set<string>()

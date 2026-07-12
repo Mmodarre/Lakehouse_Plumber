@@ -31,7 +31,11 @@ from typing import Optional
 
 from fastapi import FastAPI, Request
 
-from lhp.api import InspectionFacade, LakehousePlumberApplicationFacade
+from lhp.api import (
+    InspectionFacade,
+    LakehousePlumberApplicationFacade,
+    SandboxFacade,
+)
 from lhp.webapp.settings import WebappSettings
 from lhp.webapp.settings import get_settings as _get_settings
 
@@ -126,6 +130,11 @@ def invalidate_facade(app: FastAPI) -> None:
 def get_inspection(request: Request) -> InspectionFacade:
     """Return the read-only inspection facade from the cached application facade."""
     return get_facade(request).inspection
+
+
+def get_sandbox(request: Request) -> SandboxFacade:
+    """Return the sandbox scope facade from the cached application facade."""
+    return get_facade(request).sandbox
 
 
 def compute_etag(content: bytes) -> str:

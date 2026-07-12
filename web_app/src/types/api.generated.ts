@@ -496,6 +496,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/dependencies/graph/action": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Action Graph
+         * @description Action-level dependency graph (the flowgroup drill-down modal).
+         *
+         *     Nodes are keyed ``{flowgroup}.{action}``; the frontend narrows to one
+         *     flowgroup client-side via each node's ``flowgroup`` field.
+         */
+        get: operations["get_action_graph_api_dependencies_graph_action_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/dependencies/graph/flowgroup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Flowgroup Graph
+         * @description Flowgroup-level dependency graph (the pipeline drill-down modal).
+         */
+        get: operations["get_flowgroup_graph_api_dependencies_graph_flowgroup_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/dependencies/graph/pipeline": {
         parameters: {
             query?: never;
@@ -506,9 +549,6 @@ export interface paths {
         /**
          * Get Pipeline Graph
          * @description Pipeline-level dependency graph for frontend visualization.
-         *
-         *     Per-flowgroup / per-action graph levels are a v2 feature; the public
-         *     result exposes pipeline-level dependencies only.
          */
         get: operations["get_pipeline_graph_api_dependencies_graph_pipeline_get"];
         put?: never;
@@ -1021,6 +1061,26 @@ export interface paths {
          * @description Return one run's summary + issues (+ frames when ``include_events``).
          */
         get: operations["get_run_api_runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sandbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Sandbox Scope
+         * @description Sandbox profile + resolved pipeline scope (optionally scoped to ``env``).
+         */
+        get: operations["get_sandbox_scope_api_sandbox_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2014,6 +2074,30 @@ export interface components {
             } | null;
         };
         /**
+         * SandboxResponse
+         * @description Sandbox profile and its resolved pipeline scope for one environment.
+         *
+         *     Mirrors the public :class:`lhp.api.SandboxScopeResult`. ``profile_exists``
+         *     is ``false`` when no ``.lhp/profile.yaml`` is present (the normal
+         *     not-opted-in state, ``error`` null). ``error`` carries a surfaced
+         *     sandbox-specific failure message (malformed profile, zero-match scope, or
+         *     an env the team policy does not enable) so the panel can always render.
+         */
+        SandboxResponse: {
+            /** Allowed Envs */
+            allowed_envs?: string[] | null;
+            /** Error */
+            error?: string | null;
+            /** Namespace */
+            namespace?: string | null;
+            /** Patterns */
+            patterns?: string[];
+            /** Profile Exists */
+            profile_exists: boolean;
+            /** Resolved Pipelines */
+            resolved_pipelines?: string[];
+        };
+        /**
          * SecretReferenceSummary
          * @description One ``${secret:scope/key}`` reference observed in an environment.
          */
@@ -2104,7 +2188,9 @@ export interface components {
          *     facade's ``pipeline_filter``). ``pipeline_config`` is the optional
          *     project-relative pipeline-config YAML path (the CLI's
          *     ``--pipeline-config``); when set, bundle support mirrors the CLI's
-         *     ``databricks.yml`` detection.
+         *     ``databricks.yml`` detection. ``sandbox`` (default ``false``) switches the
+         *     run to developer-sandbox mode — scope and namespace come from
+         *     ``.lhp/profile.yaml`` — and is mutually exclusive with ``pipeline``.
          */
         StreamRunRequest: {
             /**
@@ -2122,6 +2208,12 @@ export interface components {
              * @description Optional project-relative pipeline-config YAML path (e.g. 'config/pipeline_config_dev.yaml'); null runs without a pipeline config, with bundle support off.
              */
             pipeline_config?: string | null;
+            /**
+             * Sandbox
+             * @description Developer-sandbox mode: scope and namespace come from .lhp/profile.yaml. Mutually exclusive with 'pipeline'.
+             * @default false
+             */
+            sandbox: boolean;
         };
         /**
          * SubstitutionResolvedResponse
@@ -2925,6 +3017,70 @@ export interface operations {
             };
         };
     };
+    get_action_graph_api_dependencies_graph_action_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by pipeline */
+                pipeline?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraphResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_flowgroup_graph_api_dependencies_graph_flowgroup_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by pipeline */
+                pipeline?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraphResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_pipeline_graph_api_dependencies_graph_pipeline_get: {
         parameters: {
             query?: {
@@ -3625,6 +3781,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sandbox_scope_api_sandbox_get: {
+        parameters: {
+            query?: {
+                /** @description Optional substitution environment. When given, the team-policy allowed_envs gate (LHP-CFG-065) is applied and surfaced on 'error'; omit for the env-independent scope. */
+                env?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SandboxResponse"];
                 };
             };
             /** @description Validation Error */

@@ -15,6 +15,13 @@ interface UIState {
   selectedEnv: string
   setSelectedEnv: (env: string) => void
 
+  // Sandbox mode (persisted). ON narrows the dashboard, lists, and file tree
+  // to the pipelines resolved from .lhp/profile.yaml and switches
+  // Validate/Generate to --sandbox; OFF = the full project.
+  sandboxEnabled: boolean
+  setSandboxEnabled: (enabled: boolean) => void
+  toggleSandbox: () => void
+
   // Graph
   pipelineFilter: string | null
   setPipelineFilter: (pipeline: string | null) => void
@@ -40,7 +47,9 @@ interface UIState {
 
   // Create flowgroup dialog
   createFlowgroupDialog: boolean
-  openCreateFlowgroupDialog: () => void
+  /** Optional seed for the dialog (e.g. the pipeline the drill modal opened from). */
+  createFlowgroupSeed: { pipeline?: string } | null
+  openCreateFlowgroupDialog: (seed?: { pipeline?: string }) => void
   closeCreateFlowgroupDialog: () => void
 
   // Flowgroup open/create request — consumed by the workspace bridge
@@ -75,6 +84,11 @@ export const useUIStore = create<UIState>()(
       selectedEnv: 'dev',
       setSelectedEnv: (env) => set({ selectedEnv: env }),
 
+      // Sandbox mode (persisted)
+      sandboxEnabled: false,
+      setSandboxEnabled: (enabled) => set({ sandboxEnabled: enabled }),
+      toggleSandbox: () => set((s) => ({ sandboxEnabled: !s.sandboxEnabled })),
+
       // Graph
       pipelineFilter: null,
       setPipelineFilter: (pipeline) => set({ pipelineFilter: pipeline }),
@@ -100,8 +114,11 @@ export const useUIStore = create<UIState>()(
 
       // Create flowgroup dialog
       createFlowgroupDialog: false,
-      openCreateFlowgroupDialog: () => set({ createFlowgroupDialog: true }),
-      closeCreateFlowgroupDialog: () => set({ createFlowgroupDialog: false }),
+      createFlowgroupSeed: null,
+      openCreateFlowgroupDialog: (seed) =>
+        set({ createFlowgroupDialog: true, createFlowgroupSeed: seed ?? null }),
+      closeCreateFlowgroupDialog: () =>
+        set({ createFlowgroupDialog: false, createFlowgroupSeed: null }),
 
       // Flowgroup open/create request (consumed by the workspace bridge)
       flowgroupEditor: null,
@@ -127,11 +144,12 @@ export const useUIStore = create<UIState>()(
     {
       name: 'lhp-ui',
       // Everything else in this store is deliberately session-only; only the
-      // Config tabs' file selection and the run-config binding survive a
-      // reload.
+      // Config tabs' file selection, the run-config binding, and the sandbox
+      // toggle survive a reload.
       partialize: (s) => ({
         selectedConfigFiles: s.selectedConfigFiles,
         selectedPipelineConfig: s.selectedPipelineConfig,
+        sandboxEnabled: s.sandboxEnabled,
       }),
     },
   ),

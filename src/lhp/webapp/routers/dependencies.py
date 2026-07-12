@@ -6,8 +6,10 @@
   result is the networkx-free :class:`lhp.api.DependencyAnalysisResult`. The
   public DTO carries no live graph objects, so order/cycle/external state is
   read straight from the flat result.
-* Only ``/graph/pipeline`` is exposed. Per-flowgroup / per-action graph levels
-  are a v2 feature; the public DTO exposes only pipeline-level dependencies.
+* All three graph levels are exposed: ``/graph/pipeline`` from the flattened
+  summary, ``/graph/flowgroup`` and ``/graph/action`` from the opt-in
+  ``include_graphs=True`` snapshots (frozen, networkx-free level projections
+  on the same public result).
 * There is no ``/export/{fmt}`` endpoint in v1.
 
 Per the ``webapp-uses-public-api`` import contract, this module may import only
@@ -32,7 +34,11 @@ from lhp.webapp.schemas.dependency import (
     ExternalSourcesResponse,
     GraphResponse,
 )
-from lhp.webapp.services.graph_serializer import serialize_pipeline_graph
+from lhp.webapp.services.graph_serializer import (
+    serialize_action_graph,
+    serialize_flowgroup_graph,
+    serialize_pipeline_graph,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/dependencies", tags=["dependencies"])
@@ -41,10 +47,14 @@ router = APIRouter(prefix="/dependencies", tags=["dependencies"])
 async def _analyze(
     inspection: InspectionFacade,
     pipeline: Optional[str] = None,
+    *,
+    include_graphs: bool = False,
 ) -> DependencyAnalysisResult:
     """Run dependency analysis off the event loop and return the public result."""
     return await asyncio.to_thread(
-        inspection.analyze_dependencies, pipeline_filter=pipeline
+        inspection.analyze_dependencies,
+        pipeline_filter=pipeline,
+        include_graphs=include_graphs,
     )
 
 
@@ -77,13 +87,33 @@ async def get_pipeline_graph(
     pipeline: Optional[str] = Query(None, description="Filter by pipeline"),
     inspection: InspectionFacade = Depends(get_inspection),
 ) -> GraphResponse:
-    """Pipeline-level dependency graph for frontend visualization.
-
-    Per-flowgroup / per-action graph levels are a v2 feature; the public
-    result exposes pipeline-level dependencies only.
-    """
+    """Pipeline-level dependency graph for frontend visualization."""
     result = await _analyze(inspection, pipeline)
     return serialize_pipeline_graph(result)
+
+
+@router.get("/graph/flowgroup", response_model=GraphResponse)
+async def get_flowgroup_graph(
+    pipeline: Optional[str] = Query(None, description="Filter by pipeline"),
+    inspection: InspectionFacade = Depends(get_inspection),
+) -> GraphResponse:
+    """Flowgroup-level dependency graph (the pipeline drill-down modal)."""
+    result = await _analyze(inspection, pipeline, include_graphs=True)
+    return serialize_flowgroup_graph(result)
+
+
+@router.get("/graph/action", response_model=GraphResponse)
+async def get_action_graph(
+    pipeline: Optional[str] = Query(None, description="Filter by pipeline"),
+    inspection: InspectionFacade = Depends(get_inspection),
+) -> GraphResponse:
+    """Action-level dependency graph (the flowgroup drill-down modal).
+
+    Nodes are keyed ``{flowgroup}.{action}``; the frontend narrows to one
+    flowgroup client-side via each node's ``flowgroup`` field.
+    """
+    result = await _analyze(inspection, pipeline, include_graphs=True)
+    return serialize_action_graph(result)
 
 
 @router.get("/execution-order", response_model=ExecutionOrderResponse)
