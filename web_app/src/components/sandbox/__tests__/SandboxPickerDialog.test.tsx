@@ -8,8 +8,8 @@ import { SandboxPickerDialog } from '../SandboxPickerDialog'
 import { useUIStore } from '../../../store/uiStore'
 import type { SandboxScope } from '../../../types/api'
 
-const writeFile = vi.fn((..._args: unknown[]) => Promise.resolve())
-const fetchFileContentWithMeta = vi.fn((..._args: unknown[]) => undefined)
+const writeFile = vi.fn(() => Promise.resolve())
+const fetchFileContentWithMeta = vi.fn(() => undefined)
 vi.mock('../../../api/files', () => ({
   writeFile: (...args: unknown[]) => writeFile(...args),
   fetchFileContentWithMeta: (...args: unknown[]) => fetchFileContentWithMeta(...args),
