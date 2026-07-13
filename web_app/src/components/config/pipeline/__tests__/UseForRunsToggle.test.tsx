@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { UseForRunsToggle } from '../UseForRunsToggle'
 import { useUIStore } from '../../../../store/uiStore'
 
@@ -16,9 +17,19 @@ beforeEach(() => {
   useUIStore.setState({ selectedPipelineConfig: null })
 })
 
+// The (i) help icon renders a Radix Tooltip, which needs a TooltipProvider
+// ancestor (delayDuration 0 so it opens immediately).
+function renderToggle() {
+  return render(
+    <TooltipProvider delayDuration={0}>
+      <UseForRunsToggle path={PATH} />
+    </TooltipProvider>,
+  )
+}
+
 describe('UseForRunsToggle', () => {
   it('unchecked with the run-consequence copy; toggling on binds this file', async () => {
-    render(<UseForRunsToggle path={PATH} />)
+    renderToggle()
     const toggle = screen.getByRole('switch', { name: 'Use for runs' })
     expect(toggle).not.toBeChecked()
     // R5: enabling this makes Generate write bundle resources — the copy
@@ -32,7 +43,7 @@ describe('UseForRunsToggle', () => {
 
   it('checked while this file is the run config; toggling off clears it', async () => {
     useUIStore.setState({ selectedPipelineConfig: PATH })
-    render(<UseForRunsToggle path={PATH} />)
+    renderToggle()
     const toggle = screen.getByRole('switch', { name: 'Use for runs' })
     expect(toggle).toBeChecked()
 
@@ -42,7 +53,7 @@ describe('UseForRunsToggle', () => {
 
   it('another bound file: unchecked, names it, and toggling on rebinds to this file', async () => {
     useUIStore.setState({ selectedPipelineConfig: OTHER })
-    render(<UseForRunsToggle path={PATH} />)
+    renderToggle()
     const toggle = screen.getByRole('switch', { name: 'Use for runs' })
     expect(toggle).not.toBeChecked()
     expect(screen.getByText('pipeline_config_prod.yaml')).toBeInTheDocument()

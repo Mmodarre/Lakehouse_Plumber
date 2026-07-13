@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { SandboxPickerDialog } from '../SandboxPickerDialog'
 import { useUIStore } from '../../../store/uiStore'
 import type { SandboxScope } from '../../../types/api'
@@ -57,7 +58,9 @@ describe('SandboxPickerDialog', () => {
     const queryClient = makeClient({ profile_exists: false })
     const onOpenChange = vi.fn()
     const wrapper = ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider delayDuration={0}>{children}</TooltipProvider>
+      </QueryClientProvider>
     )
     const { rerender } = render(
       <SandboxPickerDialog open={true} onOpenChange={onOpenChange} />,

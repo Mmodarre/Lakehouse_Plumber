@@ -41,7 +41,6 @@ export const testCustomExpectationsSpec: ActionSubTypeSpec = {
           label: 'Expectations',
           widget: 'objectList',
           required: true,
-          help: 'Each rule: a name, a boolean expression, and its own violation action.',
           itemFields: [
             {
               path: ['name'],

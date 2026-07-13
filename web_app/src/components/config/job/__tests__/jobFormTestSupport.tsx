@@ -5,6 +5,7 @@ import { vi } from 'vitest'
 import type { ReactNode } from 'react'
 import { render } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { useConfigFile } from '../../../../hooks/useConfigFile'
 import { serveConfigFile } from '../../shared/__tests__/configFormTestSupport'
 import { JobConfigEditor } from '../JobConfigEditor'
@@ -41,8 +42,13 @@ function Harness({ path }: { path: string }) {
 /** Mount the editor; callers await their own mode-specific marker. */
 export function renderJobEditor(path: string = JOB_CONFIG_PATH): void {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  // The form's SchemaKindProvider calls useQuery(['schema','job_config']);
+  // seed it so no real GET /api/schemas fires (staleTime: Infinity → fresh).
+  queryClient.setQueryData(['schema', 'job_config'], {})
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider delayDuration={0}>{children}</TooltipProvider>
+    </QueryClientProvider>
   )
   render(<Harness path={path} />, { wrapper })
 }

@@ -99,7 +99,7 @@ export function JobCoreFields({
           unsetLabel={`Not set (default: ${JOB_BUILTIN_DEFAULTS.performance_target})`}
           onSet={(value) => api.set(['performance_target'], value)}
           onUnset={() => api.del(['performance_target'])}
-          description="PERFORMANCE_OPTIMIZED starts compute faster at higher cost."
+          helpPath={['performance_target']}
           issue={api.issueAt(['performance_target'])?.message}
         />
         <OptionalNumberField
@@ -110,7 +110,7 @@ export function JobCoreFields({
           onSet={(value) => api.set(['timeout_seconds'], value)}
           onUnset={() => api.del(['timeout_seconds'])}
           placeholder="No timeout"
-          description="Job-level timeout — rendered only when set."
+          helpPath={['timeout_seconds']}
           issue={api.issueAt(['timeout_seconds'])?.message}
         />
         {queueNotAMapping ? (
@@ -125,7 +125,7 @@ export function JobCoreFields({
             defaultValue={JOB_BUILTIN_DEFAULTS.queue.enabled}
             onSet={(value) => api.set(['queue', 'enabled'], value)}
             onReset={() => delWithCascade(api, 'queue', 'enabled')}
-            description="Queue new runs while maximum concurrent runs is reached (queue.enabled)."
+            helpPath={['queue', 'enabled']}
             issue={api.issueAt(['queue', 'enabled'])?.message}
           />
         )}
@@ -136,7 +136,7 @@ export function JobCoreFields({
           id={`${idPrefix}-tags`}
           label="Tags"
           {...kvHandlers(api, 'tags')}
-          description="Deep-merged with project-default tags; values render quoted."
+          helpPath={['tags']}
           issue={api.issueAt(['tags'])?.message}
         />
       </SectionCard>
@@ -157,7 +157,7 @@ export function JobCoreFields({
             defaultValue={JOB_BUILTIN_DEFAULTS.generate_master_job}
             onSet={(value) => api.set(['generate_master_job'], value)}
             onReset={() => api.del(['generate_master_job'])}
-            description="One master job that chains every orchestration job."
+            helpPath={['generate_master_job']}
             issue={api.issueAt(['generate_master_job'])?.message}
           />
           <OptionalTextField
@@ -214,7 +214,7 @@ export function JobCoreFields({
                   api.del(['notebook_cluster', 'new_cluster', entryKey])
                 }
                 onDeleteKey={() => delWithCascade(api, 'notebook_cluster', 'new_cluster')}
-                description="e.g. spark_version, node_type_id, num_workers — rendered as written."
+                helpPath={['notebook_cluster', 'new_cluster']}
                 issue={api.issueAt(['notebook_cluster', 'new_cluster'])?.message}
               />
               <OptionalTextField

@@ -26,7 +26,6 @@ export const loadSqlSpec: ActionSubTypeSpec = {
           widget: 'textarea',
           monospace: true,
           placeholder: 'SELECT * FROM ${catalog}.${bronze_schema}.orders',
-          help: 'Inline SQL query.',
         },
         {
           path: ['source', 'sql_path'],
@@ -34,7 +33,6 @@ export const loadSqlSpec: ActionSubTypeSpec = {
           widget: 'text',
           monospace: true,
           placeholder: 'queries/load_orders.sql',
-          help: 'External .sql file (relative to project root).',
         },
       ],
     },
@@ -48,7 +46,6 @@ export const loadSqlSpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'v_orders',
-          help: 'Temporary view this load publishes for downstream actions.',
         },
       ],
     },

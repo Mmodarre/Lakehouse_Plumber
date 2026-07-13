@@ -36,7 +36,7 @@ export function PipelineMapsFields({ api, idPrefix }: { api: DocFormApi; idPrefi
           id={`${idPrefix}-configuration`}
           label="Spark / SDP configuration"
           {...kvHandlers(api, 'configuration')}
-          description="All values must be strings — the loader rejects anything else."
+          helpPath={['configuration']}
           issue={api.issueAt(['configuration'])?.message}
         />
       </SectionCard>
@@ -46,7 +46,7 @@ export function PipelineMapsFields({ api, idPrefix }: { api: DocFormApi; idPrefi
           id={`${idPrefix}-tags`}
           label="Tags"
           {...kvHandlers(api, 'tags')}
-          description="Classic compute only (serverless tags come from the compute policy). Values render as written."
+          helpPath={['tags']}
           issue={api.issueAt(['tags'])?.message}
         />
       </SectionCard>

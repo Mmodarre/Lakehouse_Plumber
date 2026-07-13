@@ -77,7 +77,6 @@ export const writeMaterializedViewSpec: ActionSubTypeSpec = {
           widget: 'stringOrList',
           monospace: true,
           placeholder: 'v_customer_orders',
-          help: 'View(s) to read when no SQL is given.',
         },
         {
           path: [...WT, 'sql'],
@@ -92,7 +91,6 @@ export const writeMaterializedViewSpec: ActionSubTypeSpec = {
           widget: 'text',
           monospace: true,
           placeholder: 'sql/customer_summary.sql',
-          help: 'Path to a .sql file (relative to project root).',
         },
       ],
     },
@@ -105,7 +103,6 @@ export const writeMaterializedViewSpec: ActionSubTypeSpec = {
           label: 'Table schema',
           widget: 'textarea',
           monospace: true,
-          help: 'Inline DDL or a schema-file path.',
         },
         { path: [...WT, 'row_filter'], label: 'Row filter', widget: 'text', monospace: true },
         {
@@ -119,7 +116,6 @@ export const writeMaterializedViewSpec: ActionSubTypeSpec = {
           label: 'Refresh schedule',
           widget: 'text',
           monospace: true,
-          help: 'Cron / schedule string.',
         },
         {
           path: [...WT, 'refresh_policy'],
@@ -127,7 +123,6 @@ export const writeMaterializedViewSpec: ActionSubTypeSpec = {
           widget: 'enum',
           options: ['auto', 'incremental', 'incremental_strict', 'full'],
           unsetLabel: 'Not set',
-          help: 'Materialized-view refresh strategy.',
         },
         {
           path: [...WT, 'partition_columns'],
@@ -140,27 +135,23 @@ export const writeMaterializedViewSpec: ActionSubTypeSpec = {
           label: 'Cluster columns',
           widget: 'stringList',
           monospace: true,
-          help: 'Liquid clustering columns. Exclusive with auto clustering.',
         },
         {
           path: [...WT, 'cluster_by_auto'],
           label: 'Auto clustering',
           widget: 'bool',
           defaultValue: false,
-          help: 'Auto liquid clustering. Exclusive with cluster columns.',
         },
         { path: [...WT, 'path'], label: 'Table path', widget: 'text', monospace: true },
         {
           path: [...WT, 'table_properties'],
           label: 'Table properties',
           widget: 'keyValue',
-          help: 'delta.* and other table properties.',
         },
         {
           path: [...WT, 'tags'],
           label: 'Tags',
           widget: 'keyValue',
-          help: 'UC tags; applied during the run via the tagging hook.',
         },
         { path: [...WT, 'spark_conf'], label: 'Spark conf', widget: 'keyValue' },
       ],

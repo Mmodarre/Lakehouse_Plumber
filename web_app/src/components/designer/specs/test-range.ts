@@ -45,7 +45,6 @@ export const testRangeSpec: ActionSubTypeSpec = {
           widget: 'text',
           monospace: true,
           placeholder: '0',
-          help: 'Lower bound (number, date, or token).',
         },
         {
           path: ['max_value'],
@@ -53,7 +52,6 @@ export const testRangeSpec: ActionSubTypeSpec = {
           widget: 'text',
           monospace: true,
           placeholder: '1000000',
-          help: 'Upper bound (number, date, or token).',
         },
         {
           path: ['on_violation'],
@@ -61,7 +59,6 @@ export const testRangeSpec: ActionSubTypeSpec = {
           widget: 'enum',
           options: ['fail', 'warn', 'drop'],
           enumDefault: 'fail',
-          help: 'Action when the check fails (default fail).',
         },
       ],
     },

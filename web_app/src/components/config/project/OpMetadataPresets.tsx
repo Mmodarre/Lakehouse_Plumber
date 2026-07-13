@@ -69,7 +69,7 @@ function PresetEditor({
           <StringListEditor
             id={`om-preset-${name}-columns`}
             label="Columns"
-            description="Column names this preset selects — each must be defined above."
+            helpPath={[...base, 'columns']}
             value={columns}
             monospace
             allowEmpty

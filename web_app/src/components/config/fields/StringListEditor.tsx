@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import type { SchemaPath } from '@/lib/schema-help'
 import { DraftInput } from './DraftInput'
+import { FieldLabel } from './FieldLabel'
 import { displayString, issueId } from './fieldSupport'
 
 // ── StringListEditor — ordered list of strings ───────────────
@@ -33,6 +34,10 @@ export interface StringListEditorProps {
   onDeleteKey: () => void
   /** Keep `[]` in the file when the last row is removed (default: delete the key). */
   allowEmpty?: boolean
+  /** Schema path the (i) tooltip resolves help from. */
+  helpPath?: SchemaPath
+  /** Explicit help override; wins over helpPath. */
+  help?: string
   description?: string
   /** Placeholder for the add-item input. */
   placeholder?: string
@@ -53,6 +58,8 @@ export function StringListEditor({
   onRemoveItem,
   onDeleteKey,
   allowEmpty = false,
+  helpPath,
+  help,
   description,
   placeholder,
   monospace = false,
@@ -76,10 +83,12 @@ export function StringListEditor({
 
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={`${id}-add`} className="text-xs">
-        {label}
-      </Label>
-      {description && <p className="text-2xs text-muted-foreground">{description}</p>}
+      <FieldLabel
+        htmlFor={`${id}-add`}
+        label={label}
+        helpPath={helpPath}
+        help={help ?? description}
+      />
 
       {items === undefined ? (
         <p className="text-2xs text-muted-foreground">Not set</p>

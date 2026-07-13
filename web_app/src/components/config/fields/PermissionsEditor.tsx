@@ -9,7 +9,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import type { SchemaPath } from '@/lib/schema-help'
 import { DraftInput } from './DraftInput'
+import { FieldLabel } from './FieldLabel'
 import { displayString } from './fieldSupport'
 
 // ── PermissionsEditor — permissions[] entries ────────────────
@@ -41,6 +43,13 @@ const IDENTITY_LABELS: Record<(typeof IDENTITY_KEYS)[number], string> = {
 export interface PermissionsEditorProps {
   /** DOM id prefix. */
   id: string
+  /** Optional section heading; when set it renders a FieldLabel that can carry
+   *  an (i) help tooltip. Omit to keep the parent SectionCard as the heading. */
+  label?: string
+  /** Schema path the (i) tooltip resolves help from (only with `label`). */
+  helpPath?: SchemaPath
+  /** Explicit help override; wins over helpPath (only with `label`). */
+  help?: string
   /** Raw value of the permissions key; `undefined` = key absent. */
   value: unknown
   /** Worst validation issue at a path RELATIVE to the permissions key. */
@@ -199,6 +208,9 @@ function PermissionEntry({
 
 export function PermissionsEditor({
   id,
+  label,
+  helpPath,
+  help,
   value,
   issueAt,
   set,
@@ -211,6 +223,9 @@ export function PermissionsEditor({
 
   return (
     <div className="space-y-3">
+      {label !== undefined && (
+        <FieldLabel label={label} helpPath={helpPath} help={help} />
+      )}
       {keyIssue && (
         <p role="alert" className="text-2xs text-destructive">
           {keyIssue.message}

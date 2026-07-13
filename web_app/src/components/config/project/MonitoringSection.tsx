@@ -18,14 +18,14 @@ import { issueText, issuesAtExactly } from './projectFormSupport'
 
 const BASE = ['monitoring'] as const
 
-/** [key, label, description?, placeholder?] for the plain string fields. */
-const TEXT_FIELDS: [string, string, string?, string?][] = [
-  ['pipeline_name', 'Pipeline name', undefined, 'default: <project>_event_log_monitoring'],
-  ['catalog', 'Catalog', undefined, 'default: event_log catalog'],
-  ['schema', 'Schema', undefined, 'default: event_log schema'],
-  ['streaming_table', 'Streaming table', undefined, 'default: all_pipelines_event_log'],
-  ['checkpoint_path', 'Checkpoint path', 'Required while monitoring is enabled.'],
-  ['job_config_path', 'Job config path', 'Required while monitoring is enabled.'],
+/** [key, label, placeholder?] for the plain string fields. */
+const TEXT_FIELDS: [string, string, string?][] = [
+  ['pipeline_name', 'Pipeline name', 'default: <project>_event_log_monitoring'],
+  ['catalog', 'Catalog', 'default: event_log catalog'],
+  ['schema', 'Schema', 'default: event_log schema'],
+  ['streaming_table', 'Streaming table', 'default: all_pipelines_event_log'],
+  ['checkpoint_path', 'Checkpoint path'],
+  ['job_config_path', 'Job config path'],
 ]
 
 function MaterializedViewRow({
@@ -77,7 +77,7 @@ function MaterializedViewRow({
         onUnset={() => form.del([...path, 'sql'])}
         monospace
         multiline
-        description="Inline SQL body — leave empty when using a SQL file path."
+        helpPath={[...path, 'sql']}
       />
       <OptionalTextField
         id={`monitoring-mv-${index}-sql-path`}
@@ -86,7 +86,7 @@ function MaterializedViewRow({
         onSet={(v) => form.set([...path, 'sql_path'], v)}
         onUnset={() => form.del([...path, 'sql_path'])}
         monospace
-        description="Project-relative .sql file — mutually exclusive with inline SQL."
+        helpPath={[...path, 'sql_path']}
       />
     </div>
   )
@@ -128,7 +128,7 @@ export function MonitoringSection({ form }: { form: ProjectFormApi }) {
             onReset={() => form.del([...BASE, 'enabled'])}
             issue={issueText(form.issues, [...BASE, 'enabled'])?.message}
           />
-          {TEXT_FIELDS.map(([key, label, description, placeholder]) => (
+          {TEXT_FIELDS.map(([key, label, placeholder]) => (
             <OptionalTextField
               key={key}
               id={`monitoring-${key}`}
@@ -137,7 +137,7 @@ export function MonitoringSection({ form }: { form: ProjectFormApi }) {
               onSet={(v) => form.setField([...BASE], key, v)}
               onUnset={() => form.del([...BASE, key])}
               monospace
-              description={description}
+              helpPath={[...BASE, key]}
               placeholder={placeholder}
               issue={issueText(form.issues, [...BASE, key])?.message}
             />
@@ -156,7 +156,7 @@ export function MonitoringSection({ form }: { form: ProjectFormApi }) {
           <BoolSwitch
             id="monitoring-enable-job-monitoring"
             label="Enable job monitoring"
-            description="Also monitor orchestration job runs, not just pipelines."
+            helpPath={[...BASE, 'enable_job_monitoring']}
             value={
               'enable_job_monitoring' in section
                 ? parseLaxBool(section.enable_job_monitoring)

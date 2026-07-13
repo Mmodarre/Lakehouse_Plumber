@@ -2,9 +2,10 @@
 // template handle whose `commit` applies the mutator and re-derives the
 // parameters — the same write-through the designer uses, minus the network.
 
-import { useReducer } from 'react'
+import { useReducer, type ReactNode } from 'react'
 import { describe, expect, it } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import {
   parseFlowgroupFile,
   readTemplateParams,
@@ -47,7 +48,14 @@ function renderPanel(yaml: string, readOnly = false) {
       />
     )
   }
-  render(<Harness />)
+  // DesignerParametersPanel renders config field primitives whose "(i)" help
+  // icons need a TooltipProvider ancestor (production has the global one in
+  // main.tsx). No SchemaKindProvider here, so no QueryClient is needed.
+  render(<Harness />, {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <TooltipProvider delayDuration={0}>{children}</TooltipProvider>
+    ),
+  })
   return { file }
 }
 

@@ -30,7 +30,7 @@ import jsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker'
 // `yaml.worker` subpath resolves directly to its `yaml.worker.js` file).
 import yamlWorker from 'monaco-yaml/yaml.worker?worker'
 
-import { fetchSchema, type SchemaKind } from '../api/schemas'
+import { loadSchemaCached, type SchemaKind } from '../api/schemas'
 
 self.MonacoEnvironment = {
   getWorker(_workerId: string, label: string) {
@@ -139,7 +139,7 @@ export async function setupMonacoYaml(): Promise<void> {
     const { configureMonacoYaml } = await import('monaco-yaml')
 
     const kinds = Object.keys(SCHEMA_FILE_MATCH) as SchemaKind[]
-    const settled = await Promise.allSettled(kinds.map((kind) => fetchSchema(kind)))
+    const settled = await Promise.allSettled(kinds.map((kind) => loadSchemaCached(kind)))
 
     const schemas = settled.flatMap((result, i) => {
       const kind = kinds[i]

@@ -38,7 +38,6 @@ export const testReferentialIntegritySpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: '${catalog}.${silver_schema}.dim_customer',
-          help: 'Fully-qualified three-part table name.',
         },
         {
           path: ['source_columns'],
@@ -55,7 +54,6 @@ export const testReferentialIntegritySpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'customer_id',
-          help: 'Joined positionally to source columns (equal length).',
         },
         {
           path: ['on_violation'],
@@ -63,7 +61,6 @@ export const testReferentialIntegritySpec: ActionSubTypeSpec = {
           widget: 'enum',
           options: ['fail', 'warn', 'drop'],
           enumDefault: 'fail',
-          help: 'Action when the check fails (default fail).',
         },
       ],
     },

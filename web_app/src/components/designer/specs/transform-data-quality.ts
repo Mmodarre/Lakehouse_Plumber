@@ -36,7 +36,6 @@ export const transformDataQualitySpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'v_orders',
-          help: 'Single input view.',
         },
         {
           path: ['expectations_file'],
@@ -45,7 +44,6 @@ export const transformDataQualitySpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'expectations/orders.yaml',
-          help: 'YAML/JSON rules file; each rule declares its own action (warn/drop/fail).',
         },
         {
           path: ['mode'],
@@ -53,7 +51,6 @@ export const transformDataQualitySpec: ActionSubTypeSpec = {
           widget: 'enum',
           options: ['dqe', 'quarantine'],
           enumDefault: 'dqe',
-          help: 'dqe applies expectations inline; quarantine routes violations to a DLQ.',
         },
         {
           path: ['readMode'],
@@ -61,7 +58,6 @@ export const transformDataQualitySpec: ActionSubTypeSpec = {
           widget: 'enum',
           options: ['stream'],
           enumDefault: 'stream',
-          help: 'Data quality is stream-only; batch is rejected.',
         },
       ],
     },
@@ -77,7 +73,6 @@ export const transformDataQualitySpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: '${catalog}.${schema}.orders_dlq',
-          help: 'Fully qualified DLQ table (outbox is <dlq_table>_outbox).',
         },
         {
           path: ['quarantine', 'source_table'],
@@ -86,7 +81,6 @@ export const transformDataQualitySpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: '${catalog}.${schema}.orders',
-          help: 'Fully qualified source table for DLQ tagging.',
         },
       ],
     },
@@ -100,7 +94,6 @@ export const transformDataQualitySpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'v_orders_validated',
-          help: 'View this transform publishes for downstream actions.',
         },
       ],
     },

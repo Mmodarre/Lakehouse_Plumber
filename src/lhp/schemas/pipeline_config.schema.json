@@ -62,13 +62,13 @@
                 "serverless": {
                     "type": "boolean",
                     "default": true,
-                    "description": "Use serverless compute. When false, a clusters configuration is required."
+                    "description": "Databricks-managed compute. When false, a clusters configuration is required."
                 },
                 "edition": {
                     "type": "string",
                     "enum": ["CORE", "PRO", "ADVANCED"],
                     "default": "ADVANCED",
-                    "description": "Pipeline edition (only meaningful when serverless: false)"
+                    "description": "Rendered into the bundle resource only when serverless is off."
                 },
                 "channel": {
                     "type": "string",
@@ -79,13 +79,13 @@
                 "continuous": {
                     "type": "boolean",
                     "default": false,
-                    "description": "Continuous (streaming) mode; false runs the pipeline in triggered mode"
+                    "description": "Streaming mode — the pipeline runs continuously."
                 },
                 "packaging": {
                     "type": "string",
                     "enum": ["wheel", "source"],
                     "default": "source",
-                    "description": "How generated code is deployed: 'source' (notebooks/files) or 'wheel' (built wheel; requires wheel.artifact_volume in lhp.yaml)"
+                    "description": "LHP-internal: how pipeline code ships (source = notebooks/files; wheel requires wheel.artifact_volume). Never rendered into the bundle resource."
                 },
                 "catalog": {
                     "type": "string",
@@ -97,7 +97,7 @@
                 },
                 "configuration": {
                     "type": "object",
-                    "description": "Arbitrary pipeline-level Spark/pipeline configuration entries. All values must be strings (quote them).",
+                    "description": "All values must be strings — the loader rejects anything else.",
                     "additionalProperties": {
                         "type": "string"
                     }
@@ -167,17 +167,26 @@
                     "description": "Email notification blocks (email_recipients + alerts). Passed through to the generated bundle resource; replaces (not appends to) any inherited value.",
                     "items": {
                         "type": "object",
+                        "properties": {
+                            "alerts": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                },
+                                "description": "e.g. on-update-success, on-update-failure, on-update-fatal-failure, on-flow-failure"
+                            }
+                        },
                         "additionalProperties": true
                     }
                 },
                 "tags": {
                     "type": "object",
-                    "description": "Custom tags for cost tracking and organization (non-serverless pipelines). Passed through to the generated bundle resource.",
+                    "description": "Classic compute only (serverless tags come from the compute policy). Values render as written.",
                     "additionalProperties": true
                 },
                 "photon": {
                     "type": "boolean",
-                    "description": "Enable the Photon engine (only meaningful when serverless: false). Passed through to the generated bundle resource."
+                    "description": "Photon engine — classic compute only (ignored when serverless)."
                 },
                 "event_log": {
                     "description": "Per-pipeline event log override. An object fully replaces the lhp.yaml event_log setting for this pipeline; 'false' disables event logging for this pipeline only.",

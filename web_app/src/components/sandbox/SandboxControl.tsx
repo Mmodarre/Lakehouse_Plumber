@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Beaker } from 'lucide-react'
 import { useSandbox } from '../../hooks/useSandbox'
 import { useUIStore } from '../../store/uiStore'
+import { FieldHelp } from '../common/FieldHelp'
 import { Switch } from '../ui/switch'
 import { SandboxPickerDialog } from './SandboxPickerDialog'
 import { cn } from '../../lib/utils'
@@ -68,6 +69,11 @@ export function SandboxControl() {
           aria-label={enabled ? 'Disable sandbox mode' : 'Enable sandbox mode'}
         />
       </label>
+
+      <FieldHelp
+        text="Developer-sandbox mode: generate only your scoped pipelines, with produced tables namespaced to you so parallel developers don't collide."
+        label="Sandbox"
+      />
 
       {pill && (
         <button

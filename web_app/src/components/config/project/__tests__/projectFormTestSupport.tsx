@@ -5,6 +5,7 @@ import { expect, vi } from 'vitest'
 import type { ReactNode } from 'react'
 import { render, waitFor, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { useConfigFile } from '../../../../hooks/useConfigFile'
 import { ProjectConfigForm } from '../ProjectConfigForm'
 
@@ -54,9 +55,25 @@ function Harness() {
 }
 
 export async function renderProjectForm(): Promise<void> {
+  // The Radix tooltip Arrow (now rendered by FieldLabel's (i) help icon)
+  // measures itself via ResizeObserver, which jsdom lacks — same stub the
+  // pipeline/job harnesses install via installRadixStubs.
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  )
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  // The form's SchemaKindProvider calls useQuery(['schema','project']);
+  // seed it so no real GET /api/schemas fires (staleTime: Infinity → fresh).
+  queryClient.setQueryData(['schema', 'project'], {})
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider delayDuration={0}>{children}</TooltipProvider>
+    </QueryClientProvider>
   )
   render(<Harness />, { wrapper })
   // The SaveBar is always present; the form body appears once loaded —

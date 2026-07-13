@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/badge'
+import type { SchemaPath } from '@/lib/schema-help'
 import { DraftInput } from '@/components/config/fields/DraftInput'
 import { FieldChrome } from '@/components/config/fields/FieldChrome'
 import { issueId } from '@/components/config/fields/fieldSupport'
@@ -23,6 +24,9 @@ export interface TokenFieldProps {
   value: string
   onSet: (value: string) => void
   onUnset: () => void
+  /** Schema path the (i) tooltip resolves help from. */
+  helpPath?: SchemaPath
+  /** Explicit help override; wins over helpPath. */
   help?: string
   disabled?: boolean
   /** Token hue/semantics — see the module header. Default 'substitution'. */
@@ -35,6 +39,7 @@ export function TokenField({
   value,
   onSet,
   onUnset,
+  helpPath,
   help,
   disabled,
   variant = 'substitution',
@@ -50,7 +55,8 @@ export function TokenField({
     <FieldChrome
       id={id}
       label={label}
-      description={help}
+      helpPath={helpPath}
+      help={help}
       // Substitution keeps the amber advisory line; a template parameter is
       // normal in a template, so its note rides the neutral description slot.
       issue={param ? undefined : note}

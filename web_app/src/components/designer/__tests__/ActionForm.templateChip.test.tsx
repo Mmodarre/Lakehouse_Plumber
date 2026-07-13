@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { listActions, parseFlowgroupFile, selectFlowgroup } from '@/lib/flowgroup-doc'
 import { ActionForm } from '../ActionForm'
+import { flowgroupProviders } from './actionFormTestSupport'
 import type { ActionSubTypeSpec } from '../specs/types'
 
 const SPEC: ActionSubTypeSpec = {
@@ -40,6 +41,7 @@ actions:
       onRenamed={() => {}}
       onEditCode={() => {}}
     />,
+    { wrapper: flowgroupProviders() },
   )
 }
 

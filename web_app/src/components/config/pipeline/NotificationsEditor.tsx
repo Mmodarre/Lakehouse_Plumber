@@ -87,7 +87,7 @@ function NotificationEntry({
           {...listHandlers('alerts')}
           placeholder={ALERT_PLACEHOLDER}
           monospace
-          description="e.g. on-update-success, on-update-failure, on-update-fatal-failure, on-flow-failure"
+          helpPath={['notifications', index, 'alerts']}
         />
         {unknownKeys.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5">

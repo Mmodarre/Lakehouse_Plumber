@@ -27,10 +27,10 @@ function TestReportingCard({ form }: { form: ProjectFormApi }) {
   const section = isPlainObject(raw) ? raw : {}
   const broken = present && !isPlainObject(raw)
 
-  const fields: [string, string, string?][] = [
-    ['module_path', 'Module path', 'Python module containing the report hook (required).'],
-    ['function_name', 'Function name', 'Hook function inside the module (required).'],
-    ['config_file', 'Config file', 'Optional YAML passed to the hook.'],
+  const fields: [string, string][] = [
+    ['module_path', 'Module path'],
+    ['function_name', 'Function name'],
+    ['config_file', 'Config file'],
   ]
 
   return (
@@ -46,7 +46,7 @@ function TestReportingCard({ form }: { form: ProjectFormApi }) {
     >
       <SectionIssues issues={issuesAtExactly(form.issues, [...TR_BASE])} />
       {!broken &&
-        fields.map(([key, label, description]) => (
+        fields.map(([key, label]) => (
           <OptionalTextField
             key={key}
             id={`test-reporting-${key}`}
@@ -55,7 +55,7 @@ function TestReportingCard({ form }: { form: ProjectFormApi }) {
             onSet={(v) => form.setField([...TR_BASE], key, v)}
             onUnset={() => form.del([...TR_BASE, key])}
             monospace
-            description={description}
+            helpPath={[...TR_BASE, key]}
             issue={issueText(form.issues, [...TR_BASE, key])?.message}
           />
         ))}
@@ -91,7 +91,7 @@ function WheelCard({ form }: { form: ProjectFormApi }) {
           onSet={(v) => form.setField([...WHEEL_BASE], 'artifact_volume', v)}
           onUnset={() => form.del([...WHEEL_BASE, 'artifact_volume'])}
           monospace
-          description="Unity Catalog volume path the built wheel is uploaded to."
+          helpPath={['wheel', 'artifact_volume']}
           issue={issueText(form.issues, [...WHEEL_BASE, 'artifact_volume'])?.message}
         />
       )}

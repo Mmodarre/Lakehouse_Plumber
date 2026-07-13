@@ -26,7 +26,6 @@ export const transformTempTableSpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'v_orders',
-          help: 'Input view to materialize.',
         },
         {
           path: ['sql'],
@@ -34,7 +33,6 @@ export const transformTempTableSpec: ActionSubTypeSpec = {
           widget: 'textarea',
           monospace: true,
           placeholder: 'SELECT * FROM {source} WHERE status = ...',
-          help: 'Optional. {source} is replaced with the source view; use stream({source}) with readMode: stream.',
         },
         {
           path: ['readMode'],
@@ -50,7 +48,6 @@ export const transformTempTableSpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'staging_orders',
-          help: 'Name of the intermediate temp table this transform publishes.',
         },
       ],
     },

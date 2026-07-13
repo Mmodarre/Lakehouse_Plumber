@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import './index.css'
 import App from './App'
+import { TooltipProvider } from './components/ui/tooltip'
 import { bootstrapToken } from './lib/session-token'
 import { initTheme } from './store/themeStore'
 
@@ -27,7 +28,9 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <TooltipProvider delayDuration={300}>
+        <App />
+      </TooltipProvider>
     </QueryClientProvider>
   </StrictMode>,
 )

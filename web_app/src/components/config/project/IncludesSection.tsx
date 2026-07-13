@@ -8,10 +8,10 @@ import { issueText } from './projectFormSupport'
 // deletes the key: an absent list and an empty list mean the same thing
 // to the loader, and absence is the pristine form.
 
-const LISTS: [key: string, label: string, description: string][] = [
-  ['include', 'Include patterns', 'Flowgroup YAML files to include, relative to pipelines/.'],
-  ['blueprint_include', 'Blueprint include patterns', 'Blueprint definition files to include.'],
-  ['instance_include', 'Instance include patterns', 'Blueprint instance files to include.'],
+const LISTS: [key: string, label: string][] = [
+  ['include', 'Include patterns'],
+  ['blueprint_include', 'Blueprint include patterns'],
+  ['instance_include', 'Instance include patterns'],
 ]
 
 export function IncludesSection({ form }: { form: ProjectFormApi }) {
@@ -20,7 +20,7 @@ export function IncludesSection({ form }: { form: ProjectFormApi }) {
       title="Includes"
       description="Glob patterns selecting which YAML files each generate run reads."
     >
-      {LISTS.map(([key, label, description]) => {
+      {LISTS.map(([key, label]) => {
         const raw = form.doc[key]
         const value = Array.isArray(raw) ? raw : undefined
         return (
@@ -28,7 +28,7 @@ export function IncludesSection({ form }: { form: ProjectFormApi }) {
             key={key}
             id={`project-${key}`}
             label={label}
-            description={description}
+            helpPath={[key]}
             value={key in form.doc ? value : undefined}
             monospace
             placeholder="e.g. bronze_*.yaml"
