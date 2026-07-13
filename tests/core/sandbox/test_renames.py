@@ -169,7 +169,7 @@ class TestMatchRenamedTable:
         key = match_renamed_table("SILVER.Orders", renames)
 
         assert key is not None
-        assert renames.table_producers[key] == ["fg_curate.wr_orders"]
+        assert renames.table_producers[key] == ["p_curate.fg_curate.wr_orders"]
 
 
 @pytest.mark.unit
