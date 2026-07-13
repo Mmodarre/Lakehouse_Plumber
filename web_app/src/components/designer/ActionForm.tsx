@@ -19,6 +19,7 @@ import { OptionalNumberField } from '@/components/config/fields/OptionalNumberFi
 import { OptionalTextField } from '@/components/config/fields/OptionalTextField'
 import { StringListEditor } from '@/components/config/fields/StringListEditor'
 import { FieldChrome } from '@/components/config/fields/FieldChrome'
+import { SchemaKindProvider } from '@/components/common/SchemaKindContext'
 import { hasTemplateParam, isPresent, isSubstitutionToken, readPath } from './specs/helpers'
 import type { ActionSubTypeSpec, FieldSpec } from './specs/types'
 import {
@@ -145,48 +146,50 @@ export function ActionForm({
         )}
       </div>
 
-      <div className="flex flex-col gap-4 px-4 py-4">
-        <OptionalTextField
-          id="af-description"
-          label="Description"
-          value={raw.description}
-          onSet={(value) => commit((doc) => setActionField(doc, actionId, ['description'], value))}
-          onUnset={() => commit((doc) => deleteActionField(doc, actionId, ['description']))}
-          disabled={readOnly}
-        />
+      <SchemaKindProvider kind="flowgroup">
+        <div className="flex flex-col gap-4 px-4 py-4">
+          <OptionalTextField
+            id="af-description"
+            label="Description"
+            value={raw.description}
+            onSet={(value) => commit((doc) => setActionField(doc, actionId, ['description'], value))}
+            onUnset={() => commit((doc) => deleteActionField(doc, actionId, ['description']))}
+            disabled={readOnly}
+          />
 
-        {groups.map((group, gi) => {
-          const fields = group.fields.filter((field) => fieldVisible(field, raw))
-          if (fields.length === 0) return null
-          return (
-            <section key={group.title ?? gi} className="flex flex-col gap-3">
-              {group.title && (
-                <div className="border-t border-border pt-3">
-                  <div className="text-2xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
-                    {group.title}
+          {groups.map((group, gi) => {
+            const fields = group.fields.filter((field) => fieldVisible(field, raw))
+            if (fields.length === 0) return null
+            return (
+              <section key={group.title ?? gi} className="flex flex-col gap-3">
+                {group.title && (
+                  <div className="border-t border-border pt-3">
+                    <div className="text-2xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+                      {group.title}
+                    </div>
+                    {group.description && (
+                      <p className="mt-0.5 text-2xs text-muted-foreground">{group.description}</p>
+                    )}
                   </div>
-                  {group.description && (
-                    <p className="mt-0.5 text-2xs text-muted-foreground">{group.description}</p>
-                  )}
-                </div>
-              )}
-              {fields.map((field) => (
-                <FieldRenderer
-                  key={pathKey(field.path)}
-                  field={field}
-                  raw={raw}
-                  actionId={actionId}
-                  commit={commit}
-                  issue={issues.get(pathKey(field.path))}
-                  disabled={readOnly}
-                  saving={saving}
-                  onEditCode={onEditCode}
-                />
-              ))}
-            </section>
-          )
-        })}
-      </div>
+                )}
+                {fields.map((field) => (
+                  <FieldRenderer
+                    key={pathKey(field.path)}
+                    field={field}
+                    raw={raw}
+                    actionId={actionId}
+                    commit={commit}
+                    issue={issues.get(pathKey(field.path))}
+                    disabled={readOnly}
+                    saving={saving}
+                    onEditCode={onEditCode}
+                  />
+                ))}
+              </section>
+            )
+          })}
+        </div>
+      </SchemaKindProvider>
     </div>
   )
 }
@@ -247,7 +250,7 @@ function FieldRenderer({
       id={id}
       label={field.label}
       value={String(value)}
-      help={field.help}
+      helpPath={field.path}
       onSet={setKey}
       onUnset={delKey}
       disabled={disabled}
@@ -267,7 +270,7 @@ function FieldRenderer({
           value={value}
           onSet={setKey}
           onUnset={delKey}
-          description={field.help}
+          helpPath={field.path}
           placeholder={field.placeholder}
           monospace={field.monospace}
           multiline={field.widget === 'textarea'}
@@ -288,7 +291,7 @@ function FieldRenderer({
           max={field.max}
           onSet={setKey}
           onUnset={delKey}
-          description={field.help}
+          helpPath={field.path}
           placeholder={field.placeholder}
           issue={issue}
           disabled={disabled}
@@ -307,7 +310,7 @@ function FieldRenderer({
           defaultValue={field.defaultValue ?? false}
           onSet={setKey}
           onReset={delKey}
-          description={field.help}
+          helpPath={field.path}
           issue={issue}
           disabled={disabled}
         />
@@ -327,7 +330,7 @@ function FieldRenderer({
             else setKey(coerceValue(field, next))
           }}
           onUnset={field.unsetLabel ? delKey : undefined}
-          description={field.help}
+          helpPath={field.path}
           issue={issue}
           disabled={disabled}
         />
@@ -349,7 +352,7 @@ function FieldRenderer({
           value={value}
           onSet={setKey}
           onUnset={delKey}
-          description={field.help}
+          helpPath={field.path}
           placeholder={field.placeholder}
           monospace={field.monospace}
           issue={issue}
@@ -380,7 +383,7 @@ function FieldRenderer({
           }
           onDeleteKey={delKey}
           allowEmpty={field.allowEmpty}
-          description={field.help}
+          helpPath={field.path}
           issue={issue}
           issueSeverity="warning"
           disabled={disabled || saving}
@@ -399,7 +402,7 @@ function FieldRenderer({
 
   function yamlNote(): ReactNode {
     return (
-      <FieldChrome id={id} label={field.label} description={field.help} issue={issue} issueSeverity="warning">
+      <FieldChrome id={id} label={field.label} helpPath={field.path} issue={issue} issueSeverity="warning">
         <p className="rounded-sm border border-dashed border-border px-2 py-1.5 text-2xs text-muted-foreground">
           {value === undefined ? 'Not set' : 'Value'} — edit this in the YAML for now.
         </p>
@@ -426,7 +429,7 @@ function FieldRenderer({
         }
         onDeleteKey={delKey}
         allowEmpty={field.allowEmpty}
-        description={field.help}
+        helpPath={field.path}
         placeholder={field.placeholder}
         monospace={field.monospace}
         issue={issue}
@@ -452,7 +455,7 @@ function FieldRenderer({
     const removeRow = (index: number) =>
       commit((doc) => removeActionListItem(doc, actionId, field.path, index))
     return (
-      <FieldChrome id={id} label={field.label} description={field.help} issue={issue} issueSeverity="warning">
+      <FieldChrome id={id} label={field.label} helpPath={field.path} issue={issue} issueSeverity="warning">
         {rows.length === 0 ? (
           <p className="text-2xs text-muted-foreground">No entries yet.</p>
         ) : (

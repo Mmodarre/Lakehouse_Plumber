@@ -12,7 +12,7 @@
         "version": {
             "type": "string",
             "default": "1.0",
-            "description": "Version of the project"
+            "description": "Quote it in YAML — 1.0 unquoted parses as a number."
         },
         "description": {
             "type": "string",
@@ -28,7 +28,7 @@
         },
         "include": {
             "type": "array",
-            "description": "List of glob patterns to include when processing pipeline files",
+            "description": "Flowgroup YAML files to include, relative to pipelines/.",
             "items": {
                 "type": "string",
                 "description": "Glob pattern for files to include (e.g., 'bronze_*.yaml', 'silver/**/*.yaml')"
@@ -41,7 +41,7 @@
         },
         "blueprint_include": {
             "type": "array",
-            "description": "List of glob patterns to include when discovering blueprint files (default: ['blueprints/**/*.yaml'])",
+            "description": "Blueprint definition files to include.",
             "items": {
                 "type": "string",
                 "description": "Glob pattern for blueprint files to include"
@@ -53,7 +53,7 @@
         },
         "instance_include": {
             "type": "array",
-            "description": "List of glob patterns to include when discovering blueprint instance files (default: ['pipelines/**/*.yaml']). Instance files normally live alongside hand-written flowgroups under pipelines/<system>/<layer>/; the BlueprintDiscoverer routes by content shape, so overlapping patterns with 'include' are safe.",
+            "description": "Blueprint instance files to include (default ['pipelines/**/*.yaml']); routed by content shape, so overlapping with include is safe.",
             "items": {
                 "type": "string",
                 "description": "Glob pattern for instance files to include"
@@ -65,7 +65,7 @@
         },
         "required_lhp_version": {
             "type": "string",
-            "description": "Required LakehousePlumber version range (e.g., '>=0.4.1,<0.5.0')",
+            "description": "PEP 440 specifier the CLI enforces before generating (e.g. >=0.9,<1.0).",
             "examples": [
                 ">=0.4.1,<0.5.0",
                 "~=0.4.1",
@@ -103,14 +103,14 @@
                                             "enum": ["streaming_table", "materialized_view","view"]
                                         },
                                         "default": ["streaming_table", "materialized_view"],
-                                        "description": "Which write target types this column applies to"
+                                        "description": "Target types the column is added to (default: streaming_table, materialized_view)."
                                     },
                                     "additional_imports": {
                                         "type": "array",
                                         "items": {
                                             "type": "string"
                                         },
-                                        "description": "Additional imports needed for this column"
+                                        "description": "Import lines the expression needs in the generated file."
                                     },
                                     "enabled": {
                                         "type": "boolean",
@@ -142,7 +142,7 @@
                                         "items": {
                                             "type": "string"
                                         },
-                                        "description": "List of column names in this preset"
+                                        "description": "Column names this preset selects — each must be defined above."
                                     },
                                     "description": {
                                         "type": "string",
@@ -156,7 +156,7 @@
                 },
                 "defaults": {
                     "type": "object",
-                    "description": "Default operational metadata settings",
+                    "description": "Default metadata selection applied when a flowgroup does not choose.",
                     "additionalProperties": true
                 }
             }
@@ -172,11 +172,11 @@
                 },
                 "catalog": {
                     "type": "string",
-                    "description": "Catalog for event log tables (supports LHP substitution tokens)"
+                    "description": "Catalog for event log tables (supports LHP substitution tokens); required while event_log is enabled."
                 },
                 "schema": {
                     "type": "string",
-                    "description": "Schema for event log tables (supports LHP substitution tokens)"
+                    "description": "Schema for event log tables (supports LHP substitution tokens); required while event_log is enabled."
                 },
                 "name_prefix": {
                     "type": "string",
@@ -218,11 +218,11 @@
                 },
                 "checkpoint_path": {
                     "type": "string",
-                    "description": "Base path for streaming checkpoints. Each pipeline gets a subdirectory: {checkpoint_path}/{pipeline_name}/"
+                    "description": "Base path for streaming checkpoints ({checkpoint_path}/{pipeline_name}/ per pipeline). Required while monitoring is enabled."
                 },
                 "job_config_path": {
                     "type": "string",
-                    "description": "Relative path (from project root) to the dedicated monitoring job config YAML. Required when monitoring.enabled is true (enforced at validation time)."
+                    "description": "Relative path to the dedicated monitoring job config YAML; required while monitoring is enabled."
                 },
                 "max_concurrent_streams": {
                     "type": "integer",
@@ -244,11 +244,11 @@
                             },
                             "sql": {
                                 "type": "string",
-                                "description": "Inline SQL for the materialized view"
+                                "description": "Inline SQL body — leave empty when using a SQL file path."
                             },
                             "sql_path": {
                                 "type": "string",
-                                "description": "Path to external SQL file for the materialized view"
+                                "description": "Project-relative .sql file — mutually exclusive with inline SQL."
                             }
                         }
                     }
@@ -256,7 +256,7 @@
                 "enable_job_monitoring": {
                     "type": "boolean",
                     "default": false,
-                    "description": "Enable job monitoring via Databricks SDK (adds jobs_stats materialized view)"
+                    "description": "Also monitor orchestration job runs, not just pipelines — via Databricks SDK, adds a jobs_stats materialized view."
                 }
             }
         },
@@ -272,7 +272,7 @@
                 "remove_undeclared_tags": {
                     "type": "boolean",
                     "default": false,
-                    "description": "When true, reconcile to the declared tag set: existing tags whose keys are not declared in LHP are deleted from managed entities (can remove tags set by other tools). When false (default), tagging is additive only."
+                    "description": "Also delete tags that exist in UC but not in the YAML (can remove tags set by other tools)."
                 },
                 "tag_update_concurrency": {
                     "type": "integer",
@@ -290,15 +290,15 @@
             "properties": {
                 "module_path": {
                     "type": "string",
-                    "description": "Path to the provider Python file (e.g. src/my_publisher.py)"
+                    "description": "Python module containing the report hook (required)."
                 },
                 "function_name": {
                     "type": "string",
-                    "description": "Name of the callable inside module_path that publishes results"
+                    "description": "Hook function inside the module (required)."
                 },
                 "config_file": {
                     "type": "string",
-                    "description": "Optional path to a configuration file passed to the provider"
+                    "description": "Optional YAML passed to the hook."
                 }
             }
         },
@@ -308,7 +308,7 @@
             "properties": {
                 "artifact_volume": {
                     "type": "string",
-                    "description": "Unity Catalog volume path where built wheels are uploaded (e.g. /Volumes/catalog/schema/volume). Supports LHP substitution tokens; the /Volumes/... shape is validated post-substitution."
+                    "description": "Unity Catalog volume path the built wheel is uploaded to; supports substitution tokens, and the /Volumes/... shape is validated post-substitution."
                 }
             }
         },
@@ -320,16 +320,16 @@
                     "type": "string",
                     "enum": ["table"],
                     "default": "table",
-                    "description": "Sandbox isolation strategy (only 'table' is supported)"
+                    "description": "How sandbox output is isolated — only table renaming exists today."
                 },
                 "table_pattern": {
                     "type": "string",
                     "default": "{namespace}_{table}",
-                    "description": "Format pattern for sandboxed table leaf names. Must contain both {namespace} and {table}; literal text between placeholders is limited to letters, digits, and underscores."
+                    "description": "Must contain {namespace} and {table}; literal text limited to letters, digits, and underscores."
                 },
                 "allowed_envs": {
                     "type": "array",
-                    "description": "Environments where sandbox mode is permitted. Omit to allow all environments; an empty list is rejected.",
+                    "description": "Environments where sandbox mode may run. Omit to allow every environment; an empty list is rejected.",
                     "items": {
                         "type": "string",
                         "description": "Environment name (e.g. dev)"
@@ -340,7 +340,7 @@
         "apply_formatting": {
             "type": "boolean",
             "default": true,
-            "description": "Whether to run the terminal code-formatting pass over generated Python files. Set to false to skip formatting for faster builds; the AST-parse validity guard (LHP-CFG-031) always runs regardless. The CLI --no-format flag overrides this key."
+            "description": "Run the code-formatting pass over generated Python files. The AST-parse validity guard (LHP-CFG-031) always runs; --no-format overrides this."
         }
     }
 } 

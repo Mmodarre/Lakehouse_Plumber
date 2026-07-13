@@ -16,7 +16,6 @@ import { Switch } from '@/components/ui/switch'
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import type { ValidateStatus } from './useDesignerValidation'
@@ -103,8 +102,7 @@ export function DesignerTopBar({
       : `Preset '${name}'`
 
   return (
-    <TooltipProvider delayDuration={300}>
-      <div className="flex shrink-0 items-center gap-3 border-b border-border bg-card px-4 py-2">
+    <div className="flex shrink-0 items-center gap-3 border-b border-border bg-card px-4 py-2">
         <div className="min-w-0">
           <div className="text-2xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
             {isTemplate ? 'Template' : 'Designer'}
@@ -174,7 +172,6 @@ export function DesignerTopBar({
           </>
         )}
       </div>
-    </TooltipProvider>
   )
 }
 

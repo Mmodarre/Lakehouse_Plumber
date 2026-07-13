@@ -1,3 +1,4 @@
+import type { SchemaPath } from '@/lib/schema-help'
 import { DraftInput } from './DraftInput'
 import { FieldChrome } from './FieldChrome'
 import { displayString, issueId } from './fieldSupport'
@@ -20,6 +21,10 @@ export interface OptionalTextFieldProps {
   onSet: (value: string) => void
   /** Commit an empty value — DELETE the key (pristine absence). */
   onUnset: () => void
+  /** Schema path the (i) tooltip resolves help from. */
+  helpPath?: SchemaPath
+  /** Explicit help override; wins over helpPath. */
+  help?: string
   description?: string
   /** Shown while empty — use it to surface the loader default. */
   placeholder?: string
@@ -39,6 +44,8 @@ export function OptionalTextField({
   value,
   onSet,
   onUnset,
+  helpPath,
+  help,
   description,
   placeholder,
   monospace = false,
@@ -52,6 +59,8 @@ export function OptionalTextField({
     <FieldChrome
       id={id}
       label={label}
+      helpPath={helpPath}
+      help={help}
       description={description}
       issue={issue}
       issueSeverity={issueSeverity}

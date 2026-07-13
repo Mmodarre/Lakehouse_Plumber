@@ -1,5 +1,6 @@
 import { Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { SchemaKindProvider } from '../../common/SchemaKindContext'
 import type { ValidationIssue } from '../../../lib/config-model'
 import { PassthroughKeysCard } from '../PassthroughKeysCard'
 import { SectionCard } from '../SectionCard'
@@ -76,7 +77,7 @@ function JobNameHeader({
         allowEmpty
         monospace
         placeholder="job name"
-        description="This document applies to every job listed here (each gets an independent copy)."
+        help="This document applies to every job listed here (each gets an independent copy)."
         issue={api.issueAt(['job_name'])?.message}
         itemIssue={(index) =>
           api.issueAt(['job_name', index])?.message ??
@@ -133,6 +134,7 @@ export function JobDocForm({
   const idPrefix = `jobdoc${api.docIndex}`
 
   return (
+    <SchemaKindProvider kind="job_config">
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-sm font-semibold text-foreground">{FORM_TITLES[variant]}</h3>
@@ -192,5 +194,6 @@ export function JobDocForm({
         description="Not rendered explicitly by LHP — passed through into the Databricks job resource exactly as written."
       />
     </div>
+    </SchemaKindProvider>
   )
 }

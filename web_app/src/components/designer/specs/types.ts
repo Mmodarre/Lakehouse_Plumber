@@ -68,8 +68,6 @@ export interface FieldSpec {
   path: YamlPath
   label: string
   widget: FieldWidget
-  /** One-line help under the control. */
-  help?: string
   /** Placeholder shown while empty — good place to surface a default. */
   placeholder?: string
   /**

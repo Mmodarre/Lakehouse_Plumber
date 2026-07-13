@@ -26,7 +26,6 @@ export const transformPythonSpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'v_orders',
-          help: 'Input view, or a list of views (function receives a list of DataFrames).',
         },
         {
           path: ['module_path'],
@@ -35,7 +34,6 @@ export const transformPythonSpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'transforms/enrich.py',
-          help: 'Path to a .py file (relative to project root).',
         },
         {
           path: ['function_name'],
@@ -44,13 +42,11 @@ export const transformPythonSpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'enrich',
-          help: 'Function to call.',
         },
         {
           path: ['parameters'],
           label: 'Parameters',
           widget: 'keyValue',
-          help: 'Passed to the function as a dict.',
         },
         {
           path: ['readMode'],
@@ -71,7 +67,6 @@ export const transformPythonSpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'v_orders_enriched',
-          help: 'View this transform publishes for downstream actions.',
         },
       ],
     },

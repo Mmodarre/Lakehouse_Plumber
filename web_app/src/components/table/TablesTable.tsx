@@ -27,7 +27,6 @@ import {
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -226,8 +225,7 @@ export function TablesTable() {
   const hasFilter = filter !== '' || typeFilter !== ''
 
   return (
-    <TooltipProvider delayDuration={300}>
-      <div className="flex h-full flex-col bg-card">
+    <div className="flex h-full flex-col bg-card">
         {/* Warnings banner */}
         {data?.warnings && data.warnings.length > 0 && (
           <div className="flex items-start gap-2 border-b border-warning/25 bg-warning/12 px-4 py-2 text-xs text-foreground">
@@ -384,6 +382,5 @@ export function TablesTable() {
           )}
         </div>
       </div>
-    </TooltipProvider>
   )
 }

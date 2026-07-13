@@ -1,4 +1,4 @@
-import { Label } from '@/components/ui/label'
+import { FieldLabel } from '@/components/config/fields/FieldLabel'
 import { Switch } from '@/components/ui/switch'
 import { useUIStore } from '../../../store/uiStore'
 
@@ -24,9 +24,11 @@ export function UseForRunsToggle({ path }: { path: string }) {
   return (
     <div className="flex max-w-72 flex-col items-end gap-0.5">
       <div className="flex items-center gap-2">
-        <Label htmlFor="use-for-runs" className="text-xs">
-          Use for runs
-        </Label>
+        <FieldLabel
+          htmlFor="use-for-runs"
+          label="Use for runs"
+          help="Use this file for Validate and Generate. The binding sticks to this file until you enable another."
+        />
         <Switch
           id="use-for-runs"
           size="sm"

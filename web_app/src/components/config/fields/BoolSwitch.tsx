@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import type { SchemaPath } from '@/lib/schema-help'
+import { FieldLabel } from './FieldLabel'
 import { issueId } from './fieldSupport'
 
 // ── BoolSwitch — optional boolean key with tri-state display ─
@@ -28,6 +29,10 @@ export interface BoolSwitchProps {
   onSet: (value: boolean) => void
   /** Delete the key — back to inheriting the default. */
   onReset: () => void
+  /** Schema path the (i) tooltip resolves help from. */
+  helpPath?: SchemaPath
+  /** Explicit help override; wins over helpPath. */
+  help?: string
   description?: string
   /** Validation message shown under the field. */
   issue?: string
@@ -41,6 +46,8 @@ export function BoolSwitch({
   defaultValue,
   onSet,
   onReset,
+  helpPath,
+  help,
   description,
   issue,
   disabled,
@@ -51,10 +58,7 @@ export function BoolSwitch({
     <div className="space-y-1">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <Label htmlFor={id} className="text-xs">
-            {label}
-          </Label>
-          {description && <p className="mt-0.5 text-2xs text-muted-foreground">{description}</p>}
+          <FieldLabel htmlFor={id} label={label} helpPath={helpPath} help={help ?? description} />
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {!isSet && (

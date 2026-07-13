@@ -27,3 +27,26 @@ export type SchemaKind =
 export function fetchSchema(kind: SchemaKind): Promise<Record<string, unknown>> {
   return fetchApi(`/schemas/${encodeURIComponent(kind)}`)
 }
+
+/**
+ * Per-session promise cache over {@link fetchSchema}, keyed by kind.
+ *
+ * Guarantees a single network GET per `kind` for the lifetime of the module
+ * so Monaco YAML validation and the field-help resolver share one document.
+ * A rejected fetch is evicted so a transient error is not cached permanently.
+ */
+const schemaCache = new Map<SchemaKind, Promise<Record<string, unknown>>>()
+
+export function loadSchemaCached(
+  kind: SchemaKind,
+): Promise<Record<string, unknown>> {
+  const cached = schemaCache.get(kind)
+  if (cached) return cached
+
+  const p = fetchSchema(kind).catch((err) => {
+    schemaCache.delete(kind)
+    throw err
+  })
+  schemaCache.set(kind, p)
+  return p
+}

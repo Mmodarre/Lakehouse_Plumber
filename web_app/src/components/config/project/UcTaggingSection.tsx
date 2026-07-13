@@ -47,7 +47,7 @@ export function UcTaggingSection({ form }: { form: ProjectFormApi }) {
           <BoolSwitch
             id="uc-tagging-remove-undeclared"
             label="Remove undeclared tags"
-            description="Also delete tags that exist in UC but not in the YAML."
+            helpPath={['uc_tagging', 'remove_undeclared_tags']}
             value={strictBool('remove_undeclared_tags')}
             defaultValue={false}
             onSet={(v) => form.setField([...BASE], 'remove_undeclared_tags', v)}

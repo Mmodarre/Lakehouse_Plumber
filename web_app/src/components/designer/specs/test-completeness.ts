@@ -33,7 +33,6 @@ export const testCompletenessSpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'customer_id',
-          help: 'Columns that must be non-null.',
         },
         {
           path: ['on_violation'],
@@ -41,7 +40,6 @@ export const testCompletenessSpec: ActionSubTypeSpec = {
           widget: 'enum',
           options: ['fail', 'warn', 'drop'],
           enumDefault: 'fail',
-          help: 'Action when the check fails (default fail).',
         },
       ],
     },

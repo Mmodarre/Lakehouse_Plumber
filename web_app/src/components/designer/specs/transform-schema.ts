@@ -28,7 +28,6 @@ export const transformSchemaSpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'v_orders',
-          help: 'Input view name (string only; the nested source.view form is not supported).',
         },
         {
           path: ['schema_inline'],
@@ -36,7 +35,6 @@ export const transformSchemaSpec: ActionSubTypeSpec = {
           widget: 'textarea',
           monospace: true,
           placeholder: 'columns:\n  - "old -> new: BIGINT"',
-          help: 'Inline schema (arrow or YAML format).',
         },
         {
           path: ['schema_file'],
@@ -44,7 +42,6 @@ export const transformSchemaSpec: ActionSubTypeSpec = {
           widget: 'text',
           monospace: true,
           placeholder: 'schemas/orders.yaml',
-          help: 'External schema file (relative to project root).',
         },
         {
           path: ['enforcement'],
@@ -52,7 +49,6 @@ export const transformSchemaSpec: ActionSubTypeSpec = {
           widget: 'enum',
           options: ['strict', 'permissive'],
           enumDefault: 'permissive',
-          help: 'strict keeps only defined columns; permissive passes the rest through unchanged.',
         },
         {
           path: ['readMode'],
@@ -68,7 +64,6 @@ export const transformSchemaSpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'v_orders_typed',
-          help: 'View this transform publishes for downstream actions.',
         },
       ],
     },

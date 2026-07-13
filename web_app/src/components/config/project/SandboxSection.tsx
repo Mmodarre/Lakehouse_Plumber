@@ -44,7 +44,7 @@ export function SandboxSection({ form }: { form: ProjectFormApi }) {
             unsetLabel="Not set (default: table)"
             onSet={(v) => form.setField([...BASE], 'strategy', v)}
             onUnset={() => form.del([...BASE, 'strategy'])}
-            description="How sandbox output is isolated — only table renaming exists today."
+            helpPath={['sandbox', 'strategy']}
             issue={issueText(form.issues, [...BASE, 'strategy'])?.message}
           />
           <OptionalTextField
@@ -55,13 +55,13 @@ export function SandboxSection({ form }: { form: ProjectFormApi }) {
             onUnset={() => form.del([...BASE, 'table_pattern'])}
             monospace
             placeholder="default: {namespace}_{table}"
-            description="Must contain {namespace} and {table}; literal text limited to letters, digits, and underscores."
+            helpPath={['sandbox', 'table_pattern']}
             issue={issueText(form.issues, [...BASE, 'table_pattern'])?.message}
           />
           <StringListEditor
             id="sandbox-allowed-envs"
             label="Allowed environments"
-            description="Environments where sandbox mode may run. Remove all to allow every environment."
+            helpPath={['sandbox', 'allowed_envs']}
             value={'allowed_envs' in section && allowedEnvs !== undefined ? allowedEnvs : undefined}
             monospace
             placeholder="e.g. dev"

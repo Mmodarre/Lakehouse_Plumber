@@ -26,7 +26,6 @@ export const testRowCountSpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: '${catalog}.${raw_schema}.customers',
-          help: 'Exactly two tables to compare.',
         },
         {
           path: ['tolerance'],
@@ -35,7 +34,6 @@ export const testRowCountSpec: ActionSubTypeSpec = {
           min: 0,
           valueType: 'integer',
           placeholder: '0',
-          help: 'Allowed absolute row-count difference.',
         },
         {
           path: ['on_violation'],
@@ -43,7 +41,6 @@ export const testRowCountSpec: ActionSubTypeSpec = {
           widget: 'enum',
           options: ['fail', 'warn', 'drop'],
           enumDefault: 'fail',
-          help: 'Action when the check fails (default fail).',
         },
       ],
     },

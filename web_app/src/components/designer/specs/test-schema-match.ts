@@ -27,7 +27,6 @@ export const testSchemaMatchSpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: '${catalog}.${silver_schema}.fact_orders',
-          help: 'Fully-qualified three-part table name.',
         },
         {
           path: ['reference'],
@@ -36,7 +35,6 @@ export const testSchemaMatchSpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: '${catalog}.${gold_schema}.fact_orders_expected',
-          help: 'Fully-qualified three-part table name to compare against.',
         },
         {
           path: ['on_violation'],
@@ -44,7 +42,6 @@ export const testSchemaMatchSpec: ActionSubTypeSpec = {
           widget: 'enum',
           options: ['fail', 'warn', 'drop'],
           enumDefault: 'fail',
-          help: 'Action when the check fails (default fail).',
         },
       ],
     },

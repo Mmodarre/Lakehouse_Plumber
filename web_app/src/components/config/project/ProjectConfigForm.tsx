@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { TriangleAlert } from 'lucide-react'
 import { EmptyState } from '../../common/EmptyState'
+import { SchemaKindProvider } from '../../common/SchemaKindContext'
 import { SkeletonLoader } from '../../common/SkeletonLoader'
 import type { UseConfigFileResult } from '../../../hooks/useConfigFile'
 import {
@@ -123,7 +124,7 @@ export function ProjectConfigForm({ file }: ProjectConfigFormProps) {
           />
         }
       >
-        {body}
+        <SchemaKindProvider kind="project">{body}</SchemaKindProvider>
       </ConfigPageShell>
       <ConfigConflictDialog
         path={file.conflict ? file.path : null}

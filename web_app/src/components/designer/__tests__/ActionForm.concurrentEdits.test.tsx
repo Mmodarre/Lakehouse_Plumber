@@ -26,6 +26,7 @@ import {
 } from '@/lib/flowgroup-doc'
 import type { DesignerMutator } from '../useDesignerWrite'
 import { ActionForm } from '../ActionForm'
+import { flowgroupProviders } from './actionFormTestSupport'
 import { readPath } from '../specs/helpers'
 import { testCustomExpectationsSpec } from '../specs/test-custom-expectations'
 
@@ -106,7 +107,7 @@ function renderConcurrent(yaml: string, opts: { gate: boolean }): Handle {
     )
   }
 
-  render(<Harness />)
+  render(<Harness />, { wrapper: flowgroupProviders() })
 
   return {
     rows: () => {

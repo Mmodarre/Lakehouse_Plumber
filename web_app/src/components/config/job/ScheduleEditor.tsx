@@ -71,7 +71,7 @@ function TimezoneInput({
     <FieldChrome
       id={id}
       label="Time zone"
-      description="IANA zone id — suggestions offered, any zone accepted."
+      helpPath={['schedule', 'timezone_id']}
       issue={issue?.message}
       issueSeverity={issue?.severity}
     >
@@ -139,7 +139,7 @@ export function ScheduleEditor({ api, idPrefix }: { api: DocFormApi; idPrefix: s
             onUnset={() => unsetField('quartz_cron_expression')}
             placeholder="0 0 8 * * ?"
             monospace
-            description='Quartz syntax: seconds minutes hours day-of-month month day-of-week — "0 0 8 * * ?" runs daily at 08:00.'
+            helpPath={['schedule', 'quartz_cron_expression']}
             issue={api.issueAt(['schedule', 'quartz_cron_expression'])?.message}
             issueSeverity={api.issueAt(['schedule', 'quartz_cron_expression'])?.severity}
           />

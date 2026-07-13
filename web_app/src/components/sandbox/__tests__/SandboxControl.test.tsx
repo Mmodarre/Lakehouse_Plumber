@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { SandboxControl } from '../SandboxControl'
 import { useUIStore } from '../../../store/uiStore'
 import type { SandboxScope } from '../../../types/api'
@@ -19,7 +20,9 @@ function renderControl(scope: SandboxScope, enabled: boolean) {
   queryClient.setQueryData(['pipelines'], { pipelines: [{ name: 'bronze' }] })
   useUIStore.setState({ sandboxEnabled: enabled })
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider delayDuration={0}>{children}</TooltipProvider>
+    </QueryClientProvider>
   )
   return render(<SandboxControl />, { wrapper })
 }
@@ -27,6 +30,17 @@ function renderControl(scope: SandboxScope, enabled: boolean) {
 beforeEach(() => {
   vi.clearAllMocks()
   vi.stubGlobal('fetch', pendingFetch)
+  // The scope-picker's field-label (i) tooltips pull in Radix's Popper/useSize
+  // machinery, which observes layout via ResizeObserver — an API jsdom lacks
+  // (same stub SandboxPickerDialog's own test installs).
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  )
   useUIStore.setState({ sandboxEnabled: false })
 })
 

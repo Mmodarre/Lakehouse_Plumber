@@ -46,7 +46,7 @@ export function OperationalMetadataSection({ form }: { form: ProjectFormApi }) {
           <KeyValueMapEditor
             id="om-defaults"
             label="Defaults"
-            description="Default metadata selection applied when a flowgroup does not choose."
+            helpPath={['operational_metadata', 'defaults']}
             value={'defaults' in section ? defaults : undefined}
             onSetEntry={(k, v) =>
               defaults === undefined

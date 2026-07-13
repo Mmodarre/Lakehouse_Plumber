@@ -32,7 +32,6 @@ export const testCustomSqlSpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'SELECT month, pct_difference FROM ${catalog}.${gold_schema}.revenue_comparison',
-          help: 'Query whose rows the expectations are evaluated against.',
         },
         {
           path: ['source'],
@@ -40,7 +39,6 @@ export const testCustomSqlSpec: ActionSubTypeSpec = {
           widget: 'stringOrList',
           monospace: true,
           placeholder: '${catalog}.${gold_schema}.monthly_revenue',
-          help: 'Optional fallback table when no SQL result view is used.',
         },
       ],
     },
@@ -51,7 +49,6 @@ export const testCustomSqlSpec: ActionSubTypeSpec = {
           path: ['expectations'],
           label: 'Expectations',
           widget: 'objectList',
-          help: 'Each rule: a name, a boolean expression, and its own violation action.',
           itemFields: [
             {
               path: ['name'],

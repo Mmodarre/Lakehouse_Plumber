@@ -100,7 +100,7 @@ function ColumnEditor({
           <StringListEditor
             id={`om-column-${name}-applies-to`}
             label="Applies to"
-            description="Target types the column is added to (default: streaming_table, materialized_view)."
+            helpPath={[...base, 'applies_to']}
             value={appliesTo}
             monospace
             placeholder="e.g. streaming_table"
@@ -117,7 +117,7 @@ function ColumnEditor({
           <StringListEditor
             id={`om-column-${name}-imports`}
             label="Additional imports"
-            description="Import lines the expression needs in the generated file."
+            helpPath={[...base, 'additional_imports']}
             value={imports}
             monospace
             placeholder="e.g. from pyspark.sql import functions as F"

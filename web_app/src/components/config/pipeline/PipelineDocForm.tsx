@@ -1,5 +1,6 @@
 import { Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { SchemaKindProvider } from '../../common/SchemaKindContext'
 import type { ValidationIssue } from '../../../lib/config-model'
 import { listPipelinePassthroughKeys } from '../../../lib/config-model'
 import { PassthroughKeysCard } from '../PassthroughKeysCard'
@@ -51,6 +52,7 @@ export function PipelineDocForm({
   const passthroughKeys = listPipelinePassthroughKeys(docSnapshot)
 
   return (
+    <SchemaKindProvider kind="pipeline_config">
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-sm font-semibold text-foreground">
@@ -137,5 +139,6 @@ export function PipelineDocForm({
       <PipelineAdvancedFields api={api} idPrefix={idPrefix} />
       <PassthroughKeysCard keys={passthroughKeys} />
     </div>
+    </SchemaKindProvider>
   )
 }

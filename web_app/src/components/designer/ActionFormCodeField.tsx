@@ -57,7 +57,7 @@ function InlineCodeField({
         value={value}
         onSet={onSet}
         onUnset={onUnset}
-        description={field.help}
+        helpPath={field.path}
         placeholder={field.placeholder}
         monospace={field.monospace}
         multiline
@@ -138,7 +138,7 @@ function CompanionFileField({
         value={value}
         onSet={onSet}
         onUnset={onUnset}
-        description={field.help}
+        helpPath={field.path}
         placeholder={field.placeholder}
         monospace={field.monospace}
         issue={issue}

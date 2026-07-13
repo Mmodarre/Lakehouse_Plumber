@@ -92,7 +92,7 @@
                         "enabled": {
                             "type": "boolean",
                             "default": true,
-                            "description": "Whether queueing is enabled"
+                            "description": "Queue new runs while maximum concurrent runs is reached (queue.enabled)."
                         }
                     },
                     "additionalProperties": true
@@ -101,15 +101,15 @@
                     "type": "string",
                     "default": "STANDARD",
                     "examples": ["STANDARD", "PERFORMANCE_OPTIMIZED"],
-                    "description": "Performance target for job execution: STANDARD (cost-effective) or PERFORMANCE_OPTIMIZED (faster startup, higher cost)"
+                    "description": "PERFORMANCE_OPTIMIZED starts compute faster at higher cost."
                 },
                 "timeout_seconds": {
                     "type": "integer",
-                    "description": "Job-level timeout in seconds (e.g. 3600 = 1 hour)"
+                    "description": "Job-level timeout in seconds (e.g. 3600 = 1 hour) — rendered only when set."
                 },
                 "tags": {
                     "type": "object",
-                    "description": "Tags for cost tracking, organization, and monitoring. Deep-merged with inherited tags.",
+                    "description": "Deep-merged with project-default tags; values render quoted.",
                     "additionalProperties": true
                 },
                 "email_notifications": {
@@ -177,11 +177,11 @@
                     "properties": {
                         "quartz_cron_expression": {
                             "type": "string",
-                            "description": "Quartz cron expression (e.g. '0 0 2 * * ?')"
+                            "description": "Quartz syntax: seconds minutes hours day-of-month month day-of-week — \"0 0 8 * * ?\" runs daily at 08:00."
                         },
                         "timezone_id": {
                             "type": "string",
-                            "description": "Timezone ID (e.g. America/New_York)"
+                            "description": "IANA zone id — suggestions offered, any zone accepted."
                         },
                         "pause_status": {
                             "type": "string",
@@ -230,6 +230,11 @@
                         "num_workers": {
                             "type": "integer",
                             "description": "Number of workers"
+                        },
+                        "new_cluster": {
+                            "type": "object",
+                            "additionalProperties": true,
+                            "description": "e.g. spark_version, node_type_id, num_workers — rendered as written."
                         }
                     },
                     "additionalProperties": true
@@ -237,7 +242,7 @@
                 "generate_master_job": {
                     "type": "boolean",
                     "default": true,
-                    "description": "LHP control knob: whether to generate the master orchestration job. Never emitted into the rendered job YAML."
+                    "description": "One master job that chains every orchestration job. LHP control knob — never emitted into the rendered job YAML."
                 },
                 "master_job_name": {
                     "type": ["string", "null"],

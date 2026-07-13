@@ -34,14 +34,12 @@ export const testUniquenessSpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'order_id',
-          help: 'Columns whose combination must be unique.',
         },
         {
           path: ['filter'],
           label: 'Filter',
           widget: 'text',
           monospace: true,
-          help: 'Optional WHERE clause applied before the check.',
         },
         {
           path: ['on_violation'],
@@ -49,7 +47,6 @@ export const testUniquenessSpec: ActionSubTypeSpec = {
           widget: 'enum',
           options: ['fail', 'warn', 'drop'],
           enumDefault: 'fail',
-          help: 'Action when the check fails (default fail).',
         },
       ],
     },

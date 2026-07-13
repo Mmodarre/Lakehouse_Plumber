@@ -5,6 +5,7 @@ import { expect, vi } from 'vitest'
 import type { ReactNode } from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { useConfigFile } from '../../../../hooks/useConfigFile'
 import { serveConfigFile } from '../../shared/__tests__/configFormTestSupport'
 import { PipelineConfigEditor } from '../PipelineConfigEditor'
@@ -55,8 +56,13 @@ function Harness() {
 
 export async function renderPipelineEditor(): Promise<void> {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  // The form's SchemaKindProvider calls useQuery(['schema','pipeline_config']);
+  // seed it so no real GET /api/schemas fires (staleTime: Infinity → fresh).
+  queryClient.setQueryData(['schema', 'pipeline_config'], {})
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider delayDuration={0}>{children}</TooltipProvider>
+    </QueryClientProvider>
   )
   render(<Harness />, { wrapper })
   // The rail renders once the file is loaded and parsed (every fixture in

@@ -38,7 +38,6 @@ export const testAllLookupsFoundSpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: '${catalog}.${gold_schema}.dim_date',
-          help: 'Fully-qualified three-part table name.',
         },
         {
           path: ['lookup_columns'],
@@ -55,7 +54,6 @@ export const testAllLookupsFoundSpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'date_key',
-          help: 'Joined positionally to lookup columns (equal length).',
         },
         {
           path: ['on_violation'],
@@ -63,7 +61,6 @@ export const testAllLookupsFoundSpec: ActionSubTypeSpec = {
           widget: 'enum',
           options: ['fail', 'warn', 'drop'],
           enumDefault: 'fail',
-          help: 'Action when the check fails (default fail).',
         },
       ],
     },

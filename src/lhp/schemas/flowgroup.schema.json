@@ -324,6 +324,27 @@
                                 "custom_datasource_class": {
                                     "type": "string",
                                     "description": "Name of the custom DataSource class to register and use. Required for custom_datasource source type."
+                                },
+                                "bootstrap_servers": {
+                                    "type": "string",
+                                    "description": "Maps to kafka.bootstrap.servers."
+                                },
+                                "subscribe": {
+                                    "type": "string",
+                                    "description": "Explicit topic(s)."
+                                },
+                                "subscribePattern": {
+                                    "type": "string",
+                                    "description": "Topic regex."
+                                },
+                                "assign": {
+                                    "type": "string",
+                                    "description": "Specific partitions (JSON)."
+                                },
+                                "reader_options": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "description": "Merged verbatim into the reader."
                                 }
                             }
                         }
@@ -435,6 +456,99 @@
                     "type": "object",
                     "description": "Parameters dictionary passed to Python function. Optional for Python transforms and loads.",
                     "additionalProperties": true
+                },
+                "on_violation": {
+                    "type": "string",
+                    "description": "Action when the check fails (default fail)."
+                },
+                "tolerance": {
+                    "type": "integer",
+                    "description": "Allowed absolute row-count difference."
+                },
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Columns whose combination must be unique."
+                },
+                "filter": {
+                    "type": "string",
+                    "description": "Optional WHERE clause applied before the check."
+                },
+                "reference": {
+                    "type": "string",
+                    "description": "Fully-qualified three-part table name to compare against."
+                },
+                "source_columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Foreign-key columns in source; equal length to reference columns."
+                },
+                "reference_columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Joined positionally to source columns (equal length)."
+                },
+                "required_columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Columns that must be non-null."
+                },
+                "column": {
+                    "type": "string",
+                    "description": "Column whose values are range-checked."
+                },
+                "min_value": {
+                    "description": "Lower bound (number, date, or token)."
+                },
+                "max_value": {
+                    "description": "Upper bound (number, date, or token)."
+                },
+                "lookup_table": {
+                    "type": "string",
+                    "description": "Fully-qualified three-part table name."
+                },
+                "lookup_columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Key columns in source; equal length to lookup result columns."
+                },
+                "lookup_result_columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Joined positionally to lookup columns (equal length)."
+                },
+                "expectations": {
+                    "type": "array",
+                    "description": "Each rule: a name, a boolean expression, and its own violation action.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Unique name for this expectation rule."
+                            },
+                            "expression": {
+                                "type": "string",
+                                "description": "Boolean SQL predicate the rows must satisfy."
+                            },
+                            "on_violation": {
+                                "type": "string",
+                                "description": "Per-rule action when the expectation fails."
+                            }
+                        }
+                    }
                 }
             }
         },
@@ -476,6 +590,13 @@
                     "type": "object",
                     "additionalProperties": true,
                     "description": "Table properties"
+                },
+                "tags": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": ["string", "null"]
+                    },
+                    "description": "UC tags; applied during the run via the tagging hook."
                 },
                 "partition_columns": {
                     "type": "array",
@@ -625,6 +746,18 @@
                                 "type": "string"
                             },
                             "description": "Columns to exclude from history tracking"
+                        },
+                        "column_list": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            },
+                            "description": "Columns to include. Exclusive with except column list."
+                        },
+                        "scd_type": {
+                            "type": "integer",
+                            "enum": [1, 2],
+                            "description": "1 overwrites; 2 tracks history."
                         }
                     }
                 },

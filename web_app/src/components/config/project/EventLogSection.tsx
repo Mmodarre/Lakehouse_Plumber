@@ -51,7 +51,7 @@ export function EventLogSection({ form }: { form: ProjectFormApi }) {
             onSet={(v) => form.setField([...BASE], 'catalog', v)}
             onUnset={() => form.del([...BASE, 'catalog'])}
             monospace
-            description="Required while event_log is enabled."
+            helpPath={['event_log', 'catalog']}
             issue={issueText(form.issues, [...BASE, 'catalog'])?.message}
           />
           <OptionalTextField
@@ -61,7 +61,7 @@ export function EventLogSection({ form }: { form: ProjectFormApi }) {
             onSet={(v) => form.setField([...BASE], 'schema', v)}
             onUnset={() => form.del([...BASE, 'schema'])}
             monospace
-            description="Required while event_log is enabled."
+            helpPath={['event_log', 'schema']}
             issue={issueText(form.issues, [...BASE, 'schema'])?.message}
           />
           <OptionalTextField

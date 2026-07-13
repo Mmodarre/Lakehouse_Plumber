@@ -26,7 +26,6 @@ export const transformSqlSpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'v_orders_raw',
-          help: 'Input view, or a list of views. Use stream(view) in SQL for streaming reads.',
         },
         {
           path: ['sql'],
@@ -34,7 +33,6 @@ export const transformSqlSpec: ActionSubTypeSpec = {
           widget: 'textarea',
           monospace: true,
           placeholder: 'SELECT * FROM v_orders_raw WHERE amount > 0',
-          help: 'Inline SQL. Provide exactly one of SQL / SQL file.',
         },
         {
           path: ['sql_path'],
@@ -42,7 +40,6 @@ export const transformSqlSpec: ActionSubTypeSpec = {
           widget: 'text',
           monospace: true,
           placeholder: 'queries/transform_orders.sql',
-          help: 'External SQL file. Provide exactly one of SQL / SQL file.',
         },
         {
           path: ['target'],
@@ -51,7 +48,6 @@ export const transformSqlSpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'v_orders',
-          help: 'View this transform publishes for downstream actions.',
         },
       ],
     },

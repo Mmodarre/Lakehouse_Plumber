@@ -15,6 +15,7 @@ import {
 } from '@/lib/flowgroup-doc'
 import type { FlowgroupFileHandle } from '@/lib/flowgroup-doc'
 import { ActionForm } from '../ActionForm'
+import { flowgroupProviders } from './actionFormTestSupport'
 import { readPath } from '../specs/helpers'
 import { testCustomExpectationsSpec } from '../specs/test-custom-expectations'
 
@@ -69,7 +70,7 @@ function renderForm(yaml: string): { fileHandle: FlowgroupFileHandle } {
       />
     )
   }
-  render(<Harness />)
+  render(<Harness />, { wrapper: flowgroupProviders() })
   return { fileHandle }
 }
 

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Input } from '@/components/ui/input'
+import type { SchemaPath } from '@/lib/schema-help'
 import { FieldChrome } from './FieldChrome'
 import { displayString, issueId } from './fieldSupport'
 
@@ -25,6 +26,10 @@ export interface OptionalNumberFieldProps {
   onSet: (value: number) => void
   /** Commit an empty value — DELETE the key. */
   onUnset: () => void
+  /** Schema path the (i) tooltip resolves help from. */
+  helpPath?: SchemaPath
+  /** Explicit help override; wins over helpPath. */
+  help?: string
   description?: string
   /** Shown while empty — use it to surface the loader default. */
   placeholder?: string
@@ -41,6 +46,8 @@ export function OptionalNumberField({
   max,
   onSet,
   onUnset,
+  helpPath,
+  help,
   description,
   placeholder,
   issue,
@@ -86,7 +93,14 @@ export function OptionalNumberField({
 
   const shownIssue = localError ?? issue
   return (
-    <FieldChrome id={id} label={label} description={description} issue={shownIssue}>
+    <FieldChrome
+      id={id}
+      label={label}
+      helpPath={helpPath}
+      help={help}
+      description={description}
+      issue={shownIssue}
+    >
       <Input
         id={id}
         value={draft}

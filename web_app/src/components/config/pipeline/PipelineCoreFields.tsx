@@ -43,7 +43,7 @@ export function PipelineCoreFields({ api, idPrefix }: { api: DocFormApi; idPrefi
           defaultValue={PIPELINE_BUILTIN_DEFAULTS.serverless}
           onSet={(value) => api.set(['serverless'], value)}
           onReset={() => api.del(['serverless'])}
-          description="Databricks-managed compute."
+          helpPath={['serverless']}
           issue={api.issueAt(['serverless'])?.message}
         />
         <EnumSelect
@@ -54,7 +54,7 @@ export function PipelineCoreFields({ api, idPrefix }: { api: DocFormApi; idPrefi
           unsetLabel={`Not set (default: ${PIPELINE_BUILTIN_DEFAULTS.edition})`}
           onSet={(value) => api.set(['edition'], value)}
           onUnset={() => api.del(['edition'])}
-          description="Rendered into the bundle resource only when serverless is off."
+          helpPath={['edition']}
           issue={api.issueAt(['edition'])?.message}
         />
         <EnumSelect
@@ -74,7 +74,7 @@ export function PipelineCoreFields({ api, idPrefix }: { api: DocFormApi; idPrefi
           defaultValue={PIPELINE_BUILTIN_DEFAULTS.continuous}
           onSet={(value) => api.set(['continuous'], value)}
           onReset={() => api.del(['continuous'])}
-          description="Streaming mode — the pipeline runs continuously."
+          helpPath={['continuous']}
           issue={api.issueAt(['continuous'])?.message}
         />
         <BoolSwitch
@@ -84,7 +84,7 @@ export function PipelineCoreFields({ api, idPrefix }: { api: DocFormApi; idPrefi
           defaultValue={false}
           onSet={(value) => api.set(['photon'], value)}
           onReset={() => api.del(['photon'])}
-          description="Photon engine — classic compute only (ignored when serverless)."
+          helpPath={['photon']}
           issue={api.issueAt(['photon'])?.message}
         />
         <EnumSelect
@@ -95,7 +95,7 @@ export function PipelineCoreFields({ api, idPrefix }: { api: DocFormApi; idPrefi
           unsetLabel="Not set (default: source)"
           onSet={(value) => api.set(['packaging'], value)}
           onUnset={() => api.del(['packaging'])}
-          description="LHP-internal: how pipeline code ships. Never rendered into the bundle resource."
+          helpPath={['packaging']}
           issue={api.issueAt(['packaging'])?.message}
         />
       </SectionCard>

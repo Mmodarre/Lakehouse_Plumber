@@ -11,8 +11,8 @@ import type { SandboxScope } from '../../types/api'
 import { assembleProfileYaml, normalizePipelines } from './profileYaml'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
-import { Label } from '../ui/label'
 import { Checkbox } from '../ui/checkbox'
+import { FieldLabel } from '../config/fields/FieldLabel'
 import { ScrollArea } from '../ui/scroll-area'
 import {
   Dialog,
@@ -183,7 +183,11 @@ export function SandboxPickerDialog({ open, onOpenChange }: SandboxPickerDialogP
         <div className="space-y-4">
           {/* Namespace */}
           <div className="space-y-1.5">
-            <Label htmlFor="sandbox-namespace">Namespace</Label>
+            <FieldLabel
+              htmlFor="sandbox-namespace"
+              label="Namespace"
+              help="Prefixes your produced tables ({namespace}_{table}) so parallel developers don't collide on the same tables."
+            />
             <Input
               id="sandbox-namespace"
               value={namespace}
@@ -207,7 +211,10 @@ export function SandboxPickerDialog({ open, onOpenChange }: SandboxPickerDialogP
           {/* Pipelines */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <Label>Pipelines</Label>
+              <FieldLabel
+                label="Pipelines"
+                help="Only these pipelines are generated while sandbox mode is on."
+              />
               <span className="text-2xs tabular-nums text-muted-foreground">
                 {resolvedPipelines.length} selected
               </span>
@@ -251,7 +258,11 @@ export function SandboxPickerDialog({ open, onOpenChange }: SandboxPickerDialogP
 
           {/* Glob patterns */}
           <div className="space-y-1.5">
-            <Label htmlFor="sandbox-pattern">Patterns (optional)</Label>
+            <FieldLabel
+              htmlFor="sandbox-pattern"
+              label="Patterns (optional)"
+              help="Glob patterns matched against pipeline names (e.g. acmi_edw_silv*)."
+            />
             <div className="flex items-center gap-1.5">
               <Input
                 id="sandbox-pattern"
