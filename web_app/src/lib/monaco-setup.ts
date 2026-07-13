@@ -46,14 +46,13 @@ loader.config({ monaco })
 
 // ── Shell-matching editor themes ────────────────────────
 //
-// `editor.background` is the exact hex equivalent of the app's `--card`
-// token (light `oklch(1 0 0)` / dark `oklch(0.205 0.011 258)`), so the
-// editor surface sits seamlessly inside a `bg-card` panel in both themes.
-// Selection tints derive from `--primary` (light `oklch(0.54 0.19 259)` /
-// dark `oklch(0.66 0.16 257)`).
+// `editor.background` is the exact hex of the app's `--card` token
+// (light `#FFFFFF` / dark `#1F272D`), so the editor surface sits
+// seamlessly inside a `bg-card` panel in both themes. Selection tints
+// derive from `--primary` (light `#2272B4` / dark `#4299E0`).
 
-const LIGHT_PRIMARY = '#1968da'
-const DARK_PRIMARY = '#4c92f2'
+const LIGHT_PRIMARY = '#2272B4'
+const DARK_PRIMARY = '#4299E0'
 
 monaco.editor.defineTheme('lhp-light', {
   base: 'vs',
@@ -72,7 +71,7 @@ monaco.editor.defineTheme('lhp-dark', {
   inherit: true,
   rules: [],
   colors: {
-    'editor.background': '#14171c',
+    'editor.background': '#1F272D',
     'editor.selectionBackground': `${DARK_PRIMARY}40`,
     'editor.inactiveSelectionBackground': `${DARK_PRIMARY}1f`,
     'editor.selectionHighlightBackground': `${DARK_PRIMARY}2e`,
