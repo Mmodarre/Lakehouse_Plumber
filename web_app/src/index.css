@@ -131,12 +131,12 @@
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: #cbd5e1;
+  background-color: var(--border);
   border-radius: 3px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: #94a3b8;
+  background-color: var(--muted-foreground);
 }
 
 /* Chat markdown typography for assistant messages */
@@ -270,106 +270,109 @@
   --color-edge-cross: var(--edge-cross);
 }
 
-/* "Quiet IDE" palette — cool neutrals (chroma 0.004–0.012, hue ~255), one blue
- * accent used scarcely. Dark theme is the flagship. */
+/* Databricks Dubois product-UI palette — true-neutral light surfaces,
+ * cool-grey dark surfaces, blue600/blue500 primary, one blue accent used
+ * scarcely. Dark theme is the flagship. */
 :root {
   --radius: 0.5rem; /* 8px — IDE, not marketing site */
-  --background: oklch(0.984 0.003 255); /* page / canvas */
-  --foreground: oklch(0.19 0.012 258);
-  --card: oklch(1 0 0); /* panels, nodes, rows */
-  --card-foreground: oklch(0.19 0.012 258);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.19 0.012 258);
-  --primary: oklch(0.54 0.19 259); /* refined blue */
-  --primary-foreground: oklch(0.985 0.005 255);
-  --secondary: oklch(0.955 0.005 255);
-  --secondary-foreground: oklch(0.28 0.015 258);
-  --muted: oklch(0.955 0.005 255);
-  --muted-foreground: oklch(0.5 0.018 257); /* ≥4.6:1 on --card */
-  --accent: oklch(0.94 0.012 255); /* hover/selected surfaces */
-  --accent-foreground: oklch(0.22 0.015 258);
-  --destructive: oklch(0.55 0.21 26);
-  --border: oklch(0.905 0.006 255);
-  --input: oklch(0.905 0.006 255);
-  --ring: oklch(0.54 0.19 259);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.972 0.004 255);
-  --sidebar-foreground: oklch(0.19 0.012 258);
-  --sidebar-primary: oklch(0.54 0.19 259);
-  --sidebar-primary-foreground: oklch(0.985 0.005 255);
-  --sidebar-accent: oklch(0.94 0.012 255);
-  --sidebar-accent-foreground: oklch(0.22 0.015 258);
-  --sidebar-border: oklch(0.905 0.006 255);
-  --sidebar-ring: oklch(0.54 0.19 259);
+  --background: #F7F7F7; /* page / canvas (backgroundSecondary) */
+  --foreground: #161616;
+  --card: #FFFFFF; /* panels, nodes, rows */
+  --card-foreground: #161616;
+  --popover: #FFFFFF;
+  --popover-foreground: #161616;
+  --primary: #2272B4; /* Dubois blue600 */
+  --primary-foreground: #FFFFFF;
+  --secondary: #EBEBEB;
+  --secondary-foreground: #262626;
+  --muted: #F7F7F7;
+  --muted-foreground: #6F6F6F; /* 5.02:1 on --card, 4.69:1 on --background */
+  --accent: #EBEBEB; /* hover/selected surfaces */
+  --accent-foreground: #262626;
+  --destructive: #C82D4C;
+  --border: #EBEBEB;
+  --input: #D8D8D8; /* control border, one step below --border */
+  --ring: #2272B4;
+  --chart-1: #2272B4;
+  --chart-2: #04867D;
+  --chart-3: #8A63BF;
+  --chart-4: #DE7921;
+  --chart-5: #277C43;
+  --sidebar: #F7F7F7;
+  --sidebar-foreground: #161616;
+  --sidebar-primary: #2272B4;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #EBEBEB;
+  --sidebar-accent-foreground: #262626;
+  --sidebar-border: #EBEBEB;
+  --sidebar-ring: #2272B4;
 
   /* Semantic status */
-  --success: oklch(0.58 0.13 155);
-  --warning: oklch(0.68 0.14 78);
-  --error: oklch(0.55 0.21 26); /* = destructive */
-  --info: oklch(0.54 0.19 259); /* = primary */
+  --success: #277C43;
+  --warning: #BE501E;
+  --error: #C82D4C; /* = destructive */
+  --info: #2272B4; /* = primary */
 
   /* Unified action-kind palette (DAG accents ≡ table badges) */
-  --kind-load: oklch(0.55 0.16 250); /* blue   */
-  --kind-transform: oklch(0.55 0.18 296); /* violet */
-  --kind-write: oklch(0.58 0.13 155); /* green  */
-  --kind-test: oklch(0.68 0.14 78); /* amber  */
+  --kind-load: #2272B4; /* blue      */
+  --kind-transform: #8A63BF; /* violet    */
+  --kind-write: #277C43; /* green     */
+  --kind-test: #DE7921; /* amber     */
   /* Graph node identities */
-  --node-pipeline: oklch(0.54 0.19 259);
-  --node-flowgroup: oklch(0.6 0.11 195); /* teal    */
-  --node-external: oklch(0.6 0.02 255); /* neutral */
-  --edge: oklch(0.72 0.015 255);
+  --node-pipeline: #2272B4;
+  --node-flowgroup: #137DAE; /* turquoise */
+  --node-external: #5F7281; /* neutral   */
+  --edge: #C0CDD8;
   --edge-cross: var(--warning);
 }
 
 .dark {
-  --background: oklch(0.165 0.01 258);
-  --foreground: oklch(0.93 0.006 255);
-  --card: oklch(0.205 0.011 258); /* #14171c — also Monaco editor bg */
-  --card-foreground: oklch(0.93 0.006 255);
-  --popover: oklch(0.235 0.012 258);
-  --popover-foreground: oklch(0.93 0.006 255);
-  --primary: oklch(0.66 0.16 257); /* lifted for dark AA */
-  --primary-foreground: oklch(0.15 0.02 258);
-  --secondary: oklch(0.27 0.012 258);
-  --secondary-foreground: oklch(0.9 0.008 255);
-  --muted: oklch(0.26 0.012 258);
-  --muted-foreground: oklch(0.7 0.014 256);
-  --accent: oklch(0.28 0.014 258);
-  --accent-foreground: oklch(0.93 0.006 255);
-  --destructive: oklch(0.67 0.19 25);
+  --background: #11171C;
+  --foreground: #E8ECF0;
+  --card: #1F272D; /* also Monaco editor bg — keep in lockstep */
+  --card-foreground: #E8ECF0;
+  --popover: #232D36;
+  --popover-foreground: #E8ECF0;
+  --primary: #4299E0; /* Dubois blue500 */
+  --primary-foreground: #11171C; /* dark text on primary */
+  --secondary: #37444F;
+  --secondary-foreground: #E8ECF0;
+  --muted: #1F272D;
+  --muted-foreground: #92A4B3;
+  --accent: #37444F;
+  --accent-foreground: #E8ECF0;
+  --destructive: #E65B77;
+  /* Translucent-white borders (not solid Dubois grey700): a solid #1F272D
+   * border would be invisible on the equally-#1F272D card surfaces. */
   --border: oklch(1 0 0 / 9%);
   --input: oklch(1 0 0 / 13%);
-  --ring: oklch(0.66 0.16 257);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.185 0.01 258);
-  --sidebar-foreground: oklch(0.93 0.006 255);
-  --sidebar-primary: oklch(0.66 0.16 257);
-  --sidebar-primary-foreground: oklch(0.15 0.02 258);
-  --sidebar-accent: oklch(0.28 0.014 258);
-  --sidebar-accent-foreground: oklch(0.93 0.006 255);
+  --ring: #8ACAFF; /* Dubois dark focus ring is lighter than primary */
+  --chart-1: #4299E0;
+  --chart-2: #3BA65E;
+  --chart-3: #B48FD9;
+  --chart-4: #DE7921;
+  --chart-5: #E65B77;
+  --sidebar: #0E1418;
+  --sidebar-foreground: #E8ECF0;
+  --sidebar-primary: #4299E0;
+  --sidebar-primary-foreground: #11171C;
+  --sidebar-accent: #37444F;
+  --sidebar-accent-foreground: #E8ECF0;
   --sidebar-border: oklch(1 0 0 / 9%);
-  --sidebar-ring: oklch(0.66 0.16 257);
+  --sidebar-ring: #8ACAFF;
 
-  --success: oklch(0.7 0.14 155);
-  --warning: oklch(0.78 0.14 82);
-  --error: oklch(0.67 0.19 25);
-  --info: oklch(0.66 0.16 257);
-  --kind-load: oklch(0.68 0.14 250);
-  --kind-transform: oklch(0.7 0.15 296);
-  --kind-write: oklch(0.72 0.13 155);
-  --kind-test: oklch(0.78 0.14 82);
-  --node-pipeline: oklch(0.66 0.16 257);
-  --node-flowgroup: oklch(0.72 0.1 195);
-  --node-external: oklch(0.6 0.02 255);
-  --edge: oklch(0.42 0.015 255);
+  --success: #3BA65E;
+  --warning: #DE7921;
+  --error: #E65B77;
+  --info: #4299E0;
+  --kind-load: #4299E0;
+  --kind-transform: #B48FD9;
+  --kind-write: #3BA65E;
+  --kind-test: #F2BE88;
+  --node-pipeline: #4299E0;
+  --node-flowgroup: #5FB8CE;
+  --node-external: #8396A5;
+  --edge: #445461;
   --edge-cross: var(--warning);
 }
 
