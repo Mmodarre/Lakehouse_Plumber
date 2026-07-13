@@ -228,7 +228,10 @@ class PersistentGraphCache:
         shard = self.cache_dir / self._shard_name(option_triple)
         try:
             with open(shard, "rb") as f:
-                payload = pickle.load(f)
+                # Trusted-local data: shards live in the project's own cache
+                # dir and are written only by LHP; anything foreign fails the
+                # key/type checks below and degrades to a miss.
+                payload = pickle.load(f)  # nosec B301
             if (
                 not isinstance(payload, dict)
                 or payload.get("key") != (self._version_tag, option_triple)
