@@ -1,0 +1,17 @@
+# Bundle pipeline configuration.
+#
+# On a bundle project `lhp generate` REQUIRES this file via -pc: it supplies the
+# catalog and schema LHP embeds into each generated bundle resource, and it is
+# where the packaging toggle lives.
+#
+# packaging resolves lowest-to-highest: built-in default `source` ->
+# project_defaults.packaging -> a per-pipeline `packaging`. Here only
+# silver_orders is set to wheel; every other pipeline would stay source.
+project_defaults:
+  catalog: "${catalog}"
+  schema: "${silver_schema}"
+  serverless: true
+
+---
+pipeline: silver_orders
+packaging: wheel

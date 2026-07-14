@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: guide_ingest_delta
+version: "1.0"
+description: "Guide: ingest from an existing Delta table into a downstream streaming table."

@@ -1,0 +1,38 @@
+# Turn a stream of customer change rows into a current-state silver dimension.
+# Action chain: load (delta, streaming read of a change table) -> write (streaming_table, mode: cdc).
+#
+# The write is AUTO CDC: LHP emits dp.create_auto_cdc_flow, which upserts each
+# change onto the keys, orders competing changes by sequence_by, and turns
+# tombstone rows into deletes through apply_as_deletes.
+pipeline: silver_customers
+flowgroup: customer_dim
+
+actions:
+  # 1. Load: stream the bronze change table another pipeline lands. Each row is
+  #    one change record and carries an `operation` marker (INSERT/UPDATE/DELETE).
+  - name: load_customer_changes
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: customer_changes
+    target: v_customer_changes
+
+  # 2. Write: apply the changes into a silver dimension with AUTO CDC (SCD Type 1).
+  - name: write_customer_dim
+    type: write
+    source: v_customer_changes
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
+      table: customer_dim
+      mode: cdc
+      cdc_config:
+        keys: [customer_id]
+        sequence_by: sequence_num
+        scd_type: 1
+        apply_as_deletes: "operation = 'DELETE'"
+        except_column_list: [operation, sequence_num]

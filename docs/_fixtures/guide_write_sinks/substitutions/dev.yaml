@@ -1,0 +1,7 @@
+# Development environment tokens.
+# Referenced from flowgroups with ${token} syntax.
+dev:
+  catalog: dev_catalog
+  gold_schema: gold
+  analytics_catalog: analytics_shared
+  analytics_schema: reporting

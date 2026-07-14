@@ -1,0 +1,16 @@
+# Production environment. Same tokens as dev.yaml — different values.
+
+# 'global' repeats across every environment file; the database name is the same.
+global:
+  db_name: sales
+
+prod:
+  catalog: prod_catalog
+  bronze_schema: bronze
+  db_host: sales-db-prod.internal
+
+# The same logical scope name (sales_db) maps to the production secret scope.
+secrets:
+  default_scope: prod_secrets
+  scopes:
+    sales_db: prod_sales_db_secrets

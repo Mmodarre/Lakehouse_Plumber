@@ -1,0 +1,7 @@
+# Development environment tokens.
+# Referenced from the template body with ${token} syntax, resolved AFTER
+# Jinja2 fills the {{ parameters }}.
+dev:
+  catalog: dev_catalog
+  bronze_schema: bronze
+  landing_path: /Volumes/dev_catalog/landing/files

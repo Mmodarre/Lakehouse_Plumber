@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: guide_write_sinks
+version: "1.0"
+description: "Guide: route a gold table to an external Delta sink with one write action."

@@ -1,0 +1,42 @@
+# Enrich the bronze orders table with a shared customer dimension.
+# Action chain: load (delta) -> transform:sql (stream-static join) -> write.
+pipeline: bronze_orders
+flowgroup: orders_enriched
+
+actions:
+  # 1. Load: stream the bronze orders table this project produces upstream.
+  - name: load_orders
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: orders
+    target: v_orders
+
+  # 2. Transform (SQL): join the streaming orders against a static customer
+  #    dimension that a different team owns and publishes in the raw schema.
+  - name: enrich_orders
+    type: transform
+    transform_type: sql
+    source: v_orders
+    sql: |
+      SELECT
+        o.*,
+        c.customer_name,
+        c.region
+      FROM stream(v_orders) o
+      LEFT JOIN ${catalog}.${raw_schema}.customers c
+        ON o.customer_id = c.customer_id
+    target: v_orders_enriched
+
+  # 3. Write: append the enriched rows into a second bronze table.
+  - name: write_orders_enriched
+    type: write
+    source: v_orders_enriched
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: orders_enriched

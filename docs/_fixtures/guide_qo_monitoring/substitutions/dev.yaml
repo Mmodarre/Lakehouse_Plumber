@@ -1,0 +1,6 @@
+# Development environment tokens.
+# Referenced from lhp.yaml and the flowgroup with ${token} syntax.
+dev:
+  catalog: retail_dev
+  bronze_schema: bronze
+  landing_path: /Volumes/retail_dev/landing/files

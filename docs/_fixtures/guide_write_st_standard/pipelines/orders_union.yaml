@@ -1,0 +1,62 @@
+# Fan two order channels into one silver streaming table.
+# Action chain: two delta loads (online + in-store) -> two write actions that
+# append into the SAME streaming_table. One action owns table creation
+# (create_table: true) and carries the write-target options; the other appends.
+pipeline: silver_orders
+flowgroup: orders_union
+
+actions:
+  # 1. Load the online-orders channel from its bronze Delta table.
+  - name: load_orders_online
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: orders_online
+    target: v_orders_online
+
+  # 2. Load the in-store-orders channel from its bronze Delta table.
+  - name: load_orders_instore
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: orders_instore
+    target: v_orders_instore
+
+  # 3. Write the online channel into the silver table AND create it.
+  #    This action owns the table: create_table: true (the default) plus the
+  #    write-target options — comment, table_properties, clustering.
+  - name: write_orders_online
+    type: write
+    source: v_orders_online
+    write_target:
+      type: streaming_table
+      mode: standard
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
+      table: orders
+      create_table: true
+      comment: "Unified silver orders — online and in-store channels"
+      table_properties:
+        delta.enableChangeDataFeed: "true"
+        delta.autoOptimize.optimizeWrite: "true"
+        quality: silver
+      cluster_columns: ["customer_id"]
+
+  # 4. Append the in-store channel into the SAME table. create_table: false —
+  #    this action contributes an append flow only, never re-creates the table.
+  - name: write_orders_instore
+    type: write
+    source: v_orders_instore
+    write_target:
+      type: streaming_table
+      mode: standard
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
+      table: orders
+      create_table: false

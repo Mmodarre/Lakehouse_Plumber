@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: deploy_bundle
+version: "1.0"
+description: "Deploy primitive: a minimal bundle project LHP generates and Databricks deploys."

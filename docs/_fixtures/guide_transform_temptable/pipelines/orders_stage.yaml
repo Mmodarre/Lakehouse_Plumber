@@ -1,0 +1,63 @@
+# Stage the cleaned orders once in a temp table, then fan out to two writes.
+# Action chain: load (cloudFiles CSV) -> transform:temp_table -> two consumers:
+#   (A) write the staged rows to silver.orders
+#   (B) flag high-value orders off the SAME staged rows -> write silver.orders_flagged
+pipeline: silver_stage
+flowgroup: orders_stage
+
+actions:
+  # 1. Load: stream raw CSV order files from the landing volume with Auto Loader.
+  - name: load_orders_csv
+    type: load
+    source:
+      type: cloudfiles
+      path: "${landing_path}/orders/*.csv"
+      format: csv
+    target: v_orders_raw
+
+  # 2. Temp table: materialise the cleaned, typed orders ONCE. Both downstream
+  #    branches read this result instead of re-running the cast-and-filter query.
+  - name: stage_orders
+    type: transform
+    transform_type: temp_table
+    source: v_orders_raw
+    readMode: stream
+    sql: |
+      SELECT
+        CAST(order_id AS BIGINT)    AS order_id,
+        CAST(cust_id  AS BIGINT)    AS customer_id,
+        CAST(region   AS STRING)    AS region,
+        CAST(amt      AS DOUBLE)    AS amount,
+        CAST(order_ts AS TIMESTAMP) AS order_ts
+      FROM stream(v_orders_raw)
+      WHERE order_id IS NOT NULL
+    target: orders_staged
+
+  # 3a. Branch A: append the staged rows into the silver orders table.
+  - name: write_orders_silver
+    type: write
+    source: orders_staged
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
+      table: orders
+
+  # 3b. Branch B: flag high-value orders off the SAME staged rows, then write them.
+  - name: flag_high_value
+    type: transform
+    transform_type: sql
+    source: orders_staged
+    sql: |
+      SELECT *, amount >= 1000 AS is_high_value
+      FROM stream(orders_staged)
+    target: v_orders_flagged
+
+  - name: write_orders_flagged
+    type: write
+    source: v_orders_flagged
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
+      table: orders_flagged

@@ -1,0 +1,72 @@
+"""A PySpark DataSource that streams currency exchange rates from a REST API.
+
+Spark ships no connector for an arbitrary HTTP endpoint, so this implements the
+PySpark ``DataSource`` interface directly. The streaming reader fetches one
+snapshot of rates per micro-batch and lets Spark manage the offsets.
+"""
+
+from typing import Iterator, Tuple
+
+from pyspark.sql.datasource import (
+    DataSource,
+    DataSourceStreamReader,
+    InputPartition,
+)
+from pyspark.sql.types import StructType
+
+
+class ExchangeRatesDataSource(DataSource):
+    """Live currency exchange rates from a REST API."""
+
+    @classmethod
+    def name(cls):
+        return "exchange_rates"
+
+    def schema(self):
+        return (
+            "base_currency string, "
+            "quote_currency string, "
+            "rate double, "
+            "fetched_at timestamp"
+        )
+
+    def streamReader(self, schema: StructType):
+        return ExchangeRatesStreamReader(self.options)
+
+
+class _FetchWindow(InputPartition):
+    def __init__(self, fetched_at_ms: int):
+        self.fetched_at_ms = fetched_at_ms
+
+
+class ExchangeRatesStreamReader(DataSourceStreamReader):
+    """Fetch one batch of rates per micro-batch from the configured endpoint."""
+
+    def __init__(self, options):
+        self.api_url = options.get("api_url", "https://api.example.com/rates")
+        self.base_currencies = options.get("base_currencies", "USD").split(",")
+
+    def initialOffset(self) -> dict:
+        import time
+
+        return {"fetch_time": int(time.time() * 1000)}
+
+    def latestOffset(self) -> dict:
+        import time
+
+        return {"fetch_time": int(time.time() * 1000)}
+
+    def partitions(self, start: dict, end: dict):
+        return [_FetchWindow(end.get("fetch_time", 0))]
+
+    def read(self, partition) -> Iterator[Tuple]:
+        from datetime import datetime, timezone
+
+        import requests
+
+        fetched_at = datetime.now(timezone.utc)
+        for base in self.base_currencies:
+            response = requests.get(self.api_url, params={"base": base}, timeout=10)
+            rates = response.json().get("rates", {})
+            for quote, rate in rates.items():
+                yield (base, quote, float(rate), fetched_at)

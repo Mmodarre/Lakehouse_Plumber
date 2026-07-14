@@ -1,0 +1,12 @@
+# Lakehouse Plumber project configuration
+name: guide_dev_sandbox
+version: "1.0"
+description: "Guide: develop in a sandbox — generate a personal, namespaced copy of your pipelines."
+
+# Team-level sandbox policy. The whole block is optional; when it is absent the
+# defaults below apply (strategy table, pattern {namespace}_{table}, any env).
+sandbox:
+  strategy: table                       # v1 supports only table (rename the leaf)
+  table_pattern: "{namespace}_{table}"  # {namespace}/{table} are format placeholders, not ${tokens}
+  allowed_envs:
+    - dev

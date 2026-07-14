@@ -1,0 +1,71 @@
+# A blueprint is a parametrised pattern written ONCE. Each instance file under
+# pipelines/ binds the parameters, and the expander stamps out a full set of
+# flowgroups for that binding.
+#
+# Fan-out: 2 flowgroup specs (orders, customers) x 3 tenant instances = 6 flowgroups.
+#   %{tenant} / %{region} / %{partition_col}  -> resolved per instance
+#   ${catalog} / ${bronze_schema} / ...       -> resolved per environment
+name: tenant_bronze
+version: "1.0"
+description: "Per-tenant bronze ingest (orders + customers), fanned across tenants and regions."
+
+parameters:
+  # Two REQUIRED identity parameters: every instance must bind both.
+  - name: tenant
+    required: true
+    description: "Tenant identifier; drives the pipeline name, flowgroup names, and table names."
+  - name: region
+    required: true
+    description: "Region code; drives the landing path and is stamped into every table name."
+  # One OPTIONAL config parameter with a default: instances may omit it.
+  - name: partition_col
+    required: false
+    default: ingest_date
+    description: "Column the bronze tables partition by. Defaults to ingest_date."
+
+flowgroups:
+  # ---- orders ingest ----
+  - pipeline: "%{tenant}_bronze"
+    flowgroup: "%{tenant}_orders_ingest"
+    actions:
+      - name: load_orders
+        type: load
+        source:
+          type: cloudfiles
+          path: "${landing_path}/%{tenant}/%{region}/orders/*.csv"
+          format: csv
+        target: v_orders_raw
+
+      - name: write_orders
+        type: write
+        source: v_orders_raw
+        write_target:
+          type: streaming_table
+          catalog: "${catalog}"
+          schema: "${bronze_schema}"
+          table: "%{tenant}_%{region}_orders"
+          partition_columns:
+            - "%{partition_col}"
+
+  # ---- customers ingest ----
+  - pipeline: "%{tenant}_bronze"
+    flowgroup: "%{tenant}_customers_ingest"
+    actions:
+      - name: load_customers
+        type: load
+        source:
+          type: cloudfiles
+          path: "${landing_path}/%{tenant}/%{region}/customers/*.csv"
+          format: csv
+        target: v_customers_raw
+
+      - name: write_customers
+        type: write
+        source: v_customers_raw
+        write_target:
+          type: streaming_table
+          catalog: "${catalog}"
+          schema: "${bronze_schema}"
+          table: "%{tenant}_%{region}_customers"
+          partition_columns:
+            - "%{partition_col}"

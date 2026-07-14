@@ -1,0 +1,38 @@
+# Guide: enforce an explicit schema on a view.
+# Action chain: load (cloudFiles CSV, streaming) -> transform:schema (strict
+# enforcement from an external schema file) -> write (streaming table).
+pipeline: silver_orders
+flowgroup: orders_typed
+
+actions:
+  # 1. Load: stream raw CSV order files from the landing volume with Auto Loader.
+  #    Raw columns are untyped strings with cryptic names, plus a src_system
+  #    column the downstream table has no use for.
+  - name: load_orders_csv
+    type: load
+    source:
+      type: cloudfiles
+      path: "${landing_path}/orders/*.csv"
+      format: csv
+    target: v_orders_raw
+
+  # 2. Transform (schema): apply the explicit column contract in
+  #    schemas/orders.yaml — rename each cryptic column to a clear name, cast it
+  #    to its target type, and (strict) drop every column not listed.
+  - name: enforce_orders_schema
+    type: transform
+    transform_type: schema
+    source: v_orders_raw
+    schema_file: "schemas/orders.yaml"
+    enforcement: strict
+    target: v_orders_typed
+
+  # 3. Write: append the typed rows into the silver streaming table.
+  - name: write_orders_silver
+    type: write
+    source: v_orders_typed
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
+      table: orders

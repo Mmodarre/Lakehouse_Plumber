@@ -1,0 +1,15 @@
+# A data-quality test flowgroup: assert that every order in the bronze
+# orders table has a unique order_id. Test actions are emitted only when
+# `lhp generate` is run with --include-tests.
+pipeline: bronze_dq
+flowgroup: orders_dq
+
+actions:
+  # Uniqueness test: no two bronze rows may share an order_id.
+  - name: orders_id_unique
+    type: test
+    test_type: uniqueness
+    source: "${catalog}.${bronze_schema}.orders"
+    columns: [order_id]
+    on_violation: fail
+    description: "Every bronze order has a unique order_id"

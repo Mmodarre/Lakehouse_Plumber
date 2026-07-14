@@ -1,71 +1,79 @@
 .. Lakehouse Plumber documentation master file
 
-====================================
+=================
 Lakehouse Plumber
-====================================
+=================
 
 .. meta::
-   :description: YAML-driven framework for generating Databricks Lakeflow Spark Declarative Pipelines (SDP). Eliminate boilerplate with reusable templates and presets.
+   :description: Lakehouse Plumber turns concise YAML into readable Lakeflow Spark Declarative Pipelines — declare your ETL instead of hand-writing thousands of lines of PySpark.
 
-Managing dozens of SDP pipelines means thousands of lines of repetitive Python —
-inconsistent patterns, boilerplate sprawl, and painful maintenance across environments.
+**ETL at scale, the way it should be.**
 
-Lakehouse Plumber turns concise YAML **actions** into fully-featured
-Lakeflow Spark Declarative Pipelines (SDP) — without hiding the Databricks
-platform you already know and love.
+Managing dozens of Lakeflow pipelines means writing — and rewriting — thousands
+of lines of near-identical PySpark. The patterns repeat; only the table names
+change. Lakehouse Plumber turns concise YAML **actions** into fully-featured
+Lakeflow Spark Declarative Pipelines. You describe *what* each pipeline is —
+a source to read, a table to write; LHP writes the *how* as plain, readable
+Python you own and open in the Databricks editor. **Declare your ETL, don't
+hand-write it.**
 
-How LHP Solves It
------------------
+See it
+======
 
-- **Eliminates boilerplate** — a template + 5-line config replaces 86 lines of Python per table.
-- **Zero runtime overhead** — pure code generation, not a runtime framework.
-- **Transparent output** — readable Python files, version-controlled and debuggable in the Databricks IDE.
-- **Fits DataOps workflows** — CI/CD, automated testing, multi-environment substitutions.
-- **No lock-in** — the output is plain Python & SQL you own and control.
-- **Data democratization** — power users create artifacts within platform standards.
+The same ingest, three ways: the YAML you write, the Lakeflow code Lakehouse
+Plumber generates from it, and the two commands that turn one into the other.
 
-**Real-World Example**
+.. tab-set::
 
-Instead of repeating 86 lines of Python per table, write a **5-line configuration**:
+   .. tab-item:: You write — YAML
 
-.. code-block:: yaml
-   :caption: customer_ingestion.yaml (5 lines per table)
+      Eighteen lines describe a ``load`` and a ``write``. The ``${...}`` tokens
+      resolve per environment, so the same flowgroup runs unchanged in dev and
+      prod.
 
-   pipeline: raw_ingestions
-   flowgroup: customer_ingestion
+      .. literalinclude:: _fixtures/first_pipeline/pipelines/bronze_ingest.yaml
+         :language: yaml
+         :caption: pipelines/bronze_ingest.yaml
 
-   use_template: csv_ingestion_template
-   template_parameters:
-     table_name: customer
-     landing_folder: customer
+   .. tab-item:: LHP generates — Lakeflow
 
-**Result:** 4,300 lines of repetitive Python → 250 lines total (1 template + 50 simple configs).
-See :doc:`quickstart` for the full template and generated output.
+      Ordinary Lakeflow Python — a temporary view for the source, a streaming
+      table for the target, an append flow wiring them together. Nothing hidden
+      behind a runtime; you could have written it by hand, but you didn't.
 
-Quick Start
------------
+      .. literalinclude:: _fixtures/first_pipeline/generated/dev/bronze_ingest/orders_ingest.py
+         :language: python
+         :caption: generated/dev/bronze_ingest/orders_ingest.py
 
-Get started in minutes:
+   .. tab-item:: You run — CLI
 
-.. code-block:: bash
+      Validate resolves every token and checks the actions; generate writes the
+      Python.
 
-   pip install lakehouse-plumber
-   lhp init my_project
-   cd my_project
+      .. code-block:: console
 
-   # Edit your YAML flowgroups (IntelliSense auto-configured)
-   lhp validate --env dev
-   lhp generate --env dev
+         $ lhp validate --env dev
+         ✓ discover (0.01s)
+         ✓ bronze_ingest  0 files
+         ✓ validate (0.38s)
+         1 validated · 0.4s
 
-   # Inspect the generated/ directory — readable Python ready for Databricks
+         $ lhp generate --env dev
+         ✓ discover (0.01s)
+         ✓ bronze_ingest  1 file
+         ✓ generate (0.41s)
+         1 pipeline generated · 1 file · 0.5s
 
-.. note::
-   **New to LHP?** Follow the :doc:`quickstart` to build your first pipeline in 10 minutes.
+The payoff compounds. Adding a data-quality check, a second table, or a CDC
+merge is a few more lines of YAML — not another fifty lines of Python each time.
+The :doc:`Get Started course <get-started/index>` grows this one example into a
+reusable, deployable project, one primitive at a time.
 
-Core Workflow
--------------
+The model
+=========
 
-The execution model is deliberately simple:
+Every pipeline follows the same shape: load a source, apply zero or more
+transforms, write a target.
 
 .. mermaid::
 
@@ -73,85 +81,34 @@ The execution model is deliberately simple:
        A[Load] --> B{0..N Transform}
        B --> C[Write]
 
-1. **Load**    Ingest raw data from CloudFiles, Delta, JDBC, SQL, or custom Python.
-2. **Transform**   Apply *zero or many* transforms (SQL, Python, schema, data-quality, temp-tables…).
-3. **Write**   Persist results as Streaming Tables, Materialized Views, or Snapshots.
-
 Where to next
--------------
+=============
 
-The sidebar groups documentation by purpose, following the
-`Diátaxis <https://diataxis.fr/>`_ framework:
+.. grid:: 1 1 2 2
+   :gutter: 3
 
-* **Get Started** — install LHP, set up your editor, and ship your first pipeline.
-* **How-to** — task-shaped recipes for common data-engineering problems.
-* **Explanation** — the *why* behind LHP's design and patterns.
-* **Reference** — exhaustive lookup tables for CLI flags, YAML keys, error codes, and the public API.
+   .. grid-item-card:: Get Started →
+      :link: get-started/index
+      :link-type: doc
 
-If you have a specific problem, jump straight to :doc:`how_to_index`. If you
-want to understand the execution model first, read :doc:`architecture`.
+      From an empty folder to a reusable, deployable pipeline — one primitive at
+      a time. Every step is fixture-backed and generates the code it shows.
 
-.. toctree::
-   :maxdepth: 1
-   :hidden:
-   :caption: Get Started
+   .. grid-item-card:: Reference →
+      :link: reference/index
+      :link-type: doc
 
-   quickstart
-   tutorials/sample_quickstart
-   editor_setup
-   requirements
+      CLI flags, the Python API, every action option, error codes, and
+      configuration schemas. Pure lookup, generated from the code itself.
 
-.. toctree::
-   :maxdepth: 1
-   :hidden:
-   :caption: How-to
-
-   how_to_index
-   decisions
-   ingest_with_autoloader
-   pipeline_patterns
-   multi_flowgroup_guide
-   dynamic_templates_guide
-   configure_bundles
-   package_pipelines_as_wheels
-   configure_catalog_schema
-   develop_in_a_sandbox
-   develop_in_the_web_ide
-   use_the_ai_assistant
-   enable_monitoring
-   quarantine_records
-   migrate_from_dlt
-   troubleshooting
-   cicd
-   actions/test_reporting
+Task-shaped recipes live in the :doc:`Guides <guides/index>`; the reasoning
+behind LHP's design lives in :doc:`Concepts <concepts/index>`.
 
 .. toctree::
    :maxdepth: 1
-   :hidden:
-   :caption: Explanation
+   :caption: Documentation
 
-   architecture
-   skills_concept
-   best_practices/index
-
-.. toctree::
-   :maxdepth: 1
-   :hidden:
-   :caption: Reference
-
-   cli
-   actions/index
-   substitutions
-   operational_metadata
-   templates_reference
-   presets_reference
-   blueprints
-   bundle_config_reference
-   sandbox_reference
-   monitoring_reference
-   dependency_analysis
-   quarantine
-   errors_reference
-   glossary
-   api
-   changelog
+   get-started/index
+   guides/index
+   concepts/index
+   reference/index

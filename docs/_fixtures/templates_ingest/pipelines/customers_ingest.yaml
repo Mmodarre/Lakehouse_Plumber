@@ -1,0 +1,6 @@
+# Stamp the customers table from the same template -- one parameter changes.
+pipeline: bronze_ingest
+flowgroup: customers_ingest
+use_template: csv_ingest
+template_parameters:
+  entity: customers

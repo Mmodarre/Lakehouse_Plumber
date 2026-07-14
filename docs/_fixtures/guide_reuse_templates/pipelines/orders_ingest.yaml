@@ -1,0 +1,13 @@
+# orders: a high-volume CSV table.
+# Overrides cluster_columns (a list) and layers the high_throughput preset on
+# top of the template's bronze_defaults. Relies on the file_format default (csv).
+pipeline: bronze
+flowgroup: orders_ingest
+use_template: bronze_ingest
+presets:
+  - high_throughput
+template_parameters:
+  entity: orders
+  cluster_columns:
+    - order_id
+    - order_date

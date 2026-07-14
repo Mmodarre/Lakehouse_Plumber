@@ -1,0 +1,24 @@
+# Bronze ingest for customers — the SAME shape as orders, and the same
+# bronze_defaults preset. Only the path, the view name, and the table differ.
+pipeline: bronze_ingest
+flowgroup: customers_ingest
+presets:
+  - bronze_defaults
+
+actions:
+  - name: load_customers_csv
+    type: load
+    source:
+      type: cloudfiles
+      path: "${landing_path}/customers/*.csv"
+      format: csv
+    target: v_customers_raw
+
+  - name: write_customers_bronze
+    type: write
+    source: v_customers_raw
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: customers

@@ -1,0 +1,11 @@
+# Lakehouse Plumber project configuration
+name: guide_ship_wheel
+version: "1.0"
+description: "Guide: package a pipeline's generated code as a versioned Python wheel."
+
+# Wheel packaging uploads each built wheel to a Unity Catalog volume — serverless
+# compute installs custom wheels only from a /Volumes/... path. The value is
+# substitution-token-aware: ${catalog} and ${artifact_schema} resolve per
+# environment from substitutions/<env>.yaml, so this one entry serves them all.
+wheel:
+  artifact_volume: "/Volumes/${catalog}/${artifact_schema}/bundle_artifacts"

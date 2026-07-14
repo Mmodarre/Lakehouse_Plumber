@@ -1,0 +1,31 @@
+# Ingest guide: incrementally pick up new order files with Auto Loader.
+# Action chain: load (cloudFiles JSON, schema inference + evolution) -> write (streaming_table).
+pipeline: bronze_ingest
+flowgroup: orders_ingest
+
+actions:
+  # 1. Load: continuously stream new JSON files from the landing volume with
+  #    Auto Loader. Infer the schema, evolve it as new fields appear, and
+  #    capture anything that fails type coercion in a rescued-data column.
+  - name: load_orders_files
+    type: load
+    source:
+      type: cloudfiles
+      path: "${landing_path}/orders/*.json"
+      format: json
+      options:
+        cloudFiles.schemaLocation: "${schema_location}"
+        cloudFiles.inferColumnTypes: true
+        cloudFiles.schemaEvolutionMode: addNewColumns
+        cloudFiles.rescuedDataColumn: _rescued_data
+    target: v_orders_raw
+
+  # 2. Write: append every new file's rows into a bronze streaming table.
+  - name: write_orders_bronze
+    type: write
+    source: v_orders_raw
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: orders_raw

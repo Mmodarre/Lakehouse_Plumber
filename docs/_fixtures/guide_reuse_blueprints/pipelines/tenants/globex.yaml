@@ -1,0 +1,5 @@
+# partition_col is omitted, so the blueprint default (ingest_date) applies.
+use_blueprint: tenant_bronze
+parameters:
+  tenant: globex
+  region: eu

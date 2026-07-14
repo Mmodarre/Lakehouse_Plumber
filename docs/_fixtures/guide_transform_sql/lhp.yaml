@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: guide_transform_sql
+version: "1.0"
+description: "Guide: reshape data with a SQL transform — a stream-static enrichment join."

@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: guide_write_matview
+version: "1.0"
+description: "Write guide: produce a gold materialized view from an inline SQL query."

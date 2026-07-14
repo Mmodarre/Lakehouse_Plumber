@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: guide_ingest_kafka
+version: "1.0"
+description: "Ingest guide: stream a Kafka topic into a bronze streaming table."

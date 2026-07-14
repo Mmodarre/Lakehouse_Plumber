@@ -1,0 +1,59 @@
+# A flowgroup in a SEPARATE `silver` pipeline. It reads the two bronze TABLES
+# the `bronze_ingest` pipeline wrote: tables are global, so a table written in
+# one pipeline is visible to any other pipeline that names it. Reading those
+# tables is what makes `silver` depend on `bronze_ingest`.
+# Action chain: load (delta) x2 -> transform:sql (join) -> write.
+pipeline: silver
+flowgroup: orders_silver
+
+actions:
+  # Stream the bronze orders table the bronze_ingest pipeline wrote.
+  - name: load_orders_bronze
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: orders
+    target: v_orders_bronze
+
+  # Read the bronze customers table as a static snapshot (the dimension).
+  - name: load_customers_bronze
+    type: load
+    readMode: batch
+    source:
+      type: delta
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: customers
+    target: v_customers_bronze
+
+  # Enrich each order with its customer. stream(...) on the fact, plain name on
+  # the dimension — a stream-static join (see the SQL transform guide).
+  - name: build_orders_fct
+    type: transform
+    transform_type: sql
+    source:
+      - v_orders_bronze
+      - v_customers_bronze
+    sql: |
+      SELECT
+        o.order_id,
+        o.amount,
+        c.customer_name,
+        c.region
+      FROM stream(v_orders_bronze) AS o
+      JOIN v_customers_bronze AS c
+        ON o.customer_id = c.customer_id
+    target: v_orders_fct
+
+  # Write the enriched fact into a silver streaming table.
+  - name: write_orders_fct
+    type: write
+    source: v_orders_fct
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
+      table: orders_fct

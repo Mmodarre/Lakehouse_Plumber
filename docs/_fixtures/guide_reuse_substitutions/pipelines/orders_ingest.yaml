@@ -1,0 +1,40 @@
+# Reuse guide: one flowgroup that pulls the orders table from an operational
+# database over JDBC and lands it in the bronze layer. The SAME file ships to
+# every environment — only the substitution file changes.
+# Action chain: load (jdbc, batch) -> write (materialized_view).
+pipeline: bronze_ingest
+flowgroup: orders_ingest
+
+# Local variables (%{...}): flowgroup-scoped, the same in every environment.
+# The entity name repeats across the action names, the view, and the table.
+variables:
+  entity: orders
+  source_table: public.orders
+
+actions:
+  # 1. Load: read the orders table over JDBC. The connection host and database
+  #    are environment tokens; the credentials are secret references.
+  - name: load_%{entity}_jdbc
+    type: load
+    readMode: batch
+    source:
+      type: jdbc
+      url: "jdbc:postgresql://${db_host}:5432/${db_name}"
+      driver: "org.postgresql.Driver"
+      user: "${secret:sales_db/username}"
+      password: "${secret:sales_db/password}"
+      table: "%{source_table}"
+    target: v_%{entity}_raw
+    description: "Orders table from the operational sales database"
+
+  # 2. Write: land the pulled rows as a bronze materialized view. The catalog
+  #    and schema are environment tokens, so the target name differs per env.
+  - name: write_%{entity}_bronze
+    type: write
+    source: v_%{entity}_raw
+    write_target:
+      type: materialized_view
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: "%{entity}"
+      comment: "Bronze copy of the operational orders table, refreshed over JDBC"

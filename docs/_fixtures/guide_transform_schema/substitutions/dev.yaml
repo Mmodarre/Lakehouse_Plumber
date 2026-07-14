@@ -1,0 +1,6 @@
+# Development environment tokens.
+# Referenced from the flowgroup with ${token} syntax.
+dev:
+  catalog: dev_catalog
+  silver_schema: silver
+  landing_path: /Volumes/dev_catalog/landing/files

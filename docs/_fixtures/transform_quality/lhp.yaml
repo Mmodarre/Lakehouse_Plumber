@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: transform_quality
+version: "1.0"
+description: "Course step 03: add a SQL transform and a data-quality gate to the first pipeline."

@@ -1,0 +1,33 @@
+# Ingest guide: pull the customer master table from an operational
+# PostgreSQL database into the bronze layer over JDBC.
+# Action chain: load (jdbc, batch) -> write (materialized_view).
+pipeline: bronze_customers
+flowgroup: customers_jdbc
+
+actions:
+  # 1. Load: read the customer master table from the operational sales
+  #    database over JDBC. Batch read — a JDBC source has no stream.
+  - name: load_customers_jdbc
+    type: load
+    readMode: batch
+    source:
+      type: jdbc
+      url: "jdbc:postgresql://sales-db.internal:5432/sales"
+      driver: "org.postgresql.Driver"
+      user: "${secret:sales_db/username}"
+      password: "${secret:sales_db/password}"
+      table: "public.customers"
+    target: v_customers_jdbc
+    description: "Customer master table from the operational sales database"
+
+  # 2. Write: land the pulled rows as a bronze materialized view that
+  #    Databricks recomputes from the source view on each refresh.
+  - name: write_customers_bronze
+    type: write
+    source: v_customers_jdbc
+    write_target:
+      type: materialized_view
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: customers
+      comment: "Bronze copy of the operational customer master, refreshed over JDBC"

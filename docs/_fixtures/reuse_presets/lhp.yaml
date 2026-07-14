@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: reuse_presets
+version: "1.0"
+description: "Course step 04: factor shared bronze-ingest config into a preset, reused across two tables."

@@ -1,0 +1,47 @@
+# The ingestion SHAPE captured once: stream a folder of files from the landing
+# volume with Auto Loader into a view, then append them to a bronze streaming
+# table. Three parameters drive what varies per table.
+#
+# The body is plain YAML; Jinja2 {{ param }} expressions are rendered inside
+# string values. `entity` is required; `file_format` and `cluster_columns`
+# have defaults, so a flowgroup only supplies them when it wants to override.
+name: bronze_ingest
+version: "1.0"
+description: "Stream a folder of files into a bronze streaming table; format and clustering set per table."
+
+presets:
+  - bronze_defaults
+
+parameters:
+  - name: entity
+    required: true
+    description: "Entity name; drives the landing folder, the view name and the target table."
+  - name: file_format
+    required: false
+    default: csv
+    description: "File format under the entity's landing folder. Defaults to csv."
+  - name: cluster_columns
+    required: false
+    default: []
+    description: "Liquid-clustering columns for the bronze table. Empty means unclustered."
+
+actions:
+  # Load: stream files for this entity from the landing volume.
+  - name: load_{{ entity }}_raw
+    type: load
+    source:
+      type: cloudfiles
+      path: "${landing_path}/{{ entity }}/*.{{ file_format }}"
+      format: "{{ file_format }}"
+    target: v_{{ entity }}_raw
+
+  # Write: append the raw rows into the entity's bronze streaming table.
+  - name: write_{{ entity }}_bronze
+    type: write
+    source: v_{{ entity }}_raw
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: "{{ entity }}"
+      cluster_columns: "{{ cluster_columns }}"

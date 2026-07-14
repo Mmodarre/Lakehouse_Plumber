@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: templates_ingest
+version: "1.0"
+description: "Course step: capture the load->write ingestion shape once as a template, then stamp three tables from short use_template flowgroups."

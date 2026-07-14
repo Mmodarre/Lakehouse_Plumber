@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: guide_qo_dependency
+version: "1.0"
+description: "Guide: analyze how pipelines connect with lhp dag."

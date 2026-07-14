@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: guide_ingest_autoloader
+version: "1.0"
+description: "Ingest guide: incrementally ingest JSON files from a volume with Auto Loader."

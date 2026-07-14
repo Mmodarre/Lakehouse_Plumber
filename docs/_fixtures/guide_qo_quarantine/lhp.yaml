@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: guide_qo_quarantine
+version: "1.0"
+description: "Quality & Ops guide: quarantine failed rows into a dead-letter table instead of dropping them."

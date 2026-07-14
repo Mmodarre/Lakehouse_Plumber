@@ -1,0 +1,18 @@
+# Shared bronze-ingestion defaults. Presets apply by implicit type matching:
+# load_actions.cloudfiles merges into any cloudfiles load, and
+# write_actions.streaming_table merges into any streaming-table write.
+# The preset is the single place this shared bronze standard is defined.
+name: bronze_defaults
+version: "1.0"
+description: "Bronze ingestion standard: CSV Auto Loader options + streaming-table properties."
+defaults:
+  load_actions:
+    cloudfiles:
+      options:
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+        cloudFiles.maxFilesPerTrigger: 200
+  write_actions:
+    streaming_table:
+      table_properties:
+        delta.enableChangeDataFeed: "true"
+        quality: "bronze"

@@ -1,0 +1,11 @@
+# Flowgroup-level preset: raise the Auto Loader trigger batch for a high-volume
+# table. Applied AFTER the template's bronze_defaults, so it overrides the
+# maxFilesPerTrigger that preset set.
+name: high_throughput
+version: "1.0"
+description: "Raise the Auto Loader trigger batch size for a high-volume table."
+defaults:
+  load_actions:
+    cloudfiles:
+      options:
+        cloudFiles.maxFilesPerTrigger: 1000

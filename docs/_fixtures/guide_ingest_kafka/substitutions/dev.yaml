@@ -1,0 +1,7 @@
+# Development environment tokens.
+# Referenced from flowgroups with ${token} syntax.
+dev:
+  catalog: dev_catalog
+  bronze_schema: bronze
+  kafka_bootstrap: kafka-dev.internal:9092
+  truststore_path: /Volumes/dev_catalog/kafka/truststore.jks

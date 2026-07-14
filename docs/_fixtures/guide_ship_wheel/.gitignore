@@ -1,0 +1,32 @@
+# LakehousePlumber
+# NOTE: generated/ is intentionally TRACKED for this docs fixture so guide
+# pages can literalinclude the generated runner and bundle resources (and CI can
+# regenerate + diff). The built .whl lives under generated/.../dist/ and stays
+# gitignored (dist/ below) — it is a binary artifact rebuilt on demand.
+.lhp/
+.ruff_cache/
+*.tmpl
+*.pyc
+__pycache__/
+.pytest_cache/
+.coverage
+*.egg-info/
+dist/
+build/
+.env
+.venv/
+venv/
+
+# Databricks Asset Bundle
+.bundle/
+
+# IDE
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Secrets
+*.key
+*.pem
+secrets/

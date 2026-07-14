@@ -1,0 +1,18 @@
+# Development environment. Referenced from the flowgroup with ${token} syntax.
+
+# Values shared by every environment live in 'global' — declare them once.
+global:
+  db_name: sales
+
+# Values that change per environment live under the environment name.
+dev:
+  catalog: dev_catalog
+  bronze_schema: bronze
+  db_host: sales-db-dev.internal
+
+# Logical secret scopes. A ${secret:sales_db/<key>} reference resolves its
+# scope through this map, so the flowgroup names a scope, never a raw secret.
+secrets:
+  default_scope: dev_secrets
+  scopes:
+    sales_db: dev_sales_db_secrets

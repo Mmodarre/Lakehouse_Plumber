@@ -1,0 +1,24 @@
+# A single snapshot-CDC write. No load action: the source function reads the
+# snapshot table directly and hands back (DataFrame, version) pairs, so the
+# flowgroup is self-contained.
+pipeline: silver_dim
+flowgroup: dim_customer
+
+actions:
+  - name: write_dim_customer
+    type: write
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
+      table: dim_customer
+      mode: snapshot_cdc
+      snapshot_cdc_config:
+        source_function:
+          file: functions/customer_snapshot.py
+          function: next_customer_snapshot
+          parameters:                 # resolved from substitutions, bound as kwargs
+            snapshot_table: "${catalog}.${bronze_schema}.customer_snapshots"
+        keys: [customer_id]
+        stored_as_scd_type: 2
+        track_history_column_list: [name, address, tier]

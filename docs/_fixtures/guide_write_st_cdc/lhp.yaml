@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: guide_write_st_cdc
+version: "1.0"
+description: "Guide: apply a stream of change rows into an SCD streaming table with AUTO CDC."

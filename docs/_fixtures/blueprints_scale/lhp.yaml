@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: blueprints_scale
+version: "1.0"
+description: "Blueprints: write one bronze-ingest pattern, fan it out across regions."

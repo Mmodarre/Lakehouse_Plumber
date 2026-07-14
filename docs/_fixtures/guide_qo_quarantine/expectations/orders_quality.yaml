@@ -1,0 +1,9 @@
+# Data-quality expectations for the orders flowgroup.
+# In quarantine mode every rule is coerced to `drop`: a failing row is kept out
+# of the clean stream AND written to the dead-letter table for later inspection.
+order_id IS NOT NULL:
+  action: drop
+  name: valid_order_id
+amount >= 0:
+  action: drop
+  name: non_negative_amount

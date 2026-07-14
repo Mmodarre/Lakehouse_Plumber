@@ -1,0 +1,9 @@
+# Explicit column contract for the orders view, in arrow format:
+#   source_column -> target_name: TYPE
+# Under strict enforcement every column NOT listed here is dropped, and the
+# output columns are selected in exactly this order.
+columns:
+  - "o_id      -> order_id: BIGINT"
+  - "c_id      -> customer_id: BIGINT"
+  - "gross_amt -> amount: DOUBLE"
+  - "o_ts      -> order_ts: TIMESTAMP"
