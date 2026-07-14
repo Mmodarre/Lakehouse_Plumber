@@ -1,4 +1,5 @@
 import logging
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Union
 
@@ -7,6 +8,9 @@ from ..parsers.yaml_parser import YAMLParser
 
 
 class SchemaParser:
+    # A column name that is safe to emit unquoted in Databricks SQL DDL
+    _SAFE_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.yaml_parser = YAMLParser()
@@ -62,7 +66,7 @@ class SchemaParser:
         hints = []
         for column in schema_data["columns"]:
             self._require_column_fields(column, schema_name, require_type=True)
-            name = column["name"]
+            name = self._quote_identifier(column["name"])
             col_type = column["type"]
             nullable = column.get("nullable", True)
 
@@ -70,6 +74,20 @@ class SchemaParser:
             hints.append(f"{name} {col_type}{constraint}")
 
         return ", ".join(hints)
+
+    @classmethod
+    def _quote_identifier(cls, name: Any) -> str:
+        """Render a column name as a well-formed Databricks SQL DDL identifier.
+
+        Plain identifiers are returned unchanged so existing schema hints stay stable.
+        Anything else — whitespace, ``$``, or other punctuation — is wrapped in
+        backticks with any embedded backtick doubled, per Spark SQL quoting rules.
+        """
+        name = str(name)
+        if cls._SAFE_IDENTIFIER.match(name):
+            return name
+        escaped = name.replace("`", "``")
+        return f"`{escaped}`"
 
     @staticmethod
     def _require_tag_mapping(raw, column, schema_name) -> Dict[str, Any]:
