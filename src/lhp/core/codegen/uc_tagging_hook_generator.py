@@ -153,8 +153,9 @@ class UCTaggingHookGenerator:
             return substitution_mgr._process_string(text)
         return text
 
-    # UC tag KEYS may not contain any of these six characters.
-    _KEY_PROHIBITED_CHARS = ".,-=/:"
+    # UC tag KEYS may not contain any of these four characters. ('.' and '/' are
+    # permitted: '.' appears in system-governed tag keys and '/' in subdomain keys.)
+    _KEY_PROHIBITED_CHARS = ",-=:"
     _TAG_MAX_LEN = 256
 
     def _normalize_tags(
@@ -184,7 +185,7 @@ class UCTaggingHookGenerator:
     def _validate_tag(cls, key: str, value: str, context: str) -> None:
         """Reject a materialized tag key/value that violates UC's rules.
 
-        KEY: illegal if it contains any of ``. , - = / :``, has leading/trailing
+        KEY: illegal if it contains any of ``, - = :``, has leading/trailing
         whitespace, or exceeds 256 characters. VALUE: illegal if it has
         leading/trailing whitespace or exceeds 256 characters (charset is
         unrestricted). Raises ``LHP-CFG-066`` on the first violation found.
@@ -217,7 +218,7 @@ class UCTaggingHookGenerator:
             title="Illegal UC tag key/value",
             details=f"UC tag {part} {value!r} on {context} is illegal: {reason}.",
             suggestions=[
-                "UC tag keys may not contain any of: . , - = / :",
+                "UC tag keys may not contain any of: , - = :",
                 "Keep keys and values <= 256 chars with no leading/trailing whitespace",
             ],
         )
