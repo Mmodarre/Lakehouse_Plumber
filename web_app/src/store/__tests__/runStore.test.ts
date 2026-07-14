@@ -103,6 +103,9 @@ describe('runStore.begin', () => {
     expect(s.issues).toEqual([])
     expect(s.infoLog).toEqual([])
     expect(s.terminal).toBeNull()
+    // begin() stamps the run start so the header can show an elapsed timer.
+    expect(typeof s.startedAt).toBe('number')
+    expect(s.startedAt).toBeGreaterThan(0)
   })
 })
 
@@ -376,6 +379,7 @@ describe('runStore terminal transitions', () => {
     expect(s.terminal).toBeNull()
     expect(s.errorFrame).toBeNull()
     expect(s.infoLog).toEqual([])
+    expect(s.startedAt).toBeNull()
   })
 })
 
@@ -436,5 +440,47 @@ describe('runStore.setSyntheticSyntaxIssue', () => {
     const before = store().issues
     store().setSyntheticSyntaxIssue('pipelines/untouched.yaml', null)
     expect(store().issues).toBe(before)
+  })
+})
+
+describe('runStore.hydrateIssues', () => {
+  const meta = { runId: 'r1', startedAt: '2026-07-14T00:00:00Z', env: 'dev', pipeline: null }
+
+  it('sets issues and the hydration marker without touching phase/running/terminal', () => {
+    store().reset()
+    const before = store()
+    store().hydrateIssues([issue({ code: 'H1' })], meta)
+
+    const s = store()
+    expect(s.issues.map((i) => i.code)).toEqual(['H1'])
+    expect(s.hydratedFrom).toEqual(meta)
+    // Phase / running / terminal are left exactly as they were (no replay).
+    expect(s.isRunning).toBe(before.isRunning)
+    expect(s.phase).toBe(before.phase)
+    expect(s.terminal).toBe(before.terminal)
+  })
+
+  it('is a no-op while a run is in flight (the live run wins)', () => {
+    store().begin('validate')
+    store().hydrateIssues([issue({ code: 'H1' })], meta)
+    expect(store().issues).toEqual([])
+    expect(store().hydratedFrom).toBeNull()
+  })
+
+  it('a starting live run clears the hydration marker', () => {
+    store().reset()
+    store().hydrateIssues([issue({ code: 'H1' })], meta)
+    expect(store().hydratedFrom).toEqual(meta)
+
+    store().begin('validate')
+    expect(store().hydratedFrom).toBeNull()
+    expect(store().issues).toEqual([])
+  })
+
+  it('reset() clears the hydration marker', () => {
+    store().reset()
+    store().hydrateIssues([issue()], meta)
+    store().reset()
+    expect(store().hydratedFrom).toBeNull()
   })
 })

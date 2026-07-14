@@ -127,7 +127,7 @@ export function ScheduleEditor({ api, idPrefix }: { api: DocFormApi; idPrefix: s
     >
       {notAMapping ? (
         <p className="text-2xs text-warning">
-          schedule is not a mapping — edit it via "Open raw YAML".
+          schedule is not a mapping — edit it in the YAML view.
         </p>
       ) : (
         <>

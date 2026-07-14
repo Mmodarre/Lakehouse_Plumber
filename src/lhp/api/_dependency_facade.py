@@ -29,6 +29,7 @@ from typing import (
 from lhp.api._dependency_graph_converters import _graph_to_view
 from lhp.api._inspection_converters import _dependency_result_to_view
 from lhp.api.responses import (
+    DatasetIndexResult,
     DependencyAnalysisResult,
     DependencyOutputEntry,
     DependencyOutputsResult,
@@ -44,15 +45,20 @@ if TYPE_CHECKING:
 class DependencyFacade:
     """Project-level dependency-graph analysis and output generation.
 
-    Two public methods, both returning frozen DTOs:
+    Public methods, all returning frozen DTOs:
 
     - ``analyze_dependencies`` — run analysis and return a flattened,
       networkx-free :class:`DependencyAnalysisResult` (optionally with
       per-level graph snapshots).
+    - ``describe_graph_staleness`` — cheap freshness metadata for the
+      persisted graph build, backing the ``lhp web`` serve-stale model.
     - ``save_dependency_outputs`` — run analysis and write the requested
       ``dot`` / ``json`` / ``text`` / ``job`` outputs to disk.
+    - ``build_dataset_index`` — env-resolve every flowgroup and join its
+      write actions onto the action graph to produce a
+      :class:`DatasetIndexResult` (table→table lineage).
 
-    Both share the orchestrator's memoized per-option analysis, so a
+    They share the orchestrator's memoized per-option analysis, so a
     matching analyze + save pair discovers and analyzes the project once.
 
     :stability: provisional
@@ -259,4 +265,42 @@ class DependencyFacade:
             success=True,
             entries=tuple(entries),
             output_dir=output_dir,
+        )
+
+    def build_dataset_index(
+        self, *, env: str, force_rebuild: bool = False
+    ) -> DatasetIndexResult:
+        """Build the project's table→table lineage index for ``env``.
+
+        Joins each flowgroup's env-resolved write actions (fully-qualified
+        target names from :meth:`InspectionFacade.process_flowgroup`) onto the
+        substitution-agnostic action dependency graph by action id, then emits
+        one :class:`~lhp.api.responses.DatasetIndexResult` covering every
+        produced table / sink with its upstream lineage chain (same-flowgroup
+        load/transform hops, ``external`` source nodes, and cross-flowgroup
+        upstream ``dataset`` nodes) plus its downstream consumers.
+
+        The graph is fetched via the memoized / serve-stale ``analyze_project``
+        path shared with :meth:`analyze_dependencies`; ``force_rebuild`` (opt-in)
+        bypasses both the in-process memo and the on-disk graph cache, backing
+        the ``lhp web`` Refresh action. Per-flowgroup env-resolution failures
+        are collected on ``warnings`` (the flowgroup is skipped) rather than
+        failing the whole call, mirroring the tables catalog. When a write
+        action's name embeds an unresolved ``${token}`` the action-id join
+        misses and a positional fallback within the flowgroup recovers it,
+        also recording a warning. ``fingerprint`` is a content hash of the
+        index for freshness comparison across rebuilds.
+
+        Implementation lives in the private :mod:`lhp.api._dataset_index`
+        module; the facade stays thin.
+
+        :stability: provisional
+        :raises lhp.errors.LHPError: ``LHP-CFG-*`` / ``LHP-VAL-*`` /
+            ``LHP-FILE-*`` / ``LHP-MULT-*`` propagated from flowgroup
+            discovery and dependency analysis.
+        """
+        from lhp.api._dataset_index import _build_dataset_index
+
+        return _build_dataset_index(
+            self._orchestrator, env=env, force_rebuild=force_rebuild
         )

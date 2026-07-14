@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     # ``JSONValue`` from this module) while still letting
     # ``mypy --strict`` resolve the string annotations.
     from lhp.api.views import (
+        DatasetView,
         PipelineStats,
         ValidationIssueView,
     )
@@ -425,6 +426,27 @@ class DependencyStalenessResult:
 
 
 @dataclass(frozen=True)
+class DatasetIndexResult:
+    """Project-wide table→table lineage index for one environment.
+
+    Returned by :meth:`DependencyFacade.build_dataset_index`. ``datasets``
+    holds one :class:`~lhp.api.views.DatasetView` per produced table / sink,
+    each embedding its upstream lineage chain and downstream consumers.
+    ``warnings`` collects per-flowgroup env-resolution failures (the
+    flowgroup is skipped) and action-name positional-fallback notices.
+    ``fingerprint`` is a content hash of the index used to compare freshness
+    across rebuilds.
+
+    :stability: provisional
+    """
+
+    env: str
+    datasets: Tuple["DatasetView", ...] = ()
+    warnings: Tuple[str, ...] = ()
+    fingerprint: str = ""
+
+
+@dataclass(frozen=True)
 class WheelExtractionResult:
     """Outcome of extracting the modules from a built wheel to disk.
 
@@ -638,8 +660,8 @@ class SandboxScopeResult:
     error: Optional[str] = None
 
 
-# ``ValidationIssueView`` / ``PipelineStats`` are referenced by string
-# inside generic annotations above. Thanks to ``from __future__ import
+# ``ValidationIssueView`` / ``PipelineStats`` / ``DatasetView`` are
+# referenced by string inside generic annotations above. Thanks to ``from __future__ import
 # annotations`` they are never evaluated at class-construction time, so
 # no import is needed here — and importing them would create a cycle
 # (``views`` imports ``JSONValue`` from this module).

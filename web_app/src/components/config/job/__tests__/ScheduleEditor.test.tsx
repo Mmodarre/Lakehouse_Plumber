@@ -31,15 +31,9 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-async function save(user: ReturnType<typeof userEvent.setup>) {
-  const saveButton = screen.getByRole('button', { name: 'Save' })
-  await waitFor(() => expect(saveButton).toBeEnabled())
-  await user.click(saveButton)
-}
-
 describe('ScheduleEditor', () => {
   it('setting all three fields splices exactly the schedule block', async () => {
-    const { putBodies } = serveJob(FIXTURE)
+    const { bufferContent } = serveJob(FIXTURE)
     renderJobEditor()
     await screen.findByRole('navigation', { name: 'Configuration documents' })
     const user = userEvent.setup()
@@ -51,21 +45,21 @@ describe('ScheduleEditor', () => {
     await user.tab()
     await user.click(screen.getByLabelText('Pause status'))
     await user.click(await screen.findByRole('option', { name: 'UNPAUSED' }))
-    await save(user)
 
-    await waitFor(() => expect(putBodies()).toHaveLength(1))
     // The whole edit is ONE inserted block at the end of project_defaults;
     // every other byte (including the sibling document) is untouched.
-    expect(putBodies()[0]).toBe(
-      'project_defaults:\n' +
-        '  max_concurrent_runs: 1\n' +
-        '  schedule:\n' +
-        '    quartz_cron_expression: 0 0 8 * * ?\n' +
-        '    timezone_id: America/New_York\n' +
-        '    pause_status: UNPAUSED\n' +
-        '---\n' +
-        'job_name: nightly\n' +
-        'timeout_seconds: 600\n',
+    await waitFor(() =>
+      expect(bufferContent()).toBe(
+        'project_defaults:\n' +
+          '  max_concurrent_runs: 1\n' +
+          '  schedule:\n' +
+          '    quartz_cron_expression: 0 0 8 * * ?\n' +
+          '    timezone_id: America/New_York\n' +
+          '    pause_status: UNPAUSED\n' +
+          '---\n' +
+          'job_name: nightly\n' +
+          'timeout_seconds: 600\n',
+      ),
     )
   })
 
@@ -80,7 +74,7 @@ describe('ScheduleEditor', () => {
       '---\n' +
       'job_name: nightly\n' +
       'timeout_seconds: 600\n'
-    const { putBodies } = serveJob(withSchedule)
+    const { bufferContent } = serveJob(withSchedule)
     renderJobEditor()
     await screen.findByRole('navigation', { name: 'Configuration documents' })
     const user = userEvent.setup()
@@ -91,12 +85,9 @@ describe('ScheduleEditor', () => {
     await user.tab()
     await user.click(screen.getByLabelText('Pause status'))
     await user.click(await screen.findByRole('option', { name: 'Not set' }))
-    await save(user)
 
-    await waitFor(() => expect(putBodies()).toHaveLength(1))
-    const body = putBodies()[0]!
-    expect(body).not.toContain('schedule')
     // Nothing else changed: the file equals the original fixture.
-    expect(body).toBe(FIXTURE)
+    await waitFor(() => expect(bufferContent()).toBe(FIXTURE))
+    expect(bufferContent()).not.toContain('schedule')
   })
 })

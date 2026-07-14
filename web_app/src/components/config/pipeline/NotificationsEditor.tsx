@@ -116,7 +116,7 @@ export function NotificationsEditor({ api, idPrefix }: { api: DocFormApi; idPref
     <SectionCard title="Notifications" description="Email alerts for pipeline events.">
       {raw !== undefined && notifications === undefined ? (
         <p className="text-2xs text-warning">
-          notifications is not a list — edit it via "Open raw YAML".
+          notifications is not a list — edit it in the YAML view.
         </p>
       ) : (
         <>
@@ -132,7 +132,7 @@ export function NotificationsEditor({ api, idPrefix }: { api: DocFormApi; idPref
               />
             ) : (
               <p key={index} className="text-2xs text-warning">
-                Notification {index + 1} is not a mapping — edit it via "Open raw YAML".
+                Notification {index + 1} is not a mapping — edit it in the YAML view.
               </p>
             ),
           )}

@@ -71,15 +71,15 @@ function setup() {
   queryClient.setQueryData(['blueprints', false], { blueprints: [], total: 0 })
   const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
 
-  const openDesignerTab = vi.fn()
-  useWorkspaceStore.setState({ openDesignerTab })
+  const openEntityTab = vi.fn()
+  useWorkspaceStore.setState({ openEntityTab })
   useUIStore.setState({ createFlowgroupDialog: true, createFlowgroupSeed: null })
 
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   )
   render(<CreateFlowgroupDialog />, { wrapper })
-  return { openDesignerTab, invalidateSpy }
+  return { openEntityTab, invalidateSpy }
 }
 
 const nameInput = () => screen.getByPlaceholderText('e.g. customer_orders')
@@ -131,7 +131,7 @@ describe('CreateFlowgroupDialog', () => {
 
   it('creates a blank flowgroup create-only and opens the designer on it', async () => {
     const user = userEvent.setup()
-    const { openDesignerTab, invalidateSpy } = setup()
+    const { openEntityTab, invalidateSpy } = setup()
     await user.type(nameInput(), 'new_fg')
     await user.click(createButton())
 
@@ -142,8 +142,9 @@ describe('CreateFlowgroupDialog', () => {
     expect(content).toContain('pipeline: sales_raw')
     expect(etag).toBe(IF_MATCH_CREATE_ONLY)
 
+    // No explicit view override — the new flowgroup opens in the default Graph view.
     await waitFor(() =>
-      expect(openDesignerTab).toHaveBeenCalledWith(
+      expect(openEntityTab).toHaveBeenCalledWith(
         'sales_raw',
         'new_fg',
         'pipelines/sales_raw/new_fg.yaml',
@@ -156,7 +157,7 @@ describe('CreateFlowgroupDialog', () => {
 
   it('turns a 412 into an overwrite confirmation, then writes unconditionally', async () => {
     const user = userEvent.setup()
-    const { openDesignerTab } = setup()
+    const { openEntityTab } = setup()
     mockWriteFile.mockRejectedValueOnce(
       new ApiError(412, {
         code: 'PRECONDITION_FAILED',
@@ -178,7 +179,7 @@ describe('CreateFlowgroupDialog', () => {
     await waitFor(() => expect(mockWriteFile).toHaveBeenCalledTimes(2))
     // The overwrite PUT is unconditional (no create-only etag).
     expect(mockWriteFile.mock.calls[1]![2]).toBeUndefined()
-    await waitFor(() => expect(openDesignerTab).toHaveBeenCalled())
+    await waitFor(() => expect(openEntityTab).toHaveBeenCalled())
   })
 
   it('after a 412, editing the name returns a Create targeting the new path (I-1)', async () => {

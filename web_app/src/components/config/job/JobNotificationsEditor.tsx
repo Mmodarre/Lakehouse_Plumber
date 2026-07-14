@@ -83,7 +83,7 @@ function WebhookIdList({
   if (block !== undefined && listKey in block && items === undefined) {
     return (
       <p className="text-2xs text-warning">
-        {LIST_LABELS[listKey]} ({listKey}) is not a list — edit it via "Open raw YAML".
+        {LIST_LABELS[listKey]} ({listKey}) is not a list — edit it in the YAML view.
       </p>
     )
   }
@@ -139,7 +139,7 @@ function WebhookIdList({
                 </>
               ) : (
                 <p className="flex-1 text-2xs text-warning">
-                  Entry {index + 1} is not a mapping — edit it via "Open raw YAML".
+                  Entry {index + 1} is not a mapping — edit it in the YAML view.
                 </p>
               )}
               <Button
@@ -213,7 +213,7 @@ export function JobNotificationsEditor({
       >
         {email.notAMapping ? (
           <p className="text-2xs text-warning">
-            email_notifications is not a mapping — edit it via "Open raw YAML".
+            email_notifications is not a mapping — edit it in the YAML view.
           </p>
         ) : (
           <>
@@ -224,7 +224,7 @@ export function JobNotificationsEditor({
               if (email.block !== undefined && key in email.block && items === undefined) {
                 return (
                   <p key={key} className="text-2xs text-warning">
-                    {LIST_LABELS[key]} ({key}) is not a list — edit it via "Open raw YAML".
+                    {LIST_LABELS[key]} ({key}) is not a list — edit it in the YAML view.
                   </p>
                 )
               }
@@ -261,7 +261,7 @@ export function JobNotificationsEditor({
       >
         {webhook.notAMapping ? (
           <p className="text-2xs text-warning">
-            webhook_notifications is not a mapping — edit it via "Open raw YAML".
+            webhook_notifications is not a mapping — edit it in the YAML view.
           </p>
         ) : (
           <>

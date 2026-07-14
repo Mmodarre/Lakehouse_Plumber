@@ -62,7 +62,29 @@ export interface BufferSeed {
   activate?: boolean
 }
 
-/** Non-file workspace tab hosting the per-flowgroup (or template) designer canvas. */
+/** The entity documents a center tab can host (§6.1 EntityDocument.DocKind). */
+export type DocKind = 'flowgroup' | 'template' | 'project' | 'pipeline_config' | 'job_config'
+/** View switcher for a flowgroup entity tab (§6.2). 'code' hosts the
+ * multi-file Code surface (its editable yaml sub-tab replaces the old 'yaml'
+ * view); Form was retired for flowgroups. */
+export type EntityView = 'graph' | 'code'
+/** View switcher for a config entity tab (§6.2 — Form|YAML only, no graph/code). */
+export type ConfigView = 'form' | 'yaml'
+/** Config surface a ConfigTab edits (§6.2). */
+export type ConfigKind = 'project' | 'pipeline' | 'job'
+/** Resource kind a ResourceTab hosts (§3 RESOURCES). */
+export type ResourceKind = 'preset' | 'template' | 'blueprint' | 'environment'
+
+/**
+ * @deprecated Superseded by {@link EntityTab} (view:'graph'). No live path
+ * creates one — the persist `migrate` converts stored DesignerTab entries →
+ * EntityTab{view:'graph'}, and CenterArea renders any residual one on GraphView.
+ * Retained only for the Wave-4-reserved drill mini-graph
+ * (`openDesignerTab`/`openDesignerTemplateTab`). Do not add new callers — open
+ * flowgroups via {@link WorkspaceState.openEntityTab} instead.
+ *
+ * Non-file workspace tab hosting the per-flowgroup (or template) graph view.
+ */
 export interface DesignerTab {
   kind: 'designer'
   /** Strip-wide unique tab id: `designer:<pipeline>/<flowgroup>` (flowgroup)
@@ -78,6 +100,60 @@ export interface DesignerTab {
   docKind?: 'flowgroup' | 'template'
 }
 
+/** Center tab for a flowgroup (or other) entity document, edited live-synced
+ * across the Graph and Code views (§6.2). Its buffer (when loaded) is keyed by
+ * `filePath` in `buffers`; the tab carries no `id` field — see
+ * {@link entityTabId}. */
+export interface EntityTab {
+  kind: 'entity'
+  /** '' for a template (which has no pipeline). */
+  pipeline: string
+  /** Flowgroup name, or the template name in template mode. */
+  flowgroup: string
+  /** Project-relative path of the YAML this entity edits. */
+  filePath: string
+  docKind: DocKind
+  view: EntityView
+}
+
+/** Center tab for one of the three config surfaces (§6.2). */
+export interface ConfigTab {
+  kind: 'config'
+  /** Project-relative path of the config file. */
+  path: string
+  configKind: ConfigKind
+  view: ConfigView
+}
+
+/** Singleton center tab for the project-wide dependency map (§6.2 / D11). */
+export interface MapTab {
+  kind: 'project-map'
+}
+
+/** Center tab for one pipeline's flowgroup-level DAG — the drill target when a
+ * pipeline node is clicked on the project map. One tab per pipeline. */
+export interface PipelineDagTab {
+  kind: 'pipeline-dag'
+  /** The pipeline whose flowgroup graph this tab renders. */
+  pipeline: string
+}
+
+/** Center tab for a produced table's detail + lineage view (§6.2 / D6). */
+export interface TableTab {
+  kind: 'table-detail'
+  /** Fully-qualified name (or `sink:…`) of the produced dataset. */
+  fqn: string
+}
+
+/** Center tab for a preset/template/blueprint/environment resource (§6.2). */
+export interface ResourceTab {
+  kind: 'resource'
+  resourceKind: ResourceKind
+  name: string
+  /** Project-relative path of the resource file. */
+  filePath: string
+}
+
 /** Ordered tab-strip entry for a file tab. The EditorBuffer keyed by `path`
  * in `buffers` carries all content/state — the ref only contributes order. */
 export interface FileTabRef {
@@ -85,20 +161,85 @@ export interface FileTabRef {
   path: string
 }
 
-export type WorkspaceTabRef = FileTabRef | DesignerTab
+export type WorkspaceTabRef =
+  | FileTabRef
+  | DesignerTab
+  | EntityTab
+  | ConfigTab
+  | MapTab
+  | PipelineDagTab
+  | TableTab
+  | ResourceTab
 
-/** Strip-wide unique id of a tab (file tabs are identified by their path). */
+/** Strip-wide unique id of a tab. File tabs are identified by their path;
+ * every other kind is namespaced so ids never collide across kinds. */
 export function workspaceTabId(tab: WorkspaceTabRef): string {
-  return tab.kind === 'file' ? tab.path : tab.id
+  switch (tab.kind) {
+    case 'file':
+      return tab.path
+    case 'designer':
+      return tab.id
+    case 'entity':
+      return tab.docKind === 'template'
+        ? entityTemplateTabId(tab.filePath)
+        : entityTabId(tab.pipeline, tab.flowgroup)
+    case 'config':
+      return `config:${tab.path}`
+    case 'project-map':
+      return 'project-map'
+    case 'pipeline-dag':
+      return `pipeline-dag:${tab.pipeline}`
+    case 'table-detail':
+      return `table:${tab.fqn}`
+    case 'resource':
+      return `resource:${tab.resourceKind}:${tab.filePath}`
+  }
 }
 
+/** Underlying buffer path a tab backs (used to dedupe orphan-buffer recovery
+ * on boot, and by the center region for the tab dirty-dot + close target),
+ * or null for tabs that do not own a text buffer. View-agnostic — distinct
+ * from CenterArea's view-aware `yamlBufferPathFor`. */
+export function tabBufferPath(tab: WorkspaceTabRef): string | null {
+  switch (tab.kind) {
+    case 'file':
+      return tab.path
+    case 'entity':
+      return tab.filePath
+    case 'config':
+      return tab.path
+    case 'resource':
+      return tab.filePath
+    default:
+      return null
+  }
+}
+
+/** Entity tab id for a flowgroup (mirrors the retired {@link designerTabId}). */
+export function entityTabId(pipeline: string, flowgroup: string): string {
+  return `entity:${pipeline}/${flowgroup}`
+}
+
+/** Entity tab id for a template, keyed by its file path (a template has no
+ * pipeline; the file is its true identity — two files sharing a declared
+ * `name` still get distinct tabs). */
+export function entityTemplateTabId(filePath: string): string {
+  return `entity:tpl:${filePath}`
+}
+
+/**
+ * @deprecated Use {@link entityTabId}. Retained for the pre-redesign shell.
+ */
 export function designerTabId(pipeline: string, flowgroup: string): string {
   return `designer:${pipeline}/${flowgroup}`
 }
 
-/** Designer tab id for a template, keyed by its file path (a template has no
- * pipeline, and the file is its true identity — two files sharing a declared
- * `name` still get distinct tabs). */
+/**
+ * @deprecated Use {@link entityTemplateTabId}. Retained for the pre-redesign
+ * shell. Designer tab id for a template, keyed by its file path (a template
+ * has no pipeline, and the file is its true identity — two files sharing a
+ * declared `name` still get distinct tabs).
+ */
 export function designerTemplateTabId(filePath: string): string {
   return `designer:tpl:${filePath}`
 }
@@ -215,11 +356,26 @@ function removeTabEntry(
   return { tabs, activePath }
 }
 
+/** Idempotent-focus opener for a tab with no mutable display fields (map,
+ * table-detail): focus if already open, otherwise append. */
+function upsertSimpleTab(
+  s: Pick<WorkspaceState, 'tabs' | 'activePath'>,
+  tab: WorkspaceTabRef,
+  activate: boolean,
+): Partial<WorkspaceState> {
+  const id = workspaceTabId(tab)
+  if (s.tabs.some((t) => workspaceTabId(t) === id)) {
+    return activate && s.activePath !== id ? { activePath: id } : {}
+  }
+  return { tabs: [...s.tabs, tab], activePath: activate ? id : s.activePath }
+}
+
 interface WorkspaceState {
   buffers: EditorBuffer[]
   /** Ordered tab strip across kinds (file tabs reference `buffers` by path). */
   tabs: WorkspaceTabRef[]
-  /** Active tab id — a buffer path or a designer tab id; null = page view. */
+  /** Active tab id — a file-buffer path or a namespaced tab id
+   * (see {@link workspaceTabId}: entity/config/map/table/resource); null = page view. */
   activePath: string | null
   /** Project root the persisted buffers belong to (guards cross-project restore). */
   projectRoot: string | null
@@ -228,13 +384,68 @@ interface WorkspaceState {
 
   openBuffer: (path: string, seed?: BufferSeed) => void
   closeBuffer: (path: string) => void
+  /** Close a tab by id regardless of kind (the strip's uniform close action).
+   * File tabs go through {@link closeBuffer}; other buffer-backed tabs
+   * (entity/config/resource) drop their backing buffer too so nothing leaks
+   * into the persisted workspace; non-buffer tabs (project-map/table-detail/
+   * designer) just lose their strip entry. Every kind gets removeTabEntry's
+   * neighbour-focus when the closed tab was active. The dirty-prompt decision
+   * stays UI-side — this only mutates. */
+  closeTab: (id: string) => void
   /** Close every tab (designer tabs included) — the workspace reset. */
   closeAllBuffers: () => void
   setActive: (path: string | null) => void
-  /** Open (or just focus — idempotent) the designer canvas for a flowgroup. */
+
+  // ── center tab strip (§6.2) — idempotent-focus openers ──────
+  /** Open (or just focus) a flowgroup/other entity tab. One-tab-per-path: a
+   * plain file tab already open at `filePath` is upgraded in place. */
+  openEntityTab: (
+    pipeline: string,
+    flowgroup: string,
+    filePath: string,
+    opts?: { docKind?: DocKind; view?: EntityView; activate?: boolean },
+  ) => void
+  /** Open (or just focus) a config surface tab. */
+  openConfigTab: (
+    path: string,
+    configKind: ConfigKind,
+    opts?: { view?: ConfigView; activate?: boolean },
+  ) => void
+  /** Open (or just focus) the singleton project-map tab. */
+  openProjectMap: (opts?: { activate?: boolean }) => void
+  /** Open (or just focus) a per-pipeline flowgroup-DAG tab. One tab per pipeline. */
+  openPipelineDag: (pipeline: string, opts?: { activate?: boolean }) => void
+  /** Open (or just focus) a table-detail tab for a produced dataset. */
+  openTableDetail: (fqn: string, opts?: { activate?: boolean }) => void
+  /** Open (or just focus) a resource (preset/template/blueprint/env) tab. */
+  openResourceTab: (
+    resourceKind: ResourceKind,
+    name: string,
+    filePath: string,
+    opts?: { activate?: boolean },
+  ) => void
+  /** Switch the view of an entity (Graph|Code) or config (Form|YAML) tab
+   * (idempotent). No-op for non-view tab kinds, unknown ids, a config view on
+   * an entity tab, or an entity view on a config tab. */
+  setTabView: (id: string, view: EntityView | ConfigView) => void
+  /** Re-key a flowgroup entity tab after its `flowgroup:` was renamed: update
+   * the tab's flowgroup field, re-derive its id, and remap `activePath` when it
+   * pointed at the old id. No-op for non-entity/template tabs (templates key by
+   * file path, not name), an unchanged name, or when the new id would collide
+   * with another open tab. The backing buffer path (the file) is unchanged. */
+  renameEntityTab: (id: string, newFlowgroup: string) => void
+
+  /**
+   * @deprecated Use {@link openEntityTab}. Open (or just focus — idempotent)
+   * the designer canvas for a flowgroup (pre-redesign shell only).
+   */
   openDesignerTab: (pipeline: string, flowgroup: string, filePath: string) => void
-  /** Open (or just focus) the designer for a template file under templates/. */
+  /**
+   * @deprecated Use {@link openEntityTab} with docKind:'template'. Open (or
+   * just focus) the designer for a template file (pre-redesign shell only).
+   */
   openDesignerTemplateTab: (templateName: string, filePath: string) => void
+  /** @deprecated Use {@link closeBuffer}/tab close paths. Close a designer tab. */
   closeDesignerTab: (id: string) => void
   /** Sync editor content into the store; recomputes isDirty vs originalContent. */
   updateContent: (path: string, content: string) => void
@@ -258,7 +469,7 @@ interface WorkspaceState {
 
 export const useWorkspaceStore = create<WorkspaceState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       buffers: [],
       tabs: [],
       activePath: null,
@@ -267,10 +478,18 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
       openBuffer: (path, seed) =>
         set((s) => {
+          // Resolve the tab that backs this path (reverse of tabBufferPath). A
+          // non-file tab (an entity/config/resource tab that upgraded or
+          // migrated from a file at this path) OWNS the path — focus its
+          // namespaced id, never the raw path (no tab resolves to it) and never
+          // a duplicate file tab.
+          const backing = s.tabs.find((t) => tabBufferPath(t) === path)
+          const focusId = backing ? workspaceTabId(backing) : path
+
           if (s.buffers.some((b) => b.path === path)) {
-            // No-op-if-open: never clobber an open buffer, just focus it.
-            if (seed?.activate === false || s.activePath === path) return {}
-            return { activePath: path }
+            // No-op-if-open: never clobber an open buffer, just focus its tab.
+            if (seed?.activate === false || s.activePath === focusId) return {}
+            return { activePath: focusId }
           }
           const content = seed?.content ?? ''
           const buffer: EditorBuffer = {
@@ -287,10 +506,16 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             loading: seed?.loading ?? false,
             loadFailed: false,
           }
+          // A non-file tab already claims this path (e.g. a migrated
+          // designer→entity tab with no buffer yet): load its buffer but keep
+          // the existing tab — don't append a duplicate file ref.
+          const tabs: WorkspaceTabRef[] = backing
+            ? s.tabs
+            : [...s.tabs, { kind: 'file', path }]
           return {
             buffers: [...s.buffers, buffer],
-            tabs: [...s.tabs, { kind: 'file', path }],
-            activePath: seed?.activate === false ? s.activePath : path,
+            tabs,
+            activePath: seed?.activate === false ? s.activePath : focusId,
           }
         }),
 
@@ -301,6 +526,24 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           return { buffers, ...removeTabEntry(s, path) }
         }),
 
+      closeTab: (id) => {
+        const tab = get().tabs.find((t) => workspaceTabId(t) === id)
+        if (!tab) return
+        // File tabs reuse the existing buffer-close path unchanged.
+        if (tab.kind === 'file') {
+          get().closeBuffer(tab.path)
+          return
+        }
+        set((s) => {
+          const bp = tabBufferPath(tab)
+          const base = removeTabEntry(s, id)
+          // Buffer-backed entity/config/resource tabs also drop their backing
+          // buffer; non-buffer tabs (project-map/table-detail/designer) just
+          // lose their strip entry.
+          return bp ? { ...base, buffers: s.buffers.filter((b) => b.path !== bp) } : base
+        })
+      },
+
       closeAllBuffers: () => set({ buffers: [], tabs: [], activePath: null }),
 
       setActive: (path) =>
@@ -308,6 +551,166 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           if (s.activePath === path) return {}
           if (path !== null && !s.tabs.some((t) => workspaceTabId(t) === path)) return {}
           return { activePath: path }
+        }),
+
+      openEntityTab: (pipeline, flowgroup, filePath, opts) =>
+        set((s) => {
+          const docKind: DocKind = opts?.docKind ?? 'flowgroup'
+          const activate = opts?.activate !== false
+          const id =
+            docKind === 'template'
+              ? entityTemplateTabId(filePath)
+              : entityTabId(pipeline, flowgroup)
+
+          const existingIdx = s.tabs.findIndex((t) => workspaceTabId(t) === id)
+          if (existingIdx !== -1) {
+            // Already open: never duplicate, just focus. Refresh identity
+            // fields in place if they moved; the view only changes when a
+            // view was explicitly requested (a plain re-open keeps the user's
+            // current view). Zero churn when nothing changed.
+            const existing = s.tabs[existingIdx]
+            const patch: Partial<WorkspaceState> = {}
+            if (existing.kind === 'entity') {
+              const nextView = opts?.view ?? existing.view
+              if (
+                existing.pipeline !== pipeline ||
+                existing.flowgroup !== flowgroup ||
+                existing.filePath !== filePath ||
+                existing.docKind !== docKind ||
+                existing.view !== nextView
+              ) {
+                const tabs = s.tabs.slice()
+                tabs[existingIdx] = {
+                  ...existing,
+                  pipeline,
+                  flowgroup,
+                  filePath,
+                  docKind,
+                  view: nextView,
+                }
+                patch.tabs = tabs
+              }
+            }
+            if (activate && s.activePath !== id) patch.activePath = id
+            return patch
+          }
+
+          const entityTab: EntityTab = {
+            kind: 'entity',
+            pipeline,
+            flowgroup,
+            filePath,
+            docKind,
+            view: opts?.view ?? 'graph',
+          }
+          // One-tab-per-path: upgrade a plain file tab at this path in place
+          // (keeps its buffer — YAML view reuses it — and its strip slot).
+          const fileIdx = s.tabs.findIndex((t) => t.kind === 'file' && t.path === filePath)
+          if (fileIdx !== -1) {
+            const tabs = s.tabs.slice()
+            tabs[fileIdx] = entityTab
+            // If we upgraded the active file tab but aren't activating, its old
+            // id (the raw path) no longer resolves — remap activePath to the
+            // entity id so it doesn't dangle into page view.
+            const activePath = activate || s.activePath === filePath ? id : s.activePath
+            return { tabs, activePath }
+          }
+          return { tabs: [...s.tabs, entityTab], activePath: activate ? id : s.activePath }
+        }),
+
+      openConfigTab: (path, configKind, opts) =>
+        set((s) => {
+          const activate = opts?.activate !== false
+          const id = `config:${path}`
+          const existingIdx = s.tabs.findIndex((t) => workspaceTabId(t) === id)
+          if (existingIdx !== -1) {
+            const existing = s.tabs[existingIdx]
+            const patch: Partial<WorkspaceState> = {}
+            if (existing.kind === 'config') {
+              const nextView = opts?.view ?? existing.view
+              if (existing.configKind !== configKind || existing.view !== nextView) {
+                const tabs = s.tabs.slice()
+                tabs[existingIdx] = { ...existing, configKind, view: nextView }
+                patch.tabs = tabs
+              }
+            }
+            if (activate && s.activePath !== id) patch.activePath = id
+            return patch
+          }
+          const tab: ConfigTab = { kind: 'config', path, configKind, view: opts?.view ?? 'form' }
+          return { tabs: [...s.tabs, tab], activePath: activate ? id : s.activePath }
+        }),
+
+      openProjectMap: (opts) =>
+        set((s) => upsertSimpleTab(s, { kind: 'project-map' }, opts?.activate !== false)),
+
+      openPipelineDag: (pipeline, opts) =>
+        set((s) =>
+          upsertSimpleTab(s, { kind: 'pipeline-dag', pipeline }, opts?.activate !== false),
+        ),
+
+      openTableDetail: (fqn, opts) =>
+        set((s) => upsertSimpleTab(s, { kind: 'table-detail', fqn }, opts?.activate !== false)),
+
+      openResourceTab: (resourceKind, name, filePath, opts) =>
+        set((s) => {
+          const activate = opts?.activate !== false
+          const id = `resource:${resourceKind}:${filePath}`
+          const existingIdx = s.tabs.findIndex((t) => workspaceTabId(t) === id)
+          if (existingIdx !== -1) {
+            // Focus; refresh the display name in place if it changed.
+            const existing = s.tabs[existingIdx]
+            const patch: Partial<WorkspaceState> = {}
+            if (existing.kind === 'resource' && existing.name !== name) {
+              const tabs = s.tabs.slice()
+              tabs[existingIdx] = { ...existing, name }
+              patch.tabs = tabs
+            }
+            if (activate && s.activePath !== id) patch.activePath = id
+            return patch
+          }
+          const tab: ResourceTab = { kind: 'resource', resourceKind, name, filePath }
+          return { tabs: [...s.tabs, tab], activePath: activate ? id : s.activePath }
+        }),
+
+      setTabView: (id, view) =>
+        set((s) => {
+          const idx = s.tabs.findIndex((t) => workspaceTabId(t) === id)
+          if (idx === -1) return {}
+          const tab = s.tabs[idx]
+          if (tab.kind === 'entity') {
+            // Entity tabs only have Graph|Code — ignore config views.
+            if (view !== 'graph' && view !== 'code') return {}
+            if (tab.view === view) return {}
+            const tabs = s.tabs.slice()
+            tabs[idx] = { ...tab, view }
+            return { tabs }
+          }
+          if (tab.kind === 'config') {
+            // Config surfaces only have Form|YAML — ignore graph/code.
+            if (view !== 'form' && view !== 'yaml') return {}
+            if (tab.view === view) return {}
+            const tabs = s.tabs.slice()
+            tabs[idx] = { ...tab, view }
+            return { tabs }
+          }
+          return {}
+        }),
+
+      renameEntityTab: (id, newFlowgroup) =>
+        set((s) => {
+          const idx = s.tabs.findIndex((t) => workspaceTabId(t) === id)
+          if (idx === -1) return {}
+          const tab = s.tabs[idx]
+          if (tab.kind !== 'entity' || tab.docKind === 'template') return {}
+          if (tab.flowgroup === newFlowgroup) return {}
+          const updated: EntityTab = { ...tab, flowgroup: newFlowgroup }
+          const newId = workspaceTabId(updated)
+          // Never clobber a different tab already occupying the new id.
+          if (s.tabs.some((t, i) => i !== idx && workspaceTabId(t) === newId)) return {}
+          const tabs = s.tabs.slice()
+          tabs[idx] = updated
+          return { tabs, activePath: s.activePath === id ? newId : s.activePath }
         }),
 
       openDesignerTab: (pipeline, flowgroup, filePath) =>
@@ -487,13 +890,68 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     {
       name: 'lhp-workspace',
       storage: createJSONStorage(() => safeStorage),
+      // v1: the center tab strip gained typed entity/config/map/table/resource
+      // kinds and DesignerTab retired into EntityTab. Convert any persisted
+      // DesignerTab → EntityTab{view:'graph'} (graph = the designer's view) and
+      // remap an activePath that pointed at a designer id to the new entity id.
+      // v2: the flowgroup view model became Graph|Code (Form retired, the old
+      // YAML view folded into Code). Remap each persisted EntityTab.view
+      // 'form'|'graph'→'graph', 'yaml'→'code'; config tabs (Form|YAML) are
+      // untouched. Migrations are staged so a v0 payload runs both passes.
+      // Payloads with no `tabs` (pre-tab-union) are left for the boot-reconcile.
+      version: 2,
+      migrate: (persisted, version) => {
+        let state = persisted as {
+          tabs?: unknown[]
+          activePath?: string | null
+          [k: string]: unknown
+        }
+        if (!state || !Array.isArray(state.tabs)) return state
+
+        // v0 → v1: DesignerTab → EntityTab{view:'graph'}.
+        if (version < 1) {
+          const idRemap = new Map<string, string>()
+          const tabs = state.tabs.map((raw) => {
+            const t = raw as Partial<DesignerTab> & { kind?: string }
+            if (t?.kind !== 'designer') return raw
+            const docKind: DocKind = t.docKind ?? 'flowgroup'
+            const entity: EntityTab = {
+              kind: 'entity',
+              pipeline: t.pipeline ?? '',
+              flowgroup: t.flowgroup ?? '',
+              filePath: t.filePath ?? '',
+              docKind,
+              view: 'graph',
+            }
+            if (t.id) idRemap.set(t.id, workspaceTabId(entity))
+            return entity
+          })
+          const activePath =
+            typeof state.activePath === 'string' && idRemap.has(state.activePath)
+              ? idRemap.get(state.activePath)!
+              : (state.activePath ?? null)
+          state = { ...state, tabs, activePath }
+        }
+
+        // v1 → v2: EntityTab.view 'form'|'graph' → 'graph', 'yaml' → 'code'.
+        if (version < 2) {
+          const tabs = (state.tabs as unknown[]).map((raw) => {
+            const t = raw as { kind?: string; view?: string }
+            if (t?.kind !== 'entity') return raw
+            return { ...t, view: t.view === 'yaml' ? 'code' : 'graph' }
+          })
+          state = { ...state, tabs }
+        }
+
+        return state
+      },
       // Persist content only for DIRTY buffers (unsaved edits must survive a
       // reload). Clean buffers that exist on disk restore as `loading`
       // placeholders and re-fetch on boot (WorkspaceEditor) — this keeps
       // large read-only files out of localStorage and kills stale-clean
       // restores. Clean buffers that never existed keep their (empty) text.
-      // Designer tabs persist whole — they are identity-only {kind, id,
-      // pipeline, flowgroup, filePath}; the canvas re-derives content.
+      // Non-file tabs persist whole — they are identity-only; their content
+      // (when any) is re-derived from the buffer keyed by their file path.
       partialize: (s) => ({
         buffers: s.buffers.map((b) => {
           const base = { ...b, isSaving: false, loading: false, loadFailed: false }
@@ -518,10 +976,18 @@ export const useWorkspaceStore = create<WorkspaceState>()(
   const s = useWorkspaceStore.getState()
   const bufferPaths = new Set(s.buffers.map((b) => b.path))
   const kept = s.tabs.filter((t) => t.kind !== 'file' || bufferPaths.has(t.path))
-  const seen = new Set(kept.map(workspaceTabId))
+  // Buffers already claimed by a surviving tab (a file tab, or an
+  // entity/config/resource tab that upgraded a file tab in place) must NOT
+  // spawn a duplicate file ref. Only genuinely orphaned buffers (legacy
+  // pre-tab-union payloads) get a rebuilt file entry, in buffer order.
+  const claimedPaths = new Set(
+    kept.map(tabBufferPath).filter((p): p is string => p !== null),
+  )
   const tabs: WorkspaceTabRef[] = [
     ...kept,
-    ...s.buffers.filter((b) => !seen.has(b.path)).map((b): FileTabRef => ({ kind: 'file', path: b.path })),
+    ...s.buffers
+      .filter((b) => !claimedPaths.has(b.path))
+      .map((b): FileTabRef => ({ kind: 'file', path: b.path })),
   ]
   const tabsChanged = kept.length !== s.tabs.length || tabs.length !== s.tabs.length
   const restoredDirty = s.buffers.filter((b) => b.isDirty).length

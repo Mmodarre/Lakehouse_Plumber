@@ -3,19 +3,15 @@ import { TriangleAlert } from 'lucide-react'
 import { EmptyState } from '../../common/EmptyState'
 import { SchemaKindProvider } from '../../common/SchemaKindContext'
 import { SkeletonLoader } from '../../common/SkeletonLoader'
-import type { UseConfigFileResult } from '../../../hooks/useConfigFile'
 import {
   isPlainObject,
   listProjectPassthroughKeys,
   validateProjectConfig,
 } from '../../../lib/config-model'
 import { documentCount, toJS } from '../../../lib/yaml-doc'
-import { ConfigConflictDialog } from '../ConfigConflictDialog'
-import { ConfigPageShell } from '../ConfigPageShell'
-import { ExternalChangeBanner } from '../ExternalChangeBanner'
 import { ParseErrorsCard } from '../ParseErrorsCard'
 import { PassthroughKeysCard } from '../PassthroughKeysCard'
-import { SaveBar } from '../SaveBar'
+import type { ConfigDocSource } from '../shared/docFormSupport'
 import { EventLogSection } from './EventLogSection'
 import { GeneralSection } from './GeneralSection'
 import { IncludesSection } from './IncludesSection'
@@ -25,20 +21,21 @@ import { SandboxSection } from './SandboxSection'
 import { SectionIssues } from './SectionIssues'
 import { TestReportingWheelSection } from './TestReportingWheelSection'
 import { UcTaggingSection } from './UcTaggingSection'
-import { buildProjectFormApi, countErrors, issuesAtExactly } from './projectFormSupport'
+import { buildProjectFormApi, issuesAtExactly } from './projectFormSupport'
 
-// ── ProjectConfigForm — the lhp.yaml editor ──────────────────
+// ── ProjectConfigForm — the lhp.yaml editor body ─────────────
 //
-// Owns the whole project tab surface around one useConfigFile('lhp.yaml')
-// instance: shell + section cards + SaveBar + conflict/external-change
-// wiring. Section order mirrors PROJECT_OPTIONAL_SECTIONS. All writes are
-// surgical (setPath/deletePath through the hook's mutate) — YAML the user
-// did not touch is never normalized, and Save is disabled while any
-// config-model ERROR exists (the CLI loader would reject the file).
+// The section-card body of the project (lhp.yaml) config surface, re-hosted
+// by components/entity/ConfigFormView (which owns the scroll frame, degraded
+// banner, and viewer read-only wrapper). Section order mirrors
+// PROJECT_OPTIONAL_SECTIONS. All writes are surgical (setPath/deletePath
+// through the source's mutate) — YAML the user did not touch is never
+// normalized. Config-model validator issues render per field; they no longer
+// block anything (saving is text-canonical via the buffer's ⌘S path).
 
 export interface ProjectConfigFormProps {
-  /** A useConfigFile('lhp.yaml') instance owned by the page. */
-  file: UseConfigFileResult
+  /** The lhp.yaml config document source (documentStore-backed). */
+  file: ConfigDocSource
 }
 
 export function ProjectConfigForm({ file }: ProjectConfigFormProps) {
@@ -61,7 +58,6 @@ export function ProjectConfigForm({ file }: ProjectConfigFormProps) {
     [doc],
   )
   const form = buildProjectFormApi(file, doc ?? {}, issues)
-  const errorCount = file.errors.length + countErrors(issues)
 
   let body: React.ReactNode
   if (file.isLoading) {
@@ -75,12 +71,6 @@ export function ProjectConfigForm({ file }: ProjectConfigFormProps) {
   } else {
     body = (
       <>
-        {file.yamlError && (
-          <p role="alert" className="text-xs text-destructive">
-            Saved with a YAML syntax error (line {file.yamlError.line}, column{' '}
-            {file.yamlError.column}): {file.yamlError.message}
-          </p>
-        )}
         {docCount > 1 && (
           <p className="text-2xs text-muted-foreground">
             This file contains {docCount} YAML documents — the form edits the first one.
@@ -104,35 +94,5 @@ export function ProjectConfigForm({ file }: ProjectConfigFormProps) {
     )
   }
 
-  return (
-    <>
-      <ConfigPageShell
-        title="Project configuration"
-        description="lhp.yaml — project-wide settings applied to every generate."
-        banner={
-          file.externalChange ? (
-            <ExternalChangeBanner onReload={() => void file.reload()} onKeep={file.keepMine} />
-          ) : undefined
-        }
-        footer={
-          <SaveBar
-            path={file.path}
-            dirty={file.dirty}
-            saving={file.saving}
-            errorCount={errorCount}
-            onSave={() => void file.save()}
-          />
-        }
-      >
-        <SchemaKindProvider kind="project">{body}</SchemaKindProvider>
-      </ConfigPageShell>
-      <ConfigConflictDialog
-        path={file.conflict ? file.path : null}
-        saving={file.saving}
-        onReload={() => void file.reload()}
-        onOverwrite={() => void file.overwrite()}
-        onCancel={file.dismissConflict}
-      />
-    </>
-  )
+  return <SchemaKindProvider kind="project">{body}</SchemaKindProvider>
 }

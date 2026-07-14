@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import type { MonacoEditorHandle } from '../editor/MonacoEditorWrapper'
 import type { CodeLanguage } from './codeFields'
-import type { DesignerMutator } from './useDesignerWrite'
+import type { DesignerMutator } from './formModel'
 
 const MonacoEditorWrapper = lazy(() => import('../editor/MonacoEditorWrapper'))
 
@@ -45,7 +45,7 @@ interface CodeModalProps {
   target: CodeTarget | null
   /** Editing is blocked (dirty text buffer / unresolved conflict). */
   readOnly: boolean
-  /** Inline write-through (no-op when read-only; see useDesignerWrite). */
+  /** Inline write-through (no-op when read-only). */
   commit: (mutator: DesignerMutator) => void
   /** Open a file ref as a docked workspace buffer, then close the modal. */
   openAsFile: (path: string) => void

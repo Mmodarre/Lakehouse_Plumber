@@ -7,8 +7,18 @@
 // React here.
 
 import { isPlainObject } from '@/lib/config-model'
+import type { FlowgroupDocHandle } from '@/lib/flowgroup-doc'
 import { isPresent, isSubstitutionToken, readPath } from './specs/helpers'
 import type { ActionSubTypeSpec, CrossFieldRule, FieldGroup, FieldSpec, YamlPath } from './specs/types'
+
+/**
+ * A single synchronous flowgroup-doc mutation applied to a kept parse handle.
+ * The write contract shared by the designer form widgets (ActionForm,
+ * CodeModal) and the graph compose hook. Structurally identical to
+ * `useFlowgroupDoc.FlowgroupMutator` — both are `(doc) => void` over the same
+ * comment-preserving handle — so an entity view's `commit` plugs straight in.
+ */
+export type DesignerMutator = (doc: FlowgroupDocHandle) => void
 
 /** Stable string key for a field path (issue map keys). */
 export function pathKey(path: YamlPath): string {

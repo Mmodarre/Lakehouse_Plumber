@@ -1,14 +1,13 @@
-import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
-import type { ReactNode } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useMemo, useState } from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, Link, RouterProvider } from 'react-router-dom'
 import { NavigationGuard } from '../NavigationGuard'
-import { ConfigurationPage } from '../../../pages/ConfigurationPage'
-import { WorkspaceEditor } from '../../workspace/WorkspaceEditor'
-import { useDirtyGuardStore } from '../../../store/dirtyGuardStore'
-import { useWorkspaceStore } from '../../../store/workspaceStore'
+import {
+  useDirtyGuardSource,
+  useDirtyGuardStore,
+} from '../../../store/dirtyGuardStore'
 
 vi.mock('sonner', () => ({
   toast: { error: vi.fn(), success: vi.fn(), info: vi.fn(), dismiss: vi.fn() },
@@ -16,149 +15,146 @@ vi.mock('sonner', () => ({
 
 // ── NavigationGuard — the ONE app-level unsaved-changes blocker ──
 //
-// Task-7 documented gap (now fixed): WorkspaceEditor used to register the
-// app's single react-router useBlocker whenever buffers were open, so the
-// config page's own route-leave guard had to unmount itself — a dirty
-// config form + ANY open workspace buffer meant in-app navigation silently
-// discarded form edits. Both surfaces now contribute to the dirty-guard
-// registry and Layout mounts NavigationGuard once.
+// The data router supports a single useBlocker; every surface with
+// discardable unsaved state contributes a dirtyGuardStore source instead of
+// registering its own blocker, and the shell mounts <NavigationGuard /> once.
+// It prompts over ALL sources that block the attempted navigation and runs
+// each blocking source's onDiscard before proceeding. These cases drive that
+// contract directly through synthetic sources (the concrete surfaces — config
+// form, workspace buffers — are exercised by their own suites).
 
-const fetchMock =
-  vi.fn<(url: string | URL | Request, init?: RequestInit) => Promise<Response>>()
+const CONFIG_MSG = 'The configuration form has unsaved changes'
+const BUFFER_MSG = 'Unsaved changes in 1 file(s) will be lost.'
 
-function serve() {
-  fetchMock.mockImplementation((url, init) => {
-    const u = String(url)
-    const method = init?.method ?? 'GET'
-    if (method === 'GET' && u === '/api/files/lhp.yaml') {
-      return Promise.resolve(
-        new Response('name: acme\n', { status: 200, headers: { ETag: '"e1"' } }),
-      )
-    }
-    if (method === 'GET' && u === '/api/files') {
-      return Promise.resolve(
-        new Response(JSON.stringify({ name: '', path: '', type: 'directory', children: [] }), {
-          status: 200,
-        }),
-      )
-    }
-    return Promise.reject(new Error(`unexpected ${method} ${u}`))
-  })
+/** A dirty-guard source stand-in: registers while dirty (blocks every nav),
+ * clears its own dirty flag on discard, and reports discards to a spy. */
+function DirtySource({
+  id,
+  message,
+  initialDirty,
+  onDiscardSpy,
+}: {
+  id: string
+  message: string
+  initialDirty: boolean
+  onDiscardSpy?: () => void
+}) {
+  const [dirty, setDirty] = useState(initialDirty)
+  const source = useMemo(
+    () =>
+      dirty
+        ? {
+            message,
+            onDiscard: () => {
+              onDiscardSpy?.()
+              setDirty(false)
+            },
+          }
+        : null,
+    [dirty, message, onDiscardSpy],
+  )
+  useDirtyGuardSource(id, source)
+  return null
 }
 
-/** Route tree mirroring Layout: guard + workspace persistently mounted. */
-async function renderApp() {
+function renderApp(sources: {
+  config?: boolean
+  buffer?: boolean
+  configSpy?: () => void
+  bufferSpy?: () => void
+}) {
   const router = createMemoryRouter(
     [
       {
-        path: '/config/:section?',
+        path: '/config',
         element: (
           <>
             <Link to="/other">leave config</Link>
             <NavigationGuard />
-            <WorkspaceEditor />
-            <ConfigurationPage />
+            {sources.config !== undefined && (
+              <DirtySource
+                id="config-form"
+                message={CONFIG_MSG}
+                initialDirty={sources.config}
+                onDiscardSpy={sources.configSpy}
+              />
+            )}
+            {sources.buffer !== undefined && (
+              <DirtySource
+                id="workspace"
+                message={BUFFER_MSG}
+                initialDirty={sources.buffer}
+                onDiscardSpy={sources.bufferSpy}
+              />
+            )}
           </>
         ),
       },
       { path: '/other', element: <div>other page</div> },
     ],
-    { initialEntries: ['/config/project'] },
+    { initialEntries: ['/config'] },
   )
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  )
-  render(<RouterProvider router={router} />, { wrapper })
-  await screen.findByLabelText('Name')
+  render(<RouterProvider router={router} />)
   return router
-}
-
-async function makeConfigDirty(user: ReturnType<typeof userEvent.setup>) {
-  const author = screen.getByLabelText('Author')
-  await user.type(author, 'someone')
-  await user.tab()
-  await screen.findByText('Unsaved changes')
-}
-
-/** Open a workspace buffer without focusing it (Monaco never mounts). */
-function openBuffer({ dirty }: { dirty: boolean }) {
-  const store = useWorkspaceStore.getState()
-  store.openBuffer('pipelines/x.yaml', {
-    content: 'a: 1\n',
-    exists: true,
-    activate: false,
-  })
-  if (dirty) store.updateContent('pipelines/x.yaml', 'a: 2\n')
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.stubGlobal('fetch', fetchMock)
-  serve()
 })
 
 afterEach(() => {
-  vi.unstubAllGlobals()
-  useWorkspaceStore.getState().closeAllBuffers()
   useDirtyGuardStore.setState({ sources: {} })
 })
 
 describe('NavigationGuard — unified unsaved-changes blocking', () => {
-  it('REGRESSION: dirty config form + open (clean) buffer → route nav prompts', async () => {
-    openBuffer({ dirty: false })
-    await renderApp()
+  it('dirty config source alone → route nav prompts; keep-editing preserves it', async () => {
+    renderApp({ config: true, buffer: false })
     const user = userEvent.setup()
-    await makeConfigDirty(user)
 
-    // Previously: WorkspaceEditor's blocker registration forced the config
-    // guard to unmount whenever ANY buffer was open — this nav silently
-    // discarded the form edits.
     await user.click(screen.getByRole('link', { name: 'leave config' }))
     const dialog = await screen.findByRole('alertdialog')
-    expect(dialog).toHaveTextContent('The configuration form has unsaved changes')
+    expect(dialog).toHaveTextContent(CONFIG_MSG)
 
     await user.click(screen.getByRole('button', { name: 'Keep editing' }))
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
-    expect(screen.getByLabelText('Author')).toHaveValue('someone')
 
+    // Source stayed registered — a second attempt re-prompts, then discards.
     await user.click(screen.getByRole('link', { name: 'leave config' }))
     await screen.findByRole('alertdialog')
     await user.click(screen.getByRole('button', { name: 'Discard changes' }))
     expect(await screen.findByText('other page')).toBeInTheDocument()
   })
 
-  it('dirty buffer + dirty config form → ONE prompt covering both; discard clears both', async () => {
-    openBuffer({ dirty: true })
-    await renderApp()
+  it('dirty buffer + dirty config → ONE prompt covering both; discard clears both', async () => {
+    const configSpy = vi.fn()
+    const bufferSpy = vi.fn()
+    renderApp({ config: true, buffer: true, configSpy, bufferSpy })
     const user = userEvent.setup()
-    await makeConfigDirty(user)
 
     await user.click(screen.getByRole('link', { name: 'leave config' }))
     const dialog = await screen.findByRole('alertdialog')
-    expect(dialog).toHaveTextContent('Unsaved changes in 1 file(s) will be lost.')
-    expect(dialog).toHaveTextContent('The configuration form has unsaved changes')
+    expect(dialog).toHaveTextContent(BUFFER_MSG)
+    expect(dialog).toHaveTextContent(CONFIG_MSG)
 
     await user.click(screen.getByRole('button', { name: 'Discard changes' }))
     expect(await screen.findByText('other page')).toBeInTheDocument()
-    expect(useWorkspaceStore.getState().buffers[0]?.isDirty).toBe(false)
+    expect(configSpy).toHaveBeenCalledTimes(1)
+    expect(bufferSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('dirty buffer alone still prompts (WorkspaceEditor contribution)', async () => {
-    openBuffer({ dirty: true })
-    await renderApp()
+  it('dirty buffer alone still prompts', async () => {
+    renderApp({ buffer: true })
     const user = userEvent.setup()
 
     await user.click(screen.getByRole('link', { name: 'leave config' }))
     const dialog = await screen.findByRole('alertdialog')
-    expect(dialog).toHaveTextContent('Unsaved changes in 1 file(s) will be lost.')
+    expect(dialog).toHaveTextContent(BUFFER_MSG)
     await user.click(screen.getByRole('button', { name: 'Discard changes' }))
     expect(await screen.findByText('other page')).toBeInTheDocument()
   })
 
   it('nothing dirty → navigation proceeds without a prompt', async () => {
-    openBuffer({ dirty: false })
-    await renderApp()
+    renderApp({ config: false, buffer: false })
     const user = userEvent.setup()
 
     await user.click(screen.getByRole('link', { name: 'leave config' }))

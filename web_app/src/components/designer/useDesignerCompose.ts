@@ -5,19 +5,35 @@ import {
   deleteAction,
   duplicateAction,
 } from '@/lib/flowgroup-doc'
-import type { ActionKind } from '@/lib/flowgroup-doc'
+import type { ActionKind, ActionRead, FlowgroupMeta } from '@/lib/flowgroup-doc'
 import type { GraphNode } from '@/types/api'
 import { buildInsertion, sourceFieldShape } from './actionSkeleton'
-import type { DesignerDoc } from './useDesignerDoc'
-import type { DesignerWrite } from './useDesignerWrite'
-import type { InspectorSelection } from './DesignerInspector'
+import type { DesignerMutator } from './formModel'
 
-// ── useDesignerCompose — the designer's authoring behaviour ──
+// ── useDesignerCompose — the graph view's authoring behaviour ──
 //
 // Owns the add-action palette + every graph mutation the canvas triggers:
 // insert (append or pre-wired downstream), fan-in, duplicate, delete. Each
-// mutation goes through `write.commit`, which is a hard no-op while the file
-// buffer is dirty — so the enforcing dirty-guard covers composition for free.
+// mutation goes through the caller's `commit` (documentStore.mutate via
+// useFlowgroupDoc), which live-syncs the edit into the buffer and returns false
+// when the document is degraded / not editable.
+
+/** The current canvas selection GraphView exposes to the compose engine and
+ * its structural toolbar. Narrowed to the two modes the graph produces:
+ * `source` (an editable action, addressed by its canvas node id — a valid
+ * mutator address even for duplicate / unnamed names) and `external` (a source
+ * produced outside this flowgroup). */
+export type InspectorSelection =
+  | { mode: 'source'; action: ActionRead; actionId: string }
+  | { mode: 'external'; label: string; consumers: string[] }
+
+/** The slice of a flowgroup document the compose engine reads (a narrow view
+ * over useFlowgroupDoc — no dependency on the retired designer data layer). */
+export interface ComposeDoc {
+  found: boolean
+  meta: FlowgroupMeta | null
+  actions: readonly ActionRead[]
+}
 
 export interface DesignerCompose {
   /** Structurally authorable (found, source view, not a template flowgroup). */
@@ -43,9 +59,10 @@ export interface DesignerCompose {
 }
 
 export interface UseDesignerComposeArgs {
-  doc: DesignerDoc
+  doc: ComposeDoc
   graphNodes: GraphNode[]
-  write: DesignerWrite
+  /** Apply an atomic flowgroup-doc mutation (documentStore.mutate). */
+  commit: (mutator: DesignerMutator) => boolean
   selection: InspectorSelection | null
   resolved: boolean
   readOnly: boolean
@@ -55,7 +72,7 @@ export interface UseDesignerComposeArgs {
 export function useDesignerCompose({
   doc,
   graphNodes,
-  write,
+  commit,
   selection,
   resolved,
   readOnly,
@@ -95,11 +112,11 @@ export function useDesignerCompose({
       const afterNodeId = palette?.afterNodeId
       const upstreamView = afterNodeId ? upstreamViewOf(afterNodeId) : undefined
       const action = buildInsertion(kind, subType, { existing, upstreamView })
-      write.commit((d) => addAction(d, action, afterNodeId))
+      commit((d) => addAction(d, action, afterNodeId))
       setPalette(null)
       onSelect(action.name as string)
     },
-    [doc.actions, palette, upstreamViewOf, write, onSelect],
+    [doc.actions, palette, upstreamViewOf, commit, onSelect],
   )
 
   const sourceSel = selection?.mode === 'source' ? selection : null
@@ -124,23 +141,23 @@ export function useDesignerCompose({
 
   const handleDuplicate = useCallback(() => {
     if (sourceSel === null) return
-    write.commit((d) => {
+    commit((d) => {
       duplicateAction(d, sourceSel.actionId)
     })
-  }, [sourceSel, write])
+  }, [sourceSel, commit])
 
   const handleDelete = useCallback(() => {
     if (sourceSel === null) return
-    write.commit((d) => deleteAction(d, sourceSel.actionId))
+    commit((d) => deleteAction(d, sourceSel.actionId))
     onSelect(null)
-  }, [sourceSel, write, onSelect])
+  }, [sourceSel, commit, onSelect])
 
   const handleAddInput = useCallback(
     (view: string) => {
       if (sourceSel === null) return
-      write.commit((d) => appendActionSource(d, sourceSel.actionId, view))
+      commit((d) => appendActionSource(d, sourceSel.actionId, view))
     },
-    [sourceSel, write],
+    [sourceSel, commit],
   )
 
   const afterLabel = palette?.afterNodeId

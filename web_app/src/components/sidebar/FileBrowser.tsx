@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { Boxes, FilePlus2 } from 'lucide-react'
 import { useFileList } from '../../hooks/useFiles'
 import { useFlowgroups } from '../../hooks/useFlowgroups'
-import { useWorkspaceStore, designerTemplateTabId } from '../../store/workspaceStore'
+import { useWorkspaceStore, entityTemplateTabId } from '../../store/workspaceStore'
 import { useUIStore } from '../../store/uiStore'
 import { useSandboxScope } from '../sandbox/useSandboxScope'
 import {
@@ -35,7 +35,7 @@ export function FileBrowser() {
   const scope = useSandboxScope()
   const openBuffer = useWorkspaceStore((s) => s.openBuffer)
   const setActiveBuffer = useWorkspaceStore((s) => s.setActive)
-  const openDesignerTemplateTab = useWorkspaceStore((s) => s.openDesignerTemplateTab)
+  const openEntityTab = useWorkspaceStore((s) => s.openEntityTab)
   const activeFilePath = useWorkspaceStore((s) => s.activePath)
   const openCreateFlowgroupDialog = useUIStore((s) => s.openCreateFlowgroupDialog)
   const queryClient = useQueryClient()
@@ -77,22 +77,24 @@ export function FileBrowser() {
         setActiveBuffer(path)
         return
       }
-      // Already open as a template designer tab → focus that.
-      const templateTabId = designerTemplateTabId(path)
-      if (ws.tabs.some((t) => t.kind === 'designer' && t.id === templateTabId)) {
+      // Already open as a template entity tab → focus that.
+      const templateTabId = entityTemplateTabId(path)
+      if (ws.tabs.some((t) => t.kind === 'entity' && t.docKind === 'template' && t.filePath === path)) {
         setActiveBuffer(templateTabId)
         return
       }
       try {
         const { content, etag } = await fetchFileContentWithMeta(path)
-        // A file under templates/ that parses as a template opens on the
-        // designer canvas (Parameters panel + action forms); anything else —
-        // including a non-template YAML that happens to live there — as text.
+        // A file under templates/ that parses as a template opens as a template
+        // entity tab (Graph / Code, default Graph); anything else — including a
+        // non-template YAML that happens to live there — as text.
         if (isTemplatePath(path)) {
           const file = parseFlowgroupFile(content)
           const template = file.errors.length === 0 ? selectTemplate(file) : undefined
           if (template) {
-            openDesignerTemplateTab(template.info.name || filenameStem(path), path)
+            openEntityTab('', template.info.name || filenameStem(path), path, {
+              docKind: 'template',
+            })
             return
           }
         }
@@ -101,7 +103,7 @@ export function FileBrowser() {
         toast.error(errorMessage(err, 'Failed to open file'))
       }
     },
-    [openBuffer, setActiveBuffer, openDesignerTemplateTab],
+    [openBuffer, setActiveBuffer, openEntityTab],
   )
 
   const startCreate = useCallback(() => {

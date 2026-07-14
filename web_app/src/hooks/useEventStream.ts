@@ -101,6 +101,23 @@ export function parseLine(rawLine: string): StreamFrame | null {
   return JSON.parse(payload) as StreamFrame
 }
 
+// Module-level handle on the single in-flight run's AbortController. The run
+// is one-at-a-time (backend asyncio.Lock), so one slot suffices. It lets a
+// Stop control mounted OUTSIDE the launching component (the bottom Run panel,
+// which cannot reach the CommandBar's per-instance abortRef) cooperatively
+// abort the active run — the only cross-component abort path.
+let activeStreamController: AbortController | null = null
+
+/**
+ * Cooperatively abort whichever run stream is currently in flight, from
+ * anywhere (no hook instance / no props threading required). No-op when idle.
+ * "Cooperative" = the backend finishes the current flowgroup before stopping;
+ * the recorder marks the run failed if no terminal frame arrived.
+ */
+export function abortActiveStream(): void {
+  activeStreamController?.abort()
+}
+
 export function useEventStream(): UseEventStreamResult {
   const queryClient = useQueryClient()
   const [isRunning, setIsRunning] = useState(false)
@@ -123,6 +140,8 @@ export function useEventStream(): UseEventStreamResult {
 
       const controller = new AbortController()
       abortRef.current = controller
+      // Publish it for the cross-component Stop control (bottom Run panel).
+      activeStreamController = controller
       runningRef.current = true
       setIsRunning(true)
       setFrames([])
@@ -219,6 +238,10 @@ export function useEventStream(): UseEventStreamResult {
             abortRef.current = null
             runningRef.current = false
             setIsRunning(false)
+          }
+          // Only the latest run clears the shared cross-component slot.
+          if (activeStreamController === controller) {
+            activeStreamController = null
           }
           onDone?.({ aborted })
         }

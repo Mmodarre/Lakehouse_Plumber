@@ -697,7 +697,7 @@ export function deriveGraph(doc: FlowgroupDocHandle): FlowgroupGraph {
     return external.id
   }
   const addEdge = (from: string, to: string, viewName: string, kind: EdgeKind): void => {
-    const key = `${from} ${to} ${viewName} ${kind}`
+    const key = `${from}@${to}@${viewName}@${kind}`
     if (edgeKeys.has(key)) return
     edgeKeys.add(key)
     edges.push({ from, to, viewName, kind })
@@ -982,7 +982,7 @@ export function readTemplateParams(t: TemplateDocHandle): TemplateParamRead[] {
 /**
  * Append a new parameter to the template's `parameters` list (creating the
  * list when absent). Comment-preserving like every other mutator. Addressed
- * through the template `body` so it composes with `useDesignerWrite.commit`.
+ * through the template `body` so it composes with a `commit` over that body.
  */
 export function addTemplateParam(body: FlowgroupDocHandle, param: Record<string, unknown>): void {
   const d = docState(body)
@@ -1067,8 +1067,10 @@ function navigate(js: unknown, path: YamlPath): unknown {
 /**
  * Resolve a mutator's action name to a list index. Exact `name` matches
  * win (first occurrence); otherwise a trailing `#N` addresses the Nth
- * occurrence of the base name, so `deriveGraph` node ids are always valid
- * addresses. Throws when nothing matches.
+ * occurrence of the base name, and the synthetic `__action_<index>` id
+ * `deriveGraph` mints for an unnamed action resolves straight to that list
+ * index, so `deriveGraph` node ids are always valid addresses. Throws when
+ * nothing matches.
  */
 function resolveActionIndex(d: DocState, name: string): number {
   const actions = listActions(d)
@@ -1079,6 +1081,11 @@ function resolveActionIndex(d: DocState, name: string): number {
     const matches = actions.filter((a) => a.name === suffixed[1])
     const nth = Number(suffixed[2])
     if (nth <= matches.length) return matches[nth - 1].index
+  }
+  const synthetic = /^__action_(\d+)$/.exec(name)
+  if (synthetic !== null) {
+    const idx = Number(synthetic[1])
+    if (idx < actions.length) return idx
   }
   throw new Error(`Action '${name}' not found in flowgroup '${d.info.name}'`)
 }

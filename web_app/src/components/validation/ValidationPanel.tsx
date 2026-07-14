@@ -1,4 +1,5 @@
-import { CircleCheck, CircleX, Loader2, PlayCircle, TriangleAlert } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { CircleCheck, CircleX, Loader2, PlayCircle, Timer, TriangleAlert } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useRunController, useRunStore } from '../../store/runStore'
 import type { RunTerminal } from '../../store/runStore'
@@ -6,6 +7,110 @@ import { ValidationResults } from './ValidationResults'
 import { SandboxRunBadge } from '../sandbox/SandboxRunBadge'
 import { EmptyState } from '../common/EmptyState'
 import { cn } from '@/lib/utils'
+
+// ── Streaming-log severity tagging ──────────────────────────────
+//
+// The live `infoLog` is a flat list of server strings. Each line is
+// classified by a leading marker (symbol or word) into one of four
+// severities, rendered as a tinted tag; the marker is stripped from the
+// displayed message. This is purely presentational — no run state changes.
+
+type LogSeverity = 'info' | 'ok' | 'warn' | 'error'
+
+const LOG_SEVERITY_CLASS: Record<LogSeverity, string> = {
+  info: 'text-info',
+  ok: 'text-success',
+  warn: 'text-warning',
+  error: 'text-error',
+}
+
+// Longer word variants precede shorter ones so the whole marker is consumed
+// (e.g. WARNING before WARN, FAILED before FAIL).
+const LOG_MARKER =
+  /^\s*(✓|✔|✗|✘|⚠️|⚠|▸|»|INFO|SUCCESS|WARNING|WARN|ERROR|FAILURE|FAILED|FAIL|OK)(?![A-Za-z])[:.·\s]*/i
+
+function classifyLogLine(raw: string): { severity: LogSeverity; text: string } {
+  const match = raw.match(LOG_MARKER)
+  if (!match) return { severity: 'info', text: raw }
+  const marker = match[1].toLowerCase()
+  const rest = raw.slice(match[0].length)
+  const text = rest.length > 0 ? rest : raw.trim()
+  let severity: LogSeverity = 'info'
+  if (marker === '✓' || marker === '✔' || marker === 'ok' || marker === 'success') {
+    severity = 'ok'
+  } else if (
+    marker === '✗' ||
+    marker === '✘' ||
+    marker.startsWith('error') ||
+    marker.startsWith('fail')
+  ) {
+    severity = 'error'
+  } else if (marker.startsWith('⚠') || marker.startsWith('warn')) {
+    severity = 'warn'
+  }
+  return { severity, text }
+}
+
+// Tint a fully-qualified written target (e.g. `main.bronze.customers`) after an
+// arrow so the sink table stands out; plainer targets (views) stay uncolored.
+function LogMessage({ text }: { text: string }) {
+  const arrow = text.match(/(→|->)\s*(\S.*)$/)
+  if (!arrow || arrow.index === undefined) return <>{text}</>
+  const head = text.slice(0, arrow.index)
+  const target = arrow[2].trim()
+  const isTable = /^[A-Za-z_]\w*\.[\w.]+$/.test(target)
+  return (
+    <>
+      {head}
+      <span className="text-muted-foreground">{arrow[1]} </span>
+      {isTable ? <span className="text-kind-write">{target}</span> : target}
+    </>
+  )
+}
+
+function LogLine({ line, active }: { line: string; active: boolean }) {
+  const { severity, text } = classifyLogLine(line)
+  return (
+    <div className="flex items-baseline gap-2">
+      <span
+        className={cn('w-12 shrink-0 font-semibold uppercase', LOG_SEVERITY_CLASS[severity])}
+      >
+        {severity}
+      </span>
+      <span className="min-w-0 flex-1 break-words text-foreground">
+        <LogMessage text={text} />
+        {active && (
+          <Loader2
+            className="ml-1 inline-block size-3 animate-spin align-text-bottom text-primary"
+            aria-hidden="true"
+          />
+        )}
+      </span>
+    </div>
+  )
+}
+
+// Ticks an mm:ss elapsed counter once a second while mounted. The caller only
+// mounts it while a run is in flight, so the interval is torn down on finish.
+function ElapsedTimer({ startedAt }: { startedAt: number }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [])
+  const secs = Math.max(0, Math.floor((now - startedAt) / 1000))
+  const mm = String(Math.floor(secs / 60)).padStart(2, '0')
+  const ss = String(secs % 60).padStart(2, '0')
+  return (
+    <span
+      aria-label="Elapsed time"
+      className="ml-auto inline-flex items-center gap-1 font-mono text-xs tabular-nums text-muted-foreground"
+    >
+      <Timer className="size-3.5 text-faint" aria-hidden="true" />
+      {mm}:{ss}
+    </span>
+  )
+}
 
 // ── ValidationPanel — live run view ─────────────────────────
 //
@@ -98,6 +203,7 @@ export function ValidationPanel() {
   const terminal = useRunStore((s) => s.terminal)
   const errorFrame = useRunStore((s) => s.errorFrame)
   const infoLog = useRunStore((s) => s.infoLog)
+  const startedAt = useRunStore((s) => s.startedAt)
   const { startValidate } = useRunController()
 
   const kindLabel = runKind === 'generate' ? 'Generation' : 'Validation'
@@ -135,7 +241,10 @@ export function ValidationPanel() {
         <div className="space-y-3 rounded-lg border border-border bg-card px-4 py-3">
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
             <Loader2 className="size-3.5 animate-spin text-primary" aria-hidden="true" />
-            {phase ? `${kindLabel}: ${phase}` : `${kindLabel} running…`}
+            <span>{phase ? `${kindLabel}: ${phase}` : `${kindLabel} running…`}</span>
+            {/* Elapsed timer only in a live run (startedAt set by begin()); safe
+                in the standalone validation view, which shares this store. */}
+            {startedAt !== null && <ElapsedTimer startedAt={startedAt} />}
           </div>
           {progress && (
             <ProgressBar
@@ -147,11 +256,16 @@ export function ValidationPanel() {
         </div>
       )}
 
-      {/* Streaming info lines */}
+      {/* Streaming info lines — a monospace feed with per-line severity tags
+          and a spinner on the active (last) line while the run is in flight. */}
       {infoLog.length > 0 && (
-        <div className="max-h-64 space-y-0.5 overflow-auto rounded-lg bg-muted/40 p-3 font-mono text-xs text-muted-foreground">
+        <div
+          role="log"
+          aria-label="Run log stream"
+          className="max-h-64 space-y-0.5 overflow-auto rounded-lg bg-muted/40 p-3 font-mono text-xs"
+        >
           {infoLog.map((line, i) => (
-            <div key={i}>{line}</div>
+            <LogLine key={i} line={line} active={isRunning && i === infoLog.length - 1} />
           ))}
         </div>
       )}

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { lineDiff } from '../../project/__tests__/projectFormTestSupport'
 import { fetchMock, installRadixStubs, renderJobEditor, serveJob } from './jobFormTestSupport'
@@ -38,15 +38,9 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-async function save(user: ReturnType<typeof userEvent.setup>) {
-  const saveButton = screen.getByRole('button', { name: 'Save' })
-  await waitFor(() => expect(saveButton).toBeEnabled())
-  await user.click(saveButton)
-}
-
 describe('JobConfigEditor — byte preservation', () => {
   it('changing max_concurrent_runs in project_defaults of the packaged template = one-line diff', async () => {
-    const { putBodies } = serveJob(TEMPLATE)
+    const { bufferContent } = serveJob(TEMPLATE)
     renderJobEditor()
     await screen.findByRole('navigation', { name: 'Configuration documents' })
     const user = userEvent.setup()
@@ -57,10 +51,8 @@ describe('JobConfigEditor — byte preservation', () => {
     await user.clear(runs)
     await user.type(runs, '3')
     await user.tab()
-    await save(user)
 
-    await waitFor(() => expect(putBodies()).toHaveLength(1))
-    const diffs = lineDiff(TEMPLATE, putBodies()[0]!)
+    const diffs = lineDiff(TEMPLATE, bufferContent())
     expect(diffs).toHaveLength(1)
     expect(diffs[0]!.before).toBe('  max_concurrent_runs: 1')
     expect(diffs[0]!.after).toBe('  max_concurrent_runs: 3')
@@ -82,7 +74,7 @@ describe('JobConfigEditor — byte preservation', () => {
       '    - metric: RUN_DURATION_SECONDS\n' +
       '      op: GREATER_THAN\n' +
       '      value: 3600\n'
-    const { putBodies } = serveJob(FIXTURE)
+    const { bufferContent } = serveJob(FIXTURE)
     renderJobEditor()
     const nav = await screen.findByRole('navigation', { name: 'Configuration documents' })
     const user = userEvent.setup()
@@ -99,11 +91,9 @@ describe('JobConfigEditor — byte preservation', () => {
     const timeout = screen.getByLabelText('Timeout (seconds)')
     await user.type(timeout, '300')
     await user.tab()
-    await save(user)
 
-    await waitFor(() => expect(putBodies()).toHaveLength(1))
     // The whole save is the fixture plus exactly the spliced line — every
     // passthrough byte (comments and quoting included) is identical.
-    expect(putBodies()[0]).toBe(FIXTURE + 'timeout_seconds: 300\n')
+    expect(bufferContent()).toBe(FIXTURE + 'timeout_seconds: 300\n')
   })
 })

@@ -7,7 +7,7 @@ vi.mock('sonner', () => ({
   toast: { error: vi.fn(), success: vi.fn(), dismiss: vi.fn() },
 }))
 
-// ── Validator wiring: config-model issues → SaveBar + fields ─
+// ── Validator wiring: config-model issues → per-field + section rows ─
 
 const BROKEN_MONITORING = `name: acme
 event_log:
@@ -35,34 +35,35 @@ afterEach(() => {
 })
 
 describe('ProjectConfigForm — validation wiring', () => {
-  it('range + sql/sql_path XOR violations block Save with a truthful count; fixing re-enables', async () => {
+  it('range + sql/sql_path XOR issues surface on their own fields; fixing each clears it', async () => {
     serveProject(BROKEN_MONITORING)
     await renderProjectForm()
     const user = userEvent.setup()
 
-    // Two blocking errors: max_concurrent_streams out of 1..20, and the
-    // materialized view specifying both sql and sql_path.
-    expect(await screen.findByText('2 errors')).toBeInTheDocument()
-    const saveButton = screen.getByRole('button', { name: 'Save' })
-    expect(saveButton).toBeDisabled()
-
-    // The XOR issue lands on ITS row, not somewhere generic.
-    const row = screen.getByRole('group', { name: 'Materialized view 1' })
+    // Two config-model issues: max_concurrent_streams out of 1..20, and the
+    // materialized view specifying both sql and sql_path. Each lands on ITS
+    // own field/row, not somewhere generic. (Issues no longer block editing —
+    // saving is the buffer's ⌘S path.)
+    const row = await screen.findByRole('group', { name: 'Materialized view 1' })
     expect(within(row).getByText(/both 'sql' and 'sql_path'/)).toBeInTheDocument()
+    expect(screen.getByText(/must be an integer in the range 1\.\.20/)).toBeInTheDocument()
 
-    // Fix 1: clear the SQL file path (empty commit deletes the key).
+    // Fix 1: clear the SQL file path (empty commit deletes the key) → the XOR
+    // issue clears.
     await user.clear(within(row).getByLabelText('SQL file path'))
     await user.tab()
-    await waitFor(() => expect(screen.getByText('1 error')).toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.queryByText(/both 'sql' and 'sql_path'/)).not.toBeInTheDocument(),
+    )
 
-    // Fix 2: bring the stream count into range.
+    // Fix 2: bring the stream count into range → its field issue clears too.
     const streams = screen.getByLabelText('Max concurrent streams')
     await user.clear(streams)
     await user.type(streams, '10')
     await user.tab()
-
-    await waitFor(() => expect(screen.queryByText(/error/)).not.toBeInTheDocument())
-    expect(saveButton).toBeEnabled()
+    await waitFor(() =>
+      expect(screen.queryByText(/must be an integer in the range 1\.\.20/)).not.toBeInTheDocument(),
+    )
   })
 
   it('an invalid sandbox table_pattern shows an inline error next to the field', async () => {
@@ -74,21 +75,25 @@ describe('ProjectConfigForm — validation wiring', () => {
     const issue = document.getElementById('sandbox-table-pattern-issue')
     expect(issue).not.toBeNull()
     expect(issue!.textContent).toMatch(/is invalid: .*\{table\}/)
-    expect(screen.getByText('1 error')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   })
 
-  it('warnings do not block Save', async () => {
+  it('a warning surfaces as a warning row and never blocks editing', async () => {
     serveProject('author: someone\n') // no name → warning, not error
     await renderProjectForm()
     const user = userEvent.setup()
 
+    // The missing-name warning renders (a warning row, not an error).
+    expect(
+      await screen.findByText(/loader falls back to 'unnamed_project'/),
+    ).toBeInTheDocument()
+
+    // Editing is never gated on validation — an unrelated edit still commits.
     const description = await screen.findByLabelText('Description')
     await user.type(description, 'a project')
     await user.tab()
 
+    // A warning produces no blocking error summary.
     expect(screen.queryByText(/\d+ errors?/)).not.toBeInTheDocument()
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled())
   })
 
   it('a file with YAML parse errors shows the error card and NO form', async () => {
@@ -97,6 +102,5 @@ describe('ProjectConfigForm — validation wiring', () => {
 
     expect(await screen.findByText(/YAML parse error/)).toBeInTheDocument()
     expect(screen.queryByLabelText('Name')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   })
 })

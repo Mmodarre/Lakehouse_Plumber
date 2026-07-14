@@ -115,7 +115,7 @@ export function JobCoreFields({
         />
         {queueNotAMapping ? (
           <p className="text-2xs text-warning">
-            queue is not a mapping — edit it via "Open raw YAML".
+            queue is not a mapping — edit it in the YAML view.
           </p>
         ) : (
           <BoolSwitch
@@ -194,7 +194,7 @@ export function JobCoreFields({
         >
           {notebookRaw !== undefined && notebook === undefined ? (
             <p className="text-2xs text-warning">
-              notebook_cluster is not a mapping — edit it via "Open raw YAML".
+              notebook_cluster is not a mapping — edit it in the YAML view.
             </p>
           ) : (
             <>

@@ -1,15 +1,35 @@
-import { NavLink } from 'react-router-dom'
-import { CircleCheck, CircleX, Loader2, TriangleAlert, Wifi, WifiOff } from 'lucide-react'
-import { Badge } from '../ui/badge'
+import { CircleCheck, CircleX, FolderGit2, Loader2, TriangleAlert } from 'lucide-react'
 import { cn } from '../../lib/utils'
-import { useHealth } from '../../hooks/useProject'
+import { useHealth, useProject } from '../../hooks/useProject'
 import { useUIStore } from '../../store/uiStore'
 import { useRunStore } from '../../store/runStore'
 
+// ── StatusBar — 26px accent footer for the unified workspace (§3) ──
+//
+// Accent background + accent-ink text (tokens --primary / --primary-foreground
+// ≡ the schematic accent / accent-ink). Content: project · run counts ·
+// validation state · running progress · env · right `LHP <version>`. Same data
+// sources as before (runStore / useHealth / useProject / uiStore); relocated
+// into AppShell. Everything reads in accent-ink — state is carried by icon +
+// text, not tone colour (unreadable on the accent fill).
+
+/** One status-bar segment; segments after the first get a hairline divider. */
+function Segment({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) {
+  return (
+    <span
+      className={cn(
+        'inline-flex min-w-0 items-center gap-1.5 px-2.5 whitespace-nowrap',
+        'border-l border-primary-foreground/20 first:border-l-0',
+        className,
+      )}
+      {...props}
+    />
+  )
+}
+
 /**
- * Last-run summary sourced from `runStore` — live phase/progress while a
- * run streams, then the terminal outcome + issue counts. Links to the
- * Validation view where the full results live.
+ * Last-run summary sourced from `runStore` — live phase/progress while a run
+ * streams, then the terminal outcome + issue counts.
  */
 function RunSummary() {
   const runKind = useRunStore((s) => s.runKind)
@@ -50,85 +70,59 @@ function RunSummary() {
 
   if (isRunning) {
     return (
-      <>
+      <Segment>
         {liveRegion}
-        <span className="inline-flex min-w-0 items-center gap-1.5 text-muted-foreground">
-          <Loader2 className="size-3 shrink-0 animate-spin" aria-hidden="true" />
-          <span className="truncate">{phase ?? `${kindLabel} running`}</span>
-          {progress && progress.total > 0 && (
-            <span className="shrink-0 font-mono tabular-nums">
-              {progress.done}/{progress.total}
-            </span>
-          )}
-        </span>
-      </>
+        <Loader2 className="size-3 shrink-0 animate-spin" aria-hidden="true" />
+        <span className="truncate">{phase ?? `${kindLabel} running`}</span>
+        {progress && progress.total > 0 && (
+          <span className="shrink-0 font-mono tabular-nums">
+            {progress.done}/{progress.total}
+          </span>
+        )}
+      </Segment>
     )
   }
 
   const Icon = failed ? CircleX : warnings > 0 ? TriangleAlert : CircleCheck
-  const tone = failed ? 'text-error' : warnings > 0 ? 'text-warning' : 'text-success'
 
   return (
-    <>
+    <Segment title={summaryText}>
       {liveRegion}
-      <NavLink
-        to="/validation"
-        title="Open validation results"
-        className={cn(
-          'inline-flex min-w-0 items-center gap-1.5 hover:text-foreground hover:underline',
-          tone,
-        )}
-      >
-        <Icon className="size-3 shrink-0" aria-hidden="true" />
-        <span className="truncate">{summaryText}</span>
-      </NavLink>
-    </>
+      <Icon className="size-3 shrink-0" aria-hidden="true" />
+      <span className="truncate">{summaryText}</span>
+    </Segment>
   )
 }
 
-/** h-6 bottom status bar: health · project root · last run · env · version. */
+/** 26px accent status bar: project · run summary · (right) env · version. */
 export function StatusBar() {
-  const { data: health, isError: healthError, isPending: healthPending } = useHealth()
+  const { data: health } = useHealth()
+  const { data: project } = useProject()
   const selectedEnv = useUIStore((s) => s.selectedEnv)
 
-  const isHealthy = health?.status === 'healthy' && !healthError
-  const healthLabel = healthPending ? 'Connecting…' : isHealthy ? 'Connected' : 'Disconnected'
-  const HealthIcon = healthPending ? Loader2 : isHealthy ? Wifi : WifiOff
+  const projectLabel = project?.name ?? health?.root
 
   return (
-    <footer className="flex h-6 shrink-0 items-center gap-4 border-t border-border bg-sidebar px-3 text-2xs text-muted-foreground">
-      {/* Health */}
-      <span
-        role="status"
-        className={cn(
-          'inline-flex shrink-0 items-center gap-1.5',
-          healthPending ? 'text-muted-foreground' : isHealthy ? 'text-success' : 'text-error',
-        )}
-      >
-        <HealthIcon
-          className={cn('size-3', healthPending && 'animate-spin')}
-          aria-hidden="true"
-        />
-        {healthLabel}
-      </span>
-
-      {/* Project root */}
-      {health?.root && (
-        <span className="min-w-0 truncate font-mono" title={health.root}>
-          {health.root}
-        </span>
+    <footer className="flex h-[26px] shrink-0 items-center bg-primary text-2xs font-medium text-primary-foreground">
+      {projectLabel && (
+        <Segment title={health?.root ?? projectLabel}>
+          <FolderGit2 className="size-3 shrink-0" aria-hidden="true" />
+          <span className="truncate">{projectLabel}</span>
+        </Segment>
       )}
 
-      {/* Last run summary */}
+      {/* Run counts · validation state · running progress */}
       <RunSummary />
 
-      <span className="ml-auto flex shrink-0 items-center gap-2">
-        {/* Active environment chip */}
-        <Badge variant="outline" className="h-4 rounded-sm px-1.5 text-2xs text-muted-foreground">
-          {selectedEnv}
-        </Badge>
-        {/* LHP version */}
-        {health?.version && <span className="font-mono">v{health.version}</span>}
+      <span className="ml-auto flex shrink-0 items-center">
+        <Segment>
+          <span className="font-mono">env: {selectedEnv}</span>
+        </Segment>
+        {health?.version && (
+          <Segment>
+            <span className="font-mono">LHP v{health.version}</span>
+          </Segment>
+        )}
       </span>
     </footer>
   )
