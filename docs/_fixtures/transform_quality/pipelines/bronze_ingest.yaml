@@ -1,0 +1,51 @@
+# Course step 03: the step-02 orders ingest, PLUS a SQL transform that
+# reshapes the raw CSV and a data-quality gate that drops invalid rows.
+# Action chain: load (cloudFiles CSV) -> transform:sql -> transform:data_quality -> write.
+pipeline: bronze_ingest
+flowgroup: orders_ingest
+
+actions:
+  # 1. Load: stream CSV files from the landing volume with Auto Loader.
+  - name: load_orders_csv
+    type: load
+    source:
+      type: cloudfiles
+      path: "${landing_path}/orders/*.csv"
+      format: csv
+    target: v_orders_raw
+
+  # 2. Transform (SQL): reshape the raw view — cast types, rename a couple
+  #    of columns, and drop rows with no order id.
+  - name: clean_orders
+    type: transform
+    transform_type: sql
+    source: v_orders_raw
+    sql: |
+      SELECT
+        CAST(order_id    AS BIGINT)    AS order_id,
+        CAST(cust_id     AS BIGINT)    AS customer_id,
+        CAST(amt         AS DOUBLE)    AS amount,
+        CAST(order_ts    AS TIMESTAMP) AS order_ts
+      FROM stream(v_orders_raw)
+      WHERE order_id IS NOT NULL
+    target: v_orders_clean
+
+  # 3. Transform (data quality): apply expectations; rows that fail are dropped,
+  #    so only valid records reach the bronze table.
+  - name: validate_orders
+    type: transform
+    transform_type: data_quality
+    source: v_orders_clean
+    expectations_file: expectations/orders_quality.yaml
+    mode: dqe
+    target: v_orders_validated
+
+  # 4. Write: append the validated rows into the bronze streaming table.
+  - name: write_orders_bronze
+    type: write
+    source: v_orders_validated
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: orders

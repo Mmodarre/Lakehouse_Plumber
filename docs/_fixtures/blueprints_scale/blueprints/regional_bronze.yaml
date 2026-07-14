@@ -1,0 +1,58 @@
+# A blueprint is a parametrised pattern. Write it ONCE here; each instance file
+# under pipelines/ binds `region` to a value and the expander stamps out a full
+# set of flowgroups for that region.
+#
+# Fan-out: 2 flowgroup specs (orders, customers) x 3 region instances = 6 flowgroups.
+#   %{region}          -> resolved per instance (allowed inside pipeline:/flowgroup:)
+#   ${catalog} etc.    -> resolved per environment (NOT allowed in pipeline:/flowgroup:)
+name: regional_bronze
+version: "1.0"
+description: "Standard bronze ingest (orders + customers) fanned out per region."
+
+parameters:
+  - name: region
+    required: true
+    description: "Region code; drives pipeline name, flowgroup names, table names and landing path."
+
+flowgroups:
+  # ---- orders ingest ----
+  - pipeline: "%{region}_bronze"
+    flowgroup: "%{region}_orders_ingest"
+    actions:
+      - name: load_orders
+        type: load
+        source:
+          type: cloudfiles
+          path: "${landing_path}/%{region}/orders/*.csv"
+          format: csv
+        target: v_orders_raw
+
+      - name: write_orders
+        type: write
+        source: v_orders_raw
+        write_target:
+          type: streaming_table
+          catalog: "${catalog}"
+          schema: "${bronze_schema}"
+          table: "%{region}_orders"
+
+  # ---- customers ingest ----
+  - pipeline: "%{region}_bronze"
+    flowgroup: "%{region}_customers_ingest"
+    actions:
+      - name: load_customers
+        type: load
+        source:
+          type: cloudfiles
+          path: "${landing_path}/%{region}/customers/*.csv"
+          format: csv
+        target: v_customers_raw
+
+      - name: write_customers
+        type: write
+        source: v_customers_raw
+        write_target:
+          type: streaming_table
+          catalog: "${catalog}"
+          schema: "${bronze_schema}"
+          table: "%{region}_customers"

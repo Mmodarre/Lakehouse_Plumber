@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: guide_ingest_customds
+version: "1.0"
+description: "Guide: ingest from a custom PySpark DataSource via a load action."

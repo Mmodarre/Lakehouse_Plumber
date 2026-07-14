@@ -1,0 +1,9 @@
+# customers: a JSON table, left unclustered.
+# Overrides file_format (a different parameter than orders touches) and relies
+# on the cluster_columns default (empty), so no preset is layered on.
+pipeline: bronze
+flowgroup: customers_ingest
+use_template: bronze_ingest
+template_parameters:
+  entity: customers
+  file_format: json

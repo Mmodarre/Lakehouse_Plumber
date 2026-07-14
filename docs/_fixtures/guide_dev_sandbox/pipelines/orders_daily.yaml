@@ -1,0 +1,25 @@
+# Pipeline silver_orders (OUT of sandbox scope): a teammate's downstream
+# rollup. Your profile scopes to bronze_*, so a sandbox run never touches it.
+# Action chain: load (delta) -> write (streaming_table).
+pipeline: silver_orders
+flowgroup: orders_daily
+
+actions:
+  - name: load_bronze_orders
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: orders
+    target: v_orders
+
+  - name: write_orders_daily
+    type: write
+    source: v_orders
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
+      table: orders_daily

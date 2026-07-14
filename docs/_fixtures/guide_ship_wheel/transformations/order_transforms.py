@@ -1,0 +1,52 @@
+"""Order-normalization transform for the silver_orders pipeline.
+
+Canonicalizes the free-text ``channel`` value with a Python UDF — a
+many-to-one mapping that a SQL ``SELECT`` cannot express cleanly. This is the
+kind of reusable Python that travels inside the pipeline's wheel.
+"""
+
+from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql.functions import col, udf
+from pyspark.sql.types import StringType
+
+# Every spelling the upstream order systems have emitted, mapped to the one
+# canonical channel the silver layer stores. Maintaining this as a Python dict
+# is the reason this transform is Python and not SQL.
+_CHANNEL_ALIASES = {
+    "web": "web",
+    "website": "web",
+    "online": "web",
+    "app": "mobile",
+    "mobile": "mobile",
+    "ios": "mobile",
+    "android": "mobile",
+    "store": "in_store",
+    "in-store": "in_store",
+    "pos": "in_store",
+}
+
+
+def normalize_orders(df: DataFrame, spark: SparkSession, parameters: dict) -> DataFrame:
+    """Cast the raw columns and canonicalize the order channel.
+
+    Args:
+        df: source-view rows (raw string columns from the CSV load).
+        spark: the active SparkSession.
+        parameters: values from the action's ``parameters:`` block.
+    """
+    default_channel = parameters.get("default_channel", "unknown")
+
+    def canonical_channel(raw: str) -> str:
+        if raw is None:
+            return default_channel
+        return _CHANNEL_ALIASES.get(raw.strip().lower(), default_channel)
+
+    canonical_channel_udf = udf(canonical_channel, StringType())
+
+    return (
+        df.withColumn("order_id", col("order_id").cast("bigint"))
+        .withColumn("customer_id", col("cust_id").cast("bigint"))
+        .withColumn("amount", col("amt").cast("double"))
+        .withColumn("channel", canonical_channel_udf(col("channel")))
+        .select("order_id", "customer_id", "amount", "channel")
+    )

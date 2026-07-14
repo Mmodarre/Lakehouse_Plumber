@@ -1,0 +1,13 @@
+# Data-quality expectations for the orders flowgroup.
+# Each entry is a SQL boolean expression (the key) plus an action and a name.
+# The action decides how a failing row is handled:
+#   fail -> halt the pipeline   drop -> discard the row   warn -> keep and flag
+order_id IS NOT NULL:
+  action: fail
+  name: order_id_present
+amount >= 0:
+  action: drop
+  name: non_negative_amount
+customer_id IS NOT NULL:
+  action: warn
+  name: customer_attributed

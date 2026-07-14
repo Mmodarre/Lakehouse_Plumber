@@ -1,0 +1,7 @@
+# Development environment tokens.
+# Referenced from the flowgroup and pipeline_config.yaml with ${token} syntax.
+# The target name in databricks.yml (dev) must match this file's stem.
+dev:
+  catalog: dev_catalog
+  bronze_schema: bronze
+  landing_path: /Volumes/dev_catalog/landing/files

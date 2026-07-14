@@ -1,0 +1,9 @@
+# Data-quality expectations for the orders flowgroup.
+# Column names are POST-transform (see the clean_orders SQL action).
+# action: drop → failing rows are dropped (mode: dqe → @dp.expect_all_or_drop).
+order_id IS NOT NULL:
+  action: drop
+  name: valid_order_id
+amount >= 0:
+  action: drop
+  name: non_negative_amount

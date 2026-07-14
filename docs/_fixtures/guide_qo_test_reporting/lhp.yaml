@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: guide_qo_test_reporting
+version: "1.0"
+description: "Quality & ops guide: declare a data-quality test action and report its results."

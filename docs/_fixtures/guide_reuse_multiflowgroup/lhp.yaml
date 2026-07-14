@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: reuse_multiflowgroup
+version: "1.0"
+description: "Guide: compose one pipeline from several flowgroups; one feeds the next."

@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: guide_reuse_substitutions
+version: "1.0"
+description: "Reuse-and-scale guide: one flowgroup, per-environment substitutions and secrets."

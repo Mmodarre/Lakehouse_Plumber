@@ -1,0 +1,31 @@
+# LakehousePlumber
+# NOTE: generated/, monitoring/, and resources/ are intentionally TRACKED for
+# this docs fixture so guide pages can literalinclude the generated output (and
+# CI can regenerate + diff).
+.lhp/
+.ruff_cache/
+*.tmpl
+*.pyc
+__pycache__/
+.pytest_cache/
+.coverage
+*.egg-info/
+dist/
+build/
+.env
+.venv/
+venv/
+
+# Databricks Asset Bundle
+.bundle/
+
+# IDE
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Secrets
+*.key
+*.pem
+secrets/

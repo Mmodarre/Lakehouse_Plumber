@@ -1,0 +1,25 @@
+# Bronze ingest for orders. The shared cloudFiles + streaming-table config
+# lives in the bronze_defaults preset; this flowgroup declares only what is
+# specific to orders: the source path, the view name, and the table name.
+pipeline: bronze_ingest
+flowgroup: orders_ingest
+presets:
+  - bronze_defaults
+
+actions:
+  - name: load_orders_csv
+    type: load
+    source:
+      type: cloudfiles
+      path: "${landing_path}/orders/*.csv"
+      format: csv
+    target: v_orders_raw
+
+  - name: write_orders_bronze
+    type: write
+    source: v_orders_raw
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: orders

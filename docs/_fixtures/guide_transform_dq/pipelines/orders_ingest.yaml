@@ -1,0 +1,34 @@
+# Guide: gate rows with a data_quality transform.
+# Action chain: load (cloudFiles CSV) -> transform:data_quality (mode: dqe) -> write.
+pipeline: bronze_orders
+flowgroup: orders_ingest
+
+actions:
+  # 1. Load: stream raw order CSV files from the landing volume with Auto Loader.
+  - name: load_orders_csv
+    type: load
+    source:
+      type: cloudfiles
+      path: "${landing_path}/orders/*.csv"
+      format: csv
+    target: v_orders_raw
+
+  # 2. Transform (data quality): apply expectations before the rows reach the table.
+  #    mode: dqe attaches the expectations inline as Lakeflow decorators.
+  - name: gate_orders
+    type: transform
+    transform_type: data_quality
+    source: v_orders_raw
+    expectations_file: expectations/orders_quality.yaml
+    mode: dqe
+    target: v_orders_validated
+
+  # 3. Write: append the surviving rows into the bronze streaming table.
+  - name: write_orders_bronze
+    type: write
+    source: v_orders_validated
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: orders

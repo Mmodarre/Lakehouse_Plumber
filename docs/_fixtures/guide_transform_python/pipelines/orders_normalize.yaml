@@ -1,0 +1,41 @@
+# One flowgroup: stream raw order CSVs, reshape them with a Python transform
+# (cast the raw columns and canonicalize the free-text channel with a UDF —
+# logic that outgrows a SQL SELECT), then append the result into a silver
+# streaming table.
+# Action chain: load (cloudFiles CSV) -> transform:python -> write.
+pipeline: silver_orders
+flowgroup: orders_normalize
+
+actions:
+  # 1. Load: stream raw order CSVs from the landing volume with Auto Loader.
+  - name: load_orders_csv
+    type: load
+    source:
+      type: cloudfiles
+      path: "${landing_path}/orders/*.csv"
+      format: csv
+    target: v_orders_raw
+
+  # 2. Transform (Python): call normalize_orders() to cast the raw string
+  #    columns and canonicalize the free-text channel with a UDF. The action
+  #    names the module and function; parameters flow through to the function.
+  - name: normalize_orders
+    type: transform
+    transform_type: python
+    source: v_orders_raw
+    module_path: transformations/order_transforms.py
+    function_name: normalize_orders
+    parameters:
+      default_channel: unknown
+    readMode: stream
+    target: v_orders_normalized
+
+  # 3. Write: append the normalized rows into the silver streaming table.
+  - name: write_orders_silver
+    type: write
+    source: v_orders_normalized
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
+      table: orders

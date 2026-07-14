@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: guide_reuse_templates
+version: "1.0"
+description: "Guide fixture: one multi-parameter template with defaults, stamped by two flowgroups that override different parameters and layer a preset."

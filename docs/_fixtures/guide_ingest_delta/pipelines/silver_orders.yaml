@@ -1,0 +1,27 @@
+# Ingest an existing bronze Delta table and land it in the silver layer.
+# Action chain: load (delta, streaming read) -> write (streaming_table).
+pipeline: silver_orders
+flowgroup: orders_from_delta
+
+actions:
+  # 1. Load: stream an existing Delta table from Unity Catalog into a view.
+  #    readMode: stream -> spark.readStream.table(...); readMode: batch -> spark.read.table(...).
+  - name: load_orders_delta
+    type: load
+    readMode: stream
+    source:
+      type: delta
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: orders
+    target: v_orders_source
+
+  # 2. Write: append the streamed rows into a silver streaming table.
+  - name: write_orders_silver
+    type: write
+    source: v_orders_source
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
+      table: orders

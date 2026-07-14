@@ -1,0 +1,3 @@
+use_blueprint: regional_bronze
+parameters:
+  region: eu

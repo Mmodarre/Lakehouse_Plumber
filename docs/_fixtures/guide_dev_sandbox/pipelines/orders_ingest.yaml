@@ -1,0 +1,26 @@
+# Pipeline bronze_orders (IN sandbox scope): ingest raw order files into a
+# bronze streaming table you own.
+# Action chain: load (cloudFiles CSV) -> write (streaming_table).
+pipeline: bronze_orders
+flowgroup: orders_ingest
+
+actions:
+  # 1. Load: stream CSV order files from the landing volume with Auto Loader.
+  - name: load_orders_csv
+    type: load
+    source:
+      type: cloudfiles
+      path: "${landing_path}/orders/*.csv"
+      format: csv
+    target: v_orders_raw
+
+  # 2. Write: append the rows into the bronze orders streaming table.
+  #    This table is PRODUCED IN SCOPE, so a sandbox run renames it.
+  - name: write_orders_bronze
+    type: write
+    source: v_orders_raw
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: orders

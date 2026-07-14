@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: guide_transform_schema
+version: "1.0"
+description: "Guide: enforce an explicit schema on a view with a schema transform — rename, cast, and drop unmapped columns under strict enforcement."

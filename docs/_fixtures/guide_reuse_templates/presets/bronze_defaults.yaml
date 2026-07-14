@@ -1,0 +1,17 @@
+# Bronze ingestion standard, carried by the template so every table it stamps
+# inherits it: Auto Loader reader options + streaming-table properties.
+name: bronze_defaults
+version: "1.0"
+description: "Bronze ingestion standard: Auto Loader reader options + streaming-table properties."
+defaults:
+  load_actions:
+    cloudfiles:
+      options:
+        cloudFiles.rescuedDataColumn: "_rescued_data"
+        cloudFiles.inferColumnTypes: "true"
+        cloudFiles.maxFilesPerTrigger: 200
+  write_actions:
+    streaming_table:
+      table_properties:
+        delta.enableChangeDataFeed: "true"
+        quality: "bronze"

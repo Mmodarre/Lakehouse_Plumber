@@ -1,0 +1,4 @@
+use_blueprint: tenant_bronze
+parameters:
+  tenant: initech
+  region: apac

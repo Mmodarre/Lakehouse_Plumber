@@ -1,0 +1,29 @@
+# Route a gold table out of the pipeline-managed catalog into an external
+# analytics catalog, via a Delta sink.
+# Action chain: load (delta, streaming) -> write (sink: delta).
+pipeline: export_analytics
+flowgroup: order_summary_export
+
+actions:
+  # 1. Load: stream the in-pipeline gold order summary into a view.
+  - name: load_order_summary
+    type: load
+    source:
+      type: delta
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
+      table: order_summary
+    readMode: stream
+    target: v_order_summary
+
+  # 2. Write: push the view out to an external Delta table via a sink,
+  #    instead of hand-writing dp.create_sink + the append flow.
+  - name: export_order_summary
+    type: write
+    source: v_order_summary
+    write_target:
+      type: sink
+      sink_type: delta
+      sink_name: order_summary_export
+      options:
+        tableName: "${analytics_catalog}.${analytics_schema}.order_summary"

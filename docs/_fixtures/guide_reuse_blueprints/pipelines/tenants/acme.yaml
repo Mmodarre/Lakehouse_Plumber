@@ -1,0 +1,7 @@
+# One instance = one tenant. Both required parameters are bound; partition_col
+# is overridden away from its default.
+use_blueprint: tenant_bronze
+parameters:
+  tenant: acme
+  region: us
+  partition_col: order_date

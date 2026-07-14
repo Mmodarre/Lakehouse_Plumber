@@ -1,0 +1,24 @@
+# A single bronze ingest pipeline. Monitoring does not change this flowgroup at
+# all — it observes the event log this pipeline emits at run time.
+pipeline: bronze_orders
+flowgroup: orders_ingest
+
+actions:
+  # Load: stream CSV order files from the landing volume with Auto Loader.
+  - name: load_orders_csv
+    type: load
+    source:
+      type: cloudfiles
+      path: "${landing_path}/orders/*.csv"
+      format: csv
+    target: v_orders_raw
+
+  # Write: append the raw rows into the bronze streaming table.
+  - name: write_orders_bronze
+    type: write
+    source: v_orders_raw
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: orders

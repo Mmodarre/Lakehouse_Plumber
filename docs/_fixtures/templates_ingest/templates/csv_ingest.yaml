@@ -1,0 +1,41 @@
+# The ingestion SHAPE captured once: stream CSV files from the landing volume
+# with Auto Loader into a view, then append them to a bronze streaming table.
+#
+# The body is plain YAML; Jinja2 {{ param }} expressions are rendered inside
+# string values. The single `entity` parameter drives the landing folder, the
+# view name and the target table -- everything that varies per table.
+#
+# The template also carries the bronze_defaults preset, so every table it
+# stamps inherits the bronze standard (reader options + streaming-table
+# properties) — set once, here, for all of them.
+name: csv_ingest
+version: "1.0"
+description: "Stream a folder of CSV files into a bronze streaming table."
+
+presets:
+  - bronze_defaults
+
+parameters:
+  - name: entity
+    required: true
+    description: "Entity name; drives the landing folder, the view name and the target table."
+
+actions:
+  # Load: stream CSV files for this entity from the landing volume.
+  - name: load_{{ entity }}_csv
+    type: load
+    source:
+      type: cloudfiles
+      path: "${landing_path}/{{ entity }}/*.csv"
+      format: csv
+    target: v_{{ entity }}_raw
+
+  # Write: append the raw rows into the entity's bronze streaming table.
+  - name: write_{{ entity }}_bronze
+    type: write
+    source: v_{{ entity }}_raw
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: "{{ entity }}"

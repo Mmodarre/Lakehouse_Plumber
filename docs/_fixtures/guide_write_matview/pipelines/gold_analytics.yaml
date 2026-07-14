@@ -1,0 +1,27 @@
+# Write guide: define a gold materialized view from an inline SQL query.
+# One action: a write whose target is a materialized_view. The view is the
+# query — LHP needs no source view, transform, or append flow.
+pipeline: gold_analytics
+flowgroup: customer_summary
+
+actions:
+  # Materialized view: per-customer order summary, computed from the silver
+  # orders table. Databricks recomputes it from the query; you declare the
+  # target and the SELECT, nothing else.
+  - name: write_customer_summary
+    type: write
+    description: "Per-customer order summary for gold dashboards"
+    write_target:
+      type: materialized_view
+      catalog: "${catalog}"
+      schema: "${gold_schema}"
+      table: customer_summary
+      comment: "Per-customer order summary for gold dashboards"
+      sql: |
+        SELECT
+          customer_id,
+          COUNT(*)      AS order_count,
+          SUM(amount)   AS total_amount,
+          MAX(order_ts) AS last_order_at
+        FROM ${catalog}.${silver_schema}.orders
+        GROUP BY customer_id

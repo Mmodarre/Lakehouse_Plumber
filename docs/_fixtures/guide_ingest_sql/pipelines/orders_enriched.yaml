@@ -1,0 +1,38 @@
+# Ingest guide: use a SQL query as the source. The query reads two existing
+# bronze tables directly and joins them into one enriched view, which a write
+# lands in the silver layer.
+# Action chain: load (sql query) -> write (materialized_view).
+pipeline: silver_orders
+flowgroup: orders_enriched
+
+actions:
+  # 1. Load: read existing tables through a SQL query. source.type: sql runs the
+  #    query with spark.sql(...) and exposes the result as the v_orders_enriched
+  #    view. The query is the source — there is no upstream load to reshape.
+  - name: load_orders_enriched
+    type: load
+    source:
+      type: sql
+      sql: |
+        SELECT
+          o.order_id,
+          o.amount,
+          o.order_ts,
+          c.customer_name,
+          c.region
+        FROM ${catalog}.${bronze_schema}.orders o
+        LEFT JOIN ${catalog}.${bronze_schema}.customers c
+          ON o.customer_id = c.customer_id
+        WHERE o.order_id IS NOT NULL
+    target: v_orders_enriched
+
+  # 2. Write: land the enriched query result in a silver materialized view.
+  #    The engine recomputes it from the query view on each refresh.
+  - name: write_orders_enriched
+    type: write
+    source: v_orders_enriched
+    write_target:
+      type: materialized_view
+      catalog: "${catalog}"
+      schema: "${silver_schema}"
+      table: orders_enriched

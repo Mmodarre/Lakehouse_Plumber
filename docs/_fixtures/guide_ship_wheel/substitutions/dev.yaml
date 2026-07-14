@@ -1,0 +1,8 @@
+# Development environment tokens.
+# Referenced from flowgroups, lhp.yaml, and pipeline_config.yaml with ${token}.
+# The target name in databricks.yml (dev) must match this file's stem.
+dev:
+  catalog: dev_catalog
+  silver_schema: silver
+  artifact_schema: lhp_artifacts
+  landing_path: /Volumes/dev_catalog/landing/files

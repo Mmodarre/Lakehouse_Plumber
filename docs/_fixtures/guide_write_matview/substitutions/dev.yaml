@@ -1,0 +1,6 @@
+# Development environment tokens.
+# Referenced from flowgroups with ${token} syntax.
+dev:
+  catalog: dev_catalog
+  silver_schema: silver
+  gold_schema: gold

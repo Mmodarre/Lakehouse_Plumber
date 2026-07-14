@@ -1,0 +1,39 @@
+# Quality & Ops guide: quarantine mode.
+# Action chain: load (cloudFiles CSV) -> transform:data_quality (mode: quarantine) -> write.
+# Failing rows are routed to a dead-letter table instead of being dropped.
+pipeline: bronze_orders
+flowgroup: orders_quarantine
+
+actions:
+  # 1. Load: stream CSV order files from the landing volume with Auto Loader.
+  - name: load_orders_csv
+    type: load
+    source:
+      type: cloudfiles
+      path: "${landing_path}/orders/*.csv"
+      format: csv
+    target: v_orders_raw
+
+  # 2. Transform (data quality, quarantine): rows that fail an expectation are
+  #    routed to the DLQ table; clean rows flow on. Fixed DLQ rows are recycled
+  #    back into the output on the next run.
+  - name: quarantine_orders
+    type: transform
+    transform_type: data_quality
+    source: v_orders_raw
+    expectations_file: expectations/orders_quality.yaml
+    mode: quarantine
+    quarantine:
+      dlq_table: "${catalog}.${bronze_schema}.orders_dlq"
+      source_table: "${catalog}.${bronze_schema}.orders"
+    target: v_orders_validated
+
+  # 3. Write: append the validated rows (clean + recycled) into the bronze table.
+  - name: write_orders_bronze
+    type: write
+    source: v_orders_validated
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: orders

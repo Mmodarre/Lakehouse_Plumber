@@ -1,0 +1,21 @@
+# Databricks Asset Bundle definition for guide_ship_wheel.
+# Its presence turns bundle support ON in LHP: `lhp generate` then writes bundle
+# resource files under resources/lhp/ and requires -pc.
+bundle:
+  name: guide_ship_wheel
+
+include:
+  # LHP writes one pipeline resource per pipeline into resources/lhp/, plus the
+  # LHP-owned _wheels.bundle.yml that points the artifact upload at the volume.
+  - resources/*.yml
+  - resources/lhp/*.yml
+
+targets:
+  # Target names MUST match your LHP substitution environment names: the
+  # `dev` target below pairs with substitutions/dev.yaml.
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://your-workspace.cloud.databricks.com
+      root_path: ~/.bundle/${bundle.name}/${bundle.target}

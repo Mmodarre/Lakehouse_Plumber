@@ -1,0 +1,22 @@
+# Databricks Asset Bundle definition for deploy_bundle.
+# Its presence is what turns bundle support ON in LHP: `lhp generate` then
+# writes bundle resource files under resources/lhp/ and requires -pc.
+# See https://docs.databricks.com/dev-tools/bundles/index.html.
+bundle:
+  name: deploy_bundle
+
+include:
+  # LHP writes one pipeline resource per pipeline into resources/lhp/.
+  # Add your own hand-written resources under resources/ alongside them.
+  - resources/*.yml
+  - resources/lhp/*.yml
+
+targets:
+  # Target names MUST match your LHP substitution environment names: the
+  # `dev` target below pairs with substitutions/dev.yaml.
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://your-workspace.cloud.databricks.com
+      root_path: ~/.bundle/${bundle.name}/${bundle.target}

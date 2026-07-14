@@ -1,0 +1,7 @@
+# Stamp the orders table from the csv_ingest template.
+# The load+write shape lives in the template; this file is just parameters.
+pipeline: bronze_ingest
+flowgroup: orders_ingest
+use_template: csv_ingest
+template_parameters:
+  entity: orders

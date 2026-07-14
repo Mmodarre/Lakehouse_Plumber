@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: guide_transform_temptable
+version: "1.0"
+description: "Guide: stage an intermediate result in a temp table shared by two downstream branches."

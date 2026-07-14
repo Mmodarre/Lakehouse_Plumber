@@ -1,0 +1,18 @@
+# Lakehouse Plumber project configuration
+name: retail_edw
+version: "1.0"
+description: "Quality-and-ops guide: centralized event-log monitoring across every pipeline."
+
+# Inject an event log into every generated pipeline. Each pipeline writes its
+# own event log table into this catalog/schema.
+event_log:
+  catalog: "${catalog}"
+  schema: _meta
+  name_suffix: "_event_log"
+
+# Aggregate every pipeline event log into one Delta table and publish a
+# run-summary materialized view on top of it. checkpoint_path and
+# job_config_path are the only required keys; everything else has a default.
+monitoring:
+  checkpoint_path: "/Volumes/${catalog}/_meta/checkpoints/event_logs"
+  job_config_path: "config/monitoring_job_config.yaml"

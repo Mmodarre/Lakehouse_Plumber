@@ -1,0 +1,6 @@
+# Stamp a third table with no new load+write code -- just the entity name.
+pipeline: bronze_ingest
+flowgroup: products_ingest
+use_template: csv_ingest
+template_parameters:
+  entity: products

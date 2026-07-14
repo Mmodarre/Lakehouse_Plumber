@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: first_pipeline
+version: "1.0"
+description: "Your first Lakehouse Plumber pipeline: a single bronze ingest."

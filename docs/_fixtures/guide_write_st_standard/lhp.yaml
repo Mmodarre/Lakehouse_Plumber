@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: guide_write_st_standard
+version: "1.0"
+description: "Write guide: streaming-table write-target options and multi-source append fan-in."

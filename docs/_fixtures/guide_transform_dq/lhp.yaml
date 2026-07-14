@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: guide_transform_dq
+version: "1.0"
+description: "Guide fixture: gate rows with a data_quality transform (mode: dqe)."

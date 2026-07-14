@@ -1,0 +1,34 @@
+# LakehousePlumber
+# NOTE: generated/ is intentionally TRACKED for this docs fixture so guide pages
+# can literalinclude the generated output (and CI can regenerate + diff).
+# NOTE: .lhp/ is normally gitignored (the personal sandbox profile stays local),
+# but this fixture tracks .lhp/profile.yaml so the guide can show it. The parse
+# cache under .lhp/cache/ stays ignored.
+.lhp/*
+!.lhp/profile.yaml
+.ruff_cache/
+*.tmpl
+*.pyc
+__pycache__/
+.pytest_cache/
+.coverage
+*.egg-info/
+dist/
+build/
+.env
+.venv/
+venv/
+
+# Databricks Asset Bundle
+.bundle/
+
+# IDE
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Secrets
+*.key
+*.pem
+secrets/

@@ -1,0 +1,32 @@
+# LakehousePlumber
+# NOTE: generated/ is intentionally TRACKED for this docs fixture so tutorial
+# pages can literalinclude the generated output (and CI can regenerate + diff).
+# LHP also writes bundle resource files under resources/lhp/ — those are
+# tracked too, for the same reason.
+.lhp/
+.ruff_cache/
+*.tmpl
+*.pyc
+__pycache__/
+.pytest_cache/
+.coverage
+*.egg-info/
+dist/
+build/
+.env
+.venv/
+venv/
+
+# Databricks Asset Bundle
+.bundle/
+
+# IDE
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Secrets
+*.key
+*.pem
+secrets/

@@ -1,0 +1,4 @@
+# One instance = one region. Three lines is all it takes to add a region.
+use_blueprint: regional_bronze
+parameters:
+  region: us

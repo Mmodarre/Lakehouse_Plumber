@@ -1,0 +1,13 @@
+# Bundle pipeline configuration.
+#
+# On a bundle project (databricks.yml present) `lhp generate` REQUIRES this
+# file via --pipeline-config / -pc: it supplies the catalog and schema that
+# LHP embeds into each generated bundle resource (resources/lhp/*.yml).
+# Without it, generate fails fast with LHP-CFG-023.
+#
+# project_defaults applies to every pipeline. catalog and schema must BOTH
+# be set (here as substitution tokens resolved from substitutions/<env>.yaml).
+project_defaults:
+  catalog: "${catalog}"
+  schema: "${bronze_schema}"
+  serverless: true

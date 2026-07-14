@@ -1,0 +1,31 @@
+# Ingest guide: stream a Kafka topic into a bronze streaming table.
+# Action chain: load (kafka) -> write (streaming_table).
+pipeline: bronze_ingest
+flowgroup: orders_stream
+
+actions:
+  # 1. Load: stream the "orders" topic from a TLS-secured Kafka cluster.
+  #    Kafka is always a streaming source; the truststore password comes
+  #    from a Databricks secret rather than living in the YAML.
+  - name: load_orders_kafka
+    type: load
+    source:
+      type: kafka
+      bootstrap_servers: "${kafka_bootstrap}"
+      subscribe: orders
+      options:
+        startingOffsets: earliest
+        kafka.security.protocol: SSL
+        kafka.ssl.truststore.location: "${truststore_path}"
+        kafka.ssl.truststore.password: "${secret:kafka/truststore-password}"
+    target: v_orders_kafka_raw
+
+  # 2. Write: append the raw Kafka envelope into a bronze streaming table.
+  - name: write_orders_bronze
+    type: write
+    source: v_orders_kafka_raw
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: orders_raw

@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: guide_write_st_snapshot_cdc
+version: "1.0"
+description: "Guide: materialize SCD2 dimension history from periodic full snapshots."

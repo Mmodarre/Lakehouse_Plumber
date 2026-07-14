@@ -1,0 +1,29 @@
+# Ingest live currency exchange rates from a REST API through a user-supplied
+# PySpark DataSource. Action chain: load (custom_datasource) -> write.
+pipeline: bronze_rates
+flowgroup: exchange_rates
+
+actions:
+  # 1. Load: read through the ExchangeRatesDataSource class. LHP copies the
+  #    module, registers the class, and reads it as a streaming source.
+  - name: load_exchange_rates
+    type: load
+    readMode: stream
+    source:
+      type: custom_datasource
+      module_path: "data_sources/exchange_rates_source.py"
+      custom_datasource_class: ExchangeRatesDataSource
+      options:
+        api_url: "${exchange_api_url}"
+        base_currencies: "USD,EUR,GBP"
+    target: v_exchange_rates
+
+  # 2. Write: append the fetched rates into a bronze streaming table.
+  - name: write_rates_bronze
+    type: write
+    source: v_exchange_rates
+    write_target:
+      type: streaming_table
+      catalog: "${catalog}"
+      schema: "${bronze_schema}"
+      table: exchange_rates

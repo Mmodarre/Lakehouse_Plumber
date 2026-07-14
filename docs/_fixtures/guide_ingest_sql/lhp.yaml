@@ -1,0 +1,4 @@
+# Lakehouse Plumber project configuration
+name: guide_ingest_sql
+version: "1.0"
+description: "Ingest guide: read existing tables through a SQL query load."
