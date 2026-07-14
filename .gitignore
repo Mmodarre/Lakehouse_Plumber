@@ -1,4 +1,7 @@
 old_code/
+# Runtime-mode tech spike — standalone, no LHP dependency. Kept as design
+# evidence for LOCAL/RUNTIME_MODE_SPEC.md but never committed.
+spike/
 tmp*/
 pytest-of-*/
 output/

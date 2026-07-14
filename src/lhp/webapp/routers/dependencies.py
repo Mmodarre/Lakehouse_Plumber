@@ -36,6 +36,7 @@ from lhp.webapp.schemas.dependency import (
     GraphResponse,
     StalenessResponse,
 )
+from lhp.webapp.services.dataset_index import invalidate as invalidate_dataset_index
 from lhp.webapp.services.graph_serializer import (
     serialize_action_graph,
     serialize_flowgroup_graph,
@@ -235,6 +236,10 @@ async def refresh_dependencies(
         force_rebuild=True,
     )
     request.app.state.graph_stale = False
+    # The dataset lineage index (GET /api/lineage) shares this serve-stale
+    # model: drop its per-env cache so the next lineage request rebuilds against
+    # the freshly-rebuilt graph.
+    invalidate_dataset_index(request.app)
     staleness = await asyncio.to_thread(
         dependency.describe_graph_staleness, pipeline_filter=pipeline
     )

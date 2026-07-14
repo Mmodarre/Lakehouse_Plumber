@@ -24,7 +24,7 @@ import {
   selectFlowgroup,
   serializeFlowgroupFile,
 } from '@/lib/flowgroup-doc'
-import type { DesignerMutator } from '../useDesignerWrite'
+import type { DesignerMutator } from '../formModel'
 import { ActionForm } from '../ActionForm'
 import { flowgroupProviders } from './actionFormTestSupport'
 import { readPath } from '../specs/helpers'

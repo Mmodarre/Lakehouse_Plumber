@@ -1,73 +1,22 @@
 import { createBrowserRouter } from 'react-router-dom'
-import { Layout } from './components/layout/Layout'
-import { DashboardPage } from './pages/DashboardPage'
-import { FlowgroupsPage } from './pages/FlowgroupsPage'
-import { ValidationPage } from './pages/ValidationPage'
-import { TablesPage } from './pages/TablesPage'
+import { AppShell } from './components/shell/AppShell'
 
 // Data router (createBrowserRouter) rather than <BrowserRouter> JSX: required
-// for useBlocker (navigation guards). Data is fetched with TanStack Query
-// inside components — do not add route loaders/actions here.
+// for useBlocker (NavigationGuard). Data is fetched with TanStack Query inside
+// components — do not add route loaders/actions here.
 // Created once at module scope so the router is stable across re-renders.
+//
+// The unified workspace collapses routing to two entries: the first-run
+// scaffolding wizard at /init, and everything else → the AppShell, which owns
+// its own in-app navigation (explorer + center tab strip; no per-view URLs).
 export const router = createBrowserRouter([
+  // First-run scaffolding wizard (also rendered inline by AppShell's
+  // no_project branch; kept as a route for direct navigation).
   {
-    element: <Layout />,
-    children: [
-      { index: true, element: <DashboardPage /> },
-      { path: 'flowgroups', element: <FlowgroupsPage /> },
-      { path: 'tables', element: <TablesPage /> },
-      { path: 'validation', element: <ValidationPage /> },
-      // Add new top-level pages here (as children of Layout).
-      // Lifecycle pages are route-lazy (route.lazy is the data-router
-      // equivalent of React.lazy — code-split without a Suspense wrapper).
-      {
-        path: 'blueprints',
-        lazy: async () => ({
-          Component: (await import('./pages/BlueprintsPage')).BlueprintsPage,
-        }),
-      },
-      {
-        path: 'presets',
-        lazy: async () => ({
-          Component: (await import('./pages/PresetsPage')).PresetsPage,
-        }),
-      },
-      {
-        path: 'templates',
-        lazy: async () => ({
-          Component: (await import('./pages/TemplatesPage')).TemplatesPage,
-        }),
-      },
-      {
-        path: 'environments',
-        lazy: async () => ({
-          Component: (await import('./pages/EnvironmentsPage')).EnvironmentsPage,
-        }),
-      },
-      {
-        path: 'runs',
-        lazy: async () => ({
-          Component: (await import('./pages/RunHistoryPage')).RunHistoryPage,
-        }),
-      },
-      // Config section (project / pipeline / job tabs, URL-synced via the
-      // optional :section param). MUST stay lazy: this chunk is the only
-      // importer of lib/yaml-doc + lib/config-model (the yaml stack).
-      {
-        path: 'config/:section?',
-        lazy: async () => ({
-          Component: (await import('./pages/ConfigurationPage')).ConfigurationPage,
-        }),
-      },
-      // First-run scaffolding wizard (health project_state === 'no_project').
-      // Rendering it automatically in Layout's no_project branch is a
-      // post-4A integration step; until then it is reachable at /init.
-      {
-        path: 'init',
-        lazy: async () => ({
-          Component: (await import('./pages/InitProjectPage')).InitProjectPage,
-        }),
-      },
-    ],
+    path: '/init',
+    lazy: async () => ({
+      Component: (await import('./pages/InitProjectPage')).InitProjectPage,
+    }),
   },
+  { path: '*', element: <AppShell /> },
 ])

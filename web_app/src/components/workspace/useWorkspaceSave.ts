@@ -6,6 +6,7 @@ import { writeFile } from '../../api/files'
 import { ApiError } from '../../api/client'
 import { useRunController, useRunStore } from '../../store/runStore'
 import { isReadOnlyPath, useWorkspaceStore } from '../../store/workspaceStore'
+import { useDocumentStore } from '../../store/documentStore'
 import {
   isYamlPath,
   derivePipelineFromYaml,
@@ -94,6 +95,11 @@ export function useWorkspaceSave({
         // A successful save supersedes any lingering stale-file warning.
         toast.dismiss(`stale:${path}`)
         useWorkspaceStore.getState().setEtagAndBaseline(path, res.etag ?? null, content)
+        // Re-anchor the entity document's parse handle to the just-saved text
+        // (risk 11): no-op for paths documentStore hasn't open + echo-suppressed
+        // in the common case; genuinely re-parses on a merged / kept-mine save
+        // whose text differs from the handle's last projection.
+        useDocumentStore.getState().reparse(path, content)
         // Conflict resolutions save text the live editor doesn't hold yet
         // (merged / kept-mine after a reload) — push it in.
         if (overrides?.contentOverride !== undefined && activePathRef.current === path) {
@@ -203,6 +209,8 @@ export function useWorkspaceSave({
       // Reload succeeded — the stale-file warning for this path is resolved.
       toast.dismiss(`stale:${path}`)
       useWorkspaceStore.getState().replaceBuffer(path, content, etag)
+      // Re-anchor the entity document to the reloaded on-disk text (risk 11).
+      useDocumentStore.getState().reparse(path, content)
       if (activePathRef.current === path) editorRef.current?.setValue(content)
     },
     [editorRef, activePathRef],

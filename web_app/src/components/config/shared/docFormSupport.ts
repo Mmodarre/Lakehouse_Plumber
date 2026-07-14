@@ -1,7 +1,37 @@
-import type { UseConfigFileResult } from '../../../hooks/useConfigFile'
+import type { YAMLError } from 'yaml'
 import type { ValidationIssue } from '../../../lib/config-model'
-import type { YamlPath } from '../../../lib/yaml-doc'
+import type { ConfigFileHandle, YamlPath } from '../../../lib/yaml-doc'
 import { deletePath, documentCount, getPath, setPath, toJS } from '../../../lib/yaml-doc'
+
+// ── ConfigDocSource — documentStore-backed funnel for the config forms ──
+//
+// The config editors and their write plumbing were built against
+// `useConfigFile`'s result. That hook (and its parallel save / conflict /
+// external-change lifecycle) is gone: the entity document core
+// (store/documentStore) now owns the parse handle, dirty derives from the
+// workspace buffer, and saving is the buffer's ⌘S path. This is the narrow
+// slice the forms actually read — a loaded handle keyed by a monotonically
+// bumped `version`, plus a one-op mutate funnel (each field commit = one
+// atomic yaml-doc op routed through `documentStore.mutate`). ConfigFormView
+// builds one of these over `useEntityDocument`.
+export interface ConfigDocSource {
+  /** Project-relative path this source edits (`null` = nothing loaded). */
+  path: string | null
+  /** First content load still in flight. */
+  isLoading: boolean
+  /** Load failed — user-facing message, else `null`. */
+  loadError: string | null
+  /** Comment-preserving handle; `null` until the buffer is parsed. */
+  handle: ConfigFileHandle | null
+  /** Parse errors on the current handle; non-empty ⇒ degraded (no mutate). */
+  errors: readonly YAMLError[]
+  /** Bumped on every mutation/reparse — the ONLY memo key (never memo on the
+   * handle, whose identity is preserved across mutate). */
+  version: number
+  /** Run one atomic yaml-doc op on the handle (byte-surgical). No-op when the
+   * document is absent, degraded (parse errors), or read-only (viewer). */
+  mutate: (fn: (handle: ConfigFileHandle) => void) => void
+}
 
 // ── docFormSupport — the multi-document write funnel ─────────
 //
@@ -17,7 +47,7 @@ import { deletePath, documentCount, getPath, setPath, toJS } from '../../../lib/
 export type RailSelection = 'builtin' | number
 
 /** toJS snapshots of every document, in file order. */
-export function snapshotDocs(file: UseConfigFileResult): unknown[] {
+export function snapshotDocs(file: ConfigDocSource): unknown[] {
   if (file.handle === null || file.errors.length > 0) return []
   const count = documentCount(file.handle)
   const docs: unknown[] = []
@@ -84,9 +114,9 @@ function nestValue(keys: readonly string[], value: unknown): unknown {
   return [...keys].reverse().reduce<unknown>((acc, key) => ({ [key]: acc }), value)
 }
 
-/** Bind a DocFormApi over a loaded useConfigFile instance. */
+/** Bind a DocFormApi over a loaded config document source. */
 export function bindDocApi(
-  file: UseConfigFileResult,
+  file: ConfigDocSource,
   docIndex: number,
   base: YamlPath,
   settings: Record<string, unknown>,

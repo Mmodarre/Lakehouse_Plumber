@@ -13,7 +13,6 @@ import {
 } from '@/components/ui/alert-dialog'
 import { EmptyState } from '../../common/EmptyState'
 import { SkeletonLoader } from '../../common/SkeletonLoader'
-import type { UseConfigFileResult } from '../../../hooks/useConfigFile'
 import {
   classifyJobDoc,
   isPlainObject,
@@ -21,19 +20,9 @@ import {
   validateJobConfigFile,
 } from '../../../lib/config-model'
 import { addDocument, removeDocument } from '../../../lib/yaml-doc'
-import { ConfigConflictDialog } from '../ConfigConflictDialog'
-import { ConfigPageShell } from '../ConfigPageShell'
-import { CONFIG_TAB_COPY } from '../configFileSupport'
-import { ExternalChangeBanner } from '../ExternalChangeBanner'
 import { ParseErrorsCard } from '../ParseErrorsCard'
-import { SaveBar } from '../SaveBar'
-import {
-  bindDocApi,
-  countErrors,
-  issuesAtExactly,
-  snapshotDocs,
-} from '../shared/docFormSupport'
-import type { RailSelection } from '../shared/docFormSupport'
+import { bindDocApi, issuesAtExactly, snapshotDocs } from '../shared/docFormSupport'
+import type { ConfigDocSource, RailSelection } from '../shared/docFormSupport'
 import { JobDocForm } from './JobDocForm'
 import { JobDocList } from './JobDocList'
 import {
@@ -70,15 +59,11 @@ import {
 //     error (yaml.safe_load raises on it at generate time).
 
 export interface JobConfigEditorProps {
-  /** A useConfigFile(<job config path>) instance owned by the page. */
-  file: UseConfigFileResult
-  /** File picker slot (job tab). */
-  picker?: ReactNode
-  /** Header actions slot ("New from template"). */
-  actions?: ReactNode
+  /** The job_config document source (documentStore-backed). */
+  file: ConfigDocSource
 }
 
-export function JobConfigEditor({ file, picker, actions }: JobConfigEditorProps) {
+export function JobConfigEditor({ file }: JobConfigEditorProps) {
   const parsed = file.handle !== null && file.errors.length === 0
 
   // The handle is mutable: derive ONLY from [handle, version] (hook contract).
@@ -96,18 +81,6 @@ export function JobConfigEditor({ file, picker, actions }: JobConfigEditorProps)
   // RAW document count: yaml.safe_load raises on ANY second document — even
   // the null one a trailing `---` produces — so nulls must count here.
   const monitoringMultiDoc = mode === 'monitoring' && parsed && docs.length > 1
-  // Monitoring files bypass JobConfigLoader entirely (yaml.safe_load: one
-  // document, read flat, rendered verbatim), so validateJobConfigFile's
-  // multi-doc errors (VAL_003/VAL_004, project_defaults shape) don't apply.
-  // The only blocking errors are the monitoring loader's own raises: more
-  // than one document, or a non-mapping document (monitoring_service.py).
-  const monitoringErrors = monitoringMultiDoc
-    ? 1
-    : parsed && present.length === 1 && !isPlainObject(present[0]!.doc)
-      ? 1
-      : 0
-  const errorCount =
-    file.errors.length + (mode === 'monitoring' ? monitoringErrors : countErrors(issues))
 
   // Selection (standard mode): null = "not chosen yet" → the per-file
   // default is DERIVED at render time (defaults doc, else first doc, else
@@ -213,7 +186,7 @@ export function JobConfigEditor({ file, picker, actions }: JobConfigEditorProps)
           <p role="alert" className="text-xs text-destructive">
             This monitoring job config has {docs.length} YAML documents — the monitoring
             loader requires exactly one, and generation fails on this file. Merge the documents
-            via "Open raw YAML".
+            in the YAML view.
           </p>
         ) : first === undefined ? (
           <>
@@ -300,41 +273,7 @@ export function JobConfigEditor({ file, picker, actions }: JobConfigEditorProps)
 
   return (
     <>
-      <ConfigPageShell
-        title={CONFIG_TAB_COPY.job.title}
-        description={CONFIG_TAB_COPY.job.description}
-        picker={picker}
-        actions={actions}
-        banner={
-          file.externalChange ? (
-            <ExternalChangeBanner onReload={() => void file.reload()} onKeep={file.keepMine} />
-          ) : undefined
-        }
-        footer={
-          <SaveBar
-            path={file.path}
-            dirty={file.dirty}
-            saving={file.saving}
-            errorCount={errorCount}
-            onSave={() => void file.save()}
-          />
-        }
-      >
-        {file.yamlError && (
-          <p role="alert" className="text-xs text-destructive">
-            Saved with a YAML syntax error (line {file.yamlError.line}, column{' '}
-            {file.yamlError.column}): {file.yamlError.message}
-          </p>
-        )}
-        {body}
-      </ConfigPageShell>
-      <ConfigConflictDialog
-        path={file.conflict ? file.path : null}
-        saving={file.saving}
-        onReload={() => void file.reload()}
-        onOverwrite={() => void file.overwrite()}
-        onCancel={file.dismissConflict}
-      />
+      {body}
       <AlertDialog
         open={pendingDelete !== null}
         onOpenChange={(open) => {

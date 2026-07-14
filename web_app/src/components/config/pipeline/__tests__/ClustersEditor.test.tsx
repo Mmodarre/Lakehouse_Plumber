@@ -12,7 +12,7 @@ vi.mock('sonner', () => ({
   toast: { error: vi.fn(), success: vi.fn(), dismiss: vi.fn() },
 }))
 
-// ── ClustersEditor — via the full editor + real PUT bodies ───
+// ── ClustersEditor — via the full editor + buffer content ────
 
 const FIXTURE = `pipeline: p1
 serverless: false
@@ -33,12 +33,6 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-async function save(user: ReturnType<typeof userEvent.setup>) {
-  const saveButton = screen.getByRole('button', { name: 'Save' })
-  await waitFor(() => expect(saveButton).toBeEnabled())
-  await user.click(saveButton)
-}
-
 describe('ClustersEditor', () => {
   it('unknown cluster keys are preserved as read-only chips (and flagged as not rendered)', async () => {
     servePipeline(FIXTURE)
@@ -53,7 +47,7 @@ describe('ClustersEditor', () => {
   })
 
   it('adding autoscale + editing a bound splices only those lines; spark_conf bytes intact', async () => {
-    const { putBodies } = servePipeline(FIXTURE)
+    const { bufferContent } = servePipeline(FIXTURE)
     await renderPipelineEditor()
     const user = userEvent.setup()
 
@@ -63,33 +57,33 @@ describe('ClustersEditor', () => {
     await user.type(max, '8')
     await user.tab()
 
-    await save(user)
-    await waitFor(() => expect(putBodies()).toHaveLength(1))
-    const body = putBodies()[0]!
-    // Unknown key kept byte-identical.
-    expect(body).toContain('    spark_conf:\n      x: "1"')
-    // Removing exactly the autoscale insertion restores the fixture.
-    const withoutAutoscale = body.replace(
-      / *autoscale:\n *min_workers: 1\n *max_workers: 8\n/,
-      '',
-    )
-    expect(withoutAutoscale).toBe(FIXTURE)
+    await waitFor(() => {
+      const body = bufferContent()
+      // Unknown key kept byte-identical.
+      expect(body).toContain('    spark_conf:\n      x: "1"')
+      // Removing exactly the autoscale insertion restores the fixture.
+      const withoutAutoscale = body.replace(
+        / *autoscale:\n *min_workers: 1\n *max_workers: 8\n/,
+        '',
+      )
+      expect(withoutAutoscale).toBe(FIXTURE)
+    })
   })
 
   it('add cluster appends a labeled entry', async () => {
-    const { putBodies } = servePipeline(FIXTURE)
+    const { bufferContent } = servePipeline(FIXTURE)
     await renderPipelineEditor()
     const user = userEvent.setup()
 
     await user.click(screen.getByRole('button', { name: 'Add cluster' }))
     expect(screen.getByText('Cluster 2')).toBeInTheDocument()
 
-    await save(user)
-    await waitFor(() => expect(putBodies()).toHaveLength(1))
-    const body = putBodies()[0]!
-    expect(body).toContain('- label: default\n')
-    expect((body.match(/- label: default/g) ?? []).length).toBe(2)
-    // The original cluster's unknown key survives the structural edit.
-    expect(body).toContain('spark_conf:')
+    await waitFor(() => {
+      const body = bufferContent()
+      expect(body).toContain('- label: default\n')
+      expect((body.match(/- label: default/g) ?? []).length).toBe(2)
+      // The original cluster's unknown key survives the structural edit.
+      expect(body).toContain('spark_conf:')
+    })
   })
 })

@@ -36,6 +36,15 @@ export interface RunProgress {
   current: string | null
 }
 
+/** Provenance of Problems hydrated from run history (§6.7). Set by
+ * `hydrateIssues`; cleared whenever a live run starts (`begin` resets it). */
+export interface HydratedRunMeta {
+  runId: string
+  startedAt: string | null
+  env: string | null
+  pipeline: string | null
+}
+
 interface RunState {
   /** Which run is in flight (or was, until reset). */
   runKind: RunKind | null
@@ -44,6 +53,9 @@ interface RunState {
   sandbox: boolean
   /** True while the stream is open. */
   isRunning: boolean
+  /** Wall-clock ms (`Date.now()`) when the current run began; null when idle.
+   * Drives the run header's elapsed timer, which only ticks while `isRunning`. */
+  startedAt: number | null
   /** Most recent phase label from the server (e.g. "Validating"). */
   phase: string | null
   /** Latest progress snapshot, if the run reports progress. */
@@ -57,6 +69,10 @@ interface RunState {
   errorFrame: ErrorFrame | null
   /** Free-form info/status lines surfaced during the run. */
   infoLog: string[]
+  /** Non-null when `issues` were hydrated from a past validation run rather
+   * than produced live this session; drives the Problems "from last
+   * validation" note. Cleared by `begin`/`reset`. */
+  hydratedFrom: HydratedRunMeta | null
 
   // Actions
   /** Mark a run as started; clears prior run state. `sandbox` records whether
@@ -70,6 +86,13 @@ interface RunState {
   finish: () => void
   /** Reset everything to idle. */
   reset: () => void
+  /**
+   * Populate `issues` from a past validation run's persisted issues WITHOUT
+   * touching phase/running/terminal state (do NOT replay via `applyFrame` — it
+   * mutates those). Records `meta` as the hydration marker. No-ops while a live
+   * run is in flight so a running stream always wins.
+   */
+  hydrateIssues: (issues: ValidationIssue[], meta: HydratedRunMeta) => void
   /**
    * Set or clear a synthetic YAML-syntax issue for a file. When `issue` is
    * provided, an `error`-severity entry (code `YAML-SYNTAX`) for `filePath`
@@ -91,12 +114,14 @@ const initialState = {
   runKind: null as RunKind | null,
   sandbox: false,
   isRunning: false,
+  startedAt: null as number | null,
   phase: null as string | null,
   progress: null as RunProgress | null,
   issues: [] as ValidationIssue[],
   terminal: null as RunTerminal | null,
   errorFrame: null as ErrorFrame | null,
   infoLog: [] as string[],
+  hydratedFrom: null as HydratedRunMeta | null,
 }
 
 /** A non-error `ErrorFrame` shape coerced from an `ApiError`/`Error`. */
@@ -158,6 +183,7 @@ export const useRunStore = create<RunState>((set) => ({
       runKind: kind,
       sandbox,
       isRunning: true,
+      startedAt: Date.now(),
     }),
 
   applyFrame: (frame) =>
@@ -269,6 +295,13 @@ export const useRunStore = create<RunState>((set) => ({
     })),
 
   reset: () => set({ ...initialState }),
+
+  hydrateIssues: (issues, meta) =>
+    set((s) =>
+      // A live/finished run this session owns the Problems list; never clobber
+      // it with history. Only phase/running-untouched fields change here.
+      s.isRunning ? {} : { issues, hydratedFrom: meta },
+    ),
 
   setSyntheticSyntaxIssue: (filePath, issue) =>
     set((s) => {

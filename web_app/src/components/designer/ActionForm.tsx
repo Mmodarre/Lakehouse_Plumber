@@ -30,12 +30,12 @@ import {
   objectListRows,
   pathKey,
   visibleGroups,
+  type DesignerMutator,
 } from './formModel'
 import { TokenField } from './TokenField'
 import { codeFieldForPath } from './codeFields'
 import { CodeFieldRow } from './ActionFormCodeField'
 import type { CodeTarget } from './CodeModal'
-import type { DesignerMutator } from './useDesignerWrite'
 
 // ── ActionForm — the one form engine for every action spec ───
 //
@@ -45,7 +45,7 @@ import type { DesignerMutator } from './useDesignerWrite'
 // not name are never touched. Soft-validation hints (required, cross-field)
 // show on the field's issue line and never block a write.
 
-/** Kind accent rail — matches DesignerInspector's read-only header. */
+/** Kind accent rail for the action card header. */
 const KIND_RAIL: Record<string, string> = {
   load: 'bg-kind-load',
   transform: 'bg-kind-transform',
@@ -66,10 +66,10 @@ export interface ActionFormProps {
   /** Disable every control (dirty text buffer or unresolved conflict). */
   readOnly: boolean
   /**
-   * A write is in flight (useDesignerWrite.saving). Gates the structural
-   * list/map controls (add/remove rows, add/rename map entries) so a second
-   * mutation cannot enqueue against a stale index before the first write
-   * settles and the panel re-derives. Value edits stay live.
+   * A write is in flight. Gates the structural list/map controls (add/remove
+   * rows, add/rename map entries) so a second mutation cannot enqueue against a
+   * stale index before the first write settles and the panel re-derives. Value
+   * edits stay live.
    */
   saving?: boolean
   /** Preset names whose defaults affect this sub-type. */
@@ -149,7 +149,7 @@ export function ActionForm({
       <SchemaKindProvider kind="flowgroup">
         <div className="flex flex-col gap-4 px-4 py-4">
           <OptionalTextField
-            id="af-description"
+            id={`af-${actionId}-description`}
             label="Description"
             value={raw.description}
             onSet={(value) => commit((doc) => setActionField(doc, actionId, ['description'], value))}
@@ -218,7 +218,10 @@ function FieldRenderer({
   onEditCode,
 }: FieldRendererProps): ReactNode {
   const value = readPath(raw, field.path)
-  const id = `af-${pathKey(field.path)}`
+  // Namespace the DOM id by the owning action so stacked action cards in
+  // FlowgroupFormView never collide (label htmlFor / aria-describedby would
+  // otherwise all resolve to the first card's field). Unique per (action, path).
+  const id = `af-${actionId}-${pathKey(field.path)}`
   const setKey = (val: unknown) =>
     commit((doc) => setActionField(doc, actionId, field.path, val))
   const delKey = () => commit((doc) => deleteActionField(doc, actionId, field.path))

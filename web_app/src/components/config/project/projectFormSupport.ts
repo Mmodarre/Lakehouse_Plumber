@@ -1,7 +1,7 @@
-import type { UseConfigFileResult } from '../../../hooks/useConfigFile'
 import type { ValidationIssue } from '../../../lib/config-model'
-import type { YamlPath } from '../../../lib/yaml-doc'
+import type { ConfigFileHandle, YamlPath } from '../../../lib/yaml-doc'
 import { addDocument, deletePath, documentCount, getPath, setPath } from '../../../lib/yaml-doc'
+import type { ConfigDocSource } from '../shared/docFormSupport'
 
 // ── projectFormSupport — write plumbing shared by the sections ──
 //
@@ -30,13 +30,13 @@ export interface ProjectFormApi {
   del: (path: YamlPath) => void
 }
 
-/** Build the write API over a loaded useConfigFile instance. */
+/** Build the write API over a loaded config document source. */
 export function buildProjectFormApi(
-  file: UseConfigFileResult,
+  file: ConfigDocSource,
   doc: Record<string, unknown>,
   issues: ValidationIssue[],
 ): ProjectFormApi {
-  const run = (fn: Parameters<UseConfigFileResult['mutate']>[0]) =>
+  const run = (fn: (handle: ConfigFileHandle) => void) =>
     file.mutate((handle) => {
       if (documentCount(handle) === 0) addDocument(handle, {})
       fn(handle)

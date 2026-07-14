@@ -255,6 +255,30 @@ def _extract_from_write_target(
             )
 
 
+def _resolve_schema_ref(value: str, project_root: Path) -> tuple[str, bool]:
+    """Resolve a schema reference to a project-relative path + on-disk existence.
+
+    This is a webapp navigation aid, deliberately MORE permissive than generator
+    resolution. A *bare* schema name — no file extension and no path separator,
+    e.g. ``nation_schema`` — is resolved to ``schemas/<name>.<ext>`` for editor
+    convenience: probe ``schemas/<name>.yaml`` then ``schemas/<name>.yml`` and
+    return the first that exists (else the ``.yaml`` candidate with
+    ``exists=False``). This does NOT reflect generator resolution, which treats
+    an action-level ``schema_file`` as a literal relative path with no
+    ``schemas/`` bare-name fallback. Anything that already reads as a path (has
+    an extension or separator) or carries a substitution token (``${...}``) is
+    returned unchanged, existence-checked as a literal path.
+    """
+    if _is_file_path(value) or any(ch in value for ch in "${}"):
+        return value, (project_root / value).exists()
+
+    for ext in (".yaml", ".yml"):
+        candidate = f"schemas/{value}{ext}"
+        if (project_root / candidate).exists():
+            return candidate, True
+    return f"schemas/{value}.yaml", False
+
+
 def _check_field(
     value: Any,
     action_name: str,
@@ -271,11 +295,18 @@ def _check_field(
     # Normalize the path (Windows backslashes -> forward slashes).
     normalized = value.replace("\\", "/")
 
+    # Nav aid only: a bare schema name (no extension/separator) is resolved to
+    # schemas/<name>.<ext> for editor convenience. This is more permissive than
+    # generator resolution, which treats schema_file as a literal path.
+    if category == "schema":
+        normalized, exists = _resolve_schema_ref(normalized, project_root)
+    else:
+        exists = (project_root / normalized).exists()
+
     if normalized in seen:
         return
     seen.add(normalized)
 
-    exists = (project_root / normalized).exists()
     results.append(
         RelatedFile(
             path=normalized,

@@ -31,7 +31,7 @@ afterEach(() => {
 
 describe('GroupMembershipEditor', () => {
   it('suggests project pipelines (minus current members); selecting one adds it', async () => {
-    const { putBodies } = servePipeline(GROUP_FIXTURE, {
+    const { bufferContent } = servePipeline(GROUP_FIXTURE, {
       pipelines: ['bronze_a', 'sales_pipeline'],
     })
     await renderPipelineEditor()
@@ -44,11 +44,9 @@ describe('GroupMembershipEditor', () => {
     expect(within(listbox).queryByText('bronze_a')).not.toBeInTheDocument()
     await user.click(option)
 
-    const saveButton = screen.getByRole('button', { name: 'Save' })
-    await waitFor(() => expect(saveButton).toBeEnabled())
-    await user.click(saveButton)
-    await waitFor(() => expect(putBodies()).toHaveLength(1))
-    expect(putBodies()[0]).toBe('pipeline:\n  - bronze_a\n  - sales_pipeline\nedition: PRO\n')
+    await waitFor(() =>
+      expect(bufferContent()).toBe('pipeline:\n  - bronze_a\n  - sales_pipeline\nedition: PRO\n'),
+    )
   })
 
   it('free text adds a name not in the suggestions', async () => {
@@ -64,18 +62,16 @@ describe('GroupMembershipEditor', () => {
   })
 
   it('removing a member chip deletes that entry', async () => {
-    const { putBodies } = servePipeline(
+    const { bufferContent } = servePipeline(
       'pipeline:\n  - bronze_a\n  - bronze_b\nedition: PRO\n',
     )
     await renderPipelineEditor()
     const user = userEvent.setup()
 
     await user.click(screen.getByRole('button', { name: 'Remove bronze_a' }))
-    const saveButton = screen.getByRole('button', { name: 'Save' })
-    await waitFor(() => expect(saveButton).toBeEnabled())
-    await user.click(saveButton)
 
-    await waitFor(() => expect(putBodies()).toHaveLength(1))
-    expect(putBodies()[0]).toBe('pipeline:\n  - bronze_b\nedition: PRO\n')
+    await waitFor(() =>
+      expect(bufferContent()).toBe('pipeline:\n  - bronze_b\nedition: PRO\n'),
+    )
   })
 })

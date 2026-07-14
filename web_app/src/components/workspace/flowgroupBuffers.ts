@@ -12,20 +12,6 @@ import { useWorkspaceStore } from '../../store/workspaceStore'
 // FlowgroupEditorModal: opening a flowgroup (edit) or creating one now
 // materialises workspace buffers instead of a modal's local tab state.
 
-export interface AddFileOption {
-  label: string
-  category: string
-  defaultPath: (name: string) => string
-}
-
-/** File types offered by the tab strip's "+" dropdown. */
-export const ADD_FILE_OPTIONS: AddFileOption[] = [
-  { label: 'SQL file', category: 'sql', defaultPath: (n) => `sql/${n}.sql` },
-  { label: 'Python module', category: 'python', defaultPath: (n) => `py_functions/${n}.py` },
-  { label: 'Expectations', category: 'expectations', defaultPath: (n) => `expectations/${n}_quality.json` },
-  { label: 'Schema', category: 'schema', defaultPath: (n) => `schemas/${n}_schema.json` },
-]
-
 export function generateScaffoldYaml(pipeline: string, name: string): string {
   return `pipeline: ${pipeline}\nflowgroup: ${name}\ndescription: ""\n\nactions: []\n`
 }
@@ -94,10 +80,13 @@ export async function openFlowgroupEditBuffers(name: string, env: string): Promi
 /**
  * Bridge from the uiStore flowgroup-editor trigger to workspace buffers.
  *
- * Drill modals / tables still call `openFlowgroupEditor(name, pipeline)` and
- * CreateFlowgroupDialog still calls `openFlowgroupEditorCreate(...)`; this
- * hook (mounted once in Layout) consumes those requests and opens buffers
- * instead of the retired modal.
+ * @deprecated The feeders (drill modals / tables / CreateFlowgroupDialog that
+ * once called `openFlowgroupEditor(...)` / `openFlowgroupEditorCreate(...)`)
+ * were demolished with the old shell, so no caller sets the request state
+ * today — this bridge is currently inert. It reads `uiStore.flowgroupEditor`
+ * and, when set, opens workspace buffers instead of the retired modal.
+ * Mounted once in AppShell. Scheduled for retirement in the
+ * entity-integration task (T2.4).
  */
 export function useFlowgroupEditorBridge(): void {
   const flowgroupEditor = useUIStore((s) => s.flowgroupEditor)

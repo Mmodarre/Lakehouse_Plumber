@@ -1,15 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type SelectedNode = {
-  type: 'flowgroup' | 'preset' | 'template' | 'pipeline'
-  name: string
-} | null
-
-/** The two file-backed Config tabs (kept dependency-free on purpose: the
- * persisted slice below must never import config components). */
-export type ConfigFileTab = 'pipeline' | 'job'
-
 interface UIState {
   // Environment
   selectedEnv: string
@@ -26,23 +17,23 @@ interface UIState {
   pipelineFilter: string | null
   setPipelineFilter: (pipeline: string | null) => void
 
-  // Detail modal
-  selectedNode: SelectedNode
-  setSelectedNode: (node: SelectedNode) => void
-  modalOpen: boolean
-  openModal: (node: SelectedNode) => void
-  closeModal: () => void
-
-  // Sidebar
-  sidebarOpen: boolean
-  toggleSidebar: () => void
-
-  // Drill-down navigation
+  /**
+   * @deprecated Drill-down modal navigation. Replaced by workspaceStore center
+   * tabs (openEntityTab / openProjectMap). Still consumed by the surviving
+   * graph surfaces (DependencyGraph / ExternalBadge fire openPipelineModal on
+   * node click) and the Wave-4-reserved FlowgroupMiniGraph; retired in a later
+   * wave once node clicks route to center tabs.
+   */
   drillPipeline: string | null
+  /** @deprecated See {@link UIState.drillPipeline}. */
   openPipelineModal: (name: string) => void
+  /** @deprecated See {@link UIState.drillPipeline}. */
   closePipelineModal: () => void
+  /** @deprecated See {@link UIState.drillPipeline}. */
   drillFlowgroup: { name: string; pipeline: string } | null
+  /** @deprecated See {@link UIState.drillPipeline}. */
   openFlowgroupModal: (name: string, pipeline: string) => void
+  /** @deprecated See {@link UIState.drillPipeline}. */
   closeFlowgroupModal: () => void
 
   // Create flowgroup dialog
@@ -52,27 +43,29 @@ interface UIState {
   openCreateFlowgroupDialog: (seed?: { pipeline?: string }) => void
   closeCreateFlowgroupDialog: () => void
 
-  // Flowgroup open/create request — consumed by the workspace bridge
-  // (components/workspace/flowgroupBuffers.ts), which opens the flowgroup's
-  // files as workspace buffers and then clears this via closeFlowgroupEditor.
+  /**
+   * @deprecated Flowgroup open/create request bridge — consumed by
+   * components/workspace/flowgroupBuffers.ts (useFlowgroupEditorBridge, mounted
+   * in AppShell). Replaced by the direct workspaceStore.openEntityTab action.
+   * The bridge hook still reads this state; its feeders were demolished with
+   * the old shell, so no caller sets it today. Retired in T2.4.
+   */
   flowgroupEditor: {
     name: string
     pipeline: string
     mode?: 'edit' | 'create'
     filePath?: string
   } | null
+  /** @deprecated Use workspaceStore.openEntityTab. */
   openFlowgroupEditor: (name: string, pipeline: string) => void
+  /** @deprecated Use workspaceStore.openEntityTab. */
   openFlowgroupEditorCreate: (name: string, pipeline: string, filePath: string) => void
+  /** @deprecated See {@link UIState.flowgroupEditor}. */
   closeFlowgroupEditor: () => void
 
-  // Config section — per-tab file selection (persisted; see `partialize`)
-  selectedConfigFiles: Record<ConfigFileTab, string | null>
-  setSelectedConfigFile: (tab: ConfigFileTab, path: string | null) => void
-
   // Run configuration — the pipeline_config file Validate/Generate use
-  // (persisted). Deliberately SEPARATE from selectedConfigFiles: picking a
-  // file in the pipeline tab never implicitly changes what runs use; only
-  // the explicit "Use for runs" toggle (or the header chip's clear) does.
+  // (persisted). Deliberately SEPARATE from any per-tab file selection:
+  // only the explicit "Use for runs" toggle (or the chip's clear) changes it.
   selectedPipelineConfig: string | null
   setSelectedPipelineConfig: (path: string | null) => void
 }
@@ -92,17 +85,6 @@ export const useUIStore = create<UIState>()(
       // Graph
       pipelineFilter: null,
       setPipelineFilter: (pipeline) => set({ pipelineFilter: pipeline }),
-
-      // Detail modal
-      selectedNode: null,
-      setSelectedNode: (node) => set({ selectedNode: node }),
-      modalOpen: false,
-      openModal: (node) => set({ selectedNode: node, modalOpen: true }),
-      closeModal: () => set({ modalOpen: false, selectedNode: null }),
-
-      // Sidebar
-      sidebarOpen: true,
-      toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
 
       // Drill-down navigation
       drillPipeline: null,
@@ -130,13 +112,6 @@ export const useUIStore = create<UIState>()(
         }),
       closeFlowgroupEditor: () => set({ flowgroupEditor: null }),
 
-      // Config section file selection (persisted)
-      selectedConfigFiles: { pipeline: null, job: null },
-      setSelectedConfigFile: (tab, path) =>
-        set((s) => ({
-          selectedConfigFiles: { ...s.selectedConfigFiles, [tab]: path },
-        })),
-
       // Run pipeline-config selection (persisted)
       selectedPipelineConfig: null,
       setSelectedPipelineConfig: (path) => set({ selectedPipelineConfig: path }),
@@ -144,10 +119,8 @@ export const useUIStore = create<UIState>()(
     {
       name: 'lhp-ui',
       // Everything else in this store is deliberately session-only; only the
-      // Config tabs' file selection, the run-config binding, and the sandbox
-      // toggle survive a reload.
+      // run-config binding and the sandbox toggle survive a reload.
       partialize: (s) => ({
-        selectedConfigFiles: s.selectedConfigFiles,
         selectedPipelineConfig: s.selectedPipelineConfig,
         sandboxEnabled: s.sandboxEnabled,
       }),

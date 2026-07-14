@@ -147,6 +147,16 @@ export type RunIssue = Schemas['RunIssue']
 export type RunDetail = Schemas['RunDetail']
 export type RunListResponse = Schemas['RunListResponse']
 
+// ── Lineage (produced-dataset lineage) ───────────────────
+// `GET /api/lineage?env=&fqn=` — one produced dataset's upstream chain
+// (external/dataset sources → load/transform actions → the write node) plus
+// its downstream consumers. See src/lhp/api/_dataset_index.py.
+
+export type LineageNode = Schemas['LineageNode']
+export type LineageEdge = Schemas['LineageEdge']
+export type DatasetConsumer = Schemas['DatasetConsumer']
+export type DatasetLineageResponse = Schemas['DatasetLineageResponse']
+
 // ── Validation ───────────────────────────────────────────
 
 export interface ValidateResponse {

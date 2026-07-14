@@ -1,5 +1,6 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import { CircleX, Plus, TriangleAlert } from 'lucide-react'
+import { CircleX, Plus, SquarePen, TriangleAlert } from 'lucide-react'
+import { cn } from '../../lib/utils'
 import { NodeCard, NODE_HANDLE_CLASS } from '../graph/nodes/NodeCard'
 import { canvasNodeDomId } from '../graph/nodes/nodeDom'
 import { KIND_STYLES, FALLBACK_KIND_STYLE } from '../graph/nodes/kindStyles'
@@ -31,6 +32,9 @@ export function DesignerActionNode({ id, data, selected }: NodeProps) {
   const onAddDownstream = data.onAddDownstream as ((nodeId: string) => void) | undefined
   const composeReadOnly = data.composeReadOnly === true
   const showAdd = onAddDownstream !== undefined && !composeReadOnly
+  // Opens the field-editor modal — the discoverable counterpart to the
+  // double-click gesture now that the right-dock Action pane is gone.
+  const onEditAction = data.onEditAction as ((nodeId: string) => void) | undefined
 
   const hasIssues = validation !== undefined && (validation.errors > 0 || validation.warnings > 0)
 
@@ -75,8 +79,27 @@ export function DesignerActionNode({ id, data, selected }: NodeProps) {
         selected={selected}
         port={{ colorClass: kind.port, input: true, output: true }}
         id={canvasNodeDomId(id)}
-        className="w-60"
-      />
+        className="group w-60"
+      >
+        {onEditAction !== undefined && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onEditAction(id)
+            }}
+            className={cn(
+              'absolute right-1 top-1 z-10 flex size-5 items-center justify-center rounded-md border border-border bg-card text-muted-foreground shadow-xs transition-[opacity,color,border-color] hover:border-primary hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary',
+              // Visible on hover and while selected; otherwise out of the way.
+              selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+            )}
+            aria-label={`Edit ${label}`}
+            title="Edit action"
+          >
+            <SquarePen className="size-3" aria-hidden="true" />
+          </button>
+        )}
+      </NodeCard>
       <Handle type="source" position={Position.Right} className={NODE_HANDLE_CLASS} />
     </>
   )

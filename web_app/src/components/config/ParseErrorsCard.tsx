@@ -19,7 +19,7 @@ export function ParseErrorsCard({ errors }: ParseErrorsCardProps) {
           {errors.length} YAML parse {errors.length === 1 ? 'error' : 'errors'}
         </CardTitle>
         <CardDescription className="text-2xs">
-          Form editing is blocked until the YAML parses — fix it via “Open raw YAML” below.
+          Form editing is blocked until the YAML parses — fix it in the YAML view.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-1 px-4">

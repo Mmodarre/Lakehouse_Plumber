@@ -16,7 +16,7 @@ vi.mock('sonner', () => ({
 //
 // Adding a document appends it after a `---` separator; deleting removes
 // only that document's region. In BOTH cases every sibling document must
-// stay byte-identical (comments included) — asserted on the real PUT body.
+// stay byte-identical (comments included) — asserted on the serialized buffer.
 
 const FIXTURE = `# Pipeline configuration for acme
 project_defaults:
@@ -48,27 +48,21 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-async function save(user: ReturnType<typeof userEvent.setup>) {
-  const saveButton = screen.getByRole('button', { name: 'Save' })
-  await waitFor(() => expect(saveButton).toBeEnabled())
-  await user.click(saveButton)
-}
-
 describe('PipelineConfigEditor — document management', () => {
   it('add single pipeline appends exactly the skeleton doc; siblings byte-identical', async () => {
-    const { putBodies } = servePipeline(FIXTURE)
+    const { bufferContent } = servePipeline(FIXTURE)
     await renderPipelineEditor()
     const user = userEvent.setup()
 
     await user.click(screen.getByRole('button', { name: 'Add pipeline' }))
-    await save(user)
 
-    await waitFor(() => expect(putBodies()).toHaveLength(1))
-    expect(putBodies()[0]).toBe(FIXTURE + '---\npipeline: new_pipeline\n')
+    await waitFor(() =>
+      expect(bufferContent()).toBe(FIXTURE + '---\npipeline: new_pipeline\n'),
+    )
   })
 
   it('add group appends `pipeline: []`, focuses membership; adding a member serializes it', async () => {
-    const { putBodies } = servePipeline(FIXTURE)
+    const { bufferContent } = servePipeline(FIXTURE)
     await renderPipelineEditor()
     const user = userEvent.setup()
 
@@ -77,32 +71,29 @@ describe('PipelineConfigEditor — document management', () => {
     const combo = await screen.findByRole('combobox', { name: 'Add pipeline to group' })
     await waitFor(() => expect(combo).toHaveFocus())
 
-    // Empty group list = VAL_005 → Save must be blocked until a member exists.
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
-
     await user.click(combo)
     await user.type(screen.getByPlaceholderText('Search pipelines…'), 'bronze_c')
     await user.click(await screen.findByText('Add "bronze_c"'))
 
-    await save(user)
-    await waitFor(() => expect(putBodies()).toHaveLength(1))
-    expect(putBodies()[0]).toBe(FIXTURE + '---\npipeline:\n  - bronze_c\n')
+    await waitFor(() =>
+      expect(bufferContent()).toBe(FIXTURE + '---\npipeline:\n  - bronze_c\n'),
+    )
   })
 
   it('add project defaults (when missing) appends `project_defaults: {}`', async () => {
-    const { putBodies } = servePipeline(NO_DEFAULTS_FIXTURE)
+    const { bufferContent } = servePipeline(NO_DEFAULTS_FIXTURE)
     await renderPipelineEditor()
     const user = userEvent.setup()
 
     await user.click(screen.getByRole('button', { name: 'Add project defaults' }))
-    await save(user)
 
-    await waitFor(() => expect(putBodies()).toHaveLength(1))
-    expect(putBodies()[0]).toBe(NO_DEFAULTS_FIXTURE + '---\nproject_defaults: {}\n')
+    await waitFor(() =>
+      expect(bufferContent()).toBe(NO_DEFAULTS_FIXTURE + '---\nproject_defaults: {}\n'),
+    )
   })
 
   it('delete doc removes ONLY that document; the others keep their exact bytes', async () => {
-    const { putBodies } = servePipeline(FIXTURE)
+    const { bufferContent } = servePipeline(FIXTURE)
     await renderPipelineEditor()
     const user = userEvent.setup()
 
@@ -110,9 +101,7 @@ describe('PipelineConfigEditor — document management', () => {
     await user.click(screen.getByRole('button', { name: 'Delete document' }))
     await user.click(await screen.findByRole('button', { name: 'Delete' }))
 
-    await save(user)
-    await waitFor(() => expect(putBodies()).toHaveLength(1))
     const expected = FIXTURE.slice(0, FIXTURE.indexOf('---\npipeline: silver'))
-    expect(putBodies()[0]).toBe(expected)
+    await waitFor(() => expect(bufferContent()).toBe(expected))
   })
 })

@@ -119,7 +119,9 @@ export function NodeCard({
         >
           {middleEllipsis(label)}
         </div>
-        <div className="truncate text-2xs text-muted-foreground">{sublabel}</div>
+        {sublabel !== '' && (
+          <div className="truncate text-2xs text-muted-foreground">{sublabel}</div>
+        )}
       </div>
       {children}
     </div>

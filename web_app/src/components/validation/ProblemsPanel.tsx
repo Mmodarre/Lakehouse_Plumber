@@ -5,6 +5,7 @@ import { useRunStore } from '../../store/runStore'
 import { useWorkspaceStore } from '../../store/workspaceStore'
 import { fetchFileContentWithMeta } from '../../api/files'
 import { errorMessage } from '../../lib/errors'
+import { relativeTime } from '../../lib/utils'
 import type { ValidationIssue } from '../../types/api'
 import { IssueList } from './IssueList'
 import type { IssueListItem } from './IssueList'
@@ -45,6 +46,7 @@ function toIssueItems(issues: ValidationIssue[]): IssueListItem[] {
 export function ProblemsPanel() {
   const issues = useRunStore((s) => s.issues)
   const isRunning = useRunStore((s) => s.isRunning)
+  const hydratedFrom = useRunStore((s) => s.hydratedFrom)
   const openBuffer = useWorkspaceStore((s) => s.openBuffer)
   const setActiveBuffer = useWorkspaceStore((s) => s.setActive)
 
@@ -106,6 +108,15 @@ export function ProblemsPanel() {
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
                 <Loader2 className="size-3 animate-spin" aria-hidden="true" />
                 running…
+              </span>
+            )}
+            {!isRunning && hydratedFrom && (
+              <span className="ml-auto truncate text-2xs text-muted-foreground">
+                from last validation
+                {hydratedFrom.startedAt ? ` · ${relativeTime(hydratedFrom.startedAt)}` : ''}
+                {hydratedFrom.env
+                  ? ` · ${hydratedFrom.env}${hydratedFrom.pipeline ? `/${hydratedFrom.pipeline}` : ''}`
+                  : ''}
               </span>
             )}
           </div>

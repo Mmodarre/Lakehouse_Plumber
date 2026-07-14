@@ -188,6 +188,78 @@ class TestSourceDictFields:
         assert result == []
 
 
+class TestBareSchemaNameResolution:
+    """Bare schema names resolve to the schemas/<name>.<ext> project layout."""
+
+    def test_bare_schema_file_resolves_to_schemas_yaml(self, tmp_path: Path):
+        (tmp_path / "schemas").mkdir()
+        (tmp_path / "schemas" / "nation_schema.yaml").write_text("name: n\ncolumns: []")
+
+        fg = _make_fg([_make_action(schema_file="nation_schema")])
+        result = extract_related_files(fg, tmp_path)
+
+        assert len(result) == 1
+        assert result[0].path == "schemas/nation_schema.yaml"
+        assert result[0].category == "schema"
+        assert result[0].field == "schema_file"
+        assert result[0].exists is True
+
+    def test_bare_schema_file_resolves_yml_extension(self, tmp_path: Path):
+        (tmp_path / "schemas").mkdir()
+        (tmp_path / "schemas" / "part_schema.yml").write_text("name: p\ncolumns: []")
+
+        fg = _make_fg([_make_action(schema_file="part_schema")])
+        result = extract_related_files(fg, tmp_path)
+
+        assert len(result) == 1
+        assert result[0].path == "schemas/part_schema.yml"
+        assert result[0].exists is True
+
+    def test_bare_schema_name_missing_still_reports_yaml_candidate(
+        self, tmp_path: Path
+    ):
+        """A bare name with no on-disk file yields the .yaml candidate, exists=False."""
+        fg = _make_fg([_make_action(schema_file="ghost_schema")])
+        result = extract_related_files(fg, tmp_path)
+
+        assert len(result) == 1
+        assert result[0].path == "schemas/ghost_schema.yaml"
+        assert result[0].exists is False
+
+    def test_bare_source_schema_file_resolves(self, tmp_path: Path):
+        (tmp_path / "schemas").mkdir()
+        (tmp_path / "schemas" / "orders_schema.yaml").write_text("name: o\ncolumns: []")
+
+        fg = _make_fg([_make_action(source={"schema_file": "orders_schema"})])
+        result = extract_related_files(fg, tmp_path)
+
+        assert len(result) == 1
+        assert result[0].path == "schemas/orders_schema.yaml"
+        assert result[0].field == "source.schema_file"
+        assert result[0].exists is True
+
+    def test_literal_schema_path_unchanged(self, tmp_path: Path):
+        """A value that is already a path keeps literal behaviour (no schemas/ prefix)."""
+        (tmp_path / "custom").mkdir()
+        (tmp_path / "custom" / "s.yaml").write_text("name: s\ncolumns: []")
+
+        fg = _make_fg([_make_action(schema_file="custom/s.yaml")])
+        result = extract_related_files(fg, tmp_path)
+
+        assert len(result) == 1
+        assert result[0].path == "custom/s.yaml"
+        assert result[0].exists is True
+
+    def test_schema_token_not_treated_as_bare_name(self, tmp_path: Path):
+        """A substitution token is left literal, not rewritten to schemas/${...}.yaml."""
+        fg = _make_fg([_make_action(schema_file="${raw_schema}")])
+        result = extract_related_files(fg, tmp_path)
+
+        assert len(result) == 1
+        assert result[0].path == "${raw_schema}"
+        assert result[0].exists is False
+
+
 class TestWriteTargetFields:
     """Extracts from action.write_target (dict form)."""
 

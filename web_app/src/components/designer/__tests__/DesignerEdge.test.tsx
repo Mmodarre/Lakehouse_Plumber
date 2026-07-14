@@ -1,94 +1,60 @@
-import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { EdgePipeChip } from '../DesignerEdge'
+import { describe, expect, it } from 'vitest'
+import { render } from '@testing-library/react'
+import { Position, type EdgeProps } from '@xyflow/react'
+import { DesignerEdge } from '../DesignerEdge'
 
-// The chip is split out of DesignerEdge so its behaviour is testable without a
-// React Flow render (EdgeLabelRenderer + the SVG path are visual, not asserted
-// here — per the task, structure/behaviour is what we check).
+// Fix #4 removed the over-the-edge view-name chip: a designer edge is now just
+// the bezier <path>. These tests prove no label/chip is rendered regardless of
+// the (still-threaded) edge.data, for both data and depends_on edges.
 
-describe('EdgePipeChip — data edge (named pipe)', () => {
-  it('renders the view name as a focusable control that names the view + producer', () => {
-    render(
-      <EdgePipeChip
-        designerKind="data"
-        viewName="v_orders_raw"
-        producerKind="load"
-        sourceId="load_orders"
-        onSelectView={vi.fn()}
-      />,
-    )
-    const chip = screen.getByRole('button', { name: /view v_orders_raw/i })
-    expect(chip).toHaveAccessibleName(/produced by load_orders/i)
-    expect(chip).toHaveTextContent('v_orders_raw')
+function renderEdge(data?: Record<string, unknown>) {
+  const props = {
+    id: 'e1',
+    source: 'load_orders',
+    target: 'clean_orders',
+    sourceX: 0,
+    sourceY: 0,
+    targetX: 100,
+    targetY: 100,
+    sourcePosition: Position.Right,
+    targetPosition: Position.Left,
+    data,
+    selected: false,
+  } as unknown as EdgeProps
+  return render(
+    <svg>
+      <DesignerEdge {...props} />
+    </svg>,
+  )
+}
+
+describe('DesignerEdge — label-free pipe (Fix #4)', () => {
+  it('renders only the bezier path — no view-name chip or label', () => {
+    const { container } = renderEdge({
+      designerKind: 'data',
+      viewName: 'v_orders_raw',
+      producerKind: 'load',
+      onSelectView: () => {},
+    })
+    // The path is present…
+    expect(container.querySelector('path')).not.toBeNull()
+    // …but the old clickable view-name chip and its label are gone.
+    expect(container.querySelector('button')).toBeNull()
+    expect(container.textContent).not.toContain('v_orders_raw')
   })
 
-  it('selects the producing action when clicked (the literal source/target string)', async () => {
-    const user = userEvent.setup()
-    const onSelectView = vi.fn()
-    render(
-      <EdgePipeChip
-        designerKind="data"
-        viewName="v_orders_raw"
-        producerKind="load"
-        sourceId="load_orders"
-        onSelectView={onSelectView}
-      />,
-    )
-    await user.click(screen.getByRole('button', { name: /view v_orders_raw/i }))
-    expect(onSelectView).toHaveBeenCalledWith('load_orders')
+  it('renders no "depends on" tag on a depends_on edge', () => {
+    const { container } = renderEdge({ designerKind: 'depends_on', viewName: 'audit_table' })
+    expect(container.querySelector('path')).not.toBeNull()
+    expect(container.textContent?.toLowerCase()).not.toContain('depends on')
+    expect(container.textContent).not.toContain('audit_table')
   })
 
-  it('shows a kind-colored producer dot for a known kind and none for external', () => {
-    const { container, rerender } = render(
-      <EdgePipeChip
-        designerKind="data"
-        viewName="v_x"
-        producerKind="transform"
-        sourceId="t"
-        onSelectView={vi.fn()}
-      />,
-    )
-    expect(container.querySelector('.bg-kind-transform')).not.toBeNull()
+  it('applies the depends-vs-data stroke class from edge.data', () => {
+    const { container } = renderEdge({ designerKind: 'depends_on' })
+    expect(container.querySelector('path.lhp-edge--depends')).not.toBeNull()
 
-    rerender(
-      <EdgePipeChip
-        designerKind="data"
-        viewName="v_x"
-        producerKind=""
-        sourceId="ext:src"
-        onSelectView={vi.fn()}
-      />,
-    )
-    expect(container.querySelector('[class*="bg-kind-"]')).toBeNull()
-  })
-
-  it('renders nothing when the view name is empty', () => {
-    const { container } = render(
-      <EdgePipeChip designerKind="data" viewName="" producerKind="load" sourceId="l" />,
-    )
-    expect(container.firstChild).toBeNull()
-  })
-})
-
-describe('EdgePipeChip — depends_on edge (distinct visual)', () => {
-  it('renders a non-interactive "depends on" tag, not a view-name chip', () => {
-    const onSelectView = vi.fn()
-    render(
-      <EdgePipeChip
-        designerKind="depends_on"
-        viewName="audit_table"
-        producerKind=""
-        sourceId="audit"
-        onSelectView={onSelectView}
-      />,
-    )
-    // No functional view-name button.
-    expect(screen.queryByRole('button')).toBeNull()
-    // The relationship is shown, not the name-as-view chip.
-    expect(screen.getByText(/depends on/i)).toBeInTheDocument()
-    expect(screen.queryByText('audit_table')).toBeNull()
-    // The referenced name is still available to assistive tech.
-    expect(screen.getByLabelText(/dependency on audit_table/i)).toBeInTheDocument()
+    const { container: dataC } = renderEdge({ designerKind: 'data', viewName: 'v_x' })
+    expect(dataC.querySelector('path.lhp-edge--data')).not.toBeNull()
   })
 })

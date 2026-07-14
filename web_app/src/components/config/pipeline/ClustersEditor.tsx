@@ -170,7 +170,7 @@ export function ClustersEditor({ api, idPrefix }: { api: DocFormApi; idPrefix: s
     >
       {raw !== undefined && clusters === undefined ? (
         <p className="text-2xs text-warning">
-          clusters is not a list — edit it via "Open raw YAML".
+          clusters is not a list — edit it in the YAML view.
         </p>
       ) : (
         <>
@@ -186,7 +186,7 @@ export function ClustersEditor({ api, idPrefix }: { api: DocFormApi; idPrefix: s
               />
             ) : (
               <p key={index} className="text-2xs text-warning">
-                Cluster {index + 1} is not a mapping — edit it via "Open raw YAML".
+                Cluster {index + 1} is not a mapping — edit it in the YAML view.
               </p>
             ),
           )}

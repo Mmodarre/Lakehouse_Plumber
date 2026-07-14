@@ -15,7 +15,6 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { EmptyState } from '../../common/EmptyState'
 import { SkeletonLoader } from '../../common/SkeletonLoader'
-import type { UseConfigFileResult } from '../../../hooks/useConfigFile'
 import {
   classifyPipelineDoc,
   isPlainObject,
@@ -24,31 +23,23 @@ import {
   validatePipelineConfigFile,
 } from '../../../lib/config-model'
 import { addDocument, removeDocument } from '../../../lib/yaml-doc'
-import { ConfigConflictDialog } from '../ConfigConflictDialog'
-import { ConfigPageShell } from '../ConfigPageShell'
-import { CONFIG_TAB_COPY } from '../configFileSupport'
-import { ExternalChangeBanner } from '../ExternalChangeBanner'
 import { ParseErrorsCard } from '../ParseErrorsCard'
-import { SaveBar } from '../SaveBar'
 import { PipelineDocForm } from './PipelineDocForm'
 import { PipelineDocList } from './PipelineDocList'
 import { UseForRunsToggle } from './UseForRunsToggle'
-import {
-  bindDocApi,
-  countErrors,
-  issuesAtExactly,
-  snapshotDocs,
-} from '../shared/docFormSupport'
-import type { RailSelection } from '../shared/docFormSupport'
+import { bindDocApi, issuesAtExactly, snapshotDocs } from '../shared/docFormSupport'
+import type { ConfigDocSource, RailSelection } from '../shared/docFormSupport'
 import { buildRailDocs, duplicateNames } from './pipelineFormSupport'
 
-// ── PipelineConfigEditor — the pipeline_config editor ────────
+// ── PipelineConfigEditor — the pipeline_config editor body ───
 //
-// Master-detail over one useConfigFile instance: the precedence rail
+// Master-detail over one config document source: the precedence rail
 // (PipelineDocList) on the left, the selected document's form on the
 // right. Validation runs file-wide (validatePipelineConfigFile) so the
-// duplicate matrix (VAL_006) badges every involved document and Save is
-// blocked while any blocking error exists anywhere in the file.
+// duplicate matrix (VAL_006) badges every involved document; issues render
+// per field but no longer block anything (saving is the buffer's ⌘S path).
+// Re-hosted by components/entity/ConfigFormView, which owns the scroll
+// frame, degraded banner, and viewer read-only wrapper.
 //
 // DELIBERATE OMISSION — VAL_010: the `__eventlog_monitoring` alias
 // clashing with the ACTUAL monitoring pipeline name is NOT mirrored
@@ -58,12 +49,8 @@ import { buildRailDocs, duplicateNames } from './pipelineFormSupport'
 // (`_resolve_monitoring_alias`) still catches it on validate/generate.
 
 export interface PipelineConfigEditorProps {
-  /** A useConfigFile(<pipeline config path>) instance owned by the page. */
-  file: UseConfigFileResult
-  /** File picker slot (pipeline tab). */
-  picker?: ReactNode
-  /** Header actions slot ("New from template"). */
-  actions?: ReactNode
+  /** The pipeline_config document source (documentStore-backed). */
+  file: ConfigDocSource
 }
 
 /** Read-only card for the rail's ghost row. */
@@ -123,7 +110,7 @@ function UnrecognizedDocCard({ doc }: { doc: unknown }) {
   )
 }
 
-export function PipelineConfigEditor({ file, picker, actions }: PipelineConfigEditorProps) {
+export function PipelineConfigEditor({ file }: PipelineConfigEditorProps) {
   const parsed = file.handle !== null && file.errors.length === 0
 
   // The handle is mutable: derive ONLY from [handle, version] (hook contract).
@@ -135,7 +122,6 @@ export function PipelineConfigEditor({ file, picker, actions }: PipelineConfigEd
   const issues = useMemo(() => (parsed ? validatePipelineConfigFile(docs) : []), [docs, parsed])
   const duplicates = useMemo(() => duplicateNames(docs), [docs])
   const rail = useMemo(() => buildRailDocs(docs, issues), [docs, issues])
-  const errorCount = file.errors.length + countErrors(issues)
 
   // Selection: null = "not chosen yet" → the per-file default is DERIVED
   // at render time (defaults doc, else first doc, else the built-ins
@@ -245,12 +231,6 @@ export function PipelineConfigEditor({ file, picker, actions }: PipelineConfigEd
 
     body = (
       <>
-        {file.yamlError && (
-          <p role="alert" className="text-xs text-destructive">
-            Saved with a YAML syntax error (line {file.yamlError.line}, column{' '}
-            {file.yamlError.column}): {file.yamlError.message}
-          </p>
-        )}
         <div className="flex gap-5">
           <PipelineDocList
             rail={rail}
@@ -269,40 +249,12 @@ export function PipelineConfigEditor({ file, picker, actions }: PipelineConfigEd
 
   return (
     <>
-      <ConfigPageShell
-        title={CONFIG_TAB_COPY.pipeline.title}
-        description={CONFIG_TAB_COPY.pipeline.description}
-        picker={picker}
-        actions={
-          <>
-            {file.path !== null && <UseForRunsToggle path={file.path} />}
-            {actions}
-          </>
-        }
-        banner={
-          file.externalChange ? (
-            <ExternalChangeBanner onReload={() => void file.reload()} onKeep={file.keepMine} />
-          ) : undefined
-        }
-        footer={
-          <SaveBar
-            path={file.path}
-            dirty={file.dirty}
-            saving={file.saving}
-            errorCount={errorCount}
-            onSave={() => void file.save()}
-          />
-        }
-      >
-        {body}
-      </ConfigPageShell>
-      <ConfigConflictDialog
-        path={file.conflict ? file.path : null}
-        saving={file.saving}
-        onReload={() => void file.reload()}
-        onOverwrite={() => void file.overwrite()}
-        onCancel={file.dismissConflict}
-      />
+      {file.path !== null && (
+        <div className="flex justify-end">
+          <UseForRunsToggle path={file.path} />
+        </div>
+      )}
+      {body}
       <AlertDialog
         open={pendingDelete !== null}
         onOpenChange={(open) => {

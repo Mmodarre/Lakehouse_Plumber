@@ -35,7 +35,7 @@ from lhp.webapp.middleware.error_handler import (
 from lhp.webapp.middleware.origin_guard import OriginGuardMiddleware
 from lhp.webapp.middleware.request_logging import RequestLoggingMiddleware
 from lhp.webapp.middleware.token_guard import TokenGuardMiddleware
-from lhp.webapp.services import file_watcher, sqlite_store
+from lhp.webapp.services import dataset_index, file_watcher, sqlite_store
 from lhp.webapp.services.event_bus import EventBus
 from lhp.webapp.settings import get_settings
 from lhp.webapp.static_app import _API_PREFIX
@@ -57,6 +57,7 @@ _ROUTER_MODULES: tuple[str, ...] = (
     "pipelines",
     "flowgroups",
     "tables",
+    "lineage",
     "presets",
     "templates",
     "blueprints",
@@ -180,6 +181,10 @@ def create_app() -> FastAPI:
     # False so GET /api/dependencies/staleness is O(1) and never falls through
     # to the facade metadata in normal operation.
     app.state.graph_stale = False
+    # Per-env dataset lineage index cache (GET /api/lineage). Dropped by the
+    # file watcher on a graph-relevant edit and by POST /api/dependencies/refresh,
+    # mirroring the dependency graph's serve-stale invalidation.
+    app.state.dataset_index_cache = dataset_index.DatasetIndexCache()
 
     # Middleware (Starlette: last added = outermost). Effective request order:
     # TrustedHost -> OriginGuard -> TokenGuard -> RequestLogging -> routes.

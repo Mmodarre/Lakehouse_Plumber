@@ -290,7 +290,7 @@ function PermissionsSection() {
             <ul className="mt-1.5">
               {rules.map((rule, i) => (
                 <li
-                  key={`${rule.tool} ${rule.prefix ?? ''}`}
+                  key={`${rule.tool}\u0000${rule.prefix ?? ''}`}
                   className="flex items-center justify-between gap-1 py-0.5"
                 >
                   <span className="min-w-0 truncate font-mono text-2xs text-foreground">

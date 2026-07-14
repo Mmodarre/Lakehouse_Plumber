@@ -38,7 +38,7 @@ import {
   selectFlowgroup,
   serializeFlowgroupFile,
 } from '@/lib/flowgroup-doc'
-import type { DesignerMutator } from '../useDesignerWrite'
+import type { DesignerMutator } from '../formModel'
 import { CodeModal, type CodeTarget } from '../CodeModal'
 
 const BASE = `pipeline: p

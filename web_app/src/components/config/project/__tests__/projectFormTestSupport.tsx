@@ -1,63 +1,38 @@
-/* eslint-disable react-refresh/only-export-components -- test-support
-   module (helpers + a private harness component); fast refresh never
-   applies to test files. */
-import { expect, vi } from 'vitest'
-import type { ReactNode } from 'react'
-import { render, waitFor, screen } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { TooltipProvider } from '@/components/ui/tooltip'
-import { useConfigFile } from '../../../../hooks/useConfigFile'
-import { ProjectConfigForm } from '../ProjectConfigForm'
+import { vi } from 'vitest'
+import {
+  configureFetch,
+  mountConfigFormView,
+  resetConfigStores,
+  seedConfigBuffer,
+} from '../../shared/__tests__/configFormTestSupport'
+import type { FetchMock } from '../../shared/__tests__/configFormTestSupport'
+
+export { installRadixStubs } from '../../shared/__tests__/configFormTestSupport'
 
 // ── Shared harness for the ProjectConfigForm suites ──────────
 //
-// Renders the REAL stack (useConfigFile → yaml-doc → form) over a stubbed
-// global fetch, so byte-preservation assertions run against the actual PUT
-// body the form would send — not a mocked helper's arguments.
+// Seeds a workspace buffer with the fixture, then renders the project Form
+// view (ConfigFormView → ProjectConfigForm bound to documentStore). Editing
+// pushes byte-surgical serialized text into the buffer, so byte-preservation
+// assertions run against `bufferContent()` (what a ⌘S would write) — the
+// model has no PUT.
 
-export const fetchMock =
+export const PROJECT_CONFIG_PATH = 'lhp.yaml'
+
+export const fetchMock: FetchMock =
   vi.fn<(url: string | URL | Request, init?: RequestInit) => Promise<Response>>()
 
-export function textRes(content: string, etag = 'e1'): Response {
-  return new Response(content, { status: 200, headers: { ETag: `"${etag}"` } })
+/** Reset the stores and seed lhp.yaml from `content`; returns
+ * `bufferContent()` — the serialized buffer text after edits. */
+export function serveProject(content: string): { bufferContent: () => string } {
+  resetConfigStores()
+  configureFetch(fetchMock)
+  return seedConfigBuffer(PROJECT_CONFIG_PATH, content)
 }
 
-export function putRes(overrides: Record<string, unknown> = {}): Response {
-  return new Response(
-    JSON.stringify({ written: true, path: 'lhp.yaml', yaml_error: null, etag: 'e2', ...overrides }),
-    { status: 200 },
-  )
-}
-
-/** Serve GET from `content`; record PUT bodies (always succeeding). */
-export function serveProject(content: string): { putBodies: () => string[] } {
-  let etagSeq = 0
-  fetchMock.mockImplementation((url, init) => {
-    const method = init?.method ?? 'GET'
-    if (method === 'GET') return Promise.resolve(textRes(content, `e${etagSeq}`))
-    if (method === 'PUT') {
-      etagSeq += 1
-      return Promise.resolve(putRes({ etag: `e${etagSeq}` }))
-    }
-    return Promise.reject(new Error(`unexpected ${method} ${String(url)}`))
-  })
-  return {
-    putBodies: () =>
-      fetchMock.mock.calls
-        .filter(([, init]) => init?.method === 'PUT')
-        .map(([, init]) => (JSON.parse(init!.body as string) as { content: string }).content),
-  }
-}
-
-function Harness() {
-  const file = useConfigFile('lhp.yaml')
-  return <ProjectConfigForm file={file} />
-}
-
-export async function renderProjectForm(): Promise<void> {
-  // The Radix tooltip Arrow (now rendered by FieldLabel's (i) help icon)
-  // measures itself via ResizeObserver, which jsdom lacks — same stub the
-  // pipeline/job harnesses install via installRadixStubs.
+export function renderProjectForm(): void {
+  // The (i) help tooltip's Radix Arrow measures via ResizeObserver, which
+  // jsdom lacks — install the same stub the pipeline/job harnesses use.
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -66,19 +41,7 @@ export async function renderProjectForm(): Promise<void> {
       disconnect() {}
     },
   )
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  // The form's SchemaKindProvider calls useQuery(['schema','project']);
-  // seed it so no real GET /api/schemas fires (staleTime: Infinity → fresh).
-  queryClient.setQueryData(['schema', 'project'], {})
-  const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider delayDuration={0}>{children}</TooltipProvider>
-    </QueryClientProvider>
-  )
-  render(<Harness />, { wrapper })
-  // The SaveBar is always present; the form body appears once loaded —
-  // tests wait for their own fields after this.
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument())
+  mountConfigFormView(PROJECT_CONFIG_PATH, 'project')
 }
 
 /** Zip-compare two texts line by line; returns the differing line pairs. */

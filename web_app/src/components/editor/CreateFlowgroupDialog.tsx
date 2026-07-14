@@ -131,7 +131,7 @@ function CreateFlowgroupForm({
   close,
 }: CreateFlowgroupFormProps) {
   const queryClient = useQueryClient()
-  const openDesignerTab = useWorkspaceStore((s) => s.openDesignerTab)
+  const openEntityTab = useWorkspaceStore((s) => s.openEntityTab)
 
   const [mode, setMode] = useState<Mode>('blank')
   const [target, setTarget] = useState<FlowgroupTarget>(EMPTY_TARGET)
@@ -261,7 +261,7 @@ function CreateFlowgroupForm({
       queryClient.invalidateQueries({ queryKey: ['flowgroups'] }),
     ])
     toast.success(`Created ${req.path}`)
-    openDesignerTab(req.pipeline, req.flowgroup, req.path)
+    openEntityTab(req.pipeline, req.flowgroup, req.path)
     close()
   }
 

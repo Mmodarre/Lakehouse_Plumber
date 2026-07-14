@@ -37,15 +37,9 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-async function save(user: ReturnType<typeof userEvent.setup>) {
-  const saveButton = screen.getByRole('button', { name: 'Save' })
-  await waitFor(() => expect(saveButton).toBeEnabled())
-  await user.click(saveButton)
-}
-
 describe('JobConfigEditor — legacy flat files', () => {
   it('shows the banner and edits the flat doc as project defaults (no rail)', async () => {
-    const { putBodies } = serveJob(LEGACY)
+    const { bufferContent } = serveJob(LEGACY)
     renderJobEditor()
 
     expect(await screen.findByText(BANNER_TEXT)).toBeInTheDocument()
@@ -60,18 +54,16 @@ describe('JobConfigEditor — legacy flat files', () => {
     await user.clear(runs)
     await user.type(runs, '5')
     await user.tab()
-    await save(user)
 
-    await waitFor(() => expect(putBodies()).toHaveLength(1))
-    const diffs = lineDiff(LEGACY, putBodies()[0]!)
+    const diffs = lineDiff(LEGACY, bufferContent())
     expect(diffs).toHaveLength(1)
     expect(diffs[0]!.before).toBe('max_concurrent_runs: 2 # keep low')
     expect(diffs[0]!.after).toBe('max_concurrent_runs: 5 # keep low')
-    expect(putBodies()[0]).not.toContain('project_defaults')
+    expect(bufferContent()).not.toContain('project_defaults')
   })
 
   it('NEVER converts on save: an edit-and-revert save round-trips byte-identically', async () => {
-    const { putBodies } = serveJob(LEGACY)
+    const { bufferContent } = serveJob(LEGACY)
     renderJobEditor()
     await screen.findByText(BANNER_TEXT)
 
@@ -83,10 +75,8 @@ describe('JobConfigEditor — legacy flat files', () => {
     await user.clear(runs)
     await user.type(runs, '2')
     await user.tab()
-    await save(user)
 
-    await waitFor(() => expect(putBodies()).toHaveLength(1))
-    expect(putBodies()[0]).toBe(LEGACY)
+    expect(bufferContent()).toBe(LEGACY)
   })
 
   it('convert dialog cancel leaves the file and banner untouched', async () => {
@@ -108,11 +98,10 @@ describe('JobConfigEditor — legacy flat files', () => {
 
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
     expect(screen.getByText(BANNER_TEXT)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled() // not dirty
   })
 
   it('explicit convert wraps under project_defaults, loader-equivalently; banner gone', async () => {
-    const { putBodies } = serveJob(LEGACY)
+    const { bufferContent } = serveJob(LEGACY)
     renderJobEditor()
     await screen.findByText(BANNER_TEXT)
 
@@ -127,9 +116,7 @@ describe('JobConfigEditor — legacy flat files', () => {
       screen.getByRole('navigation', { name: 'Configuration documents' }),
     ).toBeInTheDocument()
 
-    await save(user)
-    await waitFor(() => expect(putBodies()).toHaveLength(1))
-    const body = putBodies()[0]!
+    const body = bufferContent()
 
     // Loader equivalence: the converted doc's project_defaults mapping is
     // deep-equal to what the single-doc path read from the flat file —

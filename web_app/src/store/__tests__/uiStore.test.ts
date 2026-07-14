@@ -1,13 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useUIStore } from '@/store/uiStore'
 
-// The run-config selection (selectedPipelineConfig) is a separate persisted
-// field from the Config tabs' picker state — picking a file in the editor
-// must never implicitly change what runs use.
+// The run-config selection (selectedPipelineConfig) is a persisted field
+// driven only by the explicit "Use for runs" toggle.
 
 beforeEach(() => {
   useUIStore.setState({
-    selectedConfigFiles: { pipeline: null, job: null },
     selectedPipelineConfig: null,
     sandboxEnabled: false,
   })
@@ -24,21 +22,13 @@ describe('uiStore — selectedPipelineConfig', () => {
     expect(useUIStore.getState().selectedPipelineConfig).toBeNull()
   })
 
-  it('is independent of the pipeline tab picker selection', () => {
-    useUIStore.getState().setSelectedConfigFile('pipeline', 'config/a.yaml')
-    expect(useUIStore.getState().selectedPipelineConfig).toBeNull()
-    useUIStore.getState().setSelectedPipelineConfig('config/b.yaml')
-    expect(useUIStore.getState().selectedConfigFiles.pipeline).toBe('config/a.yaml')
-  })
-
-  it('persists exactly the picker slice plus the run-config selection', () => {
+  it('persists exactly the run-config selection plus the sandbox toggle', () => {
     useUIStore.getState().setSelectedPipelineConfig('config/pipeline_config_dev.yaml')
     const { partialize } = useUIStore.persist.getOptions()
     const slice = partialize!(useUIStore.getState())
     // Exact-equality pins the persisted surface: nothing else may leak into
     // localStorage without a deliberate test change.
     expect(slice).toEqual({
-      selectedConfigFiles: { pipeline: null, job: null },
       selectedPipelineConfig: 'config/pipeline_config_dev.yaml',
       sandboxEnabled: false,
     })

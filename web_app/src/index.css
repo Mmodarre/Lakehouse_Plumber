@@ -268,112 +268,158 @@
   --color-node-external: var(--node-external);
   --color-edge: var(--edge);
   --color-edge-cross: var(--edge-cross);
+  /* Schematic surfaces / lines (new tokens — §4) */
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-faint: var(--faint);
+  --color-border-on: var(--border-on);
+  --color-accent-weak: var(--accent-weak);
+  --color-accent-line: var(--accent-line);
+  --color-grid-dot: var(--grid-dot);
+  /* Syntax (code) token colors */
+  --color-syntax-key: var(--syntax-key);
+  --color-syntax-string: var(--syntax-string);
+  --color-syntax-number: var(--syntax-number);
+  --color-syntax-punct: var(--syntax-punct);
+  --color-syntax-comment: var(--syntax-comment);
+  --color-syntax-sql: var(--syntax-sql);
 }
 
-/* Databricks Dubois product-UI palette — true-neutral light surfaces,
- * cool-grey dark surfaces, blue600/blue500 primary, one blue accent used
- * scarcely. Dark theme is the flagship. */
+/* "Lakehouse" palette (webui-redesign v2 / TOKEN MAP) — warm paper neutrals with
+ * a coral accent used scarcely; hairline 1px borders, 4px radii. Dark is the
+ * flagship default. The theme mechanism here is the `.dark` class on <html>
+ * (themeStore), so the mockup's four scopes collapse to two: `:root` = light
+ * (= mockup `[data-theme=light]`), `.dark` = dark (= mockup
+ * `@media(prefers-color-scheme:dark)` + `[data-theme=dark]`). Semantic token
+ * NAMES are unchanged so all consumers keep compiling. */
 :root {
-  --radius: 0.5rem; /* 8px — IDE, not marketing site */
-  --background: #F7F7F7; /* page / canvas (backgroundSecondary) */
-  --foreground: #161616;
+  --radius: 0.25rem; /* 4px — schematic hairline geometry */
+  --background: #FAF9F7; /* ground / canvas */
+  --foreground: #1A1B1E; /* text */
+  --surface: #FFFFFF; /* panel */
   --card: #FFFFFF; /* panels, nodes, rows */
-  --card-foreground: #161616;
-  --popover: #FFFFFF;
-  --popover-foreground: #161616;
-  --primary: #2272B4; /* Dubois blue600 */
-  --primary-foreground: #FFFFFF;
-  --secondary: #EBEBEB;
-  --secondary-foreground: #262626;
-  --muted: #F7F7F7;
-  --muted-foreground: #6F6F6F; /* 5.02:1 on --card, 4.69:1 on --background */
-  --accent: #EBEBEB; /* hover/selected surfaces */
-  --accent-foreground: #262626;
-  --destructive: #C82D4C;
-  --border: #EBEBEB;
-  --input: #D8D8D8; /* control border, one step below --border */
-  --ring: #2272B4;
-  --chart-1: #2272B4;
-  --chart-2: #04867D;
-  --chart-3: #8A63BF;
-  --chart-4: #DE7921;
-  --chart-5: #277C43;
-  --sidebar: #F7F7F7;
-  --sidebar-foreground: #161616;
-  --sidebar-primary: #2272B4;
+  --card-foreground: #1A1B1E;
+  --raised: #FFFFFF; /* elevated surface */
+  --popover: #FFFFFF; /* raised */
+  --popover-foreground: #1A1B1E;
+  --primary: #E8552F; /* accent (coral) */
+  --primary-foreground: #FFFFFF; /* accent-ink (on-accent) */
+  --accent-weak: rgba(232, 85, 47, 0.1);
+  --accent-line: rgba(232, 85, 47, 0.45);
+  --secondary: #E9E5DF;
+  --secondary-foreground: #1A1B1E;
+  --muted: #F4F0EA; /* subtle surface (code blocks, table heads) */
+  --muted-foreground: #6B675F; /* muted text */
+  --faint: #94908A; /* faint text / disabled */
+  --accent: #EFEAE3; /* neutral hover/selected surface (shadcn --accent) */
+  --accent-foreground: #1A1B1E;
+  --destructive: #E5484D;
+  --border: #E9E5DF;
+  --border-on: rgba(26, 27, 30, 0.07); /* hairline on a card surface */
+  --input: #E9E5DF; /* control border */
+  --ring: #E8552F;
+  --chart-1: #E8552F;
+  --chart-2: #2E7DD1;
+  --chart-3: #8B5CF6;
+  --chart-4: #23A06B;
+  --chart-5: #E5A43B;
+  --sidebar: #FFFFFF; /* surface/panel */
+  --sidebar-foreground: #1A1B1E;
+  --sidebar-primary: #E8552F;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #EBEBEB;
-  --sidebar-accent-foreground: #262626;
-  --sidebar-border: #EBEBEB;
-  --sidebar-ring: #2272B4;
+  --sidebar-accent: #EFEAE3;
+  --sidebar-accent-foreground: #1A1B1E;
+  --sidebar-border: #E9E5DF;
+  --sidebar-ring: #E8552F;
 
   /* Semantic status */
-  --success: #277C43;
-  --warning: #BE501E;
-  --error: #C82D4C; /* = destructive */
-  --info: #2272B4; /* = primary */
+  --success: #23A06B; /* ok */
+  --warning: #E5A43B; /* warn */
+  --error: #E5484D; /* crit — = destructive */
+  --info: #2E7DD1;
 
   /* Unified action-kind palette (DAG accents ≡ table badges) */
-  --kind-load: #2272B4; /* blue      */
-  --kind-transform: #8A63BF; /* violet    */
-  --kind-write: #277C43; /* green     */
-  --kind-test: #DE7921; /* amber     */
+  --kind-load: #2E7DD1; /* blue */
+  --kind-transform: #8B5CF6; /* violet */
+  --kind-write: #23A06B; /* green  */
+  --kind-test: #E5A43B; /* amber  */
   /* Graph node identities */
-  --node-pipeline: #2272B4;
-  --node-flowgroup: #137DAE; /* turquoise */
-  --node-external: #5F7281; /* neutral   */
-  --edge: #C0CDD8;
+  --node-pipeline: #E8552F;
+  --node-flowgroup: #2E7DD1;
+  --node-external: #94908A;
+  --edge: #B7B2A9;
   --edge-cross: var(--warning);
+  --grid-dot: rgba(26, 27, 30, 0.07); /* dotted-grid texture in graph canvases */
+
+  /* Syntax (code) tokens */
+  --syntax-key: #1F5FA8;
+  --syntax-string: #2E7D46;
+  --syntax-number: #B4630F; /* bool/num */
+  --syntax-punct: #6B675F;
+  --syntax-comment: #8A857C;
+  --syntax-sql: #6D28D9; /* sql keyword */
 }
 
 .dark {
-  --background: #11171C;
-  --foreground: #E8ECF0;
-  --card: #1F272D; /* also Monaco editor bg — keep in lockstep */
-  --card-foreground: #E8ECF0;
-  --popover: #232D36;
-  --popover-foreground: #E8ECF0;
-  --primary: #4299E0; /* Dubois blue500 */
-  --primary-foreground: #11171C; /* dark text on primary */
-  --secondary: #37444F;
-  --secondary-foreground: #E8ECF0;
-  --muted: #1F272D;
-  --muted-foreground: #92A4B3;
-  --accent: #37444F;
-  --accent-foreground: #E8ECF0;
-  --destructive: #E65B77;
-  /* Translucent-white borders (not solid Dubois grey700): a solid #1F272D
-   * border would be invisible on the equally-#1F272D card surfaces. */
-  --border: oklch(1 0 0 / 9%);
-  --input: oklch(1 0 0 / 13%);
-  --ring: #8ACAFF; /* Dubois dark focus ring is lighter than primary */
-  --chart-1: #4299E0;
-  --chart-2: #3BA65E;
-  --chart-3: #B48FD9;
-  --chart-4: #DE7921;
-  --chart-5: #E65B77;
-  --sidebar: #0E1418;
-  --sidebar-foreground: #E8ECF0;
-  --sidebar-primary: #4299E0;
-  --sidebar-primary-foreground: #11171C;
-  --sidebar-accent: #37444F;
-  --sidebar-accent-foreground: #E8ECF0;
-  --sidebar-border: oklch(1 0 0 / 9%);
-  --sidebar-ring: #8ACAFF;
+  --background: #14161A; /* ground / canvas */
+  --foreground: #ECEAE6; /* text */
+  --surface: #1B1E24; /* panel */
+  --card: #22262E; /* panels, nodes, rows — also Monaco editor bg (keep in lockstep) */
+  --card-foreground: #ECEAE6;
+  --raised: #262B34; /* elevated surface */
+  --popover: #262B34; /* raised */
+  --popover-foreground: #ECEAE6;
+  --primary: #FF6F4E; /* accent (coral) */
+  --primary-foreground: #1A1210; /* accent-ink (on-accent) */
+  --accent-weak: rgba(255, 111, 78, 0.15);
+  --accent-line: rgba(255, 111, 78, 0.5);
+  --secondary: #30343D;
+  --secondary-foreground: #ECEAE6;
+  --muted: #262B34; /* subtle surface (code blocks, table heads) */
+  --muted-foreground: #9A968E; /* muted text */
+  --faint: #7C786F; /* faint text / disabled */
+  --accent: #262B34; /* neutral hover/selected surface (shadcn --accent) */
+  --accent-foreground: #ECEAE6;
+  --destructive: #F26D71;
+  --border: #30343D; /* solid, distinct from #22262E card — visible hairline */
+  --border-on: rgba(255, 255, 255, 0.08); /* hairline on a card surface */
+  --input: #30343D;
+  --ring: #FF6F4E;
+  --chart-1: #FF6F4E;
+  --chart-2: #4C9BE8;
+  --chart-3: #A78BFA;
+  --chart-4: #3BC088;
+  --chart-5: #E7B357;
+  --sidebar: #1B1E24; /* surface/panel */
+  --sidebar-foreground: #ECEAE6;
+  --sidebar-primary: #FF6F4E;
+  --sidebar-primary-foreground: #1A1210;
+  --sidebar-accent: #262B34;
+  --sidebar-accent-foreground: #ECEAE6;
+  --sidebar-border: #30343D;
+  --sidebar-ring: #FF6F4E;
 
-  --success: #3BA65E;
-  --warning: #DE7921;
-  --error: #E65B77;
-  --info: #4299E0;
-  --kind-load: #4299E0;
-  --kind-transform: #B48FD9;
-  --kind-write: #3BA65E;
-  --kind-test: #F2BE88;
-  --node-pipeline: #4299E0;
-  --node-flowgroup: #5FB8CE;
-  --node-external: #8396A5;
-  --edge: #445461;
+  --success: #3BC088;
+  --warning: #E7B357;
+  --error: #F26D71;
+  --info: #4C9BE8;
+  --kind-load: #4C9BE8;
+  --kind-transform: #A78BFA;
+  --kind-write: #3BC088;
+  --kind-test: #E7B357;
+  --node-pipeline: #FF6F4E;
+  --node-flowgroup: #4C9BE8;
+  --node-external: #7C786F;
+  --edge: #4A4E57;
   --edge-cross: var(--warning);
+  --grid-dot: rgba(255, 255, 255, 0.06);
+
+  --syntax-key: #8AB4F8;
+  --syntax-string: #9ECE8A;
+  --syntax-number: #E0A66B;
+  --syntax-punct: #9A968E;
+  --syntax-comment: #6E7681;
+  --syntax-sql: #B99BF0;
 }
 
 @layer base {

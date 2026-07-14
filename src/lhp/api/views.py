@@ -7,6 +7,13 @@ outcome of a runtime operation.
 :stability: provisional
 """
 
+# JUSTIFIED: this file is the constitution-mandated single registry of
+# public view DTOs (TARGET §11): every inspection-result projection lives
+# here by design so the public contract stays auditable in one place, and
+# TARGET §8 grants DTO files <=600 lines. Each dataclass is a flat frozen
+# value object; splitting the registry would scatter the versioned surface
+# without removing any complexity.
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -430,3 +437,108 @@ class WheelContentsView:
     env: Optional[str]
     modules: Tuple[WheelModuleView, ...]
     module_count: int
+
+
+@dataclass(frozen=True)
+class LineageNodeView:
+    """A single node in a dataset's lineage graph.
+
+    A flat projection of one hop in the upstream chain of a produced
+    dataset. ``kind`` is one of ``load`` / ``transform`` / ``write`` /
+    ``test`` (a resolved action node), ``dataset`` (an upstream table
+    produced by a *different* flowgroup, reached over a cross-flowgroup
+    write edge), or ``external`` (an unmatched source read — an external
+    table / path the project does not itself produce).
+
+    ``id`` is the action id ``{pipeline}.{flowgroup}.{action}`` for action
+    nodes, ``dataset:<fqn>`` for upstream dataset nodes, and
+    ``external:<source>`` for external nodes. ``label`` is a human-facing
+    name (the view ``target`` for load/transform hops, the resolved FQN for
+    the write hop and dataset nodes, the raw source string for external
+    nodes). ``pipeline`` / ``flowgroup`` are populated for action and
+    dataset nodes and empty for external nodes; ``dataset_fqn`` carries the
+    resolved fully-qualified name on write and dataset nodes and is empty
+    elsewhere.
+
+    :stability: provisional
+    """
+
+    id: str
+    kind: Literal["load", "transform", "write", "test", "dataset", "external"]
+    label: str
+    pipeline: str = ""
+    flowgroup: str = ""
+    dataset_fqn: str = ""
+
+
+@dataclass(frozen=True)
+class LineageEdgeView:
+    """A directed producer→consumer edge between two lineage nodes.
+
+    ``source`` and ``target`` are :class:`LineageNodeView` ``id`` values;
+    the edge points from the upstream node to the node that reads it.
+
+    :stability: provisional
+    """
+
+    source: str
+    target: str
+
+
+@dataclass(frozen=True)
+class DatasetConsumerView:
+    """A downstream action that consumes a produced dataset.
+
+    One entry per foreign-flowgroup action that reads the dataset over a
+    cross-flowgroup edge. ``pipeline`` / ``flowgroup`` / ``action_name``
+    identify the consuming action; ``dataset_fqn`` is the resolved
+    fully-qualified name of what the *consuming* flowgroup itself produces
+    (its first resolved write target, or ``""`` when it produces none),
+    letting callers pivot from a table to the tables built from it.
+
+    :stability: provisional
+    """
+
+    dataset_fqn: str
+    pipeline: str
+    flowgroup: str
+    action_name: str
+
+
+@dataclass(frozen=True)
+class DatasetView:
+    """A produced dataset (table or sink) with its lineage and consumers.
+
+    One :class:`DatasetView` per *write* action across the project,
+    env-resolved. ``fqn`` is the resolved ``catalog.schema.table`` for a
+    table (``kind == "table"``) or ``sink:<sink_type>/<id>`` for a sink
+    (``kind == "sink"``); any unresolved substitution tokens pass through
+    verbatim. ``pipeline`` / ``flowgroup`` / ``action_name`` / ``write_mode``
+    / ``scd_type`` / ``source_file`` describe the producing write action.
+
+    v1 limitation: a delta sink that writes a real table via
+    ``options.tableName`` is still indexed under its ``sink:<sink_type>/<id>``
+    id, never the underlying table FQN — a lineage lookup by that table's FQN
+    misses it.
+
+    ``nodes`` / ``edges`` embed the same-flowgroup upstream lineage chain
+    (external source → load → view → transform → view → write) plus any
+    cross-flowgroup upstream ``dataset`` nodes; session views (``v_*``)
+    appear only as intermediate chain nodes, never as their own top-level
+    :class:`DatasetView`. ``consumers`` lists the downstream actions that
+    read this dataset from another flowgroup.
+
+    :stability: provisional
+    """
+
+    fqn: str
+    kind: Literal["table", "sink"]
+    pipeline: str
+    flowgroup: str
+    action_name: str
+    write_mode: str
+    scd_type: Optional[int]
+    source_file: str
+    nodes: Tuple[LineageNodeView, ...] = ()
+    edges: Tuple[LineageEdgeView, ...] = ()
+    consumers: Tuple[DatasetConsumerView, ...] = ()

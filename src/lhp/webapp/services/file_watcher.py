@@ -168,7 +168,10 @@ async def _tick(
       manual Refresh (which force-rebuilds via ``POST /api/dependencies/refresh``).
       The facade's flowgroup-discovery memo IS cleared
       (:func:`~lhp.webapp.dependencies.invalidate_discovery_caches`) so the
-      inspection reads reflect the edit while the graph memo survives.
+      inspection reads reflect the edit while the graph memo survives. The
+      per-env dataset lineage index (``GET /api/lineage``) is likewise served
+      stale — kept, not dropped — so it stays consistent with the surviving
+      graph memo it was built against; only an explicit Refresh rebuilds both.
     * A purely non-graph change keeps today's behavior — ``invalidate_facade``
       so the other caches (files list, validate) re-read from disk.
 
@@ -192,6 +195,15 @@ async def _tick(
                 # discovery memo WITHOUT dropping the facade, so the graph memo
                 # survives and keeps serving last-good until an explicit refresh.
                 invalidate_discovery_caches(app)
+                # The per-env dataset lineage index (GET /api/lineage) is NOT
+                # dropped here: it shares the graph memo's serve-stale lifecycle.
+                # Keeping the last-good index leaves it consistent with the
+                # served-stale graph it was built against; dropping it while the
+                # graph memo survives would rebuild it against that stale graph
+                # and false-404 a produced dataset whose write node is missing
+                # from the memo (e.g. a just-added/renamed flowgroup). Only an
+                # explicit POST /api/dependencies/refresh rebuilds both; the
+                # endpoint's stale=True flag is the honest skew signal until then.
                 app.state.event_bus.publish(
                     {"event": "graph-stale", "data": {"paths": graph_relevant}}
                 )

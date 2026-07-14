@@ -1,39 +1,39 @@
-/* eslint-disable react-refresh/only-export-components -- test-support
-   module (helpers + a private harness component); fast refresh never
-   applies to test files. */
 import { expect, vi } from 'vitest'
-import type { ReactNode } from 'react'
-import { render, screen, waitFor } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { TooltipProvider } from '@/components/ui/tooltip'
-import { useConfigFile } from '../../../../hooks/useConfigFile'
-import { serveConfigFile } from '../../shared/__tests__/configFormTestSupport'
-import { PipelineConfigEditor } from '../PipelineConfigEditor'
+import { screen, waitFor } from '@testing-library/react'
+import {
+  configureFetch,
+  mountConfigFormView,
+  resetConfigStores,
+  seedConfigBuffer,
+} from '../../shared/__tests__/configFormTestSupport'
+import type { FetchMock } from '../../shared/__tests__/configFormTestSupport'
 
 export { installRadixStubs } from '../../shared/__tests__/configFormTestSupport'
 
 // ── Shared harness for the PipelineConfigEditor suites ───────
 //
-// Same discipline as projectFormTestSupport: the REAL stack
-// (useConfigFile → yaml-doc → editor) over a stubbed global fetch (the
-// generic server lives in shared/__tests__/configFormTestSupport), so
-// byte-preservation assertions run against the actual PUT body.
+// Seeds a workspace buffer with the fixture, then renders the pipeline Form
+// view (ConfigFormView → PipelineConfigEditor bound to documentStore).
+// Editing pushes byte-surgical serialized text into the buffer, so
+// byte-preservation assertions run against `bufferContent()` (what a ⌘S
+// would write) — the model has no PUT.
 
 export const PIPELINE_CONFIG_PATH = 'config/pipeline_config.yaml'
 
-export const fetchMock =
+export const fetchMock: FetchMock =
   vi.fn<(url: string | URL | Request, init?: RequestInit) => Promise<Response>>()
 
 /**
- * Serve GET of the pipeline config from `content`, record PUT bodies, and
- * answer /api/pipelines with `pipelines` (GroupMembershipEditor
- * suggestions).
+ * Reset the stores, seed the pipeline config from `content`, and answer
+ * /api/pipelines with `pipelines` (GroupMembershipEditor suggestions).
+ * Returns `bufferContent()` — the serialized buffer text after edits.
  */
 export function servePipeline(
   content: string,
   { pipelines = [] as string[] } = {},
-): { putBodies: () => string[] } {
-  return serveConfigFile(fetchMock, PIPELINE_CONFIG_PATH, content, {
+): { bufferContent: () => string } {
+  resetConfigStores()
+  configureFetch(fetchMock, {
     '/api/pipelines': () =>
       new Response(
         JSON.stringify({
@@ -47,26 +47,13 @@ export function servePipeline(
         { status: 200 },
       ),
   })
-}
-
-function Harness() {
-  const file = useConfigFile(PIPELINE_CONFIG_PATH)
-  return <PipelineConfigEditor file={file} />
+  return seedConfigBuffer(PIPELINE_CONFIG_PATH, content)
 }
 
 export async function renderPipelineEditor(): Promise<void> {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  // The form's SchemaKindProvider calls useQuery(['schema','pipeline_config']);
-  // seed it so no real GET /api/schemas fires (staleTime: Infinity → fresh).
-  queryClient.setQueryData(['schema', 'pipeline_config'], {})
-  const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider delayDuration={0}>{children}</TooltipProvider>
-    </QueryClientProvider>
-  )
-  render(<Harness />, { wrapper })
-  // The rail renders once the file is loaded and parsed (every fixture in
-  // these suites parses cleanly).
+  mountConfigFormView(PIPELINE_CONFIG_PATH, 'pipeline')
+  // The rail renders once the buffer is parsed (every fixture in these
+  // suites parses cleanly).
   await waitFor(() =>
     expect(
       screen.getByRole('navigation', { name: 'Configuration documents' }),

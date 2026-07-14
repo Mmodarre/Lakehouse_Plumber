@@ -44,22 +44,60 @@ self.MonacoEnvironment = {
 // Use locally-bundled Monaco instead of CDN
 loader.config({ monaco })
 
-// ── Shell-matching editor themes ────────────────────────
+// ── Shell-matching editor themes (Lakehouse palette — TOKEN MAP) ───────────
 //
 // `editor.background` is the exact hex of the app's `--card` token
-// (light `#FFFFFF` / dark `#1F272D`), so the editor surface sits
-// seamlessly inside a `bg-card` panel in both themes. Selection tints
-// derive from `--primary` (light `#2272B4` / dark `#4299E0`).
+// (light `#FFFFFF` / dark `#22262E`), so the editor surface sits
+// seamlessly inside a `bg-card` panel in both themes. The accent (= `--primary`,
+// light `#E8552F` / dark `#FF6F4E`) drives the cursor and selection tints.
+// Token colors mirror the `--syntax-*` rows (YAML keys/strings/nums/comments and
+// SQL keywords), so highlighting reads as one system with the shell.
 
-const LIGHT_PRIMARY = '#2272B4'
-const DARK_PRIMARY = '#4299E0'
+const LIGHT_PRIMARY = '#E8552F'
+const DARK_PRIMARY = '#FF6F4E'
+
+const LIGHT_TOKEN_RULES = [
+  { token: 'comment', foreground: '8A857C', fontStyle: 'italic' },
+  { token: 'type', foreground: '1F5FA8' }, // YAML keys
+  { token: 'tag', foreground: '1F5FA8' },
+  { token: 'string', foreground: '2E7D46' },
+  { token: 'number', foreground: 'B4630F' },
+  { token: 'keyword', foreground: 'B4630F' }, // YAML true/false/null
+  { token: 'delimiter', foreground: '6B675F' },
+  { token: 'operators', foreground: '6B675F' },
+  { token: 'keyword.sql', foreground: '6D28D9' },
+  { token: 'operator.sql', foreground: '6B675F' },
+  { token: 'string.sql', foreground: '2E7D46' },
+  { token: 'number.sql', foreground: 'B4630F' },
+  { token: 'comment.sql', foreground: '8A857C', fontStyle: 'italic' },
+]
+
+const DARK_TOKEN_RULES = [
+  { token: 'comment', foreground: '6E7681', fontStyle: 'italic' },
+  { token: 'type', foreground: '8AB4F8' }, // YAML keys
+  { token: 'tag', foreground: '8AB4F8' },
+  { token: 'string', foreground: '9ECE8A' },
+  { token: 'number', foreground: 'E0A66B' },
+  { token: 'keyword', foreground: 'E0A66B' }, // YAML true/false/null
+  { token: 'delimiter', foreground: '9A968E' },
+  { token: 'operators', foreground: '9A968E' },
+  { token: 'keyword.sql', foreground: 'B99BF0' },
+  { token: 'operator.sql', foreground: '9A968E' },
+  { token: 'string.sql', foreground: '9ECE8A' },
+  { token: 'number.sql', foreground: 'E0A66B' },
+  { token: 'comment.sql', foreground: '6E7681', fontStyle: 'italic' },
+]
 
 monaco.editor.defineTheme('lhp-light', {
   base: 'vs',
   inherit: true,
-  rules: [],
+  rules: LIGHT_TOKEN_RULES,
   colors: {
-    'editor.background': '#ffffff',
+    'editor.background': '#FFFFFF',
+    'editor.foreground': '#1A1B1E',
+    'editorLineNumber.foreground': '#94908A',
+    'editorLineNumber.activeForeground': '#6B675F',
+    'editorCursor.foreground': LIGHT_PRIMARY,
     'editor.selectionBackground': `${LIGHT_PRIMARY}2e`,
     'editor.inactiveSelectionBackground': `${LIGHT_PRIMARY}14`,
     'editor.selectionHighlightBackground': `${LIGHT_PRIMARY}1f`,
@@ -69,9 +107,13 @@ monaco.editor.defineTheme('lhp-light', {
 monaco.editor.defineTheme('lhp-dark', {
   base: 'vs-dark',
   inherit: true,
-  rules: [],
+  rules: DARK_TOKEN_RULES,
   colors: {
-    'editor.background': '#1F272D',
+    'editor.background': '#22262E',
+    'editor.foreground': '#ECEAE6',
+    'editorLineNumber.foreground': '#7C786F',
+    'editorLineNumber.activeForeground': '#9A968E',
+    'editorCursor.foreground': DARK_PRIMARY,
     'editor.selectionBackground': `${DARK_PRIMARY}40`,
     'editor.inactiveSelectionBackground': `${DARK_PRIMARY}1f`,
     'editor.selectionHighlightBackground': `${DARK_PRIMARY}2e`,

@@ -922,6 +922,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/lineage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Lineage
+         * @description Return the lineage of the produced dataset ``fqn`` under ``env``.
+         */
+        get: operations["get_lineage_api_lineage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pipelines": {
         parameters: {
             query?: never;
@@ -1516,6 +1536,52 @@ export interface components {
             /** Profiles */
             profiles: string[];
         };
+        /** DatasetConsumer */
+        DatasetConsumer: {
+            /** Action Name */
+            action_name: string;
+            /** Dataset Fqn */
+            dataset_fqn: string;
+            /** Flowgroup */
+            flowgroup: string;
+            /** Pipeline */
+            pipeline: string;
+        };
+        /**
+         * DatasetLineageResponse
+         * @description Lineage of one produced dataset (table or sink) with its consumers.
+         */
+        DatasetLineageResponse: {
+            /** Action Name */
+            action_name: string;
+            /** Consumers */
+            consumers: components["schemas"]["DatasetConsumer"][];
+            /** Edges */
+            edges: components["schemas"]["LineageEdge"][];
+            /** Flowgroup */
+            flowgroup: string;
+            /** Fqn */
+            fqn: string;
+            /** Kind */
+            kind: string;
+            /** Nodes */
+            nodes: components["schemas"]["LineageNode"][];
+            /** Pipeline */
+            pipeline: string;
+            /** Scd Type */
+            scd_type?: number | null;
+            /** Source File */
+            source_file: string;
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
+            /** Warnings */
+            warnings?: string[];
+            /** Write Mode */
+            write_mode: string;
+        };
         /**
          * DependencyResponse
          * @description Full dependency analysis result.
@@ -1904,6 +1970,37 @@ export interface components {
         InterruptRequest: {
             /** Session Id */
             session_id?: string | null;
+        };
+        /** LineageEdge */
+        LineageEdge: {
+            /** Source */
+            source: string;
+            /** Target */
+            target: string;
+        };
+        /** LineageNode */
+        LineageNode: {
+            /**
+             * Dataset Fqn
+             * @default
+             */
+            dataset_fqn: string;
+            /**
+             * Flowgroup
+             * @default
+             */
+            flowgroup: string;
+            /** Id */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string;
+            /**
+             * Pipeline
+             * @default
+             */
+            pipeline: string;
         };
         /**
          * ModelPricing
@@ -3742,6 +3839,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    get_lineage_api_lineage_get: {
+        parameters: {
+            query: {
+                /** @description Environment for substitution resolution (required) */
+                env: string;
+                /** @description Fully-qualified dataset name or sink id (required) */
+                fqn: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetLineageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

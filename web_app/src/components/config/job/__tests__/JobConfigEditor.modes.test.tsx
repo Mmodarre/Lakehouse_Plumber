@@ -111,8 +111,6 @@ describe('JobConfigEditor — file shapes', () => {
     expect(
       await screen.findByText(/the monitoring loader requires exactly one/),
     ).toBeInTheDocument()
-    expect(screen.getByText('1 error')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   })
 
   it('monitoring file with a trailing --- (null second doc) → blocking error, Save disabled', async () => {
@@ -125,8 +123,6 @@ describe('JobConfigEditor — file shapes', () => {
     expect(
       await screen.findByText(/has 2 YAML documents — the monitoring loader requires exactly one/),
     ).toBeInTheDocument()
-    expect(screen.getByText('1 error')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   })
 
   it("monitoring file: job-loader-only errors don't count against Save", async () => {
@@ -139,7 +135,9 @@ describe('JobConfigEditor — file shapes', () => {
     expect(
       await screen.findByText(/'project_defaults' has no meaning in a monitoring job config/),
     ).toBeInTheDocument()
-    expect(screen.queryByText('1 error')).not.toBeInTheDocument()
+    // The only alert is the misused-key warning; the job-loader shape error
+    // (project_defaults must be a mapping) is filtered out for monitoring files.
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
   })
 
   it('monitoring multi-document file counts exactly the one blocking error', async () => {
@@ -151,18 +149,19 @@ describe('JobConfigEditor — file shapes', () => {
     expect(
       await screen.findByText(/the monitoring loader requires exactly one/),
     ).toBeInTheDocument()
-    expect(screen.getByText('1 error')).toBeInTheDocument()
-    expect(screen.queryByText('2 errors')).not.toBeInTheDocument()
+    // Exactly one blocking alert — VAL_004 (duplicate job_name) is job-loader
+    // semantics and is NOT surfaced for a monitoring file.
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
   })
 
   it('monitoring non-mapping document still counts as a blocking error', async () => {
     // A top-level list raises CFG_008 in monitoring_service.py — this one
-    // IS applicable, so the count must keep it.
+    // IS applicable, so it surfaces as a blocking error alert.
     serveJob('- not\n- a-mapping\n', { path: MONITORING_JOB_CONFIG_PATH })
     renderJobEditor(MONITORING_JOB_CONFIG_PATH)
 
     expect(await screen.findByText(/Flat single-document format/)).toBeInTheDocument()
-    expect(screen.getByText('1 error')).toBeInTheDocument()
+    expect(screen.getByText(/Document 1 must be a mapping/)).toBeInTheDocument()
   })
 
   it("monitoring file misusing 'project_defaults' → rendered-verbatim warning", async () => {
@@ -179,7 +178,7 @@ describe('JobConfigEditor — file shapes', () => {
   })
 
   it('duplicate job_name across documents → badges on BOTH rows, Save blocked, fixable', async () => {
-    const { putBodies } = serveJob(
+    const { bufferContent } = serveJob(
       'job_name: alpha\n---\njob_name:\n  - beta\n  - alpha\n',
     )
     renderJobEditor()
@@ -187,8 +186,7 @@ describe('JobConfigEditor — file shapes', () => {
     const user = userEvent.setup()
 
     // Loader-faithful error list (VAL_004 on the later occurrence only)…
-    expect(screen.getByText('1 error')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    expect(within(nav).getByLabelText('1 error')).toBeInTheDocument()
     // …but the rail badges EVERY involved document.
     expect(within(nav).getAllByText('duplicate')).toHaveLength(2)
 
@@ -200,31 +198,26 @@ describe('JobConfigEditor — file shapes', () => {
     await user.tab()
 
     await waitFor(() => expect(within(nav).queryByText('duplicate')).not.toBeInTheDocument())
-    const saveButton = screen.getByRole('button', { name: 'Save' })
-    await waitFor(() => expect(saveButton).toBeEnabled())
-    await user.click(saveButton)
-    await waitFor(() => expect(putBodies()).toHaveLength(1))
-    expect(putBodies()[0]).toBe('job_name: alpha\n---\njob_name:\n  - beta\n  - gamma\n')
+    await waitFor(() =>
+      expect(bufferContent()).toBe('job_name: alpha\n---\njob_name:\n  - beta\n  - gamma\n'),
+    )
   })
 
   it('empty job-group document blocks Save until a member exists (VAL_003)', async () => {
-    const { putBodies } = serveJob('project_defaults:\n  max_concurrent_runs: 1\n')
+    const { bufferContent } = serveJob('project_defaults:\n  max_concurrent_runs: 1\n')
     renderJobEditor()
     const nav = await screen.findByRole('navigation', { name: 'Configuration documents' })
     const user = userEvent.setup()
 
     await user.click(within(nav).getByRole('button', { name: 'Add job group' }))
     expect(await screen.findByText(/empty job_name list/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
 
     // The add-row input is labelled by the list's Label ("Job names").
     await user.type(screen.getByLabelText('Job names'), 'delta{Enter}')
-    const saveButton = screen.getByRole('button', { name: 'Save' })
-    await waitFor(() => expect(saveButton).toBeEnabled())
-    await user.click(saveButton)
-    await waitFor(() => expect(putBodies()).toHaveLength(1))
-    expect(putBodies()[0]).toBe(
-      'project_defaults:\n  max_concurrent_runs: 1\n---\njob_name:\n  - delta\n',
+    await waitFor(() =>
+      expect(bufferContent()).toBe(
+        'project_defaults:\n  max_concurrent_runs: 1\n---\njob_name:\n  - delta\n',
+      ),
     )
   })
 })
