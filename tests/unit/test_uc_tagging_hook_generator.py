@@ -324,6 +324,15 @@ class TestUCTaggingTagValidation:
             _build([action], root=tmp_path)
         assert exc_info.value.code == "LHP-CFG-066"
 
+    @pytest.mark.parametrize("key", ["class.name", "Domain/Subdomain"])
+    def test_key_with_dot_or_slash_is_allowed(self, tmp_path, key):
+        # UC tag keys legitimately contain '.' (system-governed tags) and '/'
+        # (subdomain tags); generation must accept them, not raise LHP-CFG-066.
+        action = _write_action(write_target=_st_target(tags={key: "x"}))
+        content = _build([action], root=tmp_path)[HOOK_FILENAME]
+        # The tag survived normalization into the emitted _TABLE_TAGS map.
+        assert f"{key!r}: 'x'" in content
+
 
 @contextmanager
 def _fake_pyspark_and_sdk(collect_result=None, collect_error=None, do_handler=None):
