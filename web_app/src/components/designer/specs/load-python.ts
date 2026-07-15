@@ -25,6 +25,7 @@ export const loadPythonSpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'loaders/external.py',
+          fileRef: { accept: ['.py'] },
         },
         {
           path: ['source', 'function_name'],

@@ -1,16 +1,26 @@
 // ── write / materialized_view — @dp.materialized_view ────────
 //
 // Discriminator: `write_target.type` = 'materialized_view' (the sub-type this
-// spec is keyed on). A materialized view needs a target table plus EXACTLY ONE
-// query source — action-level `source`, `write_target.sql`, or
-// `write_target.sql_path`. Table options mirror streaming_table (via the shared
-// DltTableOptionsValidator), minus mode/cdc/create_table; MV adds refresh_*.
+// spec is keyed on). A materialized view needs a target table plus a query
+// source — action-level `source`, `write_target.sql`, or `write_target.sql_path`
+// — collapsed into a single 3-way `oneOfToggle`. Switching branches PRUNES the
+// other two keys (OneOfToggle → applyDiscriminatorChange), so the file only ever
+// holds one query source; the requiredOneOf/mutuallyExclusive rules re-surface on
+// the toggle (computeIssues toggle-ownership, Task 4.2b).
+//
+// The validator only enforces requiredOneOf (at least one) — supplying more than
+// one is accepted with generator precedence sql > sql_path > source
+// (generators/write/materialized_view.py:89-96,110-112). The toggle keeps the
+// file to exactly one; the mutuallyExclusive rule is a soft guard for a legacy
+// file that already holds several. `create_table` is intentionally OMITTED —
+// the MV generator never reads it (accepted-but-ignored no-op). Table options
+// mirror streaming_table (via the shared DltTableOptionsValidator), plus refresh_*.
 //
 // Field provenance:
 //   write_target.catalog      required   validators/action/write.py:118-119
 //   write_target.schema       required   validators/action/write.py:120-121
 //   write_target.table        required   validators/action/write.py:122-123
-//   source ⊕ sql ⊕ sql_path   requiredOneOf  validators/action/write.py:157-164
+//   source ⊕ sql ⊕ sql_path   requiredOneOf  validators/action/write.py:157-164 (source is action-level)
 //   source (string|list)                 validators/action/write.py:165-168
 //   write_target.sql                     generators/write/materialized_view.py:90-91
 //   write_target.sql_path                generators/write/materialized_view.py:92-96
@@ -19,7 +29,7 @@
 //   write_target.row_filter              generators/write/materialized_view.py:81; dlt_table_options.py:101
 //   write_target.temporary               generators/write/materialized_view.py:82; dlt_table_options.py:106
 //   write_target.refresh_schedule        generators/write/materialized_view.py:83,135
-//   write_target.refresh_policy          generators/write/materialized_view.py:136; dlt_table_options.py:153-158 (auto|incremental|incremental_strict|full)
+//   write_target.refresh_policy          generators/write/materialized_view.py:136; dlt_table_options.py:153-158 (auto|incremental|incremental_strict|full; no default)
 //   write_target.partition_columns       generators/write/materialized_view.py:130; dlt_table_options.py:116
 //   write_target.cluster_columns         generators/write/materialized_view.py:131; dlt_table_options.py:127 (XOR cluster_by_auto)
 //   write_target.cluster_by_auto         generators/write/materialized_view.py:132; dlt_table_options.py:138,143-145
@@ -72,30 +82,46 @@ export const writeMaterializedViewSpec: ActionSubTypeSpec = {
       description: 'Set exactly one of source view / inline SQL / SQL file.',
       fields: [
         {
-          path: ['source'],
-          label: 'Source view(s)',
-          widget: 'stringOrList',
-          monospace: true,
-          placeholder: 'v_customer_orders',
-        },
-        {
-          path: [...WT, 'sql'],
-          label: 'Inline SQL',
-          widget: 'textarea',
-          monospace: true,
-          placeholder: 'SELECT customer_id, COUNT(*) AS orders FROM v_orders GROUP BY customer_id',
-        },
-        {
-          path: [...WT, 'sql_path'],
-          label: 'SQL file',
-          widget: 'text',
-          monospace: true,
-          placeholder: 'sql/customer_summary.sql',
+          // Synthetic path — the branches own the real source / sql / sql_path
+          // keys (source is action-level; sql/sql_path live under write_target).
+          // Switching prunes the other two; the field's own path is unused.
+          path: ['__query_source'],
+          label: 'Query source',
+          widget: 'oneOfToggle',
+          oneOf: {
+            options: [
+              {
+                value: 'source',
+                label: 'Source view(s)',
+                path: ['source'],
+                backing: 'text',
+                placeholder: 'v_customer_orders',
+              },
+              {
+                value: 'sql',
+                label: 'Inline SQL',
+                path: [...WT, 'sql'],
+                backing: 'inline',
+                language: 'sql',
+                placeholder:
+                  'SELECT customer_id, COUNT(*) AS orders FROM v_orders GROUP BY customer_id',
+              },
+              {
+                value: 'sql_path',
+                label: 'SQL file',
+                path: [...WT, 'sql_path'],
+                backing: 'file',
+                accept: ['.sql'],
+                placeholder: 'sql/customer_summary.sql',
+              },
+            ],
+          },
         },
       ],
     },
     {
       title: 'Table options',
+      advanced: true,
       fields: [
         { path: [...WT, 'comment'], label: 'Comment', widget: 'text' },
         {
@@ -122,7 +148,7 @@ export const writeMaterializedViewSpec: ActionSubTypeSpec = {
           label: 'Refresh policy',
           widget: 'enum',
           options: ['auto', 'incremental', 'incremental_strict', 'full'],
-          unsetLabel: 'Not set',
+          unsetLabel: 'Not set (default)',
         },
         {
           path: [...WT, 'partition_columns'],

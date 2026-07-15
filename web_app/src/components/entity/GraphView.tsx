@@ -19,12 +19,12 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { EmptyState, type EmptyStateAction } from '@/components/common/EmptyState'
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
-import { ActionEditor } from '@/components/shell/inspector/ActionEditor'
 import { useWorkspaceStore, type DocKind } from '@/store/workspaceStore'
 import { useSelectionStore } from '@/store/selectionStore'
 import { ExternalNode } from '@/components/graph/nodes/ExternalNode'
 import { EdgeMarkerDefs } from '@/components/graph/edges/DependencyEdge'
 import { useElkLayout } from '@/components/graph/useElkLayout'
+import { ActionModalEditor } from '@/components/designer/ActionModalEditor'
 import { ActionPalette } from '@/components/designer/ActionPalette'
 import { DesignerActionNode } from '@/components/designer/DesignerActionNode'
 import { DesignerEdge } from '@/components/designer/DesignerEdge'
@@ -53,10 +53,11 @@ import { useFlowgroupDoc } from './useFlowgroupDoc'
 // comment-preserving). The old per-edit re-parse+PUT write path is gone.
 //
 // Per D2 the graph edits STRUCTURE (add/remove/wire actions); FIELD edits are
-// delegated to the right-dock Inspector's Action tab: a node click publishes
-// the resolved selection to selectionStore (keyed by this tab's id), and the
-// Inspector renders an ActionEditor for it. The old slide-in DesignerInspector
-// and the retired Form view are NOT rendered.
+// delegated elsewhere: a node click publishes the resolved selection to
+// selectionStore (keyed by this tab's id) for the right-dock Inspector's Action
+// tab, and a double-click (or the node pencil) opens the staged-save
+// ActionModalEditor in a Dialog. The old slide-in DesignerInspector and the
+// retired Form view are NOT rendered.
 //
 // readOnly is useFlowgroupDoc.readOnly only (degraded ∨ viewer ∨ loading): the
 // old bufferDirty hard-block (the retired designer canvas's dirty guard) DIES —
@@ -417,23 +418,28 @@ function GraphViewInner({ tabId, filePath, docKind }: GraphViewProps) {
           if (!open) setModalNodeId(null)
         }}
       >
-        <DialogContent className="max-h-[85vh] gap-0 overflow-y-auto p-0 sm:max-w-2xl">
+        <DialogContent className="max-h-[85vh] gap-0 overflow-y-auto p-0 sm:max-w-3xl">
           <DialogHeader className="border-b border-border px-4 py-3">
             <DialogTitle className="text-sm">Edit action</DialogTitle>
           </DialogHeader>
           {modalAction !== null && modalNodeId !== null && (
-            <ActionEditor
-              // Fresh draft per opened node; ActionEditor persists to disk on
-              // Save (Fix #9) and calls onSaved on success → close the modal.
+            <ActionModalEditor
+              // Fresh working handle per opened node. The staged-save modal
+              // holds edits on a detached handle and only replays them into the
+              // shared buffer + persists to disk on Save; onSaved fires on a
+              // clean persist → close the modal.
               key={`${filePath}:${modalNodeId}`}
               action={modalAction}
               actionId={modalNodeId}
               filePath={filePath}
               docKind={docKind}
               onSaved={() => setModalNodeId(null)}
+              // Cancel discards the staged edits and closes — the same close as
+              // the Dialog's X / Escape (both null out modalNodeId).
+              onCancel={() => setModalNodeId(null)}
               // Failed persist (412 / yaml_error): close the modal and jump to
               // the Code view where the ConflictDialog / syntax fix lives (Fix
-              // #2) — otherwise the committed-but-unsaved buffer locks Save.
+              // #2) — the staged edits are dropped with the modal.
               onOpenCodeView={() => {
                 setModalNodeId(null)
                 jumpToCode()

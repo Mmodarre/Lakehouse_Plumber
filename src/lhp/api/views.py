@@ -192,6 +192,62 @@ class ProjectConfigView:
 
 
 @dataclass(frozen=True)
+class OperationalMetadataColumnView:
+    """A single operational-metadata column available to the project.
+
+    Frozen projection of one ``MetadataColumnConfig`` entry resolved with
+    the generator's ``_get_available_columns`` REPLACE semantics: when the
+    project declares ``operational_metadata.columns`` those columns replace
+    the five built-ins wholesale (``source == "project"``); otherwise the
+    built-ins are exposed (``source == "builtin"``). ``expression`` is the
+    raw PySpark expression as declared — substitution tokens (e.g.
+    ``${pipeline_name}``) are passed through verbatim, never resolved.
+
+    :stability: provisional
+    """
+
+    name: str
+    expression: str
+    description: Optional[str]
+    applies_to: Tuple[str, ...]
+    source: Literal["builtin", "project"]
+
+
+@dataclass(frozen=True)
+class OperationalMetadataPresetView:
+    """A named operational-metadata column preset declared in ``lhp.yaml``.
+
+    Frozen projection of one ``MetadataPresetConfig`` entry under
+    ``operational_metadata.presets``. ``columns`` lists the column names the
+    preset selects, in declaration order.
+
+    :stability: provisional
+    """
+
+    name: str
+    columns: Tuple[str, ...]
+    description: Optional[str]
+
+
+@dataclass(frozen=True)
+class OperationalMetadataView:
+    """The operational-metadata columns and presets available to a project.
+
+    Frozen projection returned by
+    :meth:`InspectionFacade.get_operational_metadata`. ``columns`` are
+    resolved with the generator's REPLACE semantics (see
+    :class:`OperationalMetadataColumnView`), so the web IDE offers exactly
+    the columns generation would apply. ``presets`` is empty unless the
+    project declares ``operational_metadata.presets``.
+
+    :stability: provisional
+    """
+
+    columns: Tuple[OperationalMetadataColumnView, ...]
+    presets: Tuple[OperationalMetadataPresetView, ...]
+
+
+@dataclass(frozen=True)
 class BlueprintInstanceView:
     """A single blueprint instance and the flowgroups it would produce.
 

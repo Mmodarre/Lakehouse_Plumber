@@ -332,22 +332,26 @@ describe('test specs — read present fields', () => {
 
 describe('batch B specs — cross-field rules', () => {
   it('mv: requiredOneOf(source, sql, sql_path) + mutuallyExclusive when 2+', () => {
+    // Query source is now a oneOfToggle owning source/sql/sql_path, so the
+    // requiredOneOf + mutuallyExclusive hints re-surface on the toggle's
+    // synthetic path (computeIssues toggle-ownership, Task 4.2b).
+    const QS = ['__query_source']
     const none = computeIssues(writeMaterializedViewSpec, {
       write_target: { catalog: 'c', schema: 's', table: 't' },
     })
-    expect(none.get(pathKey(['source']))).toMatch(/source view.*inline SQL.*SQL file/i)
+    expect(none.get(pathKey(QS))).toMatch(/source view.*inline SQL.*SQL file/i)
 
     const one = computeIssues(writeMaterializedViewSpec, {
       source: 'v',
       write_target: { catalog: 'c', schema: 's', table: 't' },
     })
-    expect(one.has(pathKey(['source']))).toBe(false)
+    expect(one.has(pathKey(QS))).toBe(false)
 
     const two = computeIssues(writeMaterializedViewSpec, {
       source: 'v',
       write_target: { catalog: 'c', schema: 's', table: 't', sql: 'SELECT 1' },
     })
-    expect(two.get(pathKey(['source']))).toMatch(/only one query source/i)
+    expect(two.get(pathKey(QS))).toMatch(/only one query source/i)
   })
 
   it('mv: cluster_columns XOR cluster_by_auto', () => {
@@ -379,11 +383,13 @@ describe('batch B specs — cross-field rules', () => {
   })
 
   it('sink/foreachbatch: module_path XOR batch_handler + single-string source', () => {
+    // foreachbatch module_path ⊕ batch_handler is now a oneOfToggle, so the XOR
+    // hint re-surfaces on the toggle's synthetic path (Task 4.2b).
     const both = computeIssues(writeSinkSpec, {
       source: 'v',
       write_target: { sink_type: 'foreachbatch', sink_name: 's', module_path: 'm.py', batch_handler: 'df' },
     })
-    expect(both.get(pathKey(['write_target', 'module_path']))).toMatch(/exactly one/i)
+    expect(both.get(pathKey(['write_target', '__handler']))).toMatch(/exactly one/i)
 
     const listSource = computeIssues(writeSinkSpec, {
       source: ['a', 'b'],

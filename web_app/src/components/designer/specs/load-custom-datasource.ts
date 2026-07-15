@@ -28,6 +28,7 @@ export const loadCustomDatasourceSpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'sources/my_source.py',
+          fileRef: { accept: ['.py'] },
         },
         {
           path: ['source', 'custom_datasource_class'],
@@ -36,11 +37,6 @@ export const loadCustomDatasourceSpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'MyDataSource',
-        },
-        {
-          path: ['source', 'options'],
-          label: 'Reader options',
-          widget: 'keyValue',
         },
       ],
     },
@@ -53,6 +49,17 @@ export const loadCustomDatasourceSpec: ActionSubTypeSpec = {
           widget: 'enum',
           options: ['batch', 'stream'],
           enumDefault: 'stream',
+        },
+      ],
+    },
+    {
+      title: 'Advanced',
+      advanced: true,
+      fields: [
+        {
+          path: ['source', 'options'],
+          label: 'Reader options',
+          widget: 'keyValue',
         },
       ],
     },

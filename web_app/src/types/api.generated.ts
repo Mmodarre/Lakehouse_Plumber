@@ -942,6 +942,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/operational-metadata": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Operational Metadata
+         * @description Operational-metadata columns/presets available for the current project.
+         */
+        get: operations["get_operational_metadata_api_operational_metadata_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pipelines": {
         parameters: {
             query?: never;
@@ -2018,6 +2038,52 @@ export interface components {
             input_per_mtok: number;
             /** Output Per Mtok */
             output_per_mtok: number;
+        };
+        /**
+         * OperationalMetadataColumnSummary
+         * @description One operational-metadata column available to the project.
+         *
+         *     ``source`` is ``"builtin"`` (one of the five default columns) or
+         *     ``"project"`` (declared in ``lhp.yaml``). ``expression`` carries any
+         *     substitution tokens verbatim.
+         */
+        OperationalMetadataColumnSummary: {
+            /** Applies To */
+            applies_to: string[];
+            /** Description */
+            description?: string | null;
+            /** Expression */
+            expression: string;
+            /** Name */
+            name: string;
+            /** Source */
+            source: string;
+        };
+        /**
+         * OperationalMetadataPresetSummary
+         * @description One named operational-metadata preset declared in ``lhp.yaml``.
+         */
+        OperationalMetadataPresetSummary: {
+            /** Columns */
+            columns: string[];
+            /** Description */
+            description?: string | null;
+            /** Name */
+            name: string;
+        };
+        /**
+         * OperationalMetadataResponse
+         * @description Operational-metadata columns and presets available for the project.
+         *
+         *     ``columns`` follows the generator's REPLACE semantics: project-declared
+         *     columns suppress the five built-ins wholesale, otherwise the built-ins
+         *     are returned. ``presets`` is empty when the project declares none.
+         */
+        OperationalMetadataResponse: {
+            /** Columns */
+            columns: components["schemas"]["OperationalMetadataColumnSummary"][];
+            /** Presets */
+            presets?: components["schemas"]["OperationalMetadataPresetSummary"][];
         };
         /**
          * PermissionRule
@@ -3873,6 +3939,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_operational_metadata_api_operational_metadata_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationalMetadataResponse"];
                 };
             };
         };

@@ -33,6 +33,7 @@ export const loadSqlSpec: ActionSubTypeSpec = {
           widget: 'text',
           monospace: true,
           placeholder: 'queries/load_orders.sql',
+          fileRef: { accept: ['.sql'] },
         },
       ],
     },

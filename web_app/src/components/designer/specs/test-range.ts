@@ -10,7 +10,11 @@
 //   min_value ⊕ max_value  requiredOneOf  validators/action/_test_requirements.py:89-92
 //   min_value               generators/test/range.py:30; models/_action.py:119 (Any)
 //   max_value               generators/test/range.py:32; models/_action.py:120 (Any)
-//   on_violation            validators/action/test.py:32-36 (fail|warn|drop); generators/test/_base.py:42
+//   on_violation            validators/action/test.py:32-36 (fail|warn|drop); generators/test/_base.py:40-45 (default fail).
+//                           models/_enums.py:28-32 `ViolationAction` is STALE (no `drop`) + unused.
+//   test_id                 models/_action.py:125; validators/field/_field_catalog.py:159. NOT in flowgroup.schema.json
+//                           → help-schema-parity deferred to Task 5.1.
+//   target                  models/_action.py:68; default tmp_test_<name> via _action.py:127-130; flowgroup.schema.json:354-357.
 
 import type { ActionSubTypeSpec } from './types'
 
@@ -21,7 +25,7 @@ export const testRangeSpec: ActionSubTypeSpec = {
   summary: "A column's values must fall within a minimum and/or maximum bound.",
   groups: [
     {
-      title: 'Test',
+      title: 'Target under test',
       fields: [
         {
           path: ['source'],
@@ -31,6 +35,13 @@ export const testRangeSpec: ActionSubTypeSpec = {
           required: true,
           placeholder: '${catalog}.${silver_schema}.fact_orders',
         },
+      ],
+    },
+    {
+      title: 'Test parameters',
+      description:
+        'Minimum / maximum are free values — a number, a date, or a substitution token all round-trip (they are SQL-quoted at generate time).',
+      fields: [
         {
           path: ['column'],
           label: 'Column',
@@ -53,12 +64,31 @@ export const testRangeSpec: ActionSubTypeSpec = {
           monospace: true,
           placeholder: '1000000',
         },
+      ],
+    },
+    {
+      title: 'Violation handling',
+      fields: [
         {
           path: ['on_violation'],
           label: 'On violation',
           widget: 'enum',
           options: ['fail', 'warn', 'drop'],
           enumDefault: 'fail',
+        },
+      ],
+    },
+    {
+      title: 'Advanced',
+      advanced: true,
+      fields: [
+        { path: ['test_id'], label: 'Test ID', widget: 'text', monospace: true },
+        {
+          path: ['target'],
+          label: 'Target',
+          widget: 'text',
+          monospace: true,
+          placeholder: 'tmp_test_<name>',
         },
       ],
     },

@@ -32,6 +32,8 @@ export interface OptionalTextFieldProps {
   monospace?: boolean
   /** Textarea instead of a single-line input (e.g. SQL bodies). */
   multiline?: boolean
+  /** Opt in to `${env}`-token autocomplete on this field (default off). */
+  tokenComplete?: boolean
   /** Validation message shown under the field. */
   issue?: string
   issueSeverity?: 'error' | 'warning'
@@ -50,6 +52,7 @@ export function OptionalTextField({
   placeholder,
   monospace = false,
   multiline = false,
+  tokenComplete = false,
   issue,
   issueSeverity,
   disabled,
@@ -72,6 +75,7 @@ export function OptionalTextField({
         placeholder={placeholder}
         monospace={monospace}
         multiline={multiline}
+        tokenComplete={tokenComplete}
         disabled={disabled}
         aria-invalid={issue !== undefined && issueSeverity !== 'warning' ? true : undefined}
         aria-describedby={issueId(id)}

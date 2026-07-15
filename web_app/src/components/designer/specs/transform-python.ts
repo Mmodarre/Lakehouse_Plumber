@@ -34,6 +34,7 @@ export const transformPythonSpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'transforms/enrich.py',
+          fileRef: { accept: ['.py'] },
         },
         {
           path: ['function_name'],
@@ -48,13 +49,6 @@ export const transformPythonSpec: ActionSubTypeSpec = {
           label: 'Parameters',
           widget: 'keyValue',
         },
-        {
-          path: ['readMode'],
-          label: 'Read mode',
-          widget: 'enum',
-          options: ['batch', 'stream'],
-          enumDefault: 'batch',
-        },
       ],
     },
     {
@@ -67,6 +61,19 @@ export const transformPythonSpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'v_orders_enriched',
+        },
+      ],
+    },
+    {
+      title: 'Advanced',
+      advanced: true,
+      fields: [
+        {
+          path: ['readMode'],
+          label: 'Read mode',
+          widget: 'enum',
+          options: ['batch', 'stream'],
+          enumDefault: 'batch',
         },
       ],
     },

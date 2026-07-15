@@ -14,11 +14,32 @@
 //   quarantine.dlq_table    req-when-quarantine  _dq_transform.py:41-44; models/_quarantine.py:9
 //   quarantine.source_table req-when-quarantine  _dq_transform.py:41-44; models/_quarantine.py:10
 //   target            required  validators/action/transform.py:25-26
+//
+// `mode` is a `display: 'segmented'` discriminator carrying `branchPaths`
+// (Task 0.5): switching OFF quarantine PRUNES the whole `quarantine` subtree —
+// the headline bug fix (_dq_transform.py:65-71 rejects a stale quarantine block
+// under mode=dqe). `readMode` is NOT an editable field: it must be stream and
+// defaults to stream at generate time, so the form leaves it unset and surfaces
+// the constraint as an informational group description instead of a pointless
+// one-option select (see report — a field-less "Advanced" group cannot render,
+// so the note lives on the always-visible "Expectation rules" group). The
+// readMode-must-be-stream cross-field RULE is KEPT (Phase-4 preamble: keep every
+// existing cross-field rule) — it reads raw `['readMode']` and soft-flags a
+// hand-edited `readMode: batch`, independent of there being no editable field.
 
 import type { ActionSubTypeSpec } from './types'
-import { effectiveValue, readPath } from './helpers'
+import { effectiveValue, isSubstitutionToken, readPath } from './helpers'
 
 const mode = (raw: Record<string, unknown>): string => effectiveValue(raw, ['mode'], 'dqe')
+
+// A soft, non-blocking mirror of _name_checks.require_three_part_name
+// (catalog.schema.table → exactly two dots). Skips substitution tokens: a
+// `${catalog}.${schema}.t` resolves at generate time, so it is never flagged.
+const notThreePartName = (value: unknown): boolean =>
+  typeof value === 'string' &&
+  value !== '' &&
+  !isSubstitutionToken(value) &&
+  value.split('.').length !== 3
 
 export const transformDataQualitySpec: ActionSubTypeSpec = {
   kind: 'transform',
@@ -27,7 +48,7 @@ export const transformDataQualitySpec: ActionSubTypeSpec = {
   summary: 'Apply expectation rules from an external file (DQE inline, or quarantine to a DLQ).',
   groups: [
     {
-      title: 'Expectations',
+      title: 'Source',
       fields: [
         {
           path: ['source'],
@@ -37,6 +58,13 @@ export const transformDataQualitySpec: ActionSubTypeSpec = {
           required: true,
           placeholder: 'v_orders',
         },
+      ],
+    },
+    {
+      title: 'Expectation rules',
+      description:
+        'Read mode is stream (required) — data quality runs in streaming mode only; batch is rejected. The form leaves readMode unset; it defaults to stream at generate time.',
+      fields: [
         {
           path: ['expectations_file'],
           label: 'Expectations file',
@@ -44,26 +72,23 @@ export const transformDataQualitySpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'expectations/orders.yaml',
+          fileRef: { accept: ['.yaml', '.yml'] },
         },
         {
           path: ['mode'],
           label: 'Mode',
           widget: 'enum',
+          display: 'segmented',
           options: ['dqe', 'quarantine'],
           enumDefault: 'dqe',
-        },
-        {
-          path: ['readMode'],
-          label: 'Read mode',
-          widget: 'enum',
-          options: ['stream'],
-          enumDefault: 'stream',
+          branchPaths: { dqe: [], quarantine: [['quarantine']] },
         },
       ],
     },
     {
       title: 'Quarantine',
-      description: 'Required when mode is quarantine.',
+      description:
+        'Required when mode is quarantine. Quarantine coerces every expectation to drop — any fail/warn action in the expectations file is ignored.',
       visibleWhen: (raw) => mode(raw) === 'quarantine',
       fields: [
         {
@@ -108,6 +133,22 @@ export const transformDataQualitySpec: ActionSubTypeSpec = {
           ? 'Data quality requires readMode: stream (batch is rejected).'
           : null
       },
+    },
+    {
+      kind: 'custom',
+      paths: [['quarantine', 'dlq_table']],
+      check: (raw) =>
+        notThreePartName(readPath(raw, ['quarantine', 'dlq_table']))
+          ? 'DLQ table should be a 3-part name (catalog.schema.table).'
+          : null,
+    },
+    {
+      kind: 'custom',
+      paths: [['quarantine', 'source_table']],
+      check: (raw) =>
+        notThreePartName(readPath(raw, ['quarantine', 'source_table']))
+          ? 'Source table should be a 3-part name (catalog.schema.table).'
+          : null,
     },
   ],
 }

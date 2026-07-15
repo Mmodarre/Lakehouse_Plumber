@@ -8,6 +8,15 @@
 //   readMode                generators/transform/schema.py:127 (default stream)
 //   target        required  validators/action/transform.py:25-26
 // Rule: exactly one of schema_inline / schema_file (_schema_transform.py:113-122).
+//
+// `schema_inline` ⊕ `schema_file` render as a single `oneOfToggle` (Task 4.2a):
+// the Inline schema ⊕ From file segments each own one key, and switching PRUNES
+// the inactive branch's key (applyDiscriminatorChange, no discriminator write),
+// maintaining the exactly-one rule structurally. The `xor` soft rule is KEPT as
+// a raw-YAML backstop (Phase-4 preamble: keep every existing cross-field rule) —
+// it reads `['schema_inline']`/`['schema_file']` directly. `source` is
+// string-only: the validator rejects a dict/non-string source
+// (_schema_transform.py:96-106).
 
 import type { ActionSubTypeSpec } from './types'
 
@@ -19,7 +28,7 @@ export const transformSchemaSpec: ActionSubTypeSpec = {
   groups: [
     {
       title: 'Schema',
-      description: 'Provide exactly one of inline schema / schema file.',
+      description: 'Provide inline schema or reference a schema file (.yaml/.yml).',
       fields: [
         {
           path: ['source'],
@@ -30,18 +39,30 @@ export const transformSchemaSpec: ActionSubTypeSpec = {
           placeholder: 'v_orders',
         },
         {
-          path: ['schema_inline'],
-          label: 'Inline schema',
-          widget: 'textarea',
-          monospace: true,
-          placeholder: 'columns:\n  - "old -> new: BIGINT"',
-        },
-        {
-          path: ['schema_file'],
-          label: 'Schema file',
-          widget: 'text',
-          monospace: true,
-          placeholder: 'schemas/orders.yaml',
+          // Synthetic path — the branches own the real schema_inline / schema_file keys.
+          path: ['__schema_source'],
+          label: 'Schema',
+          widget: 'oneOfToggle',
+          oneOf: {
+            options: [
+              {
+                value: 'inline',
+                label: 'Inline schema',
+                path: ['schema_inline'],
+                backing: 'inline',
+                language: 'yaml',
+                placeholder: 'columns:\n  - "old -> new: BIGINT"',
+              },
+              {
+                value: 'file',
+                label: 'From file',
+                path: ['schema_file'],
+                backing: 'file',
+                accept: ['.yaml', '.yml'],
+                placeholder: 'schemas/orders.yaml',
+              },
+            ],
+          },
         },
         {
           path: ['enforcement'],
@@ -50,13 +71,11 @@ export const transformSchemaSpec: ActionSubTypeSpec = {
           options: ['strict', 'permissive'],
           enumDefault: 'permissive',
         },
-        {
-          path: ['readMode'],
-          label: 'Read mode',
-          widget: 'enum',
-          options: ['batch', 'stream'],
-          enumDefault: 'stream',
-        },
+      ],
+    },
+    {
+      title: 'Target',
+      fields: [
         {
           path: ['target'],
           label: 'Target view',
@@ -64,6 +83,19 @@ export const transformSchemaSpec: ActionSubTypeSpec = {
           monospace: true,
           required: true,
           placeholder: 'v_orders_typed',
+        },
+      ],
+    },
+    {
+      title: 'Advanced',
+      advanced: true,
+      fields: [
+        {
+          path: ['readMode'],
+          label: 'Read mode',
+          widget: 'enum',
+          options: ['batch', 'stream'],
+          enumDefault: 'stream',
         },
       ],
     },

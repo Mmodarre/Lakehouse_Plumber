@@ -20,6 +20,7 @@ export const loadJdbcSpec: ActionSubTypeSpec = {
   groups: [
     {
       title: 'Connection',
+      description: 'Supply user / password as ${secret:scope/key} references — they hold token refs, never plaintext.',
       fields: [
         {
           path: ['source', 'url'],

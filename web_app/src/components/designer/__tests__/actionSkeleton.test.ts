@@ -21,6 +21,10 @@ import {
   sourceFieldShape,
   uniqueActionName,
 } from '../actionSkeleton'
+import { fieldVisible, visibleGroups } from '../formModel'
+import { readPath } from '../specs/helpers'
+import { listActionSpecs } from '../specs/registry'
+import type { ActionKind } from '../specs/types'
 
 describe('uniqueActionName', () => {
   it('increments past taken names', () => {
@@ -34,7 +38,7 @@ describe('buildActionSkeleton', () => {
     const a = buildActionSkeleton('load', 'cloudfiles', [])
     expect(a.name).toBe('cloudfiles_1')
     expect(a.type).toBe('load')
-    expect(a.source).toEqual({ type: 'cloudfiles', path: '', format: '' })
+    expect(a.source).toEqual({ type: 'cloudfiles', path: '', format: 'json' })
     expect(a.target).toBe('v_cloudfiles_1')
   })
 
@@ -89,7 +93,71 @@ describe('prewireSource', () => {
   it('leaves structured-source loads unwired', () => {
     const a = buildActionSkeleton('load', 'cloudfiles', [])
     prewireSource(a, 'load', 'cloudfiles', 'v_up')
-    expect(a.source).toEqual({ type: 'cloudfiles', path: '', format: '' })
+    expect(a.source).toEqual({ type: 'cloudfiles', path: '', format: 'json' })
+  })
+})
+
+// The palette + skeleton engine is shared across every sub-type: a new required
+// field seeded by one spec must not break creation of any other. This sweeps the
+// whole registry so a Phase-4 seeding regression surfaces on the exact sub-type.
+describe('buildActionSkeleton — every registered sub-type creates validly', () => {
+  const specs = listActionSpecs()
+
+  /** The value the CLI dispatches on for `kind` (action_dispatch.py:364-379). */
+  function discriminatorValue(kind: ActionKind, action: Record<string, unknown>): unknown {
+    switch (kind) {
+      case 'load':
+        return (action.source as Record<string, unknown> | undefined)?.type
+      case 'transform':
+        return action.transform_type
+      case 'write':
+        return (action.write_target as Record<string, unknown> | undefined)?.type
+      case 'test':
+        return action.test_type
+    }
+  }
+
+  it('registry exposes all 24 sub-types', () => {
+    expect(specs).toHaveLength(24)
+  })
+
+  it.each(specs.map((spec) => [spec.kind, spec.subType, spec] as const))(
+    '%s/%s: discriminator set + required always-visible fields seeded',
+    (kind, subType, spec) => {
+      let action!: Record<string, unknown>
+      expect(() => {
+        action = buildActionSkeleton(kind, subType, [])
+      }).not.toThrow()
+
+      expect(action.type).toBe(kind)
+      expect(discriminatorValue(kind, action)).toBe(subType)
+
+      for (const group of visibleGroups(spec, action)) {
+        for (const field of group.fields) {
+          if (!field.required || !fieldVisible(field, action)) continue
+          // `number` is deliberately left absent (reads cleaner); a
+          // `oneOfToggle`'s value lives in its branch keys, not its own path.
+          if (field.widget === 'number' || field.widget === 'oneOfToggle') continue
+
+          const seeded = readPath(action, field.path)
+          expect(
+            seeded,
+            `${kind}/${subType} required field ${JSON.stringify(field.path)} must be seeded`,
+          ).not.toBe(undefined)
+
+          // A seeded enum must be a real option — never an out-of-range default
+          // a validator would reject.
+          if (field.widget === 'enum') {
+            expect(field.options ?? []).toContain(seeded)
+          }
+        }
+      }
+    },
+  )
+
+  it('test/custom_expectations seeds one blank expectations row', () => {
+    const action = buildActionSkeleton('test', 'custom_expectations', [])
+    expect(action.expectations).toEqual([{ name: '', expression: '' }])
   })
 })
 

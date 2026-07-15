@@ -38,6 +38,7 @@ from lhp.api._inspection_converters import (
     _template_to_view,
 )
 from lhp.api._listings import _build_blueprint_views
+from lhp.api._operational_metadata_converter import _operational_metadata_to_view
 from lhp.api.responses import (
     StatsResult,
     ValidationResponse,
@@ -46,6 +47,7 @@ from lhp.api.views import (
     BlueprintView,
     FlowgroupView,
     GeneratedCodeView,
+    OperationalMetadataView,
     PresetResolutionResult,
     PresetView,
     ProcessedFlowgroupView,
@@ -64,7 +66,7 @@ if TYPE_CHECKING:
 class InspectionFacade:
     """Inspection / read-only operations on a constructed project.
 
-    Fourteen public methods grouped by responsibility — inspection-style
+    Fifteen public methods grouped by responsibility — inspection-style
     read-only / informational operations:
 
     - ``list_flowgroups``
@@ -73,6 +75,7 @@ class InspectionFacade:
     - ``find_source_yaml_for_flowgroup``
     - ``get_include_patterns``
     - ``get_project_config``
+    - ``get_operational_metadata``
     - ``compute_stats``
     - ``list_blueprints``
     - ``list_presets``
@@ -207,6 +210,22 @@ class InspectionFacade:
             into a frozen DTO.
         """
         return _project_config_to_view(self._orchestrator.project_config)
+
+    def get_operational_metadata(self) -> OperationalMetadataView:
+        """Return the operational-metadata columns and presets for the project.
+
+        Resolves the available columns with the generator's REPLACE
+        semantics (project-declared ``operational_metadata.columns`` suppress
+        the five built-ins wholesale; otherwise the built-ins are returned),
+        so a UI offering these columns matches what generation would apply.
+        ``presets`` is populated from ``operational_metadata.presets`` and is
+        empty when the project declares none. Column ``expression`` values
+        pass substitution tokens through verbatim.
+
+        :stability: provisional
+        :raises: None — projects the already-loaded project configuration.
+        """
+        return _operational_metadata_to_view(self._orchestrator.project_config)
 
     def compute_stats(self) -> StatsResult:
         """Aggregate project statistics over every discovered flowgroup.

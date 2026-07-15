@@ -17,7 +17,8 @@ import {
 // documentStore.mutate / workspaceStore.updateContent only touch the in-memory
 // buffer (they flip `isDirty`). The actual PUT lives in useWorkspaceSave.
 // saveBuffer, which is bound to the live Monaco editor ref. Callers that mutate
-// a buffer WITHOUT a mounted editor (the graph's ActionEditor) need the same
+// a buffer WITHOUT a mounted editor (the graph action modal's ActionModalEditor)
+// need the same
 // persistence without those editor-only side effects, so this reuses the exact
 // on-success marker saveBuffer uses — workspaceStore.setEtagAndBaseline (updates
 // etag + baseline, clears isDirty) — plus documentStore.reparse to re-anchor the
@@ -70,6 +71,13 @@ export async function persistBufferToDisk(
     // (a no-op here since the buffer text already equals the handle projection).
     useDocumentStore.getState().reparse(path, content)
     void queryClient.invalidateQueries({ queryKey: ['files'] })
+    // The operational-metadata columns/presets are declared in the project-root
+    // lhp.yaml, so a write there can change what MetadataMultiSelect offers —
+    // refresh that query. Scoped to the root config EXACTLY (path === 'lhp.yaml')
+    // so ordinary flowgroup saves (any nested *.yaml) don't refetch it.
+    if (path === 'lhp.yaml') {
+      void queryClient.invalidateQueries({ queryKey: ['operational-metadata'] })
+    }
 
     if (res.yaml_error) {
       toast.error(
