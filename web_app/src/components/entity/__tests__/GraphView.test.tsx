@@ -99,6 +99,18 @@ vi.mock('@/api/files', async (importActual) => {
   return { ...actual, writeFile: vi.fn() }
 })
 
+// The staged-save modal (ActionModalEditor) renders spec-driven fields with
+// $-token autocomplete (TokenAutocomplete → useEnvironmentResolved) and a
+// network-bound operational-metadata picker (load/transform). Stub both seams
+// so the modal mounts without the network; the real edit → commit → persist
+// path (documentStore + persistBufferToDisk → writeFile) still runs for real.
+vi.mock('@/hooks/useEnvironments', () => ({
+  useEnvironmentResolved: vi.fn(() => ({ data: { tokens: {} } })),
+}))
+vi.mock('@/hooks/useOperationalMetadata', () => ({
+  useOperationalMetadata: () => ({ data: { columns: [] }, isLoading: false, error: null }),
+}))
+
 const mockWriteFile = vi.mocked(writeFile)
 
 const PATH = 'pipelines/bronze/orders.yaml'
@@ -327,8 +339,9 @@ describe('GraphView — double-click opens the action editor modal (Fix #3)', ()
 
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText('Edit action')).toBeInTheDocument()
-    // The editor is bound to the double-clicked action's fields.
-    expect(within(dialog).getByLabelText('source.path')).toHaveValue('/mnt/raw/orders')
+    // The staged-save editor is bound to the double-clicked action's fields
+    // (spec-labeled: the load/cloudfiles `source.path` renders as "Path").
+    expect(within(dialog).getByLabelText('Path')).toHaveValue('/mnt/raw/orders')
   })
 
   it('the node pencil affordance opens the same modal (discoverability fix)', async () => {
@@ -343,7 +356,7 @@ describe('GraphView — double-click opens the action editor modal (Fix #3)', ()
 
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText('Edit action')).toBeInTheDocument()
-    expect(within(dialog).getByLabelText('source.path')).toHaveValue('/mnt/raw/orders')
+    expect(within(dialog).getByLabelText('Path')).toHaveValue('/mnt/raw/orders')
   })
 
   it('every editable action node exposes an edit affordance', async () => {
@@ -356,9 +369,11 @@ describe('GraphView — double-click opens the action editor modal (Fix #3)', ()
 })
 
 describe('GraphView — a failed modal save is not a locked dead-end (Fix #2)', () => {
-  it('keeps the modal open, locks Save, and Open in Code view escapes to the Code view', async () => {
-    // yaml_error → persistBufferToDisk returns false AFTER commit cleared the
-    // buffer's dirty flag, so the re-derived action makes Save disabled.
+  it('surfaces a recovery banner and Open in Code view escapes to the Code view', async () => {
+    // yaml_error → persistBufferToDisk returns false. Unlike the retired
+    // flattener, the staged-save shell keeps its recorded edits, so Save stays
+    // retryable; the escape from a failed persist is the in-modal banner's
+    // "Open in Code view", which closes the modal and jumps to the Code view.
     mockWriteFile.mockResolvedValue({
       written: true,
       path: PATH,
@@ -369,18 +384,17 @@ describe('GraphView — a failed modal save is not a locked dead-end (Fix #2)', 
     fireEvent.doubleClick(await screen.findByTestId('rf-node-load_orders'))
     const dialog = await screen.findByRole('dialog')
 
-    fireEvent.change(within(dialog).getByLabelText('source.path'), {
-      target: { value: '/mnt/raw/orders_v2' },
-    })
+    // Stage an edit (the field commits on blur) so Save is enabled.
+    const pathInput = within(dialog).getByLabelText('Path')
+    fireEvent.change(pathInput, { target: { value: '/mnt/raw/orders_v2' } })
+    fireEvent.blur(pathInput)
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }))
 
-    // The escape banner appears and Save is now locked (dead-end proven)…
+    // The anti-dead-end recovery banner appears with an Open-in-Code-view escape.
     const escape = await screen.findByRole('button', { name: /open in code view/i })
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled(),
-    )
+    expect(within(dialog).getByRole('alert')).toBeInTheDocument()
 
-    // …but Open in Code view closes the modal and switches to the Code view.
+    // Open in Code view closes the modal and switches the tab to the Code view.
     fireEvent.click(escape)
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(entityView()).toBe('code')

@@ -1,49 +1,62 @@
 // ── write / streaming_table — 3 modes (standard | cdc | snapshot_cdc) ─
 //
 // The discriminator is `write_target.mode` (default 'standard',
-// generators/write/streaming_table.py:56). It switches which field GROUPS
-// render. The three modes are asymmetric on purpose:
-//   • cdc          → `cdc_config` with `scd_type` (1|2) + column_list/except_column_list
-//   • snapshot_cdc → `snapshot_cdc_config` with `stored_as_scd_type` + source ⊕ source_function
-// The bundled JSON schema is stale for cdc_config — fields below come from
-// the validators + generator, not the schema.
+// generators/write/streaming_table.py:56-58). It switches which field GROUPS
+// render AND, via `branchPaths` (Task 0.5), PRUNES the now-inactive mode's
+// exclusive keys on switch — so the create/edit flow can never leave a stale
+// cdc_config under mode=standard (the compatibility validators reject that).
+// The three modes are asymmetric on purpose:
+//   • standard     → append; action-level `source` (shared with cdc)
+//   • cdc          → `cdc_config` with `scd_type` (1|2) + column_list/except
+//   • snapshot_cdc → `snapshot_cdc_config` with `stored_as_scd_type` +
+//                    source ⊕ source_function; NO action-level `source`
+// The bundled JSON schema is STALE for cdc_config (flowgroup.schema.json:697-763:
+// mode enum omits 'standard'; a spurious cdc `stored_as_scd_type`; scd types
+// typed as string) — fields below come from the validators + generator + the
+// Jinja template, not the schema.
 //
-// Field provenance:
-//   write_target.mode                    generators/write/streaming_table.py:56; ...-standard.md:10
-//   write_target.catalog     required    validators/action/write.py:118-119
-//   write_target.schema      required    validators/action/write.py:120-121
-//   write_target.table       required    validators/action/write.py:122-123
-//   source (non-snapshot)    required    validators/action/write.py:130-134 (cdc: single string :141-149)
-//   write_target.create_table            generators/write/streaming_table.py:67 (forced true in snapshot_cdc :64-65)
-//   write_target.temporary               generators/write/streaming_table.py:101
-//   write_target.comment                 generators/write/streaming_table.py:247
-//   write_target.table_schema            generators/write/streaming_table.py:79
-//   write_target.row_filter              generators/write/streaming_table.py:100
-//   write_target.partition_columns       generators/write/streaming_table.py:244
-//   write_target.cluster_columns         generators/write/streaming_table.py:245 (XOR cluster_by_auto)
-//   write_target.cluster_by_auto         generators/write/streaming_table.py:246; ...-standard.md:24
-//   write_target.path                    generators/write/streaming_table.py:248
-//   write_target.table_properties        generators/write/streaming_table.py:76
-//   write_target.tags                    references/actions-write-streaming-table-standard.md:18
-//   write_target.spark_conf              generators/write/streaming_table.py:78
-//   cdc_config.keys          required    validators/compatibility/cdc_config.py:41-43
-//   cdc_config.sequence_by               validators/compatibility/cdc_config.py:60
-//   cdc_config.scd_type                  validators/compatibility/_cdc_helpers.py:13-16 (1|2)
-//   cdc_config.ignore_null_updates       validators/compatibility/_cdc_helpers.py:20
-//   cdc_config.apply_as_deletes          validators/compatibility/_cdc_helpers.py:25
-//   cdc_config.apply_as_truncates        validators/compatibility/_cdc_helpers.py:28 (not w/ scd 2 :33)
-//   cdc_config.column_list               validators/compatibility/_cdc_helpers.py:74 (XOR except)
-//   cdc_config.except_column_list        validators/compatibility/_cdc_helpers.py:75
-//   cdc_config.track_history_column_list          _cdc_helpers.py:38 (XOR except)
-//   cdc_config.track_history_except_column_list    _cdc_helpers.py:39
-//   snapshot_cdc_config.source           validators/compatibility/snapshot_cdc.py:40 (XOR source_function)
-//   snapshot_cdc_config.source_function.file      snapshot_cdc.py:57
-//   snapshot_cdc_config.source_function.function  snapshot_cdc.py:59
-//   snapshot_cdc_config.source_function.parameters snapshot_cdc.py:62
-//   snapshot_cdc_config.keys      required        snapshot_cdc.py:76-78
-//   snapshot_cdc_config.stored_as_scd_type        snapshot_cdc.py:95-98 (1|2)
-//   snapshot_cdc_config.track_history_column_list  snapshot_cdc.py:107 (XOR except)
-//   snapshot_cdc_config.track_history_except_column_list snapshot_cdc.py:108
+// scd_type coercion (Task 0.2): the scd_type / stored_as_scd_type enums are
+// `valueType:'integer'`, so EnumSelect commits the NUMBER 2 (not "2"). A legacy
+// hand-edited file may still hold the string "2", so every scd-type predicate
+// compares via `String(...) === '2'` to handle both.
+//
+// Field provenance (validators live under core/validators/):
+//   write_target.mode                    generators/write/streaming_table.py:56-58 (standard|cdc|snapshot_cdc, default standard)
+//   write_target.catalog     required    core/validators/action/write.py:118-119
+//   write_target.schema      required    core/validators/action/write.py:120-121
+//   write_target.table       required    core/validators/action/write.py:122-123
+//   source (non-snapshot)    required    core/validators/action/write.py:130-134 (cdc: single view)
+//   once                                 models/_action.py:107 (Optional[bool]); streaming_table.py:174,259
+//   write_target.create_table            streaming_table.py:64-67 (forced true in snapshot_cdc; default true otherwise); models/_action.py:25
+//   write_target.temporary               streaming_table.py:101; models/_action.py:35
+//   write_target.comment                 streaming_table.py:247; models/_action.py:26
+//   write_target.table_schema            streaming_table.py:79-98 (inline DDL OR file path; is_file_path → .yaml/.yml/.json/.sql)
+//   write_target.row_filter              streaming_table.py:100; models/_action.py:34
+//   write_target.partition_columns       streaming_table.py:244; models/_action.py:29
+//   write_target.cluster_columns         streaming_table.py:245 (XOR cluster_by_auto)
+//   write_target.cluster_by_auto         streaming_table.py:246; models/_action.py:31
+//   write_target.path                    streaming_table.py:248; models/_action.py:36
+//   write_target.table_properties        streaming_table.py:76-77; models/_action.py:27
+//   write_target.tags                    _field_catalog.py:71 (WriteTarget field; not emitted by the ST template)
+//   write_target.spark_conf              streaming_table.py:78; models/_action.py:32
+//   cdc_config.keys          required    core/validators/compatibility/cdc_config.py:41-52 (list)
+//   cdc_config.sequence_by               cdc_config.py:60-76 (string or list)
+//   cdc_config.scd_type                  core/validators/compatibility/_cdc_helpers.py:13-16 (int 1|2, default 1)
+//   cdc_config.ignore_null_updates       _cdc_helpers.py:18-21 (bool)
+//   cdc_config.apply_as_deletes          _cdc_helpers.py:23-26 (SQL expression STRING)
+//   cdc_config.apply_as_truncates        _cdc_helpers.py:28-36 (STRING; REJECTED when scd_type==2)
+//   cdc_config.column_list               _cdc_helpers.py:82-89 (XOR except_column_list, :74-80)
+//   cdc_config.except_column_list        _cdc_helpers.py:91-98
+//   cdc_config.track_history_column_list          _cdc_helpers.py:41-66 (XOR except); template :58-59 emits ONLY when scd_type==2 → SCD-2-only
+//   cdc_config.track_history_except_column_list    _cdc_helpers.py:41-66
+//   snapshot_cdc_config.source           core/validators/compatibility/snapshot_cdc.py:40-50 (XOR source_function)
+//   snapshot_cdc_config.source_function.file      snapshot_cdc.py:57-58 (required)
+//   snapshot_cdc_config.source_function.function  snapshot_cdc.py:59-60 (required)
+//   snapshot_cdc_config.source_function.parameters snapshot_cdc.py:62-67 (dict)
+//   snapshot_cdc_config.keys      required        snapshot_cdc.py:76-86 (list)
+//   snapshot_cdc_config.stored_as_scd_type        snapshot_cdc.py:95-98 (int 1|2, default 1; DIFFERENT key from cdc's scd_type)
+//   snapshot_cdc_config.track_history_column_list  snapshot_cdc.py:102-138 (XOR except); template :121-124 emits regardless of SCD type → NOT gated (asymmetry vs cdc)
+//   snapshot_cdc_config.track_history_except_column_list snapshot_cdc.py:102-138
 
 import type { ActionSubTypeSpec } from './types'
 import { effectiveValue, isPresent, readPath } from './helpers'
@@ -55,6 +68,11 @@ const mode = (raw: Record<string, unknown>): string =>
 
 const CDC = ['write_target', 'cdc_config'] as const
 const SNAP = ['write_target', 'snapshot_cdc_config'] as const
+
+// EnumSelect(valueType integer) writes scd_type as the number 2; a legacy file
+// may hold the string "2". Compare via String() so both read as SCD Type 2.
+const isCdcScd2 = (raw: Record<string, unknown>): boolean =>
+  String(readPath(raw, [...CDC, 'scd_type'])) === '2'
 
 export const writeStreamingTableSpec: ActionSubTypeSpec = {
   kind: 'write',
@@ -69,8 +87,19 @@ export const writeStreamingTableSpec: ActionSubTypeSpec = {
           path: ['write_target', 'mode'],
           label: 'Write mode',
           widget: 'enum',
+          display: 'segmented',
           options: MODE,
           enumDefault: 'standard',
+          // Owned key-blocks per mode (Task 0.5 prune-on-switch). `source` is
+          // SHARED by standard+cdc (survives a switch between them); switching to
+          // snapshot_cdc prunes action-level `source` + `cdc_config`; switching
+          // off cdc prunes `cdc_config`. The discriminator key itself is NEVER
+          // listed under a branch, and no branch owns an ancestor of another's.
+          branchPaths: {
+            standard: [['source']],
+            cdc: [['source'], [...CDC]],
+            snapshot_cdc: [[...SNAP]],
+          },
         },
       ],
     },
@@ -105,6 +134,8 @@ export const writeStreamingTableSpec: ActionSubTypeSpec = {
     },
     {
       title: 'Source',
+      // Hidden in snapshot_cdc (that mode's source lives in snapshot_cdc_config);
+      // the mode branchPaths prune removes the key on switch.
       visibleWhen: (raw) => mode(raw) !== 'snapshot_cdc',
       fields: [
         {
@@ -139,9 +170,10 @@ export const writeStreamingTableSpec: ActionSubTypeSpec = {
           path: [...CDC, 'scd_type'],
           label: 'SCD type',
           widget: 'enum',
+          display: 'segmented',
           options: ['1', '2'],
           valueType: 'integer',
-          unsetLabel: 'Not set',
+          enumDefault: '1',
         },
         {
           path: [...CDC, 'ignore_null_updates'],
@@ -154,12 +186,18 @@ export const writeStreamingTableSpec: ActionSubTypeSpec = {
           label: 'Apply as deletes',
           widget: 'text',
           monospace: true,
+          placeholder: 'operation = "DELETE"',
         },
         {
           path: [...CDC, 'apply_as_truncates'],
           label: 'Apply as truncates',
           widget: 'text',
           monospace: true,
+          placeholder: 'operation = "TRUNCATE"',
+          // SCD-1-only: the validator rejects apply_as_truncates with SCD Type 2
+          // (_cdc_helpers.py:32-36). Disabled — not hidden — under SCD 2 so the
+          // constraint is visible; the "why" hint is the custom rule below.
+          disabledWhen: isCdcScd2,
         },
         {
           path: [...CDC, 'column_list'],
@@ -178,12 +216,16 @@ export const writeStreamingTableSpec: ActionSubTypeSpec = {
           label: 'Track history — columns',
           widget: 'stringList',
           monospace: true,
+          // SCD-2-only: the template emits these only when scd_type==2
+          // (streaming_table.py.j2:58-59) — silently dropped for SCD 1.
+          visibleWhen: isCdcScd2,
         },
         {
           path: [...CDC, 'track_history_except_column_list'],
           label: 'Track history — except columns',
           widget: 'stringList',
           monospace: true,
+          visibleWhen: isCdcScd2,
         },
       ],
     },
@@ -193,30 +235,53 @@ export const writeStreamingTableSpec: ActionSubTypeSpec = {
       visibleWhen: (raw) => mode(raw) === 'snapshot_cdc',
       fields: [
         {
-          path: [...SNAP, 'source'],
-          label: 'Source',
-          widget: 'text',
-          monospace: true,
-          placeholder: '${catalog}.${bronze_schema}.customer_snapshot',
-        },
-        {
-          path: [...SNAP, 'source_function', 'file'],
-          label: 'Source function — file',
-          widget: 'text',
-          monospace: true,
-          placeholder: 'snapshots/customer.py',
-        },
-        {
-          path: [...SNAP, 'source_function', 'function'],
-          label: 'Source function — name',
-          widget: 'text',
-          monospace: true,
-          placeholder: 'next_snapshot',
-        },
-        {
-          path: [...SNAP, 'source_function', 'parameters'],
-          label: 'Source function — parameters',
-          widget: 'keyValue',
+          // Synthetic path — the branches own the real source / source_function
+          // keys. `source` is a plain table ref; `source_function` is an OBJECT
+          // (file/function/parameters) rendered via the `'fields'` backing.
+          path: [...SNAP, '__source'],
+          label: 'Snapshot source',
+          widget: 'oneOfToggle',
+          oneOf: {
+            options: [
+              {
+                value: 'source',
+                label: 'Source table',
+                path: [...SNAP, 'source'],
+                backing: 'text',
+                placeholder: '${catalog}.${bronze_schema}.customer_snapshot',
+              },
+              {
+                value: 'source_function',
+                label: 'Source function',
+                path: [...SNAP, 'source_function'],
+                backing: 'fields',
+                fields: [
+                  {
+                    path: [...SNAP, 'source_function', 'file'],
+                    label: 'Function file',
+                    widget: 'text',
+                    monospace: true,
+                    required: true,
+                    fileRef: { accept: ['.py'] },
+                    placeholder: 'snapshots/customer.py',
+                  },
+                  {
+                    path: [...SNAP, 'source_function', 'function'],
+                    label: 'Function name',
+                    widget: 'text',
+                    monospace: true,
+                    required: true,
+                    placeholder: 'next_snapshot',
+                  },
+                  {
+                    path: [...SNAP, 'source_function', 'parameters'],
+                    label: 'Parameters',
+                    widget: 'keyValue',
+                  },
+                ],
+              },
+            ],
+          },
         },
         {
           path: [...SNAP, 'keys'],
@@ -228,12 +293,15 @@ export const writeStreamingTableSpec: ActionSubTypeSpec = {
         },
         {
           path: [...SNAP, 'stored_as_scd_type'],
-          label: 'Stored as SCD type',
+          label: 'SCD type',
           widget: 'enum',
+          display: 'segmented',
           options: ['1', '2'],
           valueType: 'integer',
-          unsetLabel: 'Not set',
+          enumDefault: '1',
         },
+        // Snapshot track-history is valid REGARDLESS of SCD type (asymmetry vs
+        // cdc — template :121-124 has no scd-type gate); shown unconditionally.
         {
           path: [...SNAP, 'track_history_column_list'],
           label: 'Track history — columns',
@@ -250,12 +318,23 @@ export const writeStreamingTableSpec: ActionSubTypeSpec = {
     },
     {
       title: 'Table options',
+      advanced: true,
       fields: [
         {
           path: ['write_target', 'create_table'],
           label: 'Create table',
           widget: 'bool',
           defaultValue: true,
+          // Snapshot CDC always materializes the table (streaming_table.py:64-65
+          // forces create_table=True); render checked-and-disabled there. The
+          // explanatory hint is the custom rule below.
+          disabledWhen: (raw) => mode(raw) === 'snapshot_cdc',
+        },
+        {
+          path: ['once'],
+          label: 'Run once (backfill)',
+          widget: 'bool',
+          defaultValue: false,
         },
         {
           path: ['write_target', 'temporary'],
@@ -265,10 +344,32 @@ export const writeStreamingTableSpec: ActionSubTypeSpec = {
         },
         { path: ['write_target', 'comment'], label: 'Comment', widget: 'text' },
         {
-          path: ['write_target', 'table_schema'],
+          // Synthetic path — both branches own the single `table_schema` key
+          // (inline DDL OR a file path, auto-detected by the generator). The
+          // toggle is a pure affordance switch; the shared key survives it.
+          path: ['write_target', '__table_schema'],
           label: 'Table schema',
-          widget: 'textarea',
-          monospace: true,
+          widget: 'oneOfToggle',
+          oneOf: {
+            options: [
+              {
+                value: 'inline',
+                label: 'Inline DDL',
+                path: ['write_target', 'table_schema'],
+                backing: 'inline',
+                language: 'sql',
+                placeholder: 'customer_id BIGINT, name STRING',
+              },
+              {
+                value: 'file',
+                label: 'From file',
+                path: ['write_target', 'table_schema'],
+                backing: 'file',
+                accept: ['.yaml', '.yml', '.json', '.sql'],
+                placeholder: 'schemas/customer_dim.yaml',
+              },
+            ],
+          },
         },
         { path: ['write_target', 'row_filter'], label: 'Row filter', widget: 'text', monospace: true },
         {
@@ -313,6 +414,14 @@ export const writeStreamingTableSpec: ActionSubTypeSpec = {
       ],
       message: 'Set only one of cluster columns / auto clustering.',
     },
+    {
+      kind: 'custom',
+      paths: [['write_target', 'create_table']],
+      check: (raw) =>
+        mode(raw) === 'snapshot_cdc'
+          ? 'Snapshot CDC always creates the table — create_table is forced on.'
+          : null,
+    },
     // cdc mode -----------------------------------------------------------
     {
       kind: 'mutuallyExclusive',
@@ -334,8 +443,7 @@ export const writeStreamingTableSpec: ActionSubTypeSpec = {
       kind: 'custom',
       paths: [[...CDC, 'apply_as_truncates']],
       check: (raw) =>
-        isPresent(readPath(raw, [...CDC, 'apply_as_truncates'])) &&
-        readPath(raw, [...CDC, 'scd_type']) === 2
+        isPresent(readPath(raw, [...CDC, 'apply_as_truncates'])) && isCdcScd2(raw)
           ? 'apply_as_truncates is not supported with SCD Type 2.'
           : null,
     },

@@ -157,6 +157,15 @@ export type LineageEdge = Schemas['LineageEdge']
 export type DatasetConsumer = Schemas['DatasetConsumer']
 export type DatasetLineageResponse = Schemas['DatasetLineageResponse']
 
+// ── Operational metadata ─────────────────────────────────
+// `GET /api/operational-metadata` — the operational-metadata columns and
+// presets available to the project (REPLACE semantics: project-declared
+// columns suppress the built-ins). Consumed by the MetadataMultiSelect widget.
+
+export type OperationalMetadataColumnSummary = Schemas['OperationalMetadataColumnSummary']
+export type OperationalMetadataPresetSummary = Schemas['OperationalMetadataPresetSummary']
+export type OperationalMetadataResponse = Schemas['OperationalMetadataResponse']
+
 // ── Validation ───────────────────────────────────────────
 
 export interface ValidateResponse {

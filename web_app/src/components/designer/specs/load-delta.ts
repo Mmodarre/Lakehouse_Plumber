@@ -64,7 +64,8 @@ export const loadDeltaSpec: ActionSubTypeSpec = {
       ],
     },
     {
-      title: 'Options',
+      title: 'Advanced',
+      advanced: true,
       fields: [
         {
           path: ['source', 'options'],

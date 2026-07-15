@@ -5,6 +5,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { SegmentedControl } from '@/components/ui/segmented-control'
 import type { SchemaPath } from '@/lib/schema-help'
 import { FieldChrome } from './FieldChrome'
 import { issueId } from './fieldSupport'
@@ -42,6 +43,8 @@ export interface EnumSelectProps {
   /** Validation message shown under the field. */
   issue?: string
   disabled?: boolean
+  /** Control style. `'segmented'` renders a SegmentedControl; default is the dropdown. */
+  display?: 'segmented' | 'select'
 }
 
 export function EnumSelect({
@@ -57,9 +60,37 @@ export function EnumSelect({
   description,
   issue,
   disabled,
+  display,
 }: EnumSelectProps) {
   const known = value !== undefined && options.includes(value)
   const selectValue = known ? value : value === undefined && unsetLabel ? UNSET : undefined
+
+  if (display === 'segmented') {
+    return (
+      <FieldChrome
+        id={id}
+        label={label}
+        helpPath={helpPath}
+        help={help}
+        description={description}
+        issue={issue}
+      >
+        <SegmentedControl
+          size="sm"
+          aria-label={label}
+          // Radix shows nothing selected for an unknown/absent value; there is
+          // no synthetic unset segment (a segmented control is non-deselectable).
+          value={known && value !== undefined ? value : ''}
+          // Same value path as the Select branch: hand the chosen option string
+          // to `onSet` (SegmentedControl only forwards concrete option values,
+          // never UNSET, so no unset routing is needed here).
+          onValueChange={onSet}
+          options={options.map((option) => ({ value: String(option), label: option, disabled }))}
+        />
+      </FieldChrome>
+    )
+  }
+
   return (
     <FieldChrome
       id={id}

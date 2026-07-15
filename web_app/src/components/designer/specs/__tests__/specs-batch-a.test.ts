@@ -372,14 +372,10 @@ describe('batch A specs — cross-field rules', () => {
     expect(stream.has(pathKey(['readMode']))).toBe(false)
   })
 
-  it('transform/data_quality: readMode must be stream + quarantine fields only required when visible', () => {
-    const batch = computeIssues(transformDataQualitySpec, {
-      source: 'v',
-      expectations_file: 'f',
-      readMode: 'batch',
-      target: 't',
-    })
-    expect(batch.get(pathKey(['readMode']))).toMatch(/stream/i)
+  it('transform/data_quality: quarantine fields only required when the group is visible', () => {
+    // readMode has NO form field (it is an informational note); its
+    // must-be-stream cross-field rule is KEPT for raw/Python correctness but has
+    // no visible field to surface on, so there is no field-level hint assertion.
 
     // mode dqe → quarantine group hidden → no required hints on its fields
     const dqe = computeIssues(transformDataQualitySpec, {
@@ -400,18 +396,18 @@ describe('batch A specs — cross-field rules', () => {
     expect(quarantine.get(pathKey(['quarantine', 'source_table']))).toMatch(/required/i)
   })
 
-  it('transform/schema: xor(schema_inline, schema_file)', () => {
+  it('transform/schema: xor(schema_inline, schema_file) surfaces on the toggle', () => {
+    // schema_inline ⊕ schema_file now render as one oneOfToggle, so the xor hint
+    // surfaces at the toggle's synthetic visible path.
     const both = computeIssues(transformSchemaSpec, {
       source: 'v',
       schema_inline: 'x',
       schema_file: 'y',
       target: 't',
     })
-    expect(both.get(pathKey(['schema_inline']))).toMatch(/exactly one/i)
-    expect(both.get(pathKey(['schema_file']))).toMatch(/exactly one/i)
+    expect(both.get(pathKey(['__schema_source']))).toMatch(/exactly one/i)
 
     const one = computeIssues(transformSchemaSpec, { source: 'v', schema_inline: 'x', target: 't' })
-    expect(one.has(pathKey(['schema_inline']))).toBe(false)
-    expect(one.has(pathKey(['schema_file']))).toBe(false)
+    expect(one.has(pathKey(['__schema_source']))).toBe(false)
   })
 })

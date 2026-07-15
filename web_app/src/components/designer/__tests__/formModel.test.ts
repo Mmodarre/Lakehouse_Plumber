@@ -32,22 +32,22 @@ describe('formModel — visibility (mode discriminator)', () => {
 })
 
 describe('formModel — soft validation hints', () => {
-  it('sql XOR sql_path: both set and neither set both hint; exactly one is clean', () => {
+  it('sql XOR sql_path: both set and neither set both hint (on the toggle); exactly one is clean', () => {
+    // sql ⊕ sql_path now render as one oneOfToggle, so the xor hint surfaces at
+    // the toggle's synthetic visible path (both branch keys re-key there).
     const both = computeIssues(transformSqlSpec, {
       sql: 'x',
       sql_path: 'y',
       source: 'v',
       target: 't',
     })
-    expect(both.get(pathKey(['sql']))).toMatch(/exactly one/i)
-    expect(both.get(pathKey(['sql_path']))).toMatch(/exactly one/i)
+    expect(both.get(pathKey(['__sql_source']))).toMatch(/exactly one/i)
 
     const neither = computeIssues(transformSqlSpec, { source: 'v', target: 't' })
-    expect(neither.get(pathKey(['sql']))).toMatch(/exactly one/i)
+    expect(neither.get(pathKey(['__sql_source']))).toMatch(/exactly one/i)
 
     const one = computeIssues(transformSqlSpec, { sql: 'x', source: 'v', target: 't' })
-    expect(one.has(pathKey(['sql']))).toBe(false)
-    expect(one.has(pathKey(['sql_path']))).toBe(false)
+    expect(one.has(pathKey(['__sql_source']))).toBe(false)
   })
 
   it('required-missing hints on absent required fields', () => {
@@ -117,6 +117,9 @@ describe('formModel — soft validation hints', () => {
   })
 
   it('snapshot source XOR source_function', () => {
+    // source ⊕ source_function now render as one oneOfToggle (Task 4.3a), so the
+    // xor hint surfaces at the toggle's synthetic visible path (both branch keys
+    // re-key there via computeIssues toggle-ownership) — mirroring sql/sql_path.
     const both = computeIssues(writeStreamingTableSpec, {
       write_target: {
         mode: 'snapshot_cdc',
@@ -126,7 +129,7 @@ describe('formModel — soft validation hints', () => {
         snapshot_cdc_config: { source: 't', source_function: { file: 'f', function: 'g' } },
       },
     })
-    expect(both.get(pathKey(['write_target', 'snapshot_cdc_config', 'source']))).toMatch(
+    expect(both.get(pathKey(['write_target', 'snapshot_cdc_config', '__source']))).toMatch(
       /exactly one/i,
     )
   })

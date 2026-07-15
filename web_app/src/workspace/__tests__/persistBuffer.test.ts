@@ -170,3 +170,54 @@ describe('persistBufferToDisk — validation refresh (Fix #1)', () => {
     expect(startValidate).not.toHaveBeenCalled()
   })
 })
+
+describe('persistBufferToDisk — operational-metadata invalidation', () => {
+  function invalidatedKeys(spy: ReturnType<typeof vi.spyOn>): unknown[][] {
+    return spy.mock.calls.map(
+      (call: unknown[]) => (call[0] as { queryKey: unknown[] }).queryKey,
+    )
+  }
+
+  it('invalidates ["operational-metadata"] on a clean write to the root lhp.yaml', async () => {
+    const ws = useWorkspaceStore.getState()
+    ws.openBuffer('lhp.yaml', { content: 'name: proj\n', etag: 'e1', exists: true })
+    ws.updateContent('lhp.yaml', 'name: proj2\n')
+    mockWriteFile.mockResolvedValue({ written: true, path: 'lhp.yaml', etag: 'e2' })
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries')
+
+    const ok = await persistBufferToDisk('lhp.yaml', qc, runController)
+
+    expect(ok).toBe(true)
+    const keys = invalidatedKeys(invalidateSpy)
+    expect(keys).toContainEqual(['files'])
+    expect(keys).toContainEqual(['operational-metadata'])
+  })
+
+  it('does NOT invalidate ["operational-metadata"] on a non-root flowgroup yaml write', async () => {
+    seedDirtyBuffer() // PATH = pipelines/bronze/orders.yaml
+    mockWriteFile.mockResolvedValue({ written: true, path: PATH, etag: 'e2' })
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries')
+
+    const ok = await persistBufferToDisk(PATH, qc, runController)
+
+    expect(ok).toBe(true)
+    const keys = invalidatedKeys(invalidateSpy)
+    expect(keys).toContainEqual(['files'])
+    expect(keys).not.toContainEqual(['operational-metadata'])
+  })
+
+  it('does NOT invalidate ["operational-metadata"] for a nested path merely named lhp.yaml', async () => {
+    const nested = 'sub/lhp.yaml'
+    const ws = useWorkspaceStore.getState()
+    ws.openBuffer(nested, { content: 'a: 1\n', etag: 'e1', exists: true })
+    ws.updateContent(nested, 'a: 2\n')
+    mockWriteFile.mockResolvedValue({ written: true, path: nested, etag: 'e2' })
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries')
+
+    const ok = await persistBufferToDisk(nested, qc, runController)
+
+    expect(ok).toBe(true)
+    const keys = invalidatedKeys(invalidateSpy)
+    expect(keys).not.toContainEqual(['operational-metadata'])
+  })
+})

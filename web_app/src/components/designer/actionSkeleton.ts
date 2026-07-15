@@ -40,6 +40,15 @@ function placeholderForField(field: FieldSpec): unknown {
     case 'keyValue':
       return {}
     case 'objectList':
+      // A required objectList (test/custom_expectations) seeds ONE blank row so
+      // a palette-created action isn't immediately empty-invalid — the sub-type
+      // spec is authored expecting the skeleton to seed it. An OPTIONAL
+      // objectList (test/custom_sql) never reaches here.
+      return [blankRow(field.itemFields ?? [])]
+    case 'dualSource':
+      // A dualSource value IS a fixed two-slot list; an empty list is "present
+      // but empty" (both slots render blank, the "exactly two" soft rule hints),
+      // exactly as stringList seeds.
       return []
     case 'bool':
       return field.defaultValue ?? false
@@ -52,6 +61,23 @@ function placeholderForField(field: FieldSpec): unknown {
       // empty": the form shows it with a soft required hint.
       return ''
   }
+}
+
+/**
+ * One blank `objectList` row: every REQUIRED item field seeded with its own
+ * placeholder (number items, whose placeholder is undefined, are omitted). The
+ * row's empty values carry the same soft required hints a top-level seeded
+ * field does, so the user sees the shape to fill rather than an empty list.
+ */
+function blankRow(itemFields: FieldSpec[]): Record<string, unknown> {
+  const row: Record<string, unknown> = {}
+  for (const item of itemFields) {
+    if (!item.required) continue
+    const value = placeholderForField(item)
+    if (value === undefined) continue
+    setAtPath(row, item.path, value)
+  }
+  return row
 }
 
 /** Set `value` at a string `path` inside `obj`, creating intermediate maps
@@ -79,9 +105,10 @@ function producesTarget(kind: ActionKind, spec: { groups: { fields: FieldSpec[] 
 
 /**
  * The shape of a spec's primary `source` field (path exactly `['source']`):
- * `'string'` for a text / stringOrList ref, `'list'` for a stringList ref,
- * `null` when there is none (loads read a structured `source` mapping, so
- * they take no upstream view). Drives pre-wiring and the fan-in affordance.
+ * `'string'` for a text / stringOrList ref, `'list'` for a stringList or
+ * dualSource ref, `null` when there is none (loads read a structured `source`
+ * mapping, so they take no upstream view). Drives pre-wiring and the fan-in
+ * affordance.
  */
 export function sourceFieldShape(kind: ActionKind, subType: string): 'string' | 'list' | null {
   const spec = getActionSpec(kind, subType)
@@ -89,7 +116,7 @@ export function sourceFieldShape(kind: ActionKind, subType: string): 'string' | 
   for (const group of spec.groups) {
     for (const field of group.fields) {
       if (field.path.length === 1 && field.path[0] === 'source') {
-        if (field.widget === 'stringList') return 'list'
+        if (field.widget === 'stringList' || field.widget === 'dualSource') return 'list'
         if (field.widget === 'text' || field.widget === 'stringOrList') return 'string'
         return null
       }

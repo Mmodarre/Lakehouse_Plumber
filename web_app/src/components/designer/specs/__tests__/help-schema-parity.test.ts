@@ -56,6 +56,22 @@ function collectLeaves(): Leaf[] {
   const leaves: Leaf[] = []
   const walk = (specKey: string, fields: readonly FieldSpec[], prefix: readonly (string | number)[]) => {
     for (const field of fields) {
+      // A `oneOfToggle`'s own `path` is SYNTHETIC (`__…`): a toggle owns no
+      // single YAML key, so it can never resolve in the schema. Skip it and
+      // instead validate each BRANCH's real key path (`sql`, `sql_path`,
+      // `source`, …) — those ARE YAML keys and must carry help. A branch with
+      // a `'fields'` backing owns an OBJECT key whose sub-fields carry their
+      // own absolute action-relative paths; recurse so those resolve too.
+      if (field.widget === 'oneOfToggle' && field.oneOf) {
+        for (const option of field.oneOf.options) {
+          const path = [...prefix, ...option.path]
+          leaves.push({ spec: specKey, label: `${field.label} · ${option.label}`, path })
+          if (option.fields && option.fields.length > 0) {
+            walk(specKey, option.fields, prefix)
+          }
+        }
+        continue
+      }
       const path = [...prefix, ...field.path]
       leaves.push({ spec: specKey, label: field.label, path })
       if (field.itemFields && field.itemFields.length > 0) {

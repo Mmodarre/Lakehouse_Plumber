@@ -62,6 +62,7 @@ _ROUTER_MODULES: tuple[str, ...] = (
     "templates",
     "blueprints",
     "environments",
+    "metadata",
     "dependencies",
     "sandbox",
     "schemas",

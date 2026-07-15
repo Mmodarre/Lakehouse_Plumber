@@ -65,7 +65,7 @@ function extFor(target: CodeTarget): string {
     const ext = basename(target.filePath).split('.').pop()
     return ext !== undefined && ext !== '' ? ext.toLowerCase() : 'txt'
   }
-  return target.language === 'python' ? 'py' : 'sql'
+  return target.language === 'python' ? 'py' : target.language === 'yaml' ? 'yaml' : 'sql'
 }
 
 export function CodeModal({ target, readOnly, commit, openAsFile, onClose }: CodeModalProps) {

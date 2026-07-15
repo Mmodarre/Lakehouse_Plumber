@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { TokenAutocomplete } from '@/components/designer/TokenAutocomplete'
 import { cn } from '../../../lib/utils'
 
 // ── DraftInput — the commit-on-blur core of every text field ─
@@ -20,6 +21,9 @@ export interface DraftInputProps {
   /** Render a Textarea (blur-commit only; Enter inserts a newline). */
   multiline?: boolean
   monospace?: boolean
+  /** Opt in to `${env}`-token autocomplete (a `$`-trigger popover overlay).
+   * Default absent → the plain input; existing callsites are unaffected. */
+  tokenComplete?: boolean
   placeholder?: string
   readOnly?: boolean
   disabled?: boolean
@@ -34,6 +38,7 @@ export function DraftInput({
   onCommit,
   multiline = false,
   monospace = false,
+  tokenComplete = false,
   className,
   ...rest
 }: DraftInputProps) {
@@ -57,6 +62,24 @@ export function DraftInput({
     } else if (e.key === 'Escape') {
       setDraft(initial)
     }
+  }
+
+  if (tokenComplete) {
+    // TokenAutocomplete owns the keyboard while its popover is open (Enter =
+    // select, Escape = close), and defers to the draft semantics below only
+    // when it is closed — so `onKeyDown` is expressed as onCommit/onRevert.
+    return (
+      <TokenAutocomplete
+        value={draft}
+        onValueChange={setDraft}
+        onCommit={commit}
+        onRevert={() => setDraft(initial)}
+        multiline={multiline}
+        monospace={monospace}
+        className={cn('text-xs', monospace && 'font-mono', className)}
+        {...rest}
+      />
+    )
   }
 
   const shared = {

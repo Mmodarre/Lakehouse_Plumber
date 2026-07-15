@@ -11,6 +11,29 @@
 export type SchemaDoc = Record<string, unknown>
 export type SchemaPath = readonly (string | number)[]
 
+/**
+ * Fallback help for fields that exist in the Pydantic models but carry NO
+ * schema `description` (so the packaged JSON schema resolves to nothing).
+ * Keyed by the field's path joined with a NUL delimiter. The schema ALWAYS
+ * wins when it has a description; this is consulted only as a last resort, so
+ * the "(i)" tooltip and the parity guard still resolve a real string.
+ */
+export type LocalHelpMap = Readonly<Record<string, string>>
+
+const HELP_KEY_DELIM = '\u0000'
+
+function localHelpKey(path: SchemaPath): string {
+  return path.join(HELP_KEY_DELIM)
+}
+
+/**
+ * Curated fallback help for model-only fields absent from the JSON schema.
+ * `test_id` is a Test-action model field with no schema `description`.
+ */
+export const DEFAULT_LOCAL_HELP: LocalHelpMap = {
+  [localHelpKey(['test_id'])]: 'Stable identifier for this test action.',
+}
+
 /** A schema node is a plain (non-array) object; arrays only appear as values. */
 type SchemaNode = Record<string, unknown>
 
@@ -27,11 +50,14 @@ function unescapePointerSegment(segment: string): string {
  * Build a resolver over one schema document. `root` is a JSON pointer to the
  * node the paths are relative to (default `'#'` = document root). The returned
  * fn maps a field path to that field's `description`, or `undefined` if the
- * path or description is absent.
+ * path or description is absent. `localHelp` supplies fallback descriptions
+ * for model-only fields the schema omits (see {@link DEFAULT_LOCAL_HELP});
+ * a schema description always wins over the fallback.
  */
 export function buildSchemaHelpResolver(
   schema: SchemaDoc,
   root?: string,
+  localHelp: LocalHelpMap = DEFAULT_LOCAL_HELP,
 ): (path: SchemaPath) => string | undefined {
   /** Resolve a JSON pointer against `schema`; `undefined` if it dead-ends. */
   function derefPointer(pointer: string): unknown {
@@ -136,6 +162,13 @@ export function buildSchemaHelpResolver(
   }
 
   return (path: SchemaPath): string | undefined => {
+    const fromSchema = resolveDescription(path)
+    if (fromSchema !== undefined) return fromSchema
+    // Fallback: a model-only field the schema omits (see DEFAULT_LOCAL_HELP).
+    return localHelp[localHelpKey(path)]
+  }
+
+  function resolveDescription(path: SchemaPath): string | undefined {
     let node: unknown = derefPointer(root ?? '#')
     if (node === undefined) return undefined
 
